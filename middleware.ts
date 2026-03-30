@@ -24,6 +24,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // --- Public API Integration Protection ---
+  if (pathname.startsWith('/api/v1/')) {
+    const passedKey = request.headers.get('x-api-key') || '';
+    
+    // Gọi Internal Endpoint để kiểm tra vì Middleware Edge Runtime không truy cập được Prisma
+    try {
+      const authUrl = new URL('/api/internal/auth-key', request.url);
+      const res = await fetch(authUrl, {
+        method: 'GET',
+        headers: { 'x-api-key': passedKey },
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      
+      if (!res.ok || !data.valid) {
+        return NextResponse.json(
+          { error: data.error || 'Unauthorized' },
+          { status: res.status }
+        );
+      }
+    } catch (err) {
+      return NextResponse.json({ error: 'Internal Auth Service Error' }, { status: 500 });
+    }
+    
+    // API authenticated, skip the setup check since APIs don't care about UI setup state
+    return NextResponse.next();
+  }
+
   // Check if setup is complete (has at least one user)
   try {
     const statusUrl = new URL('/api/setup', request.url);

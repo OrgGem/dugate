@@ -77,7 +77,7 @@ sudo certbot --nginx -d your-domain.com
 ## Option 3: Vercel (Limited)
 
 ::: warning
-Vercel does not support Pandoc or Ghostscript. DOCX conversion is not supported. PDF-only mode works with a direct AI Vision provider.
+Vercel does not support Pandoc or Ghostscript. DOCX transformation is not supported. PDF-only mode works with a direct AI Vision provider.
 :::
 
 ```bash

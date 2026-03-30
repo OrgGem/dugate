@@ -1,12 +1,11 @@
 'use client';
 
 // components/UploadForm.tsx
-// Drag-drop upload nhiều file + compress selector + convert button
+// Unified upload form — uses new Pipeline API
 
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, FileText, File, X, Loader2 } from 'lucide-react';
-import CompressSelector, { type CompressLevel } from './CompressSelector';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -27,11 +26,9 @@ export default function UploadForm() {
 
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [compressLevel, setCompressLevel] = useState<CompressLevel>('ebook');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasPdf = files.some(f => f.name.toLowerCase().endsWith('.pdf'));
   const totalSize = files.reduce((s, f) => s + f.size, 0);
 
   function acceptFiles(incoming: FileList | File[]) {
@@ -73,50 +70,25 @@ export default function UploadForm() {
     setError(null);
 
     try {
+      // Use new Pipeline API — one file at a time, single processor
+      const file = files[0]; // For now, process first file
       const form = new FormData();
-      for (const f of files) form.append('files', f);
-      form.append('compressLevel', compressLevel);
+      form.append('file', file);
+      form.append('pipeline', JSON.stringify([{ processor: 'prebuilt-layout' }]));
+      form.append('output_format', 'md');
 
-      const uploadRes = await fetch('/api/upload', { method: 'POST', body: form });
-      const uploadData = await uploadRes.json();
+      const res = await fetch('/api/documents/process', { method: 'POST', body: form });
+      const data = await res.json();
 
-      if (!uploadRes.ok) {
-        setError(uploadData.error ?? 'Upload thất bại');
+      if (!res.ok) {
+        setError(data.detail ?? data.title ?? 'Lỗi xử lý');
         setLoading(false);
         return;
       }
 
-      const conversionIds: string[] = (uploadData.conversions ?? []).map((c: { id: string }) => c.id);
-
-      if (conversionIds.length === 0) {
-        setError('Không có file nào được upload thành công');
-        setLoading(false);
-        return;
-      }
-
-      if (uploadData.errors?.length > 0) {
-        const errMsgs = uploadData.errors.map((e: { fileName: string; error: string }) => `${e.fileName}: ${e.error}`);
-        setError(errMsgs.join('\n'));
-      }
-
-      const convertRes = await fetch('/api/convert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversionIds }),
-      });
-
-      if (!convertRes.ok) {
-        const d = await convertRes.json();
-        setError(d.error ?? 'Không thể bắt đầu convert');
-        setLoading(false);
-        return;
-      }
-
-      if (conversionIds.length === 1) {
-        router.push(`/convert/${conversionIds[0]}`);
-      } else {
-        router.push(`/batch?ids=${conversionIds.join(',')}`);
-      }
+      // Extract operation ID from response name "operations/op-xxx"
+      const opId = data.name.replace('operations/', '');
+      router.push(`/operations/${opId}`);
     } catch {
       setError('Lỗi kết nối server. Vui lòng thử lại.');
       setLoading(false);
@@ -124,82 +96,68 @@ export default function UploadForm() {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-2xl mx-auto modern-card p-6 md:p-8">
       <div
         onClick={() => files.length === 0 && inputRef.current?.click()}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        className={`relative border-2 border-dashed rounded-xl transition-all ${
+        className={`dropzone relative ${
           dragging
-            ? 'border-[#3CABD2] bg-teal-50'
+            ? 'border-primary bg-primary/10'
             : files.length > 0
-            ? 'border-[#3CABD2]/40 bg-gray-50'
-            : 'border-gray-300 hover:border-[#3CABD2] hover:bg-gray-50 cursor-pointer'
-        } ${files.length === 0 ? 'p-10 text-center' : 'p-4'}`}
+            ? 'border-border bg-muted/50'
+            : ''
+        } ${files.length === 0 ? 'p-12 text-center' : 'p-6'}`}
       >
         <input
           ref={inputRef}
           type="file"
           accept=".docx,.pdf"
-          multiple
           className="sr-only"
           onChange={e => e.target.files && acceptFiles(e.target.files)}
         />
 
         {files.length === 0 ? (
           <>
-            <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-700 font-medium">Kéo thả file .docx hoặc .pdf vào đây</p>
-            <p className="text-sm text-gray-400 mt-1">hoặc click để chọn • hỗ trợ nhiều file • tối đa 100MB/file</p>
+            <Upload className="w-12 h-12 text-primary mx-auto mb-4 opacity-80" />
+            <p className="text-foreground font-bold mb-2">Kéo thả file .docx hoặc .pdf vào đây</p>
+            <p className="text-sm font-medium text-muted-foreground">hoặc click để chọn • Tối đa 300MB/file</p>
           </>
         ) : (
           <div className="space-y-2">
             {files.map(f => {
               const isPdf = f.name.toLowerCase().endsWith('.pdf');
               return (
-                <div key={f.name} className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2.5 shadow-sm">
-                  <div className="shrink-0">
+                <div key={f.name} className="flex items-center gap-4 bg-card rounded-xl border border-border px-4 py-3 shadow-sm hover:shadow-md dark:shadow-none transition-shadow group">
+                  <div className="shrink-0 p-2 rounded-lg bg-muted border border-border/50">
                     {isPdf
-                      ? <File className="w-5 h-5 text-[#3CABD2]" />
-                      : <FileText className="w-5 h-5 text-[#1A428A]" />}
+                      ? <File className="w-6 h-6 text-primary" />
+                      : <FileText className="w-6 h-6 text-destructive" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
-                    <p className="text-xs text-gray-400">{formatBytes(f.size)}</p>
+                    <p className="text-sm font-bold text-foreground truncate">{f.name}</p>
+                    <p className="text-xs font-semibold text-muted-foreground">{formatBytes(f.size)}</p>
                   </div>
                   <button
                     type="button"
                     onClick={e => { e.stopPropagation(); removeFile(f.name); }}
-                    className="shrink-0 p-1 hover:bg-gray-100 rounded transition-colors"
+                    className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                   >
-                    <X className="w-4 h-4 text-gray-400" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               );
             })}
-
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="w-full py-2 text-sm text-[#3CABD2] hover:text-[#2a9bbf] border border-dashed border-[#3CABD2]/40 rounded-lg hover:border-[#3CABD2] transition-colors"
-            >
-              + Thêm file
-            </button>
-
-            <p className="text-xs text-gray-400 text-right pt-1">
+            <p className="text-xs font-semibold text-muted-foreground text-right pt-1">
               {files.length} file • tổng {formatBytes(totalSize)}
             </p>
           </div>
         )}
       </div>
 
-      {files.length > 0 && hasPdf && (
-        <CompressSelector value={compressLevel} onChange={setCompressLevel} />
-      )}
-
       {error && (
-        <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2 whitespace-pre-line">
+        <div className="mt-4 text-sm font-medium text-[#E00500] bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-4 py-3 whitespace-pre-line">
           {error}
         </div>
       )}
@@ -207,17 +165,17 @@ export default function UploadForm() {
       <button
         onClick={handleConvert}
         disabled={files.length === 0 || loading}
-        className="mt-4 w-full flex items-center justify-center gap-2 py-3 px-6 bg-[#1A428A] text-white font-semibold rounded-lg hover:bg-[#153570] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base"
+        className="mt-6 w-full btn-primary modern-button text-lg"
       >
         {loading ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            Đang upload...
+            Đang xử lý...
           </>
         ) : (
           <>
             <Upload className="w-5 h-5" />
-            {files.length > 1 ? `Convert ${files.length} file` : 'Convert'}
+            Transform
           </>
         )}
       </button>

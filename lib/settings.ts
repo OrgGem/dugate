@@ -27,12 +27,19 @@ Describe in detail using this structure:
 4. ACTION REQUIRED: If the image illustrates a specific action, describe exactly what to click/type/select and where.
 
 Do not add personal opinions. Do not guess information not visible in the image.`,
-    pdf: `Convert this document to Markdown. Preserve heading structure, tables, and lists.
+    pdf: `Transform this document to Markdown. Preserve heading structure, tables, and lists.
 
 For each image in the document, replace with a detailed description block:
 > **[Image]:** [detailed description]
 
 Include: image type, software name if screenshot, all visible text, and required actions if applicable.
+
+Output clean Markdown with proper heading hierarchy (h1, h2, h3).`,
+    docx: `Transform this Word document to Markdown. Preserve heading structure, tables, and lists.
+Use GitHub Flavored Markdown for tables. 
+
+For each image in the document, replace with a placeholder:
+![Image placeholder]()
 
 Output clean Markdown with proper heading hierarchy (h1, h2, h3).`,
   },
@@ -45,21 +52,54 @@ Output clean Markdown with proper heading hierarchy (h1, h2, h3).`,
 4. Mô tả trạng thái hiện tại và thao tác mà người dùng đang thực hiện hoặc cần thực hiện.
 
 Nếu hình trắng hoặc không có nội dung rõ ràng, chỉ ghi: "[Hình không có nội dung]".`,
-    pdf: `Convert tài liệu này sang Markdown tiếng Việt. Giữ nguyên cấu trúc heading, bảng, danh sách. Mô tả chi tiết mọi hình ảnh trong tài liệu, bao gồm text trong hình nếu có.`,
+    pdf: `Transform tài liệu này sang Markdown tiếng Việt. Giữ nguyên cấu trúc heading, bảng, danh sách. Mô tả chi tiết mọi hình ảnh trong tài liệu, bao gồm text trong hình nếu có.`,
+    docx: `Transform tài liệu Word này sang Markdown tiếng Việt. Giữ nguyên cấu trúc heading, bảng, danh sách. Ưu tiên sử dụng bảng GFM cho các bảng biểu. 
+Đối với mỗi hình ảnh, hãy chèn placeholder: ![Image placeholder]()`,
   },
 } as const;
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
+export const COMPARE_PROMPT_DEFAULT = `Bạn là chuyên gia phân tích văn bản pháp lý. Nhiệm vụ của bạn là so sánh hai phiên bản của cùng một văn bản quy định/pháp lý.
+
+Văn bản được cấu trúc theo các điều, khoản (Điều 1, Điều 2, Khoản 1.1...).
+
+**FILE 1 (phiên bản cũ/gốc):**
+{file1}
+
+**FILE 2 (phiên bản mới/sửa đổi):**
+{file2}
+
+**Yêu cầu:**
+So sánh từng điều/khoản giữa hai file. Chỉ liệt kê những điều/khoản CÓ SỰ THAY ĐỔI (thêm mới, xóa bỏ, chỉnh sửa nội dung). Bỏ qua các điều/khoản giống nhau hoàn toàn.
+
+**Định dạng output — trả về JSON array, mỗi phần tử có cấu trúc:**
+{
+  "clause": "Tên điều/khoản (vd: Điều 3, Khoản 2.1, Phần IV)",
+  "file1Content": "Nội dung nguyên văn trong file 1 (để trống nếu điều/khoản này không có trong file 1)",
+  "file2Content": "Nội dung nguyên văn trong file 2 (để trống nếu điều/khoản này không có trong file 2)",
+  "note": "Mô tả ngắn gọn sự khác biệt: Thêm mới / Đã xóa / Sửa đổi [tóm tắt thay đổi]"
+}
+
+Chỉ trả về JSON array hợp lệ, không có markdown code fence hay giải thích thêm.`;
+
 export const SETTING_DEFAULTS: Record<string, string> = {
   ai_provider: 'gemini',
   ai_api_key: '',
-  ai_model: 'gemini-2.0-flash-lite',
-  ai_image_prompt: PROMPT_PRESETS.en.image,
-  ai_pdf_prompt:   PROMPT_PRESETS.en.pdf,
+  ai_model: 'gemini-1.5-flash',
+  ai_image_prompt:   PROMPT_PRESETS.en.image,
+  ai_pdf_prompt:     PROMPT_PRESETS.en.pdf,
+  ai_docx_prompt:    PROMPT_PRESETS.en.docx,
+  ai_compare_prompt: COMPARE_PROMPT_DEFAULT,
+  ai_generate_prompt: `Dựa trên nội dung tài liệu được cung cấp, hãy tạo ra tài liệu mới theo yêu cầu sau:\n\n{user_prompt}\n\nNội dung tài liệu gốc:\n{input_content}\n\nHãy tạo ra tài liệu mới với định dạng rõ ràng, cấu trúc logic, đầy đủ thông tin cần thiết.`,
+  docx_conversion_mode: 'ai',
+  docx_intermediate_format: 'html',  // 'md' | 'html' | 'pdf'
+  openai_api_key: '',
+  openai_base_url: 'https://api.openai.com/v1',
+  api_secret_key: '',
 };
 
-const ENCRYPTED_KEYS = new Set(['ai_api_key']);
+const ENCRYPTED_KEYS = new Set(['ai_api_key', 'openai_api_key', 'api_secret_key']);
 
 // ─── Read ──────────────────────────────────────────────────────────────────────
 

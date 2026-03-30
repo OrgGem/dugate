@@ -30,13 +30,13 @@ Vào trang chủ (`/`) và:
 
 1. Kéo thả hoặc chọn file `.docx` hoặc `.pdf` (tối đa 100MB)
 2. Với PDF: chọn mức nén (khuyến nghị dùng ebook)
-3. Nhấn **Convert**
+3. Nhấn **Transform**
 
-Quá trình convert chạy nền. Trang tự động cập nhật trạng thái.
+Quá trình transform chạy nền. Trang tự động cập nhật trạng thái.
 
 ## 4. Xem và tải về
 
-Sau khi convert xong:
+Sau khi transform xong:
 
 - **Preview** kết quả Markdown
 - **Sửa** trực tiếp nếu cần
@@ -66,4 +66,4 @@ Vào `/batch` để upload nhiều file cùng lúc. Mỗi file được xử lý
 
 ## 6. Lịch sử
 
-Vào `/history` để xem tất cả lần convert trước, tải lại kết quả hoặc xóa.
+Vào `/history` để xem tất cả lần transform trước, tải lại kết quả hoặc xóa.

@@ -6,7 +6,7 @@
 | Thông tin | Giá trị |
 |---|---|
 | Tên | mdconvert |
-| Mục tiêu | Convert file SOP (.docx, .pdf) sang Markdown tối ưu cho AI agent, Claude Project, Claude Code |
+| Mục tiêu | Transform file SOP (.docx, .pdf) sang Markdown tối ưu cho AI agent, Claude Project, Claude Code |
 | Stack | Next.js 14 + TypeScript + Prisma + PostgreSQL + Tailwind CSS |
 | External tools | Pandoc (CLI), Ghostscript (CLI), Gemini API, sharp (npm) |
 | Port | 2023 (dev), 2023 (prod) |
@@ -52,6 +52,6 @@ Sau khi deploy, mở `https://your-domain.com/setup` để tạo tài khoản ad
 
 | Đã làm | Chưa làm |
 |---|---|
-| Phase 1: DOCX convert engine | Multi-user / role management |
+| Phase 1: DOCX transform engine | Multi-user / role management |
 | Phase 2: Batch upload + history + settings | Realtime collaboration |
 | Phase 3: Deploy + Auth + Setup Wizard | - |

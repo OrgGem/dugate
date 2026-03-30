@@ -42,7 +42,7 @@ Key đặt qua biến môi trường (`GEMINI_API_KEY`) sẽ được ưu tiên 
 4. Nhấn **Save**
 5. Test kết nối bằng nút **Test**
 
-Thay đổi có hiệu lực ngay lập tức — không ảnh hưởng đến các lần convert đang chạy.
+Thay đổi có hiệu lực ngay lập tức — không ảnh hưởng đến các lần transform đang chạy.
 
 ## Tùy chỉnh Prompt
 

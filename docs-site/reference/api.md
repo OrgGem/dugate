@@ -6,7 +6,7 @@ All endpoints require authentication (NextAuth session cookie).
 
 ## POST /api/upload
 
-Upload a file and create a conversion record.
+Upload a file and create a transformation record.
 
 | Field | Value |
 |---|---|
@@ -42,9 +42,9 @@ Upload a file and create a conversion record.
 
 ---
 
-## POST /api/convert
+## POST /api/transform
 
-Trigger conversion for an uploaded file.
+Trigger transformation for an uploaded file.
 
 | Field | Value |
 |---|---|
@@ -66,13 +66,13 @@ Trigger conversion for an uploaded file.
 }
 ```
 
-Conversion runs asynchronously. Poll status via `GET /api/convert/[id]`.
+Transformation runs asynchronously. Poll status via `GET /api/transform/[id]`.
 
 ---
 
-## GET /api/convert/[id]
+## GET /api/transform/[id]
 
-Get conversion status and result.
+Get transformation status and result.
 
 ### Response 200
 
@@ -104,7 +104,7 @@ When `status` is `pending` / `compressing` / `processing`: `fullMd` and `textOnl
 
 ---
 
-## PUT /api/convert/[id]/edit
+## PUT /api/transform/[id]/edit
 
 Save edited Markdown output.
 
@@ -117,7 +117,7 @@ Save edited Markdown output.
 }
 ```
 
-`fullMd` may be `null` for PDF conversions.
+`fullMd` may be `null` for PDF transformations.
 
 ### Response 200
 
@@ -127,7 +127,7 @@ Save edited Markdown output.
 
 ---
 
-## GET /api/convert/[id]/download
+## GET /api/transform/[id]/download
 
 Download a ZIP of all output files.
 
@@ -157,7 +157,7 @@ Download a ZIP of all output files.
 
 ## GET /api/history
 
-List conversion history (paginated).
+List transformation history (paginated).
 
 ### Query params
 

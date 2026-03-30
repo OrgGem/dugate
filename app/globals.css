@@ -2,24 +2,115 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #111827;
-  --surface: #F8FAFC;
-  --border: #E5E7EB;
-  --primary: #1A428A;
-  --accent: #3CABD2;
-}
+@layer base {
+  :root {
+    /* Brand Colors (VPBank) */
+    --primary: 0 183 79;      /* #00B74F */
+    --primary-foreground: 255 255 255;
+    
+    --destructive: 224 5 0;         /* #E00500 */
+    --destructive-foreground: 255 255 255;
+    
+    /* Backgrounds & Text (Light Mode) */
+    --background: 248 250 252; /* slate-50 */
+    --foreground: 15 23 42;    /* slate-900 */
+    
+    --card: 255 255 255; /* white */
+    --card-foreground: 15 23 42; /* slate-900 */
+    
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    
+    --border: 226 232 240;     /* slate-200 */
+    --input: 226 232 240;
+    
+    --muted: 241 245 249; /* slate-100 */
+    --muted-foreground: 100 116 139; /* slate-500 */
+    
+    --accent: 241 245 249; /* slate-100 */
+    --accent-foreground: 15 23 42; /* slate-900 */
+  }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-}
+  .dark {
+    --background: 9 9 11;      /* zinc-950 */
+    --foreground: 244 244 245; /* zinc-50 */
+    
+    --card: 24 24 27; /* zinc-900 */
+    --card-foreground: 244 244 245; /* zinc-50 */
+    
+    --popover: 24 24 27; /* zinc-900 */
+    --popover-foreground: 244 244 245;
+    
+    --border: 39 39 42;        /* zinc-800 */
+    --input: 39 39 42;
+    
+    --muted: 39 39 42; /* zinc-800 */
+    --muted-foreground: 161 161 170; /* zinc-400 */
+    
+    --accent: 39 39 42; /* zinc-800 */
+    --accent-foreground: 244 244 245; /* zinc-50 */
+  }
 
-/* Force light theme */
-@media (prefers-color-scheme: dark) {
   body {
-    color: var(--foreground);
-    background: var(--background);
+    background-color: rgb(var(--background));
+    color: rgb(var(--foreground));
+  }
+}
+
+@layer utilities {
+  .glass-header {
+    @apply bg-background/80 backdrop-blur-md border-b border-border shadow-sm transition-all;
+  }
+  
+  .modern-card {
+    @apply bg-card rounded-3xl border border-border shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,183,79,0.05)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,183,79,0.15)] hover:border-primary/20 transition-all duration-300;
+  }
+  
+  .modern-button {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-2.5 font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:brightness-110 shadow-md dark:shadow-none hover:shadow-lg hover:shadow-primary/30 dark:hover:shadow-[0_0_20px_rgba(0,183,79,0.6)];
+  }
+  
+  .btn-outline {
+    @apply bg-background border border-border text-foreground hover:bg-muted font-bold transition-colors;
+  }
+
+  .btn-danger {
+    @apply bg-destructive text-destructive-foreground hover:brightness-110 shadow-md dark:shadow-none hover:shadow-lg hover:shadow-destructive/30 dark:hover:shadow-[0_0_20px_rgba(224,5,0,0.6)];
+  }
+  
+  .pill-nav-item {
+    @apply flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-full transition-colors duration-200;
+  }
+  
+  .pill-nav-active {
+    @apply bg-foreground text-background shadow-md dark:shadow-[0_0_15px_rgba(255,255,255,0.3)];
+  }
+  
+  .pill-nav-inactive {
+    @apply text-muted-foreground hover:text-foreground hover:bg-muted;
+  }
+  
+  .input-field {
+    @apply w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:focus:ring-primary/40;
+  }
+  
+  .dropzone {
+    @apply border-2 border-dashed border-border bg-muted/50 rounded-3xl hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors duration-300 cursor-pointer;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80 dark:to-primary/60;
+  }
+
+  /* Background Glow Mesh Effects */
+  .glow-emerald {
+    @apply absolute w-[500px] h-[500px] bg-[#00B74F]/20 rounded-full blur-[100px] opacity-50 dark:opacity-40 mix-blend-screen pointer-events-none;
+  }
+  .glow-red {
+    @apply absolute w-[400px] h-[400px] bg-[#E00500]/10 rounded-full blur-[120px] opacity-40 dark:opacity-30 mix-blend-screen pointer-events-none;
   }
 }

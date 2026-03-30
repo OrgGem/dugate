@@ -1,9 +1,9 @@
 // prisma/schema.prisma
-// Schema: Conversion + ImageDescription + NextAuth tables
-// Task 1.2
+// Dugate Document AI — Hybrid Processor-Pipeline Architecture
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {
@@ -11,106 +11,142 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── NextAuth models ─────────────────────────────────────────────────────────
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // bcrypt hash — set during /setup wizard
-  accounts      Account[]
-  sessions      Session[]
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// ─── Core models ─────────────────────────────────────────────────────────────
-
-model Conversion {
+// ═══════════════════════════════════════════════
+// Processor — AI Pipeline Registry
+// ═══════════════════════════════════════════════
+model Processor {
   id              String   @id @default(uuid())
-  fileName        String
-  fileType        String   // "docx" | "pdf"
-  fileSize        Int
-  compressLevel   String?  // "screen" | "ebook" | "printer" | "prepress" (PDF only)
-  compressedSize  Int?
-  originalPath    String
-  fullMdPath      String?  // DOCX only
-  textOnlyMdPath  String?
-  imagesDir       String?  // DOCX only
-  imageCount      Int      @default(0)
-  status          String   @default("pending") // pending|compressing|processing|completed|failed
-  progressText    String?  // "Đang mô tả hình 12/36..." — hiển thị real-time khi processing
-  errorMessage    String?
-  filesDeleted    Boolean  @default(false)     // true khi file đã bị auto cleanup sau 24h
-  createdBy       String   // Phase 3: FK → User.id. Phase 1-2: hardcode "system"
+  slug            String   @unique              // "prebuilt-layout"
+  displayName     String                        // "Document Layout Extraction"
+  type            String                        // "PREBUILT" | "CUSTOM"
+  category        String                        // "extract" | "generate" | "analyze"
+  description     String?  @db.Text
+  state           String   @default("ENABLED")  // "ENABLED" | "DISABLED"
+
+  // AI Config — Server-side only, NEVER exposed to client
+  systemPrompt    String   @db.Text             // Template: "Dịch sang {{target_language}}..."
+  responseSchema  String?  @db.Text             // JSON Schema → structured output
+  maxOutputTokens Int      @default(4096)
+  temperature     Float    @default(0.1)
+  modelOverride   String?                       // null = system default
+
+  // Input/Output constraints
+  acceptedMimes   String                        // "application/pdf,application/vnd..."
+  outputFormats   String   @default("md")       // "md,html,json"
+  variablesSchema String?  @db.Text             // JSON Schema for allowed client variables
+  canBeFirstStep  Boolean  @default(true)       // Can receive binary file input
+  canBeChainStep  Boolean  @default(false)      // Can receive text from previous step
+
+  // Processor-level config (replaces global settings)
+  processorConfig String?  @db.Text             // JSON: { docxMode: "ai", docxFormat: "html", compressLevel: "ebook" }
+
+  // Tenant scoping
+  tenantApiKeyId  String?                       // null = prebuilt (global)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+  @@index([type, state])
+  @@index([tenantApiKeyId])
+}
+
+// ═══════════════════════════════════════════════
+// Operation — Long-Running Operation (AIP-151)
+// ═══════════════════════════════════════════════
+model Operation {
+  id              String   @id @default(uuid())
+  apiKeyId        String?                       // null = internal (frontend) call
+  idempotencyKey  String?  @unique              // AIP-155
+
+  // State
+  done            Boolean  @default(false)
+  state           String   @default("RUNNING")  // RUNNING | SUCCEEDED | FAILED | CANCELLED
+  progressPercent Int      @default(0)
+  progressMessage String?
+
+  // Pipeline definition
+  pipelineJson    String   @db.Text             // JSON array: [{ processor, variables }]
+  currentStep     Int      @default(0)
+  failedAtStep    Int?
+
+  // Input
+  fileName        String?
+  fileMime        String?
+  fileSize        Int      @default(0)
+  inputPath       String?
+
+  // Compare-specific
+  sourceFileName  String?
+  targetFileName  String?
+  sourceFilePath  String?
+  targetFilePath  String?
+
+  // Output — final result
+  outputFormat    String   @default("md")
+  outputContent   String?  @db.Text
+  outputFilePath  String?
+  extractedData   String?  @db.Text
+
+  // Pipeline intermediate results
+  stepsResultJson String?  @db.Text             // JSON array of per-step outputs
+
+  // Usage & Cost
+  totalInputTokens  Int    @default(0)
+  totalOutputTokens Int    @default(0)
+  pagesProcessed    Int    @default(0)
+  modelUsed         String?
+  totalCostUsd      Float  @default(0.0)
+  usageBreakdown    String? @db.Text
+
+  // Webhook
+  webhookUrl      String?
+  webhookSentAt   DateTime?
+
+  // Error
+  errorCode       String?
+  errorMessage    String?  @db.Text
+
+  // Lifecycle
+  filesDeleted    Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   deletedAt       DateTime?
 
-  // user relation: thêm lại ở Phase 3 khi auth được implement
-  imageDescriptions ImageDescription[]
+  apiKey          ApiKey?  @relation(fields: [apiKeyId], references: [id])
 
-  @@index([createdBy], name: "idx_conversion_created_by")
-  @@index([status], name: "idx_conversion_status")
-  @@index([createdAt(sort: Desc)], name: "idx_conversion_created_at")
+  @@index([state])
+  @@index([apiKeyId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([idempotencyKey])
 }
 
-// ─── App Settings ─────────────────────────────────────────────────────────────
-// Lưu cấu hình AI provider, API key (encrypted), model, prompts
-// Keys: ai_provider, ai_api_key, ai_model, ai_image_prompt, ai_pdf_prompt
+// ═══════════════════════════════════════════════
+// API Key & Auth
+// ═══════════════════════════════════════════════
+model ApiKey {
+  id            String      @id @default(uuid())
+  name          String
+  keyHash       String      @unique
+  prefix        String
+  role          String      @default("STANDARD") // "STANDARD" | "ADMIN"
+  spendingLimit Float       @default(0.0)
+  totalUsed     Float       @default(0.0)
+  status        String      @default("active")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
+  operations    Operation[]
+
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════
+// App Settings (key-value store)
+// ═══════════════════════════════════════════════
 model AppSetting {
   id        String   @id @default(uuid())
   key       String   @unique
   value     String   @db.Text
   updatedAt DateTime @updatedAt
-}
-
-model ImageDescription {
-  id           String   @id @default(uuid())
-  conversionId String
-  imageName    String
-  imagePath    String
-  description  String   @db.Text
-  shortAlt     String
-  createdAt    DateTime @default(now())
-
-  conversion Conversion @relation(fields: [conversionId], references: [id], onDelete: Cascade)
-
-  @@index([conversionId], name: "idx_image_conversion_id")
 }

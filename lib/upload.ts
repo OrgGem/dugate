@@ -97,7 +97,7 @@ export async function saveUploadedFile(file: File): Promise<SaveResult> {
   // Lưu file gốc: uploads/[uuid]-[originalname]
   const originalPath = path.join(uploadDir, `${conversionId}-${normalizedName}`);
 
-  // Tạo thư mục outputs/[uuid]/ cho conversion này
+  // Tạo thư mục outputs/[uuid]/ cho transformation này
   const conversionOutputDir = path.join(outputDir, conversionId);
 
   // Đảm bảo các thư mục tồn tại

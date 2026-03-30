@@ -10,7 +10,7 @@
 
 ## Models
 
-### Conversion
+### Transformation
 
 | Column | Type | Nullable | Default | Mô tả |
 |---|---|---|---|---|
@@ -37,7 +37,7 @@
 | Column | Type | Nullable | Default | Mô tả |
 |---|---|---|---|---|
 | id | String (UUID) | No | uuid() | Primary key |
-| conversionId | String | No | | FK → Conversion.id |
+| conversionId | String | No | | FK → Transformation.id |
 | imageName | String | No | | Tên file hình (VD: "dong-goi-img-001.png") |
 | imagePath | String | No | | Đường dẫn hình gốc |
 | description | String | No | | Mô tả chi tiết từ AI (tiếng Việt) |
@@ -51,8 +51,8 @@ Dùng NextAuth Prisma adapter chuẩn. Không custom thêm field.
 ## Relationships
 
 ```
-Conversion 1 ──── * ImageDescription
-User       1 ──── * Conversion
+Transformation 1 ──── * ImageDescription
+User       1 ──── * Transformation
 ```
 
 ## Status flow
@@ -78,4 +78,4 @@ pending → compressing → processing → completed
 | idx_conversion_created_by | createdBy | Query lịch sử theo user |
 | idx_conversion_status | status | Filter theo status |
 | idx_conversion_created_at | createdAt DESC | Sort mặc định |
-| idx_image_conversion_id | conversionId | Join với Conversion |
+| idx_image_conversion_id | conversionId | Join với Transformation |

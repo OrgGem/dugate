@@ -23,7 +23,7 @@ else → reject
 | Bước | Rule |
 |---|---|
 | Pandoc | Luôn dùng `-t markdown_strict` để tránh Pandoc thêm syntax lạ |
-| Pandoc | `--extract-media` trỏ vào thư mục riêng theo conversion ID |
+| Pandoc | `--extract-media` trỏ vào thư mục riêng theo transformation ID |
 | sharp compress | Resize max width 1600px (giữ tỷ lệ), quality 80%, format PNG |
 | sharp compress | Hình gốc GIỮ LẠI, hình compressed lưu riêng (xóa sau khi gọi AI xong) |
 | Gemini | Gửi hình compressed (không gửi hình gốc HD) |
@@ -51,8 +51,8 @@ else → reject
 |---|---|
 | Model | gemini-2.0-flash-lite (hoặc version mới nhất tại thời điểm implement) |
 | Prompt hình (DOCX) | "Mô tả chi tiết hình này bằng tiếng Việt. Ghi rõ text trong hình nếu có. Mô tả vị trí, trạng thái, thao tác đang thực hiện." |
-| Prompt PDF | "Convert tài liệu này sang Markdown tiếng Việt. Giữ nguyên cấu trúc heading, bảng, danh sách. Mô tả chi tiết mọi hình ảnh trong tài liệu, bao gồm text trong hình nếu có." |
-| Error handling | Nếu Gemini fail 1 hình: log error, ghi "[Không thể mô tả hình này]" vào markdown, tiếp tục hình tiếp theo. Không fail toàn bộ conversion |
+| Prompt PDF | "Transform tài liệu này sang Markdown tiếng Việt. Giữ nguyên cấu trúc heading, bảng, danh sách. Mô tả chi tiết mọi hình ảnh trong tài liệu, bao gồm text trong hình nếu có." |
+| Error handling | Nếu Gemini fail 1 hình: log error, ghi "[Không thể mô tả hình này]" vào markdown, tiếp tục hình tiếp theo. Không fail toàn bộ transformation |
 | Rate limit | 200ms delay giữa mỗi request |
 | Timeout | 60s per request |
 
@@ -63,7 +63,7 @@ else → reject
 | Hình gốc | [slug]-img-[###].png | dong-goi-img-001.png |
 | full.md | [slug]-full.md | dong-goi-full.md |
 | text-only.md | [slug]-text-only.md | dong-goi-text-only.md |
-| images dir | [conversion-id]/images/ | abc123/images/ |
+| images dir | [transformation-id]/images/ | abc123/images/ |
 | ZIP | [slug]-[YYYYMMDD].zip | dong-goi-20260325.zip |
 | slug | Tên file gốc, lowercase, thay space bằng dash, bỏ dấu tiếng Việt | "SOP Đóng Gói.docx" → "sop-dong-goi" |
 
@@ -102,6 +102,6 @@ Nội dung tiếp theo...
 | Rule | Chi tiết |
 |---|---|
 | Scope | User chỉ edit text-only.md và full.md. Không edit hình gốc |
-| Save | PUT /api/convert/[id]/edit, body chứa markdown content |
+| Save | PUT /api/transform/[id]/edit, body chứa markdown content |
 | Lưu cả 2 | Nếu user sửa mô tả hình trong full.md, cập nhật luôn text-only.md và ngược lại |
 | Version | Không lưu version history (out of scope), chỉ overwrite |

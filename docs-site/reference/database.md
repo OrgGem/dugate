@@ -12,7 +12,7 @@
 
 ## Models
 
-### Conversion
+### Transformation
 
 | Column | Type | Nullable | Default | Description |
 |---|---|---|---|---|
@@ -39,7 +39,7 @@
 | Column | Type | Nullable | Default | Description |
 |---|---|---|---|---|
 | `id` | String (UUID) | No | `uuid()` | Primary key |
-| `conversionId` | String | No | | FK → Conversion.id |
+| `conversionId` | String | No | | FK → Transformation.id |
 | `imageName` | String | No | | Image filename |
 | `imagePath` | String | No | | Path to image file |
 | `description` | String | No | | Detailed AI description |
@@ -55,8 +55,8 @@ Managed by NextAuth.js Prisma adapter. Stores `email`, `password` (bcrypt), and 
 ## Relationships
 
 ```
-User       1 ──── * Conversion
-Conversion 1 ──── * ImageDescription
+User       1 ──── * Transformation
+Transformation 1 ──── * ImageDescription
 ```
 
 ---
@@ -86,4 +86,4 @@ pending → compressing → processing → completed
 | `idx_conversion_created_by` | `createdBy` | Filter history by user |
 | `idx_conversion_status` | `status` | Filter by status |
 | `idx_conversion_created_at` | `createdAt DESC` | Default sort |
-| `idx_image_conversion_id` | `conversionId` | Join with Conversion |
+| `idx_image_conversion_id` | `conversionId` | Join with Transformation |

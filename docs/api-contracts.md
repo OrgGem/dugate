@@ -2,7 +2,7 @@
 
 ## POST /api/upload
 
-Upload file và bắt đầu conversion.
+Upload file và bắt đầu transformation.
 
 | Field | Value |
 |---|---|
@@ -38,9 +38,9 @@ Upload file và bắt đầu conversion.
 
 ---
 
-## POST /api/convert
+## POST /api/transform
 
-Trigger conversion cho 1 upload đã có.
+Trigger transformation cho 1 upload đã có.
 
 | Field | Value |
 |---|---|
@@ -62,13 +62,13 @@ Trigger conversion cho 1 upload đã có.
 }
 ```
 
-Conversion chạy async. Client poll status qua GET /api/convert/[id].
+Transformation chạy async. Client poll status qua GET /api/transform/[id].
 
 ---
 
-## GET /api/convert/[id]
+## GET /api/transform/[id]
 
-Lấy kết quả conversion.
+Lấy kết quả transformation.
 
 | Field | Value |
 |---|---|
@@ -105,7 +105,7 @@ Khi status = "pending"/"compressing"/"processing": fullMd và textOnlyMd = null.
 
 ---
 
-## PUT /api/convert/[id]/edit
+## PUT /api/transform/[id]/edit
 
 Lưu markdown đã chỉnh sửa.
 
@@ -123,7 +123,7 @@ Lưu markdown đã chỉnh sửa.
 }
 ```
 
-fullMd có thể null (PDF conversion không có full.md).
+fullMd có thể null (PDF transformation không có full.md).
 
 ### Response 200
 
@@ -133,7 +133,7 @@ fullMd có thể null (PDF conversion không có full.md).
 
 ---
 
-## GET /api/convert/[id]/download
+## GET /api/transform/[id]/download
 
 Download ZIP chứa output.
 
@@ -166,7 +166,7 @@ Download ZIP chứa output.
 
 ## GET /api/history
 
-Danh sách lịch sử conversion.
+Danh sách lịch sử transformation.
 
 | Field | Value |
 |---|---|

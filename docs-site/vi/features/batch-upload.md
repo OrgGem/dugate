@@ -2,14 +2,14 @@
 
 ## Tổng quan
 
-Trang upload hàng loạt (`/batch`) cho phép convert nhiều file trong một phiên. Mỗi file được xử lý độc lập và theo dõi riêng biệt.
+Trang upload hàng loạt (`/batch`) cho phép transform nhiều file trong một phiên. Mỗi file được xử lý độc lập và theo dõi riêng biệt.
 
 ## Cách dùng
 
 1. Vào `/batch`
 2. Kéo thả hoặc chọn nhiều file `.docx` hoặc `.pdf`
 3. Với mỗi PDF, chọn mức nén (hoặc dùng mặc định)
-4. Nhấn **Convert All**
+4. Nhấn **Transform All**
 5. Theo dõi tiến trình từng file
 6. Tải về từng file riêng lẻ hoặc tất cả cùng lúc trong một ZIP
 
@@ -27,7 +27,7 @@ Mỗi file hiển thị trạng thái riêng:
 
 ## Tải về hàng loạt
 
-Khi tất cả file hoàn tất, nhấn **Download All** để tải về một ZIP chứa tất cả output, được tổ chức theo từng lần convert.
+Khi tất cả file hoàn tất, nhấn **Download All** để tải về một ZIP chứa tất cả output, được tổ chức theo từng lần transform.
 
 ## Giới hạn
 

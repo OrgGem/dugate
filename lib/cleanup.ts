@@ -1,5 +1,5 @@
 // lib/cleanup.ts
-// Auto cleanup: xóa file uploads + outputs sau 24h, giữ Conversion record trong DB
+// Auto cleanup: xóa file uploads + outputs sau 24h, giữ Transformation record trong DB
 
 import fs from 'fs/promises';
 import path from 'path';
@@ -32,7 +32,7 @@ export async function cleanupExpiredFiles(): Promise<{ deleted: number; freedMB:
   const cutoff = new Date(Date.now() - EXPIRY_MS);
   const outputDir = process.env.OUTPUT_DIR ?? './outputs';
 
-  const expired = await prisma.conversion.findMany({
+  const expired = await prisma.operation.findMany({
     where: {
       createdAt: { lt: cutoff },
       filesDeleted: false,
@@ -40,7 +40,9 @@ export async function cleanupExpiredFiles(): Promise<{ deleted: number; freedMB:
     },
     select: {
       id: true,
-      originalPath: true,
+      inputPath: true,
+      sourceFilePath: true,
+      targetFilePath: true,
     },
   });
 
@@ -54,17 +56,20 @@ export async function cleanupExpiredFiles(): Promise<{ deleted: number; freedMB:
       freed += await getDirSize(convOutputDir);
       await fs.rm(convOutputDir, { recursive: true, force: true });
 
-      // Xóa file upload gốc
-      if (conv.originalPath) {
-        try {
-          const stat = await fs.stat(conv.originalPath);
-          freed += stat.size;
-        } catch { /* file đã bị xóa trước */ }
-        await fs.rm(conv.originalPath, { force: true });
+      // Delete input file
+      const filesToDelete = [conv.inputPath, conv.sourceFilePath, conv.targetFilePath];
+      for (const filePath of filesToDelete) {
+        if (filePath) {
+          try {
+            const stat = await fs.stat(filePath);
+            freed += stat.size;
+          } catch { /* file already deleted */ }
+          await fs.rm(filePath, { force: true });
+        }
       }
 
-      // Đánh dấu filesDeleted trong DB (giữ record)
-      await prisma.conversion.update({
+      // Mark as deleted in DB
+      await prisma.operation.update({
         where: { id: conv.id },
         data: { filesDeleted: true },
       });
@@ -77,7 +82,7 @@ export async function cleanupExpiredFiles(): Promise<{ deleted: number; freedMB:
 
   const freedMB = Math.round((freed / 1024 / 1024) * 100) / 100;
   if (deleted > 0) {
-    console.log(`[Cleanup] Đã xóa ${deleted} conversions, giải phóng ${freedMB} MB`);
+    console.log(`[Cleanup] Đã xóa ${deleted} transformations, giải phóng ${freedMB} MB`);
   }
 
   return { deleted, freedMB };

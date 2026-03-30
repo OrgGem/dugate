@@ -14,8 +14,8 @@
 
 | Role | Quyền |
 |---|---|
-| admin | Upload, convert, edit, download, xem history tất cả |
-| user | Upload, convert, edit, download, xem history của mình |
+| admin | Upload, transform, edit, download, xem history tất cả |
+| user | Upload, transform, edit, download, xem history của mình |
 
 Tool nội bộ, chỉ cần 2 role đơn giản.
 
@@ -46,7 +46,7 @@ Tool nội bộ, chỉ cần 2 role đơn giản.
 
 | # | Quy tắc |
 |---|---|
-| 2.12 | Conversion records: soft delete (deletedAt) |
+| 2.12 | Transformation records: soft delete (deletedAt) |
 | 2.13 | File gốc trong uploads/: giữ lại 30 ngày rồi cron xóa |
 
 ## Tầng 3: Backup + Recovery

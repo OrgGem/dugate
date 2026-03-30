@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, DM_Sans, Be_Vietnam_Pro } from "next/font/google";
+import { Plus_Jakarta_Sans, DM_Sans, Be_Vietnam_Pro, Inter } from "next/font/google";
 import "./globals.css";
 import { ensureCleanupScheduled } from "@/lib/cleanup-scheduler";
-import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 import HeaderNav from "@/components/HeaderNav";
 import PageWrapper from "@/components/PageWrapper";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -25,9 +25,15 @@ const beVietnam = Be_Vietnam_Pro({
   display: "swap",
 });
 
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Convert to Markdown",
-  description: "Convert file SOP sang Markdown tối ưu cho AI agent",
+  title: "dugate - Document Understanding Gateway",
+  description: "Trợ lý AI phân tích và xử lý tài liệu đa định dạng (PDF/DOCX) sang cấu trúc dữ liệu tối ưu.",
 };
 
 // Cleanup scheduler: chạy 1 lần khi server start, lặp mỗi 6 tiếng
@@ -35,18 +41,12 @@ ensureCleanupScheduled();
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${jakarta.variable} ${dmSans.variable} ${beVietnam.variable}`}>
-      <body className="font-sans bg-white text-gray-900 antialiased">
-        <SessionProviderWrapper>
+    <html lang="vi" className={`${jakarta.variable} ${dmSans.variable} ${beVietnam.variable} ${inter.variable}`} suppressHydrationWarning>
+      <body className="font-sans bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary transition-colors duration-300">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <HeaderNav />
           <PageWrapper>{children}</PageWrapper>
-          <footer className="text-center py-4 text-xs text-gray-300">
-            mdconvert v1.0 —{' '}
-            <a href="https://nhannguyensharing.com" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">
-              by NNS
-            </a>
-          </footer>
-        </SessionProviderWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );

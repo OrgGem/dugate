@@ -10,7 +10,7 @@
 | Backend | Next.js API Routes |
 | Database | PostgreSQL + Prisma ORM |
 | Auth | NextAuth.js |
-| Convert DOCX | Pandoc CLI (`pandoc -t markdown_strict --extract-media`) |
+| Transform DOCX | Pandoc CLI (`pandoc -t markdown_strict --extract-media`) |
 | Compress hình | sharp (npm) |
 | Compress PDF | Ghostscript CLI (`gs -sDEVICE=pdfwrite -dPDFSETTINGS=/[preset]`) |
 | AI Vision | Gemini 2.5 Flash-Lite API |
@@ -45,7 +45,7 @@
 | # | Quy tắc |
 |---|---|
 | D01 | Mọi query qua Prisma ORM, không raw SQL |
-| D02 | Soft delete (deletedAt) cho Conversion records |
+| D02 | Soft delete (deletedAt) cho Transformation records |
 | D03 | UUID cho primary key |
 | D04 | createdAt + updatedAt trên mọi model |
 
@@ -66,7 +66,7 @@
 | C01 | TypeScript strict mode |
 | C02 | Mỗi API route 1 file, đặt trong app/api/ |
 | C03 | Business logic tách ra lib/, không viết trong route handler |
-| C04 | File convert logic tách theo engine: lib/converters/docx.ts, lib/converters/pdf.ts |
+| C04 | File transform logic tách theo engine: lib/transformers/docx.ts, lib/transformers/pdf.ts |
 | C05 | Compress logic tách riêng: lib/compress/images.ts, lib/compress/pdf.ts |
 | C06 | Gemini API wrapper: lib/ai/gemini.ts |
 | C07 | Error handling: mọi async function phải try/catch, update status = "failed" + errorMessage |
@@ -76,7 +76,7 @@
 
 | Không làm |
 |---|
-| Convert file khác ngoài .docx và .pdf |
+| Transform file khác ngoài .docx và .pdf |
 | Tự động push vào Claude Project |
 | Tự động deploy lên GoClaw |
 | Multi-user phức tạp (role, permission) |

@@ -36,7 +36,7 @@ export default function MarkdownEditor({
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/convert/${conversionId}/edit`, {
+      const res = await fetch(`/api/transform/${conversionId}/edit`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -59,14 +59,14 @@ export default function MarkdownEditor({
       <textarea
         value={currentContent}
         onChange={e => setCurrentContent(e.target.value)}
-        className="w-full h-[500px] font-mono text-sm border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#3CABD2] focus:border-transparent resize-y bg-white text-gray-800"
+        className="w-full h-[500px] font-mono text-sm border border-slate-300 dark:border-zinc-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#00B74F] dark:focus:ring-[#00B74F]/50 focus:border-transparent resize-y bg-white dark:bg-zinc-900/50 text-slate-800 dark:text-zinc-200 transition-colors"
         spellCheck={false}
       />
       <div className="flex items-center gap-3">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1A428A] text-white rounded-lg text-sm font-medium hover:bg-[#153570] disabled:opacity-60 transition-colors"
+          className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-60 transition-colors"
         >
           {saving
             ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -77,7 +77,7 @@ export default function MarkdownEditor({
         </button>
         <button
           onClick={onCancel}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
         >
           <X className="w-4 h-4" />
           Hủy

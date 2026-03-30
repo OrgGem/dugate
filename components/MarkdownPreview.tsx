@@ -12,14 +12,14 @@ interface Props {
 
 export default function MarkdownPreview({ content }: Props) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 min-h-[300px]">
-      <div className="prose prose-sm max-w-none
-        prose-headings:text-[#1A428A] prose-headings:font-heading
-        prose-a:text-[#3CABD2]
-        prose-blockquote:border-l-[#3CABD2] prose-blockquote:bg-teal-50/50 prose-blockquote:py-1
-        prose-code:bg-gray-100 prose-code:text-gray-800 prose-code:rounded
+    <div className="bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800 rounded-lg p-6 min-h-[300px] transition-colors">
+      <div className="prose dark:prose-invert prose-sm max-w-none
+        prose-headings:text-[#00B74F] prose-headings:font-heading
+        prose-a:text-[#00B74F]
+        prose-blockquote:border-l-[#00B74F] prose-blockquote:bg-emerald-50/50 dark:prose-blockquote:bg-emerald-500/10 prose-blockquote:py-1
+        prose-code:bg-slate-100 dark:prose-code:bg-zinc-800 prose-code:text-slate-800 dark:prose-code:text-zinc-200 prose-code:rounded
         prose-table:text-sm
-        prose-img:rounded-lg prose-img:border prose-img:border-gray-200">
+        prose-img:rounded-lg prose-img:border prose-img:border-slate-200 dark:prose-img:border-zinc-800">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {content}
         </ReactMarkdown>

@@ -44,7 +44,7 @@ Supported models:
 
 ## AI Prompts
 
-The default prompt instructs the AI to describe images in detail and convert document structure to clean Markdown.
+The default prompt instructs the AI to describe images in detail and transform document structure to clean Markdown.
 
 You can customize the prompt in **Settings** or choose a preset:
 

@@ -5,7 +5,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-// ─── Helper: convert multi-line text → proper markdown blockquote ─────────────
+// ─── Helper: transform multi-line text → proper markdown blockquote ─────────────
 // Mỗi dòng (kể cả dòng trắng) được prefix "> " để toàn bộ description nằm trong blockquote
 function toBlockquote(text: string): string {
   return text

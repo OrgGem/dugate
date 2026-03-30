@@ -1,5 +1,5 @@
 // lib/zip.ts
-// Tạo ZIP stream từ output của conversion
+// Tạo ZIP stream từ output của transformation
 // DOCX: full.md + text-only.md + images/
 // PDF: text-only.md
 

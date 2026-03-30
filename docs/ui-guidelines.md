@@ -52,7 +52,7 @@
 |---|---|---|
 | pending | Gray | Chờ xử lý |
 | compressing | Blue | Đang nén |
-| processing | Accent | Đang convert |
+| processing | Accent | Đang transform |
 | completed | Success | Hoàn tất |
 | failed | Error | Lỗi |
 
@@ -72,7 +72,7 @@
 | Columns | Tên file, Loại, Dung lượng gốc, Sau nén, Số hình, Status, Ngày, Actions |
 | Sort mặc định | Ngày mới nhất trước |
 | Actions | Xem, Download, Xóa |
-| Empty state | "Chưa có conversion nào. Upload file để bắt đầu." |
+| Empty state | "Chưa có transformation nào. Upload file để bắt đầu." |
 
 ## Layout
 

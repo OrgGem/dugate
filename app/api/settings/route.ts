@@ -15,6 +15,12 @@ export async function GET() {
     if (masked.ai_api_key) {
       masked.ai_api_key = maskApiKey(masked.ai_api_key);
     }
+    if (masked.openai_api_key) {
+      masked.openai_api_key = maskApiKey(masked.openai_api_key);
+    }
+    if (masked.api_secret_key) {
+      masked.api_secret_key = maskApiKey(masked.api_secret_key);
+    }
     return Response.json(masked);
   } catch (error) {
     console.error('[GET /api/settings]', error);
@@ -32,6 +38,12 @@ export async function PUT(request: Request) {
       'ai_model',
       'ai_image_prompt',
       'ai_pdf_prompt',
+      'ai_docx_prompt',
+      'ai_compare_prompt',
+      'ai_generate_prompt',
+      'openai_api_key',
+      'openai_base_url',
+      'api_secret_key',
     ]);
 
     const updates: Record<string, string> = {};

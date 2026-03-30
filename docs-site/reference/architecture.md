@@ -29,7 +29,7 @@ Browser → Upload API → File Storage (uploads/)
         Output: full.md + text-only.md + images/
                 │
                 ▼
-        DB (Conversion record) + File Storage (outputs/)
+        DB (Transformation record) + File Storage (outputs/)
                 │
                 ▼
         Preview / Edit / Download ZIP
@@ -45,15 +45,15 @@ mdconvert/
 │   ├── login/page.tsx
 │   ├── setup/page.tsx              # First-run wizard
 │   ├── batch/page.tsx              # Batch upload
-│   ├── convert/[id]/page.tsx       # Result: preview + edit + download
+│   ├── transform/[id]/page.tsx       # Result: preview + edit + download
 │   ├── history/page.tsx
 │   └── api/
 │       ├── auth/[...nextauth]/route.ts
 │       ├── upload/route.ts
-│       ├── convert/route.ts
-│       ├── convert/[id]/route.ts
-│       ├── convert/[id]/edit/route.ts
-│       ├── convert/[id]/download/route.ts
+│       ├── transform/route.ts
+│       ├── transform/[id]/route.ts
+│       ├── transform/[id]/edit/route.ts
+│       ├── transform/[id]/download/route.ts
 │       ├── history/route.ts
 │       ├── settings/route.ts
 │       └── setup/route.ts
@@ -66,7 +66,7 @@ mdconvert/
 │   ├── HeaderNav.tsx
 │   └── StatusBadge.tsx
 ├── lib/
-│   ├── converters/
+│   ├── transformers/
 │   │   ├── docx.ts                 # Pandoc + assemble pipeline
 │   │   └── pdf.ts                  # Ghostscript + AI pipeline
 │   ├── compress/
@@ -84,7 +84,7 @@ mdconvert/
 │   └── schema.prisma
 ├── uploads/                        # Git-ignored
 └── outputs/                        # Git-ignored
-    └── [conversion-id]/
+    └── [transformation-id]/
         ├── raw.md
         ├── full.md
         ├── text-only.md
@@ -97,8 +97,8 @@ mdconvert/
 |---|---|---|
 | `UploadForm` | `/` | Drag-drop or click upload, shows file info |
 | `CompressSelector` | `/` | 4 Ghostscript presets, shown for PDF only |
-| `MarkdownPreview` | `/convert/[id]` | react-markdown renders HTML from Markdown |
-| `MarkdownEditor` | `/convert/[id]` | Textarea for editing Markdown |
-| `ConversionHistory` | `/history` | Table of conversions sorted by date |
-| `StatusBadge` | `/history`, `/convert/[id]` | Status pill: pending / compressing / processing / completed / failed |
+| `MarkdownPreview` | `/transform/[id]` | react-markdown renders HTML from Markdown |
+| `MarkdownEditor` | `/transform/[id]` | Textarea for editing Markdown |
+| `ConversionHistory` | `/history` | Table of transformations sorted by date |
+| `StatusBadge` | `/history`, `/transform/[id]` | Status pill: pending / compressing / processing / completed / failed |
 | `HeaderNav` | All pages | Top nav — hidden on `/login` and `/setup` |

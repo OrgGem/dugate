@@ -29,7 +29,7 @@ Browser → Upload API → File Storage (uploads/)
         Output: full.md + text-only.md + images/
                 │
                 ▼
-        DB (Conversion record) + File Storage (outputs/)
+        DB (Transformation record) + File Storage (outputs/)
                 │
                 ▼
         Preview / Edit / Download ZIP
@@ -58,17 +58,17 @@ mdconvert/
 │       ├── layout.tsx
 │       ├── page.tsx                    # Upload page
 │       ├── login/page.tsx
-│       ├── convert/[id]/page.tsx       # Result: preview + edit + download
+│       ├── transform/[id]/page.tsx       # Result: preview + edit + download
 │       ├── history/page.tsx
 │       └── api/
 │           ├── auth/[...nextauth]/route.ts
 │           ├── upload/route.ts
-│           ├── convert/route.ts        # Trigger conversion
-│           ├── convert/[id]/route.ts   # Get conversion result
-│           ├── convert/[id]/edit/route.ts  # Save edited markdown
-│           └── convert/[id]/download/route.ts  # Download ZIP
+│           ├── transform/route.ts        # Trigger transformation
+│           ├── transform/[id]/route.ts   # Get transformation result
+│           ├── transform/[id]/edit/route.ts  # Save edited markdown
+│           └── transform/[id]/download/route.ts  # Download ZIP
 ├── src/lib/
-│   ├── converters/
+│   ├── transformers/
 │   │   ├── docx.ts                     # Pandoc + assemble pipeline
 │   │   └── pdf.ts                      # Ghostscript + Gemini pipeline
 │   ├── compress/
@@ -87,8 +87,8 @@ mdconvert/
 │   ├── ConversionHistory.tsx
 │   └── StatusBadge.tsx
 ├── uploads/                            # Git-ignored, file gốc upload
-└── outputs/                            # Git-ignored, kết quả convert
-    └── [conversion-id]/
+└── outputs/                            # Git-ignored, kết quả transform
+    └── [transformation-id]/
         ├── raw.md
         ├── full.md
         ├── text-only.md
@@ -104,7 +104,7 @@ mdconvert/
 |---|---|---|
 | UploadForm | / | Drag-drop hoặc click upload, hiển thị file info |
 | CompressSelector | / | Radio 4 mức compress, chỉ hiện khi upload PDF |
-| MarkdownPreview | /convert/[id] | react-markdown render HTML từ markdown |
-| MarkdownEditor | /convert/[id] | Textarea hoặc md-editor, sửa markdown |
-| ConversionHistory | /history | Bảng danh sách conversions, sort theo ngày |
-| StatusBadge | /history, /convert/[id] | Badge hiển thị status: pending/compressing/processing/completed/failed |
+| MarkdownPreview | /transform/[id] | react-markdown render HTML từ markdown |
+| MarkdownEditor | /transform/[id] | Textarea hoặc md-editor, sửa markdown |
+| ConversionHistory | /history | Bảng danh sách transformations, sort theo ngày |
+| StatusBadge | /history, /transform/[id] | Badge hiển thị status: pending/compressing/processing/completed/failed |

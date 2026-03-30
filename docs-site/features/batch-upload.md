@@ -2,14 +2,14 @@
 
 ## Overview
 
-The batch upload page (`/batch`) allows you to convert multiple files in a single session. Each file is processed independently and tracked separately.
+The batch upload page (`/batch`) allows you to transform multiple files in a single session. Each file is processed independently and tracked separately.
 
 ## How to Use
 
 1. Go to `/batch`
 2. Drag and drop or select multiple `.docx` or `.pdf` files
 3. For each PDF, choose a compression preset (or use the default)
-4. Click **Convert All**
+4. Click **Transform All**
 5. Track progress per file
 6. Download individual files or all results as a single ZIP
 
@@ -27,7 +27,7 @@ Each file shows its own status badge:
 
 ## Batch Download
 
-Once all files are completed, click **Download All** to get a single ZIP containing all output files organized by conversion.
+Once all files are completed, click **Download All** to get a single ZIP containing all output files organized by transformation.
 
 ## Limits
 

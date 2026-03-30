@@ -2,7 +2,7 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Stage 2: builder
 FROM node:20-slim AS builder
@@ -19,6 +19,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pandoc \
     ghostscript \
+    unzip \
+    texlive-xetex \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
@@ -29,6 +31,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 RUN mkdir -p uploads outputs
 
@@ -36,4 +39,4 @@ EXPOSE 2023
 ENV PORT=2023
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --accept-data-loss && node ./prisma/seed-additions.cjs && node server.js"]

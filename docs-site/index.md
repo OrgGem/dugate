@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "mdconvert"
   text: "AI-ready Markdown from Word & PDF"
-  tagline: Convert .docx and .pdf files into clean Markdown with AI-generated image descriptions — optimized for Claude Projects, Claude Code, and AI agents.
+  tagline: Transform .docx and .pdf files into clean Markdown with AI-generated image descriptions — optimized for Claude Projects, Claude Code, and AI agents.
   actions:
     - theme: brand
       text: Get Started
@@ -15,11 +15,11 @@ hero:
 
 features:
   - icon: 📄
-    title: DOCX Conversion
+    title: DOCX Transformation
     details: Pandoc extracts structure and images. AI Vision describes every image. Outputs full.md, text-only.md, and images/.
 
   - icon: 📑
-    title: PDF Conversion
+    title: PDF Transformation
     details: Ghostscript compresses the PDF, then AI Vision reads each page and produces clean text-only.md.
 
   - icon: 🤖

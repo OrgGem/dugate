@@ -12,7 +12,7 @@
 
 ## Models
 
-### Conversion
+### Transformation
 
 | Cột | Type | Nullable | Default | Mô tả |
 |---|---|---|---|---|
@@ -39,7 +39,7 @@
 | Cột | Type | Nullable | Mô tả |
 |---|---|---|---|
 | `id` | String (UUID) | Không | Primary key |
-| `conversionId` | String | Không | FK → Conversion.id |
+| `conversionId` | String | Không | FK → Transformation.id |
 | `imageName` | String | Không | Tên file hình |
 | `imagePath` | String | Không | Đường dẫn hình |
 | `description` | String | Không | Mô tả chi tiết từ AI |
@@ -51,8 +51,8 @@
 ## Quan hệ
 
 ```
-User       1 ──── * Conversion
-Conversion 1 ──── * ImageDescription
+User       1 ──── * Transformation
+Transformation 1 ──── * ImageDescription
 ```
 
 ---

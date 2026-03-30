@@ -6,7 +6,7 @@ Tất cả endpoint yêu cầu xác thực (NextAuth session cookie).
 
 ## POST /api/upload
 
-Upload file và tạo conversion record.
+Upload file và tạo transformation record.
 
 | Thông tin | Giá trị |
 |---|---|
@@ -42,9 +42,9 @@ Upload file và tạo conversion record.
 
 ---
 
-## POST /api/convert
+## POST /api/transform
 
-Trigger convert cho file đã upload.
+Trigger transform cho file đã upload.
 
 ### Request
 
@@ -61,13 +61,13 @@ Trigger convert cho file đã upload.
 }
 ```
 
-Convert chạy bất đồng bộ. Poll trạng thái qua `GET /api/convert/[id]`.
+Transform chạy bất đồng bộ. Poll trạng thái qua `GET /api/transform/[id]`.
 
 ---
 
-## GET /api/convert/[id]
+## GET /api/transform/[id]
 
-Lấy trạng thái và kết quả convert.
+Lấy trạng thái và kết quả transform.
 
 ### Response 200
 
@@ -96,7 +96,7 @@ Khi `status` là `pending` / `compressing` / `processing`: `fullMd` và `textOnl
 
 ---
 
-## PUT /api/convert/[id]/edit
+## PUT /api/transform/[id]/edit
 
 Lưu Markdown đã chỉnh sửa.
 
@@ -109,11 +109,11 @@ Lưu Markdown đã chỉnh sửa.
 }
 ```
 
-`fullMd` có thể là `null` với convert PDF.
+`fullMd` có thể là `null` với transform PDF.
 
 ---
 
-## GET /api/convert/[id]/download
+## GET /api/transform/[id]/download
 
 Tải về ZIP chứa tất cả output.
 
@@ -139,7 +139,7 @@ Tải về ZIP chứa tất cả output.
 
 ## GET /api/history
 
-Danh sách lịch sử convert (phân trang).
+Danh sách lịch sử transform (phân trang).
 
 ### Query params
 

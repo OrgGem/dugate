@@ -6,24 +6,33 @@ import { getSetting } from '@/lib/settings';
 export async function POST() {
   try {
     const provider = await getSetting('ai_provider');
-    const apiKey = await getSetting('ai_api_key');
     const model = await getSetting('ai_model');
-
-    if (!apiKey) {
-      return Response.json(
-        { success: false, message: 'Chưa nhập API key. Vui lòng nhập và lưu trước.' },
-        { status: 400 }
-      );
-    }
-
     if (provider === 'gemini') {
-      // Test Gemini bằng cách gọi generateContent với prompt ngắn
+      const apiKey = await getSetting('ai_api_key');
+      if (!apiKey) {
+        return Response.json({ success: false, message: 'Chưa nhập Gemini API key. Vui lòng nhập và lưu trước.' }, { status: 400 });
+      }
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(apiKey);
       const geminiModel = genAI.getGenerativeModel({ model: model || 'gemini-2.0-flash-lite' });
-
       await geminiModel.generateContent('Hello');
       return Response.json({ success: true, message: `Kết nối ${provider} (${model}) thành công!` });
+    }
+
+    if (provider === 'openai') {
+      const apiKey = await getSetting('openai_api_key');
+      const baseURL = await getSetting('openai_base_url');
+      if (!apiKey && !baseURL) {
+        return Response.json({ success: false, message: 'Chưa nhập OpenAI API key hoặc Base URL.' }, { status: 400 });
+      }
+      const { OpenAI } = await import('openai');
+      const openai = new OpenAI({ apiKey: apiKey || 'dummy-key', baseURL: baseURL || 'https://api.openai.com/v1' });
+      await openai.chat.completions.create({
+        model: model || 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 5
+      });
+      return Response.json({ success: true, message: `Kết nối OpenAI (${model}) thông qua ${baseURL} thành công!` });
     }
 
     return Response.json(

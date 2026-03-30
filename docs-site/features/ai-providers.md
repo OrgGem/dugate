@@ -42,7 +42,7 @@ Keys set via environment variable (`GEMINI_API_KEY`) take precedence over UI-ent
 4. Click **Save**
 5. Test the connection with the **Test** button
 
-Changes take effect immediately — ongoing conversions are not affected.
+Changes take effect immediately — ongoing transformations are not affected.
 
 ## Custom Prompts
 

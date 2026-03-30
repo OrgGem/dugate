@@ -81,7 +81,7 @@ sudo certbot --nginx -d your-domain.com
 
 ## Option 3: Vercel (Limited)
 
-**Warning:** Vercel does not support Pandoc or Ghostscript CLI tools. Only PDF conversion via pure AI (without Ghostscript compression) will work. DOCX conversion is not supported.
+**Warning:** Vercel does not support Pandoc or Ghostscript CLI tools. Only PDF transformation via pure AI (without Ghostscript compression) will work. DOCX transformation is not supported.
 
 ```bash
 # Deploy via Vercel CLI

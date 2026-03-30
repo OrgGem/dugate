@@ -1,10 +1,10 @@
 # mdconvert
 
-**Convert Word & PDF to AI-ready Markdown with image descriptions**
+**Transform Word & PDF to AI-ready Markdown with image descriptions**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-A self-hosted tool that converts `.docx` and `.pdf` files into clean Markdown optimized for AI agents, Claude Projects, and Claude Code. Images are extracted and described by AI vision — no manual work needed.
+A self-hosted tool that transforms `.docx` and `.pdf` files into clean Markdown optimized for AI agents, Claude Projects, and Claude Code. Images are extracted and described by AI vision — no manual work needed.
 
 ---
 
@@ -17,7 +17,7 @@ A self-hosted tool that converts `.docx` and `.pdf` files into clean Markdown op
 
 - **DOCX flow** — Pandoc extracts structure + images → AI Vision describes each image → outputs `full.md` (with image descriptions) + `text-only.md`
 - **PDF flow** — Ghostscript renders pages → AI Vision reads content → outputs `text-only.md`
-- **Batch upload** — convert multiple files in one go
+- **Batch upload** — transform multiple files in one go
 - **Multi AI provider** — Gemini, OpenAI, Anthropic — switchable via the UI settings page, no redeploy needed
 - **Image compression** — Sharp resizes images (max 1600px, 80% quality) before sending to AI
 - **PDF compression presets** — screen / ebook / printer / prepress via Ghostscript

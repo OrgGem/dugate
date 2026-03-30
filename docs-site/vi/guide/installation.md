@@ -77,7 +77,7 @@ sudo certbot --nginx -d your-domain.com
 ## Cách 3: Vercel (Giới hạn)
 
 ::: warning
-Vercel không hỗ trợ Pandoc và Ghostscript. Tính năng convert DOCX không hoạt động. Chỉ dùng được PDF với AI Vision trực tiếp.
+Vercel không hỗ trợ Pandoc và Ghostscript. Tính năng transform DOCX không hoạt động. Chỉ dùng được PDF với AI Vision trực tiếp.
 :::
 
 ```bash

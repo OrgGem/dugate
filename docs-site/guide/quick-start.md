@@ -30,13 +30,13 @@ Go to the home page (`/`) and:
 
 1. Drag and drop a `.docx` or `.pdf` file (max 100MB)
 2. For PDF: choose a compression preset (ebook is recommended)
-3. Click **Convert**
+3. Click **Transform**
 
-Conversion runs in the background. The page polls for status automatically.
+Transformation runs in the background. The page polls for status automatically.
 
 ## 4. Review and Download
 
-Once conversion is complete:
+Once transformation is complete:
 
 - **Preview** the Markdown output
 - **Edit** inline if needed
@@ -66,4 +66,4 @@ Go to `/batch` to upload multiple files at once. Each file is converted independ
 
 ## 6. History
 
-Go to `/history` to see all past conversions, re-download results, or delete entries.
+Go to `/history` to see all past transformations, re-download results, or delete entries.

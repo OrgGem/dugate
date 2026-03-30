@@ -1,4 +1,4 @@
-# PDF Conversion
+# PDF Transformation
 
 ## How It Works
 
@@ -21,7 +21,7 @@ text-only.md
 
 ## Output
 
-PDF conversion produces a single `text-only.md` file. There is no `full.md` or `images/` folder for PDFs — AI Vision reads the rendered pages directly.
+PDF transformation produces a single `text-only.md` file. There is no `full.md` or `images/` folder for PDFs — AI Vision reads the rendered pages directly.
 
 ## Compression Presets
 
@@ -34,7 +34,7 @@ Choose a preset when uploading:
 | `printer` | 300 dpi | High quality print |
 | `prepress` | 300 dpi | Maximum quality, largest file |
 
-The compressed PDF is a temporary file — it is used only for AI processing and deleted after conversion completes.
+The compressed PDF is a temporary file — it is used only for AI processing and deleted after transformation completes.
 
 ## Requirements
 
@@ -44,6 +44,6 @@ The compressed PDF is a temporary file — it is used only for AI processing and
 
 ## Limitations
 
-- PDF conversion produces **text-only output** — no image extraction
+- PDF transformation produces **text-only output** — no image extraction
 - For PDFs with complex diagrams, AI Vision describes visible content but accuracy depends on the provider and image quality
 - Scanned PDFs (image-only) work but quality depends on scan resolution
