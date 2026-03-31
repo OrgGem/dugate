@@ -1,361 +1,370 @@
 // prisma/seed.ts
-// Master Seed Script for Dugate Document AI Production
+// Master Seed Script for Dugate Document AI — v2 Architecture
 
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
-const PDF_DOCX_MIMES = 'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-const defaultEndpointUrl = 'http://localhost:8000/v1/external-proxy/completions';
+const defaultEndpointUrl = 'http://localhost:8000/v1/completions';
 
-const PREBUILT_PROCESSORS = [
-  {
-    slug: 'prebuilt-layout',
-    displayName: 'Chuyển đổi văn bản (PDF/DOCX → Markdown)',
-    type: 'PREBUILT',
-    category: 'extract',
-    description: 'Chuyển đổi tài liệu PDF hoặc DOCX sang Markdown giữ nguyên cấu trúc bảng biểu, heading, và hình ảnh.',
-    systemPrompt: 'Convert the document content to well-structured Markdown. Preserve all tables, headings, lists, and formatting.',
-    responseSchema: null,
-    acceptedMimes: PDF_DOCX_MIMES,
-    outputFormats: 'md,html',
-    variablesSchema: null,
-    canBeFirstStep: true,
-    canBeChainStep: false,
-    processorConfig: JSON.stringify({ docxMode: 'ai', docxFormat: 'html', compressLevel: 'ebook' }),
-  },
-  {
-    slug: 'prebuilt-compare',
-    displayName: 'So sánh ngữ nghĩa 2 văn bản',
-    type: 'PREBUILT',
-    category: 'analyze',
-    description: 'Phân tích sự khác biệt ngữ nghĩa giữa file gốc và file chỉnh sửa.',
-    systemPrompt: 'Compare the following two documents semantically. Identify all changes: added, removed, and modified sections. For each change provide: type (added/removed/modified), section, original_text, changed_text, significance (low/medium/high), explanation.',
-    responseSchema: JSON.stringify({
-      type: 'object',
-      properties: {
-        similarity_score: { type: 'number' },
-        total_changes: { type: 'number' },
-        differences: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string', enum: ['added', 'removed', 'modified'] },
-              section: { type: 'string' },
-              original_text: { type: 'string' },
-              changed_text: { type: 'string' },
-              significance: { type: 'string' },
-              explanation: { type: 'string' },
-            },
-          },
-        },
-      },
-    }),
-    acceptedMimes: PDF_DOCX_MIMES,
-    outputFormats: 'json',
-    variablesSchema: null,
-    canBeFirstStep: true,
-    canBeChainStep: false,
-    processorConfig: JSON.stringify({ docxMode: 'ai', docxFormat: 'html', compressLevel: 'ebook' }),
-  }
-];
-
+// ─── 15 External API Connectors ──────────────────────────────────────────────
 const CONNECTORS = [
+  // ── Ingest ──────────────────────────────────────────────────────────────
   {
-    slug: 'ext-claim-extractor',
-    name: 'Claim Extractor (Fact Check Step 1)',
-    description: 'Trích xuất các nhận định (claims), số liệu, và sự kiện quan trọng từ tài liệu.',
+    slug: 'ext-doc-layout',
+    name: 'Document Layout Parser',
+    description: 'Parse PDF/DOCX → Markdown. Xử lý cả OCR scan. Dùng cho: ingest:parse, ingest:ocr, transform:convert.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
     timeoutSec: 120,
     state: 'ENABLED',
-    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'temperature', value: '0.1' }]),
-    defaultPrompt: `Extract all factual claims, numeric figures, entities, dates, and key statements from the document. 
-Return ONLY a valid JSON list of strings representing these claims.
-
----
-DOCUMENT CONTENT:
-{{input_content}}`,
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'doc-layout-v1' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Parse the document and return its full content in well-structured Markdown.
+Preserve all tables, headings, lists, and formatting. Output format: {{output_format}}.`,
   },
   {
-    slug: 'ext-fact-verifier',
-    name: 'Fact Verifier (Fact Check Step 2)',
-    description: 'Kiểm tra và đối chiếu các thông tin dựa trên dữ liệu tham chiếu (Reference Data).',
+    slug: 'ext-vision-reader',
+    name: 'Handwriting Vision Reader',
+    description: 'Số hóa tài liệu viết tay bằng vision model. Dùng cho: ingest:digitize.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
     timeoutSec: 180,
     state: 'ENABLED',
-    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'temperature', value: '0.1' }]),
-    defaultPrompt: `You are a professional document compliance and fact-checking auditor.
-
-**TASK:** Verify the document content against the provided reference data, following the business rules specified below.
-
----
-
-**BUSINESS RULES / CHECK CRITERIA:**
-{{check_prompt}}
-
----
-
-**REFERENCE DATA:**
-{{reference_text}}
-
----
-
-**DOCUMENT CONTENT:**
-{{input_content}}
-
----
-
-**Instructions:**
-Carefully compare the document content against the reference data for each rule or criterion. For each check:
-- Extract the exact value/statement from the document
-- Compare it with the corresponding value in the reference data
-- Assign a status: PASS (matches/compliant), FAIL (contradicts/non-compliant), WARNING (partially matches or ambiguous), NOT_APPLICABLE (rule doesn't apply to this document)
-
-Return ONLY a valid JSON object with this exact structure (no markdown fences, no extra text outside JSON):
-{
-  "verdict": "PASS | FAIL | WARNING | INCONCLUSIVE",
-  "score": <integer 0-100, overall compliance percentage>,
-  "summary": "<2-3 sentence overall compliance assessment>",
-  "checks": [
-    {
-      "rule": "<specific rule or criterion checked>",
-      "status": "PASS | FAIL | WARNING | NOT_APPLICABLE",
-      "document_value": "<exact value or text found in the document>",
-      "reference_value": "<corresponding expected value from reference data>",
-      "explanation": "<concise explanation of why this check passed or failed>"
-    }
-  ],
-  "discrepancies": ["<list of key discrepancies found, each as a concise statement>"]
-}`,
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Transcribe all handwritten text in this document image to digital text. Preserve paragraph structure.`,
   },
   {
-    slug: 'ext-invoice-extractor',
-    name: 'Invoice Extractor',
-    description: 'Trích xuất dữ liệu từ hóa đơn VAT: số hóa đơn, người bán, tổng tiền, thuế.',
+    slug: 'ext-pdf-tools',
+    name: 'PDF Tools (Split / Merge)',
+    description: 'Công cụ xử lý PDF: tách trang, ghép. Dùng cho: ingest:split.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
-    timeoutSec: 120,
+    timeoutSec: 60,
     state: 'ENABLED',
-    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
-    defaultPrompt: `Extract structured data from this invoice document. Return strictly a JSON object matching this schema:
-{
-  "invoice_no": "string",
-  "date": "string",
-  "seller_name": "string",
-  "seller_tax_code": "string",
-  "buyer_name": "string",
-  "items": [{"description": "string", "quantity": "number", "unit_price": "number", "amount": "number"}],
-  "subtotal": "number",
-  "vat_amount": "number",
-  "total_amount": "number",
-  "currency": "string"
-}
-
----
-BUSINESS RULES: {{business_rules}}
----
-DOCUMENT CONTENT:
-{{input_content}}`,
+    staticFormFields: null,
+    responseContentPath: 'content',
+    defaultPrompt: `Split PDF at pages: {{pages}}. Return output as downloadable file URL.`,
   },
+
+  // ── Extract ─────────────────────────────────────────────────────────────
   {
-    slug: 'ext-contract-extractor',
-    name: 'Contract Extractor',
-    description: 'Trích xuất các điều khoản, bên ký kết, thời hạn, và cam kết từ hợp đồng.',
+    slug: 'ext-data-extractor',
+    name: 'Structured Data Extractor',
+    description: 'Trích xuất dữ liệu có cấu trúc từ tài liệu. Dùng cho: extract (all types), analyze:fact-check step-1.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
     timeoutSec: 180,
     state: 'ENABLED',
     staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
-    defaultPrompt: `Extract structured data from this contract document. Return strictly a JSON with:
-{
-  "parties": ["string"],
-  "effective_date": "string",
-  "expiry_date": "string",
-  "key_clauses": [{"clause_number": "string", "title": "string", "summary": "string"}],
-  "total_value": "string"
-}
+    responseContentPath: 'content',
+    defaultPrompt: `Extract structured data from the document. Fields to extract: {{fields}}
+{{#if schema}}Output schema: {{schema}}{{/if}}
+{{#if business_rules}}Business rules: {{business_rules}}{{/if}}
 
----
-BUSINESS RULES: {{business_rules}}
----
-DOCUMENT CONTENT:
-{{input_content}}`,
+Return ONLY valid JSON matching the requested fields.`,
   },
-  {
-    slug: 'ext-id-card-extractor',
-    name: 'ID Card Extractor',
-    description: 'Trích xuất thông tự ảnh/scan Căn cước công dân hoặc Chứng minh nhân dân.',
-    endpointUrl: defaultEndpointUrl,
-    httpMethod: 'POST',
-    promptFieldName: 'prompt',
-    fileFieldName: 'file',
-    authType: 'API_KEY_HEADER',
-    authKeyHeader: 'x-api-key',
-    authSecret: 'DUMMY_SECRET_KEY',
-    timeoutSec: 100,
-    state: 'ENABLED',
-    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
-    defaultPrompt: `Extract structured data from this identity card document. Return JSON with fields:
-{
-  "full_name": "string",
-  "date_of_birth": "string",
-  "gender": "string",
-  "nationality": "string",
-  "place_of_origin": "string",
-  "place_of_residence": "string",
-  "id_number": "string",
-  "expiry_date": "string"
-}
 
----
-BUSINESS RULES: {{business_rules}}
----
-DOCUMENT CONTENT:
-{{input_content}}`,
-  },
+  // ── Analyze ─────────────────────────────────────────────────────────────
   {
-    slug: 'ext-document-classifier',
+    slug: 'ext-classifier',
     name: 'Document Classifier',
-    description: 'Tự động phân loại tài liệu thuộc loại gì: Hóa đơn, Hợp đồng, CV, Báo cáo...',
+    description: 'Phân loại tài liệu vào danh mục. Dùng cho: analyze:classify.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
     timeoutSec: 60,
     state: 'ENABLED',
     staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o-mini' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
     defaultPrompt: `Classify this document into one of the following categories: {{categories}}.
-Return JSON with:
-{
-  "document_type": "string",
-  "confidence": "number (0-1)",
-  "language": "string",
-  "page_count_estimate": "number",
-  "key_topics": ["string"]
-}
-
----
-BUSINESS RULES: {{business_rules}}
----
-DOCUMENT CONTENT:
-{{input_content}}`,
+Business rules: {{business_rules}}
+Return JSON: { "document_type": "string", "confidence": 0.0-1.0, "language": "string", "key_topics": ["string"] }`,
   },
   {
-    slug: 'ext-summarize',
-    name: 'Document Summarizer',
-    description: 'Tóm tắt nội dung tài liệu theo độ dài và phong cách yêu cầu.',
+    slug: 'ext-sentiment',
+    name: 'Sentiment Analyzer',
+    description: 'Phân tích cảm xúc / quan điểm từ tài liệu. Dùng cho: analyze:sentiment.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
-    timeoutSec: 150,
+    timeoutSec: 60,
     state: 'ENABLED',
-    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o-mini' }]),
-    defaultPrompt: `Summarize the following document content in {{max_words}} words or less. Write in a clear, professional tone. Preserve key facts and figures.
-Focus Areas: {{focus_areas}}
-Tone: {{tone}}
-
----
-DOCUMENT CONTENT:
-{{input_content}}`,
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o-mini' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Analyze the sentiment and tone of this document.
+Return JSON: { "overall_sentiment": "POSITIVE|NEGATIVE|NEUTRAL|MIXED", "confidence": 0.0-1.0, "aspects": [{"aspect": "string", "sentiment": "string"}] }`,
   },
   {
-    slug: 'ext-translate',
-    name: 'Document Translator',
-    description: 'Dịch toàn bộ tài liệu sang ngôn ngữ đích, giữ nguyên cấu trúc Markdown.',
+    slug: 'ext-compliance',
+    name: 'Compliance Checker',
+    description: 'Kiểm tra tài liệu theo tiêu chuẩn/quy định. Dùng cho: analyze:compliance.',
     endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'prompt',
-    fileFieldName: 'file',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 180,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Check this document for compliance against the following criteria:
+{{criteria}}
+Business rules: {{business_rules}}
+
+Return JSON: { "verdict": "PASS|FAIL|WARNING", "score": 0-100, "summary": "string", "checks": [{"rule": "string", "status": "PASS|FAIL|WARNING", "explanation": "string"}] }`,
+  },
+  {
+    slug: 'ext-fact-verifier',
+    name: 'Fact Verifier',
+    description: 'Kiểm chứng dữ liệu so với reference. Dùng cho: analyze:fact-check step-2.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 180,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Verify the extracted data against the reference data provided.
+Extracted claims/data: {{input_content}}
+Reference data: {{reference_data}}
+Business rules: {{business_rules}}
+
+Return JSON: { "verdict": "PASS|FAIL|WARNING", "score": 0-100, "summary": "string", "checks": [{"rule": "string", "status": "PASS|FAIL|WARNING", "document_value": "string", "reference_value": "string", "explanation": "string"}], "discrepancies": ["string"] }`,
+  },
+  {
+    slug: 'ext-quality-eval',
+    name: 'Quality & Risk Evaluator',
+    description: 'Đánh giá chất lượng và rủi ro tài liệu. Dùng cho: analyze:quality, analyze:risk.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 120,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Evaluate the quality and/or risk of this document.
+Evaluation criteria: {{criteria}}
+Business rules: {{business_rules}}
+
+Return JSON: { "score": 0-100, "grade": "A|B|C|D|F", "summary": "string", "findings": [{"category": "string", "severity": "LOW|MEDIUM|HIGH", "description": "string", "recommendation": "string"}] }`,
+  },
+
+  // ── Transform ────────────────────────────────────────────────────────────
+  {
+    slug: 'ext-translator',
+    name: 'Document Translator',
+    description: 'Dịch tài liệu sang ngôn ngữ khác. Dùng cho: transform:translate.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
     authType: 'API_KEY_HEADER',
     authKeyHeader: 'x-api-key',
     authSecret: 'DUMMY_SECRET_KEY',
     timeoutSec: 300,
     state: 'ENABLED',
     staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }]),
-    defaultPrompt: `Translate the following document to {{target_language}}. 
-Tone: {{tone}}
-Glossary instructions: {{glossary}}
+    responseContentPath: 'content',
+    defaultPrompt: `Translate this document to {{target_language}}. Tone: {{tone}}.
+{{#if glossary}}Glossary: {{glossary}}{{/if}}
+Preserve all Markdown formatting. Only translate text content.`,
+  },
+  {
+    slug: 'ext-rewriter',
+    name: 'Content Rewriter',
+    description: 'Viết lại nội dung theo phong cách/giọng văn. Dùng cho: transform:rewrite.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 180,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Rewrite the document content with style: {{style}}, tone: {{tone}}.
+Preserve the original meaning but improve clarity and professionalism.`,
+  },
+  {
+    slug: 'ext-redactor',
+    name: 'PII Redactor & Template Filler',
+    description: 'Ẩn thông tin nhạy cảm hoặc điền dữ liệu vào template. Dùng cho: transform:redact, transform:template.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 120,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Process the document by applying redaction or template filling.
+Patterns to redact: {{redact_patterns}}
+Template to apply: {{template}}
+Return the processed document content.`,
+  },
 
-CRITICAL: Preserve ALL Markdown formatting including headings, tables, lists, bold, italic, and code blocks exactly as they are. Only translate the text content.
+  // ── Generate ─────────────────────────────────────────────────────────────
+  {
+    slug: 'ext-content-gen',
+    name: 'Content Generator',
+    description: 'Tạo nội dung mới từ tài liệu: tóm tắt, outline, báo cáo, email. Dùng cho: generate:*, analyze:summarize-eval.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 180,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Generate content based on the uploaded documents. 
+Max words: {{max_words}}. Format: {{format}}. Audience: {{audience}}. Tone: {{tone}}.
+Focus areas: {{focus_areas}}.
+For evaluation criteria: {{criteria}}.`,
+  },
+  {
+    slug: 'ext-qa-engine',
+    name: 'Document QA Engine',
+    description: 'Trả lời câu hỏi về nội dung tài liệu. Dùng cho: generate:qa.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 120,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Answer the following questions based ONLY on information found in the provided documents.
+Questions: {{questions}}
 
----
-DOCUMENT CONTENT:
-{{input_content}}`,
-  }
+Return JSON: { "answers": [{"question": "string", "answer": "string", "confidence": 0.0-1.0, "source_quote": "string"}] }`,
+  },
+
+  // ── Compare ──────────────────────────────────────────────────────────────
+  {
+    slug: 'ext-comparator',
+    name: 'Document Comparator',
+    description: 'So sánh 2 hoặc nhiều tài liệu: diff text, semantic, hoặc version changelog. Dùng cho: compare:*.',
+    endpointUrl: defaultEndpointUrl,
+    httpMethod: 'POST',
+    promptFieldName: 'prompt',
+    fileFieldName: 'files',
+    authType: 'API_KEY_HEADER',
+    authKeyHeader: 'x-api-key',
+    authSecret: 'DUMMY_SECRET_KEY',
+    timeoutSec: 240,
+    state: 'ENABLED',
+    staticFormFields: JSON.stringify([{ key: 'model', value: 'gpt-4o' }, { key: 'response_format', value: 'json_object' }]),
+    responseContentPath: 'content',
+    defaultPrompt: `Compare the provided documents. Mode: {{mode}}.
+Focus areas: {{focus}}.
+Business rules: {{business_rules}}.
+Output format: {{output_format}}.
+
+Return JSON: { "similarity_score": 0.0-1.0, "summary": "string", "total_changes": 0, "differences": [{"type": "added|removed|modified", "section": "string", "original_text": "string", "changed_text": "string", "significance": "low|medium|high", "explanation": "string"}] }`,
+  },
 ];
 
-// Map endpoints from ENDPOINT_REGISTRY logic
-const ENDPOINT_SLUGS = [
-  'layout',
-  'summarize',
-  'translate',
-  'invoice-extractor',
-  'contract-extractor',
-  'id-card-extractor',
-  'document-classifier',
-  'fact-check',
-  'compare'
+// ─── Endpoint slugs from SERVICE_REGISTRY for ProfileEndpoint seeding ─────────
+const ALL_ENDPOINT_SLUGS = [
+  // ingest
+  'ingest:parse', 'ingest:ocr', 'ingest:digitize', 'ingest:split',
+  // extract
+  'extract', 'extract:invoice', 'extract:contract', 'extract:id-card', 'extract:receipt', 'extract:po', 'extract:payslip',
+  // analyze
+  'analyze:classify', 'analyze:sentiment', 'analyze:compliance', 'analyze:fact-check',
+  'analyze:quality', 'analyze:risk', 'analyze:summarize-eval',
+  // transform
+  'transform:convert', 'transform:translate', 'transform:rewrite', 'transform:redact', 'transform:template',
+  // generate
+  'generate:summary', 'generate:outline', 'generate:report', 'generate:email', 'generate:minutes', 'generate:qa',
+  // compare
+  'compare:diff', 'compare:semantic', 'compare:version',
 ];
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('🌱 Starting Master Data Seed for Production...');
+  console.log('🌱 Starting Master Data Seed for Dugate Document AI v2...');
 
-  // 1. Seed Legacy/Local Processors
-  console.log('\\n[1/4] Seeding Legacy/Local Processors...');
-  for (const proc of PREBUILT_PROCESSORS) {
-    await prisma.processor.upsert({
-      where: { slug: proc.slug },
-      update: { ...proc },
-      create: { ...proc },
-    });
-    console.log(`  ✅ ${proc.slug}`);
-  }
-
-  // 2. Seed External API Connectors
-  console.log('\\n[2/4] Seeding External API Connectors...');
+  // 1. Seed 15 External API Connectors
+  console.log('\n[1/3] Seeding 15 External API Connectors...');
   for (const conn of CONNECTORS) {
     await prisma.externalApiConnection.upsert({
       where: { slug: conn.slug },
-      update: { ...conn },
-      create: { ...conn },
+      update: {
+        name: conn.name,
+        description: conn.description,
+        endpointUrl: conn.endpointUrl,
+        httpMethod: conn.httpMethod,
+        promptFieldName: conn.promptFieldName,
+        fileFieldName: conn.fileFieldName,
+        authType: conn.authType,
+        authKeyHeader: conn.authKeyHeader,
+        authSecret: conn.authSecret,
+        timeoutSec: conn.timeoutSec,
+        state: conn.state,
+        staticFormFields: conn.staticFormFields ?? null,
+        responseContentPath: conn.responseContentPath,
+        defaultPrompt: conn.defaultPrompt,
+      },
+      create: conn,
     });
     console.log(`  ✅ ${conn.slug}`);
   }
 
-  // 3. Setup Default Admin Hash Key
-  console.log('\\n[3/4] Ensuring Default Admin API Key...');
-  // WARNING: This hash corresponds to 'sk-admin-default-secret-key'. Change it on production.
+  // 2. Setup Default Admin API Key
+  console.log('\n[2/3] Ensuring Default Admin API Key...');
   const rawAdminKey = 'sk-admin-default-secret-key';
   const hashedKey = crypto.createHash('sha256').update(rawAdminKey).digest('hex');
 
@@ -372,43 +381,31 @@ async function main() {
       totalUsed: 0,
     },
   });
-  console.log(`  🔑 System Admin API Key seeded (ID: ${adminKey.id})`);
-  console.log(`  ℹ️  Default key raw string: ${rawAdminKey}`);
+  console.log(`  🔑 Admin API Key: ${rawAdminKey} (ID: ${adminKey.id})`);
 
-  // 4. Enroll Admin to All Profile Endpoints
-  console.log('\\n[4/4] Generating ProfileEndpoints for Admin API Key...');
-  for (const slug of ENDPOINT_SLUGS) {
+  // Enable all endpoints for admin
+  for (const slug of ALL_ENDPOINT_SLUGS) {
     await prisma.profileEndpoint.upsert({
-      where: {
-        apiKeyId_endpointSlug: {
-          apiKeyId: adminKey.id,
-          endpointSlug: slug,
-        },
-      },
+      where: { apiKeyId_endpointSlug: { apiKeyId: adminKey.id, endpointSlug: slug } },
       update: { enabled: true },
-      create: {
-        apiKeyId: adminKey.id,
-        endpointSlug: slug,
-        enabled: true,
-      },
+      create: { apiKeyId: adminKey.id, endpointSlug: slug, enabled: true },
     });
-    console.log(`  📡 Enabled ProfileEndpoint: ${slug}`);
   }
+  console.log(`  📡 Enrolled admin to ${ALL_ENDPOINT_SLUGS.length} endpoints.`);
 
-  // 5. Setup Default Admin User
-  console.log('\\n[5/5] Ensuring Default Admin User...');
+  // 3. Setup Default Admin User
+  console.log('\n[3/3] Ensuring Default Admin User...');
   const defaultPassword = '123456';
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-  
+
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin' },
     update: { password: hashedPassword, role: 'ADMIN' },
     create: { username: 'admin', password: hashedPassword, role: 'ADMIN' },
   });
-  console.log(`  👤 Admin User seeded (Username: ${adminUser.username})`);
-  console.log(`  ℹ️  Default login password: ${defaultPassword}`);
+  console.log(`  👤 Admin User: ${adminUser.username} / ${defaultPassword}`);
 
-  console.log('\\n🎉 Master Data Seeding completed successfully!');
+  console.log('\n🎉 Seeding completed successfully!');
 }
 
 main()

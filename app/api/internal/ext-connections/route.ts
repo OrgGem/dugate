@@ -10,11 +10,6 @@ export async function GET() {
   try {
     const connections = await prisma.externalApiConnection.findMany({
       orderBy: { createdAt: 'asc' },
-      include: {
-        processors: {
-          select: { id: true, slug: true, state: true },
-        },
-      },
     });
 
     // Mask authSecret — never expose to frontend
@@ -81,9 +76,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: `Slug '${slug}' đã tồn tại` }, { status: 409 });
     }
 
-    // Transaction: tạo connection + auto-create linked Processor
-    const result = await prisma.$transaction(async (tx) => {
-      const connection = await tx.externalApiConnection.create({
+    const result = await prisma.externalApiConnection.create({
         data: {
           name: name.trim(),
           slug: slug.trim(),
@@ -104,35 +97,12 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Auto-create a Processor linked to this connection
-      const processor = await tx.processor.create({
-        data: {
-          slug: connection.slug,
-          displayName: connection.name,
-          type: 'EXTERNAL_API',
-          category: 'extract',
-          description: connection.description ?? `External AI service: ${connection.name}`,
-          state: connection.state,
-          // Placeholder values (không dùng cho EXTERNAL_API)
-          systemPrompt: '',
-          acceptedMimes: 'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          outputFormats: 'md',
-          canBeFirstStep: true,
-          canBeChainStep: false,
-          externalApiConnectionId: connection.id,
-        },
-      });
-
-      return { connection, processor };
-    });
-
     return NextResponse.json({
       success: true,
       connection: {
-        ...result.connection,
-        authSecret: '••••••••', // Mask on return
+        ...result,
+        authSecret: '••••••••',
       },
-      processor: result.processor,
     }, { status: 201 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

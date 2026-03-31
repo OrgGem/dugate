@@ -1,6 +1,6 @@
 // app/api/internal/ext-connections/[id]/route.ts
-// PUT    — Update connection (authSecret optional)
-// DELETE — Delete connection (cascade deletes Processor + overrides)
+// PUT    — Update connection
+// DELETE — Delete connection (cascade deletes overrides)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -26,7 +26,7 @@ export async function PUT(
       httpMethod,
       authType,
       authKeyHeader,
-      authSecret,     // undefined or '' = keep existing
+      authSecret,
       promptFieldName,
       fileFieldName,
       defaultPrompt,
@@ -43,38 +43,25 @@ export async function PUT(
         ? authSecret.trim()
         : existing.authSecret;
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const connection = await tx.externalApiConnection.update({
-        where: { id },
-        data: {
-          ...(name !== undefined && { name: name.trim() }),
-          ...(description !== undefined && { description: description?.trim() ?? null }),
-          ...(endpointUrl !== undefined && { endpointUrl: endpointUrl.trim() }),
-          ...(httpMethod !== undefined && { httpMethod }),
-          ...(authType !== undefined && { authType }),
-          ...(authKeyHeader !== undefined && { authKeyHeader }),
-          authSecret: resolvedSecret,
-          ...(promptFieldName !== undefined && { promptFieldName }),
-          ...(fileFieldName !== undefined && { fileFieldName }),
-          ...(defaultPrompt !== undefined && { defaultPrompt: defaultPrompt.trim() }),
-          ...(staticFormFields !== undefined && { staticFormFields: staticFormFields ?? null }),
-          ...(extraHeaders !== undefined && { extraHeaders: extraHeaders ?? null }),
-          ...(responseContentPath !== undefined && { responseContentPath }),
-          ...(timeoutSec !== undefined && { timeoutSec: Number(timeoutSec) }),
-          ...(state !== undefined && { state }),
-        },
-      });
-
-      // Sync linked Processor's displayName and state
-      await tx.processor.updateMany({
-        where: { externalApiConnectionId: id },
-        data: {
-          ...(name !== undefined && { displayName: name.trim() }),
-          ...(state !== undefined && { state }),
-        },
-      });
-
-      return connection;
+    const updated = await prisma.externalApiConnection.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description?.trim() ?? null }),
+        ...(endpointUrl !== undefined && { endpointUrl: endpointUrl.trim() }),
+        ...(httpMethod !== undefined && { httpMethod }),
+        ...(authType !== undefined && { authType }),
+        ...(authKeyHeader !== undefined && { authKeyHeader }),
+        authSecret: resolvedSecret,
+        ...(promptFieldName !== undefined && { promptFieldName }),
+        ...(fileFieldName !== undefined && { fileFieldName }),
+        ...(defaultPrompt !== undefined && { defaultPrompt: defaultPrompt.trim() }),
+        ...(staticFormFields !== undefined && { staticFormFields: staticFormFields ?? null }),
+        ...(extraHeaders !== undefined && { extraHeaders: extraHeaders ?? null }),
+        ...(responseContentPath !== undefined && { responseContentPath }),
+        ...(timeoutSec !== undefined && { timeoutSec: Number(timeoutSec) }),
+        ...(state !== undefined && { state }),
+      },
     });
 
     return NextResponse.json({
@@ -99,20 +86,13 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const existing = await prisma.externalApiConnection.findUnique({
-      where: { id },
-      include: { processors: true },
-    });
+    const existing = await prisma.externalApiConnection.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Connection không tồn tại' }, { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Xóa linked Processors trước
-      await tx.processor.deleteMany({ where: { externalApiConnectionId: id } });
-      // ExternalApiOverride sẽ tự cascade delete theo connection
-      await tx.externalApiConnection.delete({ where: { id } });
-    });
+    // ExternalApiOverride cascade-deletes via foreign key
+    await prisma.externalApiConnection.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

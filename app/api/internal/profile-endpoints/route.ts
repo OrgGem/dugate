@@ -1,6 +1,10 @@
+// app/api/internal/profile-endpoints/route.ts
+// GET  — List all endpoints with their ProfileEndpoint config for a given apiKeyId
+// POST — Upsert ProfileEndpoint config for an apiKeyId + endpointSlug
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ENDPOINT_REGISTRY } from '@/lib/endpoints/registry';
+import { SERVICE_REGISTRY, getAllEndpointSlugs } from '@/lib/endpoints/registry';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,18 +18,19 @@ export async function GET(req: NextRequest) {
     const [profileEndpoints, allExtConnections, allExtOverrides] = await Promise.all([
       prisma.profileEndpoint.findMany({ where: { apiKeyId } }),
       prisma.externalApiConnection.findMany({
-         select: { id: true, slug: true, name: true, defaultPrompt: true }
+        select: { id: true, slug: true, name: true, defaultPrompt: true },
       }),
-      prisma.externalApiOverride.findMany({ where: { apiKeyId } })
+      prisma.externalApiOverride.findMany({ where: { apiKeyId } }),
     ]);
 
-    const enrichedEndpoints = Object.values(ENDPOINT_REGISTRY).map(def => {
-      const dbRecord = profileEndpoints.find((p: any) => p.endpointSlug === def.slug);
-      
-      const extConnections = def.connections.map(connSlug => {
-        const conn = allExtConnections.find(c => c.slug === connSlug);
+    // Flatten SERVICE_REGISTRY into enriched endpoint list
+    const enrichedEndpoints = getAllEndpointSlugs().map((endpointDef) => {
+      const dbRecord = profileEndpoints.find((p) => p.endpointSlug === endpointDef.slug);
+
+      const extConnections = endpointDef.connections.map((connSlug) => {
+        const conn = allExtConnections.find((c) => c.slug === connSlug);
         if (!conn) return null;
-        const override = allExtOverrides.find(o => o.connectionId === conn.id);
+        const override = allExtOverrides.find((o) => o.connectionId === conn.id);
         return {
           connectionId: conn.id,
           slug: conn.slug,
@@ -37,18 +42,19 @@ export async function GET(req: NextRequest) {
       }).filter(Boolean);
 
       return {
-        ...def,
+        ...endpointDef,
         enabled: dbRecord ? dbRecord.enabled : true,
         defaultParams: dbRecord?.defaultParams ? JSON.parse(dbRecord.defaultParams as string) : null,
         profileParams: dbRecord?.profileParams ? JSON.parse(dbRecord.profileParams as string) : null,
-        id: dbRecord?.id || null, // null means not explicitly configured yet
+        id: dbRecord?.id ?? null,
         extConnections,
       };
     });
 
     return NextResponse.json({ endpoints: enrichedEndpoints });
-  } catch (error: any) {
-    console.error('[GET /profile-endpoints]', error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[GET /profile-endpoints]', msg);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -62,8 +68,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    if (!ENDPOINT_REGISTRY[endpointSlug]) {
-      return NextResponse.json({ error: 'Invalid endpoint slug' }, { status: 400 });
+    // Validate endpointSlug against SERVICE_REGISTRY
+    const allSlugs = getAllEndpointSlugs().map((e) => e.slug);
+    if (!allSlugs.includes(endpointSlug)) {
+      // Also allow bare service slugs (e.g. "extract") as catchall overrides
+      const serviceSlugs = Object.keys(SERVICE_REGISTRY);
+      if (!serviceSlugs.includes(endpointSlug)) {
+        return NextResponse.json({ error: `Invalid endpoint slug: '${endpointSlug}'` }, { status: 400 });
+      }
     }
 
     const payload = {
@@ -74,22 +86,16 @@ export async function POST(req: NextRequest) {
 
     const record = await prisma.profileEndpoint.upsert({
       where: {
-        apiKeyId_endpointSlug: {
-          apiKeyId,
-          endpointSlug,
-        },
+        apiKeyId_endpointSlug: { apiKeyId, endpointSlug },
       },
       update: payload,
-      create: {
-        apiKeyId,
-        endpointSlug,
-        ...payload,
-      },
+      create: { apiKeyId, endpointSlug, ...payload },
     });
 
     return NextResponse.json({ profileEndpoint: record }, { status: 200 });
-  } catch (error: any) {
-    console.error('[POST /profile-endpoints]', error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[POST /profile-endpoints]', msg);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
