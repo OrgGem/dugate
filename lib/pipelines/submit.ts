@@ -1,7 +1,5 @@
 // lib/pipelines/submit.ts
-// Shared core logic for submitting pipeline jobs.
-// Used by both /api/v1/documents/process (raw) and all Recipe endpoints.
-// Recipe endpoints build the pipeline internally; the raw endpoint parses it from the client.
+// Core submit logic: validate connectors, save files, create Operation, fire pipeline async.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
@@ -13,10 +11,9 @@ import { saveUploadedFile } from '@/lib/upload-helper';
 
 export interface SubmitPipelineParams {
   pipeline: PipelineStep[];
-  file?: File | null;
-  sourceFile?: File | null;
-  targetFile?: File | null;
-  outputFormat?: string;           // "md" | "html" | "json" — default "md"
+  files: File[];              // Universal: 1 or many files
+  endpointSlug?: string;      // "extract:invoice", "analyze:fact-check", etc.
+  outputFormat?: string;
   webhookUrl?: string | null;
   idempotencyKey?: string;
   apiKeyId?: string;
@@ -33,10 +30,9 @@ export async function submitPipelineJob(
 ): Promise<SubmitPipelineResult> {
   const {
     pipeline,
-    file,
-    sourceFile,
-    targetFile,
-    outputFormat = 'md',
+    files,
+    endpointSlug,
+    outputFormat = 'json',
     webhookUrl,
     idempotencyKey,
     apiKeyId,
@@ -63,46 +59,28 @@ export async function submitPipelineJob(
     };
   }
 
-  // ── 2. Validate each processor in DB ─────────────────────────────────────
+  // ── 2. Validate each connector in DB ─────────────────────────────────────
   for (let i = 0; i < pipeline.length; i++) {
     const step = pipeline[i];
-    const proc = await prisma.processor.findUnique({ where: { slug: step.processor } });
+    const conn = await prisma.externalApiConnection.findUnique({
+      where: { slug: step.processor },
+    });
 
-    if (!proc) {
+    if (!conn) {
       return {
         ok: false,
         errorResponse: NextResponse.json(
-          { type: 'https://dugate.vn/errors/invalid-processor', title: 'Processor Not Found', status: 404, detail: `Processor '${step.processor}' in step ${i} does not exist.` },
+          { type: 'https://dugate.vn/errors/connector-not-found', title: 'Connector Not Found', status: 404, detail: `Connector '${step.processor}' in step ${i} does not exist.` },
           { status: 404 },
         ),
       };
     }
 
-    if (proc.state !== 'ENABLED') {
+    if (conn.state !== 'ENABLED') {
       return {
         ok: false,
         errorResponse: NextResponse.json(
-          { type: 'https://dugate.vn/errors/processor-disabled', title: 'Processor Disabled', status: 422, detail: `Processor '${step.processor}' is currently disabled.` },
-          { status: 422 },
-        ),
-      };
-    }
-
-    if (i === 0 && !proc.canBeFirstStep) {
-      return {
-        ok: false,
-        errorResponse: NextResponse.json(
-          { type: 'https://dugate.vn/errors/invalid-chain', title: 'Invalid Pipeline Chain', status: 422, detail: `Processor '${step.processor}' cannot be used as first step.` },
-          { status: 422 },
-        ),
-      };
-    }
-
-    if (i > 0 && !proc.canBeChainStep) {
-      return {
-        ok: false,
-        errorResponse: NextResponse.json(
-          { type: 'https://dugate.vn/errors/invalid-chain', title: 'Invalid Pipeline Chain', status: 422, detail: `Processor '${step.processor}' cannot be used as a chain step (step ${i}).` },
+          { type: 'https://dugate.vn/errors/connector-disabled', title: 'Connector Disabled', status: 422, detail: `Connector '${step.processor}' is currently DISABLED.` },
           { status: 422 },
         ),
       };
@@ -117,24 +95,12 @@ export async function submitPipelineJob(
     }
   }
 
-  // ── 4. File requirement check ─────────────────────────────────────────────
-  const isCompare = pipeline.some(s => s.processor === 'prebuilt-compare');
-
-  if (isCompare) {
-    if (!sourceFile || !targetFile) {
-      return {
-        ok: false,
-        errorResponse: NextResponse.json(
-          { type: 'https://dugate.vn/errors/missing-files', title: 'Missing Files', status: 400, detail: 'Compare processor requires source_file and target_file.' },
-          { status: 400 },
-        ),
-      };
-    }
-  } else if (!file) {
+  // ── 4. Validate files ─────────────────────────────────────────────────────
+  if (!files || files.length === 0) {
     return {
       ok: false,
       errorResponse: NextResponse.json(
-        { type: 'https://dugate.vn/errors/missing-file', title: 'Missing File', status: 400, detail: 'A file is required for this pipeline.' },
+        { type: 'https://dugate.vn/errors/missing-file', title: 'Missing File', status: 400, detail: 'At least one file is required.' },
         { status: 400 },
       ),
     };
@@ -142,60 +108,38 @@ export async function submitPipelineJob(
 
   // ── 5. Save uploaded files to disk ───────────────────────────────────────
   const operationId = crypto.randomUUID();
+  const filesData: Array<{ name: string; path: string; mime: string; size: number }> = [];
 
-  let inputPath: string | undefined;
-  let fileName: string | undefined;
-  let fileMime: string | undefined;
-  let fileSize = 0;
-  let sourceFilePath: string | undefined;
-  let targetFilePath: string | undefined;
-  let sourceFileName: string | undefined;
-  let targetFileName: string | undefined;
-
-  if (file) {
+  for (const file of files) {
     const saved = await saveUploadedFile(file, operationId);
-    inputPath = saved.path;
-    fileName  = file.name;
-    fileMime  = file.type;
-    fileSize  = file.size;
-  }
-  if (sourceFile) {
-    const saved = await saveUploadedFile(sourceFile, operationId, 'source');
-    sourceFilePath = saved.path;
-    sourceFileName = sourceFile.name;
-  }
-  if (targetFile) {
-    const saved = await saveUploadedFile(targetFile, operationId, 'target');
-    targetFilePath = saved.path;
-    targetFileName = targetFile.name;
+    filesData.push({
+      name: file.name,
+      path: saved.path,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+    });
   }
 
   // ── 6. Create Operation in DB ─────────────────────────────────────────────
   const operation = await prisma.operation.create({
     data: {
-      id:             operationId,
-      apiKeyId:       apiKeyId ?? null,
-      idempotencyKey: idempotencyKey ?? null,
-      pipelineJson:   JSON.stringify(pipeline),
-      fileName,
-      fileMime,
-      fileSize,
-      inputPath,
-      sourceFilePath,
-      targetFilePath,
-      sourceFileName,
-      targetFileName,
+      id:              operationId,
+      apiKeyId:        apiKeyId ?? null,
+      idempotencyKey:  idempotencyKey ?? null,
+      endpointSlug:    endpointSlug ?? null,
+      pipelineJson:    JSON.stringify(pipeline),
+      filesJson:       JSON.stringify(filesData),
       outputFormat,
-      webhookUrl:     webhookUrl ?? null,
-      state:          'RUNNING',
-      done:           false,
-      progressPercent:  0,
+      webhookUrl:      webhookUrl ?? null,
+      state:           'RUNNING',
+      done:            false,
+      progressPercent: 0,
       progressMessage: 'Initializing pipeline...',
     },
   });
 
   // ── 7. Fire-and-forget ────────────────────────────────────────────────────
-  runPipeline(operationId).catch(err => {
+  runPipeline(operationId).catch((err) => {
     console.error(`[submitPipelineJob] Pipeline error for ${operationId}:`, err);
   });
 

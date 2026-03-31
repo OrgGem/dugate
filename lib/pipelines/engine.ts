@@ -1,13 +1,12 @@
 // lib/pipelines/engine.ts
-// Core Pipeline Engine — runs a chain of processors sequentially
+// Core Pipeline Engine — runs a chain of ExternalApiConnection steps sequentially.
+// v2: Local processors removed. All processing done via External API connectors.
 
 import { prisma } from '@/lib/prisma';
-import { runLayoutProcessor } from '@/lib/pipelines/processors/layout';
-import { runCompareProcessor } from '@/lib/pipelines/processors/compare';
 import { runExternalApiProcessor } from '@/lib/pipelines/processors/external-api';
 
 export interface PipelineStep {
-  processor: string;
+  processor: string;  // ExternalApiConnection slug
   variables?: Record<string, unknown>;
 }
 
@@ -15,30 +14,21 @@ export interface ProcessorContext {
   operationId: string;
   stepIndex: number;
   totalSteps: number;
-  // Input
-  inputFilePath?: string;         // Binary file (first step only)
-  inputText?: string;             // Text from previous step (chain steps)
-  sourceFilePath?: string;        // Compare: file 1
-  targetFilePath?: string;        // Compare: file 2
-  sourceFileName?: string;
-  targetFileName?: string;
-  fileName?: string;
+  // Input — all uploaded files
+  filePaths: string[];    // Absolute paths to uploaded files on disk
+  fileNames: string[];    // Original file names
+  // Chained input from previous step
+  inputText?: string;
   // Processor config
   processorSlug: string;
-  systemPrompt: string;
-  responseSchema?: string | null;
   variables: Record<string, unknown>;
   outputFormat: string;
-  processorConfig: Record<string, unknown>;
-  maxOutputTokens: number;
-  temperature: number;
-  modelOverride?: string | null;
 }
 
 export interface ProcessorResult {
-  content?: string;               // Text/Markdown output
-  extractedData?: unknown;        // Structured JSON (if responseSchema)
-  outputFilePath?: string;        // File on disk (e.g. markdown file)
+  content?: string;           // Text/JSON output
+  extractedData?: unknown;    // Structured JSON
+  outputFilePath?: string;
   inputTokens: number;
   outputTokens: number;
   pagesProcessed: number;
@@ -57,6 +47,13 @@ export async function runPipeline(operationId: string): Promise<void> {
   }
 
   const pipeline: PipelineStep[] = JSON.parse(operation.pipelineJson);
+
+  // Parse filesJson → filePaths / fileNames
+  const filesData: Array<{ name: string; path: string; mime: string; size: number }> =
+    operation.filesJson ? JSON.parse(operation.filesJson) : [];
+  const filePaths = filesData.map((f) => f.path);
+  const fileNames = filesData.map((f) => f.name);
+
   const stepsResult: Array<{
     step: number;
     processor: string;
@@ -88,154 +85,63 @@ export async function runPipeline(operationId: string): Promise<void> {
         data: {
           currentStep: i,
           progressPercent: Math.round((i / pipeline.length) * 100),
-          progressMessage: `Đang xử lý step ${i + 1}/${pipeline.length}: ${step.processor}...`,
+          progressMessage: `Đang xử lý bước ${i + 1}/${pipeline.length}: ${step.processor}...`,
         },
       });
 
       const variables = step.variables ?? {};
-      let ctx: ProcessorContext;
-      let result: ProcessorResult;
-      let stepOutputFormat = 'md';
 
-      if (step.processor.startsWith('prebuilt-')) {
-        // --- 1. LOCAL / PREBUILT Processor Logic ---
-        const processor = await prisma.processor.findUnique({ where: { slug: step.processor } });
-        if (!processor) {
-          throw new Error(`Legacy Processor '${step.processor}' not found in database.`);
-        }
+      // Inject chained text from previous step
+      if (currentText) {
+        variables['input_content'] = currentText;
+      }
 
-        let systemPrompt = processor.systemPrompt;
-        let responseSchema = processor.responseSchema;
-        let maxOutputTokens = processor.maxOutputTokens;
-        let temperature = processor.temperature;
-        let modelOverride = processor.modelOverride;
-        let processorConfigStr = processor.processorConfig;
+      // Load ExternalApiConnection
+      const connection = await prisma.externalApiConnection.findUnique({
+        where: { slug: step.processor },
+      });
+      if (!connection) {
+        throw new Error(`ExternalApiConnection '${step.processor}' not found in database.`);
+      }
+      if (connection.state !== 'ENABLED') {
+        throw new Error(`ExternalApiConnection '${connection.slug}' is DISABLED.`);
+      }
 
-        if (operation.apiKeyId) {
-          const override = await prisma.processorOverride.findUnique({
+      // Load per-client prompt override
+      const extOverride = operation.apiKeyId
+        ? await prisma.externalApiOverride.findUnique({
             where: {
-              processorId_apiKeyId: {
-                processorId: processor.id,
+              connectionId_apiKeyId: {
+                connectionId: connection.id,
                 apiKeyId: operation.apiKeyId,
               },
             },
-          });
-          if (override) {
-            systemPrompt = override.systemPrompt ?? systemPrompt;
-            responseSchema = override.responseSchema ?? responseSchema;
-            maxOutputTokens = override.maxOutputTokens ?? maxOutputTokens;
-            temperature = override.temperature ?? temperature;
-            modelOverride = override.modelOverride ?? modelOverride;
-            processorConfigStr = override.processorConfig ?? processorConfigStr;
-          }
-        }
+          })
+        : null;
 
-        let resolvedPrompt = systemPrompt;
-        for (const [key, value] of Object.entries(variables)) {
-          resolvedPrompt = resolvedPrompt.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
-        }
-        if (currentText) {
-          resolvedPrompt = resolvedPrompt.replace(/\{\{input_content\}\}/g, currentText);
-        }
-
-        ctx = {
-          operationId,
-          stepIndex: i,
-          totalSteps: pipeline.length,
-          inputFilePath: i === 0 ? (operation.inputPath ?? undefined) : undefined,
-          inputText: currentText,
-          sourceFilePath: operation.sourceFilePath ?? undefined,
-          targetFilePath: operation.targetFilePath ?? undefined,
-          sourceFileName: operation.sourceFileName ?? undefined,
-          targetFileName: operation.targetFileName ?? undefined,
-          fileName: operation.fileName ?? undefined,
-          processorSlug: processor.slug,
-          systemPrompt: resolvedPrompt,
-          responseSchema: responseSchema,
-          variables,
-          outputFormat: operation.outputFormat,
-          processorConfig: processorConfigStr ? JSON.parse(processorConfigStr) : {},
-          maxOutputTokens: maxOutputTokens,
-          temperature: temperature,
-          modelOverride: modelOverride,
-        };
-
-        if (processor.slug === 'prebuilt-layout') {
-          result = await runLayoutProcessor(ctx);
-        } else if (processor.slug === 'prebuilt-compare') {
-          result = await runCompareProcessor(ctx);
-        } else {
-          throw new Error(`Unsupported prebuilt processor: ${processor.slug}`);
-        }
-        stepOutputFormat = processor.outputFormats.split(',')[0];
-
-      } else {
-        // --- 2. EXTERNAL API CONNECTOR Logic ---
-        const connection = await prisma.externalApiConnection.findUnique({
-          where: { slug: step.processor },
-        });
-        if (!connection) {
-          throw new Error(`ExternalApiConnection '${step.processor}' not found.`);
-        }
-        if (connection.state !== 'ENABLED') {
-          throw new Error(`ExternalApiConnection '${connection.slug}' is currently DISABLED.`);
-        }
-
-        const extOverride = operation.apiKeyId
-          ? await prisma.externalApiOverride.findUnique({
-              where: {
-                connectionId_apiKeyId: {
-                  connectionId: connection.id,
-                  apiKeyId: operation.apiKeyId,
-                },
-              },
-            })
-          : null;
-
-        if (extOverride) {
-          console.log(`[Pipeline] Applied ExternalApiOverride for '${connection.slug}' (apiKeyId: ${operation.apiKeyId})`);
-        }
-
-        // Inject content if chained
-        if (currentText) {
-          variables['input_content'] = currentText;
-        }
-
-        ctx = {
-          operationId,
-          stepIndex: i,
-          totalSteps: pipeline.length,
-          inputFilePath: i === 0 ? (operation.inputPath ?? undefined) : undefined,
-          inputText: currentText,
-          sourceFilePath: operation.sourceFilePath ?? undefined,
-          targetFilePath: operation.targetFilePath ?? undefined,
-          sourceFileName: operation.sourceFileName ?? undefined,
-          targetFileName: operation.targetFileName ?? undefined,
-          fileName: operation.fileName ?? undefined,
-          processorSlug: connection.slug,
-          systemPrompt: '', // Handled directly inside runExternalApiProcessor via connection.defaultPrompt
-          variables,
-          outputFormat: operation.outputFormat,
-          processorConfig: {},
-          maxOutputTokens: 4096,
-          temperature: 0.1,
-        };
-
-        result = await runExternalApiProcessor(ctx, connection, extOverride);
-        
-        // Infer basic output format from connection slug
-        if (connection.slug.includes('-extractor') || connection.slug.includes('-classifier') || connection.slug.includes('-fact-')) {
-          stepOutputFormat = 'json';
-        } else {
-          stepOutputFormat = 'md';
-        }
+      if (extOverride) {
+        console.log(`[Pipeline] Applied ExtApiOverride for '${connection.slug}' (key: ${operation.apiKeyId})`);
       }
+
+      const ctx: ProcessorContext = {
+        operationId,
+        stepIndex: i,
+        totalSteps: pipeline.length,
+        filePaths: i === 0 ? filePaths : [],   // Only first step gets original files
+        fileNames: i === 0 ? fileNames : [],
+        inputText: currentText,
+        processorSlug: connection.slug,
+        variables,
+        outputFormat: operation.outputFormat,
+      };
+
+      const result = await runExternalApiProcessor(ctx, connection, extOverride);
 
       // Record step result
       stepsResult.push({
         step: i,
         processor: ctx.processorSlug,
-        output_format: stepOutputFormat,
+        output_format: operation.outputFormat,
         content_preview: result.content ? result.content.substring(0, 2000) : null,
         extracted_data: result.extractedData,
       });
@@ -259,9 +165,7 @@ export async function runPipeline(operationId: string): Promise<void> {
       // Save intermediate progress
       await prisma.operation.update({
         where: { id: operationId },
-        data: {
-          stepsResultJson: JSON.stringify(stepsResult),
-        },
+        data: { stepsResultJson: JSON.stringify(stepsResult) },
       });
     }
 
@@ -293,11 +197,7 @@ export async function runPipeline(operationId: string): Promise<void> {
         await fetch(operation.webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation_id: operationId,
-            state: 'SUCCEEDED',
-            done: true,
-          }),
+          body: JSON.stringify({ operation_id: operationId, state: 'SUCCEEDED', done: true }),
         });
         await prisma.operation.update({
           where: { id: operationId },
@@ -308,7 +208,8 @@ export async function runPipeline(operationId: string): Promise<void> {
       }
     }
 
-    console.log(`[Pipeline] ✅ Operation ${operationId} completed successfully.`);
+    console.log(`[Pipeline] ✅ Operation ${operationId} completed.`);
+
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`[Pipeline] ❌ Operation ${operationId} failed at step ${stepsResult.length}:`, msg);
@@ -329,7 +230,6 @@ export async function runPipeline(operationId: string): Promise<void> {
       },
     });
 
-    // Webhook on failure too
     if (operation.webhookUrl) {
       try {
         await fetch(operation.webhookUrl, {

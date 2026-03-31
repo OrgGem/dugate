@@ -1,7 +1,7 @@
 // lib/pipelines/processors/external-api.ts
-// External API Processor — forward file trực tiếp đến external AI service via multipart/form-data
+// External API Processor — forward files trực tiếp đến external AI service via multipart/form-data.
+// v2: Supports forwarding multiple files (files[]) in one request.
 
-import path from 'path';
 import fs from 'fs/promises';
 import type { ProcessorContext, ProcessorResult } from '@/lib/pipelines/engine';
 import type { ExternalApiConnection, ExternalApiOverride } from '@prisma/client';
@@ -39,8 +39,8 @@ function interpolateVariables(template: string, variables: Record<string, unknow
 
 /**
  * Gọi external AI service via multipart/form-data HTTP request.
- * - Forward file gốc trực tiếp (không extract text trước)
- * - Chỉ prompt có thể được override bởi client profile
+ * - Forward tất cả files gốc trực tiếp (không extract text trước)
+ * - Prompt có thể được override bởi client profile
  * - Static form fields luôn cố định theo config admin
  */
 export async function runExternalApiProcessor(
@@ -58,7 +58,7 @@ export async function runExternalApiProcessor(
   // Interpolate {{variable}} từ pipeline variables
   const resolvedPrompt = interpolateVariables(rawPrompt, ctx.variables);
 
-  console.log(`[ExtAPI] Connection: ${connection.slug}, Prompt length: ${resolvedPrompt.length}`);
+  console.log(`[ExtAPI] ${connection.slug} | step ${ctx.stepIndex + 1}/${ctx.totalSteps} | prompt: ${resolvedPrompt.length} chars`);
 
   // ── 2. Build multipart/form-data ───────────────────────────────────────────
   const formData = new FormData();
@@ -74,16 +74,27 @@ export async function runExternalApiProcessor(
         formData.append(field.key, field.value);
       }
     } catch {
-      console.warn(`[ExtAPI] staticFormFields JSON invalid for connection '${connection.slug}', skipping`);
+      console.warn(`[ExtAPI] staticFormFields JSON invalid for '${connection.slug}', skipping`);
     }
   }
 
-  // 2c. File — forward file gốc trực tiếp đến external service
-  if (ctx.inputFilePath && ctx.fileName) {
-    const fileBuffer = await fs.readFile(ctx.inputFilePath);
-    const blob = new Blob([fileBuffer]);
-    formData.append(connection.fileFieldName, blob, ctx.fileName);
-    console.log(`[ExtAPI] Attaching file: ${ctx.fileName} (${fileBuffer.length} bytes)`);
+  // 2c. Forward all files (multi-file support)
+  if (ctx.filePaths.length > 0) {
+    for (let i = 0; i < ctx.filePaths.length; i++) {
+      const filePath = ctx.filePaths[i];
+      const fileName = ctx.fileNames[i] ?? `file_${i}`;
+      try {
+        const fileBuffer = await fs.readFile(filePath);
+        const blob = new Blob([fileBuffer]);
+        formData.append(connection.fileFieldName, blob, fileName);
+        console.log(`[ExtAPI] Attaching file[${i}]: ${fileName} (${fileBuffer.length} bytes)`);
+      } catch (e) {
+        console.warn(`[ExtAPI] Could not read file '${filePath}':`, e);
+      }
+    }
+  } else if (ctx.inputText) {
+    // Chain step: inject previous step output as text variable
+    formData.append('input_content', ctx.inputText);
   }
 
   // ── 3. Build request headers ────────────────────────────────────────────────
@@ -91,21 +102,18 @@ export async function runExternalApiProcessor(
     'accept': 'application/json',
   };
 
-  // Auth header
   if (connection.authType === 'API_KEY_HEADER') {
     headers[connection.authKeyHeader] = connection.authSecret;
   } else if (connection.authType === 'BEARER') {
     headers['Authorization'] = `Bearer ${connection.authSecret}`;
   }
-  // authType === 'NONE' → không thêm auth header
 
-  // Extra headers tùy chỉnh (ngoài auth)
   if (connection.extraHeaders) {
     try {
       const extra = JSON.parse(connection.extraHeaders) as Record<string, string>;
       Object.assign(headers, extra);
     } catch {
-      console.warn(`[ExtAPI] extraHeaders JSON invalid for connection '${connection.slug}', skipping`);
+      console.warn(`[ExtAPI] extraHeaders JSON invalid for '${connection.slug}', skipping`);
     }
   }
 
@@ -126,9 +134,7 @@ export async function runExternalApiProcessor(
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '(no body)');
-      throw new Error(
-        `External API returned HTTP ${response.status}: ${errorBody.substring(0, 500)}`
-      );
+      throw new Error(`External API returned HTTP ${response.status}: ${errorBody.substring(0, 500)}`);
     }
 
     responseJson = await response.json();
@@ -151,21 +157,18 @@ export async function runExternalApiProcessor(
   } else if (rawContent !== null && rawContent !== undefined) {
     content = JSON.stringify(rawContent);
   } else {
-    // Fallback: trả về toàn bộ response dưới dạng JSON string
-    console.warn(
-      `[ExtAPI] Could not resolve path '${contentPath}' in response for '${connection.slug}'. Returning raw JSON.`
-    );
+    console.warn(`[ExtAPI] Path '${contentPath}' not found in response for '${connection.slug}'. Returning full JSON.`);
     content = JSON.stringify(responseJson);
   }
 
   const latencyMs = Date.now() - startedAt;
-  console.log(`[ExtAPI] ✅ ${connection.slug} completed in ${latencyMs}ms, content length: ${content.length}`);
+  console.log(`[ExtAPI] ✅ ${connection.slug} done in ${latencyMs}ms, output: ${content.length} chars`);
 
   return {
     content,
-    extractedData: undefined,   // External API kết quả trả về dạng text
+    extractedData: undefined,
     outputFilePath: undefined,
-    inputTokens: 0,             // External API không report token usage
+    inputTokens: 0,
     outputTokens: 0,
     pagesProcessed: 0,
     modelUsed: `ext:${connection.slug}`,
