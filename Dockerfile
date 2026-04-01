@@ -12,6 +12,8 @@ COPY . .
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN npx prisma generate
 RUN npx tsc prisma/seed.ts --esModuleInterop --skipLibCheck --module CommonJS --target ES2022 --outDir prisma
+# Provide a dummy DATABASE_URL so Prisma client initialises during static page generation
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm run build
 
 # Stage 3: runner (slim — no local PDF/DOCX processing, all done via external API)
