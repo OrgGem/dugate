@@ -73,13 +73,13 @@ export default function HeaderNav() {
             Cài đặt
           </Link>
           <Link
-            href="/overrides"
+            href="/profiles"
             className={`pill-nav-item ${
-              pathname.startsWith('/overrides') ? 'pill-nav-active' : 'pill-nav-inactive'
+              pathname.startsWith('/profiles') ? 'pill-nav-active' : 'pill-nav-inactive'
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
-            Overrides
+            Profiles
           </Link>
           <Link
             href="/api-connections"

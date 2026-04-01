@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2, CheckCircle, Plus, Copy,
-  Settings, Save, Key, ChevronRight, ChevronDown, FileText, PlugZap
+  Settings, Save, Key, ChevronRight, ChevronDown, FileText, PlugZap, Trash2
 } from 'lucide-react';
 
 interface ApiKey {
@@ -106,6 +106,29 @@ function OverridesContent() {
     }
   };
 
+  // Handle Delete Client
+  const handleDeleteClient = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa vĩnh viễn Profile này và toàn bộ thiết lập liên quan?')) return;
+    
+    try {
+      const res = await fetch(`/api/internal/apikeys?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setApiKeys(apiKeys.filter(k => k.id !== id));
+        if (selectedClientId === id) {
+          setSelectedClientId('');
+          router.replace('/profiles', { scroll: false });
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete Profile');
+      }
+    } catch (e) {
+      alert('Error deleting Profile');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -161,7 +184,7 @@ function OverridesContent() {
                       key={key.id}
                       onClick={() => {
                         setSelectedClientId(key.id);
-                        router.replace(`/overrides?client=${key.id}`, { scroll: false });
+                        router.replace(`/profiles?client=${key.id}`, { scroll: false });
                         setCreatedRawKey(null); // Clear new key alert if they switch
                       }}
                       className={`w-full text-left px-3 py-3 rounded-lg flex items-center justify-between transition-all ${
@@ -259,6 +282,14 @@ function OverridesContent() {
             <div className="space-y-4 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold flex items-center gap-2">Endpoints Hierarchy</h2>
+                <button 
+                  onClick={() => handleDeleteClient(selectedClientId)}
+                  className="px-3 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 border border-red-200 dark:border-red-900/50 shadow-sm"
+                  title="Xoá vĩnh viễn Client này"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Xóa Profile
+                </button>
               </div>
 
               {profileEndpoints.length > 0 ? (
@@ -328,6 +359,8 @@ function ProfileEndpointCard({
   const [isActive, setIsActive] = useState(endpoint.enabled);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'form' | 'json'>('form');
+  const [isParamsOpen, setIsParamsOpen] = useState(false);
+  const [isProcessorsOpen, setIsProcessorsOpen] = useState(false);
 
   // JSON string state (for raw editor)
   const [defaultParamsStr, setDefaultParamsStr] = useState(
@@ -358,6 +391,13 @@ function ProfileEndpointCard({
     });
     setExtOverridesState(initialOverrides);
   }, [endpoint, apiKeyId]);
+
+  // Reset expanded states when switching to a different client profile
+  useEffect(() => {
+    setIsEditing(false);
+    setIsParamsOpen(false);
+    setIsProcessorsOpen(false);
+  }, [apiKeyId]);
 
   // Sync Form -> JSON when switching tabs
   const handleTabSwitch = (tab: 'form' | 'json') => {
@@ -553,27 +593,33 @@ function ProfileEndpointCard({
           <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-6">
             
             {/* CORE SETTINGS HEADER */}
-            <div className="sm:col-span-2 flex items-center justify-between border-b border-border pb-2">
-               <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  ▼ Parameters Configuration
+            <div 
+              className="sm:col-span-2 flex items-center justify-between border-b border-border pb-2 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2 transition-colors"
+              onClick={() => setIsParamsOpen(!isParamsOpen)}
+            >
+               <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2 select-none">
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isParamsOpen ? '' : '-rotate-90'}`} />
+                  Parameters Configuration
                </div>
-               <div className="flex bg-muted p-1 rounded-lg">
-                 <button 
-                   onClick={() => handleTabSwitch('form')}
-                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTab === 'form' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                 >
-                   UI Form
-                 </button>
-                 <button 
-                   onClick={() => handleTabSwitch('json')}
-                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTab === 'json' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                 >
-                   Raw JSON
-                 </button>
-               </div>
+               {isParamsOpen && (
+                 <div className="flex bg-muted p-1 rounded-lg" onClick={e => e.stopPropagation()}>
+                   <button 
+                     onClick={() => handleTabSwitch('form')}
+                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTab === 'form' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                   >
+                     UI Form
+                   </button>
+                   <button 
+                     onClick={() => handleTabSwitch('json')}
+                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTab === 'json' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                   >
+                     Raw JSON
+                   </button>
+                 </div>
+               )}
             </div>
             
-            {activeTab === 'json' ? (
+            {isParamsOpen && (activeTab === 'json' ? (
               <>
                 <div className="animate-in fade-in">
                   <label className="text-sm font-bold text-foreground flex items-center gap-2 mb-2">
@@ -649,15 +695,20 @@ function ProfileEndpointCard({
                   </div>
                 </div>
               </>
-            )}
+            ))}
 
             {/* PIPELINE PROCESSORS */}
             <div className="sm:col-span-2 mt-4 pt-4 border-t border-border/50">
-               <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-                  ▼ Pipeline Processors ({endpoint.extConnections?.length || 0} Bước)
+               <div 
+                 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 cursor-pointer hover:bg-muted/50 w-fit p-1.5 -ml-1.5 rounded transition-colors select-none"
+                 onClick={() => setIsProcessorsOpen(!isProcessorsOpen)}
+               >
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isProcessorsOpen ? '' : '-rotate-90'}`} />
+                  Pipeline Processors ({endpoint.extConnections?.length || 0} Bước)
                </div>
                
-               <div className="space-y-4">
+               {isProcessorsOpen && (
+                 <div className="space-y-4">
                  {endpoint.extConnections?.map((conn: any, idx: number) => {
                    const overrideValue = extOverridesState[conn.connectionId];
                    const isOverridden = overrideValue !== null && overrideValue !== undefined;
@@ -736,6 +787,7 @@ function ProfileEndpointCard({
                    </p>
                  )}
                </div>
+               )}
             </div>
 
             <div className="sm:col-span-2 flex justify-end gap-3 pt-6 pb-2 border-t border-border/50 bg-card/50 sticky bottom-0 z-10">
