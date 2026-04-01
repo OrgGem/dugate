@@ -17,6 +17,7 @@ export interface SubmitPipelineParams {
   webhookUrl?: string | null;
   idempotencyKey?: string;
   apiKeyId?: string;
+  executeSync?: boolean;
 }
 
 export type SubmitPipelineResult =
@@ -36,6 +37,7 @@ export async function submitPipelineJob(
     webhookUrl,
     idempotencyKey,
     apiKeyId,
+    executeSync = false,
   } = params;
 
   // ── 1. Basic pipeline validation ─────────────────────────────────────────
@@ -121,7 +123,7 @@ export async function submitPipelineJob(
   }
 
   // ── 6. Create Operation in DB ─────────────────────────────────────────────
-  const operation = await prisma.operation.create({
+  let operation = await prisma.operation.create({
     data: {
       id:              operationId,
       apiKeyId:        apiKeyId ?? null,
@@ -138,10 +140,18 @@ export async function submitPipelineJob(
     },
   });
 
-  // ── 7. Fire-and-forget ────────────────────────────────────────────────────
-  runPipeline(operationId).catch((err) => {
-    console.error(`[submitPipelineJob] Pipeline error for ${operationId}:`, err);
-  });
+  // ── 7. Execute (Sync or Async) ──────────────────────────────────────────────
+  if (executeSync) {
+    await runPipeline(operationId);
+    // Reload operation to get latest state after completion
+    operation = (await prisma.operation.findUnique({ where: { id: operationId } }))!;
+  } else {
+    // Fire-and-forget
+    runPipeline(operationId).catch((err) => {
+      console.error(`[submitPipelineJob] Pipeline error for ${operationId}:`, err);
+    });
+  }
 
   return { ok: true, operation, isIdempotent: false };
 }
+

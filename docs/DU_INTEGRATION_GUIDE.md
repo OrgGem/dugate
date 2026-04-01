@@ -58,53 +58,53 @@ curl -X GET https://api.dugate.vn/api/v1/operations/op-abc123 \
 Dưới đây là 6 tính năng cốt lõi của hệ thống:
 
 #### 3.1. Nhập & Tiền Xử Lý Tài Liệu (`POST /ingest`)
-Tiền xử lý tài liệu thô trước khi đưa vào các bước chuyên sâu.
-- **`mode=parse`**: Đọc cấu trúc PDF/DOCX (giữ nguyên bảng biểu, list).
-- **`mode=ocr`**: Nhận diện ký tự từ ảnh chụp/scan (hỗ trợ nhiều ngôn ngữ qua `language`).
-- **`mode=digitize`**: Số hóa tài liệu viết tay (áp dụng cho các form điền tay).
-- **`mode=split`**: Tách trang tài liệu gốc (VD: `pages=1-5`).
+Tiền xử lý tài liệu thô trước khi đưa vào các bước chuyên sâu. Kết quả trả về là text thuần túy (raw text) hoặc metadata thô bảo toàn cấu trúc chuẩn của file.
+- **`mode=parse`**: Đọc cấu trúc file số như PDF/DOCX nguyên bản, sử dụng các công cụ parse layout chuyên dụng để giữ chặt các box văn bản, Header, Footer, cấu trúc bảng biểu và danh sách (list). Dùng cực tốt khi file là native PDF.
+- **`mode=ocr`**: Áp dụng công nghệ Nhận dạng Ký tự Quang học (Optical Character Recognition) để chuyển đổi ảnh chụp, bản scan tài liệu (PNG/JPG/PDF Scan) thành text. Có khả năng khai báo ngôn ngữ (VD: `language=vie,eng`) để tăng cường độ chính xác.
+- **`mode=digitize`**: Chuyên dụng xử lý các biểu mẫu (form) điền tay bị méo mó, chữ viết tay nghiêng ngả, form bị scan lệch. Mô hình sẽ nắn chỉnh góc và số hóa chính xác các ô checkbox/text field.
+- **`mode=split`**: Chỉ cắt ghép/tách rời (split/merge) các trang từ tài liệu gốc. VD: Dùng tham số `pages=1-5` để trích xuất 5 trang đầu tiên của cuốn báo cáo thành PDF mới, giảm dung lượng cho các xử lý LLM.
 
 #### 3.2. Trích Xuất Dữ Liệu (`POST /extract`)
-Lấy thông tin có cấu trúc (JSON) từ các loại giấy tờ.
-- **`type=invoice`**: Trích xuất hóa đơn (nhà cung cấp, mã HĐ, tổng tiền, thuế, line items).
-- **`type=contract`**: Trích xuất hợp đồng (bên A/B, điều khoản, giá trị).
-- **`type=id-card`**: Trích xuất CCCD/Passport.
-- **`type=receipt`**: Trích xuất biên lai/phiếu thu.
-- **`type=table`**: Bóc tách tất cả bảng biểu trong file thành mảng JSON/CSV.
-- **`type=custom`**: Trích xuất theo cấu trúc động bằng cách truyền JSON schema thông qua tham biến `schema` hoặc chuỗi `fields`.
+Lấy thông tin có cấu trúc (JSON object/array) từ các loại giấy tờ hành chính hoặc chứng từ thương mại. LLM được trực tiếp sử dụng để mapping thông tin lên Schema được định nghĩa.
+- **`type=invoice`**: Chuyên biệt trích xuất hóa đơn VAT, invoice quốc tế. Dữ liệu trả về luôn có các trường cố định: tên/MST nhà cung cấp, thông tin người mua, mã HĐ, tổng tiền cấn trừ thuế, thuế VAT, và mảng `line_items` (chi tiết mặt hàng).
+- **`type=contract`**: Trích xuất meta-data từ hợp đồng kinh tế/lao động (bên A/bên B tên gì, điều khoản phạt vi phạm, thời hạn hiệu lực, chữ ký và giá trị ròng của hợp đồng).
+- **`type=id-card`**: Trích xuất chính xác Chứng minh thư/CCCD/Passport theo trường (Số CCCD, Họ tên, Ngày Sinh, Quê quán, Địa chỉ thường trú) chống giả mạo OCR và làm sạch dữ liệu.
+- **`type=receipt`**: Tương tự invoice nhưng tối ưu riêng cho biên lai siêu thị, vé xe, hóa đơn bán lẻ qua máy POS (in nhiệt, mờ chữ) giúp hệ thống quản lý chi phí (Expense Management) nhập liệu tự động.
+- **`type=table`**: Dò tìm và bóc tách TẤT CẢ các bảng biểu có trong file PDF thành list mảng 2 chiều JSON hoặc định dạng CSV, loại bỏ đi các phần text văn xuôi thừa.
+- **`type=custom`**: Trích xuất siêu linh hoạt theo chuẩn động (Dynamic schema). Client truyền cấu trúc mình muốn (JSON schema) qua tham biến `schema` hoặc chuỗi `fields="[tên_khách, sdt, dia_chi_giao_hang]"`.
 
 #### 3.3. Phân Tích & Đánh Giá (`POST /analyze`)
-Hiểu sâu văn bản và đối chiếu với các quy định/tiêu chí kinh doanh tĩnh hoặc động định.
-- **`task=classify`**: Phân loại tài liệu (VD: hợp đồng, hóa đơn, báo cáo).
-- **`task=sentiment`**: Phân tích thái độ/cảm xúc (Dành cho review của khách hàng).
-- **`task=compliance`**: Kiểm tra tính tuân thủ pháp lý/nội quy dựa trên tham số `criteria`.
-- **`task=fact-check`**: Kiểm chứng chéo thông tin. *(Cần truyền JSON dữ liệu mẫu làm mốc đối soát vào `reference_data`)*.
-- **`task=quality`**: Chấm điểm chất lượng văn phong (đúng ngữ pháp, logic).
-- **`task=risk`**: Phát hiện rủi ro (VD: điều khoản bất hợp lý/thiệt hại trong hợp đồng).
-- **`task=summarize-eval`**: Đánh giá kết hợp tóm lược.
+Hiểu sâu văn bản (NLU), đối chiếu với các bộ luật, tiêu chuẩn ngành hay quy định kinh doanh tĩnh/động để đưa ra nhận định, đánh giá và quyết định phân tích logic.
+- **`task=classify`**: Tự động phân loại tài liệu vào các Taxonomy cho trước. (VD: Đưa một đống hồ sơ tự động phân vào thư mục 'Hợp đồng', 'Hóa đơn', 'Báo cáo', 'CV'). Hữu ích cho phân luồng Routing nội bộ hệ thống.
+- **`task=sentiment`**: Phân tích thái độ/cảm xúc nội dung (Tích cực/Tiêu cực/Trung tính/Cáu giận) kèm theo giải thích nguyên nhân do đâu. Rất phù hợp nếu feed vào dữ liệu là các bài Review của khách hàng.
+- **`task=compliance`**: Cực kỳ mạnh mẽ trong mảng Pháp lý. Hệ thống quét qua tài liệu dựa theo tham số `criteria` (VD: "Phải có chữ ký hai bên; phải có mộc đỏ"). Nếu thoả mãn trả về `PASS`, vi phạm trả về mảng `FAIL` kèm chỉ mục lỗi trong văn bản.
+- **`task=fact-check`**: Kiểm chứng chéo thông tin. *(Client truyền JSON dữ liệu mẫu (Sự thật) vào `reference_data`. Hệ thống đọc file và dò tìm xem trong tài liệu có chi tiết nào sai lệch, bịa đặt số liệu so với sự thật đó hay không)*.
+- **`task=quality`**: Chấm điểm chất lượng văn phong (chuẩn ngữ pháp tiếng Việt, câu cú gãy gọn, logic lập luận chặt chẽ). Dùng chấm điểm bài luận hoặc duyệt lại báo cáo trước khi trình sếp.
+- **`task=risk`**: Đánh giá sự rủi ro. Mô hình đọc và phát hiện rủi ro (VD: điều khoản phạt quá 20% là bất hợp pháp, hoặc thiệt hại rủi ro bồi thường vô hạn trong hợp đồng).
+- **`task=summarize-eval`**: Phân tích kép: vừa đưa ra 1 tóm lược 3-4 câu chốt tổng quát, vừa kèm đánh giá sâu của một "chuyên gia" về quan điểm của người viết bài.
 
 #### 3.4. Chuyển Đổi Nội Dung (`POST /transform`)
-Biến đổi định dạng hoặc nội hàm content của file.
-- **`action=convert`**: Đổi định dạng (VD: DOCX -> Markdown/HTML).
-- **`action=translate`**: Dịch thuật tài liệu (`target_language=vi`, hỗ trợ các `tone` khác nhau).
-- **`action=rewrite`**: Viết lại nội dung theo phong cách khác (`style=academic, formal, casual`).
-- **`action=redact`**: Tự động bôi đen/che thông tin nhạy cảm (PII: số thẻ, CCCD, địa chỉ, số ĐT).
-- **`action=template`**: Điền JSON data vào một form mẫu chỉ định.
+Biến đổi định dạng (Format) hoặc thay đổi nội hàm ngôn ngữ/văn phong (Content) nhưng luôn giữ nguyên vẹn thông điệp chính yếu của văn bản gốc.
+- **`action=convert`**: Đổi định dạng thô của file (VD: Chuyển file DOCX có nhiều định dạng phức tạp sang cấu trúc Markdown dọn dẹp sạch sẽ, hoặc HTML chuẩn web).
+- **`action=translate`**: Dịch thuật tài liệu nguyên bản (VD: `target_language=vi`). Điểm mạnh là vừa dịch vừa có thể điều chỉnh âm hưởng ngữ điệu `tone` (VD: dịch sang tiếng Việt cổ, hoặc giọng marketing sôi động).
+- **`action=rewrite`**: Viết lại nội dung bằng câu chữ khác (Paraphrasing) nhằm tránh đạo văn, tóm gọn ý hoặc ép văn bản theo một phong cách cụ thể bằng tham số `style=academic, formal, casual`.
+- **`action=redact`**: Tự động dò tìm và bôi đen (ẩn đi - Masking) tự động các thông tin nhạy cảm (PII: số thẻ tín dụng, CCCD, địa chỉ cư trú, số ĐT) trên file nhằm tuân thủ luật bảo mật. Trả về file text đã được thay thế mảng đó bằng chữ `[REDACTED]`.
+- **`action=template`**: Cơ chế Mail Merge tự động. Client nạp một JSON data và hệ thống tự động điền các trường biến số đó vào một form/template mẫu thiết kế trước để sinh ra file final.
 
 #### 3.5. Tạo Nội Dung Phái Sinh (`POST /generate`)
-Sinh văn bản phái sinh từ tài liệu gốc.
-- **`task=summary`**: Tóm tắt nội dung (format: paragraph, bullets, numbered, table, mind_map).
-- **`task=qa`**: Hỏi đáp/Truy vấn tùy ý ngay trên tài liệu (`questions="..."`).
-- **`task=outline`**: Trích xuất tự động dàn ý/danh mục đầu mục.
-- **`task=report`**: Tạo báo cáo chuyên sâu dựa trên data bảng biểu thô.
-- **`task=email`**: Tự động nháp email phản hồi hoặc follow-up action.
-- **`task=minutes`**: Xuất biên bản cuộc thảo luận từ Transcript Audio.
+Sinh ra các văn bản / nội dung MỚI HOÀN TOÀN có giá trị ứng dụng cao, dựa vào (grounding) ngữ cảnh tài liệu gốc được truyền làm đầu vào cốt lõi.
+- **`task=summary`**: Tóm tắt nội dung tài liệu với tỷ lệ nén cao, có khả năng format lại đầu ra rất phong phú: định dạng đoạn văn (paragraph), gạch đầu dòng (bullets), đánh số ưu tiên (numbered), dạng bảng (table), hoặc mô tả dưới cấu trúc sơ đồ (mind_map).
+- **`task=qa`**: Nạp tài liệu lên bộ nhớ và cho phép hỏi đáp tức thì (tương tự như RAG) ngay trên tài liệu đó (`questions=["tổng hạn mức tín dụng là bao nhiêu?", "ai có trách nhiệm đền bù khi hàng hỏng?"]`).
+- **`task=outline`**: Trích xuất tự động mục lục/dàn bài (Table of Contents) chuyên sâu với các đề mục phân cấp H1, H2, H3 nhằm tóm gọn nhanh cấu trúc một file PDF dài 100 trang.
+- **`task=report`**: Từ các con số thô/bảng biểu khô khan trong file, sinh ra một bài báo cáo phân tích bằng ngôn ngữ tự nhiên, được "kể lại" dưới tư duy của một chuyên gia tài chính hoặc nhân sự.
+- **`task=email`**: Tác vụ tuyệt vời cho Sales/CS: Trích xuất nội dung từ một yêu cầu khiếu nại của khách -> Tự động nháp (Draft) một email phản hồi xin lỗi / follow-up đúng chuẩn mực giao tiếp sự nghiệp.
+- **`task=minutes`**: Xuất nội dung biên bản cuộc họp chuyên nghiệp từ 1 file Transcript Audio nguyên bản chứa toàn các câu thoại lộn xộn, nhận diện được ai nói ý chính gì và rà soát/lập bảng Action Items (công việc cần làm tiếp theo).
 
 #### 3.6. So Sánh Tài Liệu (`POST /compare`)
-So sánh sự khác biệt giữa `source_file` và `target_file`.
-- **`mode=diff`**: So sánh text từng dòng mức ký tự (syntax tương tự git diff).
-- **`mode=semantic`**: So sánh ngữ nghĩa (Tập trung vào nội dung thay đổi thay vì câu chữ). Có thể chỉ định vùng chú ý với tham số `focus`.
-- **`mode=version`**: Chuyên trị việc tạo changelog giữa 2 phiên bản hợp đồng hay policy.
+So sánh sự khác biệt (Delta) giữa tài liệu thứ nhất `source_file` và tài liệu thứ hai `target_file`.
+- **`mode=diff`**: So sánh thay đổi Text chặt chẽ từng dòng, từng ký tự (cơ chế tương tự lệnh `git diff`). Đánh dấu kiểm soát phiên bản tĩnh rõ ràng dòng nào được thêm [NEW], dòng nào bị xóa [DEL] chính xác đến từng dấu câu.
+- **`mode=semantic`**: So sánh ngữ nghĩa (Semantic diff). Vượt qua các lỗi dính chữ hoặc sai khoảng trắng định dạng vô nghĩa. Khả năng trí tuệ tập trung tìm những khác biệt có thay đổi "về mặt ý nghĩa/pháp lý" giữa 2 bản. Đi kèm khả năng dùng tham số `focus` để bó hẹp chỉ quyét vùng tranh chấp (VD: "chỉ đối chiếu phần liên đới trách nhiệm hai bên").
+- **`mode=version`**: Được tối ưu chuyên biệt cho việc tạo Changelog tóm lược (Lịch sử Sửa đổi). Đọc 2 phiên bản của một tập quy định/chính sách và tự sinh ra lời tổng kết ở đầu trang: "Ở version này quy định đã Update việc thêm quyền lợi phép năm, Xóa bỏ phụ cấp thưởng ngoài".
 
 ---
 

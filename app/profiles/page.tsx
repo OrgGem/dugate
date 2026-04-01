@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2, CheckCircle, Plus, Copy,
-  Settings, Save, Key, ChevronRight, ChevronDown, FileText, PlugZap, Trash2, Code
+  Settings, Save, Key, ChevronRight, ChevronDown, FileText, PlugZap, Trash2, Code, FlaskConical, Zap, XCircle
 } from 'lucide-react';
 
 interface ApiKey {
@@ -379,6 +379,12 @@ function ProfileEndpointCard({
   const [extOverridesState, setExtOverridesState] = useState<Record<string, string | null>>({});
   const [saving, setSaving] = useState(false);
 
+  // Test Endpoint Modal State
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testFiles, setTestFiles] = useState<File[]>([]);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+
   useEffect(() => {
     setIsActive(endpoint.enabled);
     setDefaultParamsStr(endpoint.defaultParams ? JSON.stringify(endpoint.defaultParams, null, 2) : '');
@@ -399,6 +405,9 @@ function ProfileEndpointCard({
     setIsParamsOpen(false);
     setIsProcessorsOpen(false);
     setIsCurlOpen(false);
+    setShowTestModal(false);
+    setTestResult(null);
+    setTestFiles([]);
   }, [apiKeyId]);
 
   // Generate cURL preview
@@ -525,6 +534,37 @@ function ProfileEndpointCard({
     }
   };
 
+  const handleTestEndpoint = async () => {
+    if (testFiles.length === 0) {
+      alert("Vui lòng đính kèm ít nhất 1 file để test!");
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const fd = new FormData();
+      const baseService = endpoint.slug.split(':')[0];
+      fd.append('__service', baseService);
+      fd.append('__apiKeyId', apiKeyId);
+      for (const file of testFiles) fd.append('files[]', file);
+      
+      if (endpoint.discriminatorName && endpoint.discriminatorValue && endpoint.discriminatorValue !== '_default') {
+         fd.append(endpoint.discriminatorName, endpoint.discriminatorValue);
+      }
+      
+      const res = await fetch('/api/internal/test-profile-endpoint', {
+        method: 'POST',
+        body: fd
+      });
+      const data = await res.json();
+      setTestResult({ status: res.status, data });
+    } catch (e: any) {
+      setTestResult({ status: 500, error: e.message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   // Render a dynamic input based on schema
   const renderSchemaInput = (
     key: string, 
@@ -597,7 +637,19 @@ function ProfileEndpointCard({
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 mt-2 sm:mt-0">
+        <div className="flex items-center gap-2 shrink-0 mt-2 sm:mt-0">
+          {/* Test Endpoint button — only available when endpoint is active */}
+          {isActive && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowTestModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-colors shadow-sm"
+              title="Test Endpoint"
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              Test
+            </button>
+          )}
+
           <label className="flex items-center cursor-pointer relative group">
             <input
               type="checkbox"
@@ -628,6 +680,137 @@ function ProfileEndpointCard({
           )}
         </div>
       </div>
+
+      {/* ══ TEST ENDPOINT MODAL ══════════════════════════════════════════════ */}
+      {showTestModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setShowTestModal(false); setTestResult(null); setTestFiles([]); }}
+        >
+          <div
+            className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+                  <FlaskConical className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">Test Endpoint</h3>
+                  <p className="text-xs text-muted-foreground font-mono">{endpoint.displayName} · {endpoint.discriminatorValue || '_default'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowTestModal(false); setTestResult(null); setTestFiles([]); }}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              <div className="bg-muted/40 border border-border rounded-xl p-4 text-sm text-muted-foreground">
+                <p>Thực thi pipeline đầy đủ giống như client thật — tự động áp dụng mọi <strong>Profile Params</strong> và <strong>Prompt Overrides</strong> đã cấu hình cho profile này.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-2">File kiểm thử <span className="text-destructive">*</span></label>
+                <div className="border-2 border-dashed border-border rounded-xl p-4 hover:border-violet-400 dark:hover:border-violet-600 transition-colors">
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
+                    className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/40 dark:file:text-violet-300 cursor-pointer"
+                    onChange={e => { setTestFiles(Array.from(e.target.files ?? [])); setTestResult(null); }}
+                  />
+                  {testFiles.length > 0 && (
+                    <p className="text-xs text-violet-700 dark:text-violet-300 mt-2 font-medium">✓ Đã chọn {testFiles.length} file: {testFiles.map(f => f.name).join(', ')}</p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={handleTestEndpoint}
+                disabled={testing || testFiles.length === 0}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white font-semibold rounded-xl shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {testing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                {testing ? 'Đang thực thi Pipeline...' : 'Chạy Test'}
+              </button>
+
+              {/* Result Panel */}
+              {testResult && (
+                <div className={`rounded-xl border text-sm space-y-4 overflow-hidden ${
+                  testResult.status === 200
+                    ? 'border-green-300 dark:border-green-800'
+                    : 'border-red-300 dark:border-red-800'
+                }`}>
+                  {/* Status Bar */}
+                  <div className={`px-4 py-3 flex items-center gap-2 font-semibold ${
+                    testResult.status === 200
+                      ? 'bg-green-100 dark:bg-green-950/50 text-green-800 dark:text-green-300'
+                      : 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-300'
+                  }`}>
+                    {testResult.status === 200
+                      ? <><CheckCircle className="w-4 h-4" /> Thành công (HTTP 200)</>
+                      : <><XCircle className="w-4 h-4" /> Thất bại (HTTP {testResult.status})</>}
+                  </div>
+
+                  <div className="px-4 pb-4 space-y-4">
+                    {testResult.data?.result?.extracted_data && (
+                      <div>
+                        <p className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">Extracted Data</p>
+                        <pre className="bg-muted/50 border border-border p-3 rounded-lg overflow-x-auto text-xs max-h-72 overflow-y-auto font-mono">{JSON.stringify(testResult.data.result.extracted_data, null, 2)}</pre>
+                      </div>
+                    )}
+
+                    {testResult.data?.result?.content && !testResult.data?.result?.extracted_data && (
+                      <div>
+                        <p className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">Content</p>
+                        <pre className="bg-muted/50 border border-border p-3 rounded-lg overflow-x-auto text-xs whitespace-pre-wrap max-h-72 overflow-y-auto font-mono">{testResult.data.result.content}</pre>
+                      </div>
+                    )}
+
+                    {testResult.data?.error && (
+                      <div>
+                        <p className="font-semibold text-xs uppercase tracking-wide text-red-600 dark:text-red-400 mb-2">Error Details</p>
+                        <pre className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 p-3 rounded-lg text-xs text-red-800 dark:text-red-300 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono">{JSON.stringify(testResult.data.error, null, 2)}</pre>
+                      </div>
+                    )}
+
+                    {!testResult.data?.result && !testResult.data?.error && (
+                      <div>
+                        <p className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-2">Raw Response</p>
+                        <pre className="bg-muted/50 border border-border p-3 rounded-lg overflow-x-auto text-xs max-h-72 overflow-y-auto font-mono">{JSON.stringify(testResult.data, null, 2)}</pre>
+                      </div>
+                    )}
+
+                    {testResult.data?.result?.usage && (
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+                        <span className="inline-flex items-center gap-1 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold">
+                          Model: {testResult.data.result.usage.model_used || 'N/A'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 bg-muted px-2.5 py-1 rounded-lg text-xs font-mono">
+                          IN: {testResult.data.result.usage.input_tokens} tokens
+                        </span>
+                        <span className="inline-flex items-center gap-1 bg-muted px-2.5 py-1 rounded-lg text-xs font-mono">
+                          OUT: {testResult.data.result.usage.output_tokens} tokens
+                        </span>
+                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold">
+                          Cost: ${testResult.data.result.usage.cost_usd?.toFixed(5)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(isActive || isEditing) && isEditing && (
         <div className="px-4 pb-4 border-t border-border bg-card/50 rounded-b-xl animate-in fade-in fill-mode-forwards">
@@ -853,7 +1036,7 @@ function ProfileEndpointCard({
                      </div>
                    );
                  })}
-                 {(!endpoint.extConnections || endpoint.extConnections.length === 0) && (
+               {(!endpoint.extConnections || endpoint.extConnections.length === 0) && (
                    <p className="text-sm text-muted-foreground p-6 text-center border rounded-xl bg-background border-dashed">
                      Endpoint này xử lý Local hoặc qua các Local Processors nội bộ, không có External API Pipeline nào.
                    </p>
@@ -861,6 +1044,9 @@ function ProfileEndpointCard({
                </div>
                )}
             </div>
+
+
+
 
             <div className="sm:col-span-2 flex justify-end gap-3 pt-6 pb-2 border-t border-border/50 bg-card/50 sticky bottom-0 z-10">
               <button

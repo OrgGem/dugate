@@ -162,6 +162,8 @@ export async function runEndpoint(
     const webhookUrl = form.get('webhook_url') as string | null;
     const idempotencyKey = req.headers.get('idempotency-key') ?? undefined;
 
+    const executeSync = req.nextUrl.searchParams.get('sync') === 'true';
+
     const result = await submitPipelineJob({
       pipeline,
       files,
@@ -170,18 +172,22 @@ export async function runEndpoint(
       webhookUrl,
       idempotencyKey,
       apiKeyId,
+      executeSync,
     });
 
     if (!result.ok) {
       return result.errorResponse;
     }
 
+    const isSyncOrIdempotent = result.isIdempotent || executeSync;
+
     return NextResponse.json(formatOperationResponse(result.operation), {
-      status: result.isIdempotent ? 200 : 202,
-      headers: result.isIdempotent
+      status: isSyncOrIdempotent ? 200 : 202,
+      headers: isSyncOrIdempotent
         ? {}
         : { 'Operation-Location': `/api/v1/operations/${result.operation.id}` },
     });
+
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

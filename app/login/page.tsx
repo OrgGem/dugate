@@ -29,8 +29,13 @@ function LoginForm() {
 
       if (result?.error) {
         setError(result.error);
-      } else if (result?.url) {
-        window.location.href = result.url;
+      } else if (result?.ok) {
+        // Use relative path only to avoid being redirected to the wrong host
+        // when NEXTAUTH_URL is misconfigured in production.
+        const destination = result.url
+          ? new URL(result.url).pathname + new URL(result.url).search
+          : callbackUrl;
+        window.location.href = destination;
       }
     } catch {
       setError('Lỗi kết nối đến máy chủ.');
