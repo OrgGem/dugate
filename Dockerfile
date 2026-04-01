@@ -9,20 +9,16 @@ FROM node:20-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN apt-get update -y && apt-get install -y openssl
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN npx prisma generate
 RUN npx tsc prisma/seed.ts --esModuleInterop --skipLibCheck --module CommonJS --target ES2022 --outDir prisma
 RUN npm run build
 
-# Stage 3: runner
+# Stage 3: runner (slim — no local PDF/DOCX processing, all done via external API)
 FROM node:20-slim AS runner
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pandoc \
-    ghostscript \
-    unzip \
-    texlive-xetex \
     openssl \
     && rm -rf /var/lib/apt/lists/*
 
