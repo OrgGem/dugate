@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
     const enrichedEndpoints = getAllEndpointSlugs().map((endpointDef) => {
       const dbRecord = profileEndpoints.find((p) => p.endpointSlug === endpointDef.slug);
 
-      const extConnections = endpointDef.connections.map((connSlug) => {
+      const dbConnectionsOverride = dbRecord?.connectionsOverride ? JSON.parse(dbRecord.connectionsOverride as string) : null;
+      const activeConnections = (dbConnectionsOverride && dbConnectionsOverride.length > 0) ? dbConnectionsOverride : endpointDef.connections;
+      
+      const extConnections = activeConnections.map((connSlug: string) => {
         const conn = allExtConnections.find((c) => c.slug === connSlug);
         if (!conn) return null;
         const override = allExtOverrides.find((o) => o.connectionId === conn.id);
