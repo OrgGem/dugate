@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
         enabled: dbRecord ? dbRecord.enabled : true,
         defaultParams: dbRecord?.defaultParams ? JSON.parse(dbRecord.defaultParams as string) : null,
         profileParams: dbRecord?.profileParams ? JSON.parse(dbRecord.profileParams as string) : null,
+        connectionsOverride: dbRecord?.connectionsOverride ? JSON.parse(dbRecord.connectionsOverride as string) : null,
         id: dbRecord?.id ?? null,
         extConnections,
       };
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { apiKeyId, endpointSlug, enabled, defaultParams, profileParams } = body;
+    const { apiKeyId, endpointSlug, enabled, defaultParams, profileParams, connectionsOverride } = body;
 
     if (!apiKeyId || !endpointSlug) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
       enabled: typeof enabled === 'boolean' ? enabled : true,
       defaultParams: defaultParams ? JSON.stringify(defaultParams) : null,
       profileParams: profileParams ? JSON.stringify(profileParams) : null,
+      connectionsOverride: connectionsOverride ? JSON.stringify(connectionsOverride) : null,
     };
 
     const record = await prisma.profileEndpoint.upsert({

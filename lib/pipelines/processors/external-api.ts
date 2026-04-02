@@ -3,7 +3,9 @@
 // v2: Supports forwarding multiple files (files[]) in one request.
 
 import fs from 'fs/promises';
+import path from 'path';
 import type { ProcessorContext, ProcessorResult } from '@/lib/pipelines/engine';
+import { ParserFactory } from '@/lib/parsers/factory';
 import type { ExternalApiConnection, ExternalApiOverride } from '@prisma/client';
 import type { Logger } from '@/lib/logger';
 
@@ -88,6 +90,41 @@ export async function runExternalApiProcessor(
   const resolvedPrompt = interpolateVariables(rawPrompt, ctx.variables);
 
   ctx.logger.info(`Formatting prompt for ${connection.slug}`, { promptLength: resolvedPrompt.length });
+
+  // ── 1.5 Intercept with Internal Parsers (if applicable) ────────────────────
+  if (ctx.filePaths.length === 1) {
+    const filePath = ctx.filePaths[0];
+    const fileName = ctx.fileNames[0] ?? path.basename(filePath);
+    const parser = ParserFactory.getParserForFile('', fileName);
+
+    if (parser) {
+      try {
+        ctx.logger.info(`[InternalParser] Attempting to parse natively: ${fileName}`);
+        const fileBuffer = await fs.readFile(filePath);
+        const result = await parser.parse(fileBuffer, fileName);
+
+        ctx.logger.info(`[InternalParser] Successfully parsed ${fileName} natively.`);
+
+        return {
+          content: result.markdown,
+          extractedData: undefined,
+          outputFilePath: undefined,
+          inputTokens: 0,
+          outputTokens: 0,
+          pagesProcessed: result.metadata?.pageCount || 1,
+          modelUsed: `internal:${parser.constructor.name}`,
+          costUsd: 0,
+        };
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg === 'SCANNED_PDF_DETECTED') {
+          ctx.logger.info(`[InternalParser] Scanned PDF detected, falling back to External API.`);
+        } else {
+          ctx.logger.warn(`[InternalParser] Native parse failed: ${errMsg}. Falling back to External API.`);
+        }
+      }
+    }
+  }
 
   // ── 2. Build multipart/form-data ───────────────────────────────────────────
   const formData = new FormData();

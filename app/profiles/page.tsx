@@ -379,6 +379,10 @@ function ProfileEndpointCard({
   const [extOverridesState, setExtOverridesState] = useState<Record<string, string | null>>({});
   const [saving, setSaving] = useState(false);
 
+  // Connection Routing Override
+  const [connectionsOverride, setConnectionsOverride] = useState<string[] | null>(endpoint.connectionsOverride || null);
+  const [allConnectors, setAllConnectors] = useState<{id: string; slug: string; name: string}[]>([]);
+
   // Test Endpoint Modal State
   const [showTestModal, setShowTestModal] = useState(false);
   const [testFiles, setTestFiles] = useState<File[]>([]);
@@ -397,7 +401,18 @@ function ProfileEndpointCard({
       initialOverrides[conn.connectionId] = conn.promptOverride ?? null;
     });
     setExtOverridesState(initialOverrides);
+    setConnectionsOverride(endpoint.connectionsOverride || null);
   }, [endpoint, apiKeyId]);
+
+  // Fetch all available connectors for the override dropdown
+  useEffect(() => {
+    fetch('/api/internal/ext-connections')
+      .then(r => r.json())
+      .then(data => {
+        if (data.connections) setAllConnectors(data.connections);
+      })
+      .catch(() => {});
+  }, []);
 
   // Reset expanded states when switching to a different client profile
   useEffect(() => {
@@ -486,7 +501,7 @@ function ProfileEndpointCard({
         finalProfileObj = profileParamsStr.trim() ? JSON.parse(profileParamsStr) : null;
       }
 
-      // Save Profile Endpoint params
+      // Save Profile Endpoint params (including connectionsOverride)
       const endpointPromise = fetch('/api/internal/profile-endpoints', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -496,6 +511,7 @@ function ProfileEndpointCard({
           enabled: enabledState,
           defaultParams: Object.keys(finalDefaultObj || {}).length ? finalDefaultObj : null,
           profileParams: Object.keys(finalProfileObj || {}).length ? finalProfileObj : null,
+          connectionsOverride: connectionsOverride && connectionsOverride.length > 0 ? connectionsOverride : null,
         }),
       });
 
@@ -952,7 +968,7 @@ function ProfileEndpointCard({
               </>
             ))}
 
-            {/* PIPELINE PROCESSORS */}
+            {/* PIPELINE PROCESSORS + CONNECTION ROUTING */}
             <div className="sm:col-span-2 mt-4 pt-4 border-t border-border/50">
                <div 
                  className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 cursor-pointer hover:bg-muted/50 w-fit p-1.5 -ml-1.5 rounded transition-colors select-none"
@@ -960,9 +976,51 @@ function ProfileEndpointCard({
                >
                   <ChevronDown className={`w-4 h-4 transition-transform ${isProcessorsOpen ? '' : '-rotate-90'}`} />
                   Pipeline Processors ({endpoint.extConnections?.length || 0} Bước)
+                  {connectionsOverride && connectionsOverride.length > 0 && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 px-2 py-0.5 rounded-sm ml-1">
+                      Routing Override
+                    </span>
+                  )}
                </div>
                
                {isProcessorsOpen && (
+                 <>
+                 {/* Connection Routing Override */}
+                 <div className="mb-4 p-4 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/50 rounded-xl">
+                   <label className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+                     <PlugZap className="w-4 h-4" /> Connection Routing Override
+                   </label>
+                   <p className="text-xs text-teal-600/80 dark:text-teal-400/60 mb-3">
+                     Chọn connector khác cho profile này. Để trống = dùng connector mặc định từ Registry (không ảnh hưởng profile khác).
+                   </p>
+                   <select
+                     value={connectionsOverride?.[0] || ''}
+                     onChange={(e) => {
+                       const val = e.target.value;
+                       setConnectionsOverride(val ? [val] : null);
+                     }}
+                     className="input-field text-sm font-mono py-2 border-teal-300 dark:border-teal-800 focus:ring-teal-500/30"
+                   >
+                     <option value="">— Dùng mặc định: [{endpoint.connections?.join(', ')}] —</option>
+                     {allConnectors.filter(c => c.slug !== endpoint.connections?.[0]).map((c) => (
+                       <option key={c.slug} value={c.slug}>{c.name} ({c.slug})</option>
+                     ))}
+                   </select>
+                   {connectionsOverride && connectionsOverride.length > 0 && (
+                     <div className="mt-2 flex items-center gap-2">
+                       <span className="text-xs font-mono bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300 px-2 py-1 rounded">
+                         Override: {connectionsOverride.join(' → ')}
+                       </span>
+                       <button
+                         onClick={() => setConnectionsOverride(null)}
+                         className="text-xs text-red-500 hover:text-red-700 font-medium"
+                       >
+                         Reset
+                       </button>
+                     </div>
+                   )}
+                 </div>
+                 
                  <div className="space-y-4">
                  {endpoint.extConnections?.map((conn: any, idx: number) => {
                    const overrideValue = extOverridesState[conn.connectionId];
@@ -1042,11 +1100,9 @@ function ProfileEndpointCard({
                    </p>
                  )}
                </div>
+               </>
                )}
             </div>
-
-
-
 
             <div className="sm:col-span-2 flex justify-end gap-3 pt-6 pb-2 border-t border-border/50 bg-card/50 sticky bottom-0 z-10">
               <button

@@ -157,8 +157,23 @@ export async function runEndpoint(
       }
     }
 
-    // ── 9. Build pipeline ────────────────────────────────────────────────────
-    const pipeline = subCase.connections.map((connSlug) => ({
+    // ── 9. Build pipeline (per-profile routing support) ────────────────────
+    // Ưu tiên connections override từ ProfileEndpoint (nếu admin đã cấu hình)
+    // Fallback về connections mặc định từ SERVICE_REGISTRY
+    let connectionSlugs: string[];
+    if (profileEndpoint?.connectionsOverride) {
+      try {
+        connectionSlugs = JSON.parse(profileEndpoint.connectionsOverride);
+        logger.info(`[PROFILE_ROUTING] Using override connections: [${connectionSlugs.join(', ')}]`);
+      } catch {
+        logger.warn(`[PROFILE_ROUTING] Invalid connectionsOverride JSON, falling back to defaults`);
+        connectionSlugs = subCase.connections;
+      }
+    } else {
+      connectionSlugs = subCase.connections;
+    }
+
+    const pipeline = connectionSlugs.map((connSlug) => ({
       processor: connSlug,
       variables: mergedVars,
     }));

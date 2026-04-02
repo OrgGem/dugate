@@ -188,6 +188,11 @@ model ProfileEndpoint {
   // Tham số riêng của Profile (Nghiệp vụ), block nếu client cố tình gửi
   profileParams String?  @db.Text
 
+  // Ghi đè danh sách connector cho profile này (Per-profile Connection Routing)
+  // null = dùng connections mặc định từ SERVICE_REGISTRY (backward compatible)
+  // JSON array: ["ext-ocr-premium"] hoặc ["ext-ocr-v2", "ext-fact-verifier"]
+  connectionsOverride String? @db.Text
+
   apiKey        ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime @default(now())
