@@ -12,13 +12,13 @@ Whether you need to extract data from invoices, compliance-check a contract, or 
 
 ## ✨ Key Features
 
-- **6 Core API Endpoints** — Replaces dozens of messy endpoints with a clean, unified structure (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`).
-- **Deep Profile-Driven Override Routing** — Admins can enforce specific internal LLM models, system context, or overwrite specific connection setups entirely *per API Key*. Client applications never have to change their calling code!
-- **Visual Pipeline Chain Builder** — An intuitive **Visual UI in the Profiles Dashboard** allowing Admins to stack, re-order, and inject *Custom Prompts* using variable mapping (`{{input_content}}`) dynamically across executing connectors.
-- **Asynchronous Pipeline Engine** — Handles large documents seamlessly via a generic asynchronous task runner (`202 Accepted` + Polling/Webhook pattern).
-- **Multiple AI Backends** — Natively routes downward into Google Gemini, OpenAI (GPT-4o), Anthropic (Claude), or modular external APIs.
-- **Standalone Mock Service Engine** — Safely develop and run high-volume E2E tests against a dedicated internal HTTP Mock Service locally without burning expensive real AI tokens.
-- **Diagnostic Logging** — Includes complete cURL reconstruction and dynamic log extraction for tracing integration bugs.
+- **6 Core API Endpoints** — Consolidates fragmented legacy integrations into a clean, unified architectural standard (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`).
+- **Deep Profile-Driven Override Routing** — Administrators can enforce specific internal LLM models, system context, or overwrite connection setups entirely *per API Key*. Client applications interact transparently without requiring codebase modifications.
+- **Visual Pipeline Chain Builder** — An intuitive **Visual Interface in the Profiles Dashboard** allowing Administrators to securely orchestrate, re-order, and inject *Contextual Prompts* using variable mapping (`{{input_content}}`) dynamically across executing connectors.
+- **Asynchronous Pipeline Engine** — Processes large-scale documents seamlessly via an enterprise-grade asynchronous worker queue (`202 Accepted` + Polling/Webhook pattern).
+- **Multiple AI Backends** — Natively routes downward into Google Gemini, OpenAI, Claude, or modular internal APIs to comply with strict data locality policies.
+- **Standalone Mock Service Engine** — Safely develop and run high-volume Automated Tests against a dedicated internal HTTP Mock Service locally, optimizing integration efforts without incurring external AI token costs.
+- **Diagnostic Logging & Auditing** — Includes complete cURL reconstruction and dynamic log extraction for comprehensive tracing and rapid incident resolution.
 ---
 
 ## 🚀 The 6 Core APIs
@@ -112,21 +112,21 @@ We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for 
 
 # 🇻🇳 DUGate (Vietnamese Version)
 
-> **Giải pháp kiến trúc cổng trung gian API (Gateway) giúp trích xuất và biến đổi tài liệu không cấu trúc thành dữ liệu thông minh.**
+> **Giải pháp kiến trúc cổng trung gian API (Gateway) vận hành quy chuẩn, trích xuất và biến đổi tài liệu phi cấu trúc thành dữ liệu thông minh an toàn và tin cậy.**
 
-DUGate là một hệ thống nội bộ đóng vai trò là API Gateway cho các bài toán Document Understanding. Thay vì để các ứng dụng tự gọi hàng tá các dịch vụ OCR, LLM hay công cụ parse file khác nhau một cách hỗn loạn, DUGate gói gọn tất cả sự phức tạp đó vào **6 API tiêu chuẩn**.
+DUGate là một hệ thống nội bộ đóng vai trò là API Gateway chuyên biệt cho các bài toán Phân tích Tài liệu (Document Understanding). Thay vì để các ứng dụng nghiệp vụ gọi trực tiếp và phân mảnh đến các dịch vụ OCR, LLM hay công cụ parse file khác nhau, DUGate quy chuẩn hóa toàn bộ sự phức tạp đó vào **6 API tiêu chuẩn cấp doanh nghiệp**.
 
-Phù hợp cho bất cứ hệ thống nào cần trích xuất thông tin hoá đơn, đánh giá hợp đồng, hay kiểm duyệt tài liệu một cách chuẩn xác, bảo mật nhờ vào cơ chế định tuyến qua Profile (Profile-Driven).
+Hệ thống được thiết kế đặc biệt phù hợp cho các quy trình nghiệp vụ yêu cầu tính bảo mật, chính xác và nhất quán cao như: trích xuất thông tin hoá đơn chứng từ, đánh giá rủi ro hợp đồng, hay kiểm duyệt tài liệu. Điều này được đảm bảo thông qua cơ chế định tuyến chặt chẽ theo Hồ sơ thiết lập (Profile-Driven).
 
-## ✨ Tính Năng Nổi Bật
+## ✨ Năng Lực Cốt Lõi
 
-- **6 Endpoint Cốt Lõi** — Đóng gói hàng trăm use-case thông thường thành cấu trúc nhất quán (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`).
-- **Override Routing Dựa Trên Profile** — Admin có thể can thiệp sâu vào việc đổi LLM model, thay đổi prompt gốc, hoặc cấu hình lại các kết nối Pipeline theo từng API Key. Ứng dụng client không cần phải đổi code!
-- **Visual Pipeline Chain Builder** — Giao diện trực quan trong Dashboard giúp Admin kéo thả, sắp xếp, và tuỳ chỉnh Prompt cho các connector liên tiếp nhau (vd: kết quả đoạn A sẽ nối mượt mà vào Prompt đoạn B thông qua biến `{{input_content}}`).
-- **Xử Lý Bất Đồng Bộ (Async Pipeline Engine)** — Phù hợp với các tài liệu hàng trăm trang qua cơ chế `202 Accepted` + Polling.
-- **Hỗ trợ đa nền tảng AI** — Kết nối mặc định đến Google Gemini, OpenAI (GPT-4o), Anthropic (Claude), hoặc các external API nội bộ.
-- **Standalone Mock Service** — Dịch vụ Mock HTTP tích hợp sẵn giúp bạn thoải mái chạy Automated Test/E2E Test với lưu lượng lớn mà không sợ tốn một đồng tiền tokens AI nào!
-- **Theo Dõi Chuyên Sâu (Diagnostic)** — Gateway tự động gen ra mã cURL nội bộ mỗi khi nó tự forward dữ liệu sang bên thứ 3 để bạn kiểm tra lỗi dễ dàng nhất.
+- **6 Endpoint Xử Lý Tập Trung** — Quy chuẩn hoá hàng trăm nghiệp vụ tài liệu thông thường thành cấu trúc API đồng nhất (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`).
+- **Override Routing Dựa Trên Profile** — Quản trị viên hệ thống có thẩm quyền can thiệp vào việc định tuyến LLM model, thay đổi System Prompt, hoặc cấu hình lại các luồng xử lý Pipeline theo từng API Key. Đảm bảo ứng dụng Client giao tiếp một cách minh bạch mà không cần can thiệp mã nguồn.
+- **Chuỗi Nghiệp Vụ Trực Quan (Pipeline Builder)** — Giao diện Dashboard cung cấp khả năng thiết lập luồng xử lý chuyên sâu, cho phép phân bổ và ánh xạ Prompt động cho các dịch vụ liên tiếp nhau (vd: kết quả nghiệp vụ A sẽ đóng vai trò Dữ liệu đầu vào cho Prompt nghiệp vụ B thông qua biến `{{input_content}}`).
+- **Cơ Chế Xử Lý Bất Đồng Bộ (Async Engine)** — Đáp ứng khả năng khai thác khối lượng tài liệu lớn thông qua cơ chế phản hồi `202 Accepted` kết hợp Webhook/Polling, đảm bảo tính ổn định của hệ thống lõi.
+- **Hỗ Trợ Mở Rộng Đa Nền Tảng AI** — Hỗ trợ kết nối an toàn đến Google Gemini, OpenAI, Claude, hoặc tích hợp trực tiếp vào các mô hình AI/Dịch vụ nội bộ của doanh nghiệp nhằm đáp ứng tiêu chuẩn nội bộ.
+- **Hệ Thống Dịch Vụ Giả Lập (Mock Service)** — Môi trường Mock HTTP độc lập hỗ trợ kỹ sư vận hành các kịch bản kiểm thử tự động (Automated/E2E Test) trên quy mô lớn, tối ưu hóa triệt để chi phí vận hành API.
+- **Giám Sát Định Tuyến & Truy Vết (Diagnostic)** — Gateway tự động khởi tạo và lưu vết mã cURL nội bộ mỗi khi thực hiện giao tiếp với dịch vụ bên thứ 3, hỗ trợ công tác kiểm toán (audit) và phát hiện lỗi nhanh chóng.
 
 ## 🚀 6 API Chính
 
