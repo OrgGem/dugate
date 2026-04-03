@@ -18,14 +18,13 @@
 5. [System Context (C4 Level 1)](#5-system-context-c4-level-1)
 6. [Container Architecture (C4 Level 2)](#6-container-architecture-c4-level-2)
 7. [Component Architecture (C4 Level 3)](#7-component-architecture-c4-level-3)
-8. [Data Architecture](#8-data-architecture)
-9. [Sequence Diagrams](#9-sequence-diagrams)
-10. [Deployment Architecture — Docker & Kubernetes](#10-deployment-architecture--docker--kubernetes)
-11. [Security Architecture](#11-security-architecture)
-12. [Non-Functional Requirements (NFR)](#12-non-functional-requirements-nfr)
-13. [Technology Stack Decision Matrix](#13-technology-stack-decision-matrix)
-14. [Risk Assessment & Mitigation](#14-risk-assessment--mitigation)
-15. [Approval Sign-off](#15-approval-sign-off)
+8. [Sequence Diagrams](#8-sequence-diagrams)
+9. [Deployment Architecture — Docker & Kubernetes](#9-deployment-architecture--docker--kubernetes)
+10. [Security Architecture](#10-security-architecture)
+11. [Non-Functional Requirements (NFR)](#11-non-functional-requirements-nfr)
+12. [Technology Stack Decision Matrix](#12-technology-stack-decision-matrix)
+13. [Risk Assessment & Mitigation](#13-risk-assessment--mitigation)
+14. [Approval Sign-off](#14-approval-sign-off)
 
 ---
 
@@ -33,7 +32,7 @@
 
 **DUGate** (Document Understanding API Gateway) là một giải pháp kiến trúc cổng trung gian API nội bộ, chuyên biệt xử lý các bài toán **Phân tích Tài liệu** (Document Understanding) cho môi trường doanh nghiệp — đặc biệt phù hợp với ngành Tài chính & Ngân hàng.
 
-Thay vì mỗi nghiệp vụ tự tích hợp riêng lẻ đến hàng chục dịch vụ OCR/LLM bên ngoài, DUGate **quy chuẩn hóa** toàn bộ lớp truy cập thành **6 API Endpoint duy nhất**, vận hành trên kiến trúc **Pipeline Engine bất đồng bộ** với khả năng **định tuyến theo Profile**, đảm bảo:
+Thay vì mỗi nghiệp vụ tự tích hợp riêng lẻ đến hàng chục dịch vụ AI thông qua LLMs Hub nội bộ, DUGate **quy chuẩn hóa** toàn bộ lớp truy cập thành **6 API Endpoint duy nhất**, vận hành trên kiến trúc **Pipeline Engine bất đồng bộ** với khả năng **định tuyến theo Profile**, đảm bảo:
 
 - **Zero-coupling** giữa ứng dụng nghiệp vụ và AI backend
 - **Multi-tenant isolation** qua API Key + Profile-based routing
@@ -44,46 +43,32 @@ Thay vì mỗi nghiệp vụ tự tích hợp riêng lẻ đến hàng chục d�
 
 ## 2. Business Context & Problem Statement
 
-### 2.1 Hiện trạng (AS-IS)
-
-```mermaid
-graph LR
-    A1[App Nghiệp vụ A] -->|Direct call| S1[OCR Service]
-    A1 -->|Direct call| S2[Gemini API]
-    A2[App Nghiệp vụ B] -->|Direct call| S1
-    A2 -->|Direct call| S3[OpenAI API]
-    A3[App Nghiệp vụ C] -->|Direct call| S2
-    A3 -->|Direct call| S4[Claude API]
-
-    style A1 fill:#ff6b6b,stroke:#333
-    style A2 fill:#ff6b6b,stroke:#333
-    style A3 fill:#ff6b6b,stroke:#333
-```
-
-**Vấn đề nhận diện:**
+Trong môi trường ngân hàng, các mô hình LLM (Gemini, GPT, Claude, v.v.) được cung cấp tập trung qua **LLMs Hub** — một lớp trung gian do hạ tầng nội bộ quản lý. Tuy nhiên, việc các ứng dụng nghiệp vụ gọi trực tiếp vào LLMs Hub vẫn tiềm ẩn rủi ro:
 
 | # | Vấn đề | Ảnh hưởng |
 |---|--------|-----------|
-| P1 | Mỗi app tự tích hợp AI → N×M integrations | Chi phí bảo trì tăng tuyến tính |
-| P2 | Không kiểm soát prompt/model tập trung | Rủi ro prompt injection, output inconsistency |
-| P3 | Không có audit trail trên API gọi AI | Vi phạm compliance nội bộ |
-| P4 | Không có spending limit per-team | Chi phí AI vượt tầm kiểm soát |
-| P5 | Key rotation phải cập nhật tất cả apps | Downtime trên diện rộng |
+| P1 | Mỗi app tự tích hợp riêng lẻ → N×M integrations | Chi phí bảo trì tăng tuyến tính, logic bị phân mảnh |
+| P2 | Không kiểm soát prompt/model tập trung | Rủi ro prompt injection, output inconsistency giữa các đơn vị |
+| P3 | Không có audit trail trên API gọi AI | Vi phạm compliance nội bộ, khó truy vết sự cố |
+| P4 | Không có spending limit per-team | Token usage vượt tầm kiểm soát |
+| P5 | Thiếu cơ chế pipeline chain | Không thể ghép nối nhiều bước xử lý (OCR → Extract → Validate) |
 
-### 2.2 Mục tiêu (TO-BE)
+**DUGate giải quyết** bằng cách đóng vai trò lớp Gateway giữa ứng dụng nghiệp vụ và LLMs Hub — chuẩn hóa toàn bộ thành 6 API duy nhất:
 
 ```mermaid
 graph LR
     A1[App Nghiệp vụ A] -->|x-api-key| GW[🏗️ DUGate Gateway]
     A2[App Nghiệp vụ B] -->|x-api-key| GW
     A3[App Nghiệp vụ C] -->|x-api-key| GW
-    GW -->|Profile routing| S1[OCR Engine]
-    GW -->|Profile routing| S2[Gemini]
-    GW -->|Profile routing| S3[OpenAI]
-    GW -->|Profile routing| S4[Claude]
-    GW -->|Profile routing| S5[Internal AI]
+    GW -->|Profile routing| HUB[🔗 LLMs Hub]
+    GW -->|Profile routing| OCR[OCR Engine]
+    GW -->|Profile routing| INT[Internal AI Service]
+    HUB --> M1[Gemini]
+    HUB --> M2[GPT]
+    HUB --> M3[Claude]
 
     style GW fill:#51cf66,stroke:#333,stroke-width:3px
+    style HUB fill:#4dabf7,stroke:#333,stroke-width:2px
 ```
 
 ---
@@ -106,9 +91,9 @@ DUGate quy chuẩn hóa toàn bộ bài toán Document Understanding thành **6 
 ### 3.2 Core Architecture Pattern
 
 ```
-Client Request → Middleware (Auth) → Endpoint Runner (Routing) → Pipeline Submit → Pipeline Engine → External API Processor → AI Backend
-       ↑                                                                                                                        ↓
-       └──────────────────── Operation Polling / Webhook ←────── PostgreSQL (State Machine) ←──────────────────────────────────┘
+Client Request → Middleware (Auth) → Endpoint Runner (Routing) → Pipeline Submit → Pipeline Engine → External API Processor → LLMs Hub / AI Backend
+       ↑                                                                                                                                    ↓
+       └──────────────────── Operation Polling / Webhook ←────── PostgreSQL (State Machine) ←────────────────────────────────────────────────┘
 ```
 
 ---
@@ -137,18 +122,16 @@ C4Context
 
     System(dugate, "DUGate Gateway", "Document Understanding API Gateway — 6 Unified Endpoints")
 
-    System_Ext(gemini, "Google Gemini API", "LLM & Vision")
-    System_Ext(openai, "OpenAI API", "GPT-4o / o1")
-    System_Ext(claude, "Anthropic Claude", "Claude Sonnet/Opus")
-    System_Ext(internal_ai, "Internal AI Service", "On-premise models")
+    System_Ext(llmhub, "LLMs Hub", "Cổng trung gian LLM nội bộ — proxy đến Gemini, GPT, Claude")
+    System_Ext(ocr_engine, "OCR Engine", "Dịch vụ nhận dạng ký tự quang học")
+    System_Ext(internal_ai, "Internal AI Service", "Mô hình AI on-premise")
 
     System_Ext(postgres, "PostgreSQL", "Operational data store")
 
     Rel(admin, dugate, "Quản trị qua Admin UI", "HTTPS/NextAuth")
     Rel(dev, dugate, "Gửi tài liệu, nhận kết quả", "HTTPS/x-api-key")
-    Rel(dugate, gemini, "Forward request", "HTTPS/API Key")
-    Rel(dugate, openai, "Forward request", "HTTPS/Bearer")
-    Rel(dugate, claude, "Forward request", "HTTPS/API Key")
+    Rel(dugate, llmhub, "Forward request", "HTTPS/API Key")
+    Rel(dugate, ocr_engine, "Forward request", "HTTPS/API Key")
     Rel(dugate, internal_ai, "Forward request", "HTTP/mTLS")
     Rel(dugate, postgres, "CRUD Operations", "TCP/5432")
 ```
@@ -304,113 +287,11 @@ graph LR
 
 ---
 
-## 8. Data Architecture
-
-### 8.1 Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    User {
-        uuid id PK
-        string username UK
-        string password "bcrypt hashed"
-        string role "ADMIN | USER"
-    }
-
-    ApiKey {
-        uuid id PK
-        string name
-        string keyHash UK "SHA-256"
-        string prefix "display only"
-        string role "STANDARD | ADMIN"
-        float spendingLimit
-        float totalUsed
-        string status "active | revoked"
-    }
-
-    Operation {
-        uuid id PK
-        uuid apiKeyId FK "nullable"
-        string idempotencyKey UK "AIP-155"
-        boolean done
-        string state "RUNNING | SUCCEEDED | FAILED | CANCELLED"
-        int progressPercent
-        string endpointSlug "e.g. extract:invoice"
-        text pipelineJson "JSON array of steps"
-        text filesJson "uploaded file metadata"
-        text outputContent
-        text extractedData
-        text stepsResultJson
-        int totalInputTokens
-        int totalOutputTokens
-        float totalCostUsd
-        string webhookUrl
-    }
-
-    ExternalApiConnection {
-        uuid id PK
-        string name
-        string slug UK "e.g. ext-data-extractor"
-        text endpointUrl
-        string httpMethod "POST | PUT"
-        string authType "API_KEY_HEADER | BEARER | NONE"
-        string authKeyHeader
-        text authSecret "Plaintext — server-side only"
-        string promptFieldName
-        string fileFieldName
-        text defaultPrompt
-        text staticFormFields "JSON"
-        text extraHeaders "JSON"
-        string responseContentPath "dot-path resolver"
-        int timeoutSec
-        string state "ENABLED | DISABLED"
-    }
-
-    ExternalApiOverride {
-        uuid id PK
-        uuid connectionId FK
-        uuid apiKeyId FK
-        text promptOverride "null = use default"
-    }
-
-    ProfileEndpoint {
-        uuid id PK
-        uuid apiKeyId FK
-        string endpointSlug
-        boolean enabled
-        text defaultParams "JSON"
-        text profileParams "JSON — admin-locked"
-        text connectionsOverride "JSON array of slugs"
-    }
-
-    AppSetting {
-        uuid id PK
-        string key UK
-        text value
-    }
-
-    ApiKey ||--o{ Operation : "generates"
-    ApiKey ||--o{ ExternalApiOverride : "overrides"
-    ApiKey ||--o{ ProfileEndpoint : "configures"
-    ExternalApiConnection ||--o{ ExternalApiOverride : "overridden_by"
-```
-
-### 8.2 Data Flow Classification
-
-| Dữ liệu | Sensitivity | Encryption | Retention |
-|----------|------------|-----------|-----------|
-| API Key (raw) | **CRITICAL** | SHA-256 hash, chỉ lưu hash | Permanent |
-| Auth Secrets (AI API Keys) | **CRITICAL** | AES-256-GCM at-rest | Permanent |
-| Uploaded Files | HIGH | At-rest (volume encryption) | 24h (auto-cleanup) |
-| Operation Results | MEDIUM | TLS in-transit | 30 days |
-| User Passwords | **CRITICAL** | bcrypt (cost=10) | Permanent |
-| Structured Logs | MEDIUM | N/A | 90 days |
-
 ---
 
-## 9. Sequence Diagrams
+## 8. Sequence Diagrams
 
-### 9.1 Luồng xử lý API Request (Async — Production Flow)
+### 8.1 Luồng xử lý API Request (Async — Production Flow)
 
 ```mermaid
 sequenceDiagram
@@ -468,7 +349,7 @@ sequenceDiagram
     Nginx-->>-Client: 202 Accepted + operation_id
 ```
 
-### 9.2 Pipeline Engine — Multi-Step Execution
+### 8.2 Pipeline Engine — Multi-Step Execution
 
 ```mermaid
 sequenceDiagram
@@ -477,7 +358,7 @@ sequenceDiagram
     participant DB as 🗄️ PostgreSQL
     participant Processor as 🔌 External API Processor
     participant Parser as 📄 Parser Factory
-    participant AI as 🤖 AI Backend
+    participant AI as 🤖 LLMs Hub / AI Backend
     participant Webhook as 📡 Webhook
 
     Engine->>DB: Load Operation (pipelineJson, filesJson)
@@ -525,7 +406,7 @@ sequenceDiagram
     end
 ```
 
-### 9.3 Operation Polling — Client-side
+### 8.3 Operation Polling — Client-side
 
 ```mermaid
 sequenceDiagram
@@ -552,7 +433,7 @@ sequenceDiagram
     end
 ```
 
-### 9.4 Per-Profile Connector Routing Override
+### 8.4 Per-Profile Connector Routing Override
 
 ```mermaid
 sequenceDiagram
@@ -591,7 +472,7 @@ sequenceDiagram
     end
 ```
 
-### 9.5 Admin Authentication — NextAuth Session Flow
+### 8.5 Admin Authentication — NextAuth Session Flow
 
 ```mermaid
 sequenceDiagram
@@ -624,9 +505,9 @@ sequenceDiagram
 
 ---
 
-## 10. Deployment Architecture — Docker & Kubernetes
+## 9. Deployment Architecture — Docker & Kubernetes
 
-### 10.1 Docker Compose — Development / Staging
+### 9.1 Docker Compose — Development / Staging
 
 ```mermaid
 graph TB
@@ -684,7 +565,7 @@ services:
     ports: ["3099:3099"]
 ```
 
-### 10.2 Multi-Stage Dockerfile Architecture
+### 9.2 Multi-Stage Dockerfile Architecture
 
 ```mermaid
 graph LR
@@ -708,7 +589,7 @@ graph LR
 
 **Design Decision**: Multi-stage build giảm image size từ ~1.2GB → ~350MB bằng cách chỉ copy `.next/standalone` output và Prisma client vào runner stage. Runtime không cần devDependencies.
 
-### 10.3 Kubernetes Deployment — Production
+### 9.3 Kubernetes Deployment — Production
 
 ```mermaid
 graph TB
@@ -762,7 +643,7 @@ graph TB
     SEC -.->|env| POD1
 ```
 
-### 10.4 Kubernetes Manifest Specifications
+### 9.4 Kubernetes Manifest Specifications
 
 #### Deployment — dugate-app
 
@@ -970,7 +851,7 @@ spec:
                   number: 2023
 ```
 
-### 10.5 CI/CD Pipeline
+### 9.5 CI/CD Pipeline
 
 ```mermaid
 graph LR
@@ -988,9 +869,9 @@ graph LR
 
 ---
 
-## 11. Security Architecture
+## 10. Security Architecture
 
-### 11.1 Defense-in-Depth Layers
+### 10.1 Defense-in-Depth Layers
 
 ```mermaid
 graph TB
@@ -1017,7 +898,7 @@ graph TB
     L1 --> L2 --> L3 --> L4 --> L5
 ```
 
-### 11.2 Authentication Matrix
+### 10.2 Authentication Matrix
 
 | Endpoint Pattern | Auth Method | Token / Key | Session Type |
 |-----------------|-------------|-------------|--------------|
@@ -1027,7 +908,7 @@ graph TB
 | `/api/health` | None (public) | N/A | N/A |
 | `/*` (pages) | NextAuth JWT | Session cookie | JWT |
 
-### 11.3 Secrets Management
+### 10.3 Secrets Management
 
 | Secret | Storage | Rotation Strategy |
 |--------|---------|-------------------|
@@ -1039,7 +920,7 @@ graph TB
 
 ---
 
-## 12. Non-Functional Requirements (NFR)
+## 11. Non-Functional Requirements (NFR)
 
 | NFR | Target | Implementation |
 |-----|--------|---------------|
@@ -1055,7 +936,7 @@ graph TB
 
 ---
 
-## 13. Technology Stack Decision Matrix
+## 12. Technology Stack Decision Matrix
 
 | Layer | Technology | Lý do chọn | Thay thế đã xem xét |
 |-------|-----------|-----------|---------------------|
@@ -1068,16 +949,16 @@ graph TB
 | **Container** | Docker + multi-stage build | 350MB production image, reproducible builds | Podman (less tooling) |
 | **Orchestration** | Kubernetes | HPA, rolling update, secret management, network policy | Docker Swarm (limited auto-scaling) |
 | **Reverse Proxy** | Nginx | TLS termination, rate-limit, mature config | Traefik (auto-discovery overkill for single service) |
-| **AI Integration** | HTTP multipart/form-data | Provider-agnostic, no SDK lock-in | SDK per-provider (tight coupling) |
+| **AI Integration** | HTTP multipart/form-data via LLMs Hub | Provider-agnostic, tương thích LLMs Hub nội bộ, no SDK lock-in | SDK per-provider (tight coupling, bypass Hub) |
 
 ---
 
-## 14. Risk Assessment & Mitigation
+## 13. Risk Assessment & Mitigation
 
 | # | Risk | Probability | Impact | Mitigation |
 |---|------|------------|--------|-----------|
 | R1 | Single DB failure → full outage | Medium | **Critical** | PG StatefulSet + PVC snapshot + WAL archival. Roadmap: read-replica. |
-| R2 | AI provider rate-limit / downtime | High | High | Multi-connector routing — admin can switch backend in seconds via Dashboard. Retry with fallback connector (roadmap). |
+| R2 | LLMs Hub rate-limit / downtime | High | High | Multi-connector routing — admin can switch model/endpoint qua LLMs Hub trong vài giây via Dashboard. Retry with fallback connector (roadmap). |
 | R3 | File upload storage exhaustion | Medium | Medium | 24h auto-cleanup scheduler. Alert khi PVC usage > 80%. |
 | R4 | Prompt injection from client | Medium | High | `profileOnlyParams` blocked at Endpoint Runner. Admin-locked `promptOverride` per-key. Client cannot modify system prompt. |
 | R5 | Key leak from logs | Low | **Critical** | cURL logging masks auth headers. API keys stored as SHA-256 hash only. |
@@ -1086,7 +967,7 @@ graph TB
 
 ---
 
-## 15. Approval Sign-off
+## 14. Approval Sign-off
 
 | Vai trò | Họ tên | Ngày | Chữ ký |
 |---------|--------|------|--------|
