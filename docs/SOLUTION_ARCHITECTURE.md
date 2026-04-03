@@ -23,8 +23,7 @@
 10. [Security Architecture](#10-security-architecture)
 11. [Non-Functional Requirements (NFR)](#11-non-functional-requirements-nfr)
 12. [Technology Stack Decision Matrix](#12-technology-stack-decision-matrix)
-13. [Risk Assessment & Mitigation](#13-risk-assessment--mitigation)
-14. [Approval Sign-off](#14-approval-sign-off)
+13. [Approval Sign-off](#13-approval-sign-off)
 
 ---
 
@@ -595,34 +594,7 @@ graph TB
 
 ## 10. Security Architecture
 
-### 10.1 Defense-in-Depth Layers
-
-```mermaid
-graph TB
-    subgraph "Layer 1: Network"
-        L1["TLS 1.3 cert-manager<br/>HTTPS enforcement<br/>Network Policy isolation"]
-    end
-
-    subgraph "Layer 2: Edge"
-        L2["Nginx Rate limiting<br/>Upload size cap 300MB<br/>X-Forwarded headers<br/>CORS policy"]
-    end
-
-    subgraph "Layer 3: Application Auth"
-        L3["Dual Auth Gate<br/>Admin UI: NextAuth JWT<br/>Public API: x-api-key HMAC<br/>profileOnlyParams blocked"]
-    end
-
-    subgraph "Layer 4: Data Protection"
-        L4["AES-256-GCM secrets at-rest<br/>bcrypt cost=10 passwords<br/>API Key stored as hash only<br/>Secrets never in logs"]
-    end
-
-    subgraph "Layer 5: Audit and Compliance"
-        L5["Structured JSON logging<br/>cURL reconstruction per request<br/>Correlation ID end-to-end<br/>Token usage tracking per key"]
-    end
-
-    L1 --> L2 --> L3 --> L4 --> L5
-```
-
-### 10.2 Authentication Matrix
+### 10.1 Authentication Matrix
 
 | Endpoint Pattern | Auth Method | Token / Key | Session Type |
 |-----------------|-------------|-------------|--------------|
@@ -632,7 +604,7 @@ graph TB
 | `/api/health` | None (public) | N/A | N/A |
 | `/*` (pages) | NextAuth JWT | Session cookie | JWT |
 
-### 10.3 Secrets Management
+### 10.2 Secrets Management
 
 | Secret | Storage | Rotation Strategy |
 |--------|---------|-------------------|
@@ -677,21 +649,7 @@ graph TB
 
 ---
 
-## 13. Risk Assessment & Mitigation
-
-| # | Risk | Probability | Impact | Mitigation |
-|---|------|------------|--------|-----------|
-| R1 | Single DB failure → full outage | Medium | **Critical** | PG StatefulSet + PVC snapshot + WAL archival. Roadmap: read-replica. |
-| R2 | LLMs Hub rate-limit / downtime | High | High | Multi-connector routing — admin can switch model/endpoint qua LLMs Hub trong vài giây via Dashboard. Retry with fallback connector (roadmap). |
-| R3 | File upload storage exhaustion | Medium | Medium | 24h auto-cleanup scheduler. Alert khi PVC usage > 80%. |
-| R4 | Prompt injection from client | Medium | High | `profileOnlyParams` blocked at Endpoint Runner. Admin-locked `promptOverride` per-key. Client cannot modify system prompt. |
-| R5 | Key leak from logs | Low | **Critical** | cURL logging masks auth headers. API keys stored as SHA-256 hash only. |
-| R6 | Pipeline stuck (infinite execution) | Low | Medium | Per-connector `timeoutSec` + AbortController. Operation state = FAILED after timeout. |
-| R7 | Horizontal scaling — file access conflict | Medium | Medium | ReadWriteMany PVC (NFS/EFS). Each operation has unique subdirectory. |
-
----
-
-## 14. Approval Sign-off
+## 13. Approval Sign-off
 
 | Vai trò | Họ tên | Ngày | Chữ ký |
 |---------|--------|------|--------|
