@@ -591,21 +591,6 @@ graph TB
 | **Storage** | PVC ReadWriteMany cho `uploads/` và `outputs/` |
 | **Database** | StatefulSet + PVC 50Gi ReadWriteOnce |
 
-### 9.4 CI/CD Pipeline
-
-```mermaid
-graph LR
-    subgraph "CI/CD Pipeline"
-        A[Git Push<br/>main branch] --> B[Build & Test<br/>npm ci, lint, jest]
-        B --> C[Docker Build<br/>Multi-stage]
-        C --> D[Push to Registry]
-        D --> E[kubectl rollout<br/>RollingUpdate]
-        E --> F{Health Check?}
-        F -->|Pass| G[✅ Deploy Complete]
-        F -->|Fail| H[🔄 Auto Rollback]
-    end
-```
-
 ---
 
 ## 10. Security Architecture
@@ -615,23 +600,23 @@ graph LR
 ```mermaid
 graph TB
     subgraph "Layer 1: Network"
-        L1[TLS 1.3 — cert-manager<br/>HTTPS enforcement<br/>Network Policy isolation]
+        L1["TLS 1.3 cert-manager<br/>HTTPS enforcement<br/>Network Policy isolation"]
     end
 
     subgraph "Layer 2: Edge"
-        L2[Nginx — Rate limiting<br/>Upload size cap: 300MB<br/>X-Forwarded headers<br/>CORS policy]
+        L2["Nginx Rate limiting<br/>Upload size cap 300MB<br/>X-Forwarded headers<br/>CORS policy"]
     end
 
     subgraph "Layer 3: Application Auth"
-        L3[Dual Auth Gate:<br/>• Admin UI → NextAuth JWT (bcrypt)<br/>• Public API → x-api-key HMAC SHA-256<br/>• profileOnlyParams blocked from client]
+        L3["Dual Auth Gate<br/>Admin UI: NextAuth JWT<br/>Public API: x-api-key HMAC<br/>profileOnlyParams blocked"]
     end
 
     subgraph "Layer 4: Data Protection"
-        L4[AES-256-GCM for secrets at-rest<br/>bcrypt cost=10 for passwords<br/>API Key only stored as hash<br/>Secrets never in logs]
+        L4["AES-256-GCM secrets at-rest<br/>bcrypt cost=10 passwords<br/>API Key stored as hash only<br/>Secrets never in logs"]
     end
 
-    subgraph "Layer 5: Audit & Compliance"
-        L5[Structured JSON logging<br/>cURL reconstruction per request<br/>Correlation ID end-to-end<br/>Token usage tracking per key]
+    subgraph "Layer 5: Audit and Compliance"
+        L5["Structured JSON logging<br/>cURL reconstruction per request<br/>Correlation ID end-to-end<br/>Token usage tracking per key"]
     end
 
     L1 --> L2 --> L3 --> L4 --> L5
