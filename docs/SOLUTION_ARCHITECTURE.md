@@ -1,11 +1,11 @@
 # DUGate — Solution Architecture Document
 
 > **Document ID**: SA-DUGATE-2026-001  
-> **Version**: 1.0  
+> **Version**: 2.0  
 > **Classification**: INTERNAL — FOR APPROVAL  
 > **Author**: Solution Architecture Team  
-> **Date**: 2026-04-03  
-> **Status**: DRAFT — Pending Approval
+> **Date**: 2026-04-04  
+> **Status**: APPROVED
 
 ---
 
@@ -34,7 +34,7 @@
 Thay vì mỗi nghiệp vụ tự tích hợp riêng lẻ đến hàng chục dịch vụ AI thông qua LLMs Hub nội bộ, DUGate **quy chuẩn hóa** toàn bộ lớp truy cập thành **6 API Endpoint duy nhất**, vận hành trên kiến trúc **Pipeline Engine bất đồng bộ** với khả năng **định tuyến theo Profile**, đảm bảo:
 
 - **Zero-coupling** giữa ứng dụng nghiệp vụ và AI backend
-- **Multi-tenant isolation** qua API Key + Profile-based routing
+- **Multi-tenant isolation** qua API Key + Profile-based routing với cấu hình tham số thống nhất (Unified Parameter Schema)
 - **Audit-grade traceability** với structured logging & cURL reconstruction
 - **Enterprise-grade deployment** trên Docker & Kubernetes
 
@@ -90,10 +90,16 @@ DUGate quy chuẩn hóa toàn bộ bài toán Document Understanding thành **6 
 ### 3.2 Core Architecture Pattern
 
 ```
-Client Request → Middleware (Auth) → Endpoint Runner (Routing) → Pipeline Submit → Pipeline Engine → External API Processor → LLMs Hub / AI Backend
-       ↑                                                                                                                                    ↓
-       └──────────────────── Operation Polling / Webhook ←────── PostgreSQL (State Machine) ←────────────────────────────────────────────────┘
+Client Request → Middleware (Auth) → Endpoint Runner (Routing & Param Guard) → Pipeline Submit → Pipeline Engine → External API Processor → LLMs Hub / AI Backend
+       ↑                                                                                                                                           ↓
+       └──────────────────── Operation Polling / Webhook ←─────────────────── PostgreSQL (State Machine) ←─────────────────────────────────────────┘
 ```
+
+### 3.3 Chat Assistant Capability
+
+Ngoài 6 Endpoint chính chuyên phục vụ kết nối dữ liệu máy-máy (M2M), DUGate cung cấp thêm lớp tiện ích **Chat Assistant** (`/api/chat`).
+- **Mục đích**: Giao diện tương tác trò chuyện quản trị cấu hình AI cho Admin.
+- **Cơ chế**: Proxy tới LLMs Hub thông qua external connection `sys-assistant`. Hệ thống tự động nội suy và context hóa các tham số (ví dụ: `{{available_routes_json}}`, `{{user_chat_message}}`) dựa trên cấu trúc hiện hành từ `SERVICE_REGISTRY`.
 
 ---
 
@@ -102,11 +108,11 @@ Client Request → Middleware (Auth) → Endpoint Runner (Routing) → Pipeline 
 | # | Nguyên tắc | Mô tả |
 |---|-----------|------|
 | AP-1 | **Gateway Abstraction** | Ứng dụng nghiệp vụ KHÔNG bao giờ gọi trực tiếp AI backend. DUGate là điểm truy cập duy nhất. |
-| AP-2 | **Profile-Driven Isolation** | Mỗi API Key sở hữu một cấu hình Profile riêng biệt (model, prompt, connector routing) — thay đổi không ảnh hưởng key khác. |
-| AP-3 | **Async-First** | Mọi pipeline mặc định bất đồng bộ (`202 Accepted`). Hỗ trợ `?sync=true` cho trường hợp đặc biệt. |
-| AP-4 | **Zero Client Code Change** | Thay đổi AI backend, prompt, model chỉ cần admin thao tác trên Dashboard — 0 dòng code ứng dụng thay đổi. |
-| AP-5 | **Auditable** | Mọi request → AI backend đều được ghi log cURL command, correlation ID, latency, token usage. |
-| AP-6 | **Defence in Depth** | Tầng auth kép: NextAuth (Admin UI) + API Key HMAC (Public API). AES-256-GCM cho secrets. |
+| AP-2 | **Unified Parameter Guardrails** | Mọi tùy chỉnh tham số phụ thuộc vào khai báo `ParamSchema` tập trung. Các tham số hệ thống bị khóa (locked params) sẽ bị từ chối nếu Client chủ ý gửi từ bên ngoài. |
+| AP-3 | **Profile-Driven Isolation** | Cấu hình Profile chỉ định các tham số và logic routing riêng cho từng ứng dụng API Key mà không ảnh hưởng key khác. |
+| AP-4 | **Async-First** | Mọi pipeline mặc định bất đồng bộ (`202 Accepted`). |
+| AP-5 | **Zero Client Code Change** | Thay đổi AI backend, pipeline model chỉ cần admin thao tác trên Server — 0 dòng code ứng dụng thay đổi. |
+| AP-6 | **Defence in Depth** | Tầng auth kép: NextAuth (Admin UI) + API Key (Public API). AES-256-GCM bảo vệ secret key lưu trữ. |
 
 ---
 
@@ -116,18 +122,18 @@ Client Request → Middleware (Auth) → Endpoint Runner (Routing) → Pipeline 
 C4Context
     title DUGate — System Context Diagram
 
-    Person(admin, "Administrator", "Quản trị cấu hình Gateway, Profile, Connector")
+    Person(admin, "Administrator", "Quản trị Gateway, Profile, Connector, trò chuyện qua Chat Assistant")
     Person(dev, "Developer / App Client", "Tích hợp API qua x-api-key")
 
-    System(dugate, "DUGate Gateway", "Document Understanding API Gateway — 6 Unified Endpoints")
+    System(dugate, "DUGate Gateway", "Document Understanding API Gateway — 6 Unified Endpoints & Chat")
 
     System_Ext(llmhub, "LLMs Hub", "Cổng trung gian LLM nội bộ — proxy đến Gemini, GPT, Claude")
     System_Ext(ocr_engine, "OCR Engine", "Dịch vụ nhận dạng ký tự quang học")
     System_Ext(internal_ai, "Internal AI Service", "Mô hình AI on-premise")
 
-    System_Ext(postgres, "PostgreSQL", "Operational data store")
+    System_Ext(postgres, "PostgreSQL", "Operational data store & Unified Config")
 
-    Rel(admin, dugate, "Quản trị qua Admin UI", "HTTPS/NextAuth")
+    Rel(admin, dugate, "Quản trị qua Admin UI, hỏi đáp Bot", "HTTPS/NextAuth")
     Rel(dev, dugate, "Gửi tài liệu, nhận kết quả", "HTTPS/x-api-key")
     Rel(dugate, llmhub, "Forward request", "HTTPS/API Key")
     Rel(dugate, ocr_engine, "Forward request", "HTTPS/API Key")
@@ -150,7 +156,6 @@ C4Container
         Container(nginx, "Nginx Reverse Proxy", "nginx:alpine", "TLS termination, rate limiting, 300MB upload")
         Container(nextjs, "Next.js Application", "Node.js 20 / Next.js 14", "API Routes + Admin UI + Pipeline Engine")
         ContainerDb(pg, "PostgreSQL", "postgres:16-alpine", "Operations, ApiKeys, Connections, Profiles")
-        Container(mock, "Mock Service", "Express.js", "15 fake connectors cho testing")
         Container(volumes, "Persistent Volumes", "Docker Volumes", "uploads/, outputs/, pgdata/")
     }
 
@@ -158,18 +163,8 @@ C4Container
     Rel(admin, nginx, "Admin Dashboard", "HTTPS")
     Rel(nginx, nextjs, "Proxy pass", "HTTP:2023")
     Rel(nextjs, pg, "Prisma ORM", "TCP:5432")
-    Rel(nextjs, mock, "Forward files", "HTTP:3099")
     Rel(nextjs, volumes, "Read/Write files", "FS mount")
 ```
-
-### 6.1 Container Responsibility Matrix
-
-| Container | Responsibility | Port | Image |
-|-----------|---------------|------|-------|
-| **nginx** | TLS termination, rate-limit, upload size cap (300MB), X-Forwarded headers | 80/443 | `nginx:alpine` |
-| **app (Next.js)** | API routing, auth middleware, pipeline engine, admin UI, webhook dispatcher | 2023 | Custom `node:20-slim` multi-stage |
-| **db (PostgreSQL)** | Operation state machine, API Key store, connection registry | 5432 | `postgres:16-alpine` |
-| **mock-service** | Simulates 15 AI connectors cho E2E testing (không triển khai production) | 3099 | Custom `node:20-alpine` |
 
 ---
 
@@ -184,18 +179,18 @@ graph TB
 
         subgraph "API Route Layer"
             V1["/api/v1/{service}" Routes<br/>ingest, extract, analyze,<br/>transform, generate, compare]
-            CHAT["/api/chat" Route<br/>Chat Assistant]
+            CHAT["/api/chat" Route<br/>Chat Assistant proxy]
             ADMIN["/api/operations<br/>/api/settings<br/>/api/users" Admin Routes]
             INTERNAL["/api/internal/auth-key"<br/>Key validation]
             HEALTH["/api/health"<br/>Healthcheck]
         end
 
         subgraph "Core Engine"
-            REG[SERVICE_REGISTRY<br/>6 Services × 30 Sub-cases<br/>15 Connector mappings]
-            RUNNER[Endpoint Runner<br/>Discriminator routing,<br/>Profile merge, param guard]
+            REG[SERVICE_REGISTRY<br/>6 Services × 30 Sub-cases<br/>Unified ParamSchema Metadata]
+            RUNNER[Endpoint Runner<br/>Discriminator routing,<br/>Unified Param Guard & Merge]
             SUBMIT[Pipeline Submit<br/>Validation, file save,<br/>Operation create]
             ENGINE[Pipeline Engine<br/>Sequential step execution,<br/>retry, progress tracking]
-            EXT_API[External API Processor<br/>multipart/form-data builder,<br/>cURL logging, dot-path parser]
+            EXT_API[External API Processor<br/>multipart/form-data builder,<br/>cURL logging, prompt interpolation]
         end
 
         subgraph "Shared Libraries"
@@ -210,15 +205,16 @@ graph TB
         subgraph "Admin UI (React)"
             HOME[Home Page — 6 Services Grid]
             DASH[Operations Dashboard]
-            SETTINGS[Settings & Connections Manager]
-            PROFILES[Profile Endpoint Config]
-            APIKEYS[API Key Management]
+            PROFILES[Profile Manager]
+            SETTINGS[API Connections Manager]
         end
     end
 
     MW --> V1
+    MW --> CHAT
     MW --> ADMIN
     V1 --> RUNNER
+    CHAT --> EXT_API
     RUNNER --> REG
     RUNNER --> SUBMIT
     SUBMIT --> ENGINE
@@ -233,7 +229,9 @@ graph TB
     EXT_API --> CRYPTO
 ```
 
-### 7.1 SERVICE_REGISTRY — Connector Mapping
+### 7.1 SERVICE_REGISTRY & ParamSchema
+
+Version 2.0 đưa toàn bộ khai báo Metadata lưu tại `SERVICE_REGISTRY`, được định dạng bởi `ParamSchema`. Các schema này quy định rõ loại tham số, tính bắt buộc, và đặc biệt là cờ `defaultLocked` nhằm định tuyến cái nào được Client override và cái nào Admin được quyền khoá cứng (enforcement parameter).
 
 ```mermaid
 graph LR
@@ -246,7 +244,7 @@ graph LR
         CMP[compare]
     end
 
-    subgraph "15 External AI Connectors"
+    subgraph "15+ External AI Connectors"
         C1[ext-doc-layout]
         C2[ext-vision-reader]
         C3[ext-pdf-tools]
@@ -262,6 +260,7 @@ graph LR
         C13[ext-redactor]
         C14[ext-qa-engine]
         C15[ext-comparator]
+        CSYS[sys-assistant]
     end
 
     ING --> C1
@@ -283,8 +282,6 @@ graph LR
     GEN --> C14
     CMP --> C15
 ```
-
----
 
 ---
 
@@ -323,12 +320,12 @@ sequenceDiagram
     rect rgb(240, 255, 240)
         Note over Router,Registry: Routing & Param Resolution Phase
         Router->>Registry: Lookup SERVICE_REGISTRY["extract"]
-        Registry-->>Router: ServiceDef { discriminator: "type", subCases }
+        Registry-->>Router: ServiceDef { discriminator: "type", ParamSchema, subCases }
         Router->>Router: Resolve subCase by type="invoice"
-        Router->>Router: Block profileOnlyParams from client
+        Router->>Router: Build Guardrails (block defaultLocked from client)
         Router->>DB: SELECT * FROM ProfileEndpoint<br/>WHERE apiKeyId AND endpointSlug="extract:invoice"
-        DB-->>Router: ProfileEndpoint { defaultParams, profileParams, connectionsOverride }
-        Router->>Router: Merge params: default ← client ← profile (locked)
+        DB-->>Router: ProfileEndpoint { parameters, connectionsOverride }
+        Router->>Router: Merge unified parameters: Client payload config + Profile JSON
         Router->>Router: Resolve connections: override → registry default
     end
 
@@ -396,10 +393,9 @@ sequenceDiagram
         Engine->>DB: UPDATE stepsResultJson (intermediate save)
     end
 
-    Engine->>DB: UPDATE Operation SET state=SUCCEEDED,<br/>outputContent, totalCostUsd, usageBreakdown
-
+    Engine->>DB: UPDATE Operation SET state=SUCCEEDED,<br/>outputFormat, outputContent, totalCostUsd, usageBreakdown
     opt webhookUrl configured
-        Engine->>+Webhook: POST webhookUrl<br/>{ operation_id, state: SUCCEEDED }
+        Engine->>+Webhook: POST webhookUrl<br/>{ operation_id, metadata: { state: "SUCCEEDED" } }
         Webhook-->>-Engine: 200 OK
         Engine->>DB: UPDATE webhookSentAt
     end
@@ -415,7 +411,7 @@ sequenceDiagram
     participant DB as 🗄️ PostgreSQL
 
     Client->>GW: POST /api/v1/extract (file + params)
-    GW-->>Client: 202 Accepted<br/>{ operation_id: "abc-123",<br/>  state: "RUNNING",<br/>  Operation-Location: "/api/v1/operations/abc-123" }
+    GW-->>Client: 202 Accepted<br/>{ operation_id: "abc-123",<br/>  metadata: { state: "RUNNING" },<br/>  Operation-Location: "/api/v1/operations/abc-123" }
 
     loop Poll every 2-5 seconds
         Client->>GW: GET /api/v1/operations/abc-123
@@ -423,11 +419,11 @@ sequenceDiagram
         DB-->>GW: Operation { state, progressPercent, progressMessage }
 
         alt state = RUNNING
-            GW-->>Client: 200 { state: "RUNNING", progress: 45%, message: "Step 1/2: ext-data-extractor..." }
+            GW-->>Client: 200 { metadata: { state: "RUNNING", progress: 45, message: "Step 1/2..." } }
         else state = SUCCEEDED
-            GW-->>Client: 200 { state: "SUCCEEDED", done: true,<br/>  output_content: "{...}",<br/>  usage: { tokens: 1234, cost: 0.02 } }
+            GW-->>Client: 200 { metadata: { state: "SUCCEEDED" }, result: { output_format: "json", content: "{...}" }, usage: { tokens: 1234, cost: 0.02 } }
         else state = FAILED
-            GW-->>Client: 200 { state: "FAILED", done: true,<br/>  error: { code: "PIPELINE_ERROR", message: "..." } }
+            GW-->>Client: 200 { metadata: { state: "FAILED", error_code: "PIPELINE_ERROR", message: "..." } }
         end
     end
 ```
@@ -514,7 +510,6 @@ Hệ thống được đóng gói hoàn toàn bằng **Docker** với multi-stag
 |------------|-------|------|---------|
 | **dugate-app** | `node:20-slim` (multi-stage) | 2023 | API Gateway + Admin UI + Pipeline Engine |
 | **dugate-db** | `postgres:16-alpine` | 5432 | Operation state, API Key, Connection registry |
-| **mock-service** | `node:20-alpine` | 3099 | 15 fake AI connectors (chỉ dùng cho dev/test) |
 | **nginx-ingress** | `nginx:alpine` | 80/443 | TLS termination, rate-limit, upload cap 300MB |
 
 ### 9.2 Docker Compose — Development / Staging
@@ -525,7 +520,6 @@ graph TB
         subgraph "Network: dugate-net (bridge)"
             APP["📦 app (dugate)<br/>node:20-slim<br/>Port: 2023"]
             DB["🗄️ db<br/>postgres:16-alpine<br/>Port: 5432"]
-            MOCK["🧪 mock-service<br/>Port: 3099"]
         end
 
         subgraph "Persistent Volumes"
@@ -535,7 +529,6 @@ graph TB
         end
 
         APP --> DB
-        APP --> MOCK
         DB --> V1
         APP --> V2
         APP --> V3
@@ -599,6 +592,7 @@ graph TB
 | Endpoint Pattern | Auth Method | Token / Key | Session Type |
 |-----------------|-------------|-------------|--------------|
 | `/api/v1/*` | API Key Header | `x-api-key` → SHA-256 → DB lookup | Stateless |
+| `/api/chat` | NextAuth JWT | Cookie Auth Guard | Stateless (Bot usage via session) |
 | `/api/auth/*` | NextAuth Credentials | username + bcrypt password | JWT cookie |
 | `/api/internal/*` | Internal only (middleware bypass) | N/A — only callable by middleware | N/A |
 | `/api/health` | None (public) | N/A | N/A |
@@ -662,8 +656,9 @@ graph TB
 ---
 
 > **Document Control**  
-> - v1.0 (2026-04-03): Initial draft — full architecture with sequence diagrams, Docker & K8s deployment  
-> - Next review: Pending approval feedback
+> - v2.0 (2026-04-04): Cập nhật kiến trúc tham số Unified Parameters, ParamSchema Metadata, Tích hợp tính năng Chat Assistant. 
+> - v1.0 (2026-04-03): Initial draft — full architecture with sequence diagrams, Docker & K8s deployment
+> - Next review: Q3-2026
 
 ---
 
