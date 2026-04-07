@@ -6,7 +6,10 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
-const defaultEndpointUrl = 'http://localhost:8000/v1/completions';
+const MOCK_BASE_URL = process.env.MOCK_SERVICE_URL || 'http://localhost:3099';
+
+// Each connector has its own route: /ext/:slug
+const connectorUrl = (slug: string) => `${MOCK_BASE_URL}/ext/${slug}`;
 
 // ─── External API Connectors ──────────────────────────────────────────────────
 const CONNECTORS = [
@@ -15,7 +18,6 @@ const CONNECTORS = [
     slug: 'ext-doc-layout',
     name: 'Document Layout Parser',
     description: 'Parse PDF/DOCX → Markdown. Xử lý cả OCR scan. Dùng cho: ingest:parse, ingest:ocr, transform:convert.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -49,7 +51,6 @@ Begin your response directly with the parsed Markdown.`,
     slug: 'ext-vision-reader',
     name: 'Handwriting Vision Reader',
     description: 'Số hóa tài liệu viết tay bằng vision model. Dùng cho: ingest:digitize.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -78,7 +79,6 @@ Return ONLY the transcription.`,
     slug: 'ext-pdf-tools',
     name: 'PDF Tools (Split / Merge)',
     description: 'Công cụ xử lý PDF: tách trang, ghép. Dùng cho: ingest:split.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -111,7 +111,6 @@ Analyze the flow of text around these page boundaries. Return a JSON containing 
     slug: 'ext-data-extractor',
     name: 'Structured Data Extractor',
     description: 'Trích xuất dữ liệu có cấu trúc từ tài liệu. Dùng cho: extract (all types), analyze:fact-check step-1.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -148,7 +147,6 @@ Read the document and return ONLY a valid JSON object matching the requested sch
     slug: 'ext-classifier',
     name: 'Document Classifier',
     description: 'Phân loại tài liệu vào danh mục. Dùng cho: analyze:classify.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -187,7 +185,6 @@ Return JSON:
     slug: 'ext-sentiment',
     name: 'Sentiment Analyzer',
     description: 'Phân tích cảm xúc / quan điểm từ tài liệu. Dùng cho: analyze:sentiment.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -220,7 +217,6 @@ Return JSON:
     slug: 'ext-compliance',
     name: 'Compliance Checker',
     description: 'Kiểm tra tài liệu theo tiêu chuẩn/quy định. Dùng cho: analyze:compliance.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -260,7 +256,6 @@ Return JSON:
     slug: 'ext-fact-verifier',
     name: 'Fact Verifier',
     description: 'Kiểm chứng dữ liệu so với reference. Dùng cho: analyze:fact-check step-2.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -299,7 +294,6 @@ Return JSON:
     slug: 'ext-quality-eval',
     name: 'Quality & Risk Evaluator',
     description: 'Đánh giá chất lượng và rủi ro tài liệu. Dùng cho: analyze:quality, analyze:risk.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -337,7 +331,6 @@ Return JSON:
     slug: 'ext-translator',
     name: 'Document Translator',
     description: 'Dịch tài liệu sang ngôn ngữ khác. Dùng cho: transform:translate.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -368,7 +361,6 @@ Return the meticulously translated text. Do not provide translation notes or con
     slug: 'ext-rewriter',
     name: 'Content Rewriter',
     description: 'Viết lại nội dung theo phong cách/giọng văn. Dùng cho: transform:rewrite.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -398,7 +390,6 @@ Output only the rewritten content. Ensure total factual consistency with the ori
     slug: 'ext-redactor',
     name: 'PII Redactor & Template Filler',
     description: 'Ẩn thông tin nhạy cảm hoặc điền dữ liệu vào template. Dùng cho: transform:redact, transform:template.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -430,7 +421,6 @@ Process the text according to the rules and return only the final processed outp
     slug: 'ext-content-gen',
     name: 'Content Generator',
     description: 'Tạo nội dung mới từ tài liệu: tóm tắt, outline, báo cáo, email. Dùng cho: generate:*, analyze:summarize-eval.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -467,7 +457,6 @@ Generate the content comprehensively based on the uploaded document, enriching i
     slug: 'ext-qa-engine',
     name: 'Document QA Engine',
     description: 'Trả lời câu hỏi về nội dung tài liệu. Dùng cho: generate:qa.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -508,7 +497,6 @@ Return JSON:
     slug: 'ext-comparator',
     name: 'Document Comparator',
     description: 'So sánh 2 hoặc nhiều tài liệu: diff text, semantic, hoặc version changelog. Dùng cho: compare:*.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -558,7 +546,6 @@ Return JSON:
     slug: 'sys-assistant',
     name: 'DUGate Support Assistant',
     description: 'Chatbot tư vấn cách sử dụng các tính năng của DUGate, không thực thi action.',
-    endpointUrl: defaultEndpointUrl,
     httpMethod: 'POST',
     promptFieldName: 'query',
     fileFieldName: 'files',
@@ -644,12 +631,14 @@ async function main() {
     await prisma.externalApiConnection.upsert({
       where: { slug: conn.slug },
       update: {
-        // Chỉ update metadata — KHÔNG overwrite endpointUrl/authSecret/defaultPrompt
-        // để tránh mất cấu hình Admin đã chỉnh.
         name: conn.name,
         description: conn.description,
+        endpointUrl: connectorUrl(conn.slug), // Force update to use Mock Service
       },
-      create: conn,
+      create: {
+        ...(conn as any),
+        endpointUrl: connectorUrl(conn.slug),
+      },
     });
     console.log(`  ✅ ${conn.slug}`);
   }
@@ -707,3 +696,5 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+

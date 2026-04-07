@@ -111,7 +111,7 @@ export default function ServiceTestClient({
   const renderDropzone = (isTarget = false) => {
     const currentFiles = isTarget ? (targetFile ? [targetFile] : []) : files;
     const acceptExt = '.pdf,.docx,.doc,.png,.jpg,.jpeg';
-    const label = isTarget ? 'Target File (V2)' : (isCompareMode ? 'Source File (V1)' : 'Kéo thả tài liệu vào đây');
+    const label = isTarget ? 'Target File (V2)' : (isCompareMode ? 'Source File (V1)' : 'Kéo thả tài liệu vào đây (tuỳ chọn)');
     const multiple = !isCompareMode;
 
     return (
@@ -171,16 +171,6 @@ export default function ServiceTestClient({
 
   // -- Submission
   const handleSubmit = async () => {
-    if (!apiKeyId) return;
-    if (files.length === 0) {
-      setError('Vui lòng upload tài liệu để xử lý.');
-      return;
-    }
-    if (isCompareMode && !targetFile) {
-      setError('Mode so sánh yêu cầu upload đủ cả Source và Target file.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setResult(null);
@@ -189,7 +179,7 @@ export default function ServiceTestClient({
     try {
       const form = new FormData();
       form.append('__service', serviceSlug);
-      form.append('__apiKeyId', apiKeyId);
+      form.append('__apiKeyId', apiKeyId ?? '');
 
       // Append form fields
       Object.entries(formData).forEach(([k, v]) => {
@@ -297,7 +287,7 @@ export default function ServiceTestClient({
 
         {/* File Uploads */}
         <div className="space-y-3">
-           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">Tài liệu đầu vào</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">Tài liệu đầu vào <span className="font-normal text-xs normal-case">(tuỳ chọn)</span></h3>
            <div className="grid grid-cols-1 gap-4">
              {renderDropzone(false)}
              {isCompareMode && renderDropzone(true)}
@@ -312,7 +302,7 @@ export default function ServiceTestClient({
 
         <button 
           onClick={handleSubmit} 
-          disabled={loading || !apiKeyId || files.length === 0 || (isCompareMode && !targetFile)}
+          disabled={loading || !apiKeyId || (isCompareMode && !targetFile)}
           className="w-full btn-primary modern-button py-3 text-lg font-bold shadow-lg shadow-primary/20"
         >
           {loading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Đang xử lý...</> : 'Bắt đầu xử lý đồng bộ'}

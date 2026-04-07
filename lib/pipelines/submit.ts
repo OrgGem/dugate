@@ -11,7 +11,7 @@ import { saveUploadedFile } from '@/lib/upload-helper';
 
 export interface SubmitPipelineParams {
   pipeline: PipelineStep[];
-  files: File[];              // Universal: 1 or many files
+  files?: File[];             // Optional: 1 or many files (some endpoints work text-only)
   endpointSlug?: string;      // "extract:invoice", "analyze:fact-check", etc.
   outputFormat?: string;
   webhookUrl?: string | null;
@@ -101,22 +101,11 @@ export async function submitPipelineJob(
     }
   }
 
-  // ── 4. Validate files ─────────────────────────────────────────────────────
-  if (!files || files.length === 0) {
-    return {
-      ok: false,
-      errorResponse: NextResponse.json(
-        { type: 'https://dugate.vn/errors/missing-file', title: 'Missing File', status: 400, detail: 'At least one file is required.' },
-        { status: 400 },
-      ),
-    };
-  }
-
-  // ── 5. Save uploaded files to disk ───────────────────────────────────────
+  // ── 4. Save uploaded files to disk (skip if no files) ──────────────────
   const operationId = crypto.randomUUID();
   const filesData: Array<{ name: string; path: string; mime: string; size: number }> = [];
 
-  for (const file of files) {
+  for (const file of (files ?? [])) {
     const saved = await saveUploadedFile(file, operationId);
     filesData.push({
       name: file.name,
@@ -135,7 +124,7 @@ export async function submitPipelineJob(
       idempotencyKey:  idempotencyKey || null,
       endpointSlug:    endpointSlug || null,
       pipelineJson:    JSON.stringify(pipeline),
-      filesJson:       JSON.stringify(filesData),
+      filesJson:       filesData.length > 0 ? JSON.stringify(filesData) : null,
       outputFormat,
       webhookUrl:      webhookUrl ?? null,
       state:           'RUNNING',

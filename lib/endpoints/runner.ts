@@ -76,11 +76,8 @@ export async function runEndpoint(
       );
     }
 
-    // ── 3. Normalize files ───────────────────────────────────────────────────
+    // ── 3. Normalize files (optional — endpoints may work without files) ─────
     const files = normalizeFiles(form);
-    if (files.length === 0) {
-      return apiError(400, 'Missing File', "At least one file is required. Use 'file' or 'files[]'.");
-    }
 
     // ── 4. (Deprecated) Block profileOnlyParams - moved to step 7 ────────────
 

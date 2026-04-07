@@ -723,11 +723,13 @@ function ProfileEndpointCard({
       `  -H "x-api-key: YOUR_API_KEY" \\`
     ];
 
-    if (routePath.includes('compare')) {
-      curlLines.push(`  -F "source_file=@/path/to/source.pdf" \\`);
-      curlLines.push(`  -F "target_file=@/path/to/target.pdf" \\`);
-    } else {
-      curlLines.push(`  -F "file=@/path/to/document.pdf" \\`);
+    if (testFiles.length > 0) {
+      if (routePath.includes('compare')) {
+        curlLines.push(`  -F "source_file=@/path/to/source.pdf" \\`);
+        curlLines.push(`  -F "target_file=@/path/to/target.pdf" \\`);
+      } else {
+        curlLines.push(`  -F "file=@/path/to/document.pdf" \\`);
+      }
     }
 
     if (endpoint.discriminatorName && endpoint.discriminatorValue && endpoint.discriminatorValue !== '_default') {
@@ -865,10 +867,6 @@ function ProfileEndpointCard({
   };
 
   const handleTestEndpoint = async () => {
-    if (testFiles.length === 0) {
-      toast.error("Vui lòng đính kèm ít nhất 1 file để test!");
-      return;
-    }
     setTesting(true);
     setTestResult(null);
     try {
@@ -1137,7 +1135,7 @@ function ProfileEndpointCard({
               ) : null}
 
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">File kiểm thử <span className="text-destructive">*</span></label>
+                <label className="block text-sm font-semibold text-foreground mb-2">File kiểm thử <span className="text-xs font-normal text-muted-foreground">(tuỳ chọn)</span></label>
                 <div className="border-2 border-dashed border-border rounded-xl p-4 hover:border-violet-400 dark:hover:border-violet-600 transition-colors">
                   <input
                     type="file"
@@ -1154,7 +1152,7 @@ function ProfileEndpointCard({
 
               <button
                 onClick={handleTestEndpoint}
-                disabled={testing || testFiles.length === 0}
+                disabled={testing}
                 className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white font-semibold rounded-xl shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {testing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
