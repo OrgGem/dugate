@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
-import { FileText, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { FileText, LogIn, AlertCircle, Eye, EyeOff, BrainCircuit } from 'lucide-react';
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -121,14 +121,14 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-4">
             <div className="bg-primary text-primary-foreground p-3 rounded-2xl shadow-lg">
-              <FileText className="w-8 h-8" />
+              <BrainCircuit className="w-8 h-8" />
             </div>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            dugate
+            AI Skill Hub
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Document Understanding Gateway
+            Tổ hợp Kỹ năng Trí tuệ Nhân tạo Doanh nghiệp
           </p>
         </div>
 
@@ -148,7 +148,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-muted-foreground text-xs mt-6">
-          © {new Date().getFullYear()} Dugate • Document AI Platform
+          © {new Date().getFullYear()} AI Skill Hub • Enterprise AI Services
         </p>
       </div>
     </div>

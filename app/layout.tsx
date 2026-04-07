@@ -34,8 +34,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "dugate - Document Understanding Gateway",
-  description: "Trợ lý AI phân tích và xử lý tài liệu đa định dạng (PDF/DOCX) sang cấu trúc dữ liệu tối ưu.",
+  title: "AI Skill Hub - Enterprise AI Services",
+  description: "Trợ lý AI đa năng dành cho doanh nghiệp, từ phân tích tài liệu đến tổng hợp dữ liệu.",
 };
 
 // Cleanup scheduler: chạy 1 lần khi server start, lặp mỗi 6 tiếng

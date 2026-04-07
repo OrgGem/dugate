@@ -196,40 +196,39 @@ export default function Home() {
       <section className="relative text-center max-w-5xl mx-auto px-6 pt-20 pb-16">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border shadow-sm mb-8 text-sm font-semibold text-muted-foreground">
-          <span className="w-2 h-2 rounded-full bg-[#00B74F] animate-pulse" />
-          AI-Powered Document Intelligence Platform
-          <span className="ml-1 px-2 py-0.5 text-xs bg-[#00B74F]/10 text-[#00B74F] rounded-full font-bold">v1 API</span>
+          <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+          Enterprise AI Skill Hub
+          <span className="ml-1 px-2 py-0.5 text-xs bg-violet-500/10 text-violet-500 rounded-full font-bold">v1 API</span>
         </div>
 
         {/* Headline */}
         <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight text-foreground mb-6 leading-[1.05]">
-          Tự động hoá{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00B74F] via-emerald-400 to-sky-500">
-            mọi nghiệp vụ
+          Kỹ năng AI chuyên biệt <br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-500 via-fuchsia-500 to-sky-500">
+            dành cho Doanh nghiệp
           </span>
-          <br />xử lý tài liệu
         </h1>
 
         {/* Subheadline */}
         <p className="text-xl text-muted-foreground mb-4 max-w-2xl mx-auto leading-relaxed">
-          DUGate API cung cấp <strong className="text-foreground">6 endpoint cốt lõi</strong> bao phủ toàn bộ vòng đời tài liệu — từ nhập liệu, trích xuất, phân tích, chuyển đổi, sinh nội dung đến so sánh phiên bản.
+          Thực thi nghiệp vụ tự động thông qua thư viện <strong>AI Skills</strong>. Không cần thiết kế prompt phức tạp, chỉ cần gọi ngay các skill đặc nhiệm trải dài trên nhiều lĩnh vực: Phân tích Tài liệu (Document), Xử lý Giọng nói (Voice), Thị giác Máy tính (Vision) và Suy luận logic.
         </p>
         <p className="text-sm text-muted-foreground mb-10">
-          Base URL: <code className="px-2 py-0.5 rounded-md bg-muted text-foreground font-mono text-xs">https://api.dugate.vn/api/v1</code>
-          &nbsp;·&nbsp; Auth: <code className="px-2 py-0.5 rounded-md bg-muted text-foreground font-mono text-xs">x-api-key: dg_xxxx</code>
+          Base URL: <code className="px-2 py-0.5 rounded-md bg-muted text-foreground font-mono text-xs">https://api.aiskillhub.vn/api/v1/skills/[group]/[service]</code>
+          &nbsp;·&nbsp; Auth: <code className="px-2 py-0.5 rounded-md bg-muted text-foreground font-mono text-xs">x-api-key: sk_xxxx</code>
         </p>
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
             href="#endpoints"
-            className="modern-button btn-primary bg-[#00B74F] text-white hover:bg-[#009940] shadow-lg shadow-[#00B74F]/30 px-8 font-bold"
+            className="modern-button btn-primary bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-500/30 px-8 font-bold"
           >
-            <Zap className="w-4 h-4 mr-2" />
-            Khám phá 6 Endpoints
+            <BrainCircuit className="w-4 h-4 mr-2" />
+            Khám phá Skills
           </a>
           <Link href="/api-docs" className="modern-button btn-outline px-8 font-bold">
-            <FileText className="w-4 h-4 mr-2 text-muted-foreground" />
+            <Layers className="w-4 h-4 mr-2 text-muted-foreground" />
             Xem API Docs
           </Link>
         </div>
@@ -282,10 +281,11 @@ export default function Home() {
       ══════════════════════════════════════════════════════════════════════ */}
       <section id="endpoints" className="relative max-w-7xl mx-auto px-6 pb-24 scroll-mt-24">
         <div className="text-center mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#00B74F] mb-2 block">API Design</span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground">6 Endpoint Cốt Lõi</h2>
+          <span className="text-xs font-bold uppercase tracking-widest text-violet-500 mb-2 block">Skill Group: Document Intelligence & More</span>
+          <h2 className="text-3xl sm:text-4xl font-bold text-foreground">Thư viện Kỹ năng AI</h2>
           <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-            Kiến trúc tối giản endpoint, tối đa nghiệp vụ thông qua tham số hành động động.
+            Kiến trúc hỗ trợ phân chia linh hoạt theo dạng <code className="bg-muted px-1 py-0.5 rounded text-sm text-foreground">{'/'}[group]/{'/'}[service]</code>.
+            Mỗi service quản lý SubCases thông qua body parameters để thay đổi nghiệp vụ cụ thể.
           </p>
         </div>
 

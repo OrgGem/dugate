@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { Home, Clock, Settings, FileText, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn } from 'lucide-react';
+import { Home, Clock, Settings, FileText, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn, BrainCircuit } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 export default function HeaderNav() {
@@ -35,10 +35,10 @@ export default function HeaderNav() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
           <div className="bg-primary text-primary-foreground p-1.5 rounded-xl shadow-md transition-colors">
-            <FileText className="w-5 h-5 shadow-inner" />
+            <BrainCircuit className="w-5 h-5 shadow-inner" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
-            dugate
+          <span className="text-xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors whitespace-nowrap">
+            AI Skill Hub
           </span>
           <span className="text-[10px] uppercase font-mono tracking-wider font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded ml-1 border border-border">
             v{process.env.NEXT_PUBLIC_APP_VERSION || '1.1.0'}
