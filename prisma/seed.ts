@@ -631,9 +631,11 @@ async function main() {
     await prisma.externalApiConnection.upsert({
       where: { slug: conn.slug },
       update: {
+        // ⚠️ Only update non-sensitive metadata.
+        // Do NOT overwrite endpointUrl, authSecret, authKeyHeader, state —
+        // those are configured per-environment via Admin UI and must survive redeploys.
         name: conn.name,
         description: conn.description,
-        endpointUrl: connectorUrl(conn.slug), // Force update to use Mock Service
       },
       create: {
         ...(conn as any),
