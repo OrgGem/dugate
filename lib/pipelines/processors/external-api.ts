@@ -163,6 +163,15 @@ export async function runExternalApiProcessor(
     formData.append('input_content', ctx.inputText);
   }
 
+  // 2d. Inject session_id từ pipelineState (nếu connector cần nhận session từ step trước)
+  if (connection.sessionIdFieldName && ctx.pipelineState['session_id']) {
+    formData.append(connection.sessionIdFieldName, ctx.pipelineState['session_id']);
+    ctx.logger.info(
+      `[SESSION] Injecting session_id="${ctx.pipelineState['session_id']}" ` +
+      `as field "${connection.sessionIdFieldName}"`
+    );
+  }
+
   // ── 3. Build request headers ────────────────────────────────────────────────
   const headers: Record<string, string> = {
     'accept': 'application/json',
@@ -239,6 +248,22 @@ export async function runExternalApiProcessor(
 
   const latencyMs = Date.now() - startedAt;
   ctx.logger.info(`Successfully completed API call to ${connection.slug}`, { latencyMs, outputChars: content.length });
+
+  // Capture session_id từ response để các step sau sử dụng
+  if (connection.sessionIdResponsePath) {
+    const sid = resolveDotPath(responseJson, connection.sessionIdResponsePath);
+    if (typeof sid === 'string' && sid) {
+      ctx.pipelineState['session_id'] = sid;
+      ctx.logger.info(
+        `[SESSION] Captured session_id="${sid}" from path "${connection.sessionIdResponsePath}"`
+      );
+    } else {
+      ctx.logger.warn(
+        `[SESSION] sessionIdResponsePath="${connection.sessionIdResponsePath}" ` +
+        `not found or not a string in response`
+      );
+    }
+  }
 
   return {
     content,

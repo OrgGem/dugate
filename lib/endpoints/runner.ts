@@ -33,11 +33,26 @@ function apiError(status: number, title: string, detail: string, type?: string):
  * Always returns an array for consistent downstream handling.
  */
 function normalizeFiles(form: FormData): File[] {
+  const result: File[] = [];
+
+  // Lấy danh sách files[] (cho các endpoint nạp nhiều file)
   const multi = form.getAll('files[]') as File[];
-  if (multi.length > 0) return multi.filter((f) => f instanceof File && f.size > 0);
+  if (multi.length > 0) {
+    result.push(...multi.filter((f) => f instanceof File && f.size > 0));
+  }
+  
+  // Custom checks for endpoint compare
+  const source = form.get('source_file');
+  if (source instanceof File && source.size > 0) result.push(source);
+
+  const target = form.get('target_file');
+  if (target instanceof File && target.size > 0) result.push(target);
+
+  // Fallback single file check
   const single = form.get('file');
-  if (single instanceof File && single.size > 0) return [single];
-  return [];
+  if (single instanceof File && single.size > 0) result.push(single);
+  
+  return result;
 }
 
 // ─── Main runner ─────────────────────────────────────────────────────────────

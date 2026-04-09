@@ -32,7 +32,8 @@ describe('External API Processor', () => {
     variables: { name: 'Alice' },
     outputFormat: 'json',
     correlationId: 'test-corr-id',
-    logger: new (require('../../lib/logger').Logger)({ correlationId: 'test-corr-id' })
+    logger: new (require('../../lib/logger').Logger)({ correlationId: 'test-corr-id' }),
+    pipelineState: {},
   };
 
   const dummyConnection: ExternalApiConnection = {
@@ -51,6 +52,8 @@ describe('External API Processor', () => {
     responseContentPath: 'data.content',
     staticFormFields: JSON.stringify([{ key: 'format', value: 'markdown' }]),
     extraHeaders: null,
+    sessionIdResponsePath: null,
+    sessionIdFieldName: null,
     timeoutSec: 10,
     state: 'ENABLED',
     createdAt: new Date(),

@@ -27,6 +27,9 @@ export interface ProcessorContext {
   // Logging
   correlationId?: string;
   logger: Logger;
+  /** Shared mutable state across all steps — dùng để truyền session_id,
+   *  upload_id, hoặc bất kỳ token nào do external connector sinh ra. */
+  pipelineState: Record<string, string>;
 }
 
 export interface ProcessorResult {
@@ -69,6 +72,8 @@ export async function runPipeline(operationId: string, correlationId?: string): 
   }> = [];
 
   let currentText: string | undefined;
+  // Shared mutable state — sống trong 1 pipeline run, truyền session_id giữa các step
+  const pipelineState: Record<string, string> = {};
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalCost = 0;
@@ -142,6 +147,7 @@ export async function runPipeline(operationId: string, correlationId?: string): 
         outputFormat: operation.outputFormat,
         correlationId,
         logger,
+        pipelineState,  // Cùng 1 object reference → step sau thấy ngay giá trị step trước ghi
       };
 
       logger.info(`[STEP_STARTED] Starting processor ${connection.slug}`);

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Upload, FileText, File, X, Loader2, KeyRound, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, File, X, Loader2, KeyRound } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export type FieldDef = {
   name: string;
@@ -13,10 +15,10 @@ export type FieldDef = {
 };
 
 interface ServiceTestClientProps {
-  serviceSlug: string; 
+  serviceSlug: string;
   title: string;
   description: string;
-  discriminatorName?: string; 
+  discriminatorName?: string;
   discriminatorOptions?: { label: string; value: string }[];
   extraFields?: FieldDef[];
   isCompareMode?: boolean;
@@ -37,15 +39,16 @@ export default function ServiceTestClient({
   extraFields = [],
   isCompareMode = false,
 }: ServiceTestClientProps) {
-  const [apiKeyId, setApiKeyId] = useState<string | null>(null);
-  const [keyLoading, setKeyLoading] = useState(true);
+  const [apiKey, setApiKey] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'json' | 'preview' | 'curl'>('preview');
+  const [curlCommand, setCurlCommand] = useState<string | null>(null);
 
   // Form State
   const [files, setFiles] = useState<File[]>([]);
   const [targetFile, setTargetFile] = useState<File | null>(null); // For compare mode
   const [dragging, setDragging] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
-  
+
   // Request State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,26 +70,16 @@ export default function ServiceTestClient({
     setFormData(initialData);
   }, [discriminatorName, discriminatorOptions, extraFields]);
 
-  // Fetch Global API Key
+  // Load API Key from localStorage
   useEffect(() => {
-    async function fetchKeys() {
-      try {
-        const res = await fetch('/api/internal/apikeys');
-        const data = await res.json();
-        if (data.success && data.apiKeys?.length > 0) {
-          setApiKeyId(data.apiKeys[0].id);
-        } else {
-          setError('Không tìm thấy API Key nào. Vui lòng tạo Profile trước.');
-        }
-      } catch (err) {
-        console.error('Failed to fetch api keys', err);
-        setError('Lỗi khi tải thông tin xác thực.');
-      } finally {
-        setKeyLoading(false);
-      }
-    }
-    fetchKeys();
+    const saved = localStorage.getItem('du_test_api_key');
+    if (saved) setApiKey(saved);
   }, []);
+
+  const handleApiKeyChange = (val: string) => {
+    setApiKey(val);
+    localStorage.setItem('du_test_api_key', val);
+  };
 
   // -- File Handling
   const acceptFiles = (incoming: FileList | File[], isTarget = false) => {
@@ -96,9 +89,9 @@ export default function ServiceTestClient({
       if (arr.length > 0) setTargetFile(arr[0]);
     } else {
       if (isCompareMode && arr.length > 0) {
-         setFiles([arr[0]]); // Compare only takes 1 source
+        setFiles([arr[0]]); // Compare only takes 1 source
       } else {
-         setFiles(prev => [...prev, ...arr]);
+        setFiles(prev => [...prev, ...arr]);
       }
     }
   };
@@ -137,7 +130,7 @@ export default function ServiceTestClient({
           className="sr-only"
           onChange={e => e.target.files && acceptFiles(e.target.files, isTarget)}
         />
-        
+
         {currentFiles.length === 0 ? (
           <>
             <Upload className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
@@ -176,31 +169,53 @@ export default function ServiceTestClient({
     setResult(null);
     const start = Date.now();
 
+    setCurlCommand(null);
+
     try {
       const form = new FormData();
-      form.append('__service', serviceSlug);
-      form.append('__apiKeyId', apiKeyId ?? '');
+
+      let curlStr = `curl -X POST ${window.location.origin}/api/v1/${serviceSlug}?sync=true \\\n`;
+      curlStr += `  -H "x-api-key: ${apiKey}" \\\n`;
+      // Note: we don't need __service or __apiKeyId since we hit the endpoint directly
 
       // Append form fields
       Object.entries(formData).forEach(([k, v]) => {
-        if (v) form.append(k, v);
+        if (v) {
+          form.append(k, v);
+          curlStr += `  -F "${k}=${v}" \\\n`;
+        }
       });
 
       // Append files
       if (isCompareMode) {
-        form.append('source_file', files[0]);
-        form.append('target_file', targetFile!);
+        if (files[0]) {
+          form.append('source_file', files[0]);
+          curlStr += `  -F "source_file=@${files[0].name}" \\\n`;
+        }
+        if (targetFile) {
+          form.append('target_file', targetFile);
+          curlStr += `  -F "target_file=@${targetFile.name}" \\\n`;
+        }
       } else {
-        files.forEach(f => form.append('files[]', f));
+        files.forEach(f => {
+          form.append('files[]', f);
+          curlStr += `  -F "files[]=@${f.name}" \\\n`;
+        });
       }
 
-      const res = await fetch('/api/internal/test-profile-endpoint', {
+      curlStr = curlStr.replace(/ \\\n$/, '');
+      setCurlCommand(curlStr);
+
+      const res = await fetch(`/api/v1/${serviceSlug}?sync=true`, {
         method: 'POST',
+        headers: {
+          'x-api-key': apiKey
+        },
         body: form,
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         setError(data.detail ?? data.error ?? data.title ?? 'Lỗi xử lý từ server');
       } else {
@@ -216,7 +231,7 @@ export default function ServiceTestClient({
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
-      
+
       {/* LEFT COLUMN: Controls & Input */}
       <div className="lg:col-span-5 space-y-6">
         <div>
@@ -226,25 +241,33 @@ export default function ServiceTestClient({
           <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{description}</p>
         </div>
 
-        {/* Global Auth Badge */}
-        <div className="flex items-center gap-2 bg-muted/50 border border-border px-3 py-2 rounded-xl text-xs font-medium text-muted-foreground">
-          {keyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 
-           apiKeyId ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : 
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
-          Xác thực: {apiKeyId ? 'Global API Key' : (keyLoading ? 'Đang tải profile...' : 'Chưa có API Key')}
+        {/* API Key Input */}
+        <div className="modern-card p-5 space-y-3 shadow-sm">
+          <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <KeyRound className="w-4 h-4" />
+            Xác thực API Key *
+          </label>
+          <input
+            type="password"
+            className="input-field py-2.5 font-mono text-sm tracking-widest border-primary/20 focus:border-primary"
+            placeholder="Nhập API Key ở đây..."
+            value={apiKey}
+            onChange={e => handleApiKeyChange(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground mt-1">API Key dùng để xác thực hệ thống và phân định Profile/Endpoint.</p>
         </div>
 
         {/* Parameters Form */}
         <div className="modern-card p-5 space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 border-b border-border pb-2">Tham số API</h3>
-          
+
           {discriminatorName && discriminatorOptions && (
             <div>
               <label className="block text-sm font-bold mb-1.5">{discriminatorName} *</label>
-              <select 
+              <select
                 className="input-field py-2.5 font-mono text-sm"
                 value={formData[discriminatorName] || ''}
-                onChange={e => setFormData({...formData, [discriminatorName]: e.target.value})}
+                onChange={e => setFormData({ ...formData, [discriminatorName]: e.target.value })}
               >
                 {discriminatorOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -257,28 +280,28 @@ export default function ServiceTestClient({
             <div key={field.name}>
               <label className="block text-sm font-bold mb-1.5">{field.label}</label>
               {field.type === 'select' ? (
-                <select 
+                <select
                   className="input-field py-2.5"
                   value={formData[field.name] || ''}
-                  onChange={e => setFormData({...formData, [field.name]: e.target.value})}
+                  onChange={e => setFormData({ ...formData, [field.name]: e.target.value })}
                 >
                   <option value="">-- Mặc định --</option>
                   {field.options?.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               ) : field.type === 'textarea' ? (
-                <textarea 
+                <textarea
                   className="input-field font-mono text-xs leading-relaxed min-h-[100px]"
                   placeholder={field.placeholder}
                   value={formData[field.name] || ''}
-                  onChange={e => setFormData({...formData, [field.name]: e.target.value})}
+                  onChange={e => setFormData({ ...formData, [field.name]: e.target.value })}
                 />
               ) : (
-                <input 
+                <input
                   type="text"
                   className="input-field py-2.5"
                   placeholder={field.placeholder}
                   value={formData[field.name] || ''}
-                  onChange={e => setFormData({...formData, [field.name]: e.target.value})}
+                  onChange={e => setFormData({ ...formData, [field.name]: e.target.value })}
                 />
               )}
             </div>
@@ -288,10 +311,10 @@ export default function ServiceTestClient({
         {/* File Uploads */}
         <div className="space-y-3">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">Tài liệu đầu vào <span className="font-normal text-xs normal-case">(tuỳ chọn)</span></h3>
-           <div className="grid grid-cols-1 gap-4">
-             {renderDropzone(false)}
-             {isCompareMode && renderDropzone(true)}
-           </div>
+          <div className="grid grid-cols-1 gap-4">
+            {renderDropzone(false)}
+            {isCompareMode && renderDropzone(true)}
+          </div>
         </div>
 
         {error && (
@@ -300,9 +323,9 @@ export default function ServiceTestClient({
           </div>
         )}
 
-        <button 
-          onClick={handleSubmit} 
-          disabled={loading || !apiKeyId || (isCompareMode && !targetFile)}
+        <button
+          onClick={handleSubmit}
+          disabled={loading || !apiKey || (isCompareMode && !targetFile)}
           className="w-full btn-primary modern-button py-3 text-lg font-bold shadow-lg shadow-primary/20"
         >
           {loading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Đang xử lý...</> : 'Bắt đầu xử lý đồng bộ'}
@@ -313,33 +336,79 @@ export default function ServiceTestClient({
       <div className="lg:col-span-7 flex flex-col">
         <div className="modern-card flex-1 flex flex-col overflow-hidden bg-card border-border relative min-h-[500px]">
           <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
-             <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-mono text-xs font-bold text-muted-foreground uppercase tracking-widest">JSON Response</span>
-             </div>
-             {execTime !== null && !loading && (
-               <span className="text-xs font-mono text-muted-foreground font-semibold">
-                 Thời gian: {(execTime / 1000).toFixed(2)}s
-               </span>
-             )}
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex bg-background rounded-md border border-border p-0.5">
+                <button
+                  onClick={() => setViewMode('preview')}
+                  className={`px-3 py-1 text-xs font-bold uppercase tracking-widest rounded transition-colors ${viewMode === 'preview' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  Preview
+                </button>
+                <button
+                  onClick={() => setViewMode('json')}
+                  className={`px-3 py-1 text-xs font-bold uppercase tracking-widest rounded transition-colors ${viewMode === 'json' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  JSON
+                </button>
+                <button
+                  onClick={() => setViewMode('curl')}
+                  className={`px-3 py-1 text-xs font-bold uppercase tracking-widest rounded transition-colors ${viewMode === 'curl' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  cURL
+                </button>
+              </div>
+            </div>
+            {execTime !== null && !loading && (
+              <span className="text-xs font-mono text-muted-foreground font-semibold">
+                Thời gian: {(execTime / 1000).toFixed(2)}s
+              </span>
+            )}
           </div>
-          
-          <div className="flex-1 bg-[#1e1e1e] overflow-auto p-4 text-sm font-mono text-emerald-400 relative">
-             {loading ? (
-               <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                  <Loader2 className="w-10 h-10 animate-spin mb-4 text-primary" />
-                  <p>Hệ thống AI đang phân tích tài liệu...</p>
-                  <p className="text-xs mt-2">Việc này có thể mất từ vài giây đến 1 phút.</p>
-               </div>
-             ) : result ? (
-               <pre className="whitespace-pre-wrap break-words">
-                 {JSON.stringify(result, null, 2)}
-               </pre>
-             ) : (
-               <div className="absolute inset-0 flex items-center justify-center text-muted-foreground opacity-30">
-                  Chưa có dữ liệu phản hồi
-               </div>
-             )}
+
+          <div className={`flex-1 overflow-auto relative ${viewMode !== 'preview' ? 'bg-[#1e1e1e] p-4 text-sm font-mono text-emerald-400' : 'bg-background p-6'}`}>
+            {loading ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground opacity-50">
+                <Loader2 className="w-10 h-10 animate-spin mb-4 text-primary" />
+                <p>Hệ thống AI đang phân tích tài liệu...</p>
+                <p className="text-xs mt-2">Việc này có thể mất từ vài giây đến 1 phút.</p>
+              </div>
+            ) : viewMode === 'curl' ? (
+              <pre className="whitespace-pre-wrap break-words text-blue-400">
+                {curlCommand || 'Bạn cần nhấn "Bắt đầu xử lý" để sinh lệnh cURL.'}
+              </pre>
+            ) : result ? (
+              viewMode === 'json' ? (
+                <pre className="whitespace-pre-wrap break-words">
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+              ) : (
+                <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-primary prose-table:w-full prose-th:border prose-th:border-border prose-th:p-2 prose-td:border prose-td:border-border prose-td:p-2">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {typeof result?.result?.content === 'string'
+                      ? result.result.content
+                      : typeof result?.content === 'string'
+                        ? result.content
+                        : typeof result?.result === 'string'
+                          ? (() => {
+                            try {
+                              const parsed = JSON.parse(result.result);
+                              return typeof parsed.content === 'string' ? parsed.content : result.result;
+                            } catch { return result.result; }
+                          })()
+                          : typeof result?.response === 'string'
+                            ? result.response
+                            : typeof result?.data?.result === 'string'
+                              ? result.data.result
+                              : "Không tìm thấy nội dung Markdown hợp lệ trong phản hồi. Hãy kiểm tra tab JSON."}
+                  </ReactMarkdown>
+                </div>
+              )
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground opacity-30">
+                Chưa có dữ liệu phản hồi
+              </div>
+            )}
           </div>
         </div>
       </div>

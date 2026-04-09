@@ -140,6 +140,17 @@ model ExternalApiConnection {
   // VD: "data.response", "choices.0.message.content"
   responseContentPath String? @default("content")
 
+  // Session ID chaining — truyền session token giữa các pipeline step
+  // sessionIdResponsePath: dot-path đọc session_id từ response của step này
+  //   VD: "result.session_id", "data.context_token"
+  //   null = step này không capture session_id
+  sessionIdResponsePath String? @db.Text
+
+  // sessionIdFieldName: tên form field để inject session_id vào request
+  //   VD: "session_id", "context_id"
+  //   null = step này không cần nhận session_id từ step trước
+  sessionIdFieldName    String?
+
   // Settings
   timeoutSec Int    @default(60)
   state      String @default("ENABLED") // ENABLED | DISABLED
