@@ -641,8 +641,17 @@ function ProfileEndpointCard({
   const [extOverridesState, setExtOverridesState] = useState<Record<string, string | null>>({});
   const [saving, setSaving] = useState(false);
 
-  // Connection Routing Override
-  const [connectionsOverride, setConnectionsOverride] = useState<string[] | null>(endpoint.connectionsOverride || null);
+  // Connection Routing Override — format mới: ConnectionStep[]
+  interface ConnStep { slug: string; captureSession?: string | null; injectSession?: string | null; }
+  const [connectionsOverride, setConnectionsOverride] = useState<ConnStep[] | null>(() => {
+    const raw = endpoint.connectionsOverride;
+    if (!raw) return null;
+    // Support cả format cũ (string[]) và format mới (ConnStep[])
+    if (raw.length > 0 && typeof raw[0] === 'string') {
+      return (raw as string[]).map((slug: string) => ({ slug }));
+    }
+    return raw as ConnStep[];
+  });
   const [allConnectors, setAllConnectors] = useState<{ id: string; slug: string; name: string; defaultPrompt?: string }[]>([]);
 
   // Test Endpoint Modal State
@@ -661,7 +670,14 @@ function ProfileEndpointCard({
       initialOverrides[conn.connectionId] = conn.promptOverride ?? null;
     });
     setExtOverridesState(initialOverrides);
-    setConnectionsOverride(endpoint.connectionsOverride || null);
+    const rawOver = endpoint.connectionsOverride;
+    if (!rawOver) {
+      setConnectionsOverride(null);
+    } else if (rawOver.length > 0 && typeof rawOver[0] === 'string') {
+      setConnectionsOverride((rawOver as string[]).map((slug: string) => ({ slug })));
+    } else {
+      setConnectionsOverride(rawOver as ConnStep[]);
+    }
   }, [endpoint, apiKeyId]);
 
   // Fetch all available connectors for the override dropdown
@@ -675,22 +691,32 @@ function ProfileEndpointCard({
   }, []);
 
   const moveConnection = (idx: number, dir: 1 | -1) => {
-    const list = connectionsOverride ? [...connectionsOverride] : [...(endpoint.connections || [])];
+    const defaults = (endpoint.connections || []).map((s: string) => ({ slug: s }));
+    const list = connectionsOverride ? [...connectionsOverride] : [...defaults];
     const item = list.splice(idx, 1)[0];
     list.splice(idx + dir, 0, item);
     setConnectionsOverride(list);
   };
 
   const removeConnection = (idx: number) => {
-    const list = connectionsOverride ? [...connectionsOverride] : [...(endpoint.connections || [])];
+    const defaults = (endpoint.connections || []).map((s: string) => ({ slug: s }));
+    const list = connectionsOverride ? [...connectionsOverride] : [...defaults];
     list.splice(idx, 1);
     setConnectionsOverride(list);
   };
 
   const addConnection = (slug: string) => {
-    const list = connectionsOverride ? [...connectionsOverride] : [...(endpoint.connections || [])];
-    list.push(slug);
+    const defaults = (endpoint.connections || []).map((s: string) => ({ slug: s }));
+    const list = connectionsOverride ? [...connectionsOverride] : [...defaults];
+    list.push({ slug });
     setConnectionsOverride(list);
+  };
+
+  const updateStepSession = (idx: number, field: 'captureSession' | 'injectSession', value: string) => {
+    if (!connectionsOverride) return;
+    setConnectionsOverride(prev => prev!.map((s, i) =>
+      i === idx ? { ...s, [field]: value || null } : s
+    ));
   };
 
   const resetToDefaultConnections = () => {
@@ -1415,7 +1441,7 @@ function ProfileEndpointCard({
                 onClick={() => setIsProcessorsOpen(!isProcessorsOpen)}
               >
                 <ChevronDown className={`w-4 h-4 transition-transform ${isProcessorsOpen ? '' : '-rotate-90'}`} />
-                Pipeline Processors ({(connectionsOverride || endpoint.connections || []).length} Bước)
+                Pipeline Processors ({(connectionsOverride || (endpoint.connections || []).map((s: string) => ({ slug: s }))).length} Bước)
                 {connectionsOverride && connectionsOverride.length > 0 && (
                   <span className="text-[10px] font-bold uppercase tracking-wider bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 px-2 py-0.5 rounded-sm ml-1">
                     Routing Override
@@ -1433,13 +1459,15 @@ function ProfileEndpointCard({
                     </div>
                   </div>
                   <div className="space-y-4 mb-4">
-                    {(connectionsOverride || endpoint.connections || []).map((slug: string, idx: number, arr: string[]) => {
+                    {((connectionsOverride || (endpoint.connections || []).map((s: string) => ({ slug: s }))).map((step: ConnStep, idx: number, arr: ConnStep[]) => {
+                      const slug = step.slug;
                       const cData = allConnectors.find((c: any) => c.slug === slug);
                       if (!cData) return null;
 
                       const connId = cData.id;
                       const overrideValue = extOverridesState[connId];
                       const isOverridden = overrideValue !== null && overrideValue !== undefined;
+                      const hasSessionConfig = !!(step.captureSession || step.injectSession);
 
                       return (
                         <div key={`${connId}-${idx}`} className="flex flex-col">
@@ -1462,6 +1490,11 @@ function ProfileEndpointCard({
                                 {isOverridden && (
                                   <span className="text-[10px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700 px-2 py-0.5 rounded-sm ml-2">
                                     Custom Override
+                                  </span>
+                                )}
+                                {hasSessionConfig && (
+                                  <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-2 py-0.5 rounded-sm">
+                                    Session
                                   </span>
                                 )}
                               </div>
@@ -1507,7 +1540,38 @@ function ProfileEndpointCard({
                               </div>
                             </div>
 
-                            <div className="p-4">
+                            <div className="p-4 space-y-4">
+                              {/* Session ID Chaining — endpoint-level override */}
+                              <div className="border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 bg-indigo-50/50 dark:bg-indigo-950/20">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-2 flex items-center gap-1">
+                                  <Zap className="w-3 h-3" /> Session ID Chaining (Override)
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="text-xs text-muted-foreground block mb-1">Capture từ Response</label>
+                                    <input
+                                      className="input-field font-mono text-xs py-1"
+                                      value={step.captureSession ?? ''}
+                                      onChange={e => updateStepSession(idx, 'captureSession', e.target.value)}
+                                      placeholder="result.session_id"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-muted-foreground block mb-1">Inject vào Request</label>
+                                    <input
+                                      className="input-field font-mono text-xs py-1"
+                                      value={step.injectSession ?? ''}
+                                      onChange={e => updateStepSession(idx, 'injectSession', e.target.value)}
+                                      placeholder="session_id"
+                                    />
+                                  </div>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1.5">
+                                  Override mức endpoint (ưu tiên hơn cấu hình tại Connector).
+                                </p>
+                              </div>
+
+                              {/* Prompt override */}
                               {isOverridden ? (
                                 <div className="space-y-2 animate-in fade-in zoom-in-95 duration-200">
                                   <label className="text-xs font-bold flex items-center gap-1 text-violet-600 dark:text-violet-400">
@@ -1540,8 +1604,9 @@ function ProfileEndpointCard({
                           </div>
                         </div>
                       );
-                    })}
-                    {((connectionsOverride || endpoint.connections || []).length === 0) && (
+                    }))
+                    }
+                    {((connectionsOverride || (endpoint.connections || []).map((s: string) => ({ slug: s }))).length === 0) && (
                       <p className="text-sm text-muted-foreground p-6 text-center border rounded-xl bg-background border-dashed">
                         Endpoint này xử lý Local hoặc qua các Local Processors nội bộ, không có External API Pipeline nào.
                       </p>

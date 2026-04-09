@@ -172,24 +172,41 @@ export async function runEndpoint(
     }
 
     // ── 9. Build pipeline (per-profile routing support) ────────────────────
-    // Ưu tiên connections override từ ProfileEndpoint (nếu admin đã cấu hình)
-    // Fallback về connections mặc định từ SERVICE_REGISTRY
-    let connectionSlugs: string[];
-    if (profileEndpoint?.connectionsOverride) {
-      try {
-        connectionSlugs = JSON.parse(profileEndpoint.connectionsOverride);
-        logger.info(`[PROFILE_ROUTING] Using override connections: [${connectionSlugs.join(', ')}]`);
-      } catch {
-        logger.warn(`[PROFILE_ROUTING] Invalid connectionsOverride JSON, falling back to defaults`);
-        connectionSlugs = subCase.connections;
-      }
-    } else {
-      connectionSlugs = subCase.connections;
+    // connectionsOverride hỗ trợ 2 format:
+    //   Format cũ: ["ext-slug-1", "ext-slug-2"]
+    //   Format mới: [{"slug":"ext-slug-1","captureSession":"result.session_id"},...]
+    interface ConnectionStep {
+      slug: string;
+      captureSession?: string | null;
+      injectSession?: string | null;
     }
 
-    const pipeline = connectionSlugs.map((connSlug) => ({
-      processor: connSlug,
+    let connectionSteps: ConnectionStep[];
+    if (profileEndpoint?.connectionsOverride) {
+      try {
+        const raw = JSON.parse(profileEndpoint.connectionsOverride);
+        if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'string') {
+          // Backward compat: format cũ string[]
+          connectionSteps = (raw as string[]).map((slug) => ({ slug }));
+          logger.info(`[PROFILE_ROUTING] Override (legacy format): [${raw.join(', ')}]`);
+        } else {
+          // Format mới: ConnectionStep[]
+          connectionSteps = raw as ConnectionStep[];
+          logger.info(`[PROFILE_ROUTING] Override (step format): [${connectionSteps.map(s => s.slug).join(', ')}]`);
+        }
+      } catch {
+        logger.warn(`[PROFILE_ROUTING] Invalid connectionsOverride JSON, falling back to defaults`);
+        connectionSteps = subCase.connections.map((slug) => ({ slug }));
+      }
+    } else {
+      connectionSteps = subCase.connections.map((slug) => ({ slug }));
+    }
+
+    const pipeline = connectionSteps.map((step) => ({
+      processor: step.slug,
       variables: mergedVars,
+      captureSession: step.captureSession,
+      injectSession: step.injectSession,
     }));
 
     // ── 10. Submit job ───────────────────────────────────────────────────────

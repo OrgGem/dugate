@@ -9,6 +9,10 @@ import { Logger } from '@/lib/logger';
 export interface PipelineStep {
   processor: string;  // ExternalApiConnection slug
   variables?: Record<string, unknown>;
+  /** Endpoint-level: dot-path đọc session_id từ response của step này */
+  captureSession?: string | null;
+  /** Endpoint-level: tên form field inject session_id vào request của step này */
+  injectSession?: string | null;
 }
 
 export interface ProcessorContext {
@@ -30,6 +34,10 @@ export interface ProcessorContext {
   /** Shared mutable state across all steps — dùng để truyền session_id,
    *  upload_id, hoặc bất kỳ token nào do external connector sinh ra. */
   pipelineState: Record<string, string>;
+  /** Endpoint-level override: dot-path đọc session_id từ response (cao hơn connector-level config) */
+  captureSession?: string | null;
+  /** Endpoint-level override: tên form field inject session_id vào request (cao hơn connector-level config) */
+  injectSession?: string | null;
 }
 
 export interface ProcessorResult {
@@ -148,6 +156,9 @@ export async function runPipeline(operationId: string, correlationId?: string): 
         correlationId,
         logger,
         pipelineState,  // Cùng 1 object reference → step sau thấy ngay giá trị step trước ghi
+        // Endpoint-level session override (priority over connector-level DB config)
+        captureSession: step.captureSession,
+        injectSession: step.injectSession,
       };
 
       logger.info(`[STEP_STARTED] Starting processor ${connection.slug}`);

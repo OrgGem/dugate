@@ -163,12 +163,18 @@ export async function runExternalApiProcessor(
     formData.append('input_content', ctx.inputText);
   }
 
-  // 2d. Inject session_id từ pipelineState (nếu connector cần nhận session từ step trước)
-  if (connection.sessionIdFieldName && ctx.pipelineState['session_id']) {
-    formData.append(connection.sessionIdFieldName, ctx.pipelineState['session_id']);
+  // 2d. Inject session_id vào request
+  // Priority: endpoint-level (ctx.injectSession) > connector-level (connection.sessionIdFieldName)
+  const injectSessionField = ctx.injectSession !== undefined
+    ? ctx.injectSession   // endpoint override (kể cả null = tắt)
+    : connection.sessionIdFieldName; // connector default
+
+  if (injectSessionField && ctx.pipelineState['session_id']) {
+    formData.append(injectSessionField, ctx.pipelineState['session_id']);
     ctx.logger.info(
       `[SESSION] Injecting session_id="${ctx.pipelineState['session_id']}" ` +
-      `as field "${connection.sessionIdFieldName}"`
+      `as field "${injectSessionField}"` +
+      (ctx.injectSession !== undefined ? ' [endpoint-override]' : ' [connector-default]')
     );
   }
 
@@ -249,18 +255,23 @@ export async function runExternalApiProcessor(
   const latencyMs = Date.now() - startedAt;
   ctx.logger.info(`Successfully completed API call to ${connection.slug}`, { latencyMs, outputChars: content.length });
 
-  // Capture session_id từ response để các step sau sử dụng
-  if (connection.sessionIdResponsePath) {
-    const sid = resolveDotPath(responseJson, connection.sessionIdResponsePath);
+  // Capture session_id từ response
+  // Priority: endpoint-level (ctx.captureSession) > connector-level (connection.sessionIdResponsePath)
+  const captureSessionPath = ctx.captureSession !== undefined
+    ? ctx.captureSession   // endpoint override (kể cả null = tắt)
+    : connection.sessionIdResponsePath; // connector default
+
+  if (captureSessionPath) {
+    const sid = resolveDotPath(responseJson, captureSessionPath);
     if (typeof sid === 'string' && sid) {
       ctx.pipelineState['session_id'] = sid;
       ctx.logger.info(
-        `[SESSION] Captured session_id="${sid}" from path "${connection.sessionIdResponsePath}"`
+        `[SESSION] Captured session_id="${sid}" from path "${captureSessionPath}"` +
+        (ctx.captureSession !== undefined ? ' [endpoint-override]' : ' [connector-default]')
       );
     } else {
       ctx.logger.warn(
-        `[SESSION] sessionIdResponsePath="${connection.sessionIdResponsePath}" ` +
-        `not found or not a string in response`
+        `[SESSION] captureSession path="${captureSessionPath}" not found or not a string in response`
       );
     }
   }
