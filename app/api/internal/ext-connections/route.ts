@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       staticFormFields,
       extraHeaders,
       responseContentPath = 'content',
+      sessionIdResponsePath,
+      sessionIdFieldName,
       timeoutSec = 60,
       state = 'ENABLED',
     } = body;
@@ -92,6 +94,8 @@ export async function POST(req: NextRequest) {
           staticFormFields: staticFormFields ?? null,
           extraHeaders: extraHeaders ?? null,
           responseContentPath,
+          sessionIdResponsePath: sessionIdResponsePath ?? null,
+          sessionIdFieldName: sessionIdFieldName ?? null,
           timeoutSec: Number(timeoutSec),
           state,
         },

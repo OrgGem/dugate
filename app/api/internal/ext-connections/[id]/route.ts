@@ -33,6 +33,8 @@ export async function PUT(
       staticFormFields,
       extraHeaders,
       responseContentPath,
+      sessionIdResponsePath,
+      sessionIdFieldName,
       timeoutSec,
       state,
     } = body;
@@ -59,6 +61,8 @@ export async function PUT(
         ...(staticFormFields !== undefined && { staticFormFields: staticFormFields ?? null }),
         ...(extraHeaders !== undefined && { extraHeaders: extraHeaders ?? null }),
         ...(responseContentPath !== undefined && { responseContentPath }),
+        ...(sessionIdResponsePath !== undefined && { sessionIdResponsePath: sessionIdResponsePath ?? null }),
+        ...(sessionIdFieldName !== undefined && { sessionIdFieldName: sessionIdFieldName ?? null }),
         ...(timeoutSec !== undefined && { timeoutSec: Number(timeoutSec) }),
         ...(state !== undefined && { state }),
       },

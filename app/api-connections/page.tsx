@@ -32,6 +32,9 @@ interface Connection {
   staticFormFields: string | null;  // JSON array
   extraHeaders: string | null;      // JSON object
   responseContentPath: string | null;
+  // Session ID Chaining
+  sessionIdResponsePath: string | null;
+  sessionIdFieldName: string | null;
   timeoutSec: number;
   state: string;
 }
@@ -62,6 +65,8 @@ const EMPTY_FORM: Omit<Connection, 'id'> = {
   staticFormFields: null,
   extraHeaders: null,
   responseContentPath: 'content',
+  sessionIdResponsePath: null,
+  sessionIdFieldName: null,
   timeoutSec: 60,
   state: 'ENABLED',
 };
@@ -789,6 +794,42 @@ export default function ApiConnectionsPage() {
                       value={form.timeoutSec}
                       onChange={e => updateForm('timeoutSec', Number(e.target.value))}
                     />
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* ═══ SECTION 6: Session ID Chaining ══════════════════════ */}
+              <FormSection icon={<Zap className="w-4 h-4 text-indigo-500" />} title="Session ID Chaining">
+                <div className="mb-3 p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                  <strong>Pipeline Chaining:</strong> Cho phép step này chia sẻ <code className="font-mono bg-indigo-100 dark:bg-indigo-900 px-1 rounded">session_id</code> với các step tiếp theo trong cùng pipeline.
+                  Để trống cả 2 nếu connector này không cần session chaining.
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="form-label">Capture Session từ Response</label>
+                    <input
+                      className="input-field font-mono text-sm"
+                      value={form.sessionIdResponsePath ?? ''}
+                      onChange={e => updateForm('sessionIdResponsePath', e.target.value || null)}
+                      placeholder="result.session_id"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Dot-path đọc <code className="font-mono">session_id</code> từ response JSON của step này.
+                      VD: <code className="font-mono">result.session_id</code>, <code className="font-mono">data.context_token</code>
+                    </p>
+                  </div>
+                  <div>
+                    <label className="form-label">Inject Session vào Request</label>
+                    <input
+                      className="input-field font-mono text-sm"
+                      value={form.sessionIdFieldName ?? ''}
+                      onChange={e => updateForm('sessionIdFieldName', e.target.value || null)}
+                      placeholder="session_id"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Tên form field để inject <code className="font-mono">session_id</code> vào request của step này
+                      (lấy từ pipelineState do step trước capture).
+                    </p>
                   </div>
                 </div>
               </FormSection>
