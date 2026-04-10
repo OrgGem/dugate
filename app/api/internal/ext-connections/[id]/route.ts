@@ -4,6 +4,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'ext-connections' });
+
 
 // ─── PUT: Update connection ────────────────────────────────────────────────────
 export async function PUT(
@@ -77,7 +81,7 @@ export async function PUT(
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[ExtConnections PUT]', msg);
+    logger.error('[PUT] Failed to update connection', {}, error);
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
@@ -101,7 +105,7 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[ExtConnections DELETE]', msg);
+    logger.error('[DELETE] Failed to delete connection', {}, error);
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

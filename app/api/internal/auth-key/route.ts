@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'auth-key' });
+
 
 export async function GET(req: NextRequest) {
   const passedKey = req.headers.get('x-api-key');
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ valid: true, apiKeyId: apiKey.id });
       }
     } catch (dbError) {
-      console.error('[DB AUTH ERROR]', dbError);
+      logger.error('[DB AUTH ERROR]', {}, dbError);
     }
 
     // Fallback cho local dev testing: so sánh với secret key trong bảng AppSetting
@@ -40,13 +44,13 @@ export async function GET(req: NextRequest) {
     const secretKey = await getSetting('api_secret_key');
     
     if (secretKey && passedKey === secretKey) {
-      console.warn('[AUTH] Using fallback master secret key. apiKeyId will be null.');
+      logger.warn('[AUTH] Using fallback master secret key. apiKeyId will be null.');
       return NextResponse.json({ valid: true, apiKeyId: null });
     }
 
     return NextResponse.json({ valid: false, error: 'Unauthorized: Invalid x-api-key header.' }, { status: 401 });
   } catch (error) {
-    console.error('[AUTH ERROR]', error);
+    logger.error('[AUTH ERROR]', {}, error);
     return NextResponse.json({ valid: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -4,6 +4,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { prisma } from './prisma';
+import { Logger } from './logger';
+
+const logger = new Logger({ service: 'cleanup' });
+
 
 const EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 giờ
 
@@ -76,13 +80,13 @@ export async function cleanupExpiredFiles(): Promise<{ deleted: number; freedMB:
 
       deleted++;
     } catch (err) {
-      console.error(`[Cleanup] Failed for ${conv.id}:`, err);
+      logger.error(`[cleanupExpiredFiles] Failed for operation ${conv.id}`, {}, err);
     }
   }
 
   const freedMB = Math.round((freed / 1024 / 1024) * 100) / 100;
   if (deleted > 0) {
-    console.log(`[Cleanup] Đã xóa ${deleted} transformations, giải phóng ${freedMB} MB`);
+    logger.info(`[cleanupExpiredFiles] Deleted ${deleted} operations, freed ${freedMB} MB`);
   }
 
   return { deleted, freedMB };

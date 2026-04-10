@@ -3,10 +3,12 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { Logger } from '@/lib/logger';
 
-const prisma = new PrismaClient();
+const logger = new Logger({ service: 'users' });
+
 
 // GET /api/users — list all users (ADMIN only)
 export async function GET() {
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(user, { status: 201 });
   } catch (err) {
-    console.error('[POST /api/users]', err);
+    logger.error('[POST] Failed to create user', {}, err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

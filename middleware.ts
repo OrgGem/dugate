@@ -19,11 +19,13 @@ const BYPASS_PREFIXES = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Log mọi request ra terminal để user dễ debug
-  console.log(`[Request] ${request.method} ${pathname}`);
+  // Log requests in non-production environments only
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[Request] ${request.method} ${pathname}`);
+  }
 
   // --- Bypass paths ---
-  if (BYPASS_PREFIXES.some(p => pathname.startsWith(p))) {
+  if (BYPASS_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
     return NextResponse.next();
   }
 

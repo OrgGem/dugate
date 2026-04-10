@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'apikeys' });
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,7 +20,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({ success: true, apiKeys });
   } catch (error: any) {
-    console.error('[ApiKey API - GET Error]', error);
+    logger.error('[GET] DB error', {}, error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
@@ -44,7 +48,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: true, apiKey: updatedKey });
     }
   } catch (error: any) {
-    console.error('[ApiKey API - PUT Error]', error);
+    logger.error('[PUT] DB error', {}, error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
@@ -80,7 +84,7 @@ export async function POST(req: NextRequest) {
       rawKey, // NOTE: Chỉ trả về nguyên bản ở bước tạo này, Admin phải copy thủ công
     });
   } catch (error: any) {
-    console.error('[ApiKey API - POST Error]', error);
+    logger.error('[POST] DB error', {}, error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
@@ -103,7 +107,7 @@ export async function DELETE(req: NextRequest) {
     });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[ApiKey API - DELETE Error]', error);
+    logger.error('[DELETE] DB error', {}, error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -1,5 +1,9 @@
 import * as mammoth from 'mammoth';
 import { DocumentParser, ParseResult } from './interface';
+import { Logger } from '../logger';
+
+const logger = new Logger({ service: 'word-parser' });
+
 
 export class WordParser implements DocumentParser {
   canHandle(mimeType: string, extension: string): boolean {
@@ -29,7 +33,7 @@ export class WordParser implements DocumentParser {
         }
       };
     } catch (e) {
-      console.error("[WordParser] error parsing word file", e);
+      logger.error('[parse] Error parsing Word file', { fileName }, e);
       throw e;
     }
   }

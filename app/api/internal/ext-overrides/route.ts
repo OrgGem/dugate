@@ -5,6 +5,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'ext-overrides' });
+
 
 // ─── GET: List overrides ────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -87,7 +91,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, override });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[ExtOverrides POST]', msg);
+    logger.error('[POST] Failed to upsert override', {}, error);
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

@@ -6,6 +6,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { runPipeline, type PipelineStep } from '@/lib/pipelines/engine';
 import { saveUploadedFile } from '@/lib/upload-helper';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'submit-pipeline' });
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,7 +150,9 @@ export async function submitPipelineJob(
   } else {
     // Fire-and-forget
     runPipeline(operationId, correlationId).catch((err) => {
-      console.error(`[submitPipelineJob] Pipeline error for ${operationId}:`, err);
+      // Fire-and-forget error: log but do not propagate — caller already received 202
+      // Use console.error here since Logger is not available in this module-level scope
+      logger.error(`[submitPipelineJob] Pipeline fire-and-forget error`, { operationId }, err);
     });
   }
 

@@ -7,6 +7,10 @@
 // This file is kept for reference only. Do NOT import PdfParser into factory.ts.
 
 import { DocumentParser, ParseResult } from './interface';
+import { Logger } from '../logger';
+
+const logger = new Logger({ service: 'pdf-parser' });
+
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
@@ -43,7 +47,7 @@ export class PdfParser implements DocumentParser {
         },
       };
     } catch (e) {
-      console.error('[PdfParser] error parsing pdf file', e);
+      logger.error('[parse] Error parsing PDF file', { fileName }, e);
       throw e;
     }
   }

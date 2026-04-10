@@ -647,7 +647,7 @@ async function main() {
 
   // 2. Setup Default Admin API Key & ProfileEndpoints
   console.log('\n[2/3] Ensuring Default Admin API Key...');
-  const rawAdminKey = 'sk-admin-default-secret-key';
+  const rawAdminKey = process.env.SEED_ADMIN_KEY ?? 'sk-admin-default-secret-key';
   const hashedKey = crypto.createHash('sha256').update(rawAdminKey).digest('hex');
 
   const adminKey = await prisma.apiKey.upsert({
@@ -677,7 +677,7 @@ async function main() {
 
   // 3. Setup Default Admin User
   console.log('\n[3/3] Ensuring Default Admin User...');
-  const defaultPassword = '123456';
+  const defaultPassword = process.env.SEED_ADMIN_PASSWORD ?? '123456';
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
   const adminUser = await prisma.user.upsert({

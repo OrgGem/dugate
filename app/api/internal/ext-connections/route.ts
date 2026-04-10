@@ -4,6 +4,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'ext-connections' });
+
 
 // ─── GET: List all connections ────────────────────────────────────────────────
 export async function GET() {
@@ -110,7 +114,7 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[ExtConnections POST]', msg);
+    logger.error('[POST] Failed to create connection', {}, error);
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

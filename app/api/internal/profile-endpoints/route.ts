@@ -5,6 +5,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { SERVICE_REGISTRY, getAllEndpointSlugs } from '@/lib/endpoints/registry';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'profile-endpoints' });
+
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -73,7 +77,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ endpoints: enrichedEndpoints });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[GET /profile-endpoints]', msg);
+    logger.error('[GET] Failed to list profile endpoints', { apiKeyId: apiKeyId ?? 'unknown' }, error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -114,7 +118,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ profileEndpoint: record }, { status: 200 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[POST /profile-endpoints]', msg);
+    logger.error('[POST] Failed to upsert profile endpoint', {}, error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

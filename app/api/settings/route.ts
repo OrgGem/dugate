@@ -4,6 +4,10 @@
 
 import { getAllSettings, setSettings } from '@/lib/settings';
 import { maskApiKey } from '@/lib/crypto';
+import { Logger } from '@/lib/logger';
+
+const logger = new Logger({ service: 'settings' });
+
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +27,7 @@ export async function GET() {
     }
     return Response.json(masked);
   } catch (error) {
-    console.error('[GET /api/settings]', error);
+    logger.error('[GET] Failed to fetch settings', {}, error);
     return Response.json({ error: 'Không thể đọc settings' }, { status: 500 });
   }
 }
@@ -60,7 +64,7 @@ export async function PUT(request: Request) {
     await setSettings(updates);
     return Response.json({ success: true });
   } catch (error) {
-    console.error('[PUT /api/settings]', error);
+    logger.error('[PUT] Failed to update settings', {}, error);
     return Response.json({ error: 'Không thể lưu settings' }, { status: 500 });
   }
 }
