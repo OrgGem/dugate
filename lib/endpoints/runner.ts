@@ -160,9 +160,15 @@ export async function runEndpoint(
       mergedVars[key] = config.value;
     }
 
-    // Read client form input against registry parameters
-    for (const [key, schema] of Object.entries(subCase.parameters)) {
-      const isLocked = dbParams[key]?.isLocked ?? schema.defaultLocked ?? false;
+    // Read client form input against registry parameters + custom db parameters
+    const allAllowedKeys = new Set([
+      ...Object.keys(subCase.parameters),
+      ...Object.keys(dbParams)
+    ]);
+
+    for (const key of Array.from(allAllowedKeys)) {
+      const schema = subCase.parameters[key];
+      const isLocked = dbParams[key]?.isLocked ?? schema?.defaultLocked ?? false;
 
       if (form.has(key)) {
          if (isLocked) {
@@ -196,6 +202,7 @@ export async function runEndpoint(
     //   Format mới: [{"slug":"ext-slug-1","captureSession":"result.session_id"},...]
     interface ConnectionStep {
       slug: string;
+      stepId?: string;
       captureSession?: string | null;
       injectSession?: string | null;
     }
@@ -223,7 +230,8 @@ export async function runEndpoint(
 
     const pipeline = connectionSteps.map((step) => ({
       processor: step.slug,
-      variables: mergedVars,
+      variables: { ...mergedVars },  // Clone per step — tránh share reference giữa các step
+      stepId: step.stepId,
       captureSession: step.captureSession,
       injectSession: step.injectSession,
     }));

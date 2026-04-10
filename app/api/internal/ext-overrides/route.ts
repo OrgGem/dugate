@@ -36,7 +36,8 @@ export async function GET(req: NextRequest) {
 // ─── POST: Upsert (create or update) override ──────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const { connectionId, apiKeyId, endpointSlug, promptOverride, isActive } = await req.json();
+    const { connectionId, apiKeyId, endpointSlug, stepId, promptOverride, isActive } = await req.json();
+    const resolvedStepId = stepId ?? '_default';
 
     if (!connectionId || !apiKeyId || !endpointSlug) {
       return NextResponse.json(
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     // isActive = false → xóa override (về default)
     if (isActive === false) {
       await prisma.externalApiOverride.deleteMany({
-        where: { connectionId, apiKeyId, endpointSlug },
+        where: { connectionId, apiKeyId, endpointSlug, stepId: resolvedStepId },
       });
       return NextResponse.json({ success: true, deleted: true });
     }
@@ -69,12 +70,13 @@ export async function POST(req: NextRequest) {
     // Upsert override
     const override = await prisma.externalApiOverride.upsert({
       where: {
-        connectionId_apiKeyId_endpointSlug: { connectionId, apiKeyId, endpointSlug },
+        connectionId_apiKeyId_endpointSlug_stepId: { connectionId, apiKeyId, endpointSlug, stepId: resolvedStepId },
       },
       create: {
         connectionId,
         apiKeyId,
         endpointSlug,
+        stepId: resolvedStepId,
         promptOverride: promptOverride?.trim() ?? null,
       },
       update: {

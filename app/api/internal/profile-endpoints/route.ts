@@ -31,20 +31,24 @@ export async function GET(req: NextRequest) {
         ? JSON.parse(dbRecord.connectionsOverride as string)
         : null;
 
-      // Normalize override: support cả format cũ (string[]) và format mới (ConnStep[])
-      // Mỗi phần tử có thể là string hoặc { slug: string, captureSession?, injectSession? }
-      const toSlug = (item: string | { slug: string }) =>
-        typeof item === 'string' ? item : item.slug;
+      // Normalize steps: extract slug and stepId from each item
+      interface ConnStepItem { slug: string; stepId?: string; captureSession?: string | null; injectSession?: string | null; }
+      const toStep = (item: string | ConnStepItem): ConnStepItem =>
+        typeof item === 'string' ? { slug: item } : item;
 
-      const activeSlugs: string[] =
+      const activeSteps: ConnStepItem[] =
         dbConnectionsOverride && dbConnectionsOverride.length > 0
-          ? (dbConnectionsOverride as Array<string | { slug: string }>).map(toSlug)
-          : endpointDef.connections;
+          ? (dbConnectionsOverride as Array<string | ConnStepItem>).map(toStep)
+          : endpointDef.connections.map((slug: string) => ({ slug }));
       
-      const extConnections = activeSlugs.map((connSlug: string) => {
-        const conn = allExtConnections.find((c) => c.slug === connSlug);
+      const extConnections = activeSteps.map((stepItem: ConnStepItem) => {
+        const conn = allExtConnections.find((c) => c.slug === stepItem.slug);
         if (!conn) return null;
-        const override = allExtOverrides.find((o) => o.connectionId === conn.id && o.endpointSlug === endpointDef.slug);
+        // Match override by connectionId + endpointSlug + stepId
+        const resolvedStepId = stepItem.stepId ?? '_default';
+        const override = allExtOverrides.find(
+          (o) => o.connectionId === conn.id && o.endpointSlug === endpointDef.slug && o.stepId === resolvedStepId
+        );
         return {
           connectionId: conn.id,
           slug: conn.slug,
@@ -52,6 +56,7 @@ export async function GET(req: NextRequest) {
           defaultPrompt: conn.defaultPrompt,
           promptOverride: override?.promptOverride ?? null,
           isActive: !!override,
+          stepId: stepItem.stepId ?? null,
         };
       }).filter(Boolean);
 

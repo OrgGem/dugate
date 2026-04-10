@@ -671,15 +671,20 @@ function ProfileEndpointCard({
   const [saving, setSaving] = useState(false);
 
   // Connection Routing Override — format mới: ConnectionStep[]
-  interface ConnStep { slug: string; captureSession?: string | null; injectSession?: string | null; }
+  interface ConnStep { slug: string; stepId?: string; captureSession?: string | null; injectSession?: string | null; }
+
+  /** Ensure all ConnStep entries have a stepId — backfill for legacy data that doesn't have one */
+  const ensureStepIds = (steps: ConnStep[]): ConnStep[] =>
+    steps.map(s => s.stepId ? s : { ...s, stepId: crypto.randomUUID() });
+
   const [connectionsOverride, setConnectionsOverride] = useState<ConnStep[] | null>(() => {
     const raw = endpoint.connectionsOverride;
     if (!raw) return null;
     // Support cả format cũ (string[]) và format mới (ConnStep[])
     if (raw.length > 0 && typeof raw[0] === 'string') {
-      return (raw as string[]).map((slug: string) => ({ slug }));
+      return ensureStepIds((raw as string[]).map((slug: string) => ({ slug })));
     }
-    return raw as ConnStep[];
+    return ensureStepIds(raw as ConnStep[]);
   });
   const [allConnectors, setAllConnectors] = useState<{ id: string; slug: string; name: string; defaultPrompt?: string }[]>([]);
 
@@ -696,16 +701,18 @@ function ProfileEndpointCard({
 
     const initialOverrides: Record<string, string | null> = {};
     endpoint.extConnections?.forEach((conn: any) => {
-      initialOverrides[conn.connectionId] = conn.promptOverride ?? null;
+      // Key by stepId (stable GUID) instead of connId to support duplicate connectors
+      const key = conn.stepId ?? conn.connectionId;
+      initialOverrides[key] = conn.promptOverride ?? null;
     });
     setExtOverridesState(initialOverrides);
     const rawOver = endpoint.connectionsOverride;
     if (!rawOver) {
       setConnectionsOverride(null);
     } else if (rawOver.length > 0 && typeof rawOver[0] === 'string') {
-      setConnectionsOverride((rawOver as string[]).map((slug: string) => ({ slug })));
+      setConnectionsOverride(ensureStepIds((rawOver as string[]).map((slug: string) => ({ slug }))));
     } else {
-      setConnectionsOverride(rawOver as ConnStep[]);
+      setConnectionsOverride(ensureStepIds(rawOver as ConnStep[]));
     }
   }, [endpoint, apiKeyId]);
 
@@ -735,16 +742,16 @@ function ProfileEndpointCard({
   };
 
   const addConnection = (slug: string) => {
-    const defaults = (endpoint.connections || []).map((s: string) => ({ slug: s }));
+    const defaults = ensureStepIds((endpoint.connections || []).map((s: string) => ({ slug: s })));
     const list = connectionsOverride ? [...connectionsOverride] : [...defaults];
-    list.push({ slug });
+    list.push({ slug, stepId: crypto.randomUUID() });
     setConnectionsOverride(list);
   };
 
   const updateStepSession = (idx: number, field: 'captureSession' | 'injectSession', value: string) => {
     // Nếu chưa có override, tự động khởi tạo từ default connections
     // Việc sửa session field sẽ tự động promote thành override mode
-    const defaults = (endpoint.connections || []).map((s: string) => ({ slug: s }));
+    const defaults = ensureStepIds((endpoint.connections || []).map((s: string) => ({ slug: s })));
     const baseList = connectionsOverride ?? defaults;
     setConnectionsOverride(baseList.map((s: ConnStep, i: number) =>
       i === idx ? { ...s, [field]: value || null } : s
@@ -890,21 +897,29 @@ function ProfileEndpointCard({
         }),
       });
 
-      // Save all processor overrides (scoped per endpoint)
-      const overridePromises = Object.entries(extOverridesState).map(([connId, val]) => {
+      // Save all processor overrides (scoped per endpoint + stepId)
+      // Build override list from current pipeline steps (connectionsOverride or defaults)
+      const currentSteps = connectionsOverride
+        ?? (endpoint.connections || []).map((s: string) => ({ slug: s }));
+       const overridePromises = currentSteps.map((step: ConnStep) => {
+        const cData = allConnectors.find((c: any) => c.slug === step.slug);
+        if (!cData) return null;
+        const overrideKey = step.stepId ?? cData.id;
+        const val = extOverridesState[overrideKey];
         const hasOverride = val !== null && val !== undefined;
         return fetch('/api/internal/ext-overrides', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            connectionId: connId,
+            connectionId: cData.id,
             apiKeyId,
-            endpointSlug: endpoint.slug,  // 🔑 scope per endpoint — prevents cross-endpoint bleeding
+            endpointSlug: endpoint.slug,
+            stepId: step.stepId ?? '_default',
             isActive: hasOverride,
             promptOverride: hasOverride ? val : null,
           }),
         });
-      });
+      }).filter((p: Promise<Response> | null): p is Promise<Response> => p !== null);
       const responses = await Promise.all([endpointPromise, ...overridePromises]);
 
       for (const res of responses) {
@@ -1497,7 +1512,9 @@ function ProfileEndpointCard({
                       if (!cData) return null;
 
                       const connId = cData.id;
-                      const overrideValue = extOverridesState[connId];
+                      // Use stepId as override key (supports multiple steps with same connector)
+                      const overrideKey = step.stepId ?? connId;
+                      const overrideValue = extOverridesState[overrideKey];
                       const isOverridden = overrideValue !== null && overrideValue !== undefined;
                       const hasSessionConfig = !!(step.captureSession || step.injectSession);
 
@@ -1551,7 +1568,7 @@ function ProfileEndpointCard({
                                   onClick={() => {
                                     setExtOverridesState(prev => ({
                                       ...prev,
-                                      [connId]: isOverridden ? null : (cData.defaultPrompt || null)
+                                      [overrideKey]: isOverridden ? null : (cData.defaultPrompt || null)
                                     }));
                                   }}
                                   className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors shrink-0 ${isOverridden
@@ -1611,7 +1628,7 @@ function ProfileEndpointCard({
                                   </label>
                                   <textarea
                                     value={overrideValue ?? ''}
-                                    onChange={(e) => setExtOverridesState(prev => ({ ...prev, [connId]: e.target.value }))}
+                                    onChange={(e) => setExtOverridesState(prev => ({ ...prev, [overrideKey]: e.target.value }))}
                                     className="w-full text-sm font-mono p-3 rounded-lg border border-violet-200 dark:border-violet-900 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 bg-violet-50/10 dark:bg-violet-950/20 outline-none leading-relaxed shadow-inner min-h-[140px]"
                                     placeholder="Nhập prompt override cho bước này (sử dụng biến {{input_content}} để ghép với dữ liệu đầu ra từ bước trước)..."
                                   />

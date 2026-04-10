@@ -226,10 +226,7 @@ export const SERVICE_REGISTRY: Record<string, ServiceDef> = {
       'summarize-eval': {
         displayName: 'Summarize & Evaluate',
         description: 'Phân tích kép: vừa đưa ra 1 tóm lược 3-4 câu chốt tổng quát, vừa kèm đánh giá sâu của một "chuyên gia" về quan điểm của người viết bài.',
-        parameters: {
-        criteria: PARAMS.criteria, focus: PARAMS.focus, 
-        focus_areas: { ...PARAMS.focus_areas, defaultLocked: true }
-      },
+        parameters: {},
         connections: ['ext-content-gen'],
       },
     },
@@ -253,10 +250,7 @@ export const SERVICE_REGISTRY: Record<string, ServiceDef> = {
       translate: {
         displayName: 'Translation',
         description: 'Dịch thuật tài liệu nguyên bản (VD: target_language=vi). Điểm mạnh là vừa dịch vừa có thể điều chỉnh âm hưởng ngữ điệu tone (VD: dịch sang tiếng Việt cổ, hoặc giọng marketing sôi động).',
-        parameters: {
-        target_language: PARAMS.target_language, tone: PARAMS.tone, 
-        glossary: { ...PARAMS.glossary, defaultLocked: true }
-      },
+        parameters: {},
         connections: ['ext-translator'],
       },
       rewrite: {
@@ -270,9 +264,7 @@ export const SERVICE_REGISTRY: Record<string, ServiceDef> = {
       redact: {
         displayName: 'PII Redaction',
         description: 'Tự động dò tìm và bôi đen (ẩn đi - Masking) tự động các thông tin nhạy cảm (PII: số thẻ tín dụng, CCCD, địa chỉ cư trú, số ĐT) trên file nhằm tuân thủ luật bảo mật. Trả về file text đã được thay thế mảng đó bằng chữ [REDACTED].',
-        parameters: {
-        redact_patterns: { ...PARAMS.redact_patterns, defaultLocked: true }
-      },
+        parameters: {},
         connections: ['ext-redactor'],
       },
       template: {
@@ -296,10 +288,7 @@ export const SERVICE_REGISTRY: Record<string, ServiceDef> = {
       summary: {
         displayName: 'Summarize',
         description: 'Tóm tắt nội dung tài liệu với tỷ lệ nén cao, có khả năng format lại đầu ra rất phong phú: định dạng đoạn văn (paragraph), gạch đầu dòng (bullets), đánh số ưu tiên (numbered), dạng bảng (table), hoặc mô tả dưới cấu trúc sơ đồ (mind_map).',
-        parameters: {
-        max_words: PARAMS.max_words, format: PARAMS.format, audience: PARAMS.audience, 
-        focus_areas: { ...PARAMS.focus_areas, defaultLocked: true }, tone: { ...PARAMS.tone, defaultLocked: true }
-      },
+        parameters: {},
         connections: ['ext-content-gen'],
       },
       outline: {
@@ -313,10 +302,7 @@ export const SERVICE_REGISTRY: Record<string, ServiceDef> = {
       report: {
         displayName: 'Report',
         description: 'Từ các con số thô/bảng biểu khô khan trong file, sinh ra một bài báo cáo phân tích bằng ngôn ngữ tự nhiên, được "kể lại" dưới tư duy của một chuyên gia tài chính hoặc nhân sự.',
-        parameters: {
-        tone: PARAMS.tone, audience: PARAMS.audience, 
-        focus_areas: { ...PARAMS.focus_areas, defaultLocked: true }
-      },
+        parameters: {},
         connections: ['ext-content-gen'],
       },
       email: {

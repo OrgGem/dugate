@@ -175,6 +175,11 @@ model ExternalApiOverride {
   // Giải quyết vấn đề: nhiều endpoint dùng chung 1 connection sẽ bị override lẫn nhau
   endpointSlug String
 
+  // Stable GUID phân biệt từng step trong pipeline khi cùng 1 connector slug xuất hiện nhiều lần.
+  // "_default" = backward-compatible cho data cũ (1 connector per type).
+  // Được generate 1 lần khi admin thêm step trên UI, không đổi khi reorder.
+  stepId String @default("_default")
+
   // Client chỉ được override prompt
   // null = dùng defaultPrompt của connection
   promptOverride String? @db.Text
@@ -185,7 +190,7 @@ model ExternalApiOverride {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([connectionId, apiKeyId, endpointSlug])
+  @@unique([connectionId, apiKeyId, endpointSlug, stepId])
   @@index([apiKeyId])
   @@index([connectionId])
   @@index([endpointSlug])

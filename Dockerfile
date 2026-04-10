@@ -7,10 +7,19 @@ RUN npm install
 # Stage 2: builder
 FROM node:20-slim AS builder
 WORKDIR /app
+
+# CACHE OPTIMIZATION: Install OS packages first before copying code
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# CACHE OPTIMIZATION: Copy prisma first and generate client
+COPY prisma ./prisma
 RUN npx prisma generate
+
+# Now copy the rest of the source code
+COPY . .
+
 RUN npx tsc prisma/seed.ts --esModuleInterop --skipLibCheck --module CommonJS --target ES2022 --outDir prisma
 # Provide a dummy DATABASE_URL so Prisma client initialises during static page generation
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
@@ -41,4 +50,7 @@ EXPOSE 2023
 ENV PORT=2023
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --accept-data-loss && node ./prisma/seed.js && node server.js"]
+COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
+CMD ["./docker-entrypoint.sh"]

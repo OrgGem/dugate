@@ -9,6 +9,9 @@ import { Logger } from '@/lib/logger';
 export interface PipelineStep {
   processor: string;  // ExternalApiConnection slug
   variables?: Record<string, unknown>;
+  /** Stable GUID phân biệt step khi pipeline có nhiều connector cùng slug.
+   *  Sinh 1 lần khi admin thêm step, không đổi khi reorder. */
+  stepId?: string;
   /** Endpoint-level: dot-path đọc session_id từ response của step này */
   captureSession?: string | null;
   /** Endpoint-level: tên form field inject session_id vào request của step này */
@@ -126,21 +129,23 @@ export async function runPipeline(operationId: string, correlationId?: string): 
         throw new Error(`ExternalApiConnection '${connection.slug}' is DISABLED.`);
       }
 
-      // Load per-client, per-endpoint prompt override
+      // Load per-client, per-endpoint, per-step prompt override
+      const resolvedStepId = step.stepId ?? '_default';
       const extOverride = operation.apiKeyId && operation.endpointSlug
         ? await prisma.externalApiOverride.findUnique({
             where: {
-              connectionId_apiKeyId_endpointSlug: {
+              connectionId_apiKeyId_endpointSlug_stepId: {
                 connectionId: connection.id,
                 apiKeyId: operation.apiKeyId,
                 endpointSlug: operation.endpointSlug,
+                stepId: resolvedStepId,
               },
             },
           })
         : null;
 
       if (extOverride) {
-        logger.info(`Applied ExtApiOverride for '${connection.slug}' (key: ${operation.apiKeyId})`);
+        logger.info(`Applied ExtApiOverride for '${connection.slug}' step='${resolvedStepId}' (key: ${operation.apiKeyId})`);
       }
 
       const ctx: ProcessorContext = {

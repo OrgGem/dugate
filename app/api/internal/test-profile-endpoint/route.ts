@@ -12,43 +12,58 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== 'ADMIN') {
-      return new Response(JSON.stringify({ error: 'Unauthorized: Admin access required.' }), { 
-        status: 403, 
-        headers: { 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ error: 'Unauthorized: Admin access required.' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
     const formData = await req.formData();
-    
+
     // Extract hidden internal metadata fields provided by the admin UI
     const serviceSlug = formData.get('__service') as string;
     const apiKeyId = formData.get('__apiKeyId') as string;
 
     if (!serviceSlug || !apiKeyId) {
-      return new Response(JSON.stringify({ error: 'Missing required test parameters (__service, __apiKeyId)' }), { 
-        status: 400, 
-        headers: { 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ error: 'Missing required test parameters (__service, __apiKeyId)' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     // Remove metadata fields from the payload to avoid polluting the actual service payload
     const testForm = new FormData();
     const entries = Array.from(formData.entries());
+
+    const curlLines = [
+      `curl -X POST '${req.nextUrl.origin}/api/v1/${serviceSlug}?sync=true' \\`,
+      `  -H "x-api-key: [YOUR_API_KEY]" \\`
+    ];
+
     for (const [key, value] of entries) {
       if (key !== '__service' && key !== '__apiKeyId') {
         testForm.append(key, value);
+        
+        if (typeof value === 'object' && value !== null && 'name' in value) {
+          curlLines.push(`  -F "${key}=@${(value as any).name || 'file'}" \\`);
+        } else {
+          const safeVal = String(value).replace(/'/g, "'\\''");
+          curlLines.push(`  -F "${key}=${safeVal}" \\`);
+        }
       }
     }
+
+    console.log(`\n==== [TEST ENDPOINT cURL] ====\n${curlLines.join('\n').replace(/ \\$/, '')}\n==============================\n`);
 
     // Construct a synthetic NextRequest to feed into runEndpoint.
     // We add ?sync=true to force synchronous execution.
     const url = new URL(`/api/v1/${serviceSlug}?sync=true`, req.url);
-    
+
     // Inject the apiKeyId so the runner knows which Profile to load overrides for
     const headers = new Headers(req.headers);
     if (apiKeyId) headers.set('x-api-key-id', apiKeyId);
     if (session.user.id) headers.set('x-user-id', session.user.id);
-    
+
     // Remove content-type and content-length because the new FormData body 
     // will generate its own boundary and length.
     headers.delete('content-type');
@@ -69,6 +84,6 @@ export async function POST(req: NextRequest) {
   } catch (error: Omit<Error, "stack"> | unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error('[Admin Test Endpoint Error]', msg);
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { 'Content-Type': 'application/json' }});
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

@@ -11,6 +11,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       UPLOAD_DIR: /app/uploads
       OUTPUT_DIR: /app/outputs
+      MIGRATION: ${MIGRATION:-true}
     volumes:
       - uploads:/app/uploads
       - outputs:/app/outputs
