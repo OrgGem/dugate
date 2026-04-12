@@ -33,6 +33,21 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/v1/')) {
     const passedKey = request.headers.get('x-api-key') || '';
 
+    // If no API key provided, check for NextAuth session (browser UI calls)
+    if (!passedKey) {
+      const token = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET || 'fallback-dev-secret-12345',
+      });
+      if (token) {
+        // Authenticated UI user — allow without API key
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.delete('x-api-key-id');
+        if (token.sub) requestHeaders.set('x-user-id', token.sub);
+        return NextResponse.next({ request: { headers: requestHeaders } });
+      }
+    }
+
     try {
       // Use INTERNAL_API_URL if UAT host isn't resolvable inside the container, fallback to request.url
       const baseUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_APP_URL || request.url;

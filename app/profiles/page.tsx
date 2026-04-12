@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -619,26 +619,59 @@ function EndpointGroup({ slug, eps, apiKeyId, allConnectors, onUpdated }: {
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const enabledCount = eps.filter(ep => ep.enabled).length;
+  const isWorkflowGroup = eps.some((ep: any) => ep.isWorkflow);
+
+  const accentClass = isWorkflowGroup
+    ? {
+        border: 'border-purple-200 dark:border-purple-800 bg-purple-50/10 dark:bg-purple-900/10',
+        text: 'text-purple-600 dark:text-purple-400',
+        borderLeft: 'border-purple-500',
+        badge: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300',
+        btnActive: 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400',
+      }
+    : {
+        border: 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/10 dark:bg-indigo-900/10',
+        text: 'text-indigo-600 dark:text-indigo-400',
+        borderLeft: 'border-indigo-500',
+        badge: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300',
+        btnActive: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400',
+      };
 
   return (
-    <div className={`mb-4 modern-card border transition-all duration-300 ${isExpanded ? 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/10 dark:bg-indigo-900/10 shadow-sm' : 'border-border bg-background'}`}>
+    <div className={`mb-4 modern-card border transition-all duration-300 ${isExpanded ? `${accentClass.border} shadow-sm` : 'border-border bg-background'}`}>
       <div
         className="flex items-center justify-between p-4 cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <h3 className="text-sm font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 px-2 border-l-4 border-indigo-500 flex items-center gap-2">
-          <span>{slug} Endpoints</span>
-          <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold tracking-normal">
+        <h3 className={`text-sm font-extrabold uppercase tracking-widest ${accentClass.text} px-2 border-l-4 ${accentClass.borderLeft} flex items-center gap-2`}>
+          <span>{isWorkflowGroup ? '⚡ Business Workflows' : `${slug} Endpoints`}</span>
+          <span className={`${accentClass.badge} text-[10px] px-2 py-0.5 rounded-full font-bold tracking-normal`}>
             {enabledCount}/{eps.length} BẬT
           </span>
+          {isWorkflowGroup && (
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-purple-200/80 text-purple-800 dark:bg-purple-800/50 dark:text-purple-200 px-2 py-0.5 rounded-sm">
+              Code-Driven
+            </span>
+          )}
         </h3>
-        <button className={`p-1.5 rounded-lg transition-all duration-200 ${isExpanded ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400' : 'hover:bg-muted text-muted-foreground group-hover:text-foreground'}`}>
+        <button className={`p-1.5 rounded-lg transition-all duration-200 ${isExpanded ? accentClass.btnActive : 'hover:bg-muted text-muted-foreground group-hover:text-foreground'}`}>
           <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
         </button>
       </div>
 
       {isExpanded && (
         <div className="p-4 pt-0">
+          {isWorkflowGroup && (
+            <div className="mb-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-800/50 rounded-lg p-3 text-xs text-purple-700 dark:text-purple-300 leading-relaxed flex gap-2 items-start">
+              <Code className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-purple-900 dark:text-purple-100">Workflow Orchestration:</strong>{' '}
+                Các workflow được điều phối bằng code TypeScript (trong <code className="bg-purple-100 dark:bg-purple-900/50 px-1 py-0.5 rounded border border-purple-200/50 dark:border-purple-800/50 font-semibold">{`lib/pipelines/workflows/`}</code>). 
+                Prompt và pipeline steps được quản lý trong code, không qua cấu hình trực quan. 
+                Tại đây chỉ quản lý <strong>Bật/Tắt</strong> và <strong>Parameters</strong> cho mỗi Client.
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
             {eps.map((ep: any) => (
               <ProfileEndpointCard
@@ -1520,7 +1553,8 @@ function ProfileEndpointCard({
               </div>
             )}
 
-            {/* PIPELINE PROCESSORS + CONNECTION ROUTING */}
+            {/* PIPELINE PROCESSORS + CONNECTION ROUTING — Hidden for workflows (code-driven) */}
+            {!endpoint.isWorkflow && (
             <div className="sm:col-span-2 mt-4 pt-4 border-t border-border/50">
               <div
                 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 cursor-pointer hover:bg-muted/50 w-fit p-1.5 -ml-1.5 rounded transition-colors select-none"
@@ -1732,6 +1766,12 @@ function ProfileEndpointCard({
                 </>
               )}
             </div>
+            )}
+
+            {/* WORKFLOW PROMPT MANAGEMENT — shown only for workflow endpoints */}
+            {endpoint.isWorkflow && (
+              <WorkflowPromptPanel endpoint={endpoint} paramsObj={paramsObj} setParamsObj={setParamsObj} />
+            )}
 
             <div className="sm:col-span-2 flex justify-end gap-3 pt-6 pb-2 border-t border-border/50 bg-card/50 sticky bottom-0 z-10">
               <button
@@ -1750,6 +1790,365 @@ function ProfileEndpointCard({
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Workflow Prompt Panel ──────────────────────────────────────────────────────
+
+interface WorkflowStep {
+  key: string;
+  label: string;
+  icon: string;
+  connector: string;
+  description: string;
+  variables: Array<{ name: string; desc: string }>;
+  codePromptPreview: string;
+  hasDynamicSections: boolean;
+  dynamicWarning?: string;
+}
+
+const DISBURSEMENT_STEPS: WorkflowStep[] = [
+  {
+    key: 'classify',
+    label: 'Bước 1: AI Classify',
+    icon: '🏷️',
+    connector: 'ext-classifier',
+    description: 'Phân loại tài liệu & tách logical documents',
+    variables: [
+      { name: '{{file_name}}', desc: 'Tên file đang xử lý' },
+      { name: '{{categories}}', desc: 'Danh sách categories cho phép' },
+    ],
+    codePromptPreview: `Phân loại tài liệu "{{file_name}}" vào các nhóm.
+
+Với mỗi nhóm tài liệu phát hiện được trong file, trả về:
+- id: mã định danh duy nhất
+- label: tên loại tài liệu  
+- pages: phạm vi trang (ví dụ: "1-5", "6", "all")
+- confidence: độ tin cậy (0.0 - 1.0)
+
+Danh mục cho phép:
+Hợp đồng tín dụng, Giấy nhận nợ, Hóa đơn GTGT, ...
+
+Return JSON:
+{ "document_type": "...", "confidence": 0.95, "logical_documents": [...] }`,
+    hasDynamicSections: false,
+  },
+  {
+    key: 'extract',
+    label: 'Bước 2: OCR & Bóc tách',
+    icon: '🔍',
+    connector: 'ext-data-extractor',
+    description: 'Trích xuất dữ liệu từ từng file (song song)',
+    variables: [
+      { name: '{{file_name}}', desc: 'Tên file đang xử lý' },
+      { name: '{{doc_sections}}', desc: 'Danh sách tài liệu + fields cần extract (tự động từ Bước 1)' },
+    ],
+    codePromptPreview: `Bóc tách dữ liệu từ file "{{file_name}}".
+
+Tài liệu chứa N phần:
+{{doc_sections}}
+(⬆️ Nội dung dynamic — tự tạo từ kết quả Bước 1)
+
+Đọc toàn bộ file, tìm và trích xuất các trường yêu cầu.
+Nếu không tìm thấy giá trị, ghi null.
+
+Return JSON:
+{ "file": "...", "documents": [{ "label": "...", "fields": {...} }] }`,
+    hasDynamicSections: true,
+    dynamicWarning: 'Phần {{doc_sections}} được tự động tạo từ kết quả classify (Bước 1). Nếu override prompt, phần dynamic này sẽ không được chèn — bạn cần tự viết hướng dẫn extract cụ thể.',
+  },
+  {
+    key: 'crosscheck',
+    label: 'Bước 3: Đối chiếu',
+    icon: '⚖️',
+    connector: 'ext-fact-verifier',
+    description: 'Đối chiếu chéo giữa các tài liệu & Nghị quyết',
+    variables: [
+      { name: '{{extraction_summary}}', desc: 'Tóm tắt kết quả bóc tách từ Bước 2' },
+      { name: '{{extraction_detail}}', desc: 'JSON chi tiết các file đã extract' },
+      { name: '{{reference_data}}', desc: 'Nghị quyết tham chiếu (từ API parameter)' },
+    ],
+    codePromptPreview: `Đối chiếu chéo dữ liệu đã bóc tách với Nghị quyết.
+
+Dữ liệu bóc tách: {{extraction_summary}}
+Chi tiết: {{extraction_detail}}
+Nghị quyết: {{reference_data}}
+
+Kiểm tra: Hạn mức, Lãi suất, Thời hạn, MĐSDV, Thông tin KH, Chữ ký...
+
+Return JSON:
+{ "verdict": "PASS|FAIL|WARNING", "score": 85, "checks": [...] }`,
+    hasDynamicSections: true,
+    dynamicWarning: 'Phần {{extraction_summary}} và {{extraction_detail}} được tự động tạo từ kết quả Bước 2. Override prompt cần giữ các biến này.',
+  },
+  {
+    key: 'report',
+    label: 'Bước 4: Soạn Tờ trình',
+    icon: '📋',
+    connector: 'ext-content-gen',
+    description: 'Soạn tờ trình đánh giá tuân thủ cho Ban Giám đốc',
+    variables: [
+      { name: '{{classify_summary}}', desc: 'Tóm tắt kết quả phân loại' },
+      { name: '{{extraction_data}}', desc: 'Dữ liệu bóc tách đầy đủ' },
+      { name: '{{crosscheck_verdict}}', desc: 'Verdict + score từ Bước 3' },
+      { name: '{{checks_summary}}', desc: 'Tóm tắt các check PASS/FAIL/WARNING' },
+    ],
+    codePromptPreview: `Soạn Tờ trình đề nghị giải ngân cho Ban Giám đốc.
+
+Kết quả phân loại: {{classify_summary}}
+Kết quả bóc tách: {{extraction_data}}
+Kết quả đối chiếu ({{crosscheck_verdict}}): {{checks_summary}}
+
+Yêu cầu:
+- Văn phong: Trang trọng, nghiệp vụ ngân hàng
+- Đối tượng: Ban Giám đốc / Hội đồng Tín dụng
+- Bao gồm: Tóm tắt hồ sơ, Kết quả đối chiếu, Đề xuất, Lưu ý
+- Tối đa 1500 từ
+
+Viết Tờ trình bằng Markdown.`,
+    hasDynamicSections: true,
+    dynamicWarning: 'Nhiều biến dynamic được chèn từ Bước 1-3. Override prompt cần giữ đúng cấu trúc output yêu cầu.',
+  },
+];
+
+function WorkflowPromptPanel({ 
+  endpoint,
+  paramsObj,
+  setParamsObj
+}: { 
+  endpoint: any;
+  paramsObj: Record<string, { value: any, isLocked: boolean }>;
+  setParamsObj: React.Dispatch<React.SetStateAction<Record<string, { value: any, isLocked: boolean }>>>;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Initialize from paramsObj
+  const initialOverrides = useMemo(() => {
+    const saved = paramsObj['_workflowPrompts']?.value || {};
+    const state: Record<string, { enabled: boolean; prompt: string }> = {};
+    for (const [key, val] of Object.entries(saved)) {
+      if (typeof val === 'string' && val.trim() !== '') {
+        state[key] = { enabled: true, prompt: val };
+      }
+    }
+    return state;
+  }, []);
+
+  const [overrides, setOverrides] = useState<Record<string, { enabled: boolean; prompt: string }>>(initialOverrides);
+
+  // Sync to parent paramsObj whenever local overrides change
+  useEffect(() => {
+    const activePrompts: Record<string, string> = {};
+    let hasActive = false;
+    for (const [key, ov] of Object.entries(overrides)) {
+      if (ov.enabled && ov.prompt.trim()) {
+        activePrompts[key] = ov.prompt.trim();
+        hasActive = true;
+      }
+    }
+
+    setParamsObj(prev => {
+      const prevPromptsStr = JSON.stringify(prev['_workflowPrompts']?.value || {});
+      const newPromptsStr = JSON.stringify(activePrompts);
+      if (prevPromptsStr === newPromptsStr) return prev; // No actual change
+
+      const nextParams = { ...prev };
+      if (hasActive) {
+        nextParams['_workflowPrompts'] = { value: activePrompts, isLocked: false };
+      } else {
+        delete nextParams['_workflowPrompts'];
+      }
+      return nextParams;
+    });
+  }, [overrides, setParamsObj]);
+
+  const toggleOverride = (stepKey: string) => {
+    setOverrides(prev => ({
+      ...prev,
+      [stepKey]: prev[stepKey]?.enabled
+        ? { enabled: false, prompt: prev[stepKey]?.prompt || '' }
+        : { enabled: true, prompt: prev[stepKey]?.prompt || '' },
+    }));
+  };
+
+  const updatePrompt = (stepKey: string, value: string) => {
+    setOverrides(prev => ({
+      ...prev,
+      [stepKey]: { ...prev[stepKey], enabled: true, prompt: value },
+    }));
+  };
+
+  const activeOverrides = Object.entries(overrides).filter(([, v]) => v.enabled).length;
+  const steps = DISBURSEMENT_STEPS;
+
+  return (
+    <div className="sm:col-span-2 mt-4 pt-4 border-t border-border/50">
+      <div
+        className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-4 cursor-pointer hover:bg-purple-50/50 dark:hover:bg-purple-950/30 w-fit p-1.5 -ml-1.5 rounded transition-colors select-none"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+        <Code className="w-4 h-4" />
+        Workflow Prompts ({steps.length} Bước DAG)
+        {activeOverrides > 0 && (
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 rounded-sm ml-1">
+            {activeOverrides} Override
+          </span>
+        )}
+        <span className="text-[10px] font-bold uppercase tracking-wider bg-purple-200/80 text-purple-800 dark:bg-purple-800/50 dark:text-purple-200 px-2 py-0.5 rounded-sm">
+          Code-Driven
+        </span>
+      </div>
+
+      {isOpen && (
+        <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          {/* Info banner */}
+          <div className="bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-800/50 rounded-lg p-3 text-xs text-purple-700 dark:text-purple-300 leading-relaxed flex gap-2 items-start">
+            <Code className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-purple-900 dark:text-purple-100">Workflow Orchestration:</strong>{' '}
+              Prompt mặc định được định nghĩa trong code TypeScript. Bạn có thể <strong>override từng bước</strong> tại đây.
+              Khi override, prompt sẽ được dùng thay cho code mặc định. Tắt override → quay về prompt gốc trong code.
+            </div>
+          </div>
+
+          {/* Steps */}
+          {steps.map((step, idx) => {
+            const override = overrides[step.key];
+            const isOverridden = override?.enabled === true;
+
+            return (
+              <div key={step.key} className="relative">
+                {idx > 0 && (
+                  <div className="flex justify-center -mt-1.5 mb-1.5">
+                    <div className="w-0.5 h-4 bg-purple-200 dark:bg-purple-800" />
+                  </div>
+                )}
+
+                <div className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                  isOverridden
+                    ? 'border-amber-300 dark:border-amber-800 bg-amber-50/20 dark:bg-amber-950/10 shadow-sm'
+                    : 'border-purple-200/50 dark:border-purple-800/50 bg-background'
+                }`}>
+                  {/* Step header */}
+                  <div className="px-4 py-3 flex items-center justify-between bg-muted/30 border-b border-border/30">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg" aria-hidden="true">{step.icon}</span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold">{step.label}</span>
+                          <span className="text-[10px] bg-background border px-1.5 py-0.5 rounded text-muted-foreground font-mono">{step.connector}</span>
+                          {isOverridden && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 px-2 py-0.5 rounded-sm">
+                              Override Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => toggleOverride(step.key)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0 border ${
+                        isOverridden
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/70 border-amber-200 dark:border-amber-800'
+                          : 'bg-background text-foreground hover:bg-purple-50 dark:hover:bg-purple-950/30 border-border hover:border-purple-300 dark:hover:border-purple-700'
+                      }`}
+                    >
+                      {isOverridden ? '✕ Tắt Override' : '✏️ Override Prompt'}
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-4 space-y-3">
+                    {isOverridden ? (
+                      <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                        {step.hasDynamicSections && (
+                          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-300 flex gap-2 items-start">
+                            <FlaskConical className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="text-amber-900 dark:text-amber-100">Lưu ý:</strong>{' '}
+                              {step.dynamicWarning}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mr-1 self-center">Biến:</span>
+                          {step.variables.map(v => (
+                            <button
+                              key={v.name}
+                              onClick={() => updatePrompt(step.key, (override?.prompt || '') + v.name)}
+                              className="text-[11px] font-mono bg-purple-100/80 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded border border-purple-200/50 dark:border-purple-800/50 hover:bg-purple-200/80 dark:hover:bg-purple-800/50 transition-colors cursor-pointer"
+                              title={v.desc}
+                            >
+                              {v.name}
+                            </button>
+                          ))}
+                        </div>
+
+                        <textarea
+                          value={override?.prompt || ''}
+                          onChange={(e) => updatePrompt(step.key, e.target.value)}
+                          className="w-full text-sm font-mono p-3 rounded-lg border border-amber-200 dark:border-amber-900 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 bg-white dark:bg-card outline-none leading-relaxed min-h-[180px] resize-y"
+                          placeholder={`Nhập prompt override cho ${step.label}...\n\nSử dụng các biến ở trên để chèn data từ pipeline.`}
+                        />
+
+                        <details className="group">
+                          <summary className="text-xs font-semibold text-muted-foreground cursor-pointer outline-none w-fit hover:text-foreground transition-colors flex items-center gap-1.5">
+                            <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+                            Xem Code Prompt gốc (Tham khảo)
+                          </summary>
+                          <pre className="mt-2 text-[11px] text-muted-foreground whitespace-pre-wrap font-mono p-3 bg-muted/50 border border-border rounded-lg leading-relaxed max-h-[250px] overflow-y-auto">
+                            {step.codePromptPreview}
+                          </pre>
+                        </details>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Code Prompt (Mặc định)</span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                            Active
+                          </span>
+                        </div>
+                        <pre className="text-[11px] text-muted-foreground font-mono bg-muted/30 p-3 rounded-lg border border-border/50 whitespace-pre-wrap max-h-[150px] overflow-y-auto leading-relaxed cursor-text select-all">
+                          {step.codePromptPreview}
+                        </pre>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          <span className="text-[10px] text-muted-foreground/70">Biến dynamic:</span>
+                          {step.variables.map(v => (
+                            <span
+                              key={v.name}
+                              className="text-[10px] font-mono text-purple-600/60 dark:text-purple-400/60"
+                              title={v.desc}
+                            >
+                              {v.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {activeOverrides > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-300 flex gap-2 items-center mt-2">
+              <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>{activeOverrides}</strong> prompt override đang active. Nhấn <strong>&ldquo;Lưu Toàn bộ Thiết lập&rdquo;</strong> để áp dụng.
+                <span className="text-amber-500/80 ml-1">(Đã đồng bộ với Parameters — sẽ được lưu vào DB)</span>
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

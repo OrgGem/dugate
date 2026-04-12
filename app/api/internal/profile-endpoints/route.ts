@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
         connectionsOverride: dbRecord?.connectionsOverride ? JSON.parse(dbRecord.connectionsOverride as string) : null,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         jobPriority: (dbRecord as any)?.jobPriority ?? 'MEDIUM',
+        isWorkflow: endpointDef.isWorkflow ?? false,
         id: dbRecord?.id ?? null,
         extConnections,
       };

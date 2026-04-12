@@ -21,6 +21,8 @@ export interface SubCaseDef {
   parameters: Record<string, ParamSchema>;
   /** Ordered list of ExternalApiConnection slugs to execute as pipeline */
   connections: string[];
+  /** If true, this endpoint is a code-driven workflow (not a linear pipeline) */
+  isWorkflow?: boolean;
 }
 
 export interface ServiceDef {
@@ -366,6 +368,25 @@ export const SERVICE_REGISTRY: Record<string, ServiceDef> = {
       },
     },
   },
+
+  // ── 7. Workflows ──────────────────────────────────────────────────────────
+  workflows: {
+    slug: 'workflows',
+    displayName: 'Business Workflows',
+    route: 'POST /api/v1/workflows',
+    discriminatorName: 'process',
+    subCases: {
+      'disbursement': {
+        displayName: 'Quy trình đối chiếu giải ngân',
+        description: 'Pipeline Orchestrator xử lý từ Tách file -> Bóc tách song song -> Đối chiếu chéo -> Tờ trình.',
+        parameters: {
+          resolution_data: PARAMS.reference_data,
+        },
+        connections: [], // Orchestrator pattern uses custom code, not linear engine connections
+        isWorkflow: true,
+      },
+    },
+  },
 };
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -382,6 +403,7 @@ export function getAllEndpointSlugs() {
       discriminatorValue: caseKey !== '_default' ? caseKey : null,
       description: sub.description,
       connections: sub.connections,
+      isWorkflow: sub.isWorkflow ?? false,
       // Map back to arrays for backward compatibility or return schemas directly
       parameters: Object.keys(sub.parameters),
       parametersSchema: sub.parameters,

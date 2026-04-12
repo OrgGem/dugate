@@ -20,5 +20,9 @@ export async function saveUploadedFile(
   const buffer = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(filePath, buffer);
 
-  return { path: filePath, size: buffer.length };
+  // Normalize path to use forward slashes (/) for cross-platform compatibility 
+  // (Windows host 'npm run dev' -> Linux Docker worker)
+  const normalizedPath = filePath.replace(/\\/g, '/');
+
+  return { path: normalizedPath, size: buffer.length };
 }

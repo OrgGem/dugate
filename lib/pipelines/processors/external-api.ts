@@ -81,15 +81,18 @@ export async function runExternalApiProcessor(
 ): Promise<ProcessorResult> {
   const startedAt = Date.now();
 
-  // ── 1. Resolve prompt (override → default) ─────────────────────────────────
-  const rawPrompt = override?.promptOverride?.trim()
-    ? override.promptOverride
-    : connection.defaultPrompt;
+  // ── 1. Resolve prompt (code _prompt → profile override → DB default) ──────
+  // Priority: variables._prompt (code/workflow) > profile override > connector default
+  const rawPrompt = typeof ctx.variables._prompt === 'string'
+    ? ctx.variables._prompt
+    : override?.promptOverride?.trim()
+      ? override.promptOverride
+      : connection.defaultPrompt;
 
-  // Interpolate {{variable}} từ pipeline variables
+  // Interpolate {{variable}} từ pipeline variables (no-op if no placeholders)
   const resolvedPrompt = interpolateVariables(rawPrompt, ctx.variables);
 
-  ctx.logger.info(`Formatting prompt for ${connection.slug}`, { promptLength: resolvedPrompt.length });
+  ctx.logger.info(`Formatting prompt for ${connection.slug}`, { promptLength: resolvedPrompt.length, source: ctx.variables._prompt ? 'code' : override?.promptOverride ? 'profile' : 'default' });
 
   // ── 1.5 Intercept with Internal Parsers (if applicable) ────────────────────
   if (ctx.filePaths.length === 1) {

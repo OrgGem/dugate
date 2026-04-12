@@ -14,8 +14,8 @@ services:
       MIGRATION: ${MIGRATION:-true}
       REDIS_URL: redis://redis:6379
     volumes:
-      - uploads:/app/uploads
-      - outputs:/app/outputs
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
     depends_on:
       db:
         condition: service_healthy
@@ -73,8 +73,8 @@ services:
       OUTPUT_DIR: /app/outputs
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
     volumes:
-      - uploads:/app/uploads
-      - outputs:/app/outputs
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
     depends_on:
       db:
         condition: service_healthy
@@ -84,6 +84,3 @@ services:
 
 volumes:
   pgdata:
-  uploads:
-  outputs:
-

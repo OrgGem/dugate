@@ -72,7 +72,7 @@ export async function runPipeline(operationId: string, correlationId?: string, j
   // Parse filesJson → filePaths / fileNames
   const filesData: Array<{ name: string; path: string; mime: string; size: number }> =
     operation.filesJson ? JSON.parse(operation.filesJson) : [];
-  const filePaths = filesData.map((f) => f.path);
+  const filePaths = filesData.map((f) => f.path?.replace(/\\/g, '/'));
   const fileNames = filesData.map((f) => f.name);
 
   const stepsResult: Array<{

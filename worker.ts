@@ -9,6 +9,7 @@ import 'dotenv/config';
 import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { runPipeline } from './lib/pipelines/engine';
+import { runWorkflow } from './lib/pipelines/workflow-engine';
 import { PIPELINE_QUEUE_NAME, type PipelineJobData } from './lib/queue/pipeline-queue';
 
 // ─── Redis connection ──────────────────────────────────────────────────────────
@@ -33,9 +34,15 @@ const worker = new Worker<PipelineJobData>(
   PIPELINE_QUEUE_NAME,
   async (job: Job<PipelineJobData>) => {
     const { operationId, correlationId } = job.data;
-    console.log(`[Worker] Processing job ${job.id} → operationId=${operationId}`);
+    console.log(`[Worker] Processing job ${job.id} (${job.name}) → operationId=${operationId}`);
 
-    await runPipeline(operationId, correlationId, job);
+    // Route: workflow endpoints use workflow-engine, all others use sequential pipeline
+    const isWorkflow = job.name.includes('workflows:');
+    if (isWorkflow) {
+      await runWorkflow(operationId, correlationId, job);
+    } else {
+      await runPipeline(operationId, correlationId, job);
+    }
 
     console.log(`[Worker] Finished job ${job.id} → operationId=${operationId}`);
   },

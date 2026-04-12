@@ -41,6 +41,8 @@ export interface SubmitPipelineParams {
   userId?: string;
   executeSync?: boolean;
   correlationId?: string;
+  /** Override DISABLE_HISTORY env — set false to keep operation visible for polling */
+  disableHistory?: boolean;
 }
 
 export type SubmitPipelineResult =
@@ -150,7 +152,7 @@ export async function submitPipelineJob(
 
   // ── 6. Create Operation in DB ─────────────────────────────────────────────
   // When DISABLE_HISTORY=true, soft-delete immediately so it won't appear in history queries
-  const disableHistory = process.env.DISABLE_HISTORY === 'true';
+  const disableHistory = params.disableHistory ?? (process.env.DISABLE_HISTORY === 'true');
 
   let operation = await prisma.operation.create({
     data: {

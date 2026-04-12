@@ -18,6 +18,8 @@ export function formatOperationResponse(op: any) {
       progress_message: op.progressMessage,
       create_time: op.createdAt,
       update_time: op.updatedAt,
+      // Include intermediate step results for real-time polling
+      pipeline_steps: op.stepsResultJson ? JSON.parse(op.stepsResultJson) : [],
     },
   };
 

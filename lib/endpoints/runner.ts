@@ -14,7 +14,7 @@ import crypto from 'crypto';
 
 // ─── Error helper ────────────────────────────────────────────────────────────
 
-function apiError(status: number, title: string, detail: string, type?: string): NextResponse {
+export function apiError(status: number, title: string, detail: string, type?: string): NextResponse {
   return NextResponse.json(
     {
       type: type ?? `https://dugate.vn/errors/${title.toLowerCase().replace(/\s+/g, '-')}`,
@@ -32,7 +32,7 @@ function apiError(status: number, title: string, detail: string, type?: string):
  * Normalize file inputs: accepts both `file` (single) and `files[]` (multi).
  * Always returns an array for consistent downstream handling.
  */
-function normalizeFiles(form: FormData): File[] {
+export function normalizeFiles(form: FormData): File[] {
   const result: File[] = [];
 
   // Lấy danh sách files[] (cho các endpoint nạp nhiều file)
