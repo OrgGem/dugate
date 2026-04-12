@@ -18,11 +18,14 @@ import {
 } from '@/lib/pipelines/workflow-engine';
 
 import {
+  type ClassifyData,
   type ClassifyFileResult,
   type ClassifyResult,
   type ExtractResult,
+  type ExtractFileResult,
   type CrosscheckResult,
   type MergedClassifyData,
+  type LogicalDocument,
   buildClassifyPrompt,
   parseClassifyResult,
   mergeClassifyResults,
@@ -65,7 +68,7 @@ export async function runDisbursement(ctx: WorkflowContext): Promise<void> {
     per_file: [],
     logical_documents: [],
   };
-  let allLogicalDocs: any[] = [];
+  let allLogicalDocs: LogicalDocument[] = [];
 
   // Restore step-specific variables if resuming from a checkpoint
   if (resumeFromStep > 0 && ctx.stepsResult.length > 0) {
@@ -97,7 +100,7 @@ export async function runDisbursement(ctx: WorkflowContext): Promise<void> {
       try {
         const result = await enqueueSubStep(ctx, 'ext-classifier', buildClassifyPrompt(file.name, ctx.promptOverrides.classify), singleFileJson);
         const { classifyData, logicalDocs } = parseClassifyResult(result.content, file.name);
-        return { fileName: file.name, classifyData: parseDeep(classifyData), logicalDocs, subOperationId: result.operation.id, status: 'success' };
+        return { fileName: file.name, classifyData: parseDeep(classifyData) as ClassifyData, logicalDocs, subOperationId: result.operation.id, status: 'success' };
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         logger.error(`[WORKFLOW] Classify failed for ${file.name}: ${errMsg}`);
@@ -154,7 +157,7 @@ export async function runDisbursement(ctx: WorkflowContext): Promise<void> {
         const result = await enqueueSubStep(ctx, 'ext-data-extractor', buildExtractPrompt(docsForFile, file.name, ctx.promptOverrides.extract), singleFileJson);
         
         // Clean up double-escaping: Deeply parse recursive stringified content
-        const cleanedResult = parseDeep(result);
+        const cleanedResult = parseDeep(result) as { content: unknown; extractedData: unknown; operation: typeof result.operation };
 
         return {
           file_name: file.name,
