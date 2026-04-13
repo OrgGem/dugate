@@ -44,6 +44,7 @@ export async function middleware(request: NextRequest) {
         const requestHeaders = new Headers(request.headers);
         requestHeaders.delete('x-api-key-id');
         if (token.sub) requestHeaders.set('x-user-id', token.sub);
+        if (token.role) requestHeaders.set('x-user-role', token.role as string);
         return NextResponse.next({ request: { headers: requestHeaders } });
       }
     }

@@ -28,6 +28,7 @@ export default function HeaderNav() {
   if (pathname === '/login' || pathname === '/setup') return null;
 
   const isAdmin = session?.user?.role === 'ADMIN';
+  const isViewer = session?.user?.role === 'VIEWER';
 
   return (
     <header className="glass-header sticky top-0 z-50">
@@ -66,33 +67,37 @@ export default function HeaderNav() {
             <Clock className="w-4 h-4" />
             Lịch sử
           </Link>
-          <Link
-            href="/settings"
-            className={`pill-nav-item ${
-              pathname.startsWith('/settings') ? 'pill-nav-active' : 'pill-nav-inactive'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            Cài đặt
-          </Link>
-          <Link
-            href="/profiles"
-            className={`pill-nav-item ${
-              pathname.startsWith('/profiles') ? 'pill-nav-active' : 'pill-nav-inactive'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            Profiles
-          </Link>
-          <Link
-            href="/api-connections"
-            className={`pill-nav-item ${
-              pathname.startsWith('/api-connections') ? 'pill-nav-active' : 'pill-nav-inactive'
-            }`}
-          >
-            <PlugZap className="w-4 h-4" />
-            API Connections
-          </Link>
+          {!isViewer && (
+            <>
+              <Link
+                href="/settings"
+                className={`pill-nav-item ${
+                  pathname.startsWith('/settings') ? 'pill-nav-active' : 'pill-nav-inactive'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                Cài đặt
+              </Link>
+              <Link
+                href="/profiles"
+                className={`pill-nav-item ${
+                  pathname.startsWith('/profiles') ? 'pill-nav-active' : 'pill-nav-inactive'
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                Profiles
+              </Link>
+              <Link
+                href="/api-connections"
+                className={`pill-nav-item ${
+                  pathname.startsWith('/api-connections') ? 'pill-nav-active' : 'pill-nav-inactive'
+                }`}
+              >
+                <PlugZap className="w-4 h-4" />
+                API Connections
+              </Link>
+            </>
+          )}
           
           <div className="w-[1px] h-6 bg-border mx-2" />
           
@@ -120,7 +125,7 @@ export default function HeaderNav() {
                       {session.user.username || session.user.name}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {session.user.role === 'ADMIN' ? '🔑 Quản trị viên' : '👤 Người dùng'}
+                      {session.user.role === 'ADMIN' ? '🔑 Quản trị viên' : session.user.role === 'VIEWER' ? '👁 Chỉ xem' : '👤 Người dùng'}
                     </p>
                   </div>
 

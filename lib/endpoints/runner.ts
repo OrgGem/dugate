@@ -10,6 +10,7 @@ import { EXTRACT_PRESETS } from './presets';
 import { Logger } from '@/lib/logger';
 import { loadProfileEndpoint, mergeParameters, parseConnectionSteps, getFileUrlAuthConfig } from './profile-resolver';
 import { type FileUrlEntry, MAX_FILE_URL_ENTRIES } from '@/lib/file-url-downloader';
+import { canMutate } from '@/lib/rbac';
 import crypto from 'crypto';
 
 // ─── Error helper ─────────────────────────────────────────────────────────────
@@ -74,6 +75,12 @@ export async function runEndpoint(serviceSlug: string, req: NextRequest): Promis
     const service = SERVICE_REGISTRY[serviceSlug];
     if (!service) {
       return apiError(404, 'Service Not Found', `Service '${serviceSlug}' is not registered.`);
+    }
+
+    // ── 1b. VIEWER role guard (read-only users cannot submit jobs) ─────────
+    const userRole = req.headers.get('x-user-role');
+    if (userRole && !canMutate(userRole)) {
+      return apiError(403, 'Forbidden', 'Read-only users cannot submit jobs.');
     }
 
     const form = await req.formData();

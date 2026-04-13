@@ -248,12 +248,16 @@ model AppSetting {
 // Users & Authentication
 // ═══════════════════════════════════════════════
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String // Hashed via bcrypt
-  role      String   @default("USER") // ADMIN | USER
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  username    String   @unique
+  password    String   @default("") // Hashed via bcrypt, empty for OIDC users
+  role        String   @default("USER") // ADMIN | USER | VIEWER
+  provider    String?  // "oidc" | null (null = credentials)
+  providerSub String?  @unique // OIDC subject ID for linking
+  email       String?  // from OIDC claims
+  displayName String?  // from OIDC claims
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   operations Operation[]
 }

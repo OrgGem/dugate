@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
-import { FileText, LogIn, AlertCircle, Eye, EyeOff, BrainCircuit } from 'lucide-react';
+import { FileText, LogIn, AlertCircle, Eye, EyeOff, BrainCircuit, Shield } from 'lucide-react';
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -13,6 +13,13 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
+  const oidcEnabled = process.env.NEXT_PUBLIC_OIDC_ENABLED === 'true';
+
+  const handleSsoLogin = () => {
+    setSsoLoading(true);
+    signIn('oidc', { callbackUrl });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +112,29 @@ function LoginForm() {
         )}
         {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
       </button>
+
+      {oidcEnabled && (
+        <>
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">hoặc</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <button
+            type="button"
+            onClick={handleSsoLogin}
+            disabled={ssoLoading}
+            className="modern-button btn-secondary w-full gap-2"
+          >
+            {ssoLoading ? (
+              <div className="w-5 h-5 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+            ) : (
+              <Shield className="w-4 h-4" />
+            )}
+            {ssoLoading ? 'Đang chuyển hướng...' : 'Đăng nhập qua SSO'}
+          </button>
+        </>
+      )}
     </form>
   );
 }
