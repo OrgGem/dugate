@@ -87,7 +87,7 @@ export async function runExternalApiProcessor(
   if (ctx.filePaths.length > 0) {
     const openAsBlob = (fs as FsWithOpenAsBlob).openAsBlob;
     if (!openAsBlob) {
-      throw new Error('Current Node runtime does not support fs.openAsBlob; cannot attach files safely.');
+      throw new Error('Node.js 20+ is required for fs.openAsBlob support; cannot attach files safely.');
     }
 
     for (let i = 0; i < ctx.filePaths.length; i++) {

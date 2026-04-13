@@ -59,10 +59,7 @@ export async function GET(
     try {
       const outputBaseDir = path.resolve(process.env.OUTPUT_DIR ?? './outputs');
       const resolvedOutputPath = path.resolve(op.outputFilePath);
-      if (
-        resolvedOutputPath !== outputBaseDir &&
-        !resolvedOutputPath.startsWith(`${outputBaseDir}${path.sep}`)
-      ) {
+      if (!resolvedOutputPath.startsWith(`${outputBaseDir}${path.sep}`)) {
         return NextResponse.json(
           { type: 'https://dugate.vn/errors/forbidden', title: 'Forbidden', status: 403, detail: 'Access denied.' },
           { status: 403 }
