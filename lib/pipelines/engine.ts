@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { runExternalApiProcessor } from '@/lib/pipelines/processors/external-api';
 import { Logger } from '@/lib/logger';
 import type { Job } from 'bullmq';
+import { isPipelineStep } from '@/lib/pipelines/validate';
 
 export interface PipelineStep {
   processor: string;  // ExternalApiConnection slug
@@ -60,17 +61,6 @@ export interface ProcessorResult {
  */
 export async function runPipeline(operationId: string, correlationId?: string, job?: Job<any>): Promise<void> {
   const logger = new Logger({ correlationId, operationId }, job);
-
-  const isPipelineStep = (value: unknown): value is PipelineStep => {
-    if (typeof value !== 'object' || value === null) return false;
-    const v = value as Record<string, unknown>;
-    if (typeof v.processor !== 'string' || v.processor.length === 0) return false;
-    if (v.variables !== undefined && (typeof v.variables !== 'object' || v.variables === null || Array.isArray(v.variables))) return false;
-    if (v.stepId !== undefined && typeof v.stepId !== 'string') return false;
-    if (v.captureSession !== undefined && v.captureSession !== null && typeof v.captureSession !== 'string') return false;
-    if (v.injectSession !== undefined && v.injectSession !== null && typeof v.injectSession !== 'string') return false;
-    return true;
-  };
 
   const operation = await prisma.operation.findUnique({ where: { id: operationId } });
   if (!operation) {

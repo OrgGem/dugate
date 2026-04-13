@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { extractPipelineProcessors } from '@/lib/pipelines/validate';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -48,17 +49,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     operations: operations.map((op) => {
-      let pipeline: string[] = [];
-      try {
-        const parsed = JSON.parse(op.pipelineJson) as unknown;
-        if (Array.isArray(parsed)) {
-          pipeline = parsed
-            .map((s) => (typeof s === 'object' && s !== null ? (s as { processor?: unknown }).processor : undefined))
-            .filter((p): p is string => typeof p === 'string');
-        }
-      } catch {
-        pipeline = [];
-      }
+      const pipeline = extractPipelineProcessors(op.pipelineJson);
 
       return {
         name: `operations/${op.id}`,
