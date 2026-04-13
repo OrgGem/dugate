@@ -19,12 +19,17 @@ const logger = new Logger({ service: 'recover-stalled' });
 /** Operations RUNNING longer than this are considered stalled (default: 15 min) */
 const STALL_THRESHOLD_MS = parseInt(process.env.STALL_THRESHOLD_MS || '900000', 10);
 
-export async function POST(req: NextRequest) {
-  // Internal-only: only callable from within the cluster (middleware bypasses /api/internal/*)
-  // Additionally guard with a simple token for extra safety
-  const authHeader = req.headers.get('authorization');
+function hasValidInternalSecret(req: NextRequest): boolean {
   const internalSecret = process.env.INTERNAL_API_SECRET;
-  if (internalSecret && authHeader !== `Bearer ${internalSecret}`) {
+  if (!internalSecret) {
+    return false;
+  }
+  const authHeader = req.headers.get('authorization');
+  return authHeader === `Bearer ${internalSecret}`;
+}
+
+export async function POST(req: NextRequest) {
+  if (!hasValidInternalSecret(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -73,6 +78,10 @@ export async function POST(req: NextRequest) {
 
 // GET: status check — how many operations are currently stalled
 export async function GET(req: NextRequest) {
+  if (!hasValidInternalSecret(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const thresholdDate = new Date(Date.now() - STALL_THRESHOLD_MS);
   const count = await prisma.operation.count({
     where: { state: 'RUNNING', done: false, createdAt: { lt: thresholdDate } },

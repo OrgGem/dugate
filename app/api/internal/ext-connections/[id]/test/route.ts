@@ -4,11 +4,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { assertSafeUrl } from '@/lib/pipelines/processors/http-client';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const { id } = await params;
 
@@ -77,11 +85,18 @@ export async function POST(
     let responseBodyRaw = '';
     let mappedContent: unknown = null;
     let errorMessage: string | null = null;
-    let errorStack: string | null = null;
+    let safeUrl = '';
 
     // Generate curl command — auth headers and field values are redacted
     const SAFE_HEADERS = new Set(['accept', 'content-type']);
-    let curlCmd = `curl -X ${connection.httpMethod} '${connection.endpointUrl}' \\`;
+    try {
+      safeUrl = await assertSafeUrl(connection.endpointUrl);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ success: false, error: msg }, { status: 400 });
+    }
+
+    let curlCmd = `curl -X ${connection.httpMethod} '${safeUrl}' \\`;
     for (const k of Object.keys(headers)) {
       const displayVal = SAFE_HEADERS.has(k.toLowerCase()) ? headers[k] : '***';
       curlCmd += `\n  -H '${k}: ${displayVal}' \\`;
@@ -107,7 +122,7 @@ export async function POST(
 
     try {
       const isGetOrHead = connection.httpMethod === 'GET' || connection.httpMethod === 'HEAD';
-      const response = await fetch(connection.endpointUrl, {
+      const response = await fetch(safeUrl, {
         method: connection.httpMethod,
         headers,
         body: isGetOrHead ? undefined : formData,
@@ -150,7 +165,6 @@ export async function POST(
         if ('cause' in e && e.cause) {
            errorMessage += ` (Cause: ${(e.cause as Error).message || String(e.cause)})`;
         }
-        errorStack = e.stack ?? null;
       }
     } finally {
       clearTimeout(timeout);
@@ -165,7 +179,6 @@ export async function POST(
       responsePreview: responseBodyRaw,
       mappedContent,
       error: errorMessage,
-      errorStack,
       curlCmd
     });
   } catch (error: unknown) {

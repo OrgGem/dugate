@@ -12,7 +12,8 @@ const BYPASS_PREFIXES = [
   '/api/auth',     // NextAuth endpoints
   '/api/health',
   '/api/chat',     // Public chat for homepage
-  '/api/internal', // Called by middleware itself — must not loop
+  '/api/internal/auth-key', // Internal auth check endpoint used by middleware
+  '/api/internal/recover-stalled', // Cron endpoint protected by bearer secret
   '/_next',
   '/favicon.ico',
 ];
@@ -27,6 +28,20 @@ export async function middleware(request: NextRequest) {
 
   // --- Bypass paths ---
   if (BYPASS_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    return NextResponse.next();
+  }
+
+  // --- Internal Admin API (/api/internal/) — ADMIN session required ---
+  if (pathname.startsWith('/api/internal/')) {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    if (!token || token.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     return NextResponse.next();
   }
 
