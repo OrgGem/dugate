@@ -21,14 +21,16 @@ const STALL_THRESHOLD_MS = parseInt(process.env.STALL_THRESHOLD_MS || '900000', 
 
 function hasValidInternalSecret(req: NextRequest): boolean {
   const internalSecret = process.env.INTERNAL_API_SECRET;
-  if (!internalSecret) {
-    return false;
-  }
+  if (!internalSecret) return false;
   const authHeader = req.headers.get('authorization');
   return authHeader === `Bearer ${internalSecret}`;
 }
 
 export async function POST(req: NextRequest) {
+  if (!process.env.INTERNAL_API_SECRET) {
+    logger.error('[recover-stalled] INTERNAL_API_SECRET is missing');
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
   if (!hasValidInternalSecret(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -78,6 +80,10 @@ export async function POST(req: NextRequest) {
 
 // GET: status check — how many operations are currently stalled
 export async function GET(req: NextRequest) {
+  if (!process.env.INTERNAL_API_SECRET) {
+    logger.error('[recover-stalled] INTERNAL_API_SECRET is missing');
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
   if (!hasValidInternalSecret(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
       secret: process.env.NEXTAUTH_SECRET,
     });
 
-    if (!token || token.role !== 'ADMIN') {
+    if (!token || String(token.role ?? '').toUpperCase() !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

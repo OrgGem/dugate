@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const BEARER_PREFIX = "Bearer ";
+
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const bearer = req.headers.get("authorization");
-  const bearerToken = bearer?.startsWith("Bearer ") ? bearer.slice("Bearer ".length).trim() : null;
+  const bearerToken = bearer?.startsWith(BEARER_PREFIX) ? bearer.slice(BEARER_PREFIX.length).trim() : null;
   const querySecret = searchParams.get("secret");
   const providedSecret = querySecret ?? bearerToken;
   if (providedSecret !== internalSecret) {
