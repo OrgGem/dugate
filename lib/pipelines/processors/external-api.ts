@@ -2,7 +2,8 @@
 // External API Processor — forwards files to an external AI service via multipart/form-data.
 // Delegates to: prompt-resolver, http-client, response-parser.
 
-import fs from 'fs/promises';
+import { openAsBlob } from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import type { ProcessorContext, ProcessorResult } from '@/lib/pipelines/engine';
 import { ParserFactory } from '@/lib/parsers/factory';
@@ -11,10 +12,6 @@ import { resolvePrompt } from './prompt-resolver';
 import { extractContent, resolveDotPath } from './response-parser';
 import { logCurlCommand, assertSafeUrl, fetchWithTimeout } from './http-client';
 import { calculateCostUsd } from '@/lib/config';
-
-type FsWithOpenAsBlob = typeof fs & {
-  openAsBlob?: (path: string, options?: { type?: string }) => Promise<Blob>;
-};
 
 /**
  * Call an external AI service via multipart/form-data.
@@ -45,7 +42,7 @@ export async function runExternalApiProcessor(
     if (parser) {
       try {
         ctx.logger.info(`[InternalParser] Attempting to parse natively: ${fileName}`);
-        const fileBuffer = await fs.readFile(filePath);
+        const fileBuffer = await fsPromises.readFile(filePath);
         const result = await parser.parse(fileBuffer, fileName);
         ctx.logger.info(`[InternalParser] Successfully parsed ${fileName} natively.`);
         return {
@@ -85,8 +82,7 @@ export async function runExternalApiProcessor(
   }
 
   if (ctx.filePaths.length > 0) {
-    const openAsBlob = (fs as FsWithOpenAsBlob).openAsBlob;
-    if (!openAsBlob) {
+    if (typeof openAsBlob !== 'function') {
       throw new Error('File upload requires a runtime with fs.openAsBlob support. Please upgrade Node.js.');
     }
 

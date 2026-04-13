@@ -5,6 +5,9 @@ import type { ExternalApiConnection } from '@prisma/client';
 // Mock system fs/promises since external-api uses it
 jest.mock('fs/promises', () => ({
   readFile: jest.fn().mockResolvedValue(Buffer.from('dummy file content')),
+}));
+
+jest.mock('fs', () => ({
   openAsBlob: jest.fn().mockResolvedValue(new Blob(['dummy file content'])),
 }));
 
