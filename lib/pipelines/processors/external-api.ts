@@ -12,6 +12,10 @@ import { extractContent, resolveDotPath } from './response-parser';
 import { logCurlCommand, assertSafeUrl, fetchWithTimeout } from './http-client';
 import { calculateCostUsd } from '@/lib/config';
 
+type FsWithOpenAsBlob = typeof fs & {
+  openAsBlob?: (path: string, options?: { type?: string }) => Promise<Blob>;
+};
+
 /**
  * Call an external AI service via multipart/form-data.
  * - Forwards all files directly (no pre-extraction)
@@ -81,9 +85,7 @@ export async function runExternalApiProcessor(
   }
 
   if (ctx.filePaths.length > 0) {
-    const openAsBlob = (fs as unknown as {
-      openAsBlob?: (path: string, options?: { type?: string }) => Promise<Blob>;
-    }).openAsBlob;
+    const openAsBlob = (fs as FsWithOpenAsBlob).openAsBlob;
 
     for (let i = 0; i < ctx.filePaths.length; i++) {
       const filePath = ctx.filePaths[i];

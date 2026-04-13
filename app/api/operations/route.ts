@@ -50,10 +50,10 @@ export async function GET(req: NextRequest) {
     operations: operations.map((op) => {
       let pipeline: string[] = [];
       try {
-        const parsed = JSON.parse(op.pipelineJson) as Array<{ processor?: string }>;
+        const parsed = JSON.parse(op.pipelineJson) as unknown;
         if (Array.isArray(parsed)) {
           pipeline = parsed
-            .map((s) => s?.processor)
+            .map((s) => (typeof s === 'object' && s !== null ? (s as { processor?: unknown }).processor : undefined))
             .filter((p): p is string => typeof p === 'string');
         }
       } catch {
