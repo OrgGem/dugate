@@ -4,7 +4,7 @@ services:
     ports:
       - "2023:2023"
     environment:
-      DATABASE_URL: postgresql://dugate:${DB_PASSWORD}@db:5432/dugate
+      DATABASE_URL: ${DATABASE_URL:-postgresql://dugate:${DB_PASSWORD}@db:5432/dugate}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:2023}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
@@ -12,7 +12,8 @@ services:
       UPLOAD_DIR: /app/uploads
       OUTPUT_DIR: /app/outputs
       MIGRATION: ${MIGRATION:-true}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      MOCK_SERVICE_URL: ${MOCK_SERVICE_URL:-http://mock-service:3099}
     volumes:
       - ./uploads:/app/uploads
       - ./outputs:/app/outputs
@@ -25,8 +26,8 @@ services:
 
   db:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
+    #ports:
+    #  - "5432:5432"
     environment:
       POSTGRES_USER: dugate
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -52,8 +53,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    #ports:
+    #  - "6379:6379"
     # Dev: in-memory mode (no persistence). Production: add --appendonly yes + volume
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -63,11 +64,12 @@ services:
     restart: unless-stopped
 
   worker:
-    build: .                             # Reuse same Dockerfile as Next.js app
-    command: ["node", "worker.js"]        # Pre-compiled bundle — no tsx needed at runtime
+    build: . # Reuse same Dockerfile as Next.js app
+    command: ["node", "worker.js"] # Pre-compiled bundle — no tsx needed at runtime
     environment:
-      DATABASE_URL: postgresql://dugate:${DB_PASSWORD}@db:5432/dugate
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgresql://dugate:${DB_PASSWORD}@db:5432/dugate}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      MOCK_SERVICE_URL: ${MOCK_SERVICE_URL:-http://mock-service:3099}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       UPLOAD_DIR: /app/uploads
       OUTPUT_DIR: /app/outputs

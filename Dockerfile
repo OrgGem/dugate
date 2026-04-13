@@ -70,6 +70,6 @@ ENV PORT=2023
 ENV HOSTNAME="0.0.0.0"
 
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 
 CMD ["./docker-entrypoint.sh"]

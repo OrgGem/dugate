@@ -11,6 +11,7 @@
 //     (separate queue prevents deadlock when parent holds a pipeline slot)
 
 import 'dotenv/config';
+import v8 from 'v8';
 import { Worker, Job } from 'bullmq';
 import { createRedisConnection } from './lib/queue/redis';
 import { runPipeline } from './lib/pipelines/engine';
@@ -118,8 +119,9 @@ const MEMORY_THRESHOLD = parseFloat(process.env.WORKER_MEMORY_THRESHOLD || '0.90
 let paused = false;
 
 setInterval(() => {
-  const { heapUsed, heapTotal } = process.memoryUsage();
-  const ratio = heapUsed / heapTotal;
+  const { heapUsed } = process.memoryUsage();
+  const heapLimit = v8.getHeapStatistics().heap_size_limit;
+  const ratio = heapUsed / heapLimit;
   if (ratio > MEMORY_THRESHOLD && !paused) {
     console.warn(`[Worker] ⚠️  Heap at ${(ratio * 100).toFixed(1)}% — pausing workers to allow GC`);
     pipelineWorker.pause();
