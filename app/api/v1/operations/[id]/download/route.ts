@@ -62,7 +62,7 @@ export async function GET(
       const relativePath = path.relative(outputBaseDir, resolvedOutputPath);
       if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
         return NextResponse.json(
-          { type: 'https://dugate.vn/errors/forbidden', title: 'Forbidden', status: 403, detail: 'Access denied.' },
+          { type: 'https://dugate.vn/errors/forbidden', title: 'Forbidden', status: 403, detail: 'Invalid output file path.' },
           { status: 403 }
         );
       }

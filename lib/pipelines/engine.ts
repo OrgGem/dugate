@@ -95,7 +95,7 @@ export async function runPipeline(operationId: string, correlationId?: string, j
         state: 'FAILED',
         failedAtStep: 0,
         errorCode: 'PIPELINE_INVALID_JSON',
-        errorMessage: `Invalid pipeline payload: ${msg}`,
+        errorMessage: 'Invalid pipeline payload.',
         stepsResultJson: JSON.stringify([]),
       },
     });

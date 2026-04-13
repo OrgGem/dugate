@@ -58,7 +58,7 @@ export function validateFile(file: File): ValidateResult {
   // Check size
   if (file.size > MAX_FILE_SIZE) {
     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-    const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
+    const maxSizeMB = (MAX_FILE_SIZE / 1024 / 1024).toFixed(1);
     return {
       valid: false,
       error: `File quá lớn (${sizeMB}MB). Giới hạn tối đa là ${maxSizeMB}MB.`,
