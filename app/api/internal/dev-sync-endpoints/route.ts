@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const internalSecret = process.env.INTERNAL_API_SECRET;
   if (!internalSecret) {
-    return NextResponse.json({ error: "INTERNAL_API_SECRET is not configured" }, { status: 503 });
+    return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }
 
   const { searchParams } = new URL(req.url);
