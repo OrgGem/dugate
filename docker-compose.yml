@@ -64,7 +64,7 @@ services:
 
   worker:
     build: .                             # Reuse same Dockerfile as Next.js app
-    command: ["npx", "tsx", "worker.ts"] # Override CMD — skips Next.js server
+    command: ["node", "worker.js"]        # Pre-compiled bundle — no tsx needed at runtime
     environment:
       DATABASE_URL: postgresql://dugate:${DB_PASSWORD}@db:5432/dugate
       REDIS_URL: redis://redis:6379

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 2023",
     "worker:dev": "npx tsx worker.ts",
+    "worker:build": "node_modules/.bin/esbuild worker.ts --bundle --platform=node --target=node20 --outfile=worker.js --external:@prisma/client --external:prisma --external:bcryptjs --external:ioredis --external:bullmq --external:mammoth --external:sharp --alias:@=.",
     "build": "next build",
     "start": "next start -p 2025",
     "lint": "next lint",

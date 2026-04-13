@@ -24,6 +24,21 @@ RUN npx tsc prisma/seed.ts --esModuleInterop --skipLibCheck --module CommonJS --
 # Provide a dummy DATABASE_URL so Prisma client initialises during static page generation
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm run build
+# Bundle worker.ts into a single worker.js using esbuild (handles @/ path aliases cleanly)
+# esbuild is available via Next.js' own dependency tree
+RUN node_modules/.bin/esbuild worker.ts \
+    --bundle \
+    --platform=node \
+    --target=node20 \
+    --outfile=worker.js \
+    --external:@prisma/client \
+    --external:prisma \
+    --external:bcryptjs \
+    --external:ioredis \
+    --external:bullmq \
+    --external:mammoth \
+    --external:sharp \
+    --alias:@=. 2>&1 && echo "worker.js built successfully"
 
 # Stage 3: runner (slim — no local PDF/DOCX processing, all done via external API)
 FROM node:20-slim AS runner
@@ -44,10 +59,8 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
-# BullMQ Worker dependencies — copy full node_modules and tsconfig to resolve aliases natively
-COPY --from=builder /app/worker.ts ./worker.ts
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/lib ./lib
+# BullMQ Worker — copy compiled bundle + node_modules for native addons (bcrypt, prisma)
+COPY --from=builder /app/worker.js ./worker.js
 COPY --from=builder /app/node_modules ./node_modules
 
 RUN mkdir -p uploads outputs
