@@ -1,6 +1,6 @@
-# DUGate — Solution Architecture Document
+# AISkillHub — Solution Architecture Document
 
-> **Document ID**: SA-DUGATE-2026-002
+> **Document ID**: SA-AISkillHub-2026-002
 > **Version**: 2.1
 > **Classification**: INTERNAL — FOR APPROVAL
 > **Author**: Solution Architecture Team
@@ -29,9 +29,9 @@
 
 ## 1. Executive Summary
 
-**DUGate** (Document Understanding API Gateway) là giải pháp kiến trúc cổng trung gian API nội bộ, chuyên xử lý các bài toán **Phân tích Tài liệu** (Document Understanding) cho môi trường doanh nghiệp — đặc biệt phù hợp với ngành Tài chính & Ngân hàng.
+**AISkillHub** (Document Understanding API Gateway) là giải pháp kiến trúc cổng trung gian API nội bộ, chuyên xử lý các bài toán **Phân tích Tài liệu** (Document Understanding) cho môi trường doanh nghiệp — đặc biệt phù hợp với ngành Tài chính & Ngân hàng.
 
-Thay vì mỗi nghiệp vụ tự tích hợp riêng lẻ đến hàng chục dịch vụ AI, DUGate **quy chuẩn hóa** toàn bộ lớp truy cập thành **6 API Endpoint + Workflow API**, vận hành trên kiến trúc **BullMQ Async Worker** với khả năng **Human-in-the-Loop (HITL)** và **Code-Driven Workflow Orchestration**, đảm bảo:
+Thay vì mỗi nghiệp vụ tự tích hợp riêng lẻ đến hàng chục dịch vụ AI, AISkillHub **quy chuẩn hóa** toàn bộ lớp truy cập thành **6 API Endpoint + Workflow API**, vận hành trên kiến trúc **BullMQ Async Worker** với khả năng **Human-in-the-Loop (HITL)** và **Code-Driven Workflow Orchestration**, đảm bảo:
 
 - **Zero-coupling** giữa ứng dụng nghiệp vụ và AI backend
 - **Multi-tenant isolation** qua API Key + Profile-based routing + 3-tier Prompt Override
@@ -67,7 +67,7 @@ Trong bối cảnh chuyển đổi số, nhu cầu xử lý tài liệu bằng A
 
 ```mermaid
 graph LR
-    A1[App Nghiệp vụ A] -->|x-api-key| GW[🏗️ DUGate Gateway]
+    A1[App Nghiệp vụ A] -->|x-api-key| GW[🏗️ AISkillHub Gateway]
     A2[App Nghiệp vụ B] -->|x-api-key| GW
     A3[App Nghiệp vụ C] -->|x-api-key| GW
     GW -->|Profile routing| HUB[🔗 LLMs Hub]
@@ -87,7 +87,7 @@ graph LR
 
 ### 3.1 Hai loại Pipeline
 
-DUGate hỗ trợ **2 loại pipeline** với mục đích khác nhau:
+AISkillHub hỗ trợ **2 loại pipeline** với mục đích khác nhau:
 
 #### A. Standard Pipeline Engine (Data Flow — Cấu hình UI)
 Chuỗi connector tuần tự được cấu hình qua Admin UI. Phù hợp cho nghiệp vụ đơn luồng, không cần logic phức tạp.
@@ -147,7 +147,7 @@ stateDiagram-v2
 
 | # | Nguyên tắc | Mô tả |
 |---|-----------|------|
-| AP-1 | **Gateway Abstraction** | Ứng dụng KHÔNG bao giờ gọi trực tiếp AI backend. DUGate là điểm duy nhất. |
+| AP-1 | **Gateway Abstraction** | Ứng dụng KHÔNG bao giờ gọi trực tiếp AI backend. AISkillHub là điểm duy nhất. |
 | AP-2 | **Unified Parameter Guardrails** | Tham số hệ thống bị khóa (locked params) từ chối khi Client cố ghi đè. |
 | AP-3 | **Profile-Driven Isolation** | Mỗi API Key có cấu hình prompt/connector riêng, không ảnh hưởng key khác. |
 | AP-4 | **Async-First** | Mọi pipeline bất đồng bộ qua BullMQ. API trả 202 ngay lập tức. |
@@ -162,12 +162,12 @@ stateDiagram-v2
 
 ```mermaid
 C4Context
-    title DUGate — System Context Diagram (v2.1)
+    title AISkillHub — System Context Diagram (v2.1)
 
     Person(admin, "Administrator", "Quản trị Gateway, Profile, Connector, HITL Review")
     Person(dev, "Developer / App Client", "Tích hợp API qua x-api-key")
 
-    System(dugate, "DUGate Gateway", "Document Understanding API Gateway — 6 Endpoints + Workflow API + BullMQ Worker")
+    System(AISkillHub, "AISkillHub Gateway", "Document Understanding API Gateway — 6 Endpoints + Workflow API + BullMQ Worker")
 
     System_Ext(llmhub, "LLMs Hub", "Cổng trung gian LLM nội bộ — proxy đến Gemini, GPT, Claude")
     System_Ext(ocr_engine, "OCR Engine", "Dịch vụ nhận dạng ký tự quang học")
@@ -175,13 +175,13 @@ C4Context
     System_Ext(postgres, "PostgreSQL", "Operational data store & Unified Config")
     System_Ext(redis, "Redis", "BullMQ Job Queue & Worker coordination")
 
-    Rel(admin, dugate, "Quản trị qua Admin UI, review HITL", "HTTPS/NextAuth")
-    Rel(dev, dugate, "Gửi tài liệu, nhận kết quả, resume HITL", "HTTPS/x-api-key")
-    Rel(dugate, llmhub, "Forward request", "HTTPS/API Key")
-    Rel(dugate, ocr_engine, "Forward request", "HTTPS/API Key")
-    Rel(dugate, internal_ai, "Forward request", "HTTP/mTLS")
-    Rel(dugate, postgres, "CRUD Operations, Operation State", "TCP/5432")
-    Rel(dugate, redis, "BullMQ job enqueue/dequeue", "TCP/6379")
+    Rel(admin, AISkillHub, "Quản trị qua Admin UI, review HITL", "HTTPS/NextAuth")
+    Rel(dev, AISkillHub, "Gửi tài liệu, nhận kết quả, resume HITL", "HTTPS/x-api-key")
+    Rel(AISkillHub, llmhub, "Forward request", "HTTPS/API Key")
+    Rel(AISkillHub, ocr_engine, "Forward request", "HTTPS/API Key")
+    Rel(AISkillHub, internal_ai, "Forward request", "HTTP/mTLS")
+    Rel(AISkillHub, postgres, "CRUD Operations, Operation State", "TCP/5432")
+    Rel(AISkillHub, redis, "BullMQ job enqueue/dequeue", "TCP/6379")
 ```
 
 ---
@@ -190,12 +190,12 @@ C4Context
 
 ```mermaid
 C4Container
-    title DUGate — Container Diagram (v2.1)
+    title AISkillHub — Container Diagram (v2.1)
 
     Person(client, "API Client")
     Person(admin, "Administrator")
 
-    Container_Boundary(gateway, "DUGate Stack") {
+    Container_Boundary(gateway, "AISkillHub Stack") {
         Container(nginx, "Nginx Reverse Proxy", "nginx:alpine", "TLS termination, rate limiting, 300MB upload cap")
         Container(nextjs, "Next.js Application", "Node.js 20 / Next.js 14", "API Routes + Admin UI + Operation management")
         Container(worker, "BullMQ Worker", "Node.js 20 / tsx", "Async job consumer — runs pipeline engine & workflow engine")
@@ -221,8 +221,8 @@ C4Container
 
 | Container | Image | Vai trò |
 |-----------|-------|---------|
-| **app** | `vietbn/dugate:4.0.0` | Next.js API + Admin UI. Nhận request, tạo Operation, enqueue BullMQ job, trả 202. |
-| **worker** | `vietbn/dugate:4.0.0` (CMD override) | Consumer BullMQ. Chạy `engine.ts` (Standard) hoặc `workflow-engine.ts` (Workflow). |
+| **app** | `vietbn/AISkillHub:4.0.0` | Next.js API + Admin UI. Nhận request, tạo Operation, enqueue BullMQ job, trả 202. |
+| **worker** | `vietbn/AISkillHub:4.0.0` (CMD override) | Consumer BullMQ. Chạy `engine.ts` (Standard) hoặc `workflow-engine.ts` (Workflow). |
 | **db** | `postgres:16-alpine` | Lưu trữ toàn bộ state. Nguồn sự thật duy nhất. |
 | **redis** | `redis:7-alpine` | Job queue cho BullMQ. Worker subscribe qua `BLPOP`. |
 | **mock-service** | Custom Express | Mô phỏng External AI API (dev/staging). Port 3099. |
@@ -491,10 +491,10 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph "Docker Compose Stack (dugate)"
-        subgraph "Network: dugate-net"
-            APP["📦 app (Next.js)\nvietbn/dugate:4.0.0\nPort: 2023\nCmd: node server.js"]
-            WORKER["⚙️ worker (BullMQ)\nvietbn/dugate:4.0.0\nCmd: npx tsx worker.ts\nConcurrency: 5"]
+    subgraph "Docker Compose Stack (AISkillHub)"
+        subgraph "Network: AISkillHub-net"
+            APP["📦 app (Next.js)\nvietbn/AISkillHub:4.0.0\nPort: 2023\nCmd: node server.js"]
+            WORKER["⚙️ worker (BullMQ)\nvietbn/AISkillHub:4.0.0\nCmd: npx tsx worker.ts\nConcurrency: 5"]
             DB["🗄️ db\npostgres:16-alpine\nPort: 5432"]
             REDIS["🔴 redis\nredis:7-alpine\nPort: 6379"]
             MOCK["🤖 mock-service\nCustom Express\nPort: 3099"]
@@ -525,8 +525,8 @@ graph TB
 
 | Service | Image | Port | Restart | Depends on |
 |---------|-------|------|---------|------------|
-| **app** | `vietbn/dugate:4.0.0` | 2023 | unless-stopped | db (healthy), redis (healthy) |
-| **worker** | `vietbn/dugate:4.0.0` (CMD override) | — | unless-stopped | db (healthy), redis (healthy) |
+| **app** | `vietbn/AISkillHub:4.0.0` | 2023 | unless-stopped | db (healthy), redis (healthy) |
+| **worker** | `vietbn/AISkillHub:4.0.0` (CMD override) | — | unless-stopped | db (healthy), redis (healthy) |
 | **db** | `postgres:16-alpine` | 5432 | unless-stopped | — |
 | **redis** | `redis:7-alpine` | 6379 | unless-stopped | — |
 | **mock-service** | Custom Express | 3099 | unless-stopped | — (independent) |
@@ -544,23 +544,23 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph "Kubernetes Cluster — Namespace: dugate-prod"
+    subgraph "Kubernetes Cluster — Namespace: AISkillHub-prod"
         ING["☁️ Ingress Controller\nTLS + cert-manager\n300M upload limit"]
 
-        subgraph "Deployment: dugate-app (2-10 replicas)"
+        subgraph "Deployment: AISkillHub-app (2-10 replicas)"
             POD1["App Pod 1\nNext.js :2023"]
             POD2["App Pod 2\nNext.js :2023"]
         end
 
-        subgraph "Deployment: dugate-worker (1-5 replicas)"
+        subgraph "Deployment: AISkillHub-worker (1-5 replicas)"
             WPOD1["Worker Pod 1\ntsx worker.ts"]
             WPOD2["Worker Pod 2\ntsx worker.ts"]
         end
 
-        SVC_APP["Service: dugate-app\nClusterIP:2023"]
+        SVC_APP["Service: AISkillHub-app\nClusterIP:2023"]
         SVC_WORKER["(No Service needed\n— pulls from Redis)"]
 
-        subgraph "StatefulSet: dugate-db"
+        subgraph "StatefulSet: AISkillHub-db"
             DB_POD["postgres:16\nPVC: 50Gi"]
         end
 
@@ -680,11 +680,11 @@ graph TB
 ---
 
 > **Document Control**
-> - v2.1 (2026-04-13): Cập nhật kiến trúc BullMQ Worker container, Workflow Engine code-driven, HITL pause/resume, 3-tier Prompt Override system, Mock Service, parseDeep utility. Docker image `vietbn/dugate:4.0.0`.
+> - v2.1 (2026-04-13): Cập nhật kiến trúc BullMQ Worker container, Workflow Engine code-driven, HITL pause/resume, 3-tier Prompt Override system, Mock Service, parseDeep utility. Docker image `vietbn/AISkillHub:4.0.0`.
 > - v2.0 (2026-04-04): Unified Parameters, ParamSchema Metadata, Chat Assistant integration.
 > - v1.0 (2026-04-03): Initial draft — 6 API endpoints, Docker & K8s deployment.
 > - Next review: Q2-2026
 
 ---
 
-*DUGate — Kiến trúc chuẩn hóa truy cập Document AI cho doanh nghiệp.*
+*AISkillHub — Kiến trúc chuẩn hóa truy cập Document AI cho doanh nghiệp.*
