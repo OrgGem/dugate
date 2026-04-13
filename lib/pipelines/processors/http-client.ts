@@ -24,13 +24,13 @@ export function logCurlCommand(
   }
 
   try {
-    for (const [key, value] of (formData as unknown as Iterable<[string, unknown]>)) {
+    (formData as any).forEach((value: any, key: string) => {
       if (typeof value === 'object' && value !== null && 'size' in value) {
         curl += `  -F "${key}=@/path/to/file" \\\n`;
       } else {
         curl += `  -F "${key}=***" \\\n`;
       }
-    }
+    });
   } catch (_e) { /* FormData.entries() may not be available in all environments */ }
 
   curl = curl.trim().replace(/\\$/, '');
