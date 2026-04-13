@@ -12,6 +12,10 @@ import { extractContent, resolveDotPath } from './response-parser';
 import { logCurlCommand, assertSafeUrl, fetchWithTimeout } from './http-client';
 import { calculateCostUsd } from '@/lib/config';
 
+type FsWithOpenAsBlob = typeof fs & {
+  openAsBlob?: (path: string, options?: { type?: string }) => Promise<Blob>;
+};
+
 /**
  * Call an external AI service via multipart/form-data.
  * - Forwards all files directly (no pre-extraction)
@@ -81,13 +85,18 @@ export async function runExternalApiProcessor(
   }
 
   if (ctx.filePaths.length > 0) {
+    const openAsBlob = (fs as FsWithOpenAsBlob).openAsBlob;
+    if (!openAsBlob) {
+      throw new Error('File upload requires a runtime with fs.openAsBlob support. Please upgrade Node.js.');
+    }
+
     for (let i = 0; i < ctx.filePaths.length; i++) {
       const filePath = ctx.filePaths[i];
       const fileName = ctx.fileNames[i] ?? `file_${i}`;
       try {
-        const fileBuffer = await fs.readFile(filePath);
-        formData.append(connection.fileFieldName, new Blob([fileBuffer]), fileName);
-        ctx.logger.info(`Attaching file[${i}]: ${fileName} (${fileBuffer.length} bytes)`);
+        const fileBlob = await openAsBlob(filePath);
+        formData.append(connection.fileFieldName, fileBlob, fileName);
+        ctx.logger.info(`Attaching file[${i}]: ${fileName} (${fileBlob.size} bytes)`);
       } catch (e) {
         ctx.logger.warn(`Could not read file '${filePath}'`, undefined, e);
       }

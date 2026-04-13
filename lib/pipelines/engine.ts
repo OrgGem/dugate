@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { runExternalApiProcessor } from '@/lib/pipelines/processors/external-api';
 import { Logger } from '@/lib/logger';
 import type { Job } from 'bullmq';
+import { isPipelineStep } from '@/lib/pipelines/validate';
 
 export interface PipelineStep {
   processor: string;  // ExternalApiConnection slug
@@ -67,11 +68,47 @@ export async function runPipeline(operationId: string, correlationId?: string, j
     return;
   }
 
-  const pipeline: PipelineStep[] = JSON.parse(operation.pipelineJson);
+  let pipeline: PipelineStep[] = [];
+  let filesData: Array<{ name: string; path: string; mime: string; size: number }> = [];
+  try {
+    const parsedPipeline = JSON.parse(operation.pipelineJson) as unknown;
+    if (!Array.isArray(parsedPipeline)) {
+      throw new Error('INVALID_PIPELINE_STRUCTURE');
+    }
+    if (!parsedPipeline.every(isPipelineStep)) {
+      throw new Error('INVALID_PIPELINE_STRUCTURE');
+    }
+    pipeline = parsedPipeline as PipelineStep[];
+
+    const parsedFiles = operation.filesJson ? JSON.parse(operation.filesJson) as unknown : [];
+    if (!Array.isArray(parsedFiles)) {
+      throw new Error('INVALID_FILES_STRUCTURE');
+    }
+    filesData = parsedFiles as Array<{ name: string; path: string; mime: string; size: number }>;
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '';
+    const clientErrorMessage =
+      msg === 'INVALID_PIPELINE_STRUCTURE'
+        ? 'Invalid pipeline structure.'
+        : msg === 'INVALID_FILES_STRUCTURE'
+          ? 'Invalid files structure.'
+          : 'Invalid pipeline payload.';
+    logger.error(`[PIPELINE_FAILED] Invalid operation JSON for ${operationId}: ${msg}`, undefined, error);
+    await prisma.operation.update({
+      where: { id: operationId },
+      data: {
+        done: true,
+        state: 'FAILED',
+        failedAtStep: 0,
+        errorCode: 'PIPELINE_INVALID_JSON',
+        errorMessage: clientErrorMessage,
+        stepsResultJson: JSON.stringify([]),
+      },
+    });
+    return;
+  }
 
   // Parse filesJson → filePaths / fileNames
-  const filesData: Array<{ name: string; path: string; mime: string; size: number }> =
-    operation.filesJson ? JSON.parse(operation.filesJson) : [];
   const filePaths = filesData.map((f) => f.path?.replace(/\\/g, '/'));
   const fileNames = filesData.map((f) => f.name);
 
