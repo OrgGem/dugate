@@ -54,7 +54,8 @@ const providers: NextAuthOptions["providers"] = [
 ];
 
 // Conditionally add OIDC provider
-if (process.env.NEXT_PUBLIC_OIDC_ENABLED === "true" && process.env.OIDC_ISSUER) {
+const isOidcEnabled = process.env.OIDC_ENABLED === "true" || process.env.NEXT_PUBLIC_OIDC_ENABLED === "true";
+if (isOidcEnabled && process.env.OIDC_ISSUER) {
   const oidcProvider: OAuthConfig<{ sub: string; preferred_username?: string; email?: string; name?: string }> = {
     id: "oidc",
     name: "SSO",

@@ -1,0 +1,61 @@
+// lib/storage/dedup.ts
+// Atomic FileCache dedup — handles concurrent uploads of the same file safely.
+
+import { prisma } from '@/lib/prisma';
+import type { StorageBackend } from './types';
+
+/**
+ * Atomic dedup: try upsert with unique constraint handling.
+ * If two concurrent uploads produce the same MD5:
+ * - One wins the create, the other catches P2002 and increments refCount.
+ * - The loser's S3 object is deleted.
+ */
+export async function dedup(
+  md5: string,
+  s3Key: string,
+  fileName: string,
+  mimeType: string,
+  size: number,
+  backend: StorageBackend,
+): Promise<string> {
+  // Try upsert: if md5Hash exists → increment refCount, else create
+  try {
+    const result = await prisma.fileCache.upsert({
+      where: { md5Hash: md5 },
+      update: {
+        refCount: { increment: 1 },
+        lastAccessedAt: new Date(),
+      },
+      create: {
+        md5Hash: md5,
+        s3Key,
+        fileName,
+        mimeType,
+        size,
+      },
+    });
+
+    // If upsert hit the "update" path, the new upload is a duplicate — delete it
+    if (result.s3Key !== s3Key) {
+      await backend.delete(s3Key).catch(() => {});
+    }
+
+    return result.id;
+  } catch (err: unknown) {
+    // Fallback: unique constraint race (extremely rare with upsert, but be defensive)
+    const isUniqueViolation =
+      err instanceof Error && 'code' in err && (err as { code?: string }).code === 'P2002';
+
+    if (isUniqueViolation) {
+      const existing = await prisma.fileCache.update({
+        where: { md5Hash: md5 },
+        data: { refCount: { increment: 1 }, lastAccessedAt: new Date() },
+      });
+      if (s3Key !== existing.s3Key) {
+        await backend.delete(s3Key).catch(() => {});
+      }
+      return existing.id;
+    }
+    throw err;
+  }
+}

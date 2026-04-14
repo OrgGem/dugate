@@ -85,10 +85,11 @@ export async function runExternalApiProcessor(
       const filePath = ctx.filePaths[i];
       const fileName = ctx.fileNames[i] ?? `file_${i}`;
       try {
-        const fileBuffer = await fsPromises.readFile(filePath);
-        const fileBlob = new Blob([fileBuffer]);
+        const stat = await fsPromises.stat(filePath);
+        const { openAsBlob } = await import('fs');
+        const fileBlob = await openAsBlob(filePath);
         formData.append(connection.fileFieldName, fileBlob, fileName);
-        ctx.logger.info(`Attaching file[${i}]: ${fileName} (${fileBlob.size} bytes)`);
+        ctx.logger.info(`Attaching file[${i}]: ${fileName} (${stat.size} bytes)`);
       } catch (e) {
         ctx.logger.error(`Could not read file '${filePath}'`, undefined, e);
         throw new Error(`Failed to attach file '${fileName}': file not found or unreadable`);
@@ -96,6 +97,14 @@ export async function runExternalApiProcessor(
     }
   } else if (ctx.inputText) {
     formData.append('input_content', ctx.inputText);
+  }
+
+  // Forward remote file URLs to connector (instead of downloading + attaching as blob)
+  if (ctx.remoteFileUrls?.length && connection.fileUrlFieldName) {
+    for (const url of ctx.remoteFileUrls) {
+      formData.append(connection.fileUrlFieldName, url);
+    }
+    ctx.logger.info(`[URL_FORWARD] Forwarding ${ctx.remoteFileUrls.length} URL(s) via field "${connection.fileUrlFieldName}"`);
   }
 
   // Session injection

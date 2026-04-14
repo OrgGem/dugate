@@ -6,6 +6,7 @@ import { getAllSettings, setSettings } from '@/lib/settings';
 import { maskApiKey } from '@/lib/crypto';
 import { Logger } from '@/lib/logger';
 import { requireAdmin } from '@/lib/rbac';
+import { resetStorageBackend } from '@/lib/storage';
 
 const logger = new Logger({ service: 'settings' });
 
@@ -28,6 +29,12 @@ export async function GET() {
     }
     if (masked.api_secret_key) {
       masked.api_secret_key = maskApiKey(masked.api_secret_key);
+    }
+    if (masked.s3_access_key) {
+      masked.s3_access_key = maskApiKey(masked.s3_access_key);
+    }
+    if (masked.s3_secret_key) {
+      masked.s3_secret_key = maskApiKey(masked.s3_secret_key);
     }
     return Response.json(masked);
   } catch (error) {
@@ -55,6 +62,12 @@ export async function PUT(request: Request) {
       'openai_api_key',
       'openai_base_url',
       'api_secret_key',
+      's3_endpoint',
+      's3_bucket',
+      's3_access_key',
+      's3_secret_key',
+      's3_region',
+      's3_cache_ttl_hours',
     ]);
 
     const updates: Record<string, string> = {};
@@ -69,6 +82,13 @@ export async function PUT(request: Request) {
     }
 
     await setSettings(updates);
+
+    // Reset storage backend cache when S3 settings change
+    const s3Keys = ['s3_endpoint', 's3_bucket', 's3_access_key', 's3_secret_key', 's3_region'];
+    if (s3Keys.some(k => k in updates)) {
+      resetStorageBackend();
+    }
+
     return Response.json({ success: true });
   } catch (error) {
     logger.error('[PUT] Failed to update settings', {}, error);
