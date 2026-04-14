@@ -111,8 +111,6 @@ export default function HeaderNav() {
           
           <div className="w-[1px] h-6 bg-border mx-2" />
           
-          <ThemeToggle />
-
           {/* User Profile Dropdown or Login Button */}
           {session?.user ? (
             <div className="relative" ref={dropdownRef}>
@@ -151,6 +149,11 @@ export default function HeaderNav() {
                         Quản lý người dùng
                       </Link>
                     )}
+                    
+                    <div className="my-1 border-t border-border/50" />
+                    <ThemeToggle />
+                    <div className="my-1 border-t border-border/50" />
+                    
                       <button
                         onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
                         className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-destructive rounded-xl hover:bg-destructive/10 transition-colors w-full text-left"
