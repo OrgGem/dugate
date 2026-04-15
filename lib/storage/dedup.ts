@@ -41,9 +41,20 @@ export async function dedup(
       },
     });
 
-    // If upsert hit the "update" path, the new upload is a duplicate — delete it
+    // If upsert hit the "update" path, the new upload is a duplicate
     if (result.s3Key !== s3Key) {
-      await backend.delete(s3Key).catch(() => {});
+      // Verify the canonical S3 object still exists before discarding the new upload
+      const canonicalExists = await backend.exists(result.s3Key).catch(() => false);
+      if (canonicalExists) {
+        await backend.delete(s3Key).catch(() => {});
+        return { id: result.id, s3Key: result.s3Key };
+      }
+      // Canonical object was deleted — adopt the new upload as the canonical copy
+      await prisma.fileCache.update({
+        where: { id: result.id },
+        data: { s3Key },
+      });
+      return { id: result.id, s3Key };
     }
 
     return { id: result.id, s3Key: result.s3Key };
@@ -58,7 +69,16 @@ export async function dedup(
         data: { refCount: { increment: 1 }, lastAccessedAt: new Date() },
       });
       if (s3Key !== existing.s3Key) {
-        await backend.delete(s3Key).catch(() => {});
+        const canonicalExists = await backend.exists(existing.s3Key).catch(() => false);
+        if (canonicalExists) {
+          await backend.delete(s3Key).catch(() => {});
+          return { id: existing.id, s3Key: existing.s3Key };
+        }
+        await prisma.fileCache.update({
+          where: { id: existing.id },
+          data: { s3Key },
+        });
+        return { id: existing.id, s3Key };
       }
       return { id: existing.id, s3Key: existing.s3Key };
     }
