@@ -35,14 +35,13 @@ export class S3StorageBackend implements StorageBackend {
     const hasExplicitCredentials = config.accessKeyId && config.secretAccessKey;
 
     this.client = new S3Client({
-      ...(config.endpoint ? { endpoint: config.endpoint } : {}),
+      ...(config.endpoint ? { endpoint: config.endpoint, forcePathStyle: true } : {}),
       region: config.region || 'us-east-1',
       // Only set explicit credentials if provided; otherwise let SDK use
       // default credential chain (env vars, EC2 instance profile, ECS task role, etc.)
       ...(hasExplicitCredentials
         ? { credentials: { accessKeyId: config.accessKeyId!, secretAccessKey: config.secretAccessKey! } }
         : {}),
-      forcePathStyle: true, // Required for MinIO and most S3-compatible services
     });
   }
 

@@ -28,11 +28,11 @@ export async function POST() {
 
     const clientConfig: any = {
       region: region || 'us-east-1',
-      forcePathStyle: true,
     };
-    
+
     if (endpoint) {
       clientConfig.endpoint = endpoint;
+      clientConfig.forcePathStyle = true; // Required for MinIO and S3-compatible services
     }
     
     if (accessKeyId && secretAccessKey) {

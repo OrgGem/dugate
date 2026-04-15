@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { Home, Clock, Settings, FileText, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn, BrainCircuit, Activity } from 'lucide-react';
+import { Home, Clock, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn, BrainCircuit, Activity, Settings } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 export default function HeaderNav() {
@@ -82,15 +82,6 @@ export default function HeaderNav() {
           {!isViewer && (
             <>
               <Link
-                href="/settings"
-                className={`pill-nav-item ${
-                  pathname.startsWith('/settings') ? 'pill-nav-active' : 'pill-nav-inactive'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                Cài đặt
-              </Link>
-              <Link
                 href="/profiles"
                 className={`pill-nav-item ${
                   pathname.startsWith('/profiles') ? 'pill-nav-active' : 'pill-nav-inactive'
@@ -141,6 +132,16 @@ export default function HeaderNav() {
 
                   {/* Menu Items */}
                   <div className="p-1.5">
+                    {isAdmin && (
+                      <Link
+                        href="/settings"
+                        onClick={() => setShowDropdown(false)}
+                        className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground rounded-xl hover:bg-muted transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-muted-foreground" />
+                        Cài đặt
+                      </Link>
+                    )}
                     {isAdmin && (
                       <Link
                         href="/settings/users"

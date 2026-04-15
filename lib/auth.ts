@@ -91,27 +91,45 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!dbUser) {
-          // JIT provision: create user with VIEWER role
-          const baseUsername = (user as NextAuthUser & { username?: string }).username
-            || user.email
-            || sub;
-          let username = baseUsername;
-          let suffix = 1;
-          while (await prisma.user.findUnique({ where: { username } })) {
-            username = `${baseUsername}_${suffix++}`;
+          // Check if an existing user matches by email — link instead of duplicate
+          // Username match is intentionally skipped: usernames are not globally unique identifiers
+          // and could cause unintended account takeover.
+          const oidcUsername = (user as NextAuthUser & { username?: string }).username || user.email?.split('@')[0] || sub;
+          if (user.email) {
+            dbUser = await prisma.user.findFirst({ where: { email: user.email } }) ?? null;
           }
 
-          dbUser = await prisma.user.create({
-            data: {
-              username,
-              password: "",
-              role: "VIEWER",
-              provider: "oidc",
-              providerSub: sub,
-              email: user.email || null,
-              displayName: user.name || null,
-            },
-          });
+          if (dbUser) {
+            // Link existing user to OIDC provider
+            dbUser = await prisma.user.update({
+              where: { id: dbUser.id },
+              data: {
+                provider: 'oidc',
+                providerSub: sub,
+                email: user.email || dbUser.email,
+                displayName: user.name || dbUser.displayName,
+              },
+            });
+          } else {
+            // JIT provision: create new user with VIEWER role
+            let username = oidcUsername;
+            let suffix = 1;
+            while (await prisma.user.findUnique({ where: { username } })) {
+              username = `${oidcUsername}_${suffix++}`;
+            }
+
+            dbUser = await prisma.user.create({
+              data: {
+                username,
+                password: "",
+                role: "VIEWER",
+                provider: "oidc",
+                providerSub: sub,
+                email: user.email || null,
+                displayName: user.name || null,
+              },
+            });
+          }
         } else {
           // Update display info from IDP on each login
           await prisma.user.update({
