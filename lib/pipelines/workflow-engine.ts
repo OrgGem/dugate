@@ -390,6 +390,8 @@ export async function createWorkflowContext(
 import { runDisbursement } from '@/lib/pipelines/workflows/disbursement';
 import { runLcChecker } from '@/lib/pipelines/workflows/lc-checker';
 import { runDocCompare } from '@/lib/pipelines/workflows/doc-compare';
+import { runWorkflowFromSchema } from '@/lib/workflow-builder/run-schema';
+import { loadSchema } from '@/lib/workflow-builder/loader';
 
 const WORKFLOW_REGISTRY: Record<string, (ctx: WorkflowContext) => Promise<void>> = {
   disbursement: runDisbursement,
@@ -417,13 +419,17 @@ export async function runWorkflow(
   const handler = WORKFLOW_REGISTRY[workflowName];
   if (!handler) {
     ctx.logger.error(`[WORKFLOW] Unknown workflow: '${workflowName}'`);
+    const schema = await loadSchema(workflowName);
+    if (schema) {
+      await runWorkflowFromSchema(ctx, schema);
+      return;
+    }
     await failWorkflow(ctx, new Error(`Unknown workflow: '${workflowName}'`));
-    return;
-  }
-
-  try {
-    await handler(ctx);
-  } catch (error) {
-    await failWorkflow(ctx, error);
+  } else {
+    try {
+      await handler(ctx);
+    } catch (error) {
+      await failWorkflow(ctx, error);
+    }
   }
 }

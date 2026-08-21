@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { Home, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn, BrainCircuit, Settings } from 'lucide-react';
+import { Home, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn, BrainCircuit, Settings, Zap } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 export default function HeaderNav() {
@@ -91,6 +91,13 @@ export default function HeaderNav() {
                 <PlugZap className="w-4 h-4" />
                 API Connections
               </Link>
+              <Link
+                href="/workflow-builder"
+                className={`pill-nav-item ${pathname.startsWith('/workflow-builder') ? 'pill-nav-active' : 'pill-nav-inactive'}`}
+              >
+                <Zap className="w-4 h-4" />
+                Workflow Builder
+              </Link>
             </>
           )}
           
@@ -174,3 +181,4 @@ export default function HeaderNav() {
     </header>
   );
 }
+
