@@ -56,9 +56,28 @@ export function buildExecFunc(ctx: WorkflowContext) {
         for (const [k, v] of Object.entries(n.inputs ?? {})) {
           variables[k] = resolve(v);
         }
-        // Apply prompt override if declared
-        const override = resolvePromptOverride(n, ctx.promptOverrides ?? {});
-        if (override) variables['_prompt'] = override;
+
+        // Apply overrideConnector settings (per-node overrides from UI)
+        const oc = n.overrideConnector;
+        if (oc?.prompt) {
+          variables['_prompt'] = oc.prompt;
+        } else {
+          // Fallback to promptOverrideKey from profile
+          const override = resolvePromptOverride(n, ctx.promptOverrides ?? {});
+          if (override) variables['_prompt'] = override;
+        }
+        if (oc?.staticFormFields) {
+          variables['_staticFormFields'] = oc.staticFormFields;
+        }
+        if (oc?.extraHeaders) {
+          variables['_extraHeaders'] = oc.extraHeaders;
+        }
+        if (oc?.responseContentPath) {
+          variables['_responseContentPath'] = oc.responseContentPath;
+        }
+        if (oc?.timeoutSec) {
+          variables['_timeoutSec'] = oc.timeoutSec;
+        }
 
         // Determine files binding: look for a $file/$files in any input value
         let filesJson: string | null = null;
@@ -71,7 +90,7 @@ export function buildExecFunc(ctx: WorkflowContext) {
         return {
           content: result.content ?? undefined,
           extractedData: result.extractedData,
-          data: { processor: n.connector, variables },
+          data: { processor: n.connector, variables, overrideConnector: oc },
         };
       }
 

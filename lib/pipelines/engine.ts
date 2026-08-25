@@ -321,7 +321,22 @@ export async function runPipeline(operationId: string, correlationId?: string, j
         logger.info(`Applied ExtApiOverride for '${connection.slug}' step='${resolvedStepId}' (key: ${operation.apiKeyId})`);
       }
 
-      const ctx: ProcessorContext = {
+              // Apply schema-driven per-node overrideConnector from variables.
+        // These override the connector-level DB config at runtime.
+        if (variables._staticFormFields) {
+          (connection as any).staticFormFields = String(variables._staticFormFields);
+        }
+        if (variables._extraHeaders) {
+          (connection as any).extraHeaders = String(variables._extraHeaders);
+        }
+        if (variables._responseContentPath) {
+          (connection as any).responseContentPath = String(variables._responseContentPath);
+        }
+        if (variables._timeoutSec) {
+          const sec = Number(variables._timeoutSec);
+          if (sec > 0) (connection as any).timeoutSec = sec;
+        }
+const ctx: ProcessorContext = {
         operationId,
         stepIndex: i,
         totalSteps: pipeline.length,

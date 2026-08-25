@@ -27,6 +27,8 @@ export interface RunDagOptions {
   files?: string[];
   /** Dependency-injected leaf executor. Defaults to a no-op content capture */
   exec?: ExecFunction;
+  /** Existing node results to seed execution (for cross-block binding / resume) */
+  existingResults?: Record<string, NodeResult>;
 }
 
 /**
@@ -177,7 +179,7 @@ export async function runSchemaDag(options: RunDagOptions): Promise<Record<strin
     throw new Error(`Invalid workflow schema: ${errors.join('; ')}`);
   }
 
-  const nodeResults: Record<string, NodeResult> = {};
+  const nodeResults = options.existingResults ?? {};
   const ordered = schema.flow
     .map((id) => schema.nodes.find((n) => n.id === id))
     .filter((n): n is WorkflowNode => !!n);

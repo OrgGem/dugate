@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  Loader2, Plus, Upload, FileText, Code, Play, Trash2,
-  Edit3, Eye, Download, ChevronDown, ChevronUp, Zap,
-  Settings, List, Grid, Search, X, AlertCircle, CheckCircle
+  Loader2, Plus, Upload, FileText, Play, Trash2,
+  Eye, ChevronUp, Zap,
+  Settings, List, Grid, Search, X
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,6 +17,15 @@ interface WorkflowSchemaSummary {
   description?: string;
 }
 
+interface WorkflowSchemaProperty {
+  type: "string" | "number" | "boolean" | "string[]" | "object";
+  label?: string;
+  required?: boolean;
+  widget?: string; // textarea / number / select
+  description?: string;
+  default?: unknown;
+}
+
 interface WorkflowSchema {
   slug: string;
   name: string;
@@ -24,14 +33,7 @@ interface WorkflowSchema {
   description?: string;
   input_schema?: {
     type: "object";
-    properties: Record<string, {
-      type: string;
-      label?: string;
-      required?: boolean;
-      widget?: string;
-      description?: string;
-      default?: unknown;
-    }>;
+    properties: Record<string, WorkflowSchemaProperty>;
   };
   nodes: Array<{
     id: string;
@@ -65,8 +67,12 @@ export default function WorkflowBuilderPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [selectedSchema, setSelectedSchema] = useState<WorkflowSchema | null>(null);
-  const [showSchemaModal, setShowSchemaModal] = useState(false);
+  // Run Modal state
+  const [runModalSlug, setRunModalSlug] = useState<string | null>(null);
+  const [runModalSchema, setRunModalSchema] = useState<WorkflowSchema | null>(null);
+  const [runInputs, setRunInputs] = useState<Record<string, unknown>>({});
+  const [runFiles, setRunFiles] = useState<File[]>([]);
+  const [runSubmitting, setRunSubmitting] = useState(false);
 
   // Parse ?detail=slug from URL
   const detailSlug = searchParams.get("detail");
@@ -128,11 +134,20 @@ export default function WorkflowBuilderPage() {
     if (!importFile) return toast.error("Chọn file .json hoặc .xml");
     setImporting(true);
     try {
-      const form = new FormData();
-      form.append("schema", importFile);
+      const text = await importFile.text();
+      const isXml = importFile.name.toLowerCase().endsWith(".xml");
+      let body: unknown;
+      if (isXml) {
+        body = { xml: text };
+      } else {
+        let parsed: unknown;
+        try { parsed = JSON.parse(text); } catch { throw new Error("File JSON không hợp lệ"); }
+        body = { schema: parsed };
+      }
       const res = await fetch("/api/internal/workflow-schemas", {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const { error } = await res.json();
@@ -142,8 +157,9 @@ export default function WorkflowBuilderPage() {
       setShowImportModal(false);
       setImportFile(null);
       loadSchemas();
-    } catch (e: any) {
-      toast.error(e.message || "Import thất bại");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Import thất bại";
+      toast.error(msg);
     } finally {
       setImporting(false);
     }
@@ -158,6 +174,174 @@ export default function WorkflowBuilderPage() {
       loadSchemas();
     } catch {
       toast.error("Xóa thất bại");
+    }
+  }
+
+  // ── Run modal helpers ────────────────────────────────────────────────────
+
+  async function openRunModal(slug: string) {
+    setRunModalSlug(slug);
+    setRunModalSchema(null);
+    setRunInputs({});
+    setRunFiles([]);
+    try {
+      const res = await fetch(`/api/internal/workflow-schemas?slug=${slug}`);
+      if (!res.ok) throw new Error("Not found");
+      const { schema } = (await res.json()) as { schema: WorkflowSchema };
+      // Pre-fill defaults from input_schema
+      const defaults: Record<string, unknown> = {};
+      for (const [k, prop] of Object.entries(schema.input_schema?.properties ?? {})) {
+        if (prop.default !== undefined && prop.default !== null) {
+          defaults[k] = prop.default;
+        }
+      }
+      setRunModalSchema(schema);
+      setRunInputs(defaults);
+    } catch {
+      toast.error("Không tải được schema để chạy");
+      setRunModalSlug(null);
+    }
+  }
+
+  function closeRunModal() {
+    setRunModalSlug(null);
+    setRunModalSchema(null);
+    setRunInputs({});
+    setRunFiles([]);
+    setRunSubmitting(false);
+  }
+
+  async function submitRun() {
+    if (!runModalSchema) return;
+    // Validate required fields
+    for (const [key, prop] of Object.entries(runModalSchema.input_schema?.properties ?? {})) {
+      if (prop.required && (runInputs[key] === undefined || runInputs[key] === "" || runInputs[key] === null)) {
+        toast.error(`Trường "${prop.label ?? key}" là bắt buộc`);
+        return;
+      }
+    }
+    setRunSubmitting(true);
+    try {
+      const form = new FormData();
+      form.append("schemaSlug", runModalSchema.slug);
+      if (Object.keys(runInputs).length > 0) {
+        form.append("input", JSON.stringify(runInputs));
+      }
+      for (const file of runFiles) {
+        form.append("files[]", file);
+      }
+      const res = await fetch("/api/v1/docs/workflows/schema", {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Workflow đã khởi chạy");
+        closeRunModal();
+        const opId = data.name?.replace("operations/", "");
+        if (opId) router.push(`/operations/${opId}`);
+      } else {
+        toast.error(data.detail || data.error || "Chạy thất bại");
+      }
+    } catch {
+      toast.error("Lỗi kết nối");
+    } finally {
+      setRunSubmitting(false);
+    }
+  }
+
+  function renderInputField(key: string, prop: WorkflowSchemaProperty) {
+    const value = runInputs[key];
+    const setValue = (v: unknown) => setRunInputs((prev) => ({ ...prev, [key]: v }));
+    const label = (
+      <label className="block text-sm font-medium mb-1">
+        {prop.label ?? key}
+        {prop.required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+    );
+    const desc = prop.description ? <p className="text-xs text-muted-foreground mt-1">{prop.description}</p> : null;
+
+    if (prop.widget === "textarea") {
+      return (
+        <div key={key} className="mb-3">
+          {label}
+          <textarea
+            className="w-full border border-border rounded-lg p-2 min-h-[80px]"
+            placeholder={prop.description}
+            value={typeof value === "string" ? value : value != null ? JSON.stringify(value) : ""}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          {desc}
+        </div>
+      );
+    }
+
+    switch (prop.type) {
+      case "number":
+        return (
+          <div key={key} className="mb-3">
+            {label}
+            <input
+              type="number"
+              className="w-full border border-border rounded-lg p-2"
+              value={value == null ? "" : String(value)}
+              onChange={(e) => setValue(e.target.value === "" ? undefined : Number(e.target.value))}
+            />
+            {desc}
+          </div>
+        );
+      case "boolean":
+        return (
+          <div key={key} className="mb-3 flex items-center gap-2">
+            <input
+              id={`run-${key}`}
+              type="checkbox"
+              checked={Boolean(value)}
+              onChange={(e) => setValue(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <label htmlFor={`run-${key}`} className="text-sm">{prop.label ?? key}{prop.required && <span className="text-red-500">*</span>}</label>
+            {desc}
+          </div>
+        );
+      case "string[]": {
+        const arrValue = Array.isArray(value) ? value.join("\n") : typeof value === "string" ? value : "";
+        return (
+          <div key={key} className="mb-3">
+            {label}
+            <textarea
+              className="w-full border border-border rounded-lg p-2 min-h-[60px]"
+              placeholder="Một giá trị mỗi dòng"
+              value={arrValue}
+              onChange={(e) => setValue(e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))}
+            />
+            <p className="text-xs text-muted-foreground">Mỗi dòng một giá trị</p>
+            {desc}
+          </div>
+        );
+      }
+      default: {
+        const isObj = prop.type === "object";
+        const displayVal = isObj
+          ? (value != null ? JSON.stringify(value, null, 2) : "")
+          : typeof value === "string" ? value : value != null ? JSON.stringify(value) : "";
+        return (
+          <div key={key} className="mb-3">
+            {label}
+            <textarea
+              className="w-full border border-border rounded-lg p-2 font-mono text-sm min-h-[70px]"
+              placeholder={isObj ? '{"key":"value"}' : ""}
+              value={displayVal}
+              onChange={(e) => {
+                if (!isObj) { setValue(e.target.value); return; }
+                try { setValue(JSON.parse(e.target.value)); } catch { setValue(e.target.value); }
+              }}
+            />
+            {isObj && <p className="text-xs text-muted-foreground">Nhập JSON hợp lệ</p>}
+            {desc}
+          </div>
+        );
+      }
     }
   }
 
@@ -182,7 +366,7 @@ export default function WorkflowBuilderPage() {
         schema={detailSchema}
         loading={detailLoading}
         onClose={closeDetail}
-        onRun={(slug) => router.push(`/workflow-builder/run?slug=${slug}`)}
+        onRun={(slug) => openRunModal(slug)}
       />
     );
   }
@@ -258,7 +442,7 @@ export default function WorkflowBuilderPage() {
                 <span className="text-muted-foreground">—</span>
                 <div className="flex items-center gap-2 justify-end">
                   <button onClick={() => openDetail(s.slug)} className="p-2 hover:bg-muted rounded-lg" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
-                  <button onClick={() => router.push(`/workflow-builder/run?slug=${s.slug}`)} className="p-2 hover:bg-muted rounded-lg" title="Chạy thử"><Play className="w-4 h-4 text-green-600" /></button>
+                  <button onClick={() => openRunModal(s.slug)} className="p-2 hover:bg-muted rounded-lg" title="Chạy thử"><Play className="w-4 h-4 text-green-600" /></button>
                   <button onClick={() => handleDelete(s.slug)} className="p-2 hover:bg-muted rounded-lg text-red-600" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
@@ -278,7 +462,7 @@ export default function WorkflowBuilderPage() {
                 </div>
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
                   <button onClick={() => openDetail(s.slug)} className="flex-1 btn-outline flex items-center justify-center gap-1"><Eye className="w-4 h-4" /> Xem</button>
-                  <button onClick={() => router.push(`/workflow-builder/run?slug=${s.slug}`)} className="flex-1 btn-primary flex items-center justify-center gap-1"><Play className="w-4 h-4" /> Chạy</button>
+                  <button onClick={() => openRunModal(s.slug)} className="flex-1 btn-primary flex items-center justify-center gap-1"><Play className="w-4 h-4" /> Chạy</button>
                   <button onClick={() => handleDelete(s.slug)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
@@ -313,11 +497,63 @@ export default function WorkflowBuilderPage() {
           </div>
         </div>
       )}
+      {/* Run Modal */}
+      {runModalSlug && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeRunModal}>
+          <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold">Chạy workflow</h2>
+                <p className="text-sm text-muted-foreground font-mono">{runModalSlug}</p>
+              </div>
+              <button onClick={closeRunModal} className="p-2 hover:bg-muted rounded-lg" title="Đóng"><X className="w-5 h-5" /></button>
+            </div>
+
+            {!runModalSchema ? (
+              <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
+            ) : (
+              <form onSubmit={(e) => { e.preventDefault(); void submitRun(); }}>
+                {/* Auto-generated input fields from input_schema */}
+                {Object.entries(runModalSchema.input_schema?.properties ?? {}).length > 0 ? (
+                  Object.entries(runModalSchema.input_schema!.properties).map(([key, prop]) =>
+                    renderInputField(key, prop)
+                  )
+                ) : (
+                  <p className="text-sm text-muted-foreground mb-3">Workflow này không yêu cầu biến đầu vào.</p>
+                )}
+
+                {/* File upload */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Tệp đính kèm (tùy chọn)</label>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => setRunFiles(Array.from(e.target.files ?? []))}
+                    className="w-full border border-border rounded-lg p-2"
+                  />
+                  {runFiles.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">{runFiles.length} tệp đã chọn</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 justify-end pt-2 border-t border-border">
+                  <button type="button" className="btn-outline flex-1" onClick={closeRunModal}>Hủy</button>
+                  <button type="submit" className="btn-primary flex-1 flex items-center justify-center gap-2" disabled={runSubmitting}>
+                    {runSubmitting
+                      ? (<><Loader2 className="w-4 h-4 animate-spin" /> Đang khởi chạy...</>)
+                      : (<><Play className="w-4 h-4" /> Chạy workflow</>)}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────────────────────────────
    WorkflowDetailView — xem chi tiết + chạy test
 ────────────────────────────────────────────────────────────────────────── */
 
@@ -332,28 +568,47 @@ function WorkflowDetailView({
   onClose: () => void;
   onRun: (slug: string) => void;
 }) {
-  const [runLoading, setRunLoading] = useState(false);
-  const [runResult, setRunResult] = useState<any>(null);
+  // Pipeline Mappings state
+  const [pipelineMappings, setPipelineMappings] = useState<any[] | null>(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [overrideEdits, setOverrideEdits] = useState<Record<string, any>>({});
+  const [savingOverride, setSavingOverride] = useState<string | null>(null);
 
-  const handleRun = async () => {
-    setRunLoading(true);
-    setRunResult(null);
+  // Load pipeline mappings on mount
+  useEffect(() => {
+    if (!schema?.slug) return;
+    setPipelineLoading(true);
+    setPipelineError(null);
+    fetch(`/api/internal/workflow-schemas/pipeline-mappings?slug=${schema.slug}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) { setPipelineError(data.error); return; }
+        setPipelineMappings(data.pipelineMappings || []);
+        const edits: Record<string, any> = {};
+        for (const m of data.pipelineMappings || []) {
+          edits[m.nodeId] = { ...m.currentOverrides };
+        }
+        setOverrideEdits(edits);
+      })
+      .catch(() => setPipelineError("Lỗi tải pipeline mappings"))
+      .finally(() => setPipelineLoading(false));
+  }, [schema?.slug]);
+
+  async function saveOverride(nodeId: string) {
+    setSavingOverride(nodeId);
     try {
-      const res = await fetch("/api/v1/docs/workflows", {
-        method: "POST",
+      const res = await fetch("/api/internal/workflow-schemas/override", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schema, input: {} }), // TODO: form input cho variables
+        body: JSON.stringify({ slug: schema.slug, nodeId, overrides: overrideEdits[nodeId] || {} }),
       });
       const data = await res.json();
-      setRunResult(data);
-      if (res.ok) toast.success("Workflow đã khởi chạy");
-      else toast.error(data.error || "Chạy thất bại");
-    } catch {
-      toast.error("Lỗi kết nối");
-    } finally {
-      setRunLoading(false);
-    }
-  };
+      if (res.ok) { toast.success("Đã lưu override"); }
+      else { toast.error(data.error || "Lưu thất bại"); }
+    } catch { toast.error("Lỗi kết nối"); }
+    finally { setSavingOverride(null); }
+  }
 
   return (
     <div className="space-y-6">
@@ -367,8 +622,8 @@ function WorkflowDetailView({
         </div>
         <div className="flex gap-2">
           <button onClick={onClose} className="btn-outline"><X className="w-4 h-4" /> Đóng</button>
-          <button onClick={() => onRun(schema.slug)} className="btn-primary" disabled={runLoading}>
-            <Play className="w-4 h-4" /> {runLoading ? "Đang chạy..." : "Chạy thử"}
+          <button onClick={() => onRun(schema.slug)} className="btn-primary">
+            <Play className="w-4 h-4" /> Chạy thử
           </button>
         </div>
       </div>
@@ -380,7 +635,7 @@ function WorkflowDetailView({
             {schema.input_schema ? JSON.stringify(schema.input_schema.properties, null, 2) : "Không có"}
           </pre>
         </SchemaInfoCard>
-        <SchemaInfoCard title="Nodes ({schema.nodes.length})" icon={Zap}>
+        <SchemaInfoCard title={`Nodes (${schema.nodes.length})`} icon={Zap}>
           <div className="space-y-2 max-h-64 overflow-auto">
             {schema.nodes.map((n) => (
               <div key={n.id} className="flex items-center gap-2 p-2 bg-muted rounded text-sm">
@@ -408,15 +663,113 @@ function WorkflowDetailView({
             )}
           </div>
         </SchemaInfoCard>
-      </div>
 
-      {/* Run Result */}
-      {runResult && (
-        <div className="rounded-xl border border-border p-4 bg-muted/30">
-          <h3 className="font-semibold mb-2">Kết quả chạy thử</h3>
-          <pre className="text-xs bg-background p-3 rounded overflow-auto max-h-96">{JSON.stringify(runResult, null, 2)}</pre>
-        </div>
-      )}
+        {/* Pipeline Mappings card */}
+        <SchemaInfoCard title="Pipeline Mappings" icon={Settings}>
+          {pipelineLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
+          ) : pipelineError ? (
+            <p className="text-sm text-red-500">{pipelineError}</p>
+          ) : !pipelineMappings || pipelineMappings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Không có connector nodes trong schema này</p>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-auto">
+              {pipelineMappings.map((pm) => {
+                const edit = overrideEdits[pm.nodeId] || {};
+                return (
+                  <div key={pm.nodeId} className="border border-border rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <code className="font-mono text-sm font-semibold">{pm.nodeId}</code>
+                        <span className="ml-2 text-xs px-2 py-0.5 bg-primary/10 text-primary rounded">{pm.connectorSlug}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mb-2 space-y-0.5">
+                      <p><span className="font-medium">Endpoint:</span> {pm.connectorName}</p>
+                      {pm.connectorDescription && <p><span className="font-medium">Mô tả:</span> {pm.connectorDescription}</p>}
+                      <p><span className="font-medium">Response path:</span> {pm.responseContentPath}</p>
+                      <p><span className="font-medium">Timeout:</span> {pm.timeoutSec}s</p>
+                    </div>
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-xs font-medium text-muted-foreground">Override parameters</p>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Prompt override</label>
+                        <textarea
+                          className="w-full border border-border rounded p-1.5 text-xs min-h-[50px]"
+                          placeholder={pm.defaultPrompt?.substring(0, 60) + "..." || "Mặc định từ connector"}
+                          value={edit.prompt !== undefined && edit.prompt !== null ? edit.prompt : ""}
+                          onChange={(e) => setOverrideEdits((prev) => ({
+                            ...prev,
+                            [pm.nodeId]: { ...prev[pm.nodeId], prompt: e.target.value || undefined },
+                          }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Static form fields (JSON)</label>
+                        <input
+                          className="w-full border border-border rounded p-1.5 text-xs"
+                          placeholder={pm.staticFormFields || "Mặc định"}
+                          value={edit.staticFormFields !== undefined ? edit.staticFormFields : ""}
+                          onChange={(e) => setOverrideEdits((prev) => ({
+                            ...prev,
+                            [pm.nodeId]: { ...prev[pm.nodeId], staticFormFields: e.target.value || undefined },
+                          }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Extra headers (JSON)</label>
+                        <input
+                          className="w-full border border-border rounded p-1.5 text-xs"
+                          placeholder={pm.extraHeaders || "Mặc định"}
+                          value={edit.extraHeaders !== undefined ? edit.extraHeaders : ""}
+                          onChange={(e) => setOverrideEdits((prev) => ({
+                            ...prev,
+                            [pm.nodeId]: { ...prev[pm.nodeId], extraHeaders: e.target.value || undefined },
+                          }))}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs text-muted-foreground">Response content path</label>
+                          <input
+                            className="w-full border border-border rounded p-1.5 text-xs"
+                            placeholder={pm.responseContentPath}
+                            value={edit.responseContentPath !== undefined ? edit.responseContentPath : ""}
+                            onChange={(e) => setOverrideEdits((prev) => ({
+                              ...prev,
+                              [pm.nodeId]: { ...prev[pm.nodeId], responseContentPath: e.target.value || undefined },
+                            }))}
+                          />
+                        </div>
+                        <div className="w-24">
+                          <label className="text-xs text-muted-foreground">Timeout (s)</label>
+                          <input
+                            type="number"
+                            className="w-full border border-border rounded p-1.5 text-xs"
+                            placeholder={String(pm.timeoutSec)}
+                            value={edit.timeoutSec !== undefined ? edit.timeoutSec : ""}
+                            onChange={(e) => setOverrideEdits((prev) => ({
+                              ...prev,
+                              [pm.nodeId]: { ...prev[pm.nodeId], timeoutSec: e.target.value ? Number(e.target.value) : undefined },
+                            }))}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        className="btn-primary text-xs py-1 px-2"
+                        disabled={savingOverride === pm.nodeId}
+                        onClick={() => saveOverride(pm.nodeId)}
+                      >
+                        {savingOverride === pm.nodeId ? "Đang lưu..." : "Lưu override"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SchemaInfoCard>
+      </div>
     </div>
   );
 }

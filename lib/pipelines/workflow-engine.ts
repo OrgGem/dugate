@@ -60,6 +60,8 @@ export interface WorkflowContext {
   promptOverrides: Record<string, string>;
   /** Checkpoint: current step index (used for resume) */
   currentStep: number;
+  /** Schema-driven node results persisted across HITL pause/resume (optional) */
+  _nodeResults?: Record<string, unknown> | null;
 }
 
 // ─── Helpers (exported for workflow files) ─────────────────────────────────────
@@ -243,12 +245,19 @@ export async function completeWorkflow(ctx: WorkflowContext, outputContent: stri
 
 /** Mark parent operation as WAITING_USER_INPUT (Paused for Human-in-the-Loop) */
 export async function pauseWorkflow(ctx: WorkflowContext, message: string, currentStep: number) {
+  // Persist schema-driven nodeResults alongside stepsResult for resume
+  let stepsResultJson = JSON.stringify(ctx.stepsResult);
+  const schemaNodeResults = (ctx as any)._nodeResults;
+  if (schemaNodeResults && typeof schemaNodeResults === 'object' && Object.keys(schemaNodeResults).length > 0) {
+    stepsResultJson = JSON.stringify({ stepsResult: ctx.stepsResult, _nodeResults: schemaNodeResults });
+  }
+
   await db.update(operations).set({
     done: false,
     state: 'WAITING_USER_INPUT',
     progressMessage: message,
     currentStep, // Save Checkpoint index to resume from there
-    stepsResultJson: JSON.stringify(ctx.stepsResult),
+    stepsResultJson,
     
     // Track usage accumulated so far
     totalInputTokens: ctx.totalInputTokens,
@@ -364,6 +373,21 @@ export async function createWorkflowContext(
     }
   }
 
+  // Khôi phục schema-driven nodeResults nếu stepsResultJson lưu dạng { stepsResult, _nodeResults }
+  let stepsResult: WorkflowStepResult[] = [];
+  let schemaNodeResults: Record<string, unknown> | null = null;
+  if (operation.stepsResultJson) {
+    try {
+      const parsed = JSON.parse(operation.stepsResultJson);
+      if (parsed && typeof parsed === 'object' && parsed._nodeResults) {
+        stepsResult = Array.isArray(parsed.stepsResult) ? parsed.stepsResult : [];
+        schemaNodeResults = parsed._nodeResults;
+      } else if (Array.isArray(parsed)) {
+        stepsResult = parsed;
+      }
+    } catch { stepsResult = []; }
+  }
+
   return {
     operationId,
     correlationId,
@@ -372,7 +396,8 @@ export async function createWorkflowContext(
     filesJson: operation.filesJson,
     filesData,
     pipelineVars,
-    stepsResult: operation.stepsResultJson ? JSON.parse(operation.stepsResultJson) : [],
+    stepsResult,
+    _nodeResults: schemaNodeResults,
     totalInputTokens: operation.totalInputTokens || 0,
     totalOutputTokens: operation.totalOutputTokens || 0,
     totalCost: operation.totalCostUsd || 0,
@@ -410,6 +435,19 @@ export async function runWorkflow(
 ): Promise<void> {
   const ctx = await createWorkflowContext(operationId, correlationId, job);
   if (!ctx) return;
+
+  // 👇 Schema-driven workflow: khi request đến từ POST /api/v1/docs/workflows/schema
+  if (ctx.pipelineVars.schemaSlug) {
+    const schemaSlug = String(ctx.pipelineVars.schemaSlug);
+    ctx.logger.info(`[WORKFLOW] Schema-driven workflow: '${schemaSlug}'`);
+    const schema = await loadSchema(schemaSlug);
+    if (schema) {
+      await runWorkflowFromSchema(ctx, schema);
+      return;
+    }
+    await failWorkflow(ctx, new Error(`Schema '${schemaSlug}' not found in DB. Import it first.`));
+    return;
+  }
 
   // Extract workflow name from job name: "pipeline:workflows:disbursement [Profile]" → "disbursement"
   const jobName = job?.name || '';

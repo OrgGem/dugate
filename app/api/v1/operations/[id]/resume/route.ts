@@ -32,15 +32,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: `Operation is in state ${operation.state}, cannot resume. Must be WAITING_USER_INPUT.` }, { status: 400 });
     }
 
-    // Update stepsResult if human edit data is provided.
-    // Note: Check body.step !== undefined (not just `body.step`) to handle step index 0 correctly.
-    let stepsResult = operation.stepsResultJson ? JSON.parse(operation.stepsResultJson) : [];
+    // ── Parse stepsResult, handling _nodeResults wrapper ──────────────────
+    // Schema-driven workflows store: { stepsResult: [...], _nodeResults: {...} }
+    // Code-driven workflows store: [...] (plain array)
+    let rawParsed: unknown = null;
+    let stepsResult: any[] = [];
+    let schemaNodeResults: Record<string, unknown> | null = null;
+
+    if (operation.stepsResultJson) {
+      try {
+        rawParsed = JSON.parse(operation.stepsResultJson);
+      } catch { /* ignore */ }
+    }
+
+    if (rawParsed && typeof rawParsed === 'object' && !Array.isArray(rawParsed) && (rawParsed as any)._nodeResults) {
+      // Schema-driven wrapper format
+      stepsResult = Array.isArray((rawParsed as any).stepsResult) ? (rawParsed as any).stepsResult : [];
+      schemaNodeResults = (rawParsed as any)._nodeResults;
+    } else if (Array.isArray(rawParsed)) {
+      stepsResult = rawParsed;
+    }
+
+    // Update stepsResult if human edit data is provided
     if (body.step !== undefined && body.step !== null && 'extracted_data' in body) {
-      // Find the specific step to update
       const stepIndex = stepsResult.findIndex((s: any) => s.step === body.step);
       if (stepIndex >= 0) {
         stepsResult[stepIndex].extracted_data = body.extracted_data;
-        // Optionally mark that it was human-edited
         stepsResult[stepIndex].is_human_edited = true;
       }
     }
@@ -55,11 +72,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       bullPriority = resolveBullPriority(profileEndpoint?.jobPriority);
     }
 
+    // ── Re-encode stepsResultJson, preserving _nodeResults wrapper ────────
+    let finalStepsResultJson: string;
+    if (schemaNodeResults && Object.keys(schemaNodeResults).length > 0) {
+      finalStepsResultJson = JSON.stringify({ stepsResult, _nodeResults: schemaNodeResults });
+    } else {
+      finalStepsResultJson = JSON.stringify(stepsResult);
+    }
+
     // Set state back to RUNNING and update
     await db.update(operations).set({
       state: 'RUNNING',
       progressMessage: 'Đang tiếp tục luồng xử lý do người dùng xác nhận...',
-      stepsResultJson: JSON.stringify(stepsResult)
+      stepsResultJson: finalStepsResultJson,
     }).where(eq(operations.id, operationId));
 
     // Enqueue back to the worker

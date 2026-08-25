@@ -50,6 +50,15 @@ export interface SubmitPipelineParams {
   correlationId?: string;
   /** Override DISABLE_HISTORY env — set false to keep operation visible for polling */
   disableHistory?: boolean;
+  /**
+   * Skip per-step connector validation in DB.
+   *
+   * For schema-driven workflow jobs the pipeline entry is only a placeholder:
+   * the worker never executes it (runWorkflow dispatches by schemaSlug), so the
+   * processor does not need to exist as an ExternalApiConnection. This avoids a
+   * spurious 404 'Connector Not Found' on POST /api/v1/docs/workflows/schema.
+   */
+  skipConnectorValidation?: boolean;
 }
 
 export type SubmitPipelineResult =
@@ -75,6 +84,7 @@ export async function submitPipelineJob(
     userId,
     executeSync = false,
     correlationId,
+    skipConnectorValidation = false,
   } = params;
 
   // ── 1. Basic pipeline validation ─────────────────────────────────────────
@@ -99,7 +109,9 @@ export async function submitPipelineJob(
   }
 
   // ── 2. Validate each connector in DB ─────────────────────────────────────
-  for (let i = 0; i < pipeline.length; i++) {
+  // (skipped for schema-driven workflow jobs where the pipeline entry is a
+  //  placeholder and the worker dispatches by schemaSlug instead)
+  for (let i = 0; !skipConnectorValidation && i < pipeline.length; i++) {
     const step = pipeline[i];
     const [conn] = await db.select().from(externalApiConnections)
       .where(eq(externalApiConnections.slug, step.processor))

@@ -56,6 +56,19 @@ export interface ConnectorNode extends WorkflowNodeBase {
   promptOverrideKey?: string; // key into promptOverrides
   inputs?: Record<string, Binding>;
   outputPath?: string;        // dot-path into connector result JSON to use as this node's value
+  /** Per-node connector overrides (viewed/edited in UI, applied at runtime) */
+  overrideConnector?: {
+    /** Override the connector's default prompt */
+    prompt?: string;
+    /** Override staticFormFields (JSON string of extra fields sent to the connector) */
+    staticFormFields?: string;
+    /** Override extraHeaders (JSON string of extra HTTP headers) */
+    extraHeaders?: string;
+    /** Override the JSON path to extract content from the response */
+    responseContentPath?: string;
+    /** Override timeout in seconds */
+    timeoutSec?: number;
+  };
 }
 
 export interface ParallelNode extends WorkflowNodeBase {

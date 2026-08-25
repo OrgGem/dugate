@@ -33,7 +33,12 @@ export async function runWorkflowFromSchema(
     .map((id) => schema.nodes.find((n) => n.id === id))
     .filter((n): n is NonNullable<typeof n> => !!n);
 
+  // 👇 Khôi phục nodeResults từ ctx khi resume (sau HITL pause)
   const nodeResults: Record<string, NodeResult> = {};
+  const savedNodeResults = (ctx as any)._nodeResults;
+  if (savedNodeResults && typeof savedNodeResults === 'object') {
+    Object.assign(nodeResults, savedNodeResults);
+  }
   const startIndex = ctx.currentStep ?? 0;
 
   try {
@@ -43,7 +48,8 @@ export async function runWorkflowFromSchema(
       await updateProgress(ctx, Math.round((i / totalSteps) * 100), `Step ${i + 1}/${totalSteps}: ${node.id}`);
 
       if (node.type === 'human') {
-        // Persist prior results into ctx.stepsResult (for resume review).
+        // Lưu nodeResults vào context để resume khôi phục binding
+        (ctx as any)._nodeResults = nodeResults;
         await updateProgress(ctx, Math.round((i / totalSteps) * 100), node.message);
         await pauseWorkflow(ctx, node.message, i + 1);
         return; // halted until resume
@@ -66,6 +72,7 @@ export async function runWorkflowFromSchema(
         input,
         files,
         exec,
+        existingResults: nodeResults, // 👈 cross-block binding
       });
       Object.assign(nodeResults, blockResults);
       i = j; // next index (either block end or human node)

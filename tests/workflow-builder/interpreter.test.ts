@@ -56,9 +56,14 @@ describe('runSchemaDag', () => {
   // A fake executor that maps connector slug -> output; supports fan-out via results.
   function makeExec() {
     return jest.fn(async (node: any, resolve: (b: any) => unknown, results: any) => {
-      // connector node: produce content derived from inputs
+      // connector node: produce content derived from inputs (resolve each input,
+      // mirroring real-exec which resolves per-field, not the whole object)
       const slug = node.connector || node.id;
-      return { content: `${slug}:${JSON.stringify(resolve(node.inputs || {}))}`, data: { slug } };
+      const inputs: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(node.inputs || {})) {
+        inputs[k] = resolve(v);
+      }
+      return { content: `${slug}:${JSON.stringify(inputs)}`, data: { slug } };
     });
   }
 
@@ -98,6 +103,36 @@ describe('runSchemaDag', () => {
     const j = toNodeResults(results).j;
     expect(exec).toHaveBeenCalledTimes(2);
     expect(j.output).toBeTruthy();
+  });
+
+
+  it('resolves bindings from existingResults (cross-block binding)', async () => {
+    // Block 1: node 'a'
+    const block1: WorkflowSchema = {
+      slug: 't', name: 'Test', flow: ['a'],
+      nodes: [{ id: 'a', type: 'connector', connector: 'ext-a', inputs: { x: 1 } }],
+    };
+    const exec = makeExec();
+    const results1 = await runSchemaDag({ schema: block1, input: {}, files: [], exec });
+
+    // Block 2: node 'b' references $a.content — must resolve from results1
+    const block2: WorkflowSchema = {
+      slug: 't', name: 'Test', flow: ['b'],
+      nodes: [{ id: 'b', type: 'connector', connector: 'ext-b', inputs: { prev: '$a.content' } }],
+    };
+    const results2 = await runSchemaDag({
+      schema: block2,
+      input: {},
+      files: [],
+      exec,
+      existingResults: results1,
+    });
+
+    expect(exec).toHaveBeenCalledTimes(2);
+    const bResult = toNodeResults(results2).b;
+    // b.content = "ext-b:{prev:...}" — resolve('$a.content') must have hit node a's output
+    expect(bResult.content).toContain('ext-a');
+    expect(bResult.content).toContain('1');
   });
 
   it('executes human node and records it without calling exec', async () => {

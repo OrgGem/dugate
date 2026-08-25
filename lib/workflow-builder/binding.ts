@@ -40,6 +40,23 @@ export function resolveBinding(value: unknown, ctx: BindingContext): unknown {
   const node = ctx.nodes[name];
   if (!node) return undefined;
 
+  // Top-level fields: $a.content, $a.extractedData, $a.files, $a.data
+  // Also handle sub-paths: $a.data.meta -> (node.data).meta
+  // Empty data {} falls through to output (backwards compatible with $node.data.x on outputs).
+  const TOP_LEVEL = new Set(['content', 'extractedData', 'files', 'data']);
+  if (rest) {
+    const dot = rest.indexOf('.');
+    const first = dot === -1 ? rest : rest.slice(0, dot);
+    if (TOP_LEVEL.has(first)) {
+      const val = (node as any)[first];
+      const isEmptyData = first === 'data' && typeof val === 'object' && val !== null && Object.keys(val).length === 0;
+      if (val !== undefined && !isEmptyData) {
+        const sub = dot === -1 ? null : rest.slice(dot + 1);
+        return sub ? resolveDotPath(val, sub) : val;
+      }
+    }
+  }
+
   const root = node.output !== undefined ? node.output : node.data;
   if (root === undefined) return node.content;
   if (!rest) return root;
