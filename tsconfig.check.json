@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["next-env.d.ts", "app/workflow-builder/page.tsx", "lib/workflow-builder/**/*.ts", "lib/pipelines/workflow-engine.ts", "app/api/v1/docs/workflows/schema/route.ts", "tests/workflow-builder/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
+}

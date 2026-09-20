@@ -1,0 +1,28 @@
+{
+  "name": "@du/document-kit",
+  "version": "1.0.0",
+  "description": "Native document parsing, conversion, and safe archive extraction utilities",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "jest",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "mammoth": "^1.8.0",
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

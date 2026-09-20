@@ -1,0 +1,1 @@
+{"version":3,"file":"diff-engine.d.ts","sourceRoot":"","sources":["diff-engine.ts"],"names":[],"mappings":"AAAA,OAAO,EAAY,UAAU,EAAE,MAAM,UAAU,CAAC;AAEhD;;GAEG;AACH,qBAAa,UAAU;WACP,WAAW,CAAC,UAAU,EAAE,MAAM,EAAE,UAAU,EAAE,MAAM,GAAG,UAAU;IA4E7E,OAAO,CAAC,MAAM,CAAC,gBAAgB;CAmBhC"}

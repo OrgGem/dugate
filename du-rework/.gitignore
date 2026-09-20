@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+.env
+uploads/
+outputs/
+data/
+*.log
