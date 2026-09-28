@@ -1,0 +1,38 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "data-03-url-acq"
+
+FAIL tests/data-03-url-acq.test.ts
+  W-DATA-03: a URL task is not runnable before its source is READY
+    √ refuses a pin with no materialized artifact, even with inline text present (4 ms)
+    √ refuses a pin whose artifacts were read but do not match (2 ms)
+    × parses the PINNED bytes and ignores attached inline text (2 ms)
+  W-DATA-03: the inline path is untouched when there is no pin
+    √ accepts inline text with no source pin (ordinary case) (2 ms)
+  W-DATA-03: a failed acquisition leaves nothing parseable
+    √ a pin with zero materialized bytes yields no buffers to parse
+
+  ● W-DATA-03: a URL task is not runnable before its source is READY › parses the PINNED bytes and ignores attached inline text
+
+    expect(received).toBeUndefined()
+
+    Received: "inline text that is NOT the pinned document"
+
+    [0m [90m 81 |[39m     [36mconst[39m sources [33m=[39m [36mawait[39m [33mIngestAction[39m[33m.[39mprepareSources(ctx[33m,[39m input)[33m;[39m
+     [90m 82 |[39m     [90m// The inline text is dropped: only the pinned object may satisfy the task.[39m
+    [31m[1m>[22m[39m[90m 83 |[39m     expect(sources[33m.[39minlineText)[33m.[39mtoBeUndefined()[33m;[39m
+     [90m    |[39m                                [31m[1m^[22m[39m
+     [90m 84 |[39m     expect(sha256(sources[33m.[39mbuffers[[35m0[39m] [36mas[39m [33mBuffer[39m))[33m.[39mtoBe(sha256([33mPINNED[39m))[33m;[39m
+     [90m 85 |[39m   })[33m;[39m
+     [90m 86 |[39m })[33m;[39m[0m
+
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:83:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 4 passed, 5 total
+Snapshots:   0 total
+Time:        2.681 s, estimated 4 s
+Ran all test suites matching /data-03-url-acq/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "data-03-url-acq"`
+Exit status 1

@@ -1,0 +1,298 @@
+FAIL tests/network-boundaries.boundary.test.ts
+  ● Console
+
+    console.log
+      CANONICAL ::ffff:127.0.0.1 -> ::ffff:7f00:1
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:166:13)
+
+    console.log
+      CANONICAL ::ffff:7f00:1 -> ::ffff:7f00:1
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:166:13)
+
+    console.log
+      CANONICAL 0:0:0:0:0:0:0:1 -> ::1
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:166:13)
+
+    console.log
+      CANONICAL 2002:7f00:1:: -> 2002:7f00:1::
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:166:13)
+
+    console.log
+      CANONICAL 64:ff9b::7f00:1 -> 64:ff9b::7f00:1
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:166:13)
+
+    console.log
+      CANONICAL fd12:3456::1 -> fd12:3456::1
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:166:13)
+
+  ● [OPEN:FIX-CR-01 vector ::ffff:7f00:1] IPv4-mapped loopback, hextet serialization variant (WR24-05)
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[::ffff:7f00:1]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector ::ffff:127.0.0.1] IPv4-mapped loopback, dotted-tail serialization variant
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[::ffff:7f00:1]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector ::] IPv6 unspecified (self-connect)
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[::]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 2002:7f00:1::] 6to4 carrying embedded 127.0.0.1
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[2002:7f00:1::]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 64:ff9b::7f00:1] NAT64 well-known prefix carrying 127.0.0.1
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[64:ff9b::7f00:1]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 2001:0:4136:e378:8000:63bf:3fff:ffff] Teredo prefix 2001::/32
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[2001:0:4136:e378:8000:63bf:3fff:ffff]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector ff02::1] IPv6 link-local all-nodes multicast
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://[ff02::1]:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 224.0.0.1] IPv4 multicast
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://224.0.0.1:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 100.64.1.1] CGNAT 100.64/10 (cloud metadata placement)
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://100.64.1.1:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 198.18.0.1] benchmarking 198.18/15
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://198.18.0.1:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 vector 192.0.0.1] IETF protocol assignments 192.0.0/24
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://192.0.0.1:8080/"
+
+    [0m [90m 134 |[39m     expect(isIpLiteralHost(host))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 135 |[39m     [36mconst[39m lookupsBefore [33m=[39m mockDns[33m.[39mcalls[33m;[39m
+    [31m[1m>[22m[39m[90m 136 |[39m     [36mawait[39m expect(validateProviderUrl(url))[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'INVALID_INPUT'[39m })[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 137 |[39m     expect(mockDns[33m.[39mcalls)[33m.[39mtoBe(lookupsBefore)[33m;[39m
+     [90m 138 |[39m   })[33m;[39m
+     [90m 139 |[39m }[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:136:11)
+
+  ● [OPEN:FIX-CR-01 allowlist-must-not-bypass-ip-adjudication]
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: "http://svc.internal.test:8080/"
+
+    [0m [90m 179 |[39m   [90m// A hostname allowlist may widen which names are considered, never skip the question of[39m
+     [90m 180 |[39m   [90m// where they resolve. Today validateProviderUrl returns before the lookup: RED.[39m
+    [31m[1m>[22m[39m[90m 181 |[39m   [36mawait[39m expect(
+     [90m     |[39m         [31m[1m^[22m[39m
+     [90m 182 |[39m     validateProviderUrl([32m'http://svc.internal.test:8080'[39m[33m,[39m {
+     [90m 183 |[39m       allowHosts[33m:[39m [36mnew[39m [33mSet[39m([[32m'svc.internal.test'[39m])[33m,[39m
+     [90m 184 |[39m     })[33m,[39m[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:181:9)
+
+  ● [OPEN:FIX-CR-08 early-cap-before-full-buffer]
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 2048
+    Received:    8192
+
+    [0m [90m 278 |[39m   [90m// FIX-CR-08: reading must stop at the cap (plus at most two in-flight chunks), not after all[39m
+     [90m 279 |[39m   [90m// 8192 bytes are buffered. Today the listener witnesses the full body: RED.[39m
+    [31m[1m>[22m[39m[90m 280 |[39m   expect(listener[33m.[39mbytesWritten)[33m.[39mtoBeLessThanOrEqual([35m1024[39m [33m+[39m [35m2[39m [33m*[39m [35m512[39m)[33m;[39m
+     [90m     |[39m                                 [31m[1m^[22m[39m
+     [90m 281 |[39m })[33m;[39m
+     [90m 282 |[39m[0m
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:280:33)
+
+FAIL tests/p8-03-convergence.test.ts
+  ● P8-03: Connector Convergence & Foundation Contracts (CON-01..05, USE-01/02) › USE-02: Zero Double-Billing on Replay & Outbox Convergence › live usage_events projection aggregates provider tokens and costs with zero double-billing on duplicate events
+
+    error: relation "operations" does not exist
+
+    [0m [90m 22 |[39m     parameters[33m:[39m readonly unknown[] [33m=[39m [][33m,[39m
+     [90m 23 |[39m   )[33m:[39m [33mPromise[39m[33m<[39m[33mSqlResult[39m[33m<[39m[33mRow[39m[33m>>[39m {
+    [31m[1m>[22m[39m[90m 24 |[39m     [36mconst[39m result [33m=[39m [36mawait[39m [36mthis[39m[33m.[39mpool[33m.[39mquery(text[33m,[39m parameters [36mas[39m unknown[])[33m;[39m
+     [90m    |[39m                    [31m[1m^[22m[39m
+     [90m 25 |[39m     [36mreturn[39m { rows[33m:[39m result[33m.[39mrows [36mas[39m [33mRow[39m[][33m,[39m rowCount[33m:[39m result[33m.[39mrowCount [33m?[39m[33m?[39m undefined }[33m;[39m
+     [90m 26 |[39m   }
+     [90m 27 |[39m[0m
+
+      at ../../node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+      at PgSqlClient.query (src/db/pg-client.ts:24:20)
+      at Object.<anonymous> (tests/p8-03-convergence.test.ts:648:9)
+
+PASS tests/reliability-security.test.ts
+PASS tests/connector.test.ts
+PASS tests/canonical-hash-parity.test.ts
+PASS tests/security-lifecycle.test.ts
+PASS tests/mock-provider/provider.test.ts
+PASS tests/webhook.test.ts
+PASS tests/composition.test.ts
+PASS tests/invocation-access.test.ts
+PASS tests/runtime-foundations.test.ts
+PASS tests/r1-d-lifecycle-offline.test.ts
+
+Test Suites: 2 failed, 2 skipped, 10 passed, 12 of 14 total
+Tests:       14 failed, 7 skipped, 106 passed, 127 total
+Snapshots:   0 total
+Time:        3.561 s, estimated 9 s
+Ran all test suites.

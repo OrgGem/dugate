@@ -39,13 +39,43 @@ export class InMemoryInvocationLedger implements InvocationLedger {
     return { kind: 'claimed', record };
   }
 
+  public async claimPendingPoll(
+    invocationId: string,
+    inputHash: string,
+    now: number,
+    leaseMs: number,
+  ): Promise<string | undefined> {
+    const record = this.records.get(invocationId);
+    if (!record || record.inputHash !== inputHash) return undefined;
+    const pendingIsDue = record.state === 'PENDING'
+      && Boolean(record.nextPollAt)
+      && Date.parse(record.nextPollAt!) <= now;
+    const pollLeaseExpired = record.state === 'POLLING'
+      && Boolean(record.pollLeaseToken && record.pollLeaseExpiresAt)
+      && Date.parse(record.pollLeaseExpiresAt!) <= now;
+    if (!pendingIsDue && !pollLeaseExpired) {
+      return undefined;
+    }
+    const pollLeaseToken = randomUUID();
+    this.records.set(invocationId, {
+      ...record,
+      state: 'POLLING',
+      pollLeaseToken,
+      pollLeaseExpiresAt: new Date(now + leaseMs).toISOString(),
+      updatedAt: new Date(now).toISOString(),
+    });
+    return pollLeaseToken;
+  }
+
   public async complete(
     invocationId: string,
     result: NormalizedProviderResult,
+    pollLeaseToken?: string,
   ): Promise<InvocationRecord> {
     const record = this.require(invocationId);
-    if (record.state === 'SUCCEEDED') return record;
-    if (record.state !== 'IN_FLIGHT') {
+    if (record.state === 'SUCCEEDED' && pollLeaseToken === undefined) return record;
+    this.assertMutationLease(record, pollLeaseToken);
+    if (record.state !== 'IN_FLIGHT' && record.state !== 'POLLING') {
       throw new ConnectorError('INVOCATION_UNKNOWN', 'Invocation cannot be completed from its current state.');
     }
     const updated = {
@@ -53,15 +83,42 @@ export class InMemoryInvocationLedger implements InvocationLedger {
       state: 'SUCCEEDED' as const,
       result,
       providerRequestId: result.providerRequestId,
+      pollLeaseToken: undefined,
+      pollLeaseExpiresAt: undefined,
+      quotaLease: undefined,
       updatedAt: new Date().toISOString(),
     };
     this.records.set(invocationId, updated);
     return updated;
   }
 
-  public async fail(invocationId: string, errorCode: ConnectorErrorCode): Promise<InvocationRecord> {
+  public async failPending(invocationId: string, inputHash: string, errorCode: ConnectorErrorCode): Promise<boolean> {
+    const record = this.records.get(invocationId);
+    if (!record || record.inputHash !== inputHash || record.state !== 'PENDING') return false;
+    this.records.set(invocationId, {
+      ...record,
+      state: 'FAILED',
+      errorCode,
+      pollLeaseToken: undefined,
+      pollLeaseExpiresAt: undefined,
+      quotaLease: undefined,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  }
+
+  public async fail(invocationId: string, errorCode: ConnectorErrorCode, pollLeaseToken?: string): Promise<InvocationRecord> {
     const record = this.require(invocationId);
-    const updated = { ...record, state: 'FAILED' as const, errorCode, updatedAt: new Date().toISOString() };
+    this.assertMutationLease(record, pollLeaseToken);
+    const updated = {
+      ...record,
+      state: 'FAILED' as const,
+      errorCode,
+      pollLeaseToken: undefined,
+      pollLeaseExpiresAt: undefined,
+      quotaLease: undefined,
+      updatedAt: new Date().toISOString(),
+    };
     this.records.set(invocationId, updated);
     return updated;
   }
@@ -69,27 +126,56 @@ export class InMemoryInvocationLedger implements InvocationLedger {
   public async cancel(invocationId: string): Promise<InvocationRecord> {
     const record = this.require(invocationId);
     if (record.state === 'CANCELLED') return record;
-    if (record.state === 'SUCCEEDED' || record.state === 'FAILED') {
+    if (record.state !== 'IN_FLIGHT' && record.state !== 'PENDING' && record.state !== 'POLLING') {
       throw new ConnectorError('INVOCATION_UNKNOWN', 'Invocation cannot be cancelled from its current state.');
     }
-    const updated = { ...record, state: 'CANCELLED' as const, errorCode: 'CANCELLED' as const, updatedAt: new Date().toISOString() };
+    const updated = {
+      ...record,
+      state: 'CANCELLED' as const,
+      errorCode: 'CANCELLED' as const,
+      pollLeaseToken: undefined,
+      pollLeaseExpiresAt: undefined,
+      quotaLease: undefined,
+      updatedAt: new Date().toISOString(),
+    };
     this.records.set(invocationId, updated);
     return updated;
   }
 
-  public async markUnknown(invocationId: string): Promise<InvocationRecord> {
+  public async markUnknown(invocationId: string, pollLeaseToken?: string): Promise<InvocationRecord> {
     const record = this.require(invocationId);
-    const updated = { ...record, state: 'UNKNOWN' as const, errorCode: 'INVOCATION_UNKNOWN' as const, updatedAt: new Date().toISOString() };
+    this.assertMutationLease(record, pollLeaseToken);
+    const updated = {
+      ...record,
+      state: 'UNKNOWN' as const,
+      errorCode: 'INVOCATION_UNKNOWN' as const,
+      pollLeaseToken: undefined,
+      pollLeaseExpiresAt: undefined,
+      updatedAt: new Date().toISOString(),
+    };
     this.records.set(invocationId, updated);
     return updated;
   }
 
-  public async markPending(invocationId: string, nextPollAt: string): Promise<InvocationRecord> {
+  public async markPending(
+    invocationId: string,
+    nextPollAt: string,
+    providerRequestId?: string,
+    pollLeaseToken?: string,
+    quotaLease?: import('./types').QuotaLease,
+    providerPollAttempt = false,
+  ): Promise<InvocationRecord> {
     const record = this.require(invocationId);
+    this.assertMutationLease(record, pollLeaseToken);
     const updated = {
       ...record,
       state: 'PENDING' as const,
       nextPollAt,
+      providerRequestId: providerRequestId ?? record.providerRequestId,
+      pollLeaseToken: undefined,
+      pollLeaseExpiresAt: undefined,
+      quotaLease: quotaLease ?? record.quotaLease,
+      providerPollAttempts: (record.providerPollAttempts ?? 0) + (providerPollAttempt ? 1 : 0),
       updatedAt: new Date().toISOString(),
     };
     this.records.set(invocationId, updated);
@@ -100,6 +186,15 @@ export class InMemoryInvocationLedger implements InvocationLedger {
     const record = this.records.get(invocationId);
     if (!record) throw new ConnectorError('INVALID_INPUT', `Unknown invocation ${invocationId}.`);
     return record;
+  }
+
+  private assertMutationLease(record: InvocationRecord, pollLeaseToken?: string): void {
+    const valid = pollLeaseToken === undefined
+      ? record.state === 'IN_FLIGHT'
+      : record.state === 'POLLING' && record.pollLeaseToken === pollLeaseToken;
+    if (!valid) {
+      throw new ConnectorError('INVOCATION_UNKNOWN', 'Invocation poll lease is no longer current.');
+    }
   }
 }
 

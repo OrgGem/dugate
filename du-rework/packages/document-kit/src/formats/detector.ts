@@ -1,4 +1,5 @@
 import { FormatDetectionResult, SupportedFormat } from '../types';
+import { SafeArchiveExtractor } from '../archives/zip-extractor';
 
 /**
  * Format Detector detects document types using magic bytes, extensions, and MIME hints.
@@ -16,7 +17,7 @@ export class DocumentFormatDetector {
     const magic = this.checkMagicBytes(buffer);
 
     let format: SupportedFormat = 'unknown';
-    let mimeType = mimeHint || 'application/octet-stream';
+    let mimeType = 'application/octet-stream';
 
     // 1. Magic bytes check
     if (magic === 'pdf') {
@@ -29,11 +30,20 @@ export class DocumentFormatDetector {
       format = 'jpeg';
       mimeType = 'image/jpeg';
     } else if (magic === 'zip') {
-      // Could be DOCX, XLSX, or pure ZIP
-      if (ext === '.docx') {
+      // Office format comes from actual root entry names, never from a caller hint.
+      let entryNames: string[] = [];
+      try {
+        entryNames = SafeArchiveExtractor.inspectEntryNamesForFormatDetection(buffer);
+      } catch {
+        // Preserve the ZIP identity here; parser dispatch will run the full fail-closed preflight.
+      }
+      const hasWordDocument = entryNames.includes('word/document.xml');
+      const hasExcelWorkbook = entryNames.includes('xl/workbook.xml');
+
+      if (hasWordDocument && !hasExcelWorkbook) {
         format = 'docx';
         mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      } else if (ext === '.xlsx') {
+      } else if (hasExcelWorkbook && !hasWordDocument) {
         format = 'xlsx';
         mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       } else {
@@ -45,15 +55,9 @@ export class DocumentFormatDetector {
       mimeType = 'image/tiff';
     }
 
-    // 2. Extension check if still unknown or generic
-    if (format === 'unknown' || format === 'zip') {
-      if (ext === '.docx' || mimeHint?.includes('wordprocessingml')) {
-        format = 'docx';
-        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      } else if (ext === '.xlsx' || mimeHint?.includes('spreadsheetml')) {
-        format = 'xlsx';
-        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      } else if (ext === '.doc' || mimeHint === 'application/msword') {
+    // 2. Declarations may identify legacy formats without an inspectable ZIP container.
+    if (format === 'unknown') {
+      if (ext === '.doc' || mimeHint === 'application/msword') {
         format = 'doc';
         mimeType = 'application/msword';
       } else if (ext === '.xls' || mimeHint === 'application/vnd.ms-excel') {
@@ -94,6 +98,8 @@ export class DocumentFormatDetector {
       format,
       mimeType,
       extension: ext,
+      declaredFileName: fileName,
+      declaredMimeType: mimeHint,
       isBinary,
       isOfficeDocument,
       isImage,

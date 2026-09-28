@@ -2,7 +2,9 @@
 # Host ports chosen to avoid collisions (verified 2026-09-20: 5433/6380 free).
 #
 # Usage:  docker compose -f infra/docker-compose.yml up -d
-#         docker compose -f infra/docker-compose.yml down -v   (teardown)
+#         docker compose -f infra/docker-compose.yml --profile connector up -d --build connector
+#         docker compose -f infra/docker-compose.yml down      (stop; retain test data)
+# The opt-in Connector profile is a local integration fixture, not a production stack.
 name: du-rework-test
 
 services:
@@ -14,7 +16,7 @@ services:
       POSTGRES_PASSWORD: du-test-only
       POSTGRES_DB: du_orchestrator_test
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U du -d du_orchestrator_test"]
       interval: 3s
@@ -25,9 +27,44 @@ services:
     image: redis:7-alpine
     container_name: du-rework-redis
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 3s
       retries: 20
+
+  connector:
+    profiles: ["connector"]
+    build:
+      context: ..
+      dockerfile: services/connector/Dockerfile
+    init: true
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgres://du:du-test-only@postgres:5432/du_orchestrator_test
+      REDIS_URL: redis://redis:6379
+      REDIS_KEY_PREFIX: "du:connector:test:"
+      DRAIN_TIMEOUT_MS: "30000"
+      SERVICE_IDENTITY_SECRET: ${CONNECTOR_SERVICE_IDENTITY_SECRET:-}
+      INVOCATION_GRANT_SECRET: ${CONNECTOR_INVOCATION_GRANT_SECRET:-}
+      CONNECTOR_ENCRYPTION_KEY: ${CONNECTOR_ENCRYPTION_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8080"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 25s
+    stop_grace_period: 40s

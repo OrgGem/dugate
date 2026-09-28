@@ -1,0 +1,39 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "connector-revision-http-offline"
+
+FAIL tests/connector-revision-http-offline.functional.test.ts
+  VAULT-06 lifecycle over the real orchestrator↔connector HTTP wire
+    √ rotate #1 over HTTP: PENDING cloned from CURRENT then CAS-activated (41 ms)
+    √ pin separation: new work reads CURRENT (v2 pin); in-flight revision 2 keeps its OLD pin (33 ms)
+    √ CAS discipline over HTTP: activate with a stale expectedCurrent is a no-op (409) (18 ms)
+    √ emergency revoke (disable): CURRENT gone → new rotations fail CLOSED, no phantom ACTIVE (30 ms)
+    √ restart/reconcile: stranded PENDING from a crashed orchestrator is promoted (or retired) by the NEW instance (18 ms)
+    √ transport failure is fail-closed 503 on every port call (adapter never guesses) (5 ms)
+    × invalid credential source at the HTTP edge → rejected for the reason it claims, zero PENDING churn (9 ms)
+  VAULT-06 draft schema pin
+    √ migration 007 exists, is additive JSONB and documents NULL=legacy-db (2 ms)
+
+  ● VAULT-06 lifecycle over the real orchestrator↔connector HTTP wire › invalid credential source at the HTTP edge → rejected for the reason it claims, zero PENDING churn
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 201
+
+    [0m [90m 399 |[39m     [90m// and the response must not reflect the attempted path.[39m
+     [90m 400 |[39m     [36mconst[39m withBinding [33m=[39m [36mawait[39m post({ credentialSource[33m:[39m traversal[33m,[39m [33m...[39m[33mBINDING[39m })[33m;[39m
+    [31m[1m>[22m[39m[90m 401 |[39m     expect(withBinding[33m.[39mstatus)[33m.[39mtoBe([35m400[39m)[33m;[39m
+     [90m     |[39m                                [31m[1m^[22m[39m
+     [90m 402 |[39m     expect(errOf(withBinding[33m.[39mpayload)[33m.[39mcode)[33m.[39mtoBe([32m'INVALID_INPUT'[39m)[33m;[39m
+     [90m 403 |[39m     expect(errOf(withBinding[33m.[39mpayload)[33m.[39mmessage)[33m.[39mnot[33m.[39mtoBe([33mBINDING_GUARD[39m)[33m;[39m
+     [90m 404 |[39m     expect([33mJSON[39m[33m.[39mstringify(withBinding[33m.[39mpayload))[33m.[39mnot[33m.[39mtoContain([32m'../etc'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/connector-revision-http-offline.functional.test.ts:401:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+Snapshots:   0 total
+Time:        2.75 s, estimated 4 s
+Ran all test suites matching /connector-revision-http-offline/i.
+ ELIFECYCLE  Command failed with exit code 1.

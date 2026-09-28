@@ -1,0 +1,23 @@
+===== R1-C harness evidence =====
+{"suite":"packages/egress/tests/egress-boundaries.boundary.test.ts","exit":0,"tests":"Tests:       10 passed, 10 total","suites":"Test Suites: 1 passed, 1 total"}
+{"suite":"packages/egress/tests/egress-ssrf-deny-matrix.boundary.test.ts","exit":0,"tests":"Tests:       15 passed, 15 total","suites":"Test Suites: 1 passed, 1 total"}
+{"suite":"services/connector/tests/network-boundaries.boundary.test.ts","exit":0,"tests":"Tests:       41 passed, 41 total","suites":"Test Suites: 1 passed, 1 total"}
+{"suite":"services/orchestrator/tests/webhook-error-boundaries.boundary.test.ts","exit":0,"tests":"Tests:       32 passed, 32 total","suites":"Test Suites: 1 passed, 1 total"}
+{"suite":"services/orchestrator/tests/graceful-shutdown.boundary.test.ts","exit":0,"tests":"Tests:       5 passed, 5 total","suites":"Test Suites: 1 passed, 1 total"}
+{"suite":"packages/connector-client/tests/network-boundaries.boundary.test.ts","exit":0,"tests":"Tests:       7 passed, 7 total","suites":"Test Suites: 1 passed, 1 total"}
+{"suite":"packages/worker-sdk/tests/network-boundaries.boundary.test.ts","exit":0,"tests":"Tests:       6 passed, 6 total","suites":"Test Suites: 1 passed, 1 total"}
+----- pinned production digests (sha256) -----
+fb4b99833b4d50b0b00dcdb4901eb1a9033493772fbb37b6c532e757fcf76dae  packages/egress/src/pinned-fetch.ts
+6c6a4aa0ca7df442765119f3bf206276329005fc6ef5155ea9db4dd46ede6af6  services/connector/src/adapters/pinned-fetch.ts
+1d600b133e417c6a329b63d73cf37d5a23477aaa438b6d9788587a7d393908d6  services/connector/src/adapters/transport.ts
+ec3bf4f9811aba280d840cb2a60d428b18e8a197be0e7207094d2720cba9fbc2  services/orchestrator/src/modules/webhooks/webhooks.ts
+01e5a5b757584889072faabef10cf1ff0bc70044343298e4327b222c1730ff0e  services/orchestrator/src/server.ts
+cca1fb8d19fd958dd1d3d5f62c8e8dccfb48dbabe90eed20e73d70408226dcf7  services/orchestrator/src/shutdown.ts
+869860b0ccda52dec311efda9bbfa19613a206152eab2b84e64937348427b18a  services/orchestrator/src/main.ts
+4ed9615f516d2c1381311ff4776cc12a1994cd0677cff12c9097acca1a1d70a3  packages/connector-client/src/transport.ts
+a63ae4a0880bff2247be81cc81e7bef241dc67e2623b51ff082821c1504672ee  packages/worker-sdk/src/artifact-streams.ts
+62cdb4c65b9085940af9ef4910ce52a5ec7b250ade0add4abde7e6146a97b6b2  packages/worker-sdk/src/task-context.ts
+4b83229604fb28964407fb8902c85074c87ea9032f7cd89904ea82d0e4d44a2a  packages/contracts/src/errors.ts
+ef378ee19c615672019743b3d3f4522e27095d8e15ea555397bbbed01b0ab9c4  packages/contracts/src/operations.ts
+eba5151fb13626f43ec8544a9b60dfda46760c11d88a0faf2691627258462ab4  packages/observability/src/redaction.ts
+----- note: non-zero suite exits with [OPEN:*] cases failing are EXPECTED until the fixes land -----

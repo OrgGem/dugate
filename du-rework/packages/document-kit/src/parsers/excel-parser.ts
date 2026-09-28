@@ -1,4 +1,17 @@
-import { DocumentParser, FormatDetectionResult, ParseResult } from '../types';
+import {
+  ArchiveExtractResult,
+  DocumentParser,
+  FormatDetectionResult,
+  ParseResult,
+  ParserOptions,
+} from '../types';
+import { ArchiveSecurityError, SafeArchiveExtractor } from '../archives/zip-extractor';
+import { validateParserOptions, withTimeout } from './limits';
+import { isMainThread } from 'worker_threads';
+import {
+  DEFAULT_PARSER_CPU_TIMEOUT_MS,
+  parseBuiltInParserInWorker,
+} from './worker-isolation';
 
 export class ExcelParser implements DocumentParser {
   public readonly name = 'ExcelParser';
@@ -7,22 +20,80 @@ export class ExcelParser implements DocumentParser {
     return ['xlsx', 'xls', 'csv'].includes(formatInfo.format);
   }
 
-  public async parse(fileBuffer: Buffer, fileName?: string): Promise<ParseResult> {
+  public async parse(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    validateParserOptions(options, fileBuffer.length);
+
+    if (isMainThread && this.constructor === ExcelParser) {
+      return parseBuiltInParserInWorker(
+        'excel-parser',
+        'ExcelParser',
+        fileBuffer,
+        fileName,
+        options,
+        options?.timeoutMs ?? DEFAULT_PARSER_CPU_TIMEOUT_MS
+      );
+    }
+
+    const parsePromise = this.parseCore(fileBuffer, fileName, options);
+    return options?.timeoutMs === undefined
+      ? parsePromise
+      : withTimeout(parsePromise, options.timeoutMs, this.name);
+  }
+
+  /** @internal Executes the parser body inside the isolated worker or a boundary test. */
+  public async parseCore(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    validateParserOptions(options, fileBuffer.length);
+    return this.doParse(fileBuffer, fileName, options);
+  }
+
+  private async doParse(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    const sourceBuffer = SafeArchiveExtractor.hasPreflightedBuffer(fileBuffer)
+      ? fileBuffer
+      : Buffer.from(fileBuffer);
+    const claimsXlsx = fileName?.toLowerCase().endsWith('.xlsx') ?? false;
+    let verifiedArchive: ArchiveExtractResult | undefined;
+    if (SafeArchiveExtractor.isZipBuffer(sourceBuffer) || claimsXlsx) {
+      try {
+        await SafeArchiveExtractor.preflightBuffer(sourceBuffer, {}, 'xlsx');
+        verifiedArchive = await SafeArchiveExtractor.extractBuffer(sourceBuffer);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const wrappedMessage =
+          `Unable to parse Excel file "${fileName || 'spreadsheet'}": archive preflight failed: ${message}`;
+        if (err instanceof ArchiveSecurityError) {
+          throw new ArchiveSecurityError(err.code, wrappedMessage);
+        }
+        throw new Error(wrappedMessage);
+      }
+    }
+
     const isCsv = fileName?.toLowerCase().endsWith('.csv') || false;
 
     // 1. If CSV or TSV, parse directly without requiring external libraries
     if (isCsv) {
-      return this.parseCsv(fileBuffer.toString('utf8'), fileName);
+      return this.parseCsv(sourceBuffer.toString('utf8'), fileName);
     }
 
-    const hasZipMagic = fileBuffer.length >= 4 && fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4b;
+    const hasZipMagic = verifiedArchive !== undefined;
     const hasOlsMagic =
-      fileBuffer.length >= 8 &&
-      fileBuffer[0] === 0xd0 &&
-      fileBuffer[1] === 0xcf &&
-      fileBuffer[2] === 0x11 &&
-      fileBuffer[3] === 0xe0;
-    const containsNullByte = fileBuffer.includes(0x00);
+      sourceBuffer.length >= 8 &&
+      sourceBuffer[0] === 0xd0 &&
+      sourceBuffer[1] === 0xcf &&
+      sourceBuffer[2] === 0x11 &&
+      sourceBuffer[3] === 0xe0;
+    const containsNullByte = sourceBuffer.includes(0x00);
 
     // If binary data lacks both XLSX (ZIP PK..) and XLS (OLE2 \xD0\xCF..) magic signatures, reject
     if (containsNullByte && !hasZipMagic && !hasOlsMagic) {
@@ -36,7 +107,7 @@ export class ExcelParser implements DocumentParser {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const xlsx = require('xlsx');
       if (xlsx && typeof xlsx.read === 'function') {
-        const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+        const workbook = xlsx.read(sourceBuffer, { type: 'buffer' });
         const markdownParts: string[] = [];
         const textParts: string[] = [];
         let totalCells = 0;
@@ -110,32 +181,28 @@ export class ExcelParser implements DocumentParser {
       // xlsx not installed, fall through to basic text fallback
     }
 
-    // 3. Fallback: Parse XLSX OpenXML structure directly via SafeArchiveExtractor
-    try {
-      const { SafeArchiveExtractor } = require('../archives/zip-extractor');
-      const archive = await SafeArchiveExtractor.extractBuffer(fileBuffer);
-      const sheetEntry = archive.entries.find((e: { path: string }) =>
+    // 3. Fallback: Parse XLSX OpenXML structure from the archive already verified above.
+    if (verifiedArchive) {
+      const sheetEntry = verifiedArchive.entries.find((e) =>
         e.path === 'xl/worksheets/sheet1.xml' || e.path.endsWith('/sheet1.xml')
       );
 
-      if (sheetEntry && sheetEntry.content) {
+      if (sheetEntry?.content) {
         const sheetXml = sheetEntry.content.toString('utf8');
         let sharedStrings: string[] = [];
-        const sstEntry = archive.entries.find((e: { path: string }) =>
+        const sstEntry = verifiedArchive.entries.find((e) =>
           e.path === 'xl/sharedStrings.xml' || e.path.endsWith('/sharedStrings.xml')
         );
-        if (sstEntry && sstEntry.content) {
+        if (sstEntry?.content) {
           sharedStrings = this.extractSharedStrings(sstEntry.content.toString('utf8'));
         }
         return this.parseWorksheetXml(sheetXml, sharedStrings, fileName);
       }
-    } catch {
-      // ignore
     }
 
     // 4. Fallback: If buffer can be read as text (e.g. CSV misidentified as xlsx)
-    const rawContent = fileBuffer.toString('utf8');
-    if (!rawContent.includes('\0')) {
+    const rawContent = sourceBuffer.toString('utf8');
+    if (!verifiedArchive && !rawContent.includes('\0')) {
       return this.parseCsv(rawContent, fileName);
     }
 

@@ -20,7 +20,20 @@ test('composition readiness includes both durable dependency probes and drains',
       management: {
         list: async () => [],
         get: async () => undefined,
-        createRevision: async (input) => ({ ...input, revision: 1 }),
+        createRevision: async (input) => ({
+          ...input,
+          credentialSource: input.credentialSource ?? { kind: 'legacy-db', credentialRef: input.credentialRef },
+          revision: 1,
+          tenantId: input.tenantId ?? '',
+        }),
+        getRevision: async () => undefined,
+        getCurrentRevision: async () => undefined,
+        bootstrapRevision: async () => { throw new Error('unused'); },
+    createPendingRevision: async () => {
+          throw new Error('not implemented in test double');
+        },
+        activateRevision: async () => false,
+        retireRevision: async () => {},
         rotateCredential: async () => {},
         disable: async () => {},
         test: async () => ({ ok: true }),

@@ -35,7 +35,7 @@ export async function runWorkflowFromSchema(
 
   // 👇 Khôi phục nodeResults từ ctx khi resume (sau HITL pause)
   const nodeResults: Record<string, NodeResult> = {};
-  const savedNodeResults = (ctx as any)._nodeResults;
+  const savedNodeResults = ctx._nodeResults;
   if (savedNodeResults && typeof savedNodeResults === 'object') {
     Object.assign(nodeResults, savedNodeResults);
   }
@@ -49,7 +49,7 @@ export async function runWorkflowFromSchema(
 
       if (node.type === 'human') {
         // Lưu nodeResults vào context để resume khôi phục binding
-        (ctx as any)._nodeResults = nodeResults;
+        ctx._nodeResults = nodeResults as Record<string, unknown>;
         await updateProgress(ctx, Math.round((i / totalSteps) * 100), node.message);
         await pauseWorkflow(ctx, node.message, i + 1);
         return; // halted until resume

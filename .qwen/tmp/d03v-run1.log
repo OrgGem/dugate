@@ -1,0 +1,13 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "url-ingestion"
+
+PASS tests/url-ingestion-consumer-offline.functional.test.ts (5.659 s)
+PASS tests/url-ingestion-offline.functional.test.ts
+PASS tests/url-ingestion-backend-failclosed-offline.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        6.425 s
+Ran all test suites matching /url-ingestion/i.

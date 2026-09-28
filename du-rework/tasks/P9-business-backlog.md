@@ -2,6 +2,17 @@
 
 Status: TODO / **không thuộc release đầu**. Depends: P8 G6 và lựa chọn business ưu tiên. Mỗi business có subproject/image/queue/manifest riêng khi được yêu cầu implement. Không tự copy toàn bộ source workflow cũ.
 
+> **Scope decision 2026-09-23 03:33 — REVERSED cùng ngày 08:06 (user, qua orchestrator):** P9 được
+> **mở lại và giao cho Command Code**, bắt đầu bằng `W39-CC3 = P9-01 disbursement`. Lý do đảo
+> ngược: quyết định gác ban đầu dựa trên một đọc nhầm của orchestrator — các path `lib/…` nằm trong
+> cột **`Reference`** (chỉ đọc để lấy nghiệp vụ cũ), không phải nơi phải sửa. Toàn bộ deliverable
+> của P9 làm trong `du-rework/businesses/<name>/`, theo template đã chứng minh là
+> `businesses/example-review`. Ràng buộc: **không sửa gì ngoài `du-rework/`**, đặc biệt
+> `lib/workflow-builder/run-schema.ts` đang dirty từ work cũ trên branch → cấm đụng; zero DB/Redis
+> cho tới khi `DB RELEASED` xuất hiện ở lane giữ window; không gọi AI thật, dùng mock provider
+> `tests/stubs/provider/mock-provider.ts` và synthetic fixtures. Row chỉ tick khi có bằng chứng
+> registration + cross-service run, nếu không thì giữ `[ ]` và nêu rõ mục chưa prove được.
+
 | ID | Business packet | Reference | Deliverables/acceptance |
 |---|---|---|---|
 | P9-01 | [ ] disbursement | lib/pipelines/workflows/disbursement.ts | BRD chứng từ/dữ liệu đối chiếu, schema, bounded fanout, evidence, human approval nếu cần |

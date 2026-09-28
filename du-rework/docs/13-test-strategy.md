@@ -1,6 +1,6 @@
 # Test catalog và acceptance gates
 
-Tất cả dưới đây là **test cases cần implement**, chưa chạy. Jest/TypeScript cho unit/integration; HTTP/worker/storage/Redis/PostgreSQL thật trong integration isolated; mock provider cho E2E; browser automation cho UI. Mỗi task phải ghi test result evidence khi hoàn thành.
+Đây là catalog acceptance tổng thể: một phần đã executable, phần còn lại vẫn là test design. Snapshot và mapping phase/task hiện tại nằm trong [`coordination/IMPLEMENTATION-STATUS.md`](../coordination/IMPLEMENTATION-STATUS.md). Jest/TypeScript đang phủ unit/contract và một số integration với PostgreSQL/Redis/mock provider; multi-service E2E đầy đủ, object storage, browser UI, load/soak và production drills vẫn chưa có. Mỗi task phải ghi command/result evidence khi hoàn thành.
 
 ## Catalog
 

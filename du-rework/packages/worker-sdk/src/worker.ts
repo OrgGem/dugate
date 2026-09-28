@@ -12,6 +12,11 @@ import { createLogger, Logger, runWithContext } from '@du/observability';
 import { RuntimeClient, RuntimeError, AmbiguousReportError } from './runtime-client';
 import { DefaultTaskContext, LeaseLostError } from './task-context';
 import { createConnectorInvoker } from './connector-invoker';
+import {
+  committedOutputArtifactIds,
+  createWorkspaceReferenceCheck,
+  sweepStaleWorkspaces,
+} from './artifact-streams';
 import type { BusinessDefinition, TaskHandler, WorkerConfig, WorkerHandle } from './types';
 
 /**
@@ -115,7 +120,37 @@ interface StartWorkerInternalOptions extends WorkerConfig {
   /** Injectable queue consumer (tests). Defaults to BullMQ when redis given. */
   consumer?: QueueConsumer;
   logger?: Logger;
+  /**
+   * Temp-workspace sweeper (P4-05 / W39-CC2b): removes `du-worker-*`
+   * directories older than the TTL at startup and periodically, so files
+   * left by crashed workers have a bounded lifetime (ART-02). Enabled by
+   * default; failures are logged and never fatal.
+   */
+  tempSweep?: TempSweepConfig;
 }
+
+export interface TempSweepConfig {
+  /** Default true. Set false to opt out (e.g. read-only filesystems). */
+  enabled?: boolean;
+  /** Root to scan; defaults to os.tmpdir(). */
+  rootDir?: string;
+  /** Age threshold; defaults to DEFAULT_STALE_WORKSPACE_MS (2h). */
+  olderThanMs?: number;
+  /** Periodic sweep interval; defaults to 30 minutes. */
+  intervalMs?: number;
+  /**
+   * W47-Q2-5 (P4-05 ART-02 wire-hook): query the read-only runtime seam
+   * `GET /api/runtime/v1/workspace-reference` (server.ts:711-743, base/token
+   * from worker config) before deleting any expired dir. `referenced` there
+   * is TENANT presence (see createWorkspaceReferenceCheck docs), so ANY of
+   * these tenants with active holders protects every expired dir. Unset =
+   * in-process live-workspace guard only (previous behavior). Network
+   * failure/timeout/5xx resolve FAIL-SAFE: treated as referenced, never delete.
+   */
+  referenceQuery?: { tenantIds: string[]; timeoutMs?: number };
+}
+
+const DEFAULT_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 
 export async function startWorker(
   definition: BusinessDefinition,
@@ -131,11 +166,12 @@ export async function startWorker(
     fetchImpl,
   });
   const invokeConnector =
-    config.connectorUrl !== undefined
+    config.invokeConnector ??
+    (config.connectorUrl !== undefined
       ? createConnectorInvoker({ baseUrl: config.connectorUrl, fetchImpl })
       : async () => {
           throw new Error('connectorUrl not configured; connector facade unavailable');
-        };
+        });
 
   const workerInstanceId = config.workerInstanceId ?? `worker-${randomUUID()}`;
   const queueName = businessQueueName(definition.manifest.businessId, definition.manifest.version);
@@ -160,6 +196,48 @@ export async function startWorker(
     });
   }, heartbeatIntervalMs);
   heartbeatTimer.unref?.();
+
+  // Temp-workspace sweep (W39-CC2b / ART-02 bounded file lifetime):
+  // startup pass + periodic pass over du-worker-* dirs older than TTL.
+  // Best-effort: a sweep failure is logged and never affects deliveries.
+  const tempSweep = config.tempSweep ?? {};
+  let sweepTimer: ReturnType<typeof setInterval> | undefined;
+  if (tempSweep.enabled !== false) {
+    const runSweep = (): void => {
+      const referenceQuery = tempSweep.referenceQuery;
+      sweepStaleWorkspaces({
+        rootDir: tempSweep.rootDir,
+        olderThanMs: tempSweep.olderThanMs,
+        hasActiveReference:
+          referenceQuery && referenceQuery.tenantIds.length > 0
+            ? createWorkspaceReferenceCheck({
+                baseUrl: config.runtimeUrl,
+                token: config.runtimeToken,
+                fetchImpl,
+                tenantIds: referenceQuery.tenantIds,
+                timeoutMs: referenceQuery.timeoutMs,
+                onUncertain: (dir, reason) => {
+                  logger.warn('workspace-reference query uncertain; treating dir as referenced', {
+                    dir,
+                    reason,
+                  });
+                },
+              })
+            : undefined,
+      })
+        .then((r) => {
+          if (r.removed.length > 0) {
+            logger.info('temp workspace sweep removed stale dirs', { removed: r.removed.length });
+          }
+        })
+        .catch((err) => {
+          logger.warn('temp workspace sweep failed', { error: String(err) });
+        });
+    };
+    runSweep();
+    sweepTimer = setInterval(runSweep, tempSweep.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS);
+    sweepTimer.unref?.();
+  }
 
   const consumer: QueueConsumer =
     config.consumer ??
@@ -191,6 +269,7 @@ export async function startWorker(
           claim = await runtime.claimTask(job.taskId, {
             deliveryId: job.deliveryId,
             workerInstanceId,
+            businessId: definition.manifest.businessId,
           });
         } catch (err) {
           if (err instanceof RuntimeError && (err.status === 409 || err.status === 410)) {
@@ -243,7 +322,14 @@ export async function startWorker(
             checkpointRefs: claim.checkpointRefs,
             cancelRequested: snapshot.cancelRequested,
           },
-          { runtime, logger, invokeConnector }
+          {
+            runtime,
+            logger,
+            invokeConnector,
+            fetchImpl,
+            maxArtifactBytes: config.maxArtifactBytes,
+            multipartThresholdBytes: config.multipartThresholdBytes,
+          }
         );
 
         // 2. Lease heartbeat for this delivery; lease loss aborts the context.
@@ -322,6 +408,7 @@ export async function startWorker(
       if (stopped) return;
       stopped = true;
       clearInterval(heartbeatTimer);
+      if (sweepTimer) clearInterval(sweepTimer);
       await consumer.stop(graceMs);
       const deadline = Date.now() + graceMs;
       while (inflight.size > 0 && Date.now() < deadline) {
@@ -348,10 +435,16 @@ async function reportDisposition(
 ): Promise<void> {
   switch (disposition.kind) {
     case 'completed': {
+      const outputArtifactIds = committedOutputArtifactIds(
+        disposition.artifacts ?? [],
+        ctx.committedOutputArtifacts(),
+        disposition.resultRef
+      );
       const ack = await runtime.completeTask(ctx.taskId, {
         leaseEpoch: ctx.leaseEpoch,
         resultRef: disposition.resultRef,
         resultHash: contentHash(disposition.resultRef),
+        outputArtifactIds,
       });
       ctx.markTerminalReported();
       if (ack.replayed) {

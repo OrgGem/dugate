@@ -1,0 +1,296 @@
+
+> @du/contracts@0.1.0 test D:\Git\dugate\du-rework\packages\contracts
+> jest --runInBand
+
+PASS tests/vault-policies.test.ts
+PASS tests/oidc-claim-shapes.test.ts
+PASS tests/multipart-contract.test.ts
+PASS tests/admin-resource-list-contract.test.ts
+PASS tests/encryption.test.ts
+PASS tests/vault-ref.test.ts
+PASS tests/ip-policy.test.ts
+PASS tests/operations-list-contract.test.ts
+FAIL tests/usage-reconciliation.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/usage-budget.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/usage-metrics.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/queue.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/state-machine.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/pricing.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/result-wire.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/manifest.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/hashing-errors.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/ingestion-receipt.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/invocation-hash.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+FAIL tests/dto.test.ts
+  ● Test suite failed to run
+
+    [96msrc/usage-reconciliation.ts[0m:[93m121[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'NonNegativeIntSchema'. Did you mean 'SafeNonNegativeIntSchema'?
+
+    [7m121[0m   profileRevision: NonNegativeIntSchema.optional(),
+    [7m   [0m [91m                   ~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/usage-reconciliation.ts[0m:[93m55[0m:[93m7[0m
+        [7m55[0m const SafeNonNegativeIntSchema = z
+        [7m  [0m [96m      ~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'SafeNonNegativeIntSchema' is declared here.
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m72[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                       ~~~~~~~~[0m
+    [96msrc/usage-reconciliation.ts[0m:[93m133[0m:[93m96[0m - [91merror[0m[90m TS2345: [0mArgument of type '{} | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+
+    [7m133[0m   if (query.from !== undefined && query.to !== undefined && Date.parse(query.to) <= Date.parse(query.from)) {
+    [7m   [0m [91m                                                                                               ~~~~~~~~~~[0m
+
+Test Suites: 12 failed, 8 passed, 20 total
+Tests:       227 passed, 227 total
+Snapshots:   0 total
+Time:        5.632 s
+Ran all test suites.
+D:\Git\dugate\du-rework\packages\contracts:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/contracts@0.1.0 test: `jest --runInBand`
+Exit status 1

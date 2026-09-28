@@ -1,0 +1,20 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand "--" "crypto-seam"
+
+FAIL tests/crypto-seam.test.ts
+  ● Test suite failed to run
+
+    [96mtests/crypto-seam.test.ts[0m:[93m102[0m:[93m10[0m - [91merror[0m[90m TS2339: [0mProperty 'split' does not exist on type 'string[]'.
+
+    [7m102[0m         .split('Pick<KeyProvider,')
+    [7m   [0m [91m         ~~~~~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        2.049 s
+Ran all test suites matching /crypto-seam/i.
+D:\Git\dugate\du-rework\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/worker-sdk@0.1.0 test: `jest --runInBand "--" "crypto-seam"`
+Exit status 1

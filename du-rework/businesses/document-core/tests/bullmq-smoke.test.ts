@@ -177,7 +177,6 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
         recorded.artifactGrants.push({ artifactId, body });
         const grant: ArtifactUploadGrant = {
           artifactId,
-          storageKey: `tasks/artifacts/${artifactId}`,
           uploadUrl: `http://127.0.0.1:${fakeServerPort}/upload-sink/${artifactId}`,
           expiresAt: new Date(Date.now() + 60_000).toISOString(),
         };

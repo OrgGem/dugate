@@ -1,0 +1,315 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "admin-operations-sort-http-offline" "admin-operations-list-pagination" "operations-list-contract-conformance" "admin-keyset-explain"
+
+FAIL tests/admin-operations-list-pagination.test.ts
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › deadline_at:asc: a full walk returns the oracle order exactly
+
+    unrecognised ORDER BY key expression: COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz)
+
+    [0m [90m 1748 |[39m       field [33m=[39m keyExpr[33m;[39m
+     [90m 1749 |[39m     } [36melse[39m {
+    [31m[1m>[22m[39m[90m 1750 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m([32m'unrecognised ORDER BY key expression: '[39m [33m+[39m keyExpr)[33m;[39m
+     [90m      |[39m             [31m[1m^[22m[39m
+     [90m 1751 |[39m     }
+     [90m 1752 |[39m     [36mconst[39m rowKey [33m=[39m (row[33m:[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m)[33m:[39m string [33m=>[39m {
+     [90m 1753 |[39m       [36mconst[39m value [33m=[39m row[field][33m;[39m[0m
+
+      at execute (tests/admin-operations-list-pagination.test.ts:1750:13)
+      at Object.query (tests/admin-operations-list-pagination.test.ts:1832:27)
+      at listOperationsPage (src/server.ts:2667:29)
+      at route (src/server.ts:1296:21)
+      at Object.get (tests/admin-operations-list-pagination.test.ts:1840:28)
+      at walkAll (tests/admin-operations-list-pagination.test.ts:1853:25)
+      at tests/admin-operations-list-pagination.test.ts:1869:18
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › deadline_at:desc: a full walk returns the oracle order exactly
+
+    unrecognised ORDER BY key expression: COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz)
+
+    [0m [90m 1748 |[39m       field [33m=[39m keyExpr[33m;[39m
+     [90m 1749 |[39m     } [36melse[39m {
+    [31m[1m>[22m[39m[90m 1750 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m([32m'unrecognised ORDER BY key expression: '[39m [33m+[39m keyExpr)[33m;[39m
+     [90m      |[39m             [31m[1m^[22m[39m
+     [90m 1751 |[39m     }
+     [90m 1752 |[39m     [36mconst[39m rowKey [33m=[39m (row[33m:[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m)[33m:[39m string [33m=>[39m {
+     [90m 1753 |[39m       [36mconst[39m value [33m=[39m row[field][33m;[39m[0m
+
+      at execute (tests/admin-operations-list-pagination.test.ts:1750:13)
+      at Object.query (tests/admin-operations-list-pagination.test.ts:1832:27)
+      at listOperationsPage (src/server.ts:2667:29)
+      at route (src/server.ts:1296:21)
+      at Object.get (tests/admin-operations-list-pagination.test.ts:1840:28)
+      at walkAll (tests/admin-operations-list-pagination.test.ts:1853:25)
+      at tests/admin-operations-list-pagination.test.ts:1869:18
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › no deadline-less operation is ever lost, in either direction
+
+    unrecognised ORDER BY key expression: COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz)
+
+    [0m [90m 1748 |[39m       field [33m=[39m keyExpr[33m;[39m
+     [90m 1749 |[39m     } [36melse[39m {
+    [31m[1m>[22m[39m[90m 1750 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m([32m'unrecognised ORDER BY key expression: '[39m [33m+[39m keyExpr)[33m;[39m
+     [90m      |[39m             [31m[1m^[22m[39m
+     [90m 1751 |[39m     }
+     [90m 1752 |[39m     [36mconst[39m rowKey [33m=[39m (row[33m:[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m)[33m:[39m string [33m=>[39m {
+     [90m 1753 |[39m       [36mconst[39m value [33m=[39m row[field][33m;[39m[0m
+
+      at execute (tests/admin-operations-list-pagination.test.ts:1750:13)
+      at Object.query (tests/admin-operations-list-pagination.test.ts:1832:27)
+      at listOperationsPage (src/server.ts:2667:29)
+      at route (src/server.ts:1296:21)
+      at Object.get (tests/admin-operations-list-pagination.test.ts:1840:28)
+      at walkAll (tests/admin-operations-list-pagination.test.ts:1853:25)
+      at Object.<anonymous> (tests/admin-operations-list-pagination.test.ts:1877:26)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › a page boundary inside a duplicate-key group neither skips nor repeats a row
+
+    unrecognised ORDER BY key expression: COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz)
+
+    [0m [90m 1748 |[39m       field [33m=[39m keyExpr[33m;[39m
+     [90m 1749 |[39m     } [36melse[39m {
+    [31m[1m>[22m[39m[90m 1750 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m([32m'unrecognised ORDER BY key expression: '[39m [33m+[39m keyExpr)[33m;[39m
+     [90m      |[39m             [31m[1m^[22m[39m
+     [90m 1751 |[39m     }
+     [90m 1752 |[39m     [36mconst[39m rowKey [33m=[39m (row[33m:[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m)[33m:[39m string [33m=>[39m {
+     [90m 1753 |[39m       [36mconst[39m value [33m=[39m row[field][33m;[39m[0m
+
+      at execute (tests/admin-operations-list-pagination.test.ts:1750:13)
+      at Object.query (tests/admin-operations-list-pagination.test.ts:1832:27)
+      at listOperationsPage (src/server.ts:2667:29)
+      at route (src/server.ts:1296:21)
+      at Object.get (tests/admin-operations-list-pagination.test.ts:1840:28)
+      at walkAll (tests/admin-operations-list-pagination.test.ts:1853:25)
+      at Object.<anonymous> (tests/admin-operations-list-pagination.test.ts:1887:26)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › sort reorders the page but never the population count
+
+    unrecognised ORDER BY key expression: COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz)
+
+    [0m [90m 1748 |[39m       field [33m=[39m keyExpr[33m;[39m
+     [90m 1749 |[39m     } [36melse[39m {
+    [31m[1m>[22m[39m[90m 1750 |[39m       [36mthrow[39m [36mnew[39m [33mError[39m([32m'unrecognised ORDER BY key expression: '[39m [33m+[39m keyExpr)[33m;[39m
+     [90m      |[39m             [31m[1m^[22m[39m
+     [90m 1751 |[39m     }
+     [90m 1752 |[39m     [36mconst[39m rowKey [33m=[39m (row[33m:[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m)[33m:[39m string [33m=>[39m {
+     [90m 1753 |[39m       [36mconst[39m value [33m=[39m row[field][33m;[39m[0m
+
+      at execute (tests/admin-operations-list-pagination.test.ts:1750:13)
+      at Object.query (tests/admin-operations-list-pagination.test.ts:1832:27)
+      at listOperationsPage (src/server.ts:2667:29)
+      at route (src/server.ts:1296:21)
+      at Object.get (tests/admin-operations-list-pagination.test.ts:1840:28)
+      at Object.<anonymous> (tests/admin-operations-list-pagination.test.ts:1919:38)
+
+FAIL tests/admin-operations-sort-http-offline.test.ts
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted deadline_at:asc cursor replayed on created_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 296 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 297 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 298 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 299 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 300 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 301 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:298:22)
+      at tests/admin-operations-sort-http-offline.test.ts:320:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a malformed sort is answered before the cursor is ever considered
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 296 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 297 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 298 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 299 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 300 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 301 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:298:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:382:20)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under deadline_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 395 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 396 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 397 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 398 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 399 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 400 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:397:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under deadline_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 395 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 396 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 397 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 398 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 399 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 400 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:397:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under deadline_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 418 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 419 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 420 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 421 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 422 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 423 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:420:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under deadline_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 418 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 419 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 420 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 421 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 422 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 423 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:420:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a cursor minted inside tenant A pages ONLY tenant B windows when replayed scoped to B - and never leaks A ids
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 296 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 297 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 298 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 299 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 300 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 301 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:298:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:434:20)
+
+FAIL tests/operations-list-contract-conformance.test.ts
+  ● W-ADMUX02-SORT-ALLOWLIST-1: sort is a closed set, route and schema alike › emits one of the six literal ORDER BY fragments, never the caller text
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "COALESCE(deadline_at, $1::timestamptz) ASC, id ASC"
+    Received: "COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz) ASC, id ASC"
+
+    [0m [90m 304 |[39m       expect(page)[33m.[39mtoBeDefined()[33m;[39m
+     [90m 305 |[39m       [36mconst[39m emitted [33m=[39m [35m/ORDER BY (.+) LIMIT \$\d+/[39m[33m.[39mexec(page[33m![39m[33m.[39msql)[33m?[39m[33m.[39m[[35m1[39m][33m;[39m
+    [31m[1m>[22m[39m[90m 306 |[39m       expect(emitted)[33m.[39mtoBe([33mORDER_BY_BY_SORT[39m[value])[33m;[39m
+     [90m     |[39m                       [31m[1m^[22m[39m
+     [90m 307 |[39m       [90m// Every fragment ends in the id tiebreak: a sort without it has no[39m
+     [90m 308 |[39m       [90m// defined order between rows sharing a key, and the keyset would skip.[39m
+     [90m 309 |[39m       expect(emitted)[33m.[39mtoMatch([35m/, id (ASC|DESC)$/[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/operations-list-contract-conformance.test.ts:306:23)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: sort is a closed set, route and schema alike › the NULL sentinel for the nullable column is bound, not interpolated
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "COALESCE(deadline_at, $1::timestamptz)"
+    Received string:    "SELECT * FROM operations ORDER BY COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) DESC, id DESC LIMIT $1"
+
+    [0m [90m 314 |[39m   it([32m'the NULL sentinel for the nullable column is bound, not interpolated'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+     [90m 315 |[39m     [36mconst[39m desc [33m=[39m [36mawait[39m sortCalls([32m'sort=deadline_at:desc'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 316 |[39m     expect(desc[33m.[39msql)[33m.[39mtoContain([32m'COALESCE(deadline_at, $1::timestamptz)'[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 317 |[39m     expect(desc[33m.[39msql)[33m.[39mnot[33m.[39mtoContain([32m'0001-01-01'[39m)[33m;[39m
+     [90m 318 |[39m     expect(desc[33m.[39mparams)[33m.[39mtoContain([32m'0001-01-01T00:00:00.000Z'[39m)[33m;[39m
+     [90m 319 |[39m[0m
+
+      at Object.<anonymous> (tests/operations-list-contract-conformance.test.ts:316:22)
+
+PASS tests/admin-keyset-explain.test.ts
+  ● Console
+
+    console.warn
+      admin-keyset-explain.test.ts: SKIPPED - set DU_LIVE_INFRA=1 inside an open DB window to run.
+
+    [0m [90m 55 |[39m [36mconst[39m liveDescribe [33m=[39m [33mLIVE[39m [33m?[39m describe [33m:[39m describe[33m.[39mskip[33m;[39m
+     [90m 56 |[39m [36mif[39m ([33m![39m[33mLIVE[39m) {
+    [31m[1m>[22m[39m[90m 57 |[39m   console[33m.[39mwarn([32m'admin-keyset-explain.test.ts: SKIPPED - set DU_LIVE_INFRA=1 inside an open DB window to run.'[39m)[33m;[39m
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 58 |[39m }
+     [90m 59 |[39m
+     [90m 60 |[39m [36mconst[39m [33mPAGE_LIMIT[39m [33m=[39m [35m50[39m[33m;[39m[0m
+
+      at Object.<anonymous> (tests/admin-keyset-explain.test.ts:57:11)
+
+
+Test Suites: 3 failed, 1 passed, 4 total
+Tests:       14 failed, 13 skipped, 130 passed, 157 total
+Snapshots:   0 total
+Time:        4.811 s
+Ran all test suites matching /admin-operations-sort-http-offline|admin-operations-list-pagination|operations-list-contract-conformance|admin-keyset-explain/i.
+
+--- synthetic seqscan plan ---
+Limit  (cost=88.70..90.01 rows=51 width=420)
+  ->  Sort  (cost=88.70..90.01 rows=510 width=420)
+        Sort Key: ((COALESCE(deadline_at, '0001-01-01'::timestamp with time zone)) DESC), id DESC
+        ->  Seq Scan on operations  (cost=0.00..55.70 rows=4770 width=420)
+              Filter: (tenant_id = 'x')
+
+--- synthetic other-index plan ---
+Limit  (cost=99.00..99.10 rows=51 width=420)
+  ->  Sort  (cost=99.00..120.00 rows=4770 width=420)
+        Sort Key: ((COALESCE(deadline_at, '0001-01-01'::timestamp with time zone)) DESC), id DESC
+        ->  Index Scan using operations_tenant_created_id_idx on operations  (cost=0.29..55.70 rows=4770 width=420)
+
+--- synthetic clean plan ---
+Limit  (cost=0.42..12.30 rows=51 width=420)
+  ->  Index Scan using operations_deadline_id_idx on operations  (cost=0.42..30.10 rows=3720 width=420)
+        Filter: (tenant_id = 'x')
+
+--- synthetic bounded-sort plan ---
+Limit  (cost=80.10..80.71 rows=51 width=420) (actual time=1.100..1.200 rows=51 loops=1)
+  ->  Sort  (cost=80.10..80.71 rows=244 width=420) (actual time=1.090..1.150 rows=15 loops=1)
+        Sort Method: quicksort  Memory: 25kB
+        ->  Index Scan using operations_tenant_deadline_id_idx on operations  (cost=0.42..70.00 rows=244 width=420) (actual time=0.05..0.60 rows=244 loops=1)
+
+--- synthetic material-sort plan ---
+Limit  (cost=80.10..80.71 rows=51 width=420) (actual time=1.100..1.200 rows=51 loops=1)
+  ->  Sort  (cost=80.10..80.71 rows=4770 width=420) (actual time=1.090..90.00 rows=4770 loops=1)
+        Sort Method: quicksort  Memory: 25kB
+        ->  Index Scan using operations_tenant_deadline_id_idx on operations  (cost=0.42..70.00 rows=244 width=420) (actual time=0.05..0.60 rows=244 loops=1)
+ ELIFECYCLE  Command failed with exit code 1.

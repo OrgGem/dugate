@@ -1,0 +1,49 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "admin-shell-session-lifecycle" "adm-base-03"
+
+FAIL tests/admin-shell-session-lifecycle.test.ts (7.501 s)
+  ● W-SEC-AUDIT-TAXONOMY-1 default console sink through the REAL shell listener › mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+    [0m [90m 788 |[39m     )[33m;[39m
+     [90m 789 |[39m     warn[33m.[39mmockRestore()[33m;[39m
+    [31m[1m>[22m[39m[90m 790 |[39m     expect(lines)[33m.[39mtoHaveLength([35m1[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 791 |[39m     [36mconst[39m first [33m=[39m lines[[35m0[39m][33m;[39m
+     [90m 792 |[39m     [36mif[39m ([33m![39mfirst) [36mthrow[39m [36mnew[39m [33mError[39m([32m'unreachable: length was asserted 1'[39m)[33m;[39m
+     [90m 793 |[39m     [36mconst[39m payload [33m=[39m [33mJSON[39m[33m.[39mparse([33mString[39m(first[[35m1[39m])) [36mas[39m [33mAdminSecurityEvent[39m[33m;[39m[0m
+
+      at Object.<anonymous> (tests/admin-shell-session-lifecycle.test.ts:790:19)
+
+{"subsystem":"admin-shell","event":{"kind":"auth.login_failed","reason":"invalid_token","method":"POST","pathname":"/admin/login"},"timestamp":"2026-09-27T22:16:23.437Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"b90ff01d-cdcd-4437-bcb4-983f63f1f391","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+FAIL tests/adm-base-03-safe-error-offline.functional.test.ts
+  ● ADM-BASE-03 admin shell boundary (real HTTP, no DB) › throwing section fetcher → 500 without sentinel on the wire or in the log
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "deferred section render error"
+    Received string:    ""
+
+    [0m [90m 208 |[39m     expect(logText)[33m.[39mnot[33m.[39mtoContain([33mSENTINEL_DSN[39m)[33m;[39m
+     [90m 209 |[39m     [90m// The operator keeps a joinable, class-only signal.[39m
+    [31m[1m>[22m[39m[90m 210 |[39m     expect(logText)[33m.[39mtoContain([32m'deferred section render error'[39m)[33m;[39m
+     [90m     |[39m                     [31m[1m^[22m[39m
+     [90m 211 |[39m     expect(logText)[33m.[39mtoMatch([35m/errorClass/[39m)[33m;[39m
+     [90m 212 |[39m   })[33m;[39m
+     [90m 213 |[39m })[33m;[39m[0m
+
+      at Object.<anonymous> (tests/adm-base-03-safe-error-offline.functional.test.ts:210:21)
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 67 passed, 69 total
+Snapshots:   0 total
+Time:        7.944 s
+Ran all test suites matching /admin-shell-session-lifecycle|adm-base-03/i.
+{"subsystem":"admin-shell","errorClass":"Error","timestamp":"2026-09-27T22:16:23.623Z","level":"error","service":"orchestrator","version":"unknown","environment":"test","correlationId":"11ea0ee5-9f06-4d2d-ae82-a69e4c8bd533","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] deferred section render error"}
+ ELIFECYCLE  Command failed with exit code 1.

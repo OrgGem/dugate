@@ -34,10 +34,11 @@ export function fromContractResponse(response: InvocationResponse): ClientInvoca
     nextPollAt: response.nextPollAt ?? undefined,
     error: response.error
       ? {
-        code: response.error.code,
-        message: response.error.message,
-        retryAfterMs: response.error.retryAfterMs,
-      }
+          code: response.error.code,
+          message: response.error.message,
+          retryable: response.error.retryable,
+          retryAfterMs: response.error.retryAfterMs,
+        }
       : undefined,
   };
 }

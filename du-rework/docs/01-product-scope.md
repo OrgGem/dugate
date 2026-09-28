@@ -16,6 +16,16 @@
 
 V1 dùng một tenant mặc định nhưng mọi khóa dữ liệu/quyền đã mang `tenantId`; triển khai multi-tenant UI đầy đủ không thuộc v1. API key liên kết một profile, nhiều key có thể cùng profile. Không dùng API key như chính profile.
 
+### Actor fail-closed rules (W39-CX audit, P0-01)
+
+- API client (X-API-Key): unknown/revoked key gives 401; cross-tenant access gives 404; action outside profile gives 403 (R08-01, W13-C/PRF-01).
+- Admin: missing admin token gives 401; runtime token never substitutes; boot refuses equal admin/runtime tokens.
+- Operator: UI/nav scope only; no separate service credential; service operator endpoints are PLANNED.
+- Worker (RUNTIME_TOKEN): stale lease gives 409 LEASE_LOST; undeclared slot gives 409 BINDING_DENIED; inputHash conflict gives 409.
+- Connector: unsigned grant denied; quota exhausted gives 429 path; UNKNOWN outcome is non-retryable.
+
+Details: traceability-matrix.md section 3 and coordination/reports/codex.md (W39-CX).
+
 ## Functional requirements
 
 | ID | Yêu cầu | Tiêu chí đạt |
@@ -33,7 +43,7 @@ V1 dùng một tenant mặc định nhưng mọi khóa dữ liệu/quyền đã 
 | BR-11 | Traceability | Trace operation → task → invocation → provider request |
 | BR-12 | Isolation | Worker khác business không thể claim job hoặc dùng binding trái quyền |
 
-## Use cases cần mô tả trước implementation
+## Use cases và traceability baseline
 
 UC-01: Admin tạo connector và kiểm tra bằng mock; publish revision cấu hình.
 

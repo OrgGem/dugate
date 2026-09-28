@@ -1,0 +1,13 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand "--" "enc-read-roundtrip-proof"
+
+PASS tests/enc-read-roundtrip-proof.test.ts
+  PROOF: a seam-enabled write leaves the stored object undecryptable
+    √ read() returns ciphertext and no envelope survives the round trip (17 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        2.895 s
+Ran all test suites matching /enc-read-roundtrip-proof/i.

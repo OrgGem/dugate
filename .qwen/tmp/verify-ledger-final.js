@@ -1,0 +1,11 @@
+const fs = require('fs');
+const NL = String.fromCharCode(10);
+const p = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const L = fs.readFileSync(p, 'utf8').split(NL);
+const rows = L.filter(function (l) { return l.slice(0, 2) === '- ' && l.charAt(2) >= '0' && l.charAt(2) <= '9'; });
+const nums = rows.map(function (l) { return parseInt(l.slice(2, l.indexOf(' ')), 10); });
+console.log('LEDGER_ROWS=' + rows.length);
+console.log('NUMS=' + nums.join(','));
+const sorted = nums.slice().sort(function (a, b) { return a - b; });
+console.log('ASC_UNIQUE=' + (nums.length === sorted.length && nums.every(function (n, i) { return n === sorted[i]; })));
+console.log('HAS_MUC17=' + (fs.readFileSync(p, 'utf8').indexOf('## 17') >= 0));

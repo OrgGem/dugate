@@ -8,7 +8,10 @@ import {
   validateProviderUrl,
   createConnectorServer,
   type UsageSink,
+  type ConnectorErrorCode,
 } from '../src';
+// Cycle-102 convention: quiet-band bind instead of the ephemeral lottery.
+import { listenLoopback } from '../../../tests/harness/listen-loopback';
 
 test('usage dispatcher retries failed delivery, acknowledges once, and survives poison events', async () => {
   const outbox = new InMemoryUsageOutbox();
@@ -78,44 +81,195 @@ test('provider egress rejects private, IPv6 loopback, userinfo, and unsafe redir
   })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
 });
 
-test('usage sink validates contract and never exposes its credential in errors', async () => {
-  const sink = new HttpUsageSink('https://usage.example/events', 'secret-token', async () => {
-    throw new Error('network');
-  });
+test('usage sink sends the single contract event to the Orchestrator with bearer auth', async () => {
+  const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({ input, init });
+    return new Response(null, { status: 202 });
+  };
+  const sink = new HttpUsageSink(
+    'https://orchestrator.example/api/runtime/v1/usage-events',
+    'secret-token',
+    fetcher,
+  );
   const event = appendUsageEvent('usage-2', 1, {
     inputTokens: 1,
-    outputTokens: 1,
+    outputTokens: 2,
+    pages: 3,
+    costMicrousd: 4,
+    measurement: 'measured',
+  }, {
+    operationId: '11111111-1111-4111-8111-111111111111',
+    taskId: '22222222-2222-4222-8222-222222222222',
+  });
+
+  await expect(sink.send(event!)).resolves.toBeUndefined();
+  expect(requests).toHaveLength(1);
+  expect(String(requests[0]?.input)).toBe('https://orchestrator.example/api/runtime/v1/usage-events');
+  expect(requests[0]?.init).toMatchObject({
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer secret-token',
+      'content-type': 'application/json',
+      'idempotency-key': event!.eventId,
+    },
+  });
+  expect(JSON.parse(String(requests[0]?.init?.body))).toEqual({
+    eventId: event!.eventId,
+    invocationId: 'usage-2',
+    operationId: '11111111-1111-4111-8111-111111111111',
+    taskId: '22222222-2222-4222-8222-222222222222',
+    units: { inputTokens: 1, outputTokens: 2, pages: 3 },
+    costMicrousd: 4,
+    currency: 'USD',
+    measurement: 'measured',
+    occurredAt: event!.createdAt,
+  });
+});
+
+test.each([
+  ['network failure', async () => { throw new Error('secret-token: network'); }, 'Usage sink is unavailable.'],
+  ['HTTP rejection', async () => new Response(null, { status: 503 }), 'Usage sink rejected the event.'],
+] as const)('usage sink safely handles %s', async (_name, fetcher, message) => {
+  const sink = new HttpUsageSink(
+    'https://orchestrator.example/api/runtime/v1/usage-events',
+    'secret-token',
+    fetcher,
+  );
+  const event = appendUsageEvent('usage-rejected', 1, {
+    inputTokens: 1,
     measurement: 'estimated',
   }, {
     operationId: '11111111-1111-4111-8111-111111111111',
     taskId: '22222222-2222-4222-8222-222222222222',
   });
-  await expect(sink.send(event!)).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+
+  await expect(sink.send(event!)).rejects.toMatchObject({
+    code: 'PROVIDER_UNAVAILABLE',
+    message,
+  });
   await expect(sink.send(event!)).rejects.not.toThrow('secret-token');
 });
 
+test('idle usage dispatcher drain does not leave a timeout handle', async () => {
+  jest.useFakeTimers();
+  try {
+    const outbox = new InMemoryUsageOutbox();
+    const dispatcher = new UsageOutboxDispatcher(outbox, { send: async () => {} });
+
+    await dispatcher.drain();
+
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('usage dispatcher drain remains bounded when delivery does not settle', async () => {
+  jest.useFakeTimers();
+  try {
+    const outbox = new InMemoryUsageOutbox();
+    const event = appendUsageEvent('usage-stuck', 1, {
+      inputTokens: 1,
+      measurement: 'estimated',
+    }, {
+      operationId: '11111111-1111-4111-8111-111111111111',
+      taskId: '22222222-2222-4222-8222-222222222222',
+    });
+    await outbox.append(event!);
+    let markDeliveryStarted!: () => void;
+    const deliveryStarted = new Promise<void>((resolve) => { markDeliveryStarted = resolve; });
+    const dispatcher = new UsageOutboxDispatcher(outbox, {
+      send: async () => {
+        markDeliveryStarted();
+        await new Promise<void>(() => {});
+      },
+    });
+    void dispatcher.dispatchOnce();
+    await deliveryStarted;
+
+    const drain = dispatcher.drain(100);
+    expect(jest.getTimerCount()).toBe(2);
+    await jest.advanceTimersByTimeAsync(100);
+
+    await expect(drain).resolves.toBeUndefined();
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('usage dispatcher timeout zero cancels active delivery without waiting', async () => {
+  jest.useFakeTimers();
+  try {
+    const outbox = new InMemoryUsageOutbox();
+    const event = appendUsageEvent('usage-no-wait', 1, {
+      inputTokens: 1,
+      measurement: 'estimated',
+    }, {
+      operationId: '11111111-1111-4111-8111-111111111111',
+      taskId: '22222222-2222-4222-8222-222222222222',
+    });
+    await outbox.append(event!);
+    let announceSend!: () => void;
+    let sendSignal: AbortSignal | undefined;
+    const sendStarted = new Promise<void>((resolve) => { announceSend = resolve; });
+    const dispatcher = new UsageOutboxDispatcher(outbox, {
+      send: async (_payload, signal) => {
+        sendSignal = signal;
+        announceSend();
+        await new Promise<void>(() => {});
+      },
+    });
+    const dispatch = dispatcher.dispatchOnce();
+    await sendStarted;
+
+    await expect(dispatcher.drain(0)).resolves.toBeUndefined();
+    expect(sendSignal?.aborted).toBe(true);
+    await dispatch;
+    expect(outbox.size()).toBe(1);
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 test('HTTP maps quota and provider failures to stable statuses', async () => {
+  let errorCode: ConnectorErrorCode = 'QUOTA_EXHAUSTED';
   const server = createConnectorServer({
     management: {
       list: async () => [],
       get: async () => undefined,
-      createRevision: async (input) => ({ ...input, revision: 1 }),
+      createRevision: async (input) => ({
+        ...input,
+        credentialSource: input.credentialSource ?? { kind: 'legacy-db', credentialRef: input.credentialRef },
+        revision: 1,
+        tenantId: input.tenantId ?? '',
+      }),
+      getRevision: async () => undefined,
+      getCurrentRevision: async () => undefined,
+      bootstrapRevision: async () => { throw new Error('unused'); },
+    createPendingRevision: async () => {
+        throw new Error('not implemented in test double');
+      },
+      activateRevision: async () => false,
+      retireRevision: async () => {},
       rotateCredential: async () => {},
       disable: async () => {},
       test: async () => ({ ok: true }),
     },
     runtime: {
-      invoke: async () => { throw new ConnectorError('QUOTA_EXHAUSTED', 'busy'); },
+      invoke: async () => { throw new ConnectorError(errorCode, 'failure'); },
       get: async () => undefined,
       cancel: async () => { throw new ConnectorError('INVOCATION_UNKNOWN', 'unknown'); },
     },
     capabilities: () => ({}),
     ready: async () => true,
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await listenLoopback(server, 43560 + ((process.pid % 8) * 8));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('server did not bind');
-  const response = await fetch(`http://127.0.0.1:${address.port}/invocations`, {
+  const invoke = () => fetch(`http://127.0.0.1:${address.port}/invocations`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -130,6 +284,8 @@ test('HTTP maps quota and provider failures to stable statuses', async () => {
       deadlineAt: '2099-01-01T00:00:00.000Z',
     }),
   });
-  expect(response.status).toBe(429);
+  expect((await invoke()).status).toBe(429);
+  errorCode = 'CANCELLED';
+  expect((await invoke()).status).toBe(409);
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 });

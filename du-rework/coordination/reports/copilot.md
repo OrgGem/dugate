@@ -1,171 +1,114 @@
-# Coordination Report — Copilot Connector lane
+# Coordination Report — Copilot Connector lane (wave-05 takeover)
 
-- **Date**: 2026-09-20
-- **Status**: READY_FOR_INTEGRATION
-- **Scope**: Connector local protocol, durable repositories/migrations, Redis
-  quota, HTTP management/runtime shell, provider mock, and typed client.
+- **Date**: 2026-09-21
+- **Status**: COMPLETE (P3-01..08 + P2-08 adoption)
+- **Note**: the Copilot terminal (`term_297a6033`) could not receive the wave-05 packet
+  (`provider: unsupported`, no delivery). Per user direction, the platform lane executed the
+  Connector-lane packet (WORKLOAD-REBALANCE-05 §Copilot) instead. All edits stayed inside
+  `services/connector/**`, `packages/connector-client/**`, `tests/integration/**` (shared),
+  the in-lane manifests, `tasks/P3-connector.md`, and this report — plus root `package.json` /
+  `pnpm-workspace.yaml` / `pnpm-lock.yaml`, which only the platform owner may touch.
 
-## Completed in this checkpoint
+## Wave-05 work (all actually run)
 
-- Added connector-local protocol matrix without publishing guessed shared DTOs.
-- Added strict local types, canonical input hashing, grant binding validation,
-  replay/conflict/unknown-aware ledger, and declarative JSON/multipart adapters.
-- Added PostgreSQL-owned migration for connector revisions, encrypted secret
-  versions, invocation ledger, and usage outbox.
-- Added transactional SQL repository ports/implementations for invocation claim,
-  replay/conflict, pending/success/failure/unknown transitions, credential
-  rotation/revocation, and usage outbox claiming/deduplication.
-- Added Redis Lua atomic quota leases with expiry and release; two independent
-  store instances are tested against one Redis boundary.
-- Added dependency-free HTTP service shell for health/readiness, capabilities,
-  redacted connector metadata, write-only credential rotation, disable/test
-  management actions, and invocation get/submit/cancel seams.
-- Adopted the frozen `@du/contracts` v1 connector schemas through local
-  boundary adapters: request/grant/usage parsing and response state/error
-  mapping now use the exact shared exports without changing local repositories.
-- Added injectable service-identity verification and contract-backed signed-grant
-  verification boundaries with negative scope, audience, expiry, tamper, and
-  input-hash tests.
-- Added graceful lifecycle start/drain/shutdown, standalone Dockerfile and
-  entrypoint, provider timeout-to-UNKNOWN behavior, credential-revoke fencing,
-  oversized request handling, and usage-outbox replay fault coverage.
-- Added concrete `pg` Pool/transaction/migration/version-check adapter and
-  concrete `ioredis` EVAL/ping/quit adapter with URL/TLS/prefix support.
-- Added composition-root wiring for PostgreSQL, Redis, durable ledger/config/
-  outbox, quota, durable runtime and management services, HTTP auth verifier,
-  readiness, and drain.
-- Replaced the Docker stub server entrypoint with the compiled composition-root
-  entrypoint, environment validation, signal-driven drain/shutdown, and
-  migration asset packaging for production images.
-- Added deterministic usage IDs, controllable provider fault modes, and typed
-  client invoke/replay/poll/wait/cancel behavior that surfaces UNKNOWN without
-  blind retrying.
-- Added the production adapter registry and generic fetch transport with
-  redirect rejection, response-size limits, abort handling, and secret-safe
-  provider errors.
-- Replaced production management/runtime fallbacks with durable revision,
-  credential, invocation, quota, and usage-outbox services.
-- Added fail-closed startup security configuration checks and a black-box HTTP
-  integration test covering provider invocation, redacted management output,
-  restart replay, and persisted status.
-- Added repository-backed immutable revision creation through `POST /connectors`
-  with adapter and timeout validation; credential rotation remains write-only.
+### P3-06 settled delivery — COMPLETE
+New `tests/integration/connector-usage.integration.test.ts`: boots the real Orchestrator
+(usage endpoint, `usageToken`) and the real Connector composition with `HttpUsageSink`
+pointed at it; appends one measured `UsageEvent` to the Connector's real
+`PostgresUsageOutbox`; runs `UsageOutboxDispatcher.dispatchOnce()` three times; asserts the
+Orchestrator `usage_events` projection holds **exactly one row** with
+`inputTokens=41, outputTokens=17, costMicrousd=725`. Passes inside `pnpm test:integration`.
+
+### P3-07 client-against-real-service — COMPLETE
+New `packages/connector-client/tests/real-service.test.ts` (`CONNECTOR_INTEGRATION=1`):
+boots a Connector composition + in-process mock-provider HTTP server and drives the real
+`ConnectorClient` through an HTTP transport implementing `invoke/get/cancel` against the
+live service. Asserts `invoke`→`poll`→`wait` complete, cancel of a terminal invocation is
+rejected (`INVOCATION_UNKNOWN`), and cancel of a genuinely PENDING invocation returns
+`cancelled` end-to-end (1 suite / 1 test pass).
+
+### P3-08 image/integration — COMPLETE
+- `du-connector:wave05` built from the repo root
+  (digest `sha256:996db5ead0ee985c6ddee4f8200c151168717517a0eb75057437fac5090d4580`).
+- Started with `DATABASE_URL`/`REDIS_URL` against isolated PG :5433 / Redis :6380 plus
+  `SERVICE_IDENTITY_SECRET`, `INVOCATION_GRANT_SECRET`, `CONNECTOR_ENCRYPTION_KEY`;
+  `/health/live` and `/health/ready` both returned 200 (probed from inside the container).
+- Dockerfile hardened: copies the full workspace manifest set (all `services/*`,
+  `businesses/*`, `tests/integration` package.jsons + `.npmrc`) so `pnpm install
+  --frozen-lockfile --filter @du/connector...` resolves against a complete workspace.
+- Root config fix (platform-owner action): moved `pnpm.overrides` from the deprecated
+  `pnpm` key in root `package.json` to `pnpm-workspace.yaml`; regenerated
+  `pnpm-lock.yaml` (adds the previously-absent `tests/integration` and
+  `businesses/example-review` importers and the new `@du/connector` dev link).
+  `pnpm install --frozen-lockfile` now passes locally, which unblocked the image build.
+
+### Grant acceptance (task 4) — COMPLETE, no contract change needed
+Verified the cross-lane HS256 path matches the frozen contract: the Orchestrator issues
+`connectorRevision` as a **number**; the Connector's `localGrantClaimsFromContract`
+converts it to the local `"connectorId:revision"` string before `services.ts` splits it.
+The real-service client test above signs grants with the same header/claims shape and the
+live Connector accepts them; binding mismatch/expiry paths remain covered by
+`security-lifecycle.test.ts`.
+
+### P2-08 webhook — COMPLETE (adoption, no delivery endpoint)
+New `services/connector/src/webhook.ts` (exported from `src/index.ts`): adopts the frozen
+`@du/contracts` surface — `WebhookPayloadSchema`, `webhookSigningPayload`,
+`WEBHOOK_SIGNATURE_HEADER`/`WEBHOOK_TIMESTAMP_HEADER`/`WEBHOOK_DELIVERY_HEADER` — with
+`verifyWebhookSignature(secret, timestamp, body, signature)` (HMAC-SHA256 over
+`{timestamp}.{body}`, constant-time compare, never throws on bad input) and
+`parseWebhookPayload` (strict schema). New `tests/webhook.test.ts`: 6/6 pass
+(round-trip, tamper rejection, forged-secret rejection, missing fields, strict-schema
+rejection, header-name export).
+
+## Cross-lane bug found and fixed (Connector-owned)
+`services/connector/src/db/repository.ts` `toRecord()` passed the pg `TIMESTAMPTZ`
+`Date` object for `next_poll_at` straight into the contract `nextPollAt` string field.
+Any path returning a record with a set `nextPollAt` (cancel of a PENDING invocation)
+failed `InvocationResponseSchema.parse` with a 500 `INVALID_INPUT`. Fixed by serializing
+to RFC3339 (`new Date(...).toISOString()`); row type widened to `string | Date | null`.
+Found via the new P3-07 cancel test; no contract/DTO change.
 
 ## Test commands and actual results
 
-No install was run; existing repository dependencies were sufficient.
-
 ```text
-node_modules/.bin/tsc.cmd -p du-rework/services/connector/tsconfig.json --noEmit
-PASS (after contracts-v1 adoption)
+pnpm build            → 11/11 workspace projects compile
+pnpm lint             → green (incl. tests/integration)
+pnpm test             → contracts 70, observability 16, document-kit 46,
+                        worker-sdk 23, connector 39 (+2 opt-in skipped),
+                        connector-client 2 (+1 skipped), document-core 201,
+                        orchestrator 16, example-review 5, integration 3 — all pass
+pnpm test:integration → 3 suites / 3 tests pass
+  (usage-projection, artifacts-grants, NEW connector-usage P3-06)
 
-node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand
-5 suites passed, 23 tests passed; 1 opt-in integration suite skipped by default
+CONNECTOR_INTEGRATION=1 jest (services/connector): 9 suites, 42 tests pass
+  (incl. durable-integration, black-box-durable, NEW webhook 6 tests)
+CONNECTOR_INTEGRATION=1 jest (packages/connector-client): 2 suites, 3 tests pass
+  (incl. NEW real-service P3-07 invoke/poll/wait/cancel over real HTTP)
 
-node_modules/.bin/tsc.cmd -p du-rework/packages/connector-client/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/packages/connector-client/jest.config.cjs --runInBand
-1 suite passed, 2 tests passed
-
-node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand durable-integration.test.ts
-CONNECTOR_INTEGRATION=1: 1 suite passed, 2 tests passed against PostgreSQL :5433 and Redis :6380
-
-Full Connector run with `--detectOpenHandles`: 5 suites passed, 23 tests
-passed, 1 opt-in integration test skipped, exited cleanly.
-
-After the runtime-entrypoint change:
-
-```text
-node_modules/.bin/tsc.cmd -p du-rework/services/connector/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand --detectOpenHandles
-5 suites passed, 23 tests passed; 1 opt-in integration suite skipped
-
-node_modules/.bin/tsc.cmd -p du-rework/packages/connector-client/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/packages/connector-client/jest.config.cjs --runInBand
-1 suite passed, 2 tests passed
+docker build -f services/connector/Dockerfile -t du-connector:wave05 .
+docker run ... du-connector:wave05 → /health/live 200, /health/ready 200
+digest sha256:996db5ead0ee985c6ddee4f8200c151168717517a0eb75057437fac5090d4580
 ```
 
-After WORKLOAD-REBALANCE-03 production runtime wiring:
-
-```text
-node_modules/.bin/tsc.cmd -p du-rework/services/connector/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand --detectOpenHandles
-5 suites passed, 24 tests passed; 2 opt-in suites skipped by default
-
-CONNECTOR_INTEGRATION=1 node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand durable-integration.test.ts black-box-durable.test.ts
-2 suites passed, 3 tests passed against PostgreSQL :5433, Redis :6380, and a local mock provider
-
-The previous opt-in rerun was temporarily blocked because PostgreSQL
-`127.0.0.1:5433` and Redis `127.0.0.1:6380` were unavailable. A subsequent
-rerun after both services became reachable passed:
-
-```text
-CONNECTOR_INTEGRATION=1 node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand --detectOpenHandles durable-integration.test.ts black-box-durable.test.ts
-2 suites passed, 3 tests passed, exited cleanly
-
-node_modules/.bin/tsc.cmd -p du-rework/packages/connector-client/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/packages/connector-client/jest.config.cjs --runInBand
-1 suite passed, 2 tests passed
-
-Production fallback scan:
-No `NOT_CONFIGURED`, `runtime composition is not configured`, or planning-placeholder
-matches remain under services/connector.
-```
-
-After WORKLOAD-REBALANCE-04 reliability hardening:
-
-```text
-node_modules/.bin/tsc.cmd -p du-rework/services/connector/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand --detectOpenHandles
-6 suites passed, 29 tests passed; 2 opt-in suites skipped
-
-CONNECTOR_INTEGRATION=1 node_modules/.bin/jest.cmd --config du-rework/services/connector/jest.config.cjs --runInBand --detectOpenHandles durable-integration.test.ts black-box-durable.test.ts
-2 suites passed, 3 tests passed against PostgreSQL :5433, Redis :6380, and a local mock provider
-
-node_modules/.bin/tsc.cmd -p du-rework/packages/connector-client/tsconfig.json --noEmit
-PASS
-
-node_modules/.bin/jest.cmd --config du-rework/packages/connector-client/jest.config.cjs --runInBand
-1 suite passed, 2 tests passed
-```
-
-## Dependencies and handoff
-
-- `@du/contracts` v1 and `workspace-ready.md` are now consumed. The exact
-  connector/grant/usage exports are used by `src/contracts.ts`,
-  `src/contract-grants.ts`, `src/usage.ts`, and client `src/contracts.ts`.
-- `pg`/`ioredis` declarations are in the lane manifest but the root lockfile was
-  not changed and no install was run; Claude must resolve them.
-- Cross-service artifact/session and Orchestrator usage integration remain gated
-  follow-up; Connector-local durable invocation and management paths are now
-  implemented.
-
-## Current blocker
-
-Remaining blocker is the Claude-owned Orchestrator runtime boundary and root
-lockfile resolution for `pg`, `@types/pg`, and `ioredis`. No shared contract,
-root configuration, SDK, Orchestrator, or infra file was modified.
-
-## P3-01..P3-08 evidence matrix
+## P3-01..08 evidence matrix
 
 | Task | Status | Evidence |
 |---|---|---|
-| P3-01 | COMPLETE | `src/types.ts`, `src/db/migrations/001_connector.sql`, `src/db/repository.ts`; Connector typecheck and durable migration test |
-| P3-02 | COMPLETE | `src/http/server.ts`, `src/services.ts`; redaction/rotation/revision tests in `runtime-foundations.test.ts` and black-box management assertion |
-| P3-03 | COMPLETE | `src/grants.ts`, `src/hash.ts`, `src/ledger.ts`, `src/db/repository.ts`; `security-lifecycle.test.ts` and replay/conflict tests |
-| P3-04 | COMPLETE | `src/adapters/http.ts`, `src/adapters/registry.ts`, `src/adapters/transport.ts`; adapter mapping and mock-provider tests |
-| P3-05 | COMPLETE | `src/invoke.ts`, `src/quota-redis.ts`; quota, timeout-to-UNKNOWN, async pending, cancellation and two-instance durable tests |
-| P3-06 | PARTIAL | `src/db/usage-outbox.ts`, `src/usage-dispatcher.ts`; retry/idempotency/fault tests pass, but real Orchestrator usage projection remains pending `runtime-ready.md` |
-| P3-07 | COMPLETE | `packages/connector-client`; strict typecheck and 2 client consumer tests |
-| P3-08 | COMPLETE | `src/lifecycle.ts`, `src/adapters/transport.ts`, `tests/reliability-security.test.ts`, Docker entrypoint; 6 suites/29 tests pass plus opt-in durable suites |
+| P3-01 | COMPLETE | (unchanged) `src/types.ts`, `src/db/migrations/001_connector.sql`, `src/db/repository.ts`; durable migration test |
+| P3-02 | COMPLETE | (unchanged) `src/http/server.ts`, `src/services.ts`; redaction/rotation/revision + black-box management assertion |
+| P3-03 | COMPLETE | (unchanged) `src/grants.ts`, `src/hash.ts`, `src/ledger.ts`; `security-lifecycle.test.ts` replay/conflict/negative tests |
+| P3-04 | COMPLETE | (unchanged) adapters + `tests/mock-provider`; mapping and mock-provider tests |
+| P3-05 | COMPLETE | durable quota (`RedisQuotaStore` two-instance test), deadline/cancel/async paths (`reliability-security`, `black-box-durable`) + new real-service PENDING cancel proof |
+| P3-06 | COMPLETE | `tests/integration/connector-usage.integration.test.ts` — real Connector `HttpUsageSink` → live Orchestrator, triple dispatch, exactly-once projection |
+| P3-07 | COMPLETE | `packages/connector-client/tests/real-service.test.ts` — invoke/poll/wait complete + cancel semantics over real HTTP |
+| P3-08 | COMPLETE | `services/connector/Dockerfile` (hardened) + `du-connector:wave05` digest `sha256:996db5…4580`, starts vs PG :5433/Redis :6380, health 200/200 |
+| P2-08 | COMPLETE | `src/webhook.ts` + `tests/webhook.test.ts` (6 pass); frozen contract surface only, no delivery endpoint |
+
+## Dependencies and handoff
+- `pg`/`@types/pg`/`ioredis` were already resolvable in the root lockfile; no new external
+  dependency was added. The only manifest change is `@du/connector` as a devDependency of
+  `@du/connector-client` (workspace link, resolved by the platform owner's root install).
+- No shared contract/DTO was changed. No Orchestrator, SDK, document-core, document-kit,
+  infra, or Antigravity-lane file was modified.
+- Pre-existing uncommitted changes by other lanes (orchestrator P2-07, document-core,
+  example-review, root docs) were preserved; nothing was staged, reset, or rebased.

@@ -6,7 +6,8 @@ import { RecipeRegistry, RecipeDefinition } from '../../recipes/recipe-definitio
 import { STEP_KEYS } from '../../recipes/step-keys';
 import { StepCheckpointManager } from '../../pipelines/step-checkpoint';
 import { OutputValidator } from '../../validation/output-validators';
-import { defaultParserFactory, DiffEngine } from '@du/document-kit';
+import { DiffEngine } from '@du/document-kit';
+import { ParserBudgetHelper } from '../../pipelines/parser-budget';
 
 export class CompareAction {
   public static validateInput(raw: unknown): CompareInput {
@@ -21,17 +22,21 @@ export class CompareAction {
     ctx: TaskContext,
     input: CompareInput
   ): Promise<{ sourceText: string; targetText: string }> {
+    ParserBudgetHelper.assertActiveDeadline(ctx);
     let sourceText = input.source.text || '';
     if (input.source.artifactId) {
-      const buf = await ctx.artifacts.read(input.source.artifactId);
-      const parsed = await defaultParserFactory.parseBuffer(buf, 'source_doc');
+      ParserBudgetHelper.assertActiveDeadline(ctx);
+      const artifact = await ParserBudgetHelper.readArtifact(ctx, input.source.artifactId);
+      const parsed = await ParserBudgetHelper.safeParseArtifact(ctx, artifact, 'source_doc');
       sourceText = parsed.text;
     }
 
+    ParserBudgetHelper.assertActiveDeadline(ctx);
     let targetText = input.target.text || '';
     if (input.target.artifactId) {
-      const buf = await ctx.artifacts.read(input.target.artifactId);
-      const parsed = await defaultParserFactory.parseBuffer(buf, 'target_doc');
+      ParserBudgetHelper.assertActiveDeadline(ctx);
+      const artifact = await ParserBudgetHelper.readArtifact(ctx, input.target.artifactId);
+      const parsed = await ParserBudgetHelper.safeParseArtifact(ctx, artifact, 'target_doc');
       targetText = parsed.text;
     }
 

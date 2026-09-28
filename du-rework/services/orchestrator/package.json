@@ -9,18 +9,29 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist",
     "test": "jest --runInBand",
-    "start": "node dist/server.js"
+    "test:unit": "jest --runInBand --config jest.unit.config.cjs",
+    "start": "node dist/main.js",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "logs:collect": "node dist/log-collector.js",
+    "migrate": "npm run build && node dist/migrate-cli.js migrate",
+    "migrate:status": "npm run build && node dist/migrate-cli.js status",
+    "migrate:verify": "npm run build && node dist/migrate-cli.js verify",
+    "migrate:artifact-blobs": "pnpm run build && node dist/storage-migration-cli.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1140.0",
+    "@aws-sdk/s3-request-presigner": "^3.1140.0",
     "@du/contracts": "workspace:*",
+    "@du/egress": "workspace:*",
     "@du/observability": "workspace:*",
+    "@du/worker-sdk": "workspace:*",
     "ajv": "^8.17.1",
     "bullmq": "^5.34.0",
     "ioredis": "^5.4.1",
     "pg": "^8.12.0"
   },
   "devDependencies": {
-    "@du/worker-sdk": "workspace:*",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
     "@types/pg": "^8.11.6",

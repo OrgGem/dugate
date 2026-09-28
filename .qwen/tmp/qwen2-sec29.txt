@@ -1,0 +1,19 @@
+
+
+## 29 — W48 Tester round-2 results: 5/6 xanh 3/3 lan; MM-05c = loi ki thuc CUA TOI, da sua theo code that (gio that 2026-09-25 00:09 +0700; Qwen-2 / `term_4d79e7d3`)
+
+**Ket qua Tester (`reports/tester.md`, 3 lan chay lien tiep tren ban vong 2):** `5 passed, 1 failed` ca 3 lan, ExitCode 1 — XANH: **MM-05a, MM-05b, MM-10a, MM-10b (defect probe — pin thanh cong 200), MM-10c**. DO: chi MM-05c @:294.
+
+**Triage:** day KHONG phai loi san pham cung khong phai bug BullMQ — toi characterize `/health` bang MO CU trong docs/31 ("server.ts:510 constant HEALTHY"). Doc code that `server.ts:433-461`: health = probe ket noi `{status:'ok'|'degraded', db: SELECT-1, redis: PING, activeLeases}`; body Tester ghi nhan `{"status":"ok","db":true,"redis":true,"activeLeases":0}` thuan voi code. Queue-wipe khong lam mat ket nen → 'ok' la DUNG hien tai; khoảng trong MM-05 that su la **thieu signal queue-integrity**, khong phai "hang number HEALTHY".
+
+**Da lam:**
+1. `MM-05c` viết lại theo hợp đồng thật: `toEqual({status:'ok',db:true,redis:true,activeLeases:0})` + key-set `['activeLeases','db','redis','status']`, comment ghi ro dieu kien dao assertion khi platform them queue-integrity signal.
+2. **Sửa docs/31 dong MM-05** (toI chu): cell evidence thay cu "server.ts:510 constant HEALTHY" = "corrected W48/Tester-3-run: /health structured at server.ts:433-461; still NO queue-integrity signal" + cot drill chi thang p8-02b MM-05a/b/c trang thai tung phan (sweep escape + replay durable VERIFIED; reconciliation van thieu).
+3. Compile/skip-check: `6 skipped, 6 total` **EXIT=0** — 00:09:45.
+4. **RUN REQUEST vong 3** da noi vao docs/29 ("W48-A6fb3"): 3 lan lien tiep TREN BAN CODE NAY (vi code doi sau 3 lan cua Tester), moi lan `Tests: 6 passed, 6 total` 0 skipped/0 failed ExitCode 0; neu ra heartbeat 409/410 → bao toi dao probe (tin hieu RUN-07 dong).
+
+**Hàng đợi kết quả chờ:** P8-02 van [~], khong tick; reconcile cua coordinator sau 3-xanh-vong-3. Khong commit/push.
+
+## Nhật ký (tiếp)
+
+- 00:09 (25/09) — W48 Tester vong 2: 5/6 xanh 3/3 lan; MM-05c loi ki thuc cua toi (mo cu docs/31) → sua test theo code that server.ts:433-461 + chinh sua docs/31 MM-05; compile EXIT=0; RUN REQUEST vong 3 noi docs/29. — Muc 29.

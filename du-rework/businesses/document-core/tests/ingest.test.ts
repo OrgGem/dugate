@@ -2,6 +2,35 @@ import { IngestAction } from '../src/actions/ingest';
 import { MockTaskContext } from './fixtures/mock-context';
 import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
 import { PdfSplitter } from '../../../packages/document-kit/src/formats/pdf-splitter';
+import { createHash } from 'node:crypto';
+
+/**
+ * INGEST-WIRE-01: REAL PNG bytes for the OCR/digitize variants.
+ *
+ * The old variants passed a `text` placeholder, so nothing image-shaped ever
+ * existed. These are actual PNG files (signature + IHDR/IDAT/IEND), which is
+ * what the format detector and the provider-side MIME check must agree on.
+ * Base64 of a valid 1x1 PNG; the digest is asserted so a fixture that quietly
+ * changes shape cannot keep passing.
+ */
+const SCAN_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+function createScanPngBytes(): Buffer {
+  return Buffer.from(SCAN_PNG_BASE64, 'base64');
+}
+
+/** A second, different scan so OCR and digitize are not the same bytes. */
+function createHandwritingScanPngBytes(): Buffer {
+  const base = createScanPngBytes();
+  // A tEXt chunk carrying the difference, appended before IEND.
+  const marker = Buffer.from('handwriting', 'utf8');
+  const payload = Buffer.concat([Buffer.from([0x68, 0x74, 0x54, 0x65, 0x78, 0x74]), marker]);
+  const withMarker = Buffer.concat([base.subarray(0, base.length - 12), payload, base.subarray(base.length - 12)]);
+  return withMarker;
+}
+
+export const SCAN_PNG_SHA256 = createHash('sha256').update(createScanPngBytes()).digest('hex');
 
 describe('Action: Ingest (DOC-01) — 4 Variants', () => {
   let ctx: MockTaskContext;
@@ -33,16 +62,22 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
   });
 
   // Variant 2: ocr
-  it('DOC-01-v2: dispatches to OCR connector slot with language hint', async () => {
+  // INGEST-WIRE-01: this variant used to pass `text: 'image-placeholder'` and a
+  // `hasBuffer` boolean, which proved nothing — the provider received no image.
+  // It now writes REAL PNG bytes as an artifact and asserts the Connector is
+  // handed that artifact reference, so the wire is the document.
+  it('DOC-01-v2: hands the OCR slot a real artifact reference for the scanned image', async () => {
     ctx.mockConnectorResponses.set('ocr', {
       invocationId: 'inv-ocr-1',
       status: 'SUCCESS',
       data: { text: 'Scanned receipt text', markdown: '# Scanned receipt' },
     });
 
+    const scan = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(scan, 'receipt-scan.png', 'image/png');
     const input = IngestAction.validateInput({
       mode: 'ocr',
-      text: 'image-placeholder',
+      artifactIds: [artRef.artifactId],
       language: 'vie',
     });
     const recipe = IngestAction.selectRecipe(input);
@@ -55,7 +90,14 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
     expect(envelope.provenance.method).toBe('ocr');
     expect(envelope.provenance.modelSlot).toBe('ocr');
     expect(result.text).toBe('Scanned receipt text');
-    expect(ctx.connectorInvocations.some((inv) => inv.slot === 'ocr')).toBe(true);
+    const ocrCall = ctx.connectorInvocations.find((inv) => inv.slot === 'ocr');
+    expect(ocrCall).toBeDefined();
+    // The wire carries the DOCUMENT, not a boolean about it.
+    const payload = ocrCall?.payload as { artifacts?: { artifactId: string }[]; hasBuffer?: boolean };
+    expect(payload.hasBuffer).toBeUndefined();
+    expect(payload.artifacts).toEqual([{ artifactId: artRef.artifactId }]);
+    // The bytes behind that reference are the scan we wrote, byte for byte.
+    expect(ctx.artifactsStore.get(artRef.artifactId)?.equals(scan)).toBe(true);
   });
 
   // Variant 3: digitize
@@ -69,9 +111,11 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
       },
     });
 
+    const form = createHandwritingScanPngBytes();
+    const formRef = await ctx.artifacts.write(form, 'intake-form.png', 'image/png');
     const input = IngestAction.validateInput({
       mode: 'digitize',
-      text: 'form-placeholder',
+      artifactIds: [formRef.artifactId],
     });
     const recipe = IngestAction.selectRecipe(input);
     const sources = await IngestAction.prepareSources(ctx, input);
@@ -83,7 +127,13 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
     expect(envelope.provenance.method).toBe('ocr');
     expect(envelope.provenance.modelSlot).toBe('vision');
     expect(result.formFields).toEqual({ patientName: 'John Doe', smoker: false });
-    expect(ctx.connectorInvocations.some((inv) => inv.slot === 'vision')).toBe(true);
+    const visionCall = ctx.connectorInvocations.find((inv) => inv.slot === 'vision');
+    expect(visionCall).toBeDefined();
+    // A task NAME is not a document: the payload must name the artifact.
+    const visionPayload = visionCall?.payload as { task?: string; artifacts?: { artifactId: string }[] };
+    expect(visionPayload.task).toBe('digitize_handwriting');
+    expect(visionPayload.artifacts).toEqual([{ artifactId: formRef.artifactId }]);
+    expect(ctx.artifactsStore.get(formRef.artifactId)?.equals(form)).toBe(true);
   });
 
   // Variant 4: split (single page)

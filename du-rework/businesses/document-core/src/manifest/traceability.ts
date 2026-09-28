@@ -329,8 +329,9 @@ export function verifyTraceabilityMatrix(): { valid: boolean; errors: string[] }
           `Recipe ID mismatch for ${actionVariantKey}: matrix has "${entry.recipeId}", registry has "${recipe.recipeId}"`
         );
       }
-    } catch (e: any) {
-      errors.push(`Missing recipe in RecipeRegistry for ${actionVariantKey}: ${e.message}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Missing recipe in RecipeRegistry for ${actionVariantKey}: ${msg}`);
     }
 
     // 4. Connector slot match

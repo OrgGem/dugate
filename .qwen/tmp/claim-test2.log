@@ -1,0 +1,64 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "url-ingestion-consumer-offline"
+
+FAIL tests/url-ingestion-consumer-offline.functional.test.ts (8.345 s)
+  W-DATA03-CONSUMER-JOIN-1 offline functional
+    √ happy path: claim -> real acquire -> real ingestor -> real materialize -> gate opens QUEUED/READY with an artifactId pin (81 ms)
+    √ replay after success: the second sweep claims nothing (durable dispatched_at) (37 ms)
+    √ crash between the gate commit and the completion stamp: replay consumes the row, fetches nothing, writes nothing (43 ms)
+    √ crash after materialize but before the gate: pin answers with zero network, materialize is SELECT-idempotent, artifactId unchanged (30 ms)
+    √ permanent: non-HTTPS sourceUrl escalates to FAILED with zero network, zero storage, zero gate writes (4 ms)
+    √ retryable: transport failure re-arms with backoff and escalates only after the attempt budget (18 ms)
+    √ retryable: an upstream 404 exhausts into FAILED(SOURCE_REJECTED), never a silent drop (4 ms)
+    √ fail-closed: storage digest disagreement is PIN_MISMATCH, no artifact row, no gate (28 ms)
+    √ fail-closed: a refused artifact write is MATERIALIZATION_FAILED; committed bytes stay invisible behind the closed gate (42 ms)
+    √ budget: mid-stream oversize is TOO_LARGE before any storage write (25 ms)
+    √ budget: a declared content-length above maxBytes is refused before the first byte (3 ms)
+    √ cancel: an operation with a cancel signal is never opened; the delivery is consumed visibly (1 ms)
+    √ integrity: sourceUrl disagreement between the dispatch pointer and the DB envelope escalates without touching the network (1 ms)
+    √ integrity: a dispatch pointing at a non-root taskId escalates TASK_INVALID (1 ms)
+    √ ownership: the consumer claim selects ONLY gate-ingestion rows and leaves others for the dispatcher (1 ms)
+    √ determinism: sourceArtifactId is a stable RFC-4122 v5 over the pin coordinates (1 ms)
+    √ config: a consumer without a positive byte budget refuses to be constructed (31 ms)
+    √ dispatcher routing: gate-ingestion rows never reach a business queue; ready/plain rows do (1 ms)
+    √ T180-D1: replica losing the claim mid-download writes NOTHING terminal; the newer live claim survives untouched (31 ms)
+    √ T180-D1: a stale RETRY cannot re-arm the newer owner row (no due_at or claim_until clobber) (4 ms)
+    √ T180-D1: a stale escalation must NOT fail the operation the current owner may still open (4 ms)
+    √ T180-D1 unit: markIngestionReady runs the commit guard INSIDE the tx; when it throws, zero gate statements execute (1 ms)
+    √ T180-D1 config: a claim lease not exceeding the transfer deadline is refused at construction (2 ms)
+    √ T180-D2 replay: a stored READY row whose digest disagrees with the pin is MATERIALIZATION_CONFLICT, never reused, never overwritten (39 ms)
+    √ T180-D2 replay: two READY rows for one storage version is a conflict, never an arbitrary pick (45 ms)
+    √ T180-D2 PK conflict: the persisted row is RE-READ and verified; a matching one is adopted, id and all (28 ms)
+    √ T180-D1 layering: a steal landing between gate commit and the stamp leaves the gate OPEN but the row UN-STAMPED for the newer owner (32 ms)
+    √ s3 pin store: resolvePinned answers the READY artifact row, lowercasing the digest (1 ms)
+    √ s3 pin store: no READY row answers null (a cold key acquires, it does not invent a pin) (1 ms)
+    √ s3 putVerified: streams, measures, and reports the immutable version S3 answered (8 ms)
+    √ s3 putVerified: no immutable VersionId fails closed with STORAGE_FAILURE (8 ms)
+    √ s3 putVerified: an S3 checksum that disagrees with the streamed bytes fails closed PIN_MISMATCH (7 ms)
+    √ s3 putVerified: exceeding the byte budget mid-upload raises TOO_LARGE (3 ms)
+    √ claim boundary: a PENDING_INGESTION task is refused and takes NO lease (3 ms)
+    × claim boundary: once the gate opens, the SAME task claims normally (36 ms)
+
+  ● W-DATA03-CONSUMER-JOIN-1 offline functional › claim boundary: once the gate opens, the SAME task claims normally
+
+    expect(received).toBeTruthy()
+
+    Received: undefined
+
+    [0m [90m 1327 |[39m       source[33m?[39m[33m:[39m { artifactId[33m?[39m[33m:[39m string }[33m;[39m
+     [90m 1328 |[39m     }[33m;[39m
+    [31m[1m>[22m[39m[90m 1329 |[39m     expect(envelopeRef[33m.[39msource[33m?[39m[33m.[39martifactId)[33m.[39mtoBeTruthy()[33m;[39m
+     [90m      |[39m                                            [31m[1m^[22m[39m
+     [90m 1330 |[39m   })[33m;[39m
+     [90m 1331 |[39m })[33m;[39m
+     [90m 1332 |[39m[0m
+
+      at Object.<anonymous> (tests/url-ingestion-consumer-offline.functional.test.ts:1329:44)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 34 passed, 35 total
+Snapshots:   0 total
+Time:        8.864 s
+Ran all test suites matching /url-ingestion-consumer-offline/i.
+ ELIFECYCLE  Command failed with exit code 1.

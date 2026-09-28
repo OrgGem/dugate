@@ -1,0 +1,26 @@
+
+**Why — cycle 19 (W-ENC-04-SEAM, port lien package):**
+- Muc 18 BLOCKED (facade o orchestrator, worker chua co duong nhan DEK, packet ghi sai
+  duong dan). Cycle 19 duoc mo scope: PORT trung thuc `crypto-storage-facade` sang
+  `packages/worker-sdk/src/crypto-storage.ts` (910d, cc7db569) + seam
+  `crypto-seam.ts` (158d) binding tenant CUA CLAIM + `TaskContextDeps.crypto` optional
+  + single-PUT seal truoc khi bytes roi process (finalize nhan size/digest CIPHERTEXT).
+  14/14 x3, tsc 0. Muc 18 van giu nguyen: DEK delivery (Δ41) + document-core path (Δ42)
+  + tai `packages/**` khong tu dong mo `businesses/**`.
+- **BAI HOC 1 (port):** 12 test hanh vi KHONG bat duoc khi doi format AAD / vi tri
+  nonce / chunk size — vi seal va open cung mot BAN PORT, hai ve lech nhau van khop.
+  CHI test so sanh voi FILE NGUON moi bat duoc. Voi moi port sang package khac:
+  (1) port bang SCRIPT COPY chu khong go tay (doc 861 dong roi ghi lai = hong wire);
+  (2) co test doc file nguon so sanh byte-for-byte, chi normalize ten type;
+  (3) mutation doi MOT hang format de chung minh test do that (M1 do dung 2 test
+  fidelity, 12 test con lai xanh).
+- **BAI HOC 2 (do do loi):** khi 1 suite do, KIEM TRA NO CO IMPORT CODE MINH SUA
+  hay khong TRUOC khi ket luan "flake". `network-boundaries` + `artifact-direct-band`
+  chi import artifact-streams/multipart/fan-out => code cycle nay khong the chay trong
+  do; them 2 lan chay cong lap (12/12 xanh, Exit 0) moi duoc noi "nhieu tai may".
+  Cung ho voi Δ35 (loopback ETIMEDOUT).
+- **BAI HOC 3 (scope):** khi gap yeu cau nam ngoai `src/modules/runtime/**` va
+  `packages/worker-sdk/**`, KHAI BAO DUONG DAN THAT roi moi lap kien chung minh —
+  `packages/document-core` KHONG ton tai (that la `businesses/document-core`), va
+  facade that o `services/orchestrator/src/modules/encryption/crypto-storage-FACADE.ts`
+  (co duoi -facade; test cua toi sai ten file 1 lan).

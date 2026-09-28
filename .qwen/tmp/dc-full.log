@@ -1,0 +1,557 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand
+
+PASS tests/r1-e-artifact-inputs.test.ts (9.093 s)
+PASS tests/r1-e-layer6-archive-worker.test.ts (6.314 s)
+PASS tests/checkpoint-replay.test.ts
+PASS tests/parser-budgets.test.ts (5.202 s)
+PASS tests/r1-e-trusted-format-propagation.test.ts
+PASS tests/child-lifecycle.test.ts
+PASS tests/doc-core-crypto-seam.test.ts
+FAIL tests/p8-03-provider-convergence.test.ts
+  ● P8-03: Document-Core Provider & Usage Convergence (CON-01..05, USE-01/02) › USE-01: Structured Usage Accounting & Schema Compliance › live usage_events projection query aggregates provider tokens and costs matching UsageSchema
+
+    connect ETIMEDOUT 127.0.0.1:5433
+
+    [0m [90m 14 |[39m     }
+     [90m 15 |[39m     [36masync[39m query(text[33m,[39m parameters [33m=[39m []) {
+    [31m[1m>[22m[39m[90m 16 |[39m         [36mconst[39m result [33m=[39m [36mawait[39m [36mthis[39m[33m.[39mpool[33m.[39mquery(text[33m,[39m parameters)[33m;[39m
+     [90m    |[39m                        [31m[1m^[22m[39m
+     [90m 17 |[39m         [36mreturn[39m { rows[33m:[39m result[33m.[39mrows[33m,[39m rowCount[33m:[39m result[33m.[39mrowCount [33m?[39m[33m?[39m undefined }[33m;[39m
+     [90m 18 |[39m     }
+     [90m 19 |[39m     [36masync[39m transaction(callback) {[0m
+
+      at ../../node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+      at PgSqlClient.query (../../services/connector/dist/db/pg-client.js:16:24)
+      at Object.<anonymous> (tests/p8-03-provider-convergence.test.ts:339:9)
+
+PASS tests/ingest.test.ts (5.736 s)
+{"operationId":"578cafc7-036e-4110-be2d-47f8c2cae8f6","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:13.537Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-c416c3ff","taskId":"c596434c-a5a8-4c5f-8ee0-896e7544eb07","invocationId":null,"message":"handler failed"}
+FAIL tests/bullmq-smoke.test.ts (16.107 s)
+  ● Document Core — BullMQ & Redis Smoke Suite › proves queue consumption, claim, step execution, completion and drain against Redis 6380
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 2
+    Received:    0
+
+    [0m [90m 299 |[39m
+     [90m 300 |[39m       [90m// 2. Step checkpoints saved to runtime[39m
+    [31m[1m>[22m[39m[90m 301 |[39m       expect(recorded[33m.[39msavedSteps[33m.[39mlength)[33m.[39mtoBeGreaterThanOrEqual([35m2[39m)[33m;[39m
+     [90m     |[39m                                          [31m[1m^[22m[39m
+     [90m 302 |[39m       expect(recorded[33m.[39msavedSteps[33m.[39msome((s) [33m=>[39m s[33m.[39mstepKey [33m===[39m [32m'ingest:prepare-source'[39m))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 303 |[39m       expect(recorded[33m.[39msavedSteps[33m.[39msome((s) [33m=>[39m s[33m.[39mstepKey [33m===[39m [32m'ingest:execute-parse'[39m))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 304 |[39m[0m
+
+      at Object.<anonymous> (tests/bullmq-smoke.test.ts:301:42)
+
+PASS tests/r1-e-sdk-metadata-adapter.test.ts
+PASS tests/checkpoint.test.ts
+PASS tests/parser-budget-band.test.ts
+  ● Console
+
+    console.log
+      PARSER-RSS budget=10.00MiB peakMarginalExternal=8.01MiB residentExternal=8.01MiB
+
+      at Object.<anonymous> (tests/parser-budget-band.test.ts:158:13)
+
+PASS tests/read-stream-acquisition.test.ts
+PASS tests/br06-checkpoint-dedup-offline.test.ts
+PASS tests/all-variants-e2e.test.ts
+FAIL tests/sdk-consumer.test.ts
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 1 (ingest) via root handler dispatch with artifact write and complete report
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:352:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 2 (extract) with reasoning slot invocation and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:367:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 3 (analyze) with reasoning slot invocation and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:381:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 4 (transform) with format conversion and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:395:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 5 (generate) with reasoning slot invocation and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:408:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 6 (compare) with lexical diff and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:422:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 3. Durable Step Checkpoint Behavior (RUN-04) › records step execution under durable checkpoint and saves step output
+
+    expect(received).toBeUndefined()
+
+    Received: {"detail": "artifact encryption is not configured for this worker; refusing to write plaintext bytes", "errorCode": "HANDLER_ERROR", "leaseEpoch": 1, "retryable": false}
+
+    [0m [90m 571 |[39m       [36mawait[39m workerHandle[33m.[39mstop()[33m;[39m
+     [90m 572 |[39m
+    [31m[1m>[22m[39m[90m 573 |[39m       expect(reportedFailure)[33m.[39mtoBeUndefined()[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 574 |[39m       [36mconst[39m stepCalls [33m=[39m calls[33m.[39mfilter((c) [33m=>[39m c[33m.[39mmethod [33m===[39m [32m'PUT'[39m [33m&&[39m c[33m.[39mpath[33m.[39mincludes([32m'/steps/'[39m))[33m;[39m
+     [90m 575 |[39m       expect(stepCalls[33m.[39mlength)[33m.[39mtoBeGreaterThan([35m0[39m)[33m;[39m
+     [90m 576 |[39m       [36mconst[39m firstStep [33m=[39m stepCalls[[35m0[39m][33m![39m[33m;[39m[0m
+
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:573:31)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 5. Lease-loss Cancellation & Fencing › aborts context on lease loss and releases slot safely without terminal report
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+    [0m [90m 826 |[39m       [90m// Verified: worker handled lease loss without crashing and stopped cleanly[39m
+     [90m 827 |[39m       expect(workerHandle[33m.[39mstopped)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 828 |[39m       expect(terminalFailureReports)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m     |[39m                                      [31m[1m^[22m[39m
+     [90m 829 |[39m     })[33m;[39m
+     [90m 830 |[39m   })[33m;[39m
+     [90m 831 |[39m })[33m;[39m[0m
+
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:828:38)
+
+{"operationId":"f0d80710-b47e-4774-b750-c5553a1cb26a","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.870Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-4c8250cd-fde5-44b3-9187-e16591c7b347","taskId":"c04761b5-7af8-4798-8a9b-4e182ba5d250","invocationId":null,"message":"handler failed"}
+{"operationId":"64e575da-149a-46bc-a222-1952119352ac","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.874Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-eef20c0e-4de5-46a0-8562-266f4a0512c1","taskId":"ae7fdaf9-c512-498e-83b9-08b4c103d935","invocationId":null,"message":"handler failed"}
+{"operationId":"c62f0005-62c3-4e9a-a2cc-f07e51667fca","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.876Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-60d7673f-e7aa-48d6-bc7f-72e4cfbbab05","taskId":"b71de4eb-e1d3-4915-b72a-a94d589a3428","invocationId":null,"message":"handler failed"}
+{"operationId":"4cd5f76a-6282-4ad9-afbd-a6dfacc0b157","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.877Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-bfa55f46-1572-413d-8c7f-c2bbcdf5f87f","taskId":"cfd1373d-0386-44fb-a6bd-eb35b1967518","invocationId":null,"message":"handler failed"}
+{"operationId":"3f92367d-3d43-40f0-affe-07579e32e6e2","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.878Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-f1908a62-281d-4314-86d6-f215367afe34","taskId":"2b62b01e-fb31-4698-a26f-8bdcc2316de1","invocationId":null,"message":"handler failed"}
+{"operationId":"bff8373b-2d06-4937-b3d5-9ae99badd0b9","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.879Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-37e47c1d-9041-4da2-be0c-22996e79633a","taskId":"48dcbd5b-c5d9-4efa-9ee2-8c3ef72007f3","invocationId":null,"message":"handler failed"}
+{"operationId":"9df6bc7e-4ca8-478c-9034-49443556847f","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.881Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-5dc14b77-2fef-429a-acd0-2ea6308d00ad","taskId":"3fd01ba9-9e45-4192-9af9-34c074e9804d","invocationId":null,"message":"handler failed"}
+{"operationId":"47184bb6-089c-4503-a03c-f958759b9d35","businessId":"document-core","businessVersion":"1.0.0","errorCode":"DOCUMENT_TOO_LARGE","timestamp":"2026-09-27T20:54:30.886Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-b3469917-c134-47df-a51b-d25381aa943b","taskId":"37923834-c0fb-407b-8d81-7746c022ee2f","invocationId":null,"message":"handler failed"}
+{"operationId":"ed22c7b6-b099-42f4-9964-086206a35f3f","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:30.888Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-d1203a71-3705-4c36-b64c-ea881de732b7","taskId":"2a2706c4-40ca-4099-a2b6-1b5cab758c09","invocationId":null,"message":"handler failed"}
+PASS tests/corpus-regression.test.ts
+PASS tests/bounded-input.test.ts
+PASS tests/generate.test.ts
+PASS tests/config.test.ts
+  ● Console
+
+    console.error
+      {"ts":"2026-09-27T20:54:31.844Z","level":"error","msg":"Failed to parse worker environment configuration","meta":{"error":"Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL; RUNTIME_TOKEN: Required; REDIS_URL: Required"}}
+
+    [0m [90m 21 |[39m     [36mconst[39m log [33m=[39m [36mthis[39m[33m.[39mdeps[33m.[39monLog [33m?[39m[33m?[39m ((level[33m,[39m msg[33m,[39m meta) [33m=>[39m {
+     [90m 22 |[39m       [36mconst[39m line [33m=[39m [33mJSON[39m[33m.[39mstringify({ ts[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m level[33m,[39m msg[33m,[39m meta })[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m       [36mif[39m (level [33m===[39m [32m'error'[39m) console[33m.[39merror(line)[33m;[39m
+     [90m    |[39m                                      [31m[1m^[22m[39m
+     [90m 24 |[39m       [36melse[39m console[33m.[39mlog(line)[33m;[39m
+     [90m 25 |[39m     })[33m;[39m
+     [90m 26 |[39m[0m
+
+      at log (src/main.ts:23:38)
+      at DocumentCoreProcess.start (src/main.ts:32:7)
+      at Object.<anonymous> (tests/config.test.ts:158:25)
+
+    console.log
+      {"ts":"2026-09-27T20:54:31.853Z","level":"info","msg":"Starting Document Core Worker service","meta":{"runtimeUrl":"http://localhost:3000/api/runtime/v1","runtimeToken":"[REDACTED]","redisUrl":"redis://localhost:6380","connectorUrl":"http://localhost:3100/internal/v1","concurrency":4,"heartbeatIntervalMs":5000,"workerInstanceId":"worker-doc-test-1","imageDigest":"sha256:test-image-digest","shutdownGraceMs":10000}}
+
+      at log (src/main.ts:24:20)
+
+    console.error
+      {"ts":"2026-09-27T20:54:31.853Z","level":"error","msg":"Worker failed to start","meta":{"error":"Connection refused to runtime"}}
+
+    [0m [90m 21 |[39m     [36mconst[39m log [33m=[39m [36mthis[39m[33m.[39mdeps[33m.[39monLog [33m?[39m[33m?[39m ((level[33m,[39m msg[33m,[39m meta) [33m=>[39m {
+     [90m 22 |[39m       [36mconst[39m line [33m=[39m [33mJSON[39m[33m.[39mstringify({ ts[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m level[33m,[39m msg[33m,[39m meta })[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m       [36mif[39m (level [33m===[39m [32m'error'[39m) console[33m.[39merror(line)[33m;[39m
+     [90m    |[39m                                      [31m[1m^[22m[39m
+     [90m 24 |[39m       [36melse[39m console[33m.[39mlog(line)[33m;[39m
+     [90m 25 |[39m     })[33m;[39m
+     [90m 26 |[39m[0m
+
+      at log (src/main.ts:23:38)
+      at DocumentCoreProcess.start (src/main.ts:53:7)
+      at Object.<anonymous> (tests/config.test.ts:174:7)
+
+    console.log
+      {"ts":"2026-09-27T20:54:31.854Z","level":"info","msg":"Starting Document Core Worker service","meta":{"runtimeUrl":"http://localhost:3000/api/runtime/v1","runtimeToken":"[REDACTED]","redisUrl":"redis://localhost:6380","connectorUrl":"http://localhost:3100/internal/v1","concurrency":4,"heartbeatIntervalMs":5000,"workerInstanceId":"worker-doc-test-1","imageDigest":"sha256:test-image-digest","shutdownGraceMs":10000}}
+
+      at log (src/main.ts:24:20)
+
+    console.log
+      {"ts":"2026-09-27T20:54:31.854Z","level":"info","msg":"Document Core Worker successfully registered and listening","meta":{"workerInstanceId":"inst-1","queueName":"q-1"}}
+
+      at log (src/main.ts:24:20)
+
+    console.log
+      {"ts":"2026-09-27T20:54:31.855Z","level":"info","msg":"Shutting down worker gracefully...","meta":{"graceMs":10000}}
+
+      at log (src/main.ts:88:15)
+
+    console.log
+      {"ts":"2026-09-27T20:54:31.855Z","level":"info","msg":"Worker shutdown completed cleanly"}
+
+      at log (src/main.ts:88:15)
+
+PASS tests/barrier-cleanup-lifecycle.test.ts
+PASS tests/analyze.test.ts
+PASS tests/profile-binding-fixture.test.ts
+FAIL tests/provider-backed-variant.test.ts
+  ● Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & Reliability › 4. Worker Delivery Loop with Real SDK Facade Simulation › delivers extract/invoice end-to-end through startDocumentCoreWorker
+
+    expect(received).toBeUndefined()
+
+    Received: {"detail": "artifact encryption is not configured for this worker; refusing to write plaintext bytes", "errorCode": "HANDLER_ERROR", "leaseEpoch": 1, "retryable": false}
+
+    [0m [90m 565 |[39m       [36mawait[39m workerHandle[33m.[39mstop()[33m;[39m
+     [90m 566 |[39m
+    [31m[1m>[22m[39m[90m 567 |[39m       expect(failedBody)[33m.[39mtoBeUndefined()[33m;[39m
+     [90m     |[39m                          [31m[1m^[22m[39m
+     [90m 568 |[39m       expect(connectorInvocations)[33m.[39mtoBe([35m1[39m)[33m;[39m
+     [90m 569 |[39m       expect(completedBody)[33m.[39mtoBeDefined()[33m;[39m
+     [90m 570 |[39m       expect(completedBody[33m.[39mleaseEpoch)[33m.[39mtoBe([35m1[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/provider-backed-variant.test.ts:567:26)
+
+{"operationId":"904d47b6-c5f6-415f-a99b-d01fb87a51fc","businessId":"document-core","businessVersion":"1.0.0","errorCode":"HANDLER_ERROR","timestamp":"2026-09-27T20:54:32.695Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-e1e39ee3-600f-46d9-b2a2-524d9930bda4","taskId":"90c5efd8-3c9d-4e35-837f-9a0ea6bcf02d","invocationId":null,"message":"handler failed"}
+PASS tests/execution-pin.functional.test.ts
+PASS tests/test-target-guard.test.ts
+PASS tests/package-boundary.test.ts
+PASS tests/cancellation-fencing.test.ts
+PASS tests/output-validation.test.ts
+PASS tests/extract.test.ts
+PASS tests/six-action-fail-closed-matrix.functional.test.ts
+PASS tests/transform.test.ts
+PASS tests/compare.test.ts
+PASS tests/ingest-source-pin.test.ts
+PASS tests/traceability.test.ts
+PASS tests/build-dependency-order.test.ts
+PASS tests/artifact-metadata.functional.test.ts
+PASS tests/manifest.test.ts
+FAIL tests/p8-01-traceability-harness.test.ts
+  ● P8-01 offline operation → task → invocation → provider-request trace › keeps one operation/task/invocation identity across the worker and provider boundary
+
+    artifact encryption is not configured for this worker; refusing to write plaintext bytes
+
+    [0m [90m 100 |[39m [36mfunction[39m assertSeam(seam[33m:[39m [33mWorkerCryptoSeam[39m [33m|[39m undefined)[33m:[39m [33mWorkerCryptoSeam[39m {
+     [90m 101 |[39m   [36mif[39m ([33m![39mseam) {
+    [31m[1m>[22m[39m[90m 102 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 103 |[39m       [32m'artifact encryption is not configured for this worker; refusing to write plaintext bytes'[39m[33m,[39m
+     [90m 104 |[39m     )[33m;[39m
+     [90m 105 |[39m   }[0m
+
+      at assertSeam (../../packages/worker-sdk/src/crypto-seam.ts:102:11)
+      at assertSeamFn (../../packages/worker-sdk/src/crypto-seam.ts:117:48)
+      at Object.seal (../../packages/worker-sdk/src/crypto-seam.ts:121:22)
+      at Function.toStoredForm (src/pipelines/step-checkpoint.ts:50:37)
+      at src/pipelines/step-checkpoint.ts:130:19
+      at Object.run (../../packages/worker-sdk/src/task-context.ts:313:24)
+
+PASS tests/worker.test.ts
+PASS tests/helpers/synthetic-fixtures.test.ts
+PASS tests/cross-service-boundary.test.ts
+PASS tests/suite-bootstrap-contract.test.ts
+
+Summary of all failing tests
+FAIL tests/p8-03-provider-convergence.test.ts
+  ● P8-03: Document-Core Provider & Usage Convergence (CON-01..05, USE-01/02) › USE-01: Structured Usage Accounting & Schema Compliance › live usage_events projection query aggregates provider tokens and costs matching UsageSchema
+
+    connect ETIMEDOUT 127.0.0.1:5433
+
+    [0m [90m 14 |[39m     }
+     [90m 15 |[39m     [36masync[39m query(text[33m,[39m parameters [33m=[39m []) {
+    [31m[1m>[22m[39m[90m 16 |[39m         [36mconst[39m result [33m=[39m [36mawait[39m [36mthis[39m[33m.[39mpool[33m.[39mquery(text[33m,[39m parameters)[33m;[39m
+     [90m    |[39m                        [31m[1m^[22m[39m
+     [90m 17 |[39m         [36mreturn[39m { rows[33m:[39m result[33m.[39mrows[33m,[39m rowCount[33m:[39m result[33m.[39mrowCount [33m?[39m[33m?[39m undefined }[33m;[39m
+     [90m 18 |[39m     }
+     [90m 19 |[39m     [36masync[39m transaction(callback) {[0m
+
+      at ../../node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+      at PgSqlClient.query (../../services/connector/dist/db/pg-client.js:16:24)
+      at Object.<anonymous> (tests/p8-03-provider-convergence.test.ts:339:9)
+
+FAIL tests/bullmq-smoke.test.ts (16.107 s)
+  ● Document Core — BullMQ & Redis Smoke Suite › proves queue consumption, claim, step execution, completion and drain against Redis 6380
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 2
+    Received:    0
+
+    [0m [90m 299 |[39m
+     [90m 300 |[39m       [90m// 2. Step checkpoints saved to runtime[39m
+    [31m[1m>[22m[39m[90m 301 |[39m       expect(recorded[33m.[39msavedSteps[33m.[39mlength)[33m.[39mtoBeGreaterThanOrEqual([35m2[39m)[33m;[39m
+     [90m     |[39m                                          [31m[1m^[22m[39m
+     [90m 302 |[39m       expect(recorded[33m.[39msavedSteps[33m.[39msome((s) [33m=>[39m s[33m.[39mstepKey [33m===[39m [32m'ingest:prepare-source'[39m))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 303 |[39m       expect(recorded[33m.[39msavedSteps[33m.[39msome((s) [33m=>[39m s[33m.[39mstepKey [33m===[39m [32m'ingest:execute-parse'[39m))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 304 |[39m[0m
+
+      at Object.<anonymous> (tests/bullmq-smoke.test.ts:301:42)
+
+FAIL tests/sdk-consumer.test.ts
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 1 (ingest) via root handler dispatch with artifact write and complete report
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:352:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 2 (extract) with reasoning slot invocation and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:367:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 3 (analyze) with reasoning slot invocation and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:381:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 4 (transform) with format conversion and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:395:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 5 (generate) with reasoning slot invocation and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:408:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 2. Injected QueueConsumer Delivery for All Six Actions › executes action 6 (compare) with lexical diff and artifact write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 343 |[39m         [36mreturn[39m [36mtypeof[39m byteCount [33m===[39m [32m'number'[39m [33m&&[39m byteCount [33m>[39m [35m0[39m[33m;[39m
+     [90m 344 |[39m       })[33m;[39m
+    [31m[1m>[22m[39m[90m 345 |[39m       expect(uploadedBytes)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 |[39m       [36mreturn[39m { completedBody[33m,[39m failedBody[33m,[39m calls }[33m;[39m
+     [90m 348 |[39m     }[33m;[39m[0m
+
+      at runActionDeliveryTest (tests/sdk-consumer.test.ts:345:29)
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:422:45)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 3. Durable Step Checkpoint Behavior (RUN-04) › records step execution under durable checkpoint and saves step output
+
+    expect(received).toBeUndefined()
+
+    Received: {"detail": "artifact encryption is not configured for this worker; refusing to write plaintext bytes", "errorCode": "HANDLER_ERROR", "leaseEpoch": 1, "retryable": false}
+
+    [0m [90m 571 |[39m       [36mawait[39m workerHandle[33m.[39mstop()[33m;[39m
+     [90m 572 |[39m
+    [31m[1m>[22m[39m[90m 573 |[39m       expect(reportedFailure)[33m.[39mtoBeUndefined()[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 574 |[39m       [36mconst[39m stepCalls [33m=[39m calls[33m.[39mfilter((c) [33m=>[39m c[33m.[39mmethod [33m===[39m [32m'PUT'[39m [33m&&[39m c[33m.[39mpath[33m.[39mincludes([32m'/steps/'[39m))[33m;[39m
+     [90m 575 |[39m       expect(stepCalls[33m.[39mlength)[33m.[39mtoBeGreaterThan([35m0[39m)[33m;[39m
+     [90m 576 |[39m       [36mconst[39m firstStep [33m=[39m stepCalls[[35m0[39m][33m![39m[33m;[39m[0m
+
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:573:31)
+
+  ● Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02) › 5. Lease-loss Cancellation & Fencing › aborts context on lease loss and releases slot safely without terminal report
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+    [0m [90m 826 |[39m       [90m// Verified: worker handled lease loss without crashing and stopped cleanly[39m
+     [90m 827 |[39m       expect(workerHandle[33m.[39mstopped)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 828 |[39m       expect(terminalFailureReports)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m     |[39m                                      [31m[1m^[22m[39m
+     [90m 829 |[39m     })[33m;[39m
+     [90m 830 |[39m   })[33m;[39m
+     [90m 831 |[39m })[33m;[39m[0m
+
+      at Object.<anonymous> (tests/sdk-consumer.test.ts:828:38)
+
+FAIL tests/provider-backed-variant.test.ts
+  ● Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & Reliability › 4. Worker Delivery Loop with Real SDK Facade Simulation › delivers extract/invoice end-to-end through startDocumentCoreWorker
+
+    expect(received).toBeUndefined()
+
+    Received: {"detail": "artifact encryption is not configured for this worker; refusing to write plaintext bytes", "errorCode": "HANDLER_ERROR", "leaseEpoch": 1, "retryable": false}
+
+    [0m [90m 565 |[39m       [36mawait[39m workerHandle[33m.[39mstop()[33m;[39m
+     [90m 566 |[39m
+    [31m[1m>[22m[39m[90m 567 |[39m       expect(failedBody)[33m.[39mtoBeUndefined()[33m;[39m
+     [90m     |[39m                          [31m[1m^[22m[39m
+     [90m 568 |[39m       expect(connectorInvocations)[33m.[39mtoBe([35m1[39m)[33m;[39m
+     [90m 569 |[39m       expect(completedBody)[33m.[39mtoBeDefined()[33m;[39m
+     [90m 570 |[39m       expect(completedBody[33m.[39mleaseEpoch)[33m.[39mtoBe([35m1[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/provider-backed-variant.test.ts:567:26)
+
+FAIL tests/p8-01-traceability-harness.test.ts
+  ● P8-01 offline operation → task → invocation → provider-request trace › keeps one operation/task/invocation identity across the worker and provider boundary
+
+    artifact encryption is not configured for this worker; refusing to write plaintext bytes
+
+    [0m [90m 100 |[39m [36mfunction[39m assertSeam(seam[33m:[39m [33mWorkerCryptoSeam[39m [33m|[39m undefined)[33m:[39m [33mWorkerCryptoSeam[39m {
+     [90m 101 |[39m   [36mif[39m ([33m![39mseam) {
+    [31m[1m>[22m[39m[90m 102 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 103 |[39m       [32m'artifact encryption is not configured for this worker; refusing to write plaintext bytes'[39m[33m,[39m
+     [90m 104 |[39m     )[33m;[39m
+     [90m 105 |[39m   }[0m
+
+      at assertSeam (../../packages/worker-sdk/src/crypto-seam.ts:102:11)
+      at assertSeamFn (../../packages/worker-sdk/src/crypto-seam.ts:117:48)
+      at Object.seal (../../packages/worker-sdk/src/crypto-seam.ts:121:22)
+      at Function.toStoredForm (src/pipelines/step-checkpoint.ts:50:37)
+      at src/pipelines/step-checkpoint.ts:130:19
+      at Object.run (../../packages/worker-sdk/src/task-context.ts:313:24)
+
+
+Test Suites: 5 failed, 39 passed, 44 total
+Tests:       12 failed, 517 passed, 529 total
+Snapshots:   0 total
+Time:        62.165 s
+Ran all test suites.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand`
+Exit status 1

@@ -2,6 +2,19 @@ import { VARIANT_TRACEABILITY_MATRIX, VariantTraceabilityEntry } from '../src/ma
 import { documentCoreHandlers } from '../src/worker';
 import { MockTaskContext } from './fixtures/mock-context';
 import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
+import { verifyAgainstCorpus } from './fixtures/expected-result-corpus';
+
+/**
+ * INGEST-WIRE-01: a real 1x1 PNG for the OCR/digitize variants. The previous
+ * fixtures passed placeholder TEXT, so no image ever existed on the wire.
+ * Base64 of a valid PNG (signature 89504e47 + IHDR/IDAT/IEND).
+ */
+const SCAN_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+function createScanPngBytes(): Buffer {
+  return Buffer.from(SCAN_PNG_BASE64, 'base64');
+}
 
 describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBALANCE-04, P5-06)', () => {
   // Verifies that all 28 variants execute through documentCoreHandlers, write durable result artifacts,
@@ -30,10 +43,15 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
           input: { mode: 'parse', text: 'Sample document text for ingestion' },
           setupMock: () => {},
         };
-      case 'DOC-01-02':
+      case 'DOC-01-02': {
+        // INGEST-WIRE-01: OCR now receives a real scan artifact, not placeholder
+        // text plus a boolean. Same shape as the split variant below.
+        const ocrInput: Record<string, unknown> = { mode: 'ocr', language: 'vie' };
         return {
-          input: { mode: 'ocr', text: 'Scanned image text content' },
-          setupMock: () => {
+          input: ocrInput,
+          setupMock: async () => {
+            const art = await ctx.artifacts.write(createScanPngBytes(), 'scan.png', 'image/png');
+            ocrInput.artifactIds = [art.artifactId];
             ctx.mockConnectorResponses.set('ocr', {
               invocationId: 'inv-ocr-e2e',
               status: 'SUCCESS',
@@ -41,10 +59,16 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
             });
           },
         };
-      case 'DOC-01-03':
+      }
+      case 'DOC-01-03': {
+        // INGEST-WIRE-01: digitize likewise gets a real form image; a task name
+        // alone never told the provider which document to read.
+        const digitizeInput: Record<string, unknown> = { mode: 'digitize' };
         return {
-          input: { mode: 'digitize', text: 'Handwritten intake form' },
-          setupMock: () => {
+          input: digitizeInput,
+          setupMock: async () => {
+            const art = await ctx.artifacts.write(createScanPngBytes(), 'form.png', 'image/png');
+            digitizeInput.artifactIds = [art.artifactId];
             ctx.mockConnectorResponses.set('vision', {
               invocationId: 'inv-vis-e2e',
               status: 'SUCCESS',
@@ -55,6 +79,7 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
             });
           },
         };
+      }
       case 'DOC-01-04': {
         const splitInput: Record<string, unknown> = { mode: 'split', pages: '1' };
         return {
@@ -377,10 +402,14 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
       const artifactBuf = await ctx.artifacts.read(artifactId);
       expect(artifactBuf).toBeDefined();
 
-      // 4. Validate result envelope
+      // 4. Validate result envelope against EXPECTED_RESULT_CORPUS
       const envelope = JSON.parse(artifactBuf.toString('utf8'));
       expect(envelope.status).toBe('COMPLETED');
       expect(envelope.data).toBeDefined();
+
+      const corpusVerification = verifyAgainstCorpus(entry.brdCaseId, envelope);
+      expect(corpusVerification.matched).toBe(true);
+      expect(corpusVerification.mismatches).toEqual([]);
 
       // 5. Machine-check output through the variant's output validator
       expect(() => {

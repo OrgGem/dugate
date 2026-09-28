@@ -1,0 +1,21 @@
+const fs = require('fs');
+const NL = String.fromCharCode(10);
+const T = 'D:/Git/dugate/.qwen/tmp/';
+const src = 'D:/Git/dugate/du-rework/services/orchestrator/src/modules/encryption/crypto-storage-facade.ts';
+const dst = 'D:/Git/dugate/du-rework/packages/worker-sdk/src/crypto-storage.ts';
+let s = fs.readFileSync(src, 'utf8');
+const imp = "import type { KeyProvider, WrappedDek } from './vault-transit-provider';";
+s = s.replace(imp + NL, '');
+const marker = 'export const CRYPTO_STORAGE_CHUNK_SIZE_BYTES';
+const i = s.indexOf(marker);
+if (i < 0) { console.log('MARKER_MISS'); process.exit(2); }
+const head = s.slice(0, i).replace(/\s+$/, '');
+const body = s.slice(i);
+const doc = fs.readFileSync(T + 'crypto-doc.txt', 'utf8');
+const types = fs.readFileSync(T + 'crypto-types.txt', 'utf8');
+const out = doc + head + NL + NL + types + NL + body;
+fs.writeFileSync(dst, out, 'utf8');
+console.log('WROTE lines=' + out.split(NL).length + ' bytes=' + Buffer.byteLength(out));
+console.log('vault_import_left=' + (out.indexOf('vault-transit-provider') >= 0));
+console.log('facade_class_present=' + (out.indexOf('export class CryptoStorageFacade') >= 0));
+console.log('body_matches_source=' + (out.indexOf(body) >= 0));

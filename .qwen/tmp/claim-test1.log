@@ -1,0 +1,42 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "url-ingestion-consumer-offline"
+
+FAIL tests/url-ingestion-consumer-offline.functional.test.ts
+  ● Test suite failed to run
+
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m350[0m:[93m26[0m - [91merror[0m[90m TS2339: [0mProperty 'business_id' does not exist on type 'OpRow'.
+
+    [7m350[0m         business_id: op?.business_id ?? 'du-doc',
+    [7m   [0m [91m                         ~~~~~~~~~~~[0m
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m351[0m:[93m31[0m - [91merror[0m[90m TS2339: [0mProperty 'business_version' does not exist on type 'OpRow'.
+
+    [7m351[0m         business_version: op?.business_version ?? '1.0.0',
+    [7m   [0m [91m                              ~~~~~~~~~~~~~~~~[0m
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m1311[0m:[93m28[0m - [91merror[0m[90m TS2339: [0mProperty 'sweepOnce' does not exist on type '{ store: { ops: Map<string, OpRow>; tasks: Map<string, TaskRow>; outbox: OutboxRow[]; artifacts: Map<string, ArtifactRow>; log: string[]; }; db: Db; seedGatedSubmission: (sourceUrl?: string, taskId?: string) => string; }'.
+
+    [7m1311[0m     const result = await h.sweepOnce();
+    [7m    [0m [91m                           ~~~~~~~~~[0m
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m1332[0m:[93m3[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m1332[0m   });
+    [7m    [0m [91m  ~[0m
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m1332[0m:[93m4[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m1332[0m   });
+    [7m    [0m [91m   ~[0m
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m1333[0m:[93m1[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m1333[0m });
+    [7m    [0m [91m~[0m
+    [96mtests/url-ingestion-consumer-offline.functional.test.ts[0m:[93m1333[0m:[93m2[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m1333[0m });
+    [7m    [0m [91m ~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        3.692 s
+Ran all test suites matching /url-ingestion-consumer-offline/i.
+ ELIFECYCLE  Command failed with exit code 1.

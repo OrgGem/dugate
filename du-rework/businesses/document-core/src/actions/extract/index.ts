@@ -7,7 +7,8 @@ import { RecipeRegistry, RecipeDefinition } from '../../recipes/recipe-definitio
 import { STEP_KEYS } from '../../recipes/step-keys';
 import { StepCheckpointManager } from '../../pipelines/step-checkpoint';
 import { OutputValidator } from '../../validation/output-validators';
-import { defaultParserFactory } from '@du/document-kit';
+import { ParserBudgetHelper } from '../../pipelines/parser-budget';
+import { LeaseLostError } from '@du/worker-sdk';
 
 export class ExtractAction {
   public static validateInput(raw: unknown): ExtractInput {
@@ -26,14 +27,16 @@ export class ExtractAction {
     ctx: TaskContext,
     input: ExtractInput
   ): Promise<{ text: string; sourceArtifactIds: string[] }> {
+    ParserBudgetHelper.assertActiveDeadline(ctx);
     const sourceArtifactIds: string[] = [];
     let text = input.text || '';
 
     if (input.artifactIds && input.artifactIds.length > 0) {
       for (const id of input.artifactIds) {
+        ParserBudgetHelper.assertActiveDeadline(ctx);
         sourceArtifactIds.push(id);
-        const buf = await ctx.artifacts.read(id);
-        const parsed = await defaultParserFactory.parseBuffer(buf, `doc_${id}`);
+        const artifact = await ParserBudgetHelper.readArtifact(ctx, id);
+        const parsed = await ParserBudgetHelper.safeParseArtifact(ctx, artifact, `doc_${id}`);
         text += (text ? '\n\n' : '') + parsed.text;
       }
     }
@@ -82,17 +85,43 @@ export class ExtractAction {
       STEP_KEYS.EXTRACT.CONNECTOR_INFERENCE,
       { promptHash: StepCheckpointManager.computeInputHash(promptPayload) },
       async () => {
-        const invocation = await ctx.connector.invoke('reasoning', {
-          task: `extract_${input.type}`,
-          payload: promptPayload,
-          responseFormat: 'json',
-          jsonSchema: input.schema,
-        });
+        let invocation;
+        try {
+          invocation = await ctx.connector.invoke('reasoning', {
+            task: `extract_${input.type}`,
+            payload: promptPayload,
+            responseFormat: 'json',
+            jsonSchema: input.schema,
+          });
+        } catch (err: unknown) {
+          StepCheckpointManager.assertActive(ctx);
+          if (err instanceof LeaseLostError || (err as { name?: string })?.name === 'LeaseLostError') {
+            throw err;
+          }
+          const errCandidate = err as { code?: string; message?: string };
+          if (errCandidate?.code === 'INVOCATION_UNKNOWN' || errCandidate?.message?.includes('INVOCATION_UNKNOWN')) {
+            throw new BusinessExecutionError(
+              errCandidate.message || 'Connector invocation outcome unknown; blind retry prohibited',
+              'INVOCATION_UNKNOWN',
+              false // NEVER blind retry
+            );
+          }
+          throw err;
+        }
+
+        StepCheckpointManager.assertActive(ctx);
 
         if (invocation.status !== 'SUCCESS') {
+          if (invocation.error?.code === 'INVOCATION_UNKNOWN') {
+            throw new BusinessExecutionError(
+              invocation.error.message || 'Connector invocation outcome unknown; blind retry prohibited',
+              'INVOCATION_UNKNOWN',
+              false // NEVER blind retry
+            );
+          }
           throw new BusinessExecutionError(
             `Extraction inference failed: ${invocation.error?.message || 'Unknown provider error'}`,
-            'PROVIDER_ERROR',
+            invocation.error?.code || 'PROVIDER_ERROR',
             invocation.error?.retryable ?? false
           );
         }

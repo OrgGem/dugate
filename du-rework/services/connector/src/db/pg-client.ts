@@ -47,24 +47,34 @@ export class PgSqlClient implements SqlClient {
         applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
-    const migration = await readFile(join(this.migrationDirectory, '001_connector.sql'), 'utf8');
-    const version = '001_connector';
-    const applied = await this.pool.query(
-      'SELECT version FROM connector_schema_migrations WHERE version = $1',
-      [version],
-    );
-    if (applied.rowCount) return;
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(migration);
-      await client.query('INSERT INTO connector_schema_migrations (version) VALUES ($1)', [version]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    for (const version of [
+      '001_connector',
+      '002_connector_poll_recovery',
+      '003_connector_quota_carry',
+      '004_connector_poll_backoff',
+      '005_connector_polling_state',
+      '006_connector_revision_lifecycle',
+      '007_connector_credential_source',
+      '008_connector_revision_binding',
+    ]) {
+      const applied = await this.pool.query(
+        'SELECT version FROM connector_schema_migrations WHERE version = $1',
+        [version],
+      );
+      if (applied.rowCount) continue;
+      const migration = await readFile(join(this.migrationDirectory, `${version}.sql`), 'utf8');
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(migration);
+        await client.query('INSERT INTO connector_schema_migrations (version) VALUES ($1)', [version]);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
     }
   }
 

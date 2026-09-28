@@ -1,4 +1,5 @@
 import type { AdapterConfig } from './types';
+import type { CredentialSource } from './vault/resolver';
 import type { ConnectorRevision } from './db/repository';
 
 export interface RedactedConnectorRevision {
@@ -7,7 +8,12 @@ export interface RedactedConnectorRevision {
   adapter: string;
   config: AdapterConfig;
   credentialRef: string;
-  state: 'ACTIVE' | 'DISABLED';
+  state: 'PENDING' | 'ACTIVE' | 'RETIRED';
+  /** VAULT-06: metadata (ref coordinates) — never a secret; passes through redact. */
+  credentialSource: CredentialSource;
+  /** W-VAULT01-BIND-1R: binding coordinates are metadata, not secrets. */
+  tenantId: string;
+  accountId?: string;
 }
 
 export function redactConnectorRevision(revision: ConnectorRevision): RedactedConnectorRevision {

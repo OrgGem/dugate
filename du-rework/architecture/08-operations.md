@@ -42,6 +42,10 @@ Xóa dữ liệu cần reconcile refs và object storage; S3 lifecycle không đ
 
 Logs/traces dùng correlationId, operationId, taskId, stepKey, invocationId, business/version, leaseEpoch. Không log raw file, prompt, Authorization, API key hoặc signed URL. Metrics labels phải bounded (business/action/status), không dùng operationId/tenant tùy ý tạo cardinality vô hạn.
 
+Production log path: mỗi Orchestrator/Connector/worker container ghi JSON đã redacted ra stdout; collector trên host gắn metadata môi trường/service/version, buffer có quota trên disk và gửi qua TLS đến Elasticsearch server private. Elasticsearch không nằm trên synchronous request path và không thay thế audit/outbox ở PostgreSQL. Theo dõi ingest lag, retry, buffer utilization và dropped records; outage test phải chứng minh operation vẫn chạy và collector replay khi đích hồi phục. Ingest pipeline có thể lọc thêm nhưng không thay thế redaction tại nguồn. [Elastic ingest pipelines](https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html/).
+
+Redaction test dùng sentinel trên error detail, webhook/SSE, artifact filename, URL query, provider/secret config, usage/outbox và metrics labels; không chỉ quét trường `Authorization`. Log retention/ILM, quyền đọc theo vai trò, quyền ghi riêng cho collector và chính sách xử lý đầy buffer phải được duyệt trước go-live. Kế hoạch thực hiện: [storage/logging gate](../tasks/DEPLOY-STORAGE-LOGGING-2026-09-24.md).
+
 | Alert | Dấu hiệu | Hành động đầu tiên |
 |---|---|---|
 | Outbox backlog | Oldest outbox age vượt budget | Kiểm tra dispatcher claims, Redis connectivity, DB locks |
@@ -56,9 +60,9 @@ Logs/traces dùng correlationId, operationId, taskId, stepKey, invocationId, bus
 
 Dashboard phải có queue wait và processing latency riêng, provider costs measured/estimated riêng, failed/cancelled/timeouts và accepted volume. Mỗi alarm có owner/on-call, severity và runbook; ngưỡng cuối cùng dựa trên benchmark.
 
-## Backup và disaster recovery trên EC2
+## Backup và disaster recovery theo backend đã chọn
 
-PostgreSQL tự quản cần backup nhất quán và WAL archiving/PITR hoặc giải pháp tương đương đã diễn tập; snapshot EBS đơn lẻ chưa chứng minh application-consistent restore. Backup phải mã hóa và lưu tách khỏi EC2 nguồn. S3 versioning hỗ trợ phục hồi object nhưng không thay thế chính sách backup và bảo vệ quyền xóa.
+PostgreSQL tự quản trên EC2 cần backup nhất quán và WAL archiving/PITR hoặc giải pháp tương đương đã diễn tập; snapshot EBS đơn lẻ chưa chứng minh application-consistent restore. Nếu chọn RDS, cấu hình backup/PITR/Multi-AZ và diễn tập restore/failover tương ứng. Backup phải mã hóa và lưu tách khỏi nguồn. S3 versioning hỗ trợ phục hồi object nhưng không thay thế chính sách backup và bảo vệ quyền xóa.
 
 Redis persistence giảm mất queue, không là bản ghi nghiệp vụ duy nhất. Khi restore, task DB, invocation ledger và object checkpoint phải được reconcile; không restore queue cũ rồi phát lại toàn bộ inference một cách mù quáng.
 

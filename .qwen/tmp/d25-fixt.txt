@@ -1,0 +1,8 @@
+    const deliveryShape = {
+      version: 1 as const,
+      keyId: 'du-artifact-v1',
+      keyVersion: 3,
+      wrappedKey: Buffer.alloc(32, 5).toString('base64'),
+      nonce: NONCE,
+      tag: TAG,
+    };

@@ -28,6 +28,29 @@ test('client preserves invocation ID for replay and polls pending results', asyn
   expect((await client.wait('inv-1', { deadlineAt: request.deadlineAt, poll: async () => {} })).state).toBe('completed');
 });
 
+test('wait reuses a fresh invocation grant on every poll after client recreation', async () => {
+  const grants: Array<string | undefined> = [];
+  const results = [
+    { state: 'pending' as const, invocationId: 'inv-1' },
+    { state: 'completed' as const, invocationId: 'inv-1' },
+  ];
+  const restarted = new ConnectorClient({
+    invoke: async () => results[0]!,
+    get: async (_invocationId, _signal, invocationGrant) => {
+      grants.push(invocationGrant);
+      return results.shift() ?? { state: 'completed', invocationId: 'inv-1' };
+    },
+    cancel: async () => ({ state: 'cancelled', invocationId: 'inv-1' }),
+  });
+
+  await expect(restarted.wait('inv-1', {
+    deadlineAt: '2099-01-01T00:00:00.000Z',
+    invocationGrant: 'fresh-signed-grant',
+    poll: async () => undefined,
+  })).resolves.toMatchObject({ state: 'completed' });
+  expect(grants).toEqual(['fresh-signed-grant', 'fresh-signed-grant']);
+});
+
 test('client surfaces unknown outcomes instead of retrying them', async () => {
   const failing: ConnectorTransport = {
     invoke: async () => ({ state: 'unknown', invocationId: 'inv-1', error: { code: 'INVOCATION_UNKNOWN', message: 'reconcile required' } }),

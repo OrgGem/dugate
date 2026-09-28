@@ -1,0 +1,5 @@
+src/modules/runtime/runtime.ts(450,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+undefined
+D:\Git\dugate\du-rework\services\orchestrator:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found

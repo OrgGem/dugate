@@ -8,6 +8,9 @@ Copy template này vào task assignment khi người dùng yêu cầu implementa
 - Outcome và acceptance criteria:
 - Status: TODO
 - Prerequisites đã đạt / evidence:
+- Spec/ADR và contract version liên quan:
+- Luồng bị ảnh hưởng (entrypoint → service → state/queue → consumer → output):
+- Mismatch hiện có (expected/actual, file:line), nếu có:
 
 ## Read first
 
@@ -32,7 +35,9 @@ Copy template này vào task assignment khi người dùng yêu cầu implementa
 - [ ] Unit/contract tests pass; integration với real provider component khi ready.
 - [ ] Lint/typecheck; UI screenshots nếu áp dụng.
 - [ ] Spec/doc changes đồng bộ; không tự đổi wire contract.
+- [ ] Producer và consumer của contract/state mới có test tương ứng.
+- [ ] Ghi rõ phần đã code, đã verify và còn chờ acceptance/live gate.
 
 ## Handoff format
 
-Outcome; changed paths; schema/API changes; tests + actual results; remaining limitations; required next task IDs. Không tuyên bố tests pass nếu chưa chạy, không dùng stub-only evidence thay cho integration evidence.
+Outcome; changed paths; schema/API changes; spec/traceability IDs; tests + lệnh/cwd/exit/passed/failed/skipped + raw receipt; remaining limitations; required next task IDs. Không tuyên bố tests pass nếu chưa chạy, không dùng stub-only evidence thay cho integration evidence. Điều phối viên chỉ tick `[x]` sau khi đối chiếu full acceptance theo `du-rework/AGENTS.md`.

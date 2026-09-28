@@ -6,7 +6,7 @@ import { RecipeRegistry, RecipeDefinition } from '../../recipes/recipe-definitio
 import { STEP_KEYS } from '../../recipes/step-keys';
 import { StepCheckpointManager } from '../../pipelines/step-checkpoint';
 import { OutputValidator } from '../../validation/output-validators';
-import { defaultParserFactory } from '@du/document-kit';
+import { ParserBudgetHelper } from '../../pipelines/parser-budget';
 
 export class GenerateAction {
   public static validateInput(raw: unknown): GenerateInput {
@@ -38,14 +38,16 @@ export class GenerateAction {
     ctx: TaskContext,
     input: GenerateInput
   ): Promise<{ text: string; sourceArtifactIds: string[] }> {
+    ParserBudgetHelper.assertActiveDeadline(ctx);
     const sourceArtifactIds: string[] = [];
     let text = input.text || '';
 
     if (input.artifactIds && input.artifactIds.length > 0) {
       for (const id of input.artifactIds) {
+        ParserBudgetHelper.assertActiveDeadline(ctx);
         sourceArtifactIds.push(id);
-        const buf = await ctx.artifacts.read(id);
-        const parsed = await defaultParserFactory.parseBuffer(buf, `doc_${id}`);
+        const artifact = await ParserBudgetHelper.readArtifact(ctx, id);
+        const parsed = await ParserBudgetHelper.safeParseArtifact(ctx, artifact, `doc_${id}`);
         text += (text ? '\n\n' : '') + parsed.text;
       }
     }

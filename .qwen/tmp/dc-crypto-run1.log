@@ -1,0 +1,22 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "doc-core-crypto-seam"
+
+PASS tests/doc-core-crypto-seam.test.ts
+  W-ENC-04-DOC-CORE adapter: the seam follows the worker configuration
+    √ exposes crypto on the internal context when the worker has a seam (2 ms)
+    √ leaves crypto undefined when the worker has none (fallback preserved)
+    √ binds the seam to the CONTEXT tenant, never a handler-supplied one
+  W-ENC-04-DOC-CORE checkpoints: sealed at rest, transparent on replay
+    √ persists an envelope with no plaintext when a seam is configured (4 ms)
+    √ replays from the sealed record without re-executing the step (1 ms)
+    √ stores the value unchanged when no seam is configured (byte-for-byte fallback) (1 ms)
+    √ fails BEFORE the step body when encryption is required but absent (1 ms)
+    √ refuses to open a sealed checkpoint on a worker that lost its seam (1 ms)
+    √ a sealed checkpoint from tenant A will not open under tenant B (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        2.065 s
+Ran all test suites matching /doc-core-crypto-seam/i.

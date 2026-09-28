@@ -1,6 +1,12 @@
 # Parallel implementation — assignment 2026-09-20
 
-> Current handoff: [CHECKPOINT-2026-09-21](CHECKPOINT-2026-09-21.md). Đọc checkpoint này trước khi mở workload mới; các bảng bên dưới là lịch sử assignment ban đầu.
+> **Latest progress:** [2026-09-23 evening agent/task reconciliation](PROGRESS-RECONCILIATION-2026-09-23-EVENING.md). P0-P8 inventory: 46 marked done, 5 partial, 20 open. Release remains NOT READY; mismatch handling is record-only.
+
+> Latest code acceptance addendum: [2026-09-23 code review](CODE-REVIEW-2026-09-23.md) and [supplemental fix tasks](../tasks/REVIEW-FIXES-2026-09-23.md). Read alongside the current allocation; this adds fixes without redispatching active lanes.
+
+> Current status: [IMPLEMENTATION-STATUS](IMPLEMENTATION-STATUS.md). Current execution order:
+> [Wave 39](WAVE-39-ORCHESTRATOR-REALLOCATION.md), with [acceptance corrections](PLAN-REVIEW-2026-09-23.md). The original handoff remains in
+> [CHECKPOINT-2026-09-21](CHECKPOINT-2026-09-21.md); các bảng bên dưới là lịch sử assignment ban đầu.
 
 User đã yêu cầu bắt đầu implementation và gửi việc tới ba agent đang mở. Giới hạn planning-only của lượt trước đã được thay bằng quyền implement trong `du-rework/`. Repository DUGate bên ngoài vẫn read-only reference.
 
@@ -12,14 +18,30 @@ User đã yêu cầu bắt đầu implementation và gửi việc tới ba agent
 | GitHub Copilot | [COPILOT](COPILOT.md) | Connector + connector-client + provider mock | Connector design, ports, adapter fixtures/tests và local logic |
 | Antigravity | [ANTIGRAVITY](ANTIGRAVITY.md) | document-core BRDs + document-kit + six action worker | Six BRDs, fixtures, parser interfaces/local utilities |
 
-Các agent dùng chung checkout hiện tại. Không git checkout/reset/clean/stash/rebase, không commit/stage toàn repo, không sửa file của agent khác. Không tạo thêm agent. Không migrate/deploy production hoặc dùng DB/.env của app cũ.
+### Current direct-wave roster override
+
+Wave 38 uses five active lanes in the shared `D:/Git/dugate` checkout: Claude Code, OpenClaude, Command Code, Agent-6 Antigravity, and Codex. Codex is registered at `term_95378d30-e4fc-40f1-bc0c-e6256a71be91`; its current packet and ownership are defined in [`WAVE-38-DIRECT-ALLOCATION.md`](WAVE-38-DIRECT-ALLOCATION.md). This user-authorized roster supersedes the original three-agent/no-new-agent limit above for current direct waves.
+### Current roster -- Turn 202 (Coordinator: Claude Code)
+
+Per coordinator-state.json Turn 202 (claude-code-session, Opus 4.8, schedule manual). OpenClaude is now a permanent active lane (user-authorized, term_851ead96, Claude Opus 4.8) alongside the Qwen lanes -- not a Wave-38 temporary.
+
+| Lane | Identity | Handle | Trach nhiem | Ownership |
+|---|---|---|---|---|
+| Coordinator+Reviewer+Re-plan | claude-code | claude-code-session | Roster, dispatch, audit, gate | Root configs/contracts/gates, integration |
+| Tester | qwen-code | term_4bb58313 | CLAIM/RELEASE live tests | Tests, receipts |
+| Platform Core | qwen-code | term_40f7f60f | Orchestrator runtime, MM-05/MM-10, P8-02 | services/orchestrator modules |
+| Admin Ops UI (view-models) | qwen-code | term_bf93d438 | ADM-UX view models, pagination, triage | services/orchestrator/src/app/admin view-models |
+| Browser + Admin Ops (live) | openclaude | term_851ead96 | Journeys C0-C5, OIDC-04 B0-B5, axe/responsive, complements qwen_admin | services/orchestrator/src/app/admin shell/render + tests/browser |
+| Docs and Evidence | qwen-code | term_8ba9a7d5 | docs/28,35, trace matrix | docs/ |
+
+Các agent dùng chung checkout hiện tại. Không git checkout/reset/clean/stash/rebase, không commit/stage toàn repo, không sửa file của agent khác. Không migrate/deploy production hoặc dùng DB/.env của app cũ.
 
 ## Exact ownership
 
 - Claude: `du-rework/package.json`, root lock/config/scripts; `packages/contracts/**`, `packages/observability/**`, `packages/worker-sdk/**`; `services/orchestrator/**`; `infra/**`; shared `tests/**`; central docs/tasks và `coordination/gates/**`; `coordination/reports/claude.md`.
 - Copilot: `services/connector/**`, `packages/connector-client/**`, `coordination/reports/copilot.md`, `coordination/requests/copilot.md`. Provider mock nằm `services/connector/tests/mock-provider/**`.
 - Antigravity: `businesses/document-core/**`, `packages/document-kit/**`, `coordination/reports/antigravity.md`, `coordination/requests/antigravity.md`.
-- `businesses/example-review/**` chưa giao implementation trong wave này. P7/P8 complete-system gate làm sau khi ba lane có evidence.
+- `businesses/example-review/**` ban đầu chưa giao trong wave này; wave 05 sau đó chuyển path này cho platform owner. Trạng thái hiện tại là P7 PARTIAL theo status/realignment ở trên.
 - Packet assignment và `coordination/dispatch-receipts.md` do người gửi quản lý; agent chỉ đọc.
 
 Root install/lockfile do Claude làm duy nhất. Package manifests trong lane do lane owner viết; dependency requests gửi vào requests riêng, Claude resolve root install. Không chạy npm install ở parent DUGate; không tạo nested lockfiles. Test/build dùng dependencies đã có trong du-rework sau workspace-ready marker.

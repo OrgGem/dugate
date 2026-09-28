@@ -19,9 +19,15 @@ export type SupportedFormat =
   | 'unknown';
 
 export interface FormatDetectionResult {
+  /** Canonical format established from the input bytes and container markers. */
   format: SupportedFormat;
+  /** Canonical MIME for `format`; caller MIME hints do not override it. */
   mimeType: string;
+  /** Declared filename extension, normalized only for matching. */
   extension: string;
+  /** Original caller-declared filename and MIME, retained unchanged for traceability. */
+  declaredFileName?: string;
+  declaredMimeType?: string;
   isBinary: boolean;
   isOfficeDocument: boolean;
   isImage: boolean;
@@ -44,10 +50,28 @@ export interface ParseResult {
   warnings: string[];
 }
 
+export interface ParserOptions {
+  /**
+   * Maximum allowed buffer size in bytes before rejecting (deterministic oversize budget).
+   * If specified, must be a finite non-negative integer (>= 0).
+   */
+  maxBufferSizeBytes?: number;
+
+  /**
+   * Maximum allowed caller wait duration in milliseconds before rejecting with a timeout error.
+   * If specified, must be a finite positive number (> 0).
+   *
+   * The factory and built-in parser classes run in a terminable worker thread, using 30 seconds
+   * when this value is omitted. A supplied value replaces that default. Registered custom parsers
+   * use a caller-wait timeout and cannot preempt synchronous work.
+   */
+  timeoutMs?: number;
+}
+
 export interface DocumentParser {
   readonly name: string;
   canHandle(formatInfo: FormatDetectionResult): boolean;
-  parse(fileBuffer: Buffer, fileName?: string): Promise<ParseResult>;
+  parse(fileBuffer: Buffer, fileName?: string, options?: ParserOptions): Promise<ParseResult>;
 }
 
 export interface ArchiveEntry {

@@ -11,6 +11,7 @@ export * from './parsers/word-parser';
 export * from './parsers/excel-parser';
 export * from './parsers/pdf-parser';
 export * from './parsers/factory';
+export * from './parsers/limits';
 export * from './converters/diff-engine';
 export * from './converters/pii-redactor';
 export * from './converters/template-engine';

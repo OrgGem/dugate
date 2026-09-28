@@ -1,32 +1,48 @@
 import { randomUUID } from 'node:crypto';
+import { DocumentFormatDetector } from '@du/document-kit';
 import {
   TaskContext,
+  ArtifactFormatMetadata,
+  ArtifactReadResult,
   ArtifactRef,
   ConnectorInvocationOptions,
   ConnectorInvocationResult,
   StepCheckpointRecord,
 } from '../../src/types/context';
 
+export interface MockTaskContextInit {
+  taskId?: string;
+  operationId?: string;
+  tenantId?: string;
+  deadlineAt?: string | null;
+  signal?: AbortSignal;
+  cancelRequested?: boolean;
+  action?: string;
+  kind?: string;
+  input?: Record<string, unknown>;
+}
+
 export class MockTaskContext implements TaskContext {
-  public readonly taskId: string;
-  public readonly operationId: string;
-  public readonly businessId: string = 'document-core';
-  public readonly businessVersion: string = '1.0.0';
-  public readonly tenantId: string = 'tenant-test-default';
+  public taskId: string;
+  public operationId: string;
+  public businessId: string = 'document-core';
+  public businessVersion: string = '1.0.0';
+  public tenantId: string = 'tenant-test-default';
 
   // SdkTaskContext-compatible fields
-  public readonly action: string = 'ingest';
-  public readonly kind: string = 'root';
-  public readonly taskKey: string = 'task-1';
-  public readonly attempt: number = 1;
-  public readonly leaseEpoch: number = 1;
-  public readonly deadlineAt: string | null = null;
-  public readonly signal: AbortSignal = new AbortController().signal;
-  public readonly cancelRequested: boolean = false;
-  public readonly input: Record<string, unknown> = {};
-  public readonly connectorBindings: Readonly<Record<string, string>> = {};
+  public action: string = 'ingest';
+  public kind: string = 'root';
+  public taskKey: string = 'task-1';
+  public attempt: number = 1;
+  public leaseEpoch: number = 1;
+  public deadlineAt: string | null = null;
+  public signal: AbortSignal;
+  public cancelRequested: boolean = false;
+  public input: Record<string, unknown> = {};
+  public connectorBindings: Record<string, string> = {};
 
   public artifactsStore: Map<string, Buffer> = new Map();
+  public artifactFormatMetadataStore: Map<string, ArtifactFormatMetadata> = new Map();
   public checkpointsStore: Map<string, StepCheckpointRecord> = new Map();
   public connectorInvocations: Array<{
     slot: string;
@@ -41,9 +57,22 @@ export class MockTaskContext implements TaskContext {
     data: { result: 'default mock data' },
   };
 
-  constructor(taskId: string = randomUUID(), operationId: string = randomUUID()) {
-    this.taskId = taskId;
-    this.operationId = operationId;
+  constructor(initOrTaskId?: string | MockTaskContextInit, operationId?: string) {
+    if (typeof initOrTaskId === 'object' && initOrTaskId !== null) {
+      this.taskId = initOrTaskId.taskId ?? randomUUID();
+      this.operationId = initOrTaskId.operationId ?? randomUUID();
+      this.tenantId = initOrTaskId.tenantId ?? 'tenant-test-default';
+      this.deadlineAt = initOrTaskId.deadlineAt ?? null;
+      this.signal = initOrTaskId.signal ?? new AbortController().signal;
+      this.cancelRequested = initOrTaskId.cancelRequested ?? false;
+      this.action = initOrTaskId.action ?? 'ingest';
+      this.kind = initOrTaskId.kind ?? 'root';
+      this.input = initOrTaskId.input ?? {};
+    } else {
+      this.taskId = typeof initOrTaskId === 'string' ? initOrTaskId : randomUUID();
+      this.operationId = operationId ?? randomUUID();
+      this.signal = new AbortController().signal;
+    }
   }
 
   public artifacts = {
@@ -54,10 +83,33 @@ export class MockTaskContext implements TaskContext {
       }
       return buf;
     },
+    readWithMetadata: async (artifactId: string): Promise<ArtifactReadResult> => {
+      const buffer = await this.artifacts.read(artifactId);
+      const storedMetadata = this.artifactFormatMetadataStore.get(artifactId);
+      if (storedMetadata) {
+        return { buffer, formatMetadata: { ...storedMetadata } };
+      }
+
+      const detection = DocumentFormatDetector.detect(buffer);
+      return {
+        buffer,
+        formatMetadata: {
+          canonicalFormat: detection.format,
+          canonicalMimeType: detection.mimeType,
+        },
+      };
+    },
     write: async (content: Buffer | string, fileName: string, mimeType: string): Promise<ArtifactRef> => {
       const id = randomUUID();
       const buf = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
       this.artifactsStore.set(id, buf);
+      const detection = DocumentFormatDetector.detect(buf, fileName, mimeType);
+      this.artifactFormatMetadataStore.set(id, {
+        canonicalFormat: detection.format,
+        canonicalMimeType: detection.mimeType,
+        declaredFileName: fileName,
+        declaredMimeType: mimeType,
+      });
       return {
         artifactId: id,
         role: 'output',
@@ -66,7 +118,30 @@ export class MockTaskContext implements TaskContext {
         sizeBytes: buf.length,
       };
     },
+    accessGrant: async (_artifactId: string, _mode: 'read' | 'write') => ({
+      downloadUrl: 'http://storage/download',
+      uploadUrl: 'http://storage/upload',
+      expiresAt: new Date(Date.now() + 60000).toISOString(),
+    }),
   };
+
+  public storeArtifact(
+    artifactId: string,
+    buffer: Buffer,
+    declaredFileName?: string,
+    declaredMimeType?: string
+  ): ArtifactReadResult {
+    this.artifactsStore.set(artifactId, buffer);
+    const detection = DocumentFormatDetector.detect(buffer, declaredFileName, declaredMimeType);
+    const formatMetadata: ArtifactFormatMetadata = {
+      canonicalFormat: detection.format,
+      canonicalMimeType: detection.mimeType,
+      declaredFileName,
+      declaredMimeType,
+    };
+    this.artifactFormatMetadataStore.set(artifactId, formatMetadata);
+    return { buffer, formatMetadata: { ...formatMetadata } };
+  }
 
   public connector = {
     invoke: async (

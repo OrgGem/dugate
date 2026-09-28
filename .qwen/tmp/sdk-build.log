@@ -1,0 +1,4 @@
+
+> @du/worker-sdk@0.1.0 build D:\Git\dugate\du-rework\packages\worker-sdk
+> tsc -p tsconfig.json
+

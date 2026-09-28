@@ -1,0 +1,12 @@
+const fs = require('fs');
+const p = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const NL = String.fromCharCode(10);
+const s = fs.readFileSync(p, 'utf8');
+const L = s.split(NL);
+const strict = L.filter(l => /^- \d+ \u2014/.test(l));
+console.log('STRICT_LEDGER_COUNT=' + strict.length);
+console.log('LAST_ROW=' + strict[strict.length - 1].slice(0, 80));
+console.log('has_Muc16=' + (s.indexOf('## 16') >= 0));
+console.log('has_ENC01=' + (s.indexOf('W-ENC-01-SCHEMA') >= 0));
+console.log('RP_HEADER=' + (L.find(l => l.includes('## RESUME POINT')) || 'NOT FOUND').slice(0, 60));
+console.log('TOTAL_LINES=' + L.length);

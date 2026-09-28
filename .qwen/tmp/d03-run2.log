@@ -1,0 +1,86 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "data-03-url-acq"
+
+FAIL tests/data-03-url-acq.test.ts
+  W-DATA-03: a URL task is not runnable before its source is READY
+    × refuses a pin with no materialized artifact, even with inline text present (4 ms)
+    × refuses a pin whose artifacts were read but do not match (1 ms)
+    × parses the PINNED bytes and ignores attached inline text
+  W-DATA-03: the inline path is untouched when there is no pin
+    √ accepts inline text with no source pin (ordinary case) (2 ms)
+  W-DATA-03: a failed acquisition leaves nothing parseable
+    × a pin with zero materialized bytes yields no buffers to parse
+
+  ● W-DATA-03: a URL task is not runnable before its source is READY › refuses a pin with no materialized artifact, even with inline text present
+
+    ValidationError: Ingestion source pin in the task payload failed contract validation
+
+    [0m [90m 56 |[39m       source [33m=[39m resolveIngestionSource(raw)[33m;[39m
+     [90m 57 |[39m     } [36mcatch[39m {
+    [31m[1m>[22m[39m[90m 58 |[39m       [36mthrow[39m [36mnew[39m [33mValidationError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 59 |[39m         [32m'Ingestion source pin in the task payload failed contract validation'[39m[33m,[39m
+     [90m 60 |[39m         [32m'INVALID_INGESTION_RECEIPT'[39m
+     [90m 61 |[39m       )[33m;[39m[0m
+
+      at Function.normalizeIngest (src/validation/input-normalizer.ts:58:13)
+      at Function.validateInput (src/actions/ingest/index.ts:15:28)
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:39:32)
+
+  ● W-DATA-03: a URL task is not runnable before its source is READY › refuses a pin whose artifacts were read but do not match
+
+    ValidationError: Ingestion source pin in the task payload failed contract validation
+
+    [0m [90m 56 |[39m       source [33m=[39m resolveIngestionSource(raw)[33m;[39m
+     [90m 57 |[39m     } [36mcatch[39m {
+    [31m[1m>[22m[39m[90m 58 |[39m       [36mthrow[39m [36mnew[39m [33mValidationError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 59 |[39m         [32m'Ingestion source pin in the task payload failed contract validation'[39m[33m,[39m
+     [90m 60 |[39m         [32m'INVALID_INGESTION_RECEIPT'[39m
+     [90m 61 |[39m       )[33m;[39m[0m
+
+      at Function.normalizeIngest (src/validation/input-normalizer.ts:58:13)
+      at Function.validateInput (src/actions/ingest/index.ts:15:28)
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:57:32)
+
+  ● W-DATA-03: a URL task is not runnable before its source is READY › parses the PINNED bytes and ignores attached inline text
+
+    ValidationError: Ingestion source pin in the task payload failed contract validation
+
+    [0m [90m 56 |[39m       source [33m=[39m resolveIngestionSource(raw)[33m;[39m
+     [90m 57 |[39m     } [36mcatch[39m {
+    [31m[1m>[22m[39m[90m 58 |[39m       [36mthrow[39m [36mnew[39m [33mValidationError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 59 |[39m         [32m'Ingestion source pin in the task payload failed contract validation'[39m[33m,[39m
+     [90m 60 |[39m         [32m'INVALID_INGESTION_RECEIPT'[39m
+     [90m 61 |[39m       )[33m;[39m[0m
+
+      at Function.normalizeIngest (src/validation/input-normalizer.ts:58:13)
+      at Function.validateInput (src/actions/ingest/index.ts:15:28)
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:73:32)
+
+  ● W-DATA-03: a failed acquisition leaves nothing parseable › a pin with zero materialized bytes yields no buffers to parse
+
+    ValidationError: Ingestion source pin in the task payload failed contract validation
+
+    [0m [90m 56 |[39m       source [33m=[39m resolveIngestionSource(raw)[33m;[39m
+     [90m 57 |[39m     } [36mcatch[39m {
+    [31m[1m>[22m[39m[90m 58 |[39m       [36mthrow[39m [36mnew[39m [33mValidationError[39m(
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 59 |[39m         [32m'Ingestion source pin in the task payload failed contract validation'[39m[33m,[39m
+     [90m 60 |[39m         [32m'INVALID_INGESTION_RECEIPT'[39m
+     [90m 61 |[39m       )[33m;[39m[0m
+
+      at Function.normalizeIngest (src/validation/input-normalizer.ts:58:13)
+      at Function.validateInput (src/actions/ingest/index.ts:15:28)
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:100:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 1 passed, 5 total
+Snapshots:   0 total
+Time:        2.202 s
+Ran all test suites matching /data-03-url-acq/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "data-03-url-acq"`
+Exit status 1

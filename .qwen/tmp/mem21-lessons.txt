@@ -1,0 +1,19 @@
+
+**Why — cycle 21 (W-INGEST-WIRE-01, OCR/digitize phai truyen TAI LIEU):**
+- `ingest/ocr` gui `{language, hasBuffer: <bool>}`; `ingest/digitize` gui `{task:
+  "digitize_handwriting"}` — bo chan KHONG co byte/hash/MIME nao. P5-04/P5-10 "da truyen
+  tai lieu" dua tren bo bang chung gia do. Contract `InvocationInput.artifacts?: [{artifactId}]`
+  DA CO SAN o @du/contracts + connector + worker-sdk nen khong can mo rong contract, chi
+  dung dung field da freeze.
+- Sua 1 src + 1 test moi + 3 test CU (ingest.test, corpus-regression, all-variants-e2e)
+  — 3 test cu truyen `text: "image-placeholder"`, sua chung la phan viec cua task, KHONG
+  phai noi long de xanh (D50 can Reviewer).
+- FULL document-core 45/45 suite 537/537 test (44/529 Muc 20 + 1/8 = 45/537). 2 mutation
+  probe: OCR ve hasBuffer => 2 test do; bo artifacts o vision => dung 1 test do. Ca hai
+  nhanh deu that su duoc pin.
+- **BAI HOC 5 (doc block trong edit tool):** khi go `tools.edit` voi `old_string`/`new_string`
+  dai, KHONG duoc dan ten khoi moi vao giua chuoi (lam mat header + guard + wrapper cua ca
+  hai nhanh, 26 loi compile). Doc lai vung sua truoc, sua tung nhanh rieng, va luon chay
+  tsc ngay sau moi edit lon de bat ngay thay vi gom het cuoi.
+- **BAI HOC 6 (id khong suy ra tu buffer):** `ArtifactReadResult` khong co `artifactId`;
+  doc artifact reference phai do `prepareSources` tra ve, KHONG khoi index (index la doan).

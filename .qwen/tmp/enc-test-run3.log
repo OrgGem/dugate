@@ -1,0 +1,39 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "runtime-encryption-metadata"
+
+PASS tests/runtime-encryption-metadata.test.ts (6.246 s)
+  ENC-META-01 inventory: a sealed control-plane column holds no plaintext
+    √ the serialized envelope contains neither the sentinel nor a plaintext key (6 ms)
+    √ no plaintext DEK is persisted beside the ciphertext (1 ms)
+    √ sealing is non-deterministic while the content hash stays stable (1 ms)
+  ENC-META-01 binding: an envelope opens only under its own context
+    √ round-trips the original value under the bound context (1 ms)
+    √ refuses a different TENANT (cross-tenant negative) (1 ms)
+    √ refuses a different SLOT (payload_ref cannot move to input_ref)
+    √ refuses a different ROW (same tenant and slot, other task) (1 ms)
+    √ a tampered ciphertext fails authentication instead of returning junk
+    √ a wrong DEK from the provider fails authentication, no plaintext fallback
+    √ Vault outage on write fails closed: nothing is stored unsealed (1 ms)
+    √ Vault outage on read fails closed: no plaintext is served
+    √ rejects an unknown envelope version instead of guessing (1 ms)
+    √ rejects an empty tenant binding rather than sealing under an empty AAD
+  ENC-META-01 legacy rows: readable only behind the backfill flag
+    √ isSealed does not mistake a legacy plaintext object for an envelope
+    √ readStored fails closed on a plaintext row when the flag is off
+    √ readStored passes a legacy row through during the backfill window
+    √ readStored still enforces the binding on a sealed row even with the flag on
+  ENC-META-01 semantics: hashing stays stable so idempotency survives sealing
+    √ key order does not change the hash; array order does
+    √ the sealed plaintextSha256 matches the hash of the original value (1 ms)
+    √ canonicalize emits sorted keys so equal documents are byte-equal
+    √ hashing the raw column would mismatch, which is why the runtime opens first
+  ENC-META-01 slot inventory
+    √ covers exactly the four control-plane columns the packet names (1 ms)
+    √ refuses to build a crypto seam without a keyRef (19 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        6.481 s
+Ran all test suites matching /runtime-encryption-metadata/i.

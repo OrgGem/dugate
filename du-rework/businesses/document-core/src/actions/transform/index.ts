@@ -7,12 +7,12 @@ import { STEP_KEYS } from '../../recipes/step-keys';
 import { StepCheckpointManager } from '../../pipelines/step-checkpoint';
 import { OutputValidator } from '../../validation/output-validators';
 import {
-  defaultParserFactory,
   FormatConverter,
   PiiRedactor,
   TemplateEngine,
   TextChunker,
 } from '@du/document-kit';
+import { ParserBudgetHelper } from '../../pipelines/parser-budget';
 
 export class TransformAction {
   public static validateInput(raw: unknown): TransformInput {
@@ -45,15 +45,17 @@ export class TransformAction {
     ctx: TaskContext,
     input: TransformInput
   ): Promise<{ text: string; sourceArtifactIds: string[]; detectedFormat: string }> {
+    ParserBudgetHelper.assertActiveDeadline(ctx);
     const sourceArtifactIds: string[] = [];
     let text = input.text || '';
     let detectedFormat = 'txt';
 
     if (input.artifactIds && input.artifactIds.length > 0) {
       for (const id of input.artifactIds) {
+        ParserBudgetHelper.assertActiveDeadline(ctx);
         sourceArtifactIds.push(id);
-        const buf = await ctx.artifacts.read(id);
-        const parsed = await defaultParserFactory.parseBuffer(buf, `doc_${id}`);
+        const artifact = await ParserBudgetHelper.readArtifact(ctx, id);
+        const parsed = await ParserBudgetHelper.safeParseArtifact(ctx, artifact, `doc_${id}`);
         text += (text ? '\n\n' : '') + parsed.text;
         detectedFormat = parsed.metadata.detectedFormat;
       }

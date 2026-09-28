@@ -1,0 +1,135 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand
+
+FAIL tests/network-boundaries.boundary.test.ts
+  ● [LOCK] B3-lock-a mid-stream cap stops the wire (real listener)
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "TOO_LARGE",
+    -   "status": 413,
+    +   "code": "TRANSPORT_FAILURE",
+    +   "status": 0,
+      }
+
+    [0m [90m 135 |[39m   [36mawait[39m expect(
+     [90m 136 |[39m     downloadArtifact(wsA[33m,[39m [32m'cap-unpaced.bin'[39m[33m,[39m unpaced[33m.[39murl()[33m,[39m { maxBytes[33m:[39m [35m2048[39m[33m,[39m fetcher[33m:[39m realFetch })
+    [31m[1m>[22m[39m[90m 137 |[39m   )[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'TOO_LARGE'[39m[33m,[39m status[33m:[39m [35m413[39m })[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 138 |[39m   expect(existsSync(targetA))[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m 139 |[39m   expect([36mawait[39m readdir(wsA[33m.[39mdir))[33m.[39mtoEqual([])[33m;[39m
+     [90m 140 |[39m   expect(unpaced[33m.[39mrequests)[33m.[39mtoBe([35m1[39m)[33m;[39m[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:137:13)
+
+  ● [LOCK] B3-lock-c sha mismatch deletes file
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "HASH_MISMATCH",
+    -   "status": 422,
+    +   "code": "TRANSPORT_FAILURE",
+    +   "status": 0,
+      }
+
+    [0m [90m 218 |[39m       fetcher[33m:[39m realFetch[33m,[39m
+     [90m 219 |[39m     })
+    [31m[1m>[22m[39m[90m 220 |[39m   )[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'HASH_MISMATCH'[39m[33m,[39m status[33m:[39m [35m422[39m })[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 221 |[39m   expect(existsSync(filePath))[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m 222 |[39m   expect([36mawait[39m readdir(ws[33m.[39mdir))[33m.[39mtoEqual([])[33m;[39m
+     [90m 223 |[39m })[33m;[39m[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:220:13)
+
+PASS tests/artifact-multipart-rss.test.ts (124.294 s)
+  ● Console
+
+    console.log
+      RSS-MEASURE[aligned-16MiB] total=1024MiB parts=16x64MiB chunk=16MiB baselineRssMedian=302.2MiB uploadRssMedian=462.7MiB uploadRssMax=560.3MiB marginalRssMax=258.1MiB baselineExternalMedian=6.5MiB marginalExternalMax=318.5MiB perPartRssMiB first=434.0 last=430.8 rssSlope=-3.903MiB/part chunkSamples=64 putSamples=16 duration=16.4s
+
+      at runRssScenario (tests/artifact-multipart-rss.test.ts:326:11)
+
+    console.log
+      RSS-TRAJECTORY[aligned-16MiB] perPartRssMiB=[434.0, 495.9, 495.9, 495.9, 495.9, 431.1, 430.9, 430.7, 430.7, 430.7, 430.7, 430.7, 430.8, 430.8, 430.8, 430.8]
+
+      at runRssScenario (tests/artifact-multipart-rss.test.ts:340:11)
+
+    console.log
+      RSS-MEASURE[misaligned-5MiB] total=1024MiB parts=16x64MiB chunk=5MiB baselineRssMedian=343.3MiB uploadRssMedian=438.0MiB uploadRssMax=562.0MiB marginalRssMax=218.7MiB baselineExternalMedian=45.5MiB marginalExternalMax=282.5MiB perPartRssMiB first=431.3 last=496.1 rssSlope=2.469MiB/part chunkSamples=205 putSamples=16 duration=17.2s
+
+      at runRssScenario (tests/artifact-multipart-rss.test.ts:326:11)
+
+    console.log
+      RSS-TRAJECTORY[misaligned-5MiB] perPartRssMiB=[431.3, 496.6, 501.8, 502.0, 497.0, 431.3, 436.6, 436.8, 436.9, 560.9, 496.9, 496.8, 502.0, 502.0, 497.0, 496.1]
+
+      at runRssScenario (tests/artifact-multipart-rss.test.ts:340:11)
+
+PASS tests/artifact-multipart.test.ts
+PASS tests/crypto-seam.test.ts
+FAIL tests/artifact-direct-band.test.ts
+  ● Console
+
+    console.log
+      DIRECT-BAND-RSS total=64MiB chunk=64KiB samples=1024 peakMarginalExternal=16.38MiB residentExternal=12.13MiB
+
+      at Object.<anonymous> (tests/artifact-direct-band.test.ts:404:13)
+
+  ● direct band RSS (zero sockets, in-data-path sampling) › streams the 64 MiB band maximum without retaining the object
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 8388608
+    Received:    12717654
+
+    [0m [90m 409 |[39m
+     [90m 410 |[39m     expect(peak)[33m.[39mtoBeLessThanOrEqual([33mPEAK_EXTERNAL_MAX_BYTES[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 411 |[39m     expect(resident)[33m.[39mtoBeLessThanOrEqual([33mRESIDENT_EXTERNAL_MAX_BYTES[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 412 |[39m   })[33m;[39m
+     [90m 413 |[39m })[33m;[39m
+     [90m 414 |[39m[0m
+
+      at Object.<anonymous> (tests/artifact-direct-band.test.ts:411:22)
+
+PASS tests/source-ingestion.test.ts
+{"removed":1,"timestamp":"2026-09-27T20:29:44.353Z","level":"info","service":"worker:sweep-biz","environment":"test","correlationId":"3e6f9c07-1a38-4de2-8619-4981cfb28489","taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+{"removed":1,"timestamp":"2026-09-27T20:29:44.535Z","level":"info","service":"worker:sweep-biz","environment":"test","correlationId":"11710df8-f2a2-469e-8cc6-50c5c881a228","taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+PASS tests/temp-sweep.test.ts
+PASS tests/source-acquisition.test.ts
+PASS tests/artifact-streams.test.ts
+PASS tests/fan-out.test.ts
+PASS tests/worker.test.ts
+{"operationId":"72bcb22a-5777-438f-a935-eb4a81e4e954","businessId":"test-biz","businessVersion":"1.0.0","status":409,"code":"STATE_CONFLICT","timestamp":"2026-09-27T20:29:46.620Z","level":"info","service":"worker:test-biz","environment":"test","correlationId":"corr-12345","taskId":"844132ac-0f91-4117-bbf6-d65274a8cdbd","invocationId":null,"message":"delivery fenced at claim (busy/terminal)"}
+{"operationId":"72bcb22a-5777-438f-a935-eb4a81e4e954","businessId":"test-biz","businessVersion":"1.0.0","status":410,"code":"TASK_TERMINAL","timestamp":"2026-09-27T20:29:46.621Z","level":"info","service":"worker:test-biz","environment":"test","correlationId":"corr-12345","taskId":"844132ac-0f91-4117-bbf6-d65274a8cdbd","invocationId":null,"message":"delivery fenced at claim (busy/terminal)"}
+{"operationId":"72bcb22a-5777-438f-a935-eb4a81e4e954","businessId":"test-biz","businessVersion":"1.0.0","kind":"root","timestamp":"2026-09-27T20:29:46.624Z","level":"error","service":"worker:test-biz","environment":"test","correlationId":"corr-12345","taskId":"844132ac-0f91-4117-bbf6-d65274a8cdbd","invocationId":null,"message":"delivery for unregistered handler kind"}
+{"operationId":"72bcb22a-5777-438f-a935-eb4a81e4e954","businessId":"test-biz","businessVersion":"1.0.0","errorCode":"PROVIDER_RATE_LIMITED","timestamp":"2026-09-27T20:29:46.629Z","level":"error","service":"worker:test-biz","environment":"test","correlationId":"corr-12345","taskId":"844132ac-0f91-4117-bbf6-d65274a8cdbd","invocationId":null,"message":"handler failed"}
+{"operationId":"72bcb22a-5777-438f-a935-eb4a81e4e954","businessId":"test-biz","businessVersion":"1.0.0","kind":"waiting-children","timestamp":"2026-09-27T20:29:46.634Z","level":"info","service":"worker:test-biz","environment":"test","correlationId":"corr-12345","taskId":"844132ac-0f91-4117-bbf6-d65274a8cdbd","invocationId":null,"message":"task yielded"}
+{"operationId":"72bcb22a-5777-438f-a935-eb4a81e4e954","businessId":"test-biz","businessVersion":"1.0.0","kind":"waiting-input","timestamp":"2026-09-27T20:29:46.637Z","level":"info","service":"worker:test-biz","environment":"test","correlationId":"corr-12345","taskId":"844132ac-0f91-4117-bbf6-d65274a8cdbd","invocationId":null,"message":"task yielded"}
+PASS tests/connector-session.test.ts
+PASS tests/artifact-read-metadata.test.ts
+PASS tests/connector-input-contract.test.ts
+PASS tests/artifact-stream-bounds.test.ts
+PASS tests/workspace-reference-wiring.test.ts
+PASS tests/artifact-stat.test.ts
+PASS tests/artifact-sweep-guard.test.ts
+
+Test Suites: 2 failed, 16 passed, 18 total
+Tests:       3 failed, 307 passed, 310 total
+Snapshots:   0 total
+Time:        134.731 s, estimated 151 s
+Ran all test suites.
+D:\Git\dugate\du-rework\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/worker-sdk@0.1.0 test: `jest --runInBand`
+Exit status 1

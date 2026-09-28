@@ -1,5 +1,5 @@
 import { createConnectorServer, type ConnectorHttpDependencies } from './http/server';
-import { ConnectorLifecycle } from './lifecycle';
+import { ConnectorLifecycle, type ShutdownOptions } from './lifecycle';
 import { PgSqlClient } from './db/pg-client';
 import { IoredisEvalClient } from './redis-client';
 import { RedisQuotaStore } from './quota-redis';
@@ -36,7 +36,7 @@ export interface ConnectorComposition {
   dependencies: ConnectorHttpDependencies;
   lifecycle: ConnectorLifecycle;
   start(): Promise<void>;
-  shutdown(): Promise<void>;
+  shutdown(options?: ShutdownOptions): Promise<void>;
   address(): ReturnType<ConnectorLifecycle['address']>;
 }
 
@@ -74,7 +74,7 @@ export function createConnectorComposition(
       dependencies,
       lifecycle,
       start: () => lifecycle.start(config.port, config.host),
-      shutdown: () => lifecycle.shutdown(),
+      shutdown: (options) => lifecycle.shutdown(options),
       address: () => lifecycle.address(),
     };
   }
@@ -140,7 +140,7 @@ export function createConnectorComposition(
       await database.migrate();
       await lifecycle.start(config.port, config.host);
     },
-    shutdown: () => lifecycle.shutdown(),
+    shutdown: (options) => lifecycle.shutdown(options),
     address: () => lifecycle.address(),
   };
 }

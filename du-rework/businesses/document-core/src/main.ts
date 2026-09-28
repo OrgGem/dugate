@@ -1,9 +1,9 @@
 import { parseWorkerConfig, getRedactedConfig, DocumentCoreServiceConfig } from './config';
-import { startDocumentCoreWorker, WorkerHandle } from './worker';
+import { startDocumentCoreWorker, WorkerHandle, DocumentCoreWorkerConfig } from './worker';
 
 export interface ProcessLifecycleDeps {
   env?: Record<string, string | undefined>;
-  startWorkerFn?: (config: any) => Promise<WorkerHandle>;
+  startWorkerFn?: (config: DocumentCoreWorkerConfig) => Promise<WorkerHandle>;
   onExit?: (code: number) => void;
   onLog?: (level: 'info' | 'warn' | 'error', message: string, meta?: unknown) => void;
   registerSignalHandler?: (signal: 'SIGTERM' | 'SIGINT', handler: () => Promise<void>) => void;
@@ -27,8 +27,9 @@ export class DocumentCoreProcess {
     let config: DocumentCoreServiceConfig;
     try {
       config = parseWorkerConfig(env);
-    } catch (err: any) {
-      log('error', 'Failed to parse worker environment configuration', { error: err.message });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      log('error', 'Failed to parse worker environment configuration', { error: errorMsg });
       this.exit(1);
       throw err;
     }
@@ -47,8 +48,9 @@ export class DocumentCoreProcess {
         workerInstanceId: config.workerInstanceId,
         imageDigest: config.imageDigest,
       });
-    } catch (err: any) {
-      log('error', 'Worker failed to start', { error: err.message });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      log('error', 'Worker failed to start', { error: errorMsg });
       this.exit(1);
       throw err;
     }
@@ -95,8 +97,9 @@ export class DocumentCoreProcess {
       this.stopped = true;
       log('info', 'Worker shutdown completed cleanly');
       this.exit(0);
-    } catch (err: any) {
-      log('error', 'Worker failed during graceful shutdown', { error: err.message });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      log('error', 'Worker failed during graceful shutdown', { error: errorMsg });
       this.exit(1);
       throw err;
     }

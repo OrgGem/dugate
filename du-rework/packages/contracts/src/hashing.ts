@@ -16,19 +16,22 @@ export interface CanonicalRequestParts {
   artifacts?: readonly { artifactId?: string; role: string; sha256?: string }[];
   output?: unknown;
   callback?: { url: string } | null;
+  sourceUrl?: string;
 }
 
 export function canonicalRequestHash(parts: CanonicalRequestParts): string {
   const artifacts = (parts.artifacts ?? [])
     .map((a) => ({ role: a.role, sha256: a.sha256 ?? a.artifactId ?? '' }))
     .sort((x, y) => (x.role < y.role ? -1 : x.role > y.role ? 1 : x.sha256 < y.sha256 ? -1 : 1));
-  const payload = {
+  const payload: Record<string, unknown> = {
     v: 1,
     input: parts.input ?? null,
     artifacts,
     output: parts.output ?? null,
     callback: parts.callback?.url ?? null,
   };
+  // Keep legacy idempotency hashes stable when no URL source is supplied.
+  if (parts.sourceUrl !== undefined) payload.sourceUrl = parts.sourceUrl;
   return `sha256:${createHash('sha256').update(canonicalize(payload)).digest('hex')}`;
 }
 
@@ -45,4 +48,48 @@ export function normalizeRouteAction(
 /** Generic content hash used for inputHash on steps/invocations. */
 export function contentHash(value: unknown): string {
   return `sha256:${createHash('sha256').update(canonicalize(value)).digest('hex')}`;
+}
+
+/**
+ * Canonical Connector invocation input hash (W11-C1 / R08-02).
+ *
+ * Stable identity for a logical provider call is derived from the exact wire
+ * fields the Connector receives and validates: the binding slot, connector
+ * input, connector options, tenant/operation/task/step binding, session ref
+ * and HTTP deadline. The SDK computes this over the payload it will send; the
+ * Orchestrator signs the same value into the grant claims; the Connector
+ * re-derives it from the verified request and rejects any mismatch. This
+ * single source of truth removes the prior SDK/Connector field-set drift that
+ * required a test-time hash bridge.
+ */
+export interface InvocationInputHashParts {
+  contractVersion: '1';
+  tenantId: string;
+  operationId: string;
+  taskId: string;
+  stepKey: string;
+  bindingSlot: string;
+  input: unknown;
+  options?: unknown;
+  sessionRef?: string | null;
+  deadlineAt: string;
+}
+
+export function hashInvocationInput(value: InvocationInputHashParts): string {
+  return `sha256:${createHash('sha256')
+    .update(
+      canonicalize({
+        contractVersion: value.contractVersion,
+        tenantId: value.tenantId,
+        operationId: value.operationId,
+        taskId: value.taskId,
+        stepKey: value.stepKey,
+        bindingSlot: value.bindingSlot,
+        input: value.input,
+        options: value.options ?? {},
+        sessionRef: value.sessionRef ?? null,
+        deadlineAt: value.deadlineAt,
+      })
+    )
+    .digest('hex')}`;
 }

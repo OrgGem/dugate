@@ -25,7 +25,7 @@ export class PiiRedactor {
     },
     {
       name: 'PHONE',
-      regex: /(?:\+?\d{1,3}[-.\s]?)?(?:\(\d{3}\)|\b\d{3})[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
+      regex: /(?:\+?\d{1,3}[-.\s]?)?(?:(?:\(\d{3}\)|\b\d{3})[-.\s]?)?\b\d{3}[-.\s]?\d{4}\b/g,
       mask: '[REDACTED:PHONE]',
     },
     {
@@ -40,8 +40,12 @@ export class PiiRedactor {
     let totalRedactions = 0;
     const countsByPattern: Record<string, number> = {};
 
-    const patternsToUse = activePatternNames && activePatternNames.length > 0
-      ? this.DEFAULT_PATTERNS.filter((p) => activePatternNames.includes(p.name))
+    const upperActive = activePatternNames && activePatternNames.length > 0
+      ? activePatternNames.map((n) => n.toUpperCase())
+      : undefined;
+
+    const patternsToUse = upperActive
+      ? this.DEFAULT_PATTERNS.filter((p) => upperActive.includes(p.name))
       : this.DEFAULT_PATTERNS;
 
     for (const pattern of patternsToUse) {

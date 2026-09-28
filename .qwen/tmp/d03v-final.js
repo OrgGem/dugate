@@ -1,0 +1,10 @@
+const fs = require('fs');
+const t = fs.readFileSync('D:/Git/dugate/.qwen/tmp/d03v-full-now.log', 'utf8');
+const L = t.split(/\r?\n/);
+console.log('=== summary ===');
+L.forEach(function (x, i) { if (/Test Suites:|^\s*Tests:|^\s*Snapshots:|^Time:/.test(x)) console.log((i+1) + ': ' + x.trim()); });
+console.log('=== ALL FAIL files ===');
+L.forEach(function (x, i) { if (/^FAIL /.test(x)) console.log((i+1) + ': ' + x.replace(/^FAIL /, '').split(' ')[0]); });
+console.log('=== url-ingestion / claimTask related? ===');
+L.forEach(function (x, i) { if (/url-ingestion/i.test(x) && /^FAIL /.test(x)) console.log('FAIL-URLING: ' + x); });
+console.log('(none above = no url-ingestion failure)');

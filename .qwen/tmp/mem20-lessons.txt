@@ -1,0 +1,13 @@
+
+**Why — cycle 20 (W-ENC-04-DOC-CORE, document-core honours the seam):**
+- Full document-core 44 suites / 529 tests Exit 0 (43/520 baseline + 1 suite / 9 test cua toi).
+- `TaskContext.crypto?` optional (f4f5f2e7); `StepCheckpointManager` seal stored form +
+  `assertEncryptionAvailable` fail-closed TRUOC step body (a7c52ff1); 9 test (86e5cfc2).
+- Muc 19 van dung: action output VA checkpoint output DA di qua encrypted facade vi
+  `artifacts.write` -> `writeStream` da seal. Cycle 20 them seam vao ctx noi bo + lam
+  checkpoint tu seal + test chung minh.
+- **BAI HOC 4 (API optional):** phan biet "method ton tai" voi "tinh nang da bat". Adapter
+  feature-detect `cryptoFor` => worker TAT ma hoa cung trong co, `internal.crypto` la
+  handle moi loi goi deu nem, va LAM DO 3 SUITE (sdk-consumer 9 test, provider-backed,
+  p8-01). Chi khi them predicate `cryptoSeam(): WorkerCryptoSeam | undefined` moi dung.
+  Moi API optional ma consumer can BRANCH theo trang thai deu phai co predicate.

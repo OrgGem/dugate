@@ -1,0 +1,239 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "runtime-encryption-metadata"
+
+FAIL tests/runtime-encryption-metadata.test.ts
+  ENC-META-01 inventory: a sealed control-plane column holds no plaintext
+    √ the serialized envelope contains neither the sentinel nor a plaintext key (3 ms)
+    × no plaintext DEK is persisted beside the ciphertext (3 ms)
+    √ sealing is non-deterministic while the content hash stays stable
+  ENC-META-01 binding: an envelope opens only under its own context
+    × round-trips the original value under the bound context (4 ms)
+    × refuses a different TENANT (cross-tenant negative) (4 ms)
+    × refuses a different SLOT (payload_ref cannot move to input_ref) (2 ms)
+    × refuses a different ROW (same tenant and slot, other task) (1 ms)
+    × a tampered ciphertext fails authentication instead of returning junk (1 ms)
+    × a wrong DEK from the provider fails authentication, no plaintext fallback (1 ms)
+    √ Vault outage on write fails closed: nothing is stored unsealed (1 ms)
+    √ Vault outage on read fails closed: no plaintext is served (1 ms)
+    √ rejects an unknown envelope version instead of guessing (1 ms)
+    √ rejects an empty tenant binding rather than sealing under an empty AAD (1 ms)
+  ENC-META-01 legacy rows: readable only behind the backfill flag
+    √ isSealed does not mistake a legacy plaintext object for an envelope
+    √ readStored fails closed on a plaintext row when the flag is off
+    √ readStored passes a legacy row through during the backfill window
+    × readStored still enforces the binding on a sealed row even with the flag on (1 ms)
+  ENC-META-01 semantics: hashing stays stable so idempotency survives sealing
+    √ key order does not change the hash; array order does
+    √ the sealed plaintextSha256 matches the hash of the original value
+    √ canonicalize emits sorted keys so equal documents are byte-equal
+    × hashing the raw column would mismatch, which is why the runtime opens first (1 ms)
+  ENC-META-01 slot inventory
+    √ covers exactly the four control-plane columns the packet names (1 ms)
+    √ refuses to build a crypto seam without a keyRef (2 ms)
+
+  ● ENC-META-01 inventory: a sealed control-plane column holds no plaintext › no plaintext DEK is persisted beside the ciphertext
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+    [0m [90m  96 |[39m     [36mconst[39m sealed [33m=[39m [36mawait[39m crypto[33m.[39mseal([33mSENSITIVE[39m[33m,[39m [33mCTX[39m)[33m;[39m
+     [90m  97 |[39m     expect(sealed[33m.[39mdek[33m.[39mwrappedKey[33m.[39mlength)[33m.[39mtoBeGreaterThan([35m0[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m  98 |[39m     expect(provider[33m.[39mwraps)[33m.[39mtoBe([35m1[39m)[33m;[39m
+     [90m     |[39m                            [31m[1m^[22m[39m
+     [90m  99 |[39m   })[33m;[39m
+     [90m 100 |[39m
+     [90m 101 |[39m   it([32m'sealing is non-deterministic while the content hash stays stable'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:98:28)
+
+  ● ENC-META-01 binding: an envelope opens only under its own context › round-trips the original value under the bound context
+
+    MetadataCryptoError: failed to unwrap metadata DEK: Unsupported state or unable to authenticate data
+
+    [0m [90m 109 |[39m
+     [90m 110 |[39m [36mfunction[39m fail(code[33m:[39m [33mMetadataCryptoErrorCode[39m[33m,[39m message[33m:[39m string)[33m:[39m never {
+    [31m[1m>[22m[39m[90m 111 |[39m   [36mthrow[39m [36mnew[39m [33mMetadataCryptoError[39m(code[33m,[39m message)[33m;[39m
+     [90m     |[39m         [31m[1m^[22m[39m
+     [90m 112 |[39m }
+     [90m 113 |[39m
+     [90m 114 |[39m [36mfunction[39m isRecord(value[33m:[39m unknown)[33m:[39m value is [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m {[0m
+
+      at fail (src/modules/runtime/metadata-crypto.ts:111:9)
+      at Object.open (src/modules/runtime/metadata-crypto.ts:281:7)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:115:12)
+
+  ● ENC-META-01 binding: an envelope opens only under its own context › refuses a different TENANT (cross-tenant negative)
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "CONTEXT_MISMATCH",
+    +   "code": "KEY_PROVIDER_FAILED",
+        "name": "MetadataCryptoError",
+      }
+
+    [0m [90m 78 |[39m
+     [90m 79 |[39m [36mfunction[39m expectCryptoError(fn[33m:[39m () [33m=>[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m[33m,[39m code[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 80 |[39m   [36mreturn[39m expect(fn())[33m.[39mrejects[33m.[39mtoMatchObject({ name[33m:[39m [32m'MetadataCryptoError'[39m[33m,[39m code })[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 81 |[39m }
+     [90m 82 |[39m
+     [90m 83 |[39m describe([32m'ENC-META-01 inventory: a sealed control-plane column holds no plaintext'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at expectCryptoError (tests/runtime-encryption-metadata.test.ts:80:31)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:121:11)
+
+  ● ENC-META-01 binding: an envelope opens only under its own context › refuses a different SLOT (payload_ref cannot move to input_ref)
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "CONTEXT_MISMATCH",
+    +   "code": "KEY_PROVIDER_FAILED",
+        "name": "MetadataCryptoError",
+      }
+
+    [0m [90m 78 |[39m
+     [90m 79 |[39m [36mfunction[39m expectCryptoError(fn[33m:[39m () [33m=>[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m[33m,[39m code[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 80 |[39m   [36mreturn[39m expect(fn())[33m.[39mrejects[33m.[39mtoMatchObject({ name[33m:[39m [32m'MetadataCryptoError'[39m[33m,[39m code })[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 81 |[39m }
+     [90m 82 |[39m
+     [90m 83 |[39m describe([32m'ENC-META-01 inventory: a sealed control-plane column holds no plaintext'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at expectCryptoError (tests/runtime-encryption-metadata.test.ts:80:31)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:127:11)
+
+  ● ENC-META-01 binding: an envelope opens only under its own context › refuses a different ROW (same tenant and slot, other task)
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "CONTEXT_MISMATCH",
+    +   "code": "KEY_PROVIDER_FAILED",
+        "name": "MetadataCryptoError",
+      }
+
+    [0m [90m 78 |[39m
+     [90m 79 |[39m [36mfunction[39m expectCryptoError(fn[33m:[39m () [33m=>[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m[33m,[39m code[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 80 |[39m   [36mreturn[39m expect(fn())[33m.[39mrejects[33m.[39mtoMatchObject({ name[33m:[39m [32m'MetadataCryptoError'[39m[33m,[39m code })[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 81 |[39m }
+     [90m 82 |[39m
+     [90m 83 |[39m describe([32m'ENC-META-01 inventory: a sealed control-plane column holds no plaintext'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at expectCryptoError (tests/runtime-encryption-metadata.test.ts:80:31)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:136:11)
+
+  ● ENC-META-01 binding: an envelope opens only under its own context › a tampered ciphertext fails authentication instead of returning junk
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "AUTHENTICATION_FAILED",
+    +   "code": "KEY_PROVIDER_FAILED",
+        "name": "MetadataCryptoError",
+      }
+
+    [0m [90m 78 |[39m
+     [90m 79 |[39m [36mfunction[39m expectCryptoError(fn[33m:[39m () [33m=>[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m[33m,[39m code[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 80 |[39m   [36mreturn[39m expect(fn())[33m.[39mrejects[33m.[39mtoMatchObject({ name[33m:[39m [32m'MetadataCryptoError'[39m[33m,[39m code })[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 81 |[39m }
+     [90m 82 |[39m
+     [90m 83 |[39m describe([32m'ENC-META-01 inventory: a sealed control-plane column holds no plaintext'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at expectCryptoError (tests/runtime-encryption-metadata.test.ts:80:31)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:144:11)
+
+  ● ENC-META-01 binding: an envelope opens only under its own context › a wrong DEK from the provider fails authentication, no plaintext fallback
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "AUTHENTICATION_FAILED",
+    +   "code": "KEY_PROVIDER_FAILED",
+        "name": "MetadataCryptoError",
+      }
+
+    [0m [90m 78 |[39m
+     [90m 79 |[39m [36mfunction[39m expectCryptoError(fn[33m:[39m () [33m=>[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m[33m,[39m code[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 80 |[39m   [36mreturn[39m expect(fn())[33m.[39mrejects[33m.[39mtoMatchObject({ name[33m:[39m [32m'MetadataCryptoError'[39m[33m,[39m code })[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 81 |[39m }
+     [90m 82 |[39m
+     [90m 83 |[39m describe([32m'ENC-META-01 inventory: a sealed control-plane column holds no plaintext'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at expectCryptoError (tests/runtime-encryption-metadata.test.ts:80:31)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:153:11)
+
+  ● ENC-META-01 legacy rows: readable only behind the backfill flag › readStored still enforces the binding on a sealed row even with the flag on
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "CONTEXT_MISMATCH",
+    +   "code": "KEY_PROVIDER_FAILED",
+        "name": "MetadataCryptoError",
+      }
+
+    [0m [90m 78 |[39m
+     [90m 79 |[39m [36mfunction[39m expectCryptoError(fn[33m:[39m () [33m=>[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m[33m,[39m code[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33munknown[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 80 |[39m   [36mreturn[39m expect(fn())[33m.[39mrejects[33m.[39mtoMatchObject({ name[33m:[39m [32m'MetadataCryptoError'[39m[33m,[39m code })[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 81 |[39m }
+     [90m 82 |[39m
+     [90m 83 |[39m describe([32m'ENC-META-01 inventory: a sealed control-plane column holds no plaintext'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at expectCryptoError (tests/runtime-encryption-metadata.test.ts:80:31)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:200:11)
+
+  ● ENC-META-01 semantics: hashing stays stable so idempotency survives sealing › hashing the raw column would mismatch, which is why the runtime opens first
+
+    MetadataCryptoError: failed to unwrap metadata DEK: Unsupported state or unable to authenticate data
+
+    [0m [90m 109 |[39m
+     [90m 110 |[39m [36mfunction[39m fail(code[33m:[39m [33mMetadataCryptoErrorCode[39m[33m,[39m message[33m:[39m string)[33m:[39m never {
+    [31m[1m>[22m[39m[90m 111 |[39m   [36mthrow[39m [36mnew[39m [33mMetadataCryptoError[39m(code[33m,[39m message)[33m;[39m
+     [90m     |[39m         [31m[1m^[22m[39m
+     [90m 112 |[39m }
+     [90m 113 |[39m
+     [90m 114 |[39m [36mfunction[39m isRecord(value[33m:[39m unknown)[33m:[39m value is [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m {[0m
+
+      at fail (src/modules/runtime/metadata-crypto.ts:111:9)
+      at Object.open (src/modules/runtime/metadata-crypto.ts:281:7)
+      at Object.<anonymous> (tests/runtime-encryption-metadata.test.ts:227:24)
+
+Test Suites: 1 failed, 1 total
+Tests:       9 failed, 14 passed, 23 total
+Snapshots:   0 total
+Time:        3.826 s
+Ran all test suites matching /runtime-encryption-metadata/i.
+ ELIFECYCLE  Command failed with exit code 1.

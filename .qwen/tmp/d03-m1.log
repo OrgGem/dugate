@@ -1,0 +1,50 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "data-03-url-acq"
+
+FAIL tests/data-03-url-acq.test.ts
+  W-DATA-03: a URL task is not runnable before its source is READY
+    × refuses a pin with no materialized artifact, even with inline text present (7 ms)
+    √ refuses a pin whose artifacts were read but do not match (5 ms)
+    √ parses the PINNED bytes and ignores attached inline text (3 ms)
+  W-DATA-03: the inline path is untouched when there is no pin
+    √ accepts inline text with no source pin (ordinary case) (4 ms)
+  W-DATA-03: a failed acquisition leaves nothing parseable
+    × a pin with zero materialized bytes yields no buffers to parse (1 ms)
+
+  ● W-DATA-03: a URL task is not runnable before its source is READY › refuses a pin with no materialized artifact, even with inline text present
+
+    TypeError: Cannot read properties of undefined (reading 'code')
+
+    [0m [90m 50 |[39m       caught [33m=[39m err[33m;[39m
+     [90m 51 |[39m     }
+    [31m[1m>[22m[39m[90m 52 |[39m     expect((caught [36mas[39m { code[33m?[39m[33m:[39m string })[33m.[39mcode)[33m.[39mtoBe([32m'INGESTION_SOURCE_UNRESOLVED'[39m)[33m;[39m
+     [90m    |[39m                                          [31m[1m^[22m[39m
+     [90m 53 |[39m   })[33m;[39m
+     [90m 54 |[39m
+     [90m 55 |[39m   it([32m'refuses a pin whose artifacts were read but do not match'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:52:42)
+
+  ● W-DATA-03: a failed acquisition leaves nothing parseable › a pin with zero materialized bytes yields no buffers to parse
+
+    TypeError: Cannot read properties of undefined (reading 'code')
+
+    [0m [90m 111 |[39m       caught [33m=[39m err[33m;[39m
+     [90m 112 |[39m     }
+    [31m[1m>[22m[39m[90m 113 |[39m     expect((caught [36mas[39m { code[33m?[39m[33m:[39m string })[33m.[39mcode)[33m.[39mtoBe([32m'INGESTION_SOURCE_UNRESOLVED'[39m)[33m;[39m
+     [90m     |[39m                                          [31m[1m^[22m[39m
+     [90m 114 |[39m     [90m// Nothing partial was written into the context store either.[39m
+     [90m 115 |[39m     expect(ctx[33m.[39martifactsStore[33m.[39msize)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 116 |[39m     expect(ctx[33m.[39mcheckpointsStore[33m.[39msize)[33m.[39mtoBe([35m0[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/data-03-url-acq.test.ts:113:42)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 3 passed, 5 total
+Snapshots:   0 total
+Time:        3.971 s
+Ran all test suites matching /data-03-url-acq/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "data-03-url-acq"`
+Exit status 1

@@ -1,0 +1,10 @@
+const fs = require('fs');
+const crypto = require('crypto');
+const p = 'D:/Git/dugate/du-rework/services/orchestrator/src/modules/runtime/runtime.ts';
+const b = fs.readFileSync(p);
+console.log('runtime.ts bytes=' + b.length + ' sha=' + crypto.createHash('sha256').update(b).digest('hex').slice(0, 8));
+const t = b.toString('utf8');
+console.log('guard_present=' + t.indexOf('PENDING_INGESTION') !== -1);
+const i = t.indexOf("task is not runnable until its ingestion source is READY");
+console.log('guard_msg_index=' + i);
+if (i !== -1) console.log('--- context ---\n' + t.slice(i - 320, i + 90));

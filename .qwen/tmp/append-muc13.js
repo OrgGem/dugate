@@ -1,0 +1,13 @@
+const fs = require('fs');
+const rep = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const frag = fs.readFileSync('D:/Git/dugate/.qwen/tmp/muc13.md', 'utf8');
+const before = fs.readFileSync(rep, 'utf8');
+const NL = String.fromCharCode(10);
+console.log('before_lines=' + (before.split(NL).length) + ' before_bytes=' + Buffer.byteLength(before));
+console.log('frag_bytes=' + Buffer.byteLength(frag) + ' frag_lines=' + (frag.split(NL).length));
+fs.appendFileSync(rep, frag, 'utf8');
+const after = fs.readFileSync(rep, 'utf8');
+console.log('after_lines=' + (after.split(NL).length) + ' after_bytes=' + Buffer.byteLength(after));
+console.log('CRLF_after=' + (after.split(String.fromCharCode(13) + NL).length - 1));
+console.log('U+FFFD=' + (after.indexOf('\ufffd') >= 0));
+console.log('MUC13_PRESENT=' + (after.indexOf('## 13 — CYCLE 13') >= 0));

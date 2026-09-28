@@ -12,7 +12,7 @@ enforcement are NOT in this slice and remain deferred.
 ```
 cd du-rework/services/orchestrator
 npx tsc --project tsconfig.json --noEmit      # exit 0, no diagnostics
-npx jest --runInBand                          # 6/6 passed, run 3x consecutively — stable
+npx jest --runInBand                          # 12/12 passed
 ```
 
 Supporting suites (unchanged by this gate except the contracts fixture update below):
@@ -52,6 +52,7 @@ interface ServerConfig {
   databaseUrl: string;     // PostgreSQL above
   redisUrl: string;        // Redis above
   runtimeToken?: string;   // Bearer for /api/runtime/v1; if omitted, runtime is OPEN (dev only)
+  usageToken?: string;     // Dedicated Connector bearer for usage ingest; omitted = disabled
   autoDispatch?: boolean;  // default true: outbox sweep every 2s + dispatch after each submit.
                            // set false to drive app.dispatcher.dispatchOnce() manually (tests)
 }
@@ -70,7 +71,7 @@ queues, Redis and the pg pool.
 | POST | `/api/v1/businesses/{businessId}/actions/{action}` | Submit. Body = `SubmissionSchema` (strict): `{ input: {...}, artifacts?, output?, callback?, clientReference? }`. Headers: `Idempotency-Key` (optional, charset `^[A-Za-z0-9._-]{1,128}$`), `x-correlation-id` (optional). 202 new / 200 replay. Response = `SubmitAckSchema`. |
 | GET | `/api/v1/operations?limit=&cursor=` | List. Response `{ items: OperationView[], nextCursor: null }` (cursor pagination stub: nextCursor always null in slice). |
 | GET | `/api/v1/operations/{id}` | `OperationViewSchema`. Other tenant's op → 404. |
-| GET | `/api/v1/operations/{id}/result` | `ResultEnvelopeSchema` (200 only when SUCCEEDED; otherwise 409 `STATE_CONFLICT`). Slice: `data = { resultRef }`, `usage.measurement = 'pending'`, zero usage counters. |
+| GET | `/api/v1/operations/{id}/result` | `ResultEnvelopeSchema` (200 only when SUCCEEDED; otherwise 409 `STATE_CONFLICT`). Slice: `data = { resultRef }`; usage is projected from durable events (`pending` with zero counters before any event). |
 
 API keys: sha256 of the raw key is looked up in `api_keys` (status ACTIVE).
 Dev fallback: when no key row matches, any non-empty `x-api-key` maps to the
@@ -91,9 +92,10 @@ Base path `/api/runtime/v1`. Required when `runtimeToken` is configured
 | POST | `/tasks/{taskId}/progress` | `ProgressReportSchema` → 200 (best-effort; lease-fenced). |
 | POST | `/tasks/{taskId}/complete` | `CompleteTaskRequestSchema` → `TaskReportAckSchema`. Requires `resultHash === contentHash(resultRef)` (422 otherwise). Idempotent replay → 200 `replayed:true`. Terminal → 410. |
 | POST | `/tasks/{taskId}/fail` | `FailTaskRequestSchema` → `TaskReportAckSchema`. Retryable + attempt < max_attempts (3) → `RETRY_PENDING` + outbox continuation due at `retryAfterMs` (default 5s); otherwise terminal `FAILED`. |
+| POST | `/usage-events` | A Connector `UsageEventSchema` object or `UsageIngestBatchSchema` envelope → `UsageIngestAckSchema`. Dedicated `usageToken` only; identical event replay is a duplicate, conflicting replay is 409, and a batch is atomic. |
 
 Not implemented in this slice (404): spawn-children, wait-input, artifact
-grants/finalize/access, invocation grants, usage ingest, cancel, deadline
+grants/finalize/access, invocation grants, cancel, deadline
 sweeper. These are next-wave Orchestrator work; the contracts and SDK client
 methods for them already exist and are unchanged.
 
@@ -128,6 +130,7 @@ Consume with `@du/worker-sdk`'s `createBullMQConsumer` (`queueName`, `redisUrl`)
 |---|---|---|
 | Public client | API key (sha256 looked up; any key → default tenant in slice dev fallback) | `x-api-key: <raw>` |
 | Worker/SDK | runtime bearer token configured on the orchestrator | `Authorization: Bearer <RUNTIME_TOKEN>` |
+| Connector usage sink | dedicated usage bearer token configured on the orchestrator | `Authorization: Bearer <USAGE_TOKEN>` |
 | Correlation | optional client-supplied | `x-correlation-id` (echoed on every response) |
 
 Errors are RFC 9457 `application/problem+json` with `code` from the frozen
@@ -154,6 +157,16 @@ contract error codes; runtime fencing codes: `LEASE_LOST` (409),
 5. **Validation**: input violating the action `inputSchema` → 422
    `INVALID_SCHEMA`.
 6. **Runtime auth**: claim without bearer token → 401 (when `runtimeToken` set).
+7. **Usage HTTP shapes and auth**: Connector's single-event shape and the
+   1–500 event batch envelope are accepted only with the dedicated usage
+   bearer; missing credentials return 401 and a runtime/wrong identity returns
+   403.
+8. **Usage durability and idempotency**: identical event replay is reported in
+   `duplicates`; a same-ID/different-payload replay returns 409 without changing
+   totals; invalid task/operation binding rejects and rolls back the whole batch.
+9. **Projection and lifecycle**: measured/estimated token and micro-USD totals
+   appear in the public result, late usage is accepted after real terminal
+   completion, and the same projection survives an application restart.
 
 ## Known slice limits (honest gaps)
 
@@ -169,17 +182,20 @@ contract error codes; runtime fencing codes: `LEASE_LOST` (409),
   cursor emission does not).
 - Worker heartbeat endpoint returns a static HEALTHY ack (no worker registry
   persistence yet).
+- Usage page counts are retained in event payloads but are not exposed because
+  the frozen public `UsageSchema` has no pages field. Usage storage has no
+  retention/archival job or admin reporting endpoint in this slice.
 
 ## For Copilot (connector lane)
 
 Your root-lockfile request (`pg`, `@types/pg`, `ioredis`) is already satisfied:
 all three resolve from `services/connector` via the pnpm store
 (`pg@8.23.0`, `ioredis@5.11.1`, `@types/pg@8.23.1`), and your durable suites
-have been passing against 5433/6380. No root install is pending. Invocation
-grants + usage ingest endpoints are NOT in this slice — cross-service
-invocation/usage integration stays blocked until the next Orchestrator wave;
-your black-box suite against the mock provider remains the right evidence for
-now.
+have been passing against 5433/6380. No root install is pending. Usage
+ingestion is now available at `/api/runtime/v1/usage-events`; configure
+Connector's `USAGE_SINK_URL` to that endpoint and `USAGE_SINK_TOKEN` to the
+orchestrator's `usageToken`. Invocation grants are still not implemented, so
+grant issuance remains blocked until the next Orchestrator wave.
 
 ## For Antigravity (document-core lane)
 
@@ -197,3 +213,5 @@ public API with any `x-api-key` (slice dev fallback maps to the default tenant).
 ## Change log
 
 - 2026-09-20: initial READY for the minimal durable vertical slice (evidence above).
+- 2026-09-21: added durable Connector usage ingestion and public result
+  projection; orchestrator build and 12/12 PostgreSQL/Redis tests pass.

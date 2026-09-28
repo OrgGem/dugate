@@ -1,0 +1,15 @@
+const fs = require('fs');
+const p = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const s = fs.readFileSync(p, 'utf8');
+const NL = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
+const crlf = s.split(CR + NL).length - 1;
+const lf = s.split(NL).length - 1;
+console.log('BYTES=' + Buffer.byteLength(s) + ' CRLF=' + crlf + ' LF_TOTAL=' + lf + ' LONE_LF=' + (lf - crlf));
+const L = s.split(CR + NL);
+console.log('---HEAD 42---');
+console.log(L.slice(0, 42).join(NL));
+console.log('---TAIL 26---');
+console.log(L.slice(-26).join(NL));
+console.log('---H2 headings (line: text)---');
+L.forEach(function (t, i) { if (/^## /.test(t)) console.log((i + 1) + ': ' + t.slice(0, 88)); });

@@ -26,6 +26,7 @@ function responseObject(response: ProviderResponse): Record<string, unknown> {
 export const jsonHttpAdapter: ProviderAdapter = {
   id: 'json-http',
   mode: 'json',
+  asyncPollingMode: 'idempotency-key-replay',
   buildRequest(request: LocalInvocationRequest, config: AdapterConfig): ProviderRequest {
     assertSafeMapping(config.requestMapping ?? {});
     const source = { input: request.input, options: request.options ?? {}, sessionRef: request.sessionRef ?? null };
@@ -39,7 +40,11 @@ export const jsonHttpAdapter: ProviderAdapter = {
     return {
       url: joinUrl(config.baseUrl, config.path),
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(config.headers ?? {}) },
+      headers: {
+        'content-type': 'application/json',
+        ...(config.headers ?? {}),
+        'Idempotency-Key': request.invocationId,
+      },
       body: JSON.stringify(body),
     };
   },
@@ -79,7 +84,7 @@ export const multipartHttpAdapter: ProviderAdapter = {
     return {
       url: joinUrl(config.baseUrl, config.path),
       method: 'POST',
-      headers: { ...(config.headers ?? {}) },
+      headers: { ...(config.headers ?? {}), 'Idempotency-Key': request.invocationId },
       body: form,
     };
   },

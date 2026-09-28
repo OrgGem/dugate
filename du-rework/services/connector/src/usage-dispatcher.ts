@@ -4,8 +4,15 @@ import { UsageEventSchema } from '@du/contracts';
 import { toContractUsageEvent } from './usage';
 import { ConnectorError } from './errors';
 
+const DEFAULT_USAGE_BATCH_SIZE = 25;
+const MAX_USAGE_BATCH_SIZE = 25;
+const DEFAULT_USAGE_SEND_TIMEOUT_MS = 10_000;
+const MAX_USAGE_SEND_TIMEOUT_MS = 30_000;
+const DEFAULT_USAGE_DRAIN_TIMEOUT_MS = 30_000;
+const MAX_USAGE_DRAIN_TIMEOUT_MS = 30_000;
+
 export interface UsageSink {
-  send(event: UsageEvent): Promise<void>;
+  send(event: UsageEvent, signal?: AbortSignal): Promise<void>;
 }
 
 export class HttpUsageSink implements UsageSink {
@@ -24,7 +31,7 @@ export class HttpUsageSink implements UsageSink {
     this.fetcher = fetcher;
   }
 
-  public async send(event: UsageEvent): Promise<void> {
+  public async send(event: UsageEvent, signal?: AbortSignal): Promise<void> {
     const contract = UsageEventSchema.parse(toContractUsageEvent(event));
     let response: Response;
     try {
@@ -36,6 +43,7 @@ export class HttpUsageSink implements UsageSink {
           'idempotency-key': contract.eventId,
         },
         body: JSON.stringify(contract),
+        signal,
       });
     } catch {
       throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Usage sink is unavailable.');
@@ -51,6 +59,7 @@ export interface UsageDispatcherOptions {
   baseRetryMs?: number;
   maxRetryMs?: number;
   poisonRetryMs?: number;
+  sendTimeoutMs?: number;
   random?: () => number;
 }
 
@@ -58,6 +67,7 @@ export class UsageOutboxDispatcher {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private running = false;
   private draining: Promise<void> | undefined;
+  private readonly activeSends = new Set<{ controller: AbortController; cancel: () => void }>();
   private readonly options: Required<UsageDispatcherOptions>;
 
   public constructor(
@@ -66,12 +76,17 @@ export class UsageOutboxDispatcher {
     options: UsageDispatcherOptions = {},
   ) {
     this.options = {
-      batchSize: options.batchSize ?? 25,
+      batchSize: clampPositiveInteger(options.batchSize, DEFAULT_USAGE_BATCH_SIZE, MAX_USAGE_BATCH_SIZE),
       pollIntervalMs: options.pollIntervalMs ?? 1000,
       maxAttempts: options.maxAttempts ?? 8,
       baseRetryMs: options.baseRetryMs ?? 250,
       maxRetryMs: options.maxRetryMs ?? 60_000,
       poisonRetryMs: options.poisonRetryMs ?? 86_400_000,
+      sendTimeoutMs: clampPositiveInteger(
+        options.sendTimeoutMs,
+        DEFAULT_USAGE_SEND_TIMEOUT_MS,
+        MAX_USAGE_SEND_TIMEOUT_MS,
+      ),
       random: options.random ?? Math.random,
     };
   }
@@ -82,11 +97,44 @@ export class UsageOutboxDispatcher {
     this.schedule(0);
   }
 
-  public async drain(timeoutMs = 30_000): Promise<void> {
+  public async drain(timeoutMs = DEFAULT_USAGE_DRAIN_TIMEOUT_MS): Promise<void> {
     this.running = false;
-    if (this.timer) clearTimeout(this.timer);
-    const work = this.draining ?? Promise.resolve();
-    await Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))]);
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    const work = this.draining;
+    if (!work) return;
+    if (timeoutMs === 0) {
+      for (const activeSend of this.activeSends) {
+        activeSend.controller.abort();
+        activeSend.cancel();
+      }
+      return;
+    }
+    const boundedTimeoutMs = clampPositiveInteger(
+      timeoutMs,
+      DEFAULT_USAGE_DRAIN_TIMEOUT_MS,
+      MAX_USAGE_DRAIN_TIMEOUT_MS,
+    );
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        work,
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(() => {
+            for (const activeSend of this.activeSends) {
+              activeSend.controller.abort();
+              activeSend.cancel();
+            }
+            resolve();
+          }, boundedTimeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   public async dispatchOnce(): Promise<void> {
@@ -105,8 +153,26 @@ export class UsageOutboxDispatcher {
   }
 
   private async deliver(row: UsageOutboxRow): Promise<void> {
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let rejectCancelled!: (error: Error) => void;
+    const cancelled = new Promise<void>((_resolve, reject) => { rejectCancelled = reject; });
+    const activeSend = {
+      controller,
+      cancel: () => rejectCancelled(new ConnectorError('PROVIDER_TIMEOUT', 'Usage sink delivery was cancelled during drain.')),
+    };
+    this.activeSends.add(activeSend);
     try {
-      await this.sink.send(row.payload);
+      await Promise.race([
+        this.sink.send(row.payload, controller.signal),
+        new Promise<void>((_resolve, reject) => {
+          timeout = setTimeout(() => {
+            controller.abort();
+            reject(new ConnectorError('PROVIDER_TIMEOUT', 'Usage sink request timed out.'));
+          }, this.options.sendTimeoutMs);
+        }),
+        cancelled,
+      ]);
       await this.outbox.markDelivered(row.eventId);
     } catch {
       const delay = Math.min(
@@ -119,6 +185,9 @@ export class UsageOutboxDispatcher {
         ? new Date(Date.now() + this.options.poisonRetryMs)
         : next;
       await this.outbox.defer(row.eventId, retryAt.toISOString());
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      this.activeSends.delete(activeSend);
     }
   }
 
@@ -128,4 +197,9 @@ export class UsageOutboxDispatcher {
       void this.dispatchOnce().finally(() => this.schedule(this.options.pollIntervalMs));
     }, delay);
   }
+}
+
+function clampPositiveInteger(value: number | undefined, fallback: number, maximum: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(maximum, Math.floor(value)));
 }

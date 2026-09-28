@@ -28,6 +28,18 @@ import {
   ArtifactAccessRequest,
   ArtifactAccessGrant,
   ArtifactAccessGrantSchema,
+  MultipartInitRequest,
+  MultipartInitAck,
+  MultipartInitAckSchema,
+  MultipartPartGrantRequest,
+  MultipartPartGrant,
+  MultipartPartGrantSchema,
+  MultipartCompleteRequest,
+  MultipartCompleteAck,
+  MultipartCompleteAckSchema,
+  MultipartAbortRequest,
+  MultipartAbortAck,
+  MultipartAbortAckSchema,
   InvocationGrantRequest,
   InvocationGrant,
   InvocationGrantSchema,
@@ -230,6 +242,35 @@ export class RuntimeClient {
   async requestAccessGrant(artifactId: string, req: ArtifactAccessRequest): Promise<ArtifactAccessGrant> {
     return this.request('POST', `/artifacts/${encodeURIComponent(artifactId)}/access`, req, (raw) =>
       ArtifactAccessGrantSchema.parse(raw)
+    );
+  }
+
+  /* ---------------- multipart upload lifecycle (DATA-00-M / DATA-04) ------ */
+
+  async multipartInit(taskId: string, req: MultipartInitRequest): Promise<MultipartInitAck> {
+    // uploadToken in the body is the server-side replay key: a lost ACK is
+    // recovered by retrying with the SAME token (200 replayed), never by
+    // minting a second provider upload.
+    return this.request('POST', `/tasks/${encodeURIComponent(taskId)}/artifacts/multipart`, req, (raw) =>
+      MultipartInitAckSchema.parse(raw)
+    );
+  }
+
+  async multipartPartGrant(artifactId: string, req: MultipartPartGrantRequest): Promise<MultipartPartGrant> {
+    return this.request('POST', `/artifacts/${encodeURIComponent(artifactId)}/multipart/part`, req, (raw) =>
+      MultipartPartGrantSchema.parse(raw)
+    );
+  }
+
+  async multipartComplete(artifactId: string, req: MultipartCompleteRequest): Promise<MultipartCompleteAck> {
+    return this.request('POST', `/artifacts/${encodeURIComponent(artifactId)}/multipart/complete`, req, (raw) =>
+      MultipartCompleteAckSchema.parse(raw)
+    );
+  }
+
+  async multipartAbort(artifactId: string, req: MultipartAbortRequest): Promise<MultipartAbortAck> {
+    return this.request('POST', `/artifacts/${encodeURIComponent(artifactId)}/multipart/abort`, req, (raw) =>
+      MultipartAbortAckSchema.parse(raw)
     );
   }
 

@@ -1,11 +1,14 @@
 'use client';
-// components/HeaderNav.tsx — ẩn trên trang /login, hiển thị user dropdown
+// components/HeaderNav.tsx — Flat Material Enterprise Navigation Bar
 
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { Home, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, LogIn, BrainCircuit, Settings, Zap } from 'lucide-react';
+import { 
+  Home, SlidersHorizontal, PlugZap, User, LogOut, Users, ChevronDown, 
+  LogIn, BrainCircuit, Settings, Zap, History, BarChart2, BookOpen 
+} from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 export default function HeaderNav() {
@@ -31,57 +34,69 @@ export default function HeaderNav() {
   const isViewer = session?.user?.role === 'VIEWER';
 
   return (
-    <header className="glass-header sticky top-0 z-50">
-      <nav className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="bg-primary text-primary-foreground p-1.5 rounded-xl shadow-md transition-colors">
-            <BrainCircuit className="w-5 h-5 shadow-inner" />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors whitespace-nowrap">
-            AI Skill Hub
-          </span>
-          <span className="text-[10px] uppercase font-mono tracking-wider font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded ml-1 border border-border">
-            v{process.env.NEXT_PUBLIC_APP_VERSION || '1.1.0'}
-          </span>
-        </Link>
-
-        {/* Nav items */}
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className={`pill-nav-item ${
-              pathname === '/' ? 'pill-nav-active' : 'pill-nav-inactive'
-            }`}
-          >
-            <Home className="w-4 h-4" />
-            Trang chủ
+    <header className="glass-header sticky top-0 z-40 bg-card border-b border-border">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        {/* Logo & Brand */}
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="bg-primary text-primary-foreground p-1.5 rounded-md flex items-center justify-center">
+              <BrainCircuit className="w-4 h-4" />
+            </div>
+            <span className="text-base font-bold tracking-tight text-foreground whitespace-nowrap">
+              DUGate
+            </span>
+            <span className="text-[11px] font-mono font-medium bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+              v{process.env.NEXT_PUBLIC_APP_VERSION || '2.0'}
+            </span>
           </Link>
 
-
-          {!isViewer && (
+          {/* Primary Nav Links */}
+          <nav className="hidden md:flex items-center gap-1">
             <Link
-              href="/profiles"
+              href="/"
               className={`pill-nav-item ${
-                pathname.startsWith('/profiles') ? 'pill-nav-active' : 'pill-nav-inactive'
+                pathname === '/' ? 'pill-nav-active' : 'pill-nav-inactive'
               }`}
             >
-              <SlidersHorizontal className="w-4 h-4" />
-              Profiles
+              <Home className="w-4 h-4" />
+              <span>Tổng quan</span>
             </Link>
-          )}
 
-          {isAdmin && (
-            <>
+            <Link
+              href="/history"
+              className={`pill-nav-item ${
+                pathname.startsWith('/history') || pathname.startsWith('/operations') ? 'pill-nav-active' : 'pill-nav-inactive'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Lịch sử Operations</span>
+            </Link>
+
+            {!isViewer && (
               <Link
-                href="/settings"
+                href="/dashboard"
                 className={`pill-nav-item ${
-                  pathname.startsWith('/settings') ? 'pill-nav-active' : 'pill-nav-inactive'
+                  pathname.startsWith('/dashboard') ? 'pill-nav-active' : 'pill-nav-inactive'
                 }`}
               >
-                <Settings className="w-4 h-4" />
-                Cài đặt
+                <BarChart2 className="w-4 h-4" />
+                <span>Dashboard</span>
               </Link>
+            )}
+
+            {!isViewer && (
+              <Link
+                href="/profiles"
+                className={`pill-nav-item ${
+                  pathname.startsWith('/profiles') ? 'pill-nav-active' : 'pill-nav-inactive'
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                <span>Profiles</span>
+              </Link>
+            )}
+
+            {isAdmin && (
               <Link
                 href="/api-connections"
                 className={`pill-nav-item ${
@@ -89,79 +104,102 @@ export default function HeaderNav() {
                 }`}
               >
                 <PlugZap className="w-4 h-4" />
-                API Connections
+                <span>Connections</span>
               </Link>
+            )}
+
+            {isAdmin && (
               <Link
                 href="/workflow-builder"
-                className={`pill-nav-item ${pathname.startsWith('/workflow-builder') ? 'pill-nav-active' : 'pill-nav-inactive'}`}
+                className={`pill-nav-item ${
+                  pathname.startsWith('/workflow-builder') ? 'pill-nav-active' : 'pill-nav-inactive'
+                }`}
               >
                 <Zap className="w-4 h-4" />
-                Workflow Builder
+                <span>Workflows</span>
               </Link>
-            </>
-          )}
-          
-          <div className="w-[1px] h-6 bg-border mx-2" />
-          
-          {/* User Profile Dropdown or Login Button */}
+            )}
+
+            <Link
+              href="/api-docs"
+              className={`pill-nav-item ${
+                pathname.startsWith('/api-docs') ? 'pill-nav-active' : 'pill-nav-inactive'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>API Docs</span>
+            </Link>
+          </nav>
+        </div>
+
+        {/* Right Nav / Controls */}
+        <div className="flex items-center gap-2">
           {session?.user ? (
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-full hover:bg-muted transition-colors duration-200"
+                className="flex items-center gap-2 px-2.5 py-1.5 text-sm font-medium rounded-md border border-border bg-card hover:bg-muted transition-colors"
+                aria-expanded={showDropdown}
               >
-                <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
-                  <User className="w-4 h-4 text-primary" />
+                <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                  {(session.user.username || session.user.name || 'U').charAt(0).toUpperCase()}
                 </div>
-                <span className="text-foreground max-w-[100px] truncate">{session.user.username || session.user.name}</span>
+                <span className="text-foreground max-w-[120px] truncate hidden sm:inline">
+                  {session.user.username || session.user.name}
+                </span>
                 <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
               </button>
 
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-card border border-border shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                  {/* User Info */}
-                  <div className="px-4 py-3 border-b border-border">
+                <div className="absolute right-0 mt-1.5 w-60 rounded-md bg-card border border-border shadow-md overflow-hidden z-50 animate-in fade-in duration-150">
+                  {/* User Header */}
+                  <div className="px-4 py-2.5 border-b border-border bg-muted/40">
                     <p className="text-sm font-semibold text-foreground truncate">
                       {session.user.username || session.user.name}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {session.user.role === 'ADMIN' ? '🔑 Quản trị viên' : session.user.role === 'VIEWER' ? '👁 Chỉ xem' : '👤 Người dùng'}
+                    <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                      {session.user.role === 'ADMIN' ? 'Admin / Superuser' : session.user.role === 'VIEWER' ? 'Read-only Viewer' : 'Standard User'}
                     </p>
                   </div>
 
                   {/* Menu Items */}
-                  <div className="p-1.5">
+                  <div className="p-1 space-y-0.5">
                     {isAdmin && (
                       <Link
                         href="/settings"
                         onClick={() => setShowDropdown(false)}
-                        className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground rounded-xl hover:bg-muted transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-foreground rounded hover:bg-muted transition-colors"
                       >
                         <Settings className="w-4 h-4 text-muted-foreground" />
-                        Cài đặt
+                        <span>Cài đặt hệ thống</span>
                       </Link>
                     )}
                     {isAdmin && (
                       <Link
                         href="/settings/users"
                         onClick={() => setShowDropdown(false)}
-                        className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground rounded-xl hover:bg-muted transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-foreground rounded hover:bg-muted transition-colors"
                       >
                         <Users className="w-4 h-4 text-muted-foreground" />
-                        Quản lý người dùng
+                        <span>Quản lý người dùng</span>
                       </Link>
                     )}
                     
-                    <div className="my-1 border-t border-border/50" />
-                    <ThemeToggle />
-                    <div className="my-1 border-t border-border/50" />
+                    <div className="my-1 border-t border-border" />
                     
-                      <button
-                        onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
-                        className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-destructive rounded-xl hover:bg-destructive/10 transition-colors w-full text-left"
-                      >
+                    <div className="px-3 py-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Giao diện:</span>
+                      <ThemeToggle />
+                    </div>
+                    
+                    <div className="my-1 border-t border-border" />
+                    
+                    <button
+                      onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-destructive rounded hover:bg-destructive/10 transition-colors w-full text-left"
+                    >
                       <LogOut className="w-4 h-4" />
-                      Đăng xuất
+                      <span>Đăng xuất</span>
                     </button>
                   </div>
                 </div>
@@ -170,15 +208,14 @@ export default function HeaderNav() {
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm ml-2"
+              className="btn-primary inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md"
             >
-              <LogIn className="w-4 h-4" />
-              Đăng nhập
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Đăng nhập</span>
             </Link>
           )}
         </div>
-      </nav>
+      </div>
     </header>
   );
 }
-

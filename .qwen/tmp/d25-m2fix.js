@@ -1,0 +1,10 @@
+const fs = require('fs');
+const SRC = 'D:/Git/dugate/du-rework/packages/contracts/src/encryption.ts';
+const BAK = 'D:/Git/dugate/.qwen/tmp/bak-encryption.ts';
+fs.writeFileSync(SRC, fs.readFileSync(BAK));
+const t = fs.readFileSync(SRC, 'utf8');
+console.log('restored bytes=' + t.length);
+const L = t.split('\n');
+const i = L.findIndex(function (x) { return x.indexOf('.refine((e) => Buffer.from(e.nonce') !== -1; });
+console.log('refine block starts at line ' + (i+1));
+for (let k = i; k < i + 10; k++) console.log('  ' + (k+1) + ': ' + L[k]);

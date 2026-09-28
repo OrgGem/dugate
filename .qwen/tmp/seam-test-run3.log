@@ -1,0 +1,64 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand "--" "crypto-seam"
+
+FAIL tests/crypto-seam.test.ts
+  W-ENC-04 port fidelity: worker facade is the orchestrator facade
+    × the implementation body is byte-identical to the orchestrator source (3 ms)
+    √ the AAD format strings the two sides must agree on are present (1 ms)
+  W-ENC-04 binding: a sealed artifact opens only for its own task and tenant
+    √ round-trips bytes under the claim tenant (2 ms)
+    √ reports the CIPHERTEXT digest, not the plaintext digest (1 ms)
+    √ refuses to open under a different tenant (2 ms)
+    √ refuses to open under a different artifact binding
+    √ refuses to open a tampered ciphertext
+    √ fails closed when the key provider cannot wrap the DEK
+    × fails closed when the provider returns the wrong DEK (1 ms)
+  W-ENC-04 chunked seal: the manifest is authenticated before any plaintext
+    √ round-trips a 6 MiB stream and verifies the manifest (43 ms)
+    √ refuses a manifest belonging to another artifact (24 ms)
+    √ uses the 4 MiB chunk size the orchestrator indexes expect
+  W-ENC-04 no silent plaintext: asking for the seam without one must fail
+    √ refuses to seal when the deployment configured no seam (1 ms)
+    √ the handle still reports the claim tenant it was bound to
+
+  ● W-ENC-04 port fidelity: worker facade is the orchestrator facade › the implementation body is byte-identical to the orchestrator source
+
+    ENOENT: no such file or directory, open 'D:\Git\dugate\du-rework\packages\services\orchestrator\src\modules\encryption\crypto-storage.ts'
+
+    [0m [90m 91 |[39m   it([32m'the implementation body is byte-identical to the orchestrator source'[39m[33m,[39m () [33m=>[39m {
+     [90m 92 |[39m     [36mconst[39m here [33m=[39m readFileSync(join(__dirname[33m,[39m [32m'..'[39m[33m,[39m [32m'src'[39m[33m,[39m [32m'crypto-storage.ts'[39m)[33m,[39m [32m'utf8'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 93 |[39m     [36mconst[39m source [33m=[39m readFileSync(join(__dirname[33m,[39m [32m'..'[39m[33m,[39m [32m'..'[39m[33m,[39m [32m'services'[39m[33m,[39m [32m'orchestrator'[39m[33m,[39m [32m'src'[39m[33m,[39m [32m'modules'[39m[33m,[39m [32m'encryption'[39m[33m,[39m [32m'crypto-storage.ts'[39m)[33m,[39m [32m'utf8'[39m)[33m;[39m
+     [90m    |[39m                                [31m[1m^[22m[39m
+     [90m 94 |[39m     [36mconst[39m marker [33m=[39m [32m'export const CRYPTO_STORAGE_CHUNK_SIZE_BYTES'[39m[33m;[39m
+     [90m 95 |[39m     [36mconst[39m mine [33m=[39m here[33m.[39mslice(here[33m.[39mindexOf(marker))[33m;[39m
+     [90m 96 |[39m     [36mconst[39m theirs [33m=[39m source[33m.[39mslice(source[33m.[39mindexOf(marker))[33m;[39m[0m
+
+      at Object.<anonymous> (tests/crypto-seam.test.ts:93:32)
+
+  ● W-ENC-04 binding: a sealed artifact opens only for its own task and tenant › fails closed when the provider returns the wrong DEK
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"ciphertextSha256": "7305675ee27a5b08024e64c49cd8418db722e4346b8e26ce09acdb357de03628", "ciphertextSizeBytes": 40, "encrypted": {"aad": "eyJmb3JtYXQiOiJkdS1jcnlwdG8tc3RvcmFnZS1zaW5nbGUtdjEiLCJjb250ZXh0Ijp7ImZvcm1hdCI6ImR1LWNyeXB0by1zdG9yYWdlLXYxIiwidGVuYW50SWQiOiJ0ZW5hbnQtYSIsImFydGlmYWN0SWQiOiJhcnQtMSIsIm9iamVjdFZlcnNpb24iOiJhcnQtMSIsInB1cnBvc2UiOiJhcnRpZmFjdC1zdG9yYWdlIn0sInNpemVCeXRlcyI6NDAsInNoYTI1NiI6IjdkN2ViYTkxZjA3M2MwMmU5Mzg4N2YwMTRkYzJiMzllMmMwODdmNWM2YmRlMDc5MzI2YTUwMWVmYWRjMDFkNjQifQ==", "algorithm": "aes-256-gcm", "ciphertext": {"data": [183, 41, 2, 39, 174, 198, 240, 242, 143, 17, …], "type": "Buffer"}, "dek": {"ciphertext": "96CQ5hB8kO71BO2gmw0UIkw7VXt80PHoGz/5LyNxaa8=", "keyRef": "du-worker-meta-v1", "keyVersion": 1}, "nonce": "qwXbyvMVf1JalTxM", "plaintextSha256": "7d7eba91f073c02e93887f014dc2b39e2c087f5c6bde079326a501efadc01d64", "plaintextSizeBytes": 40, "tag": "OeYuIrw3obuoiRvDQ2xC+g==", "version": 1}}
+
+    [0m [90m 165 |[39m     [36mconst[39m { seam } [33m=[39m makeSeam({ wrongKey[33m:[39m [36mtrue[39m })[33m;[39m
+     [90m 166 |[39m     [36mconst[39m crypto [33m=[39m bindTaskCrypto(seam[33m,[39m { tenantId[33m:[39m [33mTENANT[39m })[33m;[39m
+    [31m[1m>[22m[39m[90m 167 |[39m     [36mawait[39m expect(crypto[33m.[39mseal([33mBuffer[39m[33m.[39m[36mfrom[39m([33mSENTINEL[39m[33m,[39m [32m'utf8'[39m)[33m,[39m { artifactId[33m:[39m [32m'art-1'[39m }))[33m.[39mrejects[33m.[39mtoMatchObject({
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 168 |[39m       code[33m:[39m [32m'AUTHENTICATION_FAILED'[39m[33m,[39m
+     [90m 169 |[39m     })[33m;[39m
+     [90m 170 |[39m   })[33m;[39m[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/crypto-seam.test.ts:167:11)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 12 passed, 14 total
+Snapshots:   0 total
+Time:        2.183 s
+Ran all test suites matching /crypto-seam/i.
+D:\Git\dugate\du-rework\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/worker-sdk@0.1.0 test: `jest --runInBand "--" "crypto-seam"`
+Exit status 1

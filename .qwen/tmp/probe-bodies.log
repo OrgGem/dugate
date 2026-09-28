@@ -1,0 +1,41 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "connector-revision-http-offline"
+
+  console.log
+    PROBE_A_NO_BINDING={"status":400,"payload":{"error":{"code":"INVALID_INPUT","message":"credentialSource and independent revision binding are required."}}}
+
+      at Object.<anonymous> (tests/connector-revision-http-offline.functional.test.ts:387:13)
+
+  console.log
+    PROBE_B_BAD_PATH_WITH_BINDING={"status":400,"payload":{"error":{"code":"INVALID_INPUT","message":"Request could not be processed."}}}
+
+      at Object.<anonymous> (tests/connector-revision-http-offline.functional.test.ts:388:13)
+
+  console.log
+    PROBE_C_GOOD_WITH_BINDING={"status":201,"payload":{"connectorId":"openai-live","adapter":"openai-http","config":{"baseUrl":"https://api.example.com","path":"/v1","timeoutMs":5000},"credentialRef":"cred-1","state":"PENDING","credentialSource":{"account":"du-conn-openai-main","mount":"secret","path":"du/tenants/tenant-a/connectors/openai-live/accounts/du-conn-openai-main","key":"api-key","version":1,"kind":"vault-kv2"},"tenantId":"tenant-a","accountId":"du-conn-openai-main","revision":2}}
+
+      at Object.<anonymous> (tests/connector-revision-http-offline.functional.test.ts:389:13)
+
+  console.log
+    PROBE_ROWS_AFTER=2 STATES=ACTIVE:1,PENDING:2
+
+      at Object.<anonymous> (tests/connector-revision-http-offline.functional.test.ts:390:13)
+
+PASS tests/connector-revision-http-offline.functional.test.ts
+  VAULT-06 lifecycle over the real orchestrator↔connector HTTP wire
+    √ rotate #1 over HTTP: PENDING cloned from CURRENT then CAS-activated (43 ms)
+    √ pin separation: new work reads CURRENT (v2 pin); in-flight revision 2 keeps its OLD pin (30 ms)
+    √ CAS discipline over HTTP: activate with a stale expectedCurrent is a no-op (409) (12 ms)
+    √ emergency revoke (disable): CURRENT gone → new rotations fail CLOSED, no phantom ACTIVE (20 ms)
+    √ restart/reconcile: stranded PENDING from a crashed orchestrator is promoted (or retired) by the NEW instance (17 ms)
+    √ transport failure is fail-closed 503 on every port call (adapter never guesses) (8 ms)
+    √ invalid credential source at the HTTP edge → rejected, zero PENDING churn (30 ms)
+  VAULT-06 draft schema pin
+    √ migration 007 exists, is additive JSONB and documents NULL=legacy-db (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        3.403 s
+Ran all test suites matching /connector-revision-http-offline/i.

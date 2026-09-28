@@ -3,6 +3,7 @@ import type {
   ClientInvocationRequest,
   ClientInvocationResult,
   ConnectorTransport,
+  InvocationAccessOptions,
 } from './types';
 
 export class ConnectorClient {
@@ -16,26 +17,40 @@ export class ConnectorClient {
     return this.invoke(request, signal);
   }
 
-  public async poll(invocationId: string, signal?: AbortSignal): Promise<ClientInvocationResult> {
-    return this.unwrap(await this.transport.get(invocationId, signal));
+  public async poll(
+    invocationId: string,
+    access?: AbortSignal | InvocationAccessOptions,
+  ): Promise<ClientInvocationResult> {
+    const { signal, invocationGrant } = resolveAccess(access);
+    return this.unwrap(await this.transport.get(invocationId, signal, invocationGrant));
   }
 
-  public async cancel(invocationId: string, reason: string, signal?: AbortSignal): Promise<ClientInvocationResult> {
-    return this.unwrap(await this.transport.cancel(invocationId, reason, signal));
+  public async cancel(
+    invocationId: string,
+    reason: string,
+    access?: AbortSignal | InvocationAccessOptions,
+  ): Promise<ClientInvocationResult> {
+    const { signal, invocationGrant } = resolveAccess(access);
+    return this.unwrap(await this.transport.cancel(invocationId, reason, signal, invocationGrant));
   }
 
   public async wait(
     invocationId: string,
-    options: { deadlineAt: string; poll: (result: ClientInvocationResult) => Promise<void> },
+    options: {
+      deadlineAt: string;
+      poll: (result: ClientInvocationResult) => Promise<void>;
+      invocationGrant?: string;
+    },
     signal?: AbortSignal,
   ): Promise<ClientInvocationResult> {
-    let result = await this.poll(invocationId, signal);
+    const access = { signal, invocationGrant: options.invocationGrant };
+    let result = await this.poll(invocationId, access);
     while (result.state === 'pending') {
       if (Date.parse(options.deadlineAt) <= Date.now()) {
         throw new ConnectorClientError('PROVIDER_TIMEOUT', 'Invocation deadline reached while polling.');
       }
       await options.poll(result);
-      result = await this.poll(invocationId, signal);
+      result = await this.poll(invocationId, access);
     }
     return result;
   }
@@ -46,4 +61,9 @@ export class ConnectorClient {
     }
     return result;
   }
+}
+
+function resolveAccess(access?: AbortSignal | InvocationAccessOptions): InvocationAccessOptions {
+  if (!access) return {};
+  return 'aborted' in access ? { signal: access } : access;
 }

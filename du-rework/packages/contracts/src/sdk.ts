@@ -18,7 +18,11 @@ export const ArtifactRefDispositionSchema = z.object({
 export type ArtifactRefDisposition = z.infer<typeof ArtifactRefDispositionSchema>;
 
 export const TaskDispositionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('completed'), resultRef: z.string().min(1) }),
+  z.object({
+    kind: z.literal('completed'),
+    resultRef: z.string().min(1),
+    artifacts: z.array(ArtifactRefDispositionSchema).optional(),
+  }),
   z.object({ kind: z.literal('waiting-children') }),
   z.object({ kind: z.literal('waiting-input'), waitId: z.string().min(1) }),
   z.object({ kind: z.literal('retry-scheduled') }),

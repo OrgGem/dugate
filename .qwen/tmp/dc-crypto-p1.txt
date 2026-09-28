@@ -1,0 +1,143 @@
+/**
+ * W-ENC-04-DOC-CORE: document-core honours the worker crypto seam.
+ *
+ * What is pinned, in the order the packet asks:
+ *  1. ADAPTER — an SDK-shaped context that exposes `cryptoFor` yields an
+ *     internal context carrying a seam; one without it yields NONE, so the
+ *     opt-in/fallback contract is real rather than aspirational.
+ *  2. TENANT BINDING — the seam the adapter hands over is bound to the
+ *     context tenant. A handler cannot obtain a handle for another tenant,
+ *     because the adapter never passes a handler-supplied tenant.
+ *  3. CHECKPOINT ENCRYPTION — with a seam, the payload that PERSISTS is an
+ *     envelope with no plaintext in it, while the caller still receives the
+ *     original value; replay decrypts transparently and never re-executes.
+ *  4. NO SILENT PLAINTEXT — with no seam, the stored payload is exactly the
+ *     old value (byte-for-byte fallback), and a caller that REQUIRES
+ *     encryption fails BEFORE the step body runs rather than after it has
+ *     already persisted something.
+ *
+ * The key provider is a real reversible transform, not an echo: an echo would
+ * make a broken binding look authenticated.
+ */
+
+import { createHash, createHmac } from 'node:crypto';
+import {
+  CryptoStorageFacade,
+  bindTaskCrypto,
+  type CryptoKeyProvider,
+  type SealedArtifact,
+  type TaskArtifactBinding,
+  type TaskArtifactCrypto,
+  type WrappedDek,
+} from '@du/worker-sdk';
+import { toInternalContext } from '../src/worker';
+import { StepCheckpointManager } from '../src/pipelines/step-checkpoint';
+import type { StepCheckpointRecord, TaskContext } from '../src/types/context';
+
+const KEY_REF = 'du-doc-core-v1';
+const TENANT = 'tenant-doc-core';
+const SENTINEL = 'CONFIDENTIAL-STEP-OUTPUT-9de71b';
+
+function keystream(seed: string, length: number): Buffer {
+  const out = Buffer.alloc(length);
+  let block = 0;
+  for (let offset = 0; offset < length; offset += 32) {
+    const digest = createHmac('sha256', 'doc-core-test-double')
+      .update(seed + String.fromCharCode(58) + block)
+      .digest();
+    digest.copy(out, offset, 0, Math.min(32, length - offset));
+    block += 1;
+  }
+  return out;
+}
+
+function xor(data: Buffer, stream: Buffer): Buffer {
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i += 1) {
+    out[i] = (data[i] ?? 0) ^ (stream[i] ?? 0);
+  }
+  return out;
+}
+
+function makeProvider(): CryptoKeyProvider {
+  return {
+    async wrapDek(input): Promise<WrappedDek> {
+      const version = input.keyVersion ?? 1;
+      return {
+        keyRef: input.keyRef,
+        keyVersion: version,
+        ciphertext: xor(Buffer.from(input.dek), keystream(input.keyRef + String.fromCharCode(35) + String(version), input.dek.length)).toString('base64'),
+      };
+    },
+    async unwrapDek(wrapped: WrappedDek): Promise<Buffer> {
+      const raw = Buffer.from(wrapped.ciphertext, 'base64');
+      return xor(raw, keystream(wrapped.keyRef + String.fromCharCode(35) + String(wrapped.keyVersion), raw.length));
+    },
+  };
+}
+
+function makeCrypto(tenantId: string): TaskArtifactCrypto {
+  return bindTaskCrypto({ facade: new CryptoStorageFacade(makeProvider()), keyRef: KEY_REF }, { tenantId });
+}
+
+interface FakeSdkContext {
+  tenantId: string;
+  cryptoFor?: (binding: TaskArtifactBinding) => TaskArtifactCrypto;
+}
+
+/** An SDK-shaped context: the adapter treats it as non-internal. */
+function makeSdkContext(options: { withCrypto: boolean; tenantId?: string }): FakeSdkContext {
+  const tenantId = options.tenantId ?? TENANT;
+  const ctx: FakeSdkContext = {
+    tenantId,
+    artifacts: {
+      read: async () => Buffer.alloc(0),
+      write: async () => ({ artifactId: 'art-1', role: 'output' }),
+    },
+  } as unknown as FakeSdkContext;
+  if (options.withCrypto) {
+    ctx.cryptoFor = () => makeCrypto(tenantId);
+  }
+  return ctx;
+}
+
+describe('W-ENC-04-DOC-CORE adapter: the seam follows the worker configuration', () => {
+  it('exposes crypto on the internal context when the worker has a seam', () => {
+    const internal = toInternalContext(makeSdkContext({ withCrypto: true }) as never);
+    expect(internal.crypto).toBeDefined();
+    expect(internal.crypto?.tenantId).toBe(TENANT);
+  });
+
+  it('leaves crypto undefined when the worker has none (fallback preserved)', () => {
+    const internal = toInternalContext(makeSdkContext({ withCrypto: false }) as never);
+    expect(internal.crypto).toBeUndefined();
+  });
+
+  it('binds the seam to the CONTEXT tenant, not to a handler-chosen one', () => {
+    const other = makeSdkContext({ withCrypto: true, tenantId: 'tenant-other' });
+    const internal = toInternalContext(other as never);
+    expect(internal.crypto?.tenantId).toBe('tenant-other');
+  });
+});
+
+describe('W-ENC-04-DOC-CORE checkpoints: sealed at rest, transparent on replay', () => {
+  interface Harness {
+    ctx: TaskContext;
+    stored: Map<string, StepCheckpointRecord>;
+    runs: number;
+  }
+
+  function makeHarness(options: { withCrypto: boolean; tenantId?: string }): Harness {
+    const stored = new Map<string, StepCheckpointRecord>();
+    const state = { runs: 0 };
+    const base = makeSdkContext({ withCrypto: options.withCrypto, tenantId: options.tenantId });
+    const internal = toInternalContext(base as never) as unknown as TaskContext;
+    const harness: Harness = {
+      ctx: internal,
+      stored,
+      get runs() {
+        return state.runs;
+      },
+    } as Harness;
+    return harness;
+  }

@@ -1,0 +1,4 @@
+src/modules/runtime/runtime.ts(448,28): error TS2339: Property 'tenant_id' does not exist on type 'ActiveLeaseRow'.
+undefined
+D:\Git\dugate\du-rework\services\orchestrator:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found

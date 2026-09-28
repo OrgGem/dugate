@@ -1,0 +1,64 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand "--" "crypto-seam"
+
+FAIL tests/crypto-seam.test.ts
+  ● Test suite failed to run
+
+    [96mtests/crypto-seam.test.ts[0m:[93m72[0m:[93m9[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'wrappedKey' does not exist in type 'WrappedDek'.
+
+    [7m72[0m         wrappedKey: xor(Buffer.from(input.dek), keystream(input.keyRef + String.fromCharCode(35) + String(input.keyVersion ?? 1), input.dek.length)).toString('base64'),
+    [7m  [0m [91m        ~~~~~~~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m91[0m:[93m18[0m - [91merror[0m[90m TS2552: [0mCannot find name 'readFileSyncSync'. Did you mean 'readFileSync'?
+
+    [7m91[0m     const here = readFileSyncSync(join(__dirname, '..', 'src', 'crypto-storage.ts'), 'utf8');
+    [7m  [0m [91m                 ~~~~~~~~~~~~~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m91[0m:[93m35[0m - [91merror[0m[90m TS2304: [0mCannot find name 'join'.
+
+    [7m91[0m     const here = readFileSyncSync(join(__dirname, '..', 'src', 'crypto-storage.ts'), 'utf8');
+    [7m  [0m [91m                                  ~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m92[0m:[93m20[0m - [91merror[0m[90m TS2552: [0mCannot find name 'readFileSyncSync'. Did you mean 'readFileSync'?
+
+    [7m92[0m     const source = readFileSyncSync(join(__dirname, '..', '..', 'services', 'orchestrator', 'src', 'modules', 'encryption', 'crypto-storage.ts'), 'utf8');
+    [7m  [0m [91m                   ~~~~~~~~~~~~~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m92[0m:[93m37[0m - [91merror[0m[90m TS2304: [0mCannot find name 'join'.
+
+    [7m92[0m     const source = readFileSyncSync(join(__dirname, '..', '..', 'services', 'orchestrator', 'src', 'modules', 'encryption', 'crypto-storage.ts'), 'utf8');
+    [7m  [0m [91m                                    ~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m100[0m:[93m18[0m - [91merror[0m[90m TS2552: [0mCannot find name 'readFileSyncSync'. Did you mean 'readFileSync'?
+
+    [7m100[0m     const here = readFileSyncSync(join(__dirname, '..', 'src', 'crypto-storage.ts'), 'utf8');
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m100[0m:[93m35[0m - [91merror[0m[90m TS2304: [0mCannot find name 'join'.
+
+    [7m100[0m     const here = readFileSyncSync(join(__dirname, '..', 'src', 'crypto-storage.ts'), 'utf8');
+    [7m   [0m [91m                                  ~~~~[0m
+    [96mtests/crypto-seam.test.ts[0m:[93m189[0m:[93m38[0m - [91merror[0m[90m TS2345: [0mArgument of type 'Buffer<ArrayBufferLike>[]' is not assignable to parameter of type 'AsyncIterable<Uint8Array<ArrayBufferLike>>'.
+      Property '[Symbol.asyncIterator]' is missing in type 'Buffer<ArrayBufferLike>[]' but required in type 'AsyncIterable<Uint8Array<ArrayBufferLike>>'.
+
+    [7m189[0m     const opened = crypto.openStream(chunks, resolved, { artifactId: 'art-big' });
+    [7m   [0m [91m                                     ~~~~~~[0m
+
+      [96m../../node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/lib.es2018.asynciterable.d.ts[0m:[93m38[0m:[93m5[0m
+        [7m38[0m     [Symbol.asyncIterator](): AsyncIterator<T, TReturn, TNext>;
+        [7m  [0m [96m    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        '[Symbol.asyncIterator]' is declared here.
+    [96mtests/crypto-seam.test.ts[0m:[93m206[0m:[93m36[0m - [91merror[0m[90m TS2345: [0mArgument of type 'Buffer<ArrayBufferLike>[]' is not assignable to parameter of type 'AsyncIterable<Uint8Array<ArrayBufferLike>>'.
+      Property '[Symbol.asyncIterator]' is missing in type 'Buffer<ArrayBufferLike>[]' but required in type 'AsyncIterable<Uint8Array<ArrayBufferLike>>'.
+
+    [7m206[0m     expect(() => crypto.openStream(chunks, resolved, { artifactId: 'art-other' })).toThrow();
+    [7m   [0m [91m                                   ~~~~~~[0m
+
+      [96m../../node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/lib.es2018.asynciterable.d.ts[0m:[93m38[0m:[93m5[0m
+        [7m38[0m     [Symbol.asyncIterator](): AsyncIterator<T, TReturn, TNext>;
+        [7m  [0m [96m    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        '[Symbol.asyncIterator]' is declared here.
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        2.044 s
+Ran all test suites matching /crypto-seam/i.
+D:\Git\dugate\du-rework\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/worker-sdk@0.1.0 test: `jest --runInBand "--" "crypto-seam"`
+Exit status 1

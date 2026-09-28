@@ -1,0 +1,70 @@
+/**
+ * W-DATA-03-URL-ACQ: a URL-sourced task must not be runnable until its source is READY.
+ *
+ * The gap pinned here: the source-pin check used to run only when at least one
+ * artifact had been read. A URL task whose acquisition never reached READY has no
+ * materialized artifact, so the check was SKIPPED — and when the task also carried
+ * inline text, parse mode consumed that text and reported success for bytes the
+ * platform had never fetched.
+ *
+ * Asserted: pin + no artifact => unresolved (step body never runs); pin +
+ * non-matching artifacts => mismatch; pin + matching artifact => parses the PINNED
+ * bytes and ignores inline text; no pin => the ordinary inline path is untouched;
+ * a failed acquisition leaves no partial bytes behind.
+ */
+
+import { createHash } from 'node:crypto';
+import { IngestAction } from '../src/actions/ingest';
+import { MockTaskContext } from './fixtures/mock-context';
+
+function sha256(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+const PINNED = Buffer.from('item,total
+widget,10', 'utf8');
+
+function pinFor(bytes: Buffer) {
+  return {
+    url: 'https://files.example.com/invoice.csv',
+    sha256: sha256(bytes),
+    sizeBytes: bytes.length,
+    storageKey: 'art-pinned',
+    versionId: 'v1',
+  };
+}
+
+describe('W-DATA-03: a URL task is not runnable before its source is READY', () => {
+  it('refuses a pin with no materialized artifact, even with inline text present', async () => {
+    const ctx = new MockTaskContext();
+    const input = IngestAction.validateInput({
+      mode: 'parse',
+      source: pinFor(PINNED),
+      text: 'inline text that is NOT the pinned document',
+    });
+    let caught: unknown;
+    try {
+      await IngestAction.prepareSources(ctx, input);
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as { code?: string }).code).toBe('INGESTION_SOURCE_UNRESOLVED');
+  });
+
+  it('refuses a pin whose artifacts were read but do not match', async () => {
+    const ctx = new MockTaskContext();
+    const other = Buffer.from('completely different bytes', 'utf8');
+    const ref = await ctx.artifacts.write(other, 'other.csv', 'text/csv');
+    const input = IngestAction.validateInput({
+      mode: 'parse',
+      source: pinFor(PINNED),
+      artifactIds: [ref.artifactId],
+    });
+    let caught: unknown;
+    try {
+      await IngestAction.prepareSources(ctx, input);
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as { code?: string }).code).toBe('SOURCE_PIN_MISMATCH');
+  });

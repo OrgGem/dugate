@@ -1,19 +1,22 @@
+import { randomUUID } from 'node:crypto';
 import { currentContext, CorrelationContext } from './context';
 import { redact } from './redaction';
 
-/**
- * Structured JSON logger (docs 12). One JSON line per record to stdout;
- * redaction applied to all fields by default. No secret/prompt/document
- * content is ever emitted.
- */
-
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+/** One JSON line per record; required schema fields are always emitted. */
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+export type LogEnvironment = 'dev' | 'test' | 'staging' | 'prod';
 
 export interface LogRecord {
-  ts: string;
+  timestamp: string;
   level: LogLevel;
-  component: string;
-  msg: string;
+  service: string;
+  version: string;
+  environment: LogEnvironment;
+  correlationId: string;
+  operationId: string | null;
+  taskId: string | null;
+  invocationId: string | null;
+  message: string;
   [key: string]: unknown;
 }
 
@@ -28,25 +31,69 @@ export const consoleSink: LogSink = {
 };
 
 export interface LoggerOptions {
-  component: string;
+  /** Preferred stable service identifier. */
+  service?: string;
+  /** Deploy version; defaults to DU_SERVICE_VERSION, APP_VERSION, or `unknown`. */
+  version?: string;
+  /** @deprecated Compatibility alias for `service`. */
+  component?: string;
+  environment?: LogEnvironment;
   level?: LogLevel;
   sink?: LogSink;
-  /** Fixed fields added to every record (bounded labels only). */
+  /** Fixed additional fields added to every record (all are redacted). */
   baseFields?: Record<string, unknown>;
   now?: () => Date;
 }
 
-const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
+const LEVEL_ORDER: Record<LogLevel, number> = { trace: 5, debug: 10, info: 20, warn: 30, error: 40 };
+const RESERVED_FIELDS = new Set([
+  'component', 'ts', 'msg', 'timestamp', 'level', 'service', 'version', 'environment',
+  'correlationId', 'operationId', 'taskId', 'invocationId', 'message',
+]);
+
+function resolveEnvironment(value?: LogEnvironment): LogEnvironment {
+  const configured = value ?? process.env.DU_ENVIRONMENT ?? process.env.APP_ENV ?? process.env.NODE_ENV;
+  switch (configured?.toLowerCase()) {
+    case 'test':
+      return 'test';
+    case 'staging':
+      return 'staging';
+    case 'prod':
+    case 'production':
+      return 'prod';
+    case 'dev':
+    case 'development':
+    default:
+      return 'dev';
+  }
+}
+
+function optionalId(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function resolveVersion(value?: string): string {
+  const configured = value ?? process.env.DU_SERVICE_VERSION ?? process.env.APP_VERSION;
+  return typeof configured === 'string' && configured.trim().length > 0
+    ? configured.trim()
+    : 'unknown';
+}
 
 export class Logger {
-  private readonly component: string;
+  private readonly service: string;
+  private readonly version: string;
+  private readonly environment: LogEnvironment;
   private readonly level: LogLevel;
   private readonly sink: LogSink;
   private readonly baseFields: Record<string, unknown>;
   private readonly now: () => Date;
 
   constructor(opts: LoggerOptions) {
-    this.component = opts.component;
+    const service = opts.service ?? opts.component;
+    if (!service || !service.trim()) throw new TypeError('logger service is required');
+    this.service = service;
+    this.version = resolveVersion(opts.version);
+    this.environment = resolveEnvironment(opts.environment);
     this.level = opts.level ?? 'info';
     this.sink = opts.sink ?? consoleSink;
     this.baseFields = opts.baseFields ?? {};
@@ -55,7 +102,9 @@ export class Logger {
 
   child(fields: Record<string, unknown>): Logger {
     return new Logger({
-      component: this.component,
+      service: this.service,
+      version: this.version,
+      environment: this.environment,
       level: this.level,
       sink: this.sink,
       baseFields: { ...this.baseFields, ...fields },
@@ -63,43 +112,55 @@ export class Logger {
     });
   }
 
-  debug(msg: string, fields?: Record<string, unknown>): void {
-    this.emit('debug', msg, fields);
+  trace(message: string, fields?: Record<string, unknown>): void {
+    this.emit('trace', message, fields);
   }
-  info(msg: string, fields?: Record<string, unknown>): void {
-    this.emit('info', msg, fields);
+  debug(message: string, fields?: Record<string, unknown>): void {
+    this.emit('debug', message, fields);
   }
-  warn(msg: string, fields?: Record<string, unknown>): void {
-    this.emit('warn', msg, fields);
+  info(message: string, fields?: Record<string, unknown>): void {
+    this.emit('info', message, fields);
   }
-  error(msg: string, fields?: Record<string, unknown>): void {
-    this.emit('error', msg, fields);
+  warn(message: string, fields?: Record<string, unknown>): void {
+    this.emit('warn', message, fields);
+  }
+  error(message: string, fields?: Record<string, unknown>): void {
+    this.emit('error', message, fields);
   }
 
-  private emit(level: LogLevel, msg: string, fields?: Record<string, unknown>): void {
+  private emit(level: LogLevel, message: string, fields?: Record<string, unknown>): void {
     if (LEVEL_ORDER[level] < LEVEL_ORDER[this.level]) return;
-    const ctx: CorrelationContext | undefined = currentContext();
-    const record: Record<string, unknown> = {
-      ts: this.now().toISOString(),
-      level,
-      component: this.component,
-      msg,
+    const context: CorrelationContext | undefined = currentContext();
+    const combinedFields: Record<string, unknown> = {
       ...this.baseFields,
+      ...(context?.operationId ? { operationId: context.operationId } : {}),
+      ...(context?.tenantId ? { tenantId: context.tenantId } : {}),
+      ...(context?.businessId ? { businessId: context.businessId } : {}),
+      ...(context?.businessVersion ? { businessVersion: context.businessVersion } : {}),
+      ...(context?.stepKey ? { stepKey: context.stepKey } : {}),
+      ...(context?.leaseEpoch !== undefined ? { leaseEpoch: context.leaseEpoch } : {}),
+      ...fields,
     };
-    if (ctx) {
-      record.correlationId = ctx.correlationId;
-      if (ctx.operationId) record.operationId = ctx.operationId;
-      if (ctx.taskId) record.taskId = ctx.taskId;
-      if (ctx.stepKey) record.stepKey = ctx.stepKey;
-      if (ctx.invocationId) record.invocationId = ctx.invocationId;
-      if (ctx.businessId) record.businessId = ctx.businessId;
-      if (ctx.businessVersion) record.businessVersion = ctx.businessVersion;
-      if (ctx.leaseEpoch !== undefined) record.leaseEpoch = ctx.leaseEpoch;
-      if (ctx.tenantId) record.tenantId = ctx.tenantId;
-    }
-    if (fields) Object.assign(record, fields);
-    const safe = redact(record) as Record<string, unknown>;
-    this.sink.write(JSON.stringify(safe));
+    const correlationId = context?.correlationId ?? optionalId(combinedFields.correlationId) ?? randomUUID();
+    const operationId = optionalId(context?.operationId ?? combinedFields.operationId);
+    const taskId = optionalId(context?.taskId ?? combinedFields.taskId);
+    const invocationId = optionalId(context?.invocationId ?? combinedFields.invocationId);
+    for (const key of RESERVED_FIELDS) delete combinedFields[key];
+
+    const record: LogRecord = {
+      ...combinedFields,
+      timestamp: this.now().toISOString(),
+      level,
+      service: this.service,
+      version: this.version,
+      environment: this.environment,
+      correlationId,
+      operationId,
+      taskId,
+      invocationId,
+      message,
+    };
+    this.sink.write(JSON.stringify(redact(record)));
   }
 }
 

@@ -1,0 +1,9 @@
+const fs = require('fs');
+const p = 'D:/Git/dugate/du-rework/packages/worker-sdk/tests/crypto-seam.test.ts';
+let s = fs.readFileSync(p, 'utf8');
+const bad = "  it('cryptoFor refuses when the deployment configured no seam', () => {" + NL + "    const crypto = bindTaskCrypto(undefined, { tenantId: TENANT });" + NL + "    expect(() => crypto.seal(Buffer.from('x'), { artifactId: 'art-1' })).toThrow(/not configured/);" + NL + "  });";
+const good = "  it('refuses to seal when the deployment configured no seam', async () => {" + NL + "    const crypto = bindTaskCrypto(undefined, { tenantId: TENANT });" + NL + "    await expect(crypto.seal(Buffer.from('x'), { artifactId: 'art-1' })).rejects.toThrow(/not configured/);" + NL + "  });";
+console.log('found=' + (s.indexOf(bad) >= 0));
+s = s.split(bad).join(good);
+fs.writeFileSync(p, s, 'utf8');
+console.log('replaced=' + (s.indexOf('rejects.toThrow(/not configured/)') >= 0));

@@ -7,6 +7,9 @@ import {
   InMemoryUsageOutbox,
   appendUsageEvent,
 } from '../src';
+// Cycle-102 convention: bind the two fetch-driving servers OUTSIDE the OS
+// ephemeral band (Windows filters connects to freshly chosen ephemeral ports).
+import { listenLoopback } from '../../../tests/harness/listen-loopback';
 
 class FakeRedis implements RedisEvalClient {
   private readonly leases = new Map<string, Map<string, number>>();
@@ -25,6 +28,15 @@ class FakeRedis implements RedisEvalClient {
       entries.set(leaseId, expiry);
       return leaseId;
     }
+    if (script.includes('ZSCORE')) {
+      const leaseId = args[1];
+      const now = Number(args[2]);
+      const expiry = Number(args[3]);
+      const current = entries.get(leaseId);
+      if (current === undefined || current <= now || expiry <= now) return false;
+      entries.set(leaseId, expiry);
+      return expiry;
+    }
     entries.delete(args[1]);
     return 1;
   }
@@ -37,8 +49,12 @@ test('Redis quota is shared by two store instances through atomic eval boundary'
   const lease = await first.acquire('account:model', 100, 1000, 1);
   expect(lease).toBeDefined();
   expect(await second.acquire('account:model', 100, 1000, 1)).toBeUndefined();
+  const renewed = await second.renew(lease!, 500, 1000);
+  expect(renewed?.expiresAt).toBe(1500);
+  expect(await second.acquire('account:model', 500, 1000, 1)).toBeUndefined();
   await first.release(lease!);
-  expect(await second.acquire('account:model', 100, 1000, 1)).toBeDefined();
+  expect(await second.renew(lease!, 500, 1000)).toBeUndefined();
+  expect(await second.acquire('account:model', 500, 1000, 1)).toBeDefined();
 });
 
 test('management revision redacts all configured provider headers', () => {
@@ -54,6 +70,8 @@ test('management revision redacts all configured provider headers', () => {
     },
     credentialRef: 'credential-1',
     state: 'ACTIVE',
+    credentialSource: { kind: 'legacy-db', credentialRef: 'credential-1' },
+    tenantId: '',
   });
   expect(redacted.config.headers).toEqual({
     authorization: '[REDACTED]',
@@ -71,9 +89,24 @@ test('HTTP shell exposes health, redacted management, and write-only rotation', 
       config: { baseUrl: 'https://provider.example', path: '/infer', headers: { authorization: 'secret' }, timeoutMs: 1000 },
       credentialRef: 'credential-1',
       state: 'ACTIVE',
+      credentialSource: { kind: 'legacy-db', credentialRef: 'credential-1' },
+      tenantId: '',
     }],
     get: async () => undefined,
-    createRevision: async (input) => ({ ...input, revision: 1 }),
+    createRevision: async (input) => ({
+      ...input,
+      credentialSource: input.credentialSource ?? { kind: 'legacy-db', credentialRef: input.credentialRef },
+      revision: 1,
+      tenantId: input.tenantId ?? '',
+    }),
+    getRevision: async () => undefined,
+    getCurrentRevision: async () => undefined,
+    bootstrapRevision: async () => { throw new Error('unused'); },
+    createPendingRevision: async () => {
+      throw new Error('not implemented in test double');
+    },
+    activateRevision: async () => false,
+    retireRevision: async () => {},
     rotateCredential: async (_id, secret) => { rotated = secret; },
     disable: async () => {},
     test: async () => ({ ok: true }),
@@ -89,7 +122,7 @@ test('HTTP shell exposes health, redacted management, and write-only rotation', 
     ready: async () => true,
   });
 
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  await listenLoopback(server, 43440 + ((process.pid % 8) * 8));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('server did not bind');
   const base = `http://127.0.0.1:${address.port}`;
@@ -104,6 +137,67 @@ test('HTTP shell exposes health, redacted management, and write-only rotation', 
   });
   expect(rotateResponse.status).toBe(204);
   expect(rotated).toBe('new-secret');
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+});
+
+test('HTTP invocation reads and cancellation forward the invocation grant header', async () => {
+  let getGrant: string | undefined;
+  let cancelGrant: string | undefined;
+  const management: ConnectorHttpStore = {
+    list: async () => [],
+    get: async () => undefined,
+    createRevision: async (input) => ({
+      ...input,
+      credentialSource: input.credentialSource ?? { kind: 'legacy-db', credentialRef: input.credentialRef },
+      revision: 1,
+      tenantId: input.tenantId ?? '',
+    }),
+    getRevision: async () => undefined,
+    getCurrentRevision: async () => undefined,
+    bootstrapRevision: async () => { throw new Error('unused'); },
+    createPendingRevision: async () => {
+      throw new Error('not implemented in test double');
+    },
+    activateRevision: async () => false,
+    retireRevision: async () => {},
+    rotateCredential: async () => {},
+    disable: async () => {},
+    test: async () => ({ ok: true }),
+  };
+  const server = createConnectorServer({
+    management,
+    runtime: {
+      invoke: async () => ({ invocationId: 'inv-1', state: 'completed' }),
+      get: async (invocationId, invocationGrant) => {
+        getGrant = invocationGrant;
+        return { invocationId, state: 'completed' };
+      },
+      cancel: async (invocationId, _reason, invocationGrant) => {
+        cancelGrant = invocationGrant;
+        return { invocationId, state: 'cancelled' };
+      },
+    },
+    capabilities: () => ({}),
+    ready: async () => true,
+  });
+
+  await listenLoopback(server, 43500 + ((process.pid % 8) * 8));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('server did not bind');
+  const base = `http://127.0.0.1:${address.port}`;
+  const headers = { 'content-type': 'application/json', 'x-invocation-grant': 'signed-grant' };
+
+  const read = await fetch(`${base}/invocations/inv-1`, { headers });
+  const cancel = await fetch(`${base}/invocations/inv-1/cancel`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ reason: 'test cancel' }),
+  });
+
+  expect(read.status).toBe(200);
+  expect(cancel.status).toBe(202);
+  expect(getGrant).toBe('signed-grant');
+  expect(cancelGrant).toBe('signed-grant');
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 });
 

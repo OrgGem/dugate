@@ -38,7 +38,7 @@ type TaskDisposition =
   | { kind: 'retry-scheduled' };
 ```
 
-TaskContext cung cấp identity, snapshot, deadline, AbortSignal, checkpoints và các facade dưới đây. DTO/schema được contracts package sở hữu; các type rút gọn ở đây cần hoàn thiện P1 trước viết implementation.
+TaskContext cung cấp identity, snapshot, deadline, AbortSignal, checkpoints và các facade dưới đây. DTO/schema đã được materialize trong `@du/contracts` (gate `contracts-v1` READY) và facade/worker lifecycle trong `@du/worker-sdk` (gate `sdk-ready` READY). Spawn/HITL/artifact/grant surface có unit evidence nhưng endpoint Orchestrator và cross-service E2E tương ứng vẫn chưa đầy đủ.
 
 ## Functions và responsibilities
 

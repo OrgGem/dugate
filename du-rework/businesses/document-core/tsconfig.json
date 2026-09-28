@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": {
+      "@du/orchestrator": ["../../services/orchestrator/dist/index.d.ts"],
+      "@du/connector": ["../../services/connector/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["tests", "dist", "node_modules"]

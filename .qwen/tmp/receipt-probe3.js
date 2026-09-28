@@ -1,0 +1,12 @@
+const fs = require('fs');
+const crypto = require('crypto');
+const rep = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const L = fs.readFileSync(rep, 'utf8').split(String.fromCharCode(10));
+console.log('---L42..L62---');
+for (let i = 41; i < 62; i++) console.log((i + 1) + '|' + L[i]);
+console.log('---LAST 3 LINES with numbers---');
+for (let i = L.length - 3; i < L.length; i++) console.log((i + 1) + '|' + JSON.stringify(L[i].slice(0, 60)));
+const src = fs.readFileSync('D:/Git/dugate/du-rework/services/orchestrator/src/server.ts');
+console.log('SERVER_TS sha256_8=' + crypto.createHash('sha256').update(src).digest('hex').slice(0, 8) + ' lines=' + (src.toString('utf8').split(String.fromCharCode(13) + String.fromCharCode(10)).length - 1) + ' bytes=' + src.length);
+const mig = fs.readFileSync('D:/Git/dugate/du-rework/services/orchestrator/migrations/0019_operations_deadline_coalesce_index.sql');
+console.log('MIG0019 sha256_8=' + crypto.createHash('sha256').update(mig).digest('hex').slice(0, 8) + ' bytes=' + mig.length + ' (UNCHANGED check: expect 5129)');

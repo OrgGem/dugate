@@ -1,3 +1,4 @@
+import { PoolClient } from 'pg';
 import {
   BusinessManifest,
   RegistrationRecordSchema,
@@ -30,6 +31,12 @@ export interface RegistryService {
     digest: string;
     queue: string;
   }>;
+  /** Activate a version as the target for new submissions (W28-C).
+   *  R3-01: pass the route's open tx client to join its transaction
+   *  instead of opening a private one. */
+  activateVersion(businessId: string, version: string, client?: PoolClient): Promise<{ businessId: string; version: string; active: boolean; replayed: boolean }>;
+  /** Deactivate/drain a version so new submissions no longer target it (W28-C). */
+  deactivateVersion(businessId: string, version: string, client?: PoolClient): Promise<{ businessId: string; version: string; active: boolean; replayed: boolean }>;
 }
 
 export function createRegistryService(db: Db): RegistryService {
@@ -106,16 +113,85 @@ export function createRegistryService(db: Db): RegistryService {
       }
       return { manifest: row.manifest, digest: row.digest, queue: row.queue };
     },
+
+    async activateVersion(businessId, version, activeClient) {
+      const run = async (client: PoolClient) => {
+        // Lock ALL versions of this business in a deterministic order FIRST.
+        // Two concurrent activates for different versions would otherwise each
+        // hold their own target row and then block on the other's row in the
+        // mass clear below — a classic lock-ordering deadlock (W28-C review
+        // item 3). Ordered locking serializes them: last committer wins, the
+        // partial unique index is never violated, final state is exactly one
+        // active version.
+        await client.query(
+          'SELECT version FROM business_versions WHERE business_id = $1 ORDER BY version FOR UPDATE',
+          [businessId]
+        );
+        const res = await client.query(
+          'SELECT status, is_active FROM business_versions WHERE business_id = $1 AND version = $2',
+          [businessId, version]
+        );
+        if (!res.rowCount) {
+          throw new HttpError(404, 'NOT_FOUND', `business ${businessId}@${version} not registered`);
+        }
+        const row = res.rows[0] as { status: string; is_active: boolean };
+        if (row.status !== 'ENABLED') {
+          throw conflict('STATE_CONFLICT', `business ${businessId}@${version} is ${row.status}, not ENABLED`);
+        }
+        if (row.is_active) {
+          // Idempotent retry — already the active target.
+          return { businessId, version, active: true, replayed: true };
+        }
+        // Activating a new version implicitly deactivates the previous one.
+        await client.query('UPDATE business_versions SET is_active = false, updated_at = now() WHERE business_id = $1', [businessId]);
+        await client.query(
+          'UPDATE business_versions SET is_active = true, updated_at = now() WHERE business_id = $1 AND version = $2',
+          [businessId, version]
+        );
+        return { businessId, version, active: true, replayed: false };
+      };
+      return activeClient ? run(activeClient) : db.tx(run);
+    },
+
+    async deactivateVersion(businessId, version, activeClient) {
+      const run = async (client: PoolClient) => {
+        const res = await client.query(
+          'SELECT status, is_active FROM business_versions WHERE business_id = $1 AND version = $2 FOR UPDATE',
+          [businessId, version]
+        );
+        if (!res.rowCount) {
+          throw new HttpError(404, 'NOT_FOUND', `business ${businessId}@${version} not registered`);
+        }
+        const row = res.rows[0] as { status: string; is_active: boolean };
+        if (row.status !== 'ENABLED') {
+          throw conflict('STATE_CONFLICT', `business ${businessId}@${version} is ${row.status}, not ENABLED`);
+        }
+        if (!row.is_active) {
+          // Idempotent retry — already not the active target.
+          return { businessId, version, active: false, replayed: true };
+        }
+        await client.query(
+          'UPDATE business_versions SET is_active = false, updated_at = now() WHERE business_id = $1 AND version = $2',
+          [businessId, version]
+        );
+        return { businessId, version, active: false, replayed: false };
+      };
+      return activeClient ? run(activeClient) : db.tx(run);
+    },
   };
 }
 
-/** Test/admin helper: flip a registered version to ENABLED (P2-02 does the full RBAC path). */
+/** Test/admin helper: flip a registered version to ENABLED and active (W28-C adds is_active). */
 export async function enableVersionForTest(db: Db, businessId: string, version: string): Promise<void> {
-  await db.query('UPDATE business_versions SET status = $3 WHERE business_id = $1 AND version = $2', [
-    businessId,
-    version,
-    'ENABLED',
-  ]);
+  // Transactionally: disable all other versions, then enable+activate this one.
+  await db.tx(async (client) => {
+    await client.query('UPDATE business_versions SET is_active = false, updated_at = now() WHERE business_id = $1', [businessId]);
+    await client.query('UPDATE business_versions SET status = $3, is_active = true, updated_at = now() WHERE business_id = $1 AND version = $2', [
+      businessId,
+      version,
+      'ENABLED',
+    ]);
+  });
 }
 
 export { hashManifest };

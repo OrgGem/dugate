@@ -1,0 +1,12 @@
+const fs=require('fs');const NL=String.fromCharCode(10);
+const s=fs.readFileSync('D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md','utf8');
+const L=s.split(NL);
+console.log('lines='+L.length+' bytes='+Buffer.byteLength(s)+' CRLF='+(s.split(String.fromCharCode(13)+NL).length-1));
+const ledger=L.filter(l=>/^- \d+ —/.test(l));
+console.log('LEDGER_COUNT='+ledger.length+' ROWS='+ledger.map(l=>l.match(/^-(\d+)/)[1]).join(','));
+console.log('has_MUC15='+s.includes('## 15 — CYCLE 15'));
+console.log('has_RP15='+s.includes('cuối cycle 15'));
+console.log('has_BLOCKED='+s.includes('W-ENC-01-SCHEMA BLOCKED'));
+console.log('has_D32_DONG='+s.includes('Δ32 ĐÓNG'));
+const fffd=s.includes(String.fromCharCode(0xFFFD));
+console.log('FFFD='+fffd);

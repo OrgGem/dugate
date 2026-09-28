@@ -38,6 +38,7 @@ export const PublicErrorCodes = [
   'CLIENT_QUOTA',
   'ADMISSION_UNAVAILABLE',
   'PROVIDER_UNAVAILABLE',
+  'UNSUPPORTED_STORAGE_BACKEND',
   'INTERNAL',
 ] as const;
 export type PublicErrorCode = (typeof PublicErrorCodes)[number];

@@ -1,0 +1,28 @@
+
+
+## 26 — W47-Q2-5: ART-02 wire-hook ĐÃ NỐI DÂY (owner P4-05 = Qwen-2; giờ thật 2026-09-24 22:57 +0700)
+
+**Boundary: chỉ `packages/worker-sdk` (src + tests). `server.ts`/admin Claude Code KHÔNG đụng. KHÔNG tick — reconcile của coordinator.**
+
+**(1) Hợp đồng ĐÚNG THEO CODE** (`server.ts:711-743` + `runtime.ts:899-919` đọc nguyên văn):
+- `GET /api/runtime/v1/workspace-reference?workspacePath=<dir>&tenantId=<uuid>`, bearer runtime (`assertRuntimeAuth`);
+- 200 `{ workspacePath, tenantId, referenced: boolean, activeHolders: number }`; 401 bearer sai; **422** thiếu/sai query; **không có 404** — workspace lạ trả `referenced:false` (ứng viên orphan), đúng như coordinator nói;
+- **NUANCE không phúng đại:** `referenced` = **TENANT presence, không phải path attribution** — SQL chỉ đếm theo `tenantId` (tasks non-terminal ∪ OPEN human_waits); `workspacePath` chỉ được echo; doc-comment runtime ghi rõ "no workspace-path column exists — storage_key is art-<uuid>". ⇒ một tenant có active holder chặn don MỌI dir hết hạn trong lượt sweep. Ghi nguyên văn vào doc-block code + test.
+
+**(2) Wiring:**
+- `src/artifact-streams.ts`: +`createWorkspaceReferenceCheck(opts)` + `WorkspaceReferenceQueryOptions` (baseUrl, tenantIds, fetchImpl injectable, token, timeoutMs mặc định 5000, onUncertain).
+- `src/worker.ts`: `TempSweepConfig.referenceQuery?: { tenantIds: string[]; timeoutMs?: number }`; `startWorker.runSweep` truyền `hasActiveReference` = hook gọi endpoint qua `config.runtimeUrl`/`config.runtimeToken`/fetchImpl. **Không cấu hình `referenceQuery` ⇒ nguyên trạng in-process guard** (documented).
+- `src/index.ts`: export hàm + type.
+
+**(3) FAIL-SAFE tuyên bố + kiểm chứng:** network reject, timeout/abort, HTTP 4xx/5xx, body dị (referenced không boolean) ⇒ hook trả **true (REFERENCED)** + `onUncertain` log — **bất định không bao giờ xóa**; chỉ khi MỌI tenant trả `referenced:false` mới là orphan candidate. 401-không-token cũng fail-safe (test riêng).
+
+**(4) Lệnh + literal (cwd `packages/worker-sdk`, ExitCode từng dòng riêng):**
+- `npx jest tests/workspace-reference-wiring.test.ts --runInBand` → `Test Suites: 1 passed, 1 total | Tests: 9 passed, 9 total | 0 skipped | 0 failed`, Time ~2.8s, **EXIT=0** — trung thực: 2 vòng đỏ đầu do test của tôi (TS2554 thiếu arg `log`; TS2552 `RequestInfo` không có trong lib node), không phải source; sửa test, không bẻ source.
+- Regression `npx jest --runInBand` → `Test Suites: 8 passed, 8 total | Tests: 133 passed, 133 total | 0 skipped | 0 failed`, **FULL_EXIT=0** (124 cũ + 9 mới; suite cũ không đổi kết quả).
+- `npm run lint` (tsc --noEmit) → **LINT_EXIT=0** — 22:57:53 +0700.
+- Files: `src/artifact-streams.ts` (+~75), `src/worker.ts` (config+wiring), `src/index.ts` (2 exports), `tests/workspace-reference-wiring.test.ts` (MỚI, 9 test).
+
+**Còn treo (ngoài boundary SDK):** nghiệm thu LIVE end-to-end (worker thật sweep chạm endpoint thật + DB) chưa có live-suite — tôi không tự tạo test LIVE cần window DB; REQUEST để coordinator quyết route (row P4-05 vẫn [~]).
+
+- 20:34→21:0x — W47-Q2-4: reconcile disk-vs-ledger (127/223/114 BOTH/13 DISK-ONLY/10 LEDGER-ONLY False); 13 dong R1-R13 vao docs/35 §3.5 + docs/28 §7 (chi THEM, khong doi status cu); 4 [UNRUN] → RUN REQUEST vao docs/29 route Agent-6; docs/36 §11; tu phe 2 loi edit (nuot header §6 docs/28, trung header Nhat ky) da khac phuc; §1.4 cai bang SKIP-QUALIFIED cho dong batch cua lan khong ghi ro §1.4 cu. — Viec 24.
+- 22:5x — W47-Q2-5: doc ky server.ts:711-743 (200 echo path + referenced THEO TENANT / 401 / 422 / khong 404 — nuance ghi ro); noi day worker.ts tempSweep.referenceQuery + createWorkspaceReferenceCheck fail-safe; test moi 9/9 exit 0; regression 8/8 · 133/133 exit 0; lint 0; P4-05 giu [~], khong tick. — Viec 26.

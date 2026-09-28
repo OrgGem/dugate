@@ -1,6 +1,19 @@
 # Project structures và ownership
 
-Các thư mục dưới đây là **cấu trúc implementation dự kiến**. Hiện chỉ có README/spec/task Markdown. Dùng npm workspaces độc lập trong `du-rework`; không sửa root package.json/lockfile của DUGate.
+Các thư mục dưới đây là cấu trúc mục tiêu. Workspace/package chính đã materialize và build; Admin chưa có, artifact bytea và example-review có implementation partial. Dùng pnpm workspace độc lập trong `du-rework`; không sửa root package.json/lockfile của DUGate. Xem [review cấu trúc/code](../coordination/STRUCTURE-CODE-REVIEW-2026-09-21.md) cho các khác biệt cần xử lý.
+
+## Cấu trúc thực tế sau FIX-07
+
+| Mục tiêu | Hiện trạng | Quyết định/task còn mở |
+|---|---|---|
+| Hai services, business độc lập, năm shared packages | Đã đúng ở cấp workspace | Giữ dependency ownership; thêm automated boundary checks |
+| Orchestrator Next routes/Admin + server lifecycle | node:http trong src/server.ts; chưa có src/app; start script chưa listen | ADR HTTP/UI framework và P2-09/P6/P8-06 |
+| PostgreSQL + Drizzle, one-shot migrations | raw pg; migrations chạy trong createApp; SQL ở migrations/ | ADR DB approach; mở lại P2-01 |
+| S3 artifact storage | PostgreSQL bytea tạm thời theo wave-05 | P2-03 hardening và P8 storage/deployment |
+| Connector src/modules | Domain files ở src root, có http/adapters/db | Khác tên thư mục không phải lỗi nếu giữ layering |
+| Full multi-service deployment | Compose mới có PG/Redis; một số worker/service có Dockerfile | P8-06 còn mở |
+
+Các khác biệt framework/DB cần quyết định kiến trúc rõ ràng; bảng này ghi hiện trạng, không tự thay thế kiến trúc mục tiêu phía dưới.
 
 ```text
 du-rework/

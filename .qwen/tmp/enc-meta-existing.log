@@ -1,0 +1,14 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "mm10-claim-cancel-flag" "br08-cancel-resume-race" "br12-isolation" "mm05-queue-integrity-sweep"
+
+PASS tests/br12-isolation-offline.test.ts
+PASS tests/mm05-queue-integrity-sweep.test.ts
+PASS tests/mm10-claim-cancel-flag-offline.test.ts
+PASS tests/br08-cancel-resume-race-offline.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       44 passed, 44 total
+Snapshots:   0 total
+Time:        6.205 s
+Ran all test suites matching /mm10-claim-cancel-flag|br08-cancel-resume-race|br12-isolation|mm05-queue-integrity-sweep/i.

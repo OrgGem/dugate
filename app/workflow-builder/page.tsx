@@ -9,6 +9,21 @@ import {
   Settings, List, Grid, Search, X
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  findMissingRequiredField,
+  submitRunSchema,
+} from "./run-schema-client";
+import {
+  submitDuOperation,
+  pollDuOperation,
+  decideRunEngine,
+  buildSubmissionForEngine,
+  resumeDuOperation,
+  type DuFetcher,
+  type RunEngine,
+  type RunEngineDecision,
+  type DuOperationDetail,
+} from "./du-operation-adapter";
 
 interface WorkflowSchemaSummary {
   slug: string;
@@ -52,6 +67,27 @@ interface WorkflowSchema {
     from?: string;
     extra_data_from?: string;
   };
+  /**
+   * W33-CC: when true, the Run modal submits via the standard DU
+   * Operation adapter (`/api/v1/operations`) with a deterministic
+   * idempotency key, then polls until terminal. When false / undefined,
+   * the existing legacy `submitRunSchema` flow is used (backward
+   * compatible). Optional — schemas that don't declare it stay on the
+   * legacy path.
+   */
+  useDuAdapter?: boolean;
+  /** Optional override for the canonical `businessId` field on submit. */
+  businessId?: string;
+  /** Optional override for the canonical `action` field on submit. */
+  action?: string;
+  /**
+   * Optional polling config used by the DU adapter path. `maxAttempts`
+   * defaults to 30 and `intervalMs` defaults to 2000 when omitted.
+   */
+  duPoll?: {
+    maxAttempts?: number;
+    intervalMs?: number;
+  };
 }
 
 export default function WorkflowBuilderPage() {
@@ -73,6 +109,23 @@ export default function WorkflowBuilderPage() {
   const [runInputs, setRunInputs] = useState<Record<string, unknown>>({});
   const [runFiles, setRunFiles] = useState<File[]>([]);
   const [runSubmitting, setRunSubmitting] = useState(false);
+  // W34-CC: engine selector toggle inside the Run modal. Initialized
+  // from the schema-declared `useDuAdapter` when the modal opens; user
+  // can flip per-submit. Defaults to 'du_adapter' for new schemas that
+  // do not declare a preference (the packet's "khuyên dùng" default).
+  const [runEngine, setRunEngine] = useState<RunEngine>('du_adapter');
+  // W36-CC: HITL pause/resume state. When a polled operation reaches
+  // `WAITING_INPUT`, `hitlContext` is populated and the Run modal
+  // surfaces a review card with editable JSON. `hitlResumePayload`
+  // holds the user-edited extracted_data. `hitlResuming` releases the
+  // submit button while the resume call is in flight.
+  const [hitlContext, setHitlContext] = useState<
+    | { operationId: string; step?: number; suggestedExtractedData?: unknown }
+    | null
+  >(null);
+  const [hitlResumePayload, setHitlResumePayload] = useState<string>('{}');
+  const [hitlResuming, setHitlResuming] = useState(false);
+  const [hitlError, setHitlError] = useState<string | null>(null);
 
   // Parse ?detail=slug from URL
   const detailSlug = searchParams.get("detail");
@@ -184,6 +237,12 @@ export default function WorkflowBuilderPage() {
     setRunModalSchema(null);
     setRunInputs({});
     setRunFiles([]);
+    // W34-CC: prefill the engine toggle from the schema's
+    // `useDuAdapter` declaration. When the schema doesn't declare one
+    // (`useDuAdapter === undefined`), the modal opens on the packet's
+    // "khuyên dùng" default ('du_adapter'). The user can still flip
+    // the toggle per-submit.
+    setRunEngine('du_adapter');
     try {
       const res = await fetch(`/api/internal/workflow-schemas?slug=${slug}`);
       if (!res.ok) throw new Error("Not found");
@@ -197,6 +256,9 @@ export default function WorkflowBuilderPage() {
       }
       setRunModalSchema(schema);
       setRunInputs(defaults);
+      // Now overlay the schema's declared preference if any.
+      if (schema.useDuAdapter === true) setRunEngine('du_adapter');
+      else if (schema.useDuAdapter === false) setRunEngine('legacy');
     } catch {
       toast.error("Không tải được schema để chạy");
       setRunModalSlug(null);
@@ -209,44 +271,226 @@ export default function WorkflowBuilderPage() {
     setRunInputs({});
     setRunFiles([]);
     setRunSubmitting(false);
+    setRunEngine('du_adapter');
+    setHitlContext(null);
+    setHitlResumePayload('{}');
+    setHitlResuming(false);
+    setHitlError(null);
   }
 
   async function submitRun() {
     if (!runModalSchema) return;
-    // Validate required fields
-    for (const [key, prop] of Object.entries(runModalSchema.input_schema?.properties ?? {})) {
-      if (prop.required && (runInputs[key] === undefined || runInputs[key] === "" || runInputs[key] === null)) {
-        toast.error(`Trường "${prop.label ?? key}" là bắt buộc`);
-        return;
-      }
+    // Validate required fields via the typed helper (Fix 5 contract).
+    const missing = findMissingRequiredField(
+      runInputs,
+      runModalSchema.input_schema?.properties,
+    );
+    if (missing) {
+      toast.error(`Trường "${missing.label}" là bắt buộc`);
+      return;
     }
+
+    // W34-CC: dual-mode dispatch via `decideRunEngine`. The user's
+    // current `runEngine` toggle value wins when set; the schema's
+    // `useDuAdapter` only pre-fills the toggle. The typed decision
+    // carries the resolved engine + canonical `businessId` / `action`
+    // overrides so both code paths see a consistent payload.
+    const decision: RunEngineDecision = decideRunEngine(runModalSchema, runEngine);
+    if (decision.engine === 'du_adapter') {
+      await submitDuAdapterFlow(runModalSchema, runInputs, runFiles, decision);
+    } else {
+      await submitLegacyFlow(runModalSchema, runInputs, runFiles);
+    }
+  }
+
+  /** Legacy path: POST /api/v1/docs/workflows/schema via `submitRunSchema`. */
+  async function submitLegacyFlow(
+    schema: WorkflowSchema,
+    inputs: Record<string, unknown>,
+    files: File[],
+  ): Promise<void> {
     setRunSubmitting(true);
     try {
-      const form = new FormData();
-      form.append("schemaSlug", runModalSchema.slug);
-      if (Object.keys(runInputs).length > 0) {
-        form.append("input", JSON.stringify(runInputs));
-      }
-      for (const file of runFiles) {
-        form.append("files[]", file);
-      }
-      const res = await fetch("/api/v1/docs/workflows/schema", {
-        method: "POST",
-        body: form,
+      const outcome = await submitRunSchema({
+        schemaSlug: schema.slug,
+        inputs,
+        files,
       });
-      const data = await res.json();
-      if (res.ok) {
+      if (outcome.ok) {
         toast.success("Workflow đã khởi chạy");
         closeRunModal();
-        const opId = data.name?.replace("operations/", "");
-        if (opId) router.push(`/operations/${opId}`);
+        router.push(outcome.operationUrl);
       } else {
-        toast.error(data.detail || data.error || "Chạy thất bại");
+        toast.error(outcome.detail);
       }
-    } catch {
-      toast.error("Lỗi kết nối");
     } finally {
       setRunSubmitting(false);
+    }
+  }
+
+  /**
+   * W33-CC + W34-CC dual-mode path. Delegates to the pure
+   * `runDuSubmitPipeline` orchestrator (mapping → submit →
+   * poll-to-terminal) and consumes the typed outcome for toast +
+   * navigation. The injected `DuFetcher` defaults to the global
+   * `fetch`; tests inject a pure mock via
+   * `tests/workflow-builder/ui-integration.test.ts`. The optional
+   * `decision` carries the resolved `businessId` / `action` overrides
+   * from `decideRunEngine`; when absent, the schema-level overrides
+   * are used.
+   */
+  async function submitDuAdapterFlow(
+    schema: WorkflowSchema,
+    inputs: Record<string, unknown>,
+    files: File[],
+    decision?: RunEngineDecision,
+    fetcher: DuFetcher = fetch,
+  ): Promise<void> {
+    setRunSubmitting(true);
+    try {
+      // W36-CC: split submit + poll so we can branch on `WAITING_INPUT`
+      // (HITL pause) before reaching a terminal state. The pipeline
+      // helper is still used as the orchestrator for terminal polling,
+      // but the page additionally needs to detect WAITING_INPUT and
+      // expose the typed context to the resume card.
+      const submission = buildSubmissionForEngine(
+        {
+          slug: schema.slug,
+          useDuAdapter: schema.useDuAdapter,
+          businessId: schema.businessId,
+          action: schema.action,
+        },
+        decision ?? decideRunEngine(schema, 'du_adapter'),
+        inputs,
+        files.map((f) => ({ name: f.name, size: f.size, mime: f.type })),
+      );
+      const submitOutcome = await submitDuOperation(submission, fetcher);
+      if (!submitOutcome.ok || !submitOutcome.created) {
+        toast.error(submitOutcome.detail);
+        return;
+      }
+      const opId = submitOutcome.created.operationId;
+      toast.success("Workflow đã khởi chạy");
+
+      const pollMaxAttempts = schema.duPoll?.maxAttempts ?? 30;
+      const pollIntervalMs = schema.duPoll?.intervalMs ?? 2000;
+
+      let attempt = 0;
+      let lastView: DuOperationDetail | null = null;
+      // Inner poll loop with WAITING_INPUT branch.
+      while (attempt < pollMaxAttempts) {
+        const polled = await pollDuOperation(opId, fetcher);
+        if (!polled.ok || !polled.view) {
+          toast.error(polled.detail);
+          return;
+        }
+        lastView = polled.view;
+        if (polled.terminal) {
+          break;
+        }
+        if (lastView.state === 'WAITING_INPUT') {
+          // Surface the typed HITL context; the resume card will call
+          // `resumeDuOperation` and re-enter the poll loop.
+          setHitlContext({
+            operationId: opId,
+            step: undefined,
+            suggestedExtractedData: undefined,
+          });
+          setHitlResumePayload('{}');
+          toast.info('Workflow tạm dừng chờ xác nhận (WAITING_INPUT).');
+          return;
+        }
+        attempt++;
+        if (pollIntervalMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+        }
+      }
+
+      const terminalState = lastView?.state ?? 'UNKNOWN';
+      if (terminalState === 'SUCCEEDED') {
+        toast.success(`Hoàn tất: ${terminalState}`);
+      } else if (
+        terminalState === 'FAILED' ||
+        terminalState === 'CANCELLED' ||
+        terminalState === 'TIMED_OUT'
+      ) {
+        toast.error(`Kết thúc: ${terminalState}`);
+      }
+      closeRunModal();
+      router.push(`/operations/${opId}`);
+    } finally {
+      setRunSubmitting(false);
+    }
+  }
+
+  /**
+   * W36-CC: HITL resume action. Called from the modal's "Xác nhận &
+   * Tiếp tục (Resume)" button when `hitlContext` is populated.
+   * Parses the user-edited JSON, calls `resumeDuOperation`, then
+   * resumes polling until a terminal state is observed.
+   */
+  async function resumeHitlFlow(
+    ctx: { operationId: string; step?: number },
+    fetcher: DuFetcher = fetch,
+  ): Promise<void> {
+    if (hitlResuming) return;
+    setHitlResuming(true);
+    try {
+      let extractedData: unknown = undefined;
+      const trimmed = hitlResumePayload.trim();
+      if (trimmed.length > 0) {
+        try {
+          extractedData = JSON.parse(trimmed);
+        } catch {
+          toast.error('JSON không hợp lệ trong trường extracted_data');
+          return;
+        }
+      }
+      const resumeOutcome = await resumeDuOperation(
+        ctx.operationId,
+        { step: ctx.step, extracted_data: extractedData },
+        fetcher,
+      );
+      if (!resumeOutcome.ok) {
+        if (resumeOutcome.conflict || resumeOutcome.status === 409) {
+          setHitlError(
+            resumeOutcome.detail ||
+              'Xung đột phiên bản (409 Conflict): Operation không còn ở trạng thái WAITING_INPUT.',
+          );
+        }
+        toast.error(resumeOutcome.detail);
+        return;
+      }
+      setHitlError(null);
+      toast.success('Đã gửi resume. Tiếp tục theo dõi...');
+      // Continue polling after resume.
+      const pollMaxAttempts = 30;
+      const pollIntervalMs = 2000;
+      let attempt = 0;
+      let lastView: DuOperationDetail | null = resumeOutcome.view ?? null;
+      while (attempt < pollMaxAttempts) {
+        const polled = await pollDuOperation(ctx.operationId, fetcher);
+        if (!polled.ok || !polled.view) {
+          toast.error(polled.detail);
+          return;
+        }
+        lastView = polled.view;
+        if (polled.terminal) break;
+        attempt++;
+        if (pollIntervalMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+        }
+      }
+      const terminalState = lastView?.state ?? 'UNKNOWN';
+      if (terminalState === 'SUCCEEDED') toast.success(`Hoàn tất: ${terminalState}`);
+      else if (terminalState === 'FAILED' || terminalState === 'CANCELLED' || terminalState === 'TIMED_OUT') {
+        toast.error(`Kết thúc: ${terminalState}`);
+      }
+      setHitlContext(null);
+      closeRunModal();
+      router.push(`/operations/${ctx.operationId}`);
+    } finally {
+      setHitlResuming(false);
     }
   }
 
@@ -535,6 +779,153 @@ export default function WorkflowBuilderPage() {
                     <p className="text-xs text-muted-foreground mt-1">{runFiles.length} tệp đã chọn</p>
                   )}
                 </div>
+
+                {/* W34-CC: Engine selector + settings. The user picks
+                    between the DU Gateway Operation Adapter (recommended)
+                    and the Legacy Runner before submitting. The toggle is
+                    pre-filled from the schema's `useDuAdapter` declaration
+                    (see `openRunModal`) but can be flipped per submit. The
+                    `businessId` / `action` fields show the resolved
+                    canonical overrides when set on the schema. */}
+                <div className="mb-4 border-t border-border pt-4">
+                  <p className="text-sm font-medium mb-2">Công cụ chạy</p>
+                  <div className="flex flex-col gap-2" data-testid="run-engine-toggle">
+                    <label
+                      className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${
+                        runEngine === 'du_adapter'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="runEngine"
+                        value="du_adapter"
+                        checked={runEngine === 'du_adapter'}
+                        onChange={() => setRunEngine('du_adapter')}
+                        className="mt-1"
+                        data-testid="run-engine-du-adapter"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-sm font-medium">
+                          DU Gateway Operations <span className="text-xs text-muted-foreground">(Khuyên dùng)</span>
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          Submit qua <code>POST /api/v1/operations</code> với idempotency key xác định; theo dõi tới <code>/operations/&lt;id&gt;</code>.
+                        </span>
+                      </span>
+                    </label>
+                    <label
+                      className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${
+                        runEngine === 'legacy'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="runEngine"
+                        value="legacy"
+                        checked={runEngine === 'legacy'}
+                        onChange={() => setRunEngine('legacy')}
+                        className="mt-1"
+                        data-testid="run-engine-legacy"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-sm font-medium">Legacy Runner</span>
+                        <span className="block text-xs text-muted-foreground">
+                          Submit qua <code>submitRunSchema</code> (multipart). Giữ tương thích với workflow hiện có.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {(runModalSchema.businessId || runModalSchema.action) && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Canonical DU submission:
+                      {runModalSchema.businessId && (
+                        <> businessId=<code>{runModalSchema.businessId}</code></>
+                      )}
+                      {runModalSchema.action && <> · action=<code>{runModalSchema.action}</code></>}
+                    </p>
+                  )}
+                </div>
+
+                {/* W36-CC: HITL pause/resume card. Visible only while an
+                    operation is in `WAITING_INPUT`. Provides editable JSON
+                    for `extracted_data` and a "Xác nhận & Tiếp tục
+                    (Resume)" button that calls `resumeDuOperation` and
+                    resumes polling. */}
+                {hitlContext && (
+                  <div
+                    className="mb-4 border-t border-border pt-4"
+                    data-testid="hitl-review-card"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">
+                        WAITING_INPUT
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {hitlContext.operationId}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium mb-1">
+                      Review dữ liệu trước khi tiếp tục
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Chỉnh sửa <code>extracted_data</code> dưới đây (JSON), sau đó nhấn "Xác nhận &amp; Tiếp tục".
+                    </p>
+                    {hitlError && (
+                      <div
+                        className="p-2.5 mb-3 text-xs bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center justify-between"
+                        data-testid="hitl-conflict-error"
+                      >
+                        <span>{hitlError}</span>
+                        <button
+                          type="button"
+                          className="text-red-500 hover:text-red-700 font-bold ml-2"
+                          onClick={() => setHitlError(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                    <textarea
+                      className="w-full border border-border rounded-lg p-2 font-mono text-sm min-h-[140px]"
+                      value={hitlResumePayload}
+                      onChange={(e) => setHitlResumePayload(e.target.value)}
+                      data-testid="hitl-resume-json"
+                      placeholder='{"amount": 100, "currency": "VND"}'
+                      spellCheck={false}
+                    />
+                    <div className="flex gap-2 justify-end mt-2">
+                      <button
+                        type="button"
+                        className="btn-outline"
+                        onClick={closeRunModal}
+                        disabled={hitlResuming}
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary flex items-center gap-2"
+                        disabled={hitlResuming}
+                        onClick={() => resumeHitlFlow(hitlContext)}
+                        data-testid="hitl-resume-button"
+                      >
+                        {hitlResuming ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Đang xác nhận...
+                          </>
+                        ) : (
+                          'Xác nhận & Tiếp tục (Resume)'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-2 justify-end pt-2 border-t border-border">
                   <button type="button" className="btn-outline flex-1" onClick={closeRunModal}>Hủy</button>

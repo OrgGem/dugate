@@ -43,6 +43,7 @@ export function toContractInvocationResponse(
     result?: NormalizedProviderResult;
     error?: { code: string; message: string; retryAfterMs?: number };
     nextPollAt?: string;
+    providerRequestId?: string;
   },
 ): InvocationResponse {
   const state = {
@@ -72,7 +73,7 @@ export function toContractInvocationResponse(
         measurement: result.result.usage.measurement,
       }
       : undefined,
-    providerRequestId: result.result?.providerRequestId,
+    providerRequestId: result.providerRequestId ?? result.result?.providerRequestId,
     error: result.error
       ? {
         code: result.error.code,

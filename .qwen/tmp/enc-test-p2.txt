@@ -1,0 +1,98 @@
+describe('ENC-META-01 inventory: a sealed control-plane column holds no plaintext', () => {
+  it('the serialized envelope contains neither the sentinel nor a plaintext key', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    const wire = JSON.stringify(sealed);
+    expect(wire).not.toContain(SENTINEL);
+    expect(wire).not.toContain('CONFIDENTIAL');
+    expect(wire).not.toContain('pages');
+  });
+
+  it('no plaintext DEK is persisted beside the ciphertext', async () => {
+    const { crypto, stats } = makeCrypto();
+    const dek = randomBytes(32);
+    const sealed = await crypto.seal({ body: dek }, CTX);
+    const wire = JSON.stringify(sealed);
+    expect(wire).not.toContain(dek.toString('hex'));
+    expect(sealed.dek.wrappedKey).not.toEqual(dek.toString('base64'));
+    expect(stats.wraps).toBe(1);
+  });
+
+  it('sealing is non-deterministic while the content hash stays stable', async () => {
+    const crypto = makeCrypto().crypto;
+    const a = await crypto.seal(SENSITIVE, CTX);
+    const b = await crypto.seal(SENSITIVE, CTX);
+    expect(a.ciphertext).not.toEqual(b.ciphertext);
+    expect(a.nonce).not.toEqual(b.nonce);
+    expect(a.plaintextSha256).toEqual(b.plaintextSha256);
+  });
+});
+
+describe('ENC-META-01 binding: an envelope opens only under its own context', () => {
+  it('round-trips the original value under the bound context', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    expect(await crypto.open(sealed, CTX)).toEqual(SENSITIVE);
+  });
+
+  it('refuses a different TENANT (cross-tenant negative)', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    await expectCryptoError(() => crypto.open(sealed, { ...CTX, tenantId: 'tenant-b' }), 'CONTEXT_MISMATCH');
+  });
+
+  it('refuses a different SLOT (payload_ref cannot move to input_ref)', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    await expectCryptoError(
+      () => crypto.open(sealed, { ...CTX, slot: 'operations.input_ref' }),
+      'CONTEXT_MISMATCH',
+    );
+  });
+
+  it('refuses a different ROW (same tenant and slot, other task)', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    await expectCryptoError(() => crypto.open(sealed, { ...CTX, refId: 'task-2' }), 'CONTEXT_MISMATCH');
+  });
+
+  it('a tampered ciphertext fails authentication instead of returning junk', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    const raw = Buffer.from(sealed.ciphertext, 'base64');
+    raw[0] = raw[0]! ^ 0xff;
+    await expectCryptoError(
+      () => crypto.open({ ...sealed, ciphertext: raw.toString('base64') }, CTX),
+      'AUTHENTICATION_FAILED',
+    );
+  });
+
+  it('a wrong DEK from the provider fails authentication, no plaintext fallback', async () => {
+    const crypto = makeCrypto({ wrongKey: true }).crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    await expectCryptoError(() => crypto.open(sealed, CTX), 'AUTHENTICATION_FAILED');
+  });
+
+  it('Vault outage on write fails closed: nothing is stored unsealed', async () => {
+    const crypto = makeCrypto({ failWrap: true }).crypto;
+    await expectCryptoError(() => crypto.seal(SENSITIVE, CTX), 'KEY_PROVIDER_FAILED');
+  });
+
+  it('Vault outage on read fails closed: no plaintext is served', async () => {
+    const good = makeCrypto().crypto;
+    const sealed = await good.seal(SENSITIVE, CTX);
+    const broken = makeCrypto({ failUnwrap: true }).crypto;
+    await expectCryptoError(() => broken.open(sealed, CTX), 'KEY_PROVIDER_FAILED');
+  });
+
+  it('rejects an unknown envelope version instead of guessing', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    await expectCryptoError(() => crypto.open({ ...sealed, version: 99 } as never, CTX), 'NOT_SEALED');
+  });
+
+  it('rejects an empty tenant binding rather than sealing under an empty AAD', async () => {
+    const crypto = makeCrypto().crypto;
+    await expectCryptoError(() => crypto.seal(SENSITIVE, { ...CTX, tenantId: '' }), 'INVALID_INPUT');
+  });
+});

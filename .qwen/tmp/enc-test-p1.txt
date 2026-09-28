@@ -1,0 +1,113 @@
+/**
+ * ENC-META-01 - control-plane metadata must not rest as plaintext.
+ *
+ * Production seam under test: src/modules/runtime/metadata-crypto.ts plus the
+ * runtime call sites that persist or read a control-plane JSON column
+ * (operations.input_ref, tasks.payload_ref, human_waits.response_ref,
+ * step_checkpoints.output_ref).
+ *
+ * Pinned here, in the order the packet asks for:
+ *  1. INVENTORY - a sealed column holds no plaintext (byte scan for a
+ *     sentinel that is present in the original value).
+ *  2. BINDING - an envelope is bound to (tenant, slot, row); opening it
+ *     under any other context fails instead of returning the plaintext.
+ *  3. FENCE - Vault outage and wrong key both fail closed, never plaintext.
+ *  4. SEMANTICS - content hashing stays stable, so idempotency keys and the
+ *     replay fence keep working once the column is sealed.
+ *
+ * The key provider is a REAL transform, not an echo: wrapDek applies a keyed
+ * keystream and unwrapDek removes it. An echo provider would make a broken
+ * AAD binding look authenticated, which is exactly the negative this file
+ * exists to pin. It is a test double for Vault Transit, so its own security
+ * is irrelevant - only reversibility and wrong-key behaviour matter.
+ */
+import { createHmac, randomBytes } from 'node:crypto';
+import { contentHash } from '@du/contracts';
+import {
+  createMetadataCrypto,
+  canonicalizeMetadataJson,
+  metadataPlaintextHash,
+  MetadataCryptoError,
+  METADATA_SLOTS,
+  type MetadataKeyProvider,
+  type MetadataContext,
+  type MetadataWrappedDek,
+} from '../src/modules/runtime/metadata-crypto';
+
+const KEY_REF = 'du-orch-metadata-v1';
+const SENTINEL = 'CONFIDENTIAL-TENANT-DOC-BODY-7f3a91';
+
+/** Deterministic keystream stand-in for the Transit key material. */
+const HASH = String.fromCharCode(35);
+
+function keystream(seed: string, length: number): Buffer {
+  const out = Buffer.alloc(length);
+  let block = 0;
+  for (let offset = 0; offset < length; offset += 32) {
+    const digest = createHmac('sha256', 'offline-transit-double').update(seed + ':' + block).digest();
+    digest.copy(out, offset, 0, Math.min(32, length - offset));
+    block += 1;
+  }
+  return out;
+}
+
+function xor(data: Buffer, stream: Buffer): Buffer {
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i += 1) {
+    out[i] = (data[i] ?? 0) ^ (stream[i] ?? 0);
+  }
+  return out;
+}
+
+interface ProviderOptions {
+  failWrap?: boolean;
+  failUnwrap?: boolean;
+  wrongKey?: boolean;
+}
+
+interface TestProvider {
+  readonly provider: MetadataKeyProvider;
+  readonly stats: { wraps: number; unwraps: number };
+}
+
+function makeProvider(options: ProviderOptions = {}): TestProvider {
+  const stats = { wraps: 0, unwraps: 0 };
+  const provider: MetadataKeyProvider = {
+    async wrapDek(dek: Buffer, keyRef: string, keyVersion?: number): Promise<MetadataWrappedDek> {
+      stats.wraps += 1;
+      if (options.failWrap) throw new Error('vault transit unavailable');
+      const version = keyVersion ?? 1;
+      const stream = keystream(keyRef + HASH + version, dek.length);
+      return {
+        version: 1,
+        keyName: keyRef,
+        keyVersion: version,
+        wrappedKey: xor(dek, stream).toString('base64'),
+      };
+    },
+    async unwrapDek(wrapped: MetadataWrappedDek): Promise<Buffer> {
+      stats.unwraps += 1;
+      if (options.failUnwrap) throw new Error('vault transit 403');
+      const raw = Buffer.from(wrapped.wrappedKey, 'base64');
+      if (options.wrongKey) return randomBytes(32);
+      return xor(raw, keystream(wrapped.keyName + HASH + wrapped.keyVersion, raw.length));
+    },
+  };
+  return { provider, stats };
+}
+
+const CTX: MetadataContext = { tenantId: 'tenant-a', slot: 'tasks.payload_ref', refId: 'task-1' };
+const SENSITIVE = { document: SENTINEL, pages: 12, nested: { secret: SENTINEL } };
+
+/** Build the seam and hand back the provider call counters. */
+function makeCrypto(options: ProviderOptions = {}): {
+  crypto: ReturnType<typeof createMetadataCrypto>;
+  stats: { wraps: number; unwraps: number };
+} {
+  const { provider, stats } = makeProvider(options);
+  return { crypto: createMetadataCrypto(provider, KEY_REF), stats };
+}
+
+function expectCryptoError(fn: () => Promise<unknown>, code: string): Promise<unknown> {
+  return expect(fn()).rejects.toMatchObject({ name: 'MetadataCryptoError', code });
+}

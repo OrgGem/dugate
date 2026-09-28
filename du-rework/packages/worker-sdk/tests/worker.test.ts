@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 const TASK_ID = randomUUID();
 const OP_ID = randomUUID();
 import {
@@ -223,7 +224,85 @@ describe('startWorker delivery lifecycle', () => {
 
     const complete = calls.find((c) => c.path.endsWith('/complete'));
     expect(complete).toBeDefined();
-    expect(complete!.body).toMatchObject({ leaseEpoch: 1, resultRef, resultHash: contentHash(resultRef) });
+    expect(complete!.body).toMatchObject({
+      leaseEpoch: 1,
+      resultRef,
+      resultHash: contentHash(resultRef),
+      outputArtifactIds: [],
+    });
+  });
+
+  it('finalizes streamed output with the current lease and sends committed refs on completion', async () => {
+    const calls: { path: string; method: string; body?: unknown }[] = [];
+    const artifactId = randomUUID();
+    const payload = Buffer.from('streamed output bytes');
+    let uploaded = Buffer.alloc(0);
+    const finalizeBodies: unknown[] = [];
+    const routes: Route[] = [
+      ...heartbeatRoutes(),
+      { method: 'POST', pattern: /^\/tasks\/[^/]+\/claim$/, handler: () => ({ status: 200, json: makeClaim() }) },
+      {
+        method: 'POST',
+        pattern: /^\/tasks\/[^/]+\/artifacts$/,
+        handler: () => ({
+          status: 201,
+          json: { artifactId, uploadUrl: 'https://storage.test/upload', expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        }),
+      },
+      {
+        method: 'POST',
+        pattern: /^\/artifacts\/[^/]+\/finalize$/,
+        handler: (_match, body) => {
+          finalizeBodies.push(body);
+          return { status: 200, json: undefined };
+        },
+      },
+      {
+        method: 'POST',
+        pattern: /^\/tasks\/[^/]+\/complete$/,
+        handler: () => ({ status: 200, json: { taskId: TASK_ID, state: 'SUCCEEDED', operationState: 'SUCCEEDED', replayed: false } }),
+      },
+    ];
+    const runtimeFetch = stubFetch(routes, calls);
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === 'https://storage.test/upload') {
+        const body = init?.body as ReadableStream<Uint8Array>;
+        uploaded = Buffer.from(await new Response(body).arrayBuffer());
+        return new Response(null, { status: 200 }) as unknown as Response;
+      }
+      return runtimeFetch(String(input), init as { method?: string; body?: string });
+    }) as typeof fetch;
+    const { consumer, push } = testConsumer();
+    const def = defineBusiness(MANIFEST, {
+      root: async (ctx) => {
+        const ref = await ctx.artifacts.writeStream(
+          Readable.from([payload]),
+          'result.bin',
+          'application/octet-stream',
+          payload.byteLength
+        );
+        return { kind: 'completed', resultRef: `artifact://${artifactId}`, artifacts: [ref] };
+      },
+      child: async () => ({ kind: 'completed', resultRef: 'artifact://child' }),
+    });
+    const handle = await startWorker(def, {
+      runtimeUrl: 'http://runtime',
+      runtimeToken: 'tok',
+      consumer,
+      fetchImpl,
+    });
+    await push(makeJob());
+    await handle.stop(1000);
+
+    expect(uploaded.equals(payload)).toBe(true);
+    expect(finalizeBodies).toEqual([{
+      taskId: TASK_ID,
+      leaseEpoch: 1,
+      sizeBytes: payload.byteLength,
+      sha256: createHash('sha256').update(payload).digest('hex'),
+    }]);
+    const complete = calls.find((call) => call.path.endsWith('/complete'));
+    expect(complete?.body).toMatchObject({ outputArtifactIds: [artifactId], leaseEpoch: 1 });
   });
 
   it('ends delivery safely when claim is fenced (409)', async () => {

@@ -1,0 +1,28 @@
+
+> @du/contracts@0.1.0 test D:\Git\dugate\du-rework\packages\contracts
+> jest --runInBand "--" "grant-encryption-envelope"
+
+FAIL tests/grant-encryption-envelope.test.ts
+  ● Test suite failed to run
+
+    [96msrc/encryption.ts[0m:[93m291[0m:[93m11[0m - [91merror[0m[90m TS2695: [0mLeft side of comma operator is unused and has no side effects.
+
+    [7m291[0m     path: ["tag"],
+    [7m   [0m [91m          ~~~~~~~[0m
+    [96msrc/encryption.ts[0m:[93m292[0m:[93m3[0m - [91merror[0m[90m TS1109: [0mExpression expected.
+
+    [7m292[0m   });
+    [7m   [0m [91m  ~[0m
+    [96msrc/encryption.ts[0m:[93m292[0m:[93m4[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m292[0m   });
+    [7m   [0m [91m   ~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        5.207 s
+Ran all test suites matching /grant-encryption-envelope/i.
+D:\Git\dugate\du-rework\packages\contracts:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/contracts@0.1.0 test: `jest --runInBand "--" "grant-encryption-envelope"`
+Exit status 1

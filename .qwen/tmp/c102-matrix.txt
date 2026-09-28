@@ -1,0 +1,22 @@
+PASS tests/egress-ssrf-deny-matrix.boundary.test.ts
+  √ [LOCK] hostname resolving to IPv4 loopback /8 base (127.0.0.1) is denied without a socket (6 ms)
+  √ [LOCK] hostname resolving to IPv4 loopback /8 breadth (127.5.6.7) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to RFC1918 10/8 (10.10.10.10) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to RFC1918 172.16/12 lower edge (172.16.0.1) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to RFC1918 172.16/12 upper edge (172.31.255.255) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to RFC1918 192.168/16 (192.168.100.5) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to link-local /16 (169.254.1.1) is denied without a socket
+  √ [LOCK] hostname resolving to cloud metadata address (169.254.169.254) is denied without a socket
+  √ [LOCK] hostname resolving to IPv6 loopback (::1) is denied without a socket (4 ms)
+  √ [LOCK] hostname resolving to ULA fc00:: half of fc00::/7 (fc00::) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to ULA fd00:: half of fc00::/7 (fd12:3456:789a:1::2) is denied without a socket (1 ms)
+  √ [LOCK] hostname resolving to IPv6 link-local fe80::/10 (fe80::dead:beef) is denied without a socket
+  √ [LOCK] mixed answer [public, private] still denies (every-answer policy, not first-only) (1 ms)
+  √ [LOCK] private answer via IPv4-COMPRESSED v6 forms also denied (mapped ::ffff:a.b.c.d)
+  √ [LOCK] allowPrivateNetworks opt-in still REFUSES metadata/link-local (narrow escape hatch) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        1.744 s
+Ran all test suites matching /tests\\egress-ssrf-deny-matrix.boundary.test.ts/i.

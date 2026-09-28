@@ -25,3 +25,6 @@ export * from './adapters/registry';
 export * from './adapters/transport';
 export * from './services';
 export * from './usage-dispatcher';
+export * from './webhook';
+export * from './vault/resolver';
+export * from './vault/token-renewal';

@@ -1,0 +1,19 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "data-03-url-acq"
+
+PASS tests/data-03-url-acq.test.ts
+  W-DATA-03: a URL task is not runnable before its source is READY
+    √ refuses a pin with no materialized artifact, even with inline text present (4 ms)
+    √ refuses a pin whose artifacts were read but do not match (2 ms)
+    √ parses the PINNED bytes and ignores attached inline text (1 ms)
+  W-DATA-03: the inline path is untouched when there is no pin
+    √ accepts inline text with no source pin (ordinary case) (2 ms)
+  W-DATA-03: a failed acquisition leaves nothing parseable
+    √ a pin with zero materialized bytes yields no buffers to parse (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        2.108 s
+Ran all test suites matching /data-03-url-acq/i.

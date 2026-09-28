@@ -1,8 +1,10 @@
 import type {
   ArtifactRef,
+  ArtifactPurpose as ContractArtifactPurpose,
   BusinessManifest,
   ExecutionSnapshot,
   InvocationGrant,
+  InvocationInput,
   InvocationResponse,
   TaskDisposition,
   CheckpointRef,
@@ -15,6 +17,7 @@ import type {
  */
 
 export type { TaskDisposition };
+export type ArtifactPurpose = ContractArtifactPurpose;
 
 export type TaskHandler = (ctx: TaskContext) => Promise<TaskDisposition>;
 
@@ -24,13 +27,22 @@ export interface BusinessDefinition {
   handlers: Record<string, TaskHandler>;
 }
 
-/** Opaque reference to a stored artifact readable via authorized stream. */
+/** Durable ref carries artifact identity/metadata only; reads must use the
+ * runtime grant and never expose a backend storage key. */
 export interface ArtifactStreamRef {
   artifactId: string;
-  storageKey?: string;
   mimeType?: string;
   sizeBytes?: number;
   sha256?: string;
+}
+
+/** Bytes plus the declared source metadata supplied by an authorized read grant. */
+export interface ArtifactReadWithMetadata {
+  buffer: Buffer;
+  filename?: string;
+  mimeType?: string;
+  sizeBytes: number;
+  sha256: string;
 }
 
 /** Artifact facade — worker-sdk owns runtime artifact access/grants (P4-04/05
@@ -42,16 +54,44 @@ export interface ArtifactFacade {
    * bounded reads; implementations must enforce size limits.
    */
   read(artifactId: string): Promise<Buffer>;
+  /** Read bounded bytes and retain the original declared name/MIME and integrity values. */
+  readWithMetadata(artifactId: string): Promise<ArtifactReadWithMetadata>;
+  /** Open a bounded, integrity-checkable stream for large artifacts. */
+  readStream(
+    artifactId: string,
+    options?: { expectedSha256?: string; expectedSizeBytes?: number }
+  ): Promise<import('node:stream').Readable>;
   /**
    * Write a new artifact: obtains an upload grant, streams content, finalizes
    * with size+sha256 verification. Returns the durable ref.
    */
   write(content: Buffer | string, fileName: string, mimeType: string, purpose?: ArtifactPurpose): Promise<ArtifactRef>;
+  /** Stream an artifact upload with a declared size and optional digest check. */
+  writeStream(
+    content: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array> | import('node:stream').Readable,
+    fileName: string,
+    mimeType: string,
+    sizeBytes: number,
+    purpose?: ArtifactPurpose,
+    expectedSha256?: string
+  ): Promise<ArtifactRef>;
   /** Obtain a short-lived read grant (e.g. to hand document-kit a stream). */
   accessGrant(artifactId: string, mode: 'read' | 'write'): Promise<{ downloadUrl?: string; uploadUrl?: string; expiresAt: string }>;
+  /**
+   * Authorized read descriptor WITHOUT bytes (optional, additive — DATA-04 Step B):
+   * lets a business pre-flight size/integrity and choose disk-backed streaming
+   * acquisition. Lease-fenced like every other artifact facade call.
+   */
+  stat?(artifactId: string): Promise<ArtifactStat>;
 }
 
-export type ArtifactPurpose = 'input' | 'output' | 'intermediate' | 'session';
+/** Grant-scoped artifact descriptor used for read-acquisition pre-flight. */
+export interface ArtifactStat {
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  sha256?: string;
+}
 
 /** Connector facade — grant acquisition + invocation via connector-client. */
 export interface ConnectorFacade {
@@ -61,20 +101,47 @@ export interface ConnectorFacade {
    * 2. obtains an invocation grant from the runtime (stable invocationId)
    * 3. posts the invocation through the connector client
    * Same logical step replayed → same invocationId (no duplicate provider calls).
+   *
+   * `invokeOpts` (P4-07, additive): `sessionRef` continues a provider
+   * session (carried in the canonical hash + wire payload); `deadlineAt`
+   * overrides the HTTP deadline used in the hash. When the task has no
+   * operation deadline the SDK uses the fixed OPEN_DEADLINE_SENTINEL so
+   * the canonical hash — and thus the grant replay — is stable across
+   * redeliveries.
    */
   invoke(
     slot: string,
     input: ConnectorInvokeInput,
-    options?: Record<string, unknown>
+    options?: Record<string, unknown>,
+    invokeOpts?: ConnectorInvokeOptions
   ): Promise<InvocationResponse>;
 }
 
-export interface ConnectorInvokeInput {
-  prompt?: string;
-  text?: string;
-  artifacts?: { artifactId: string }[];
-  outputSchema?: Record<string, unknown>;
+/** Additive connector.invoke options (P4-07). Omitting keeps prior behavior. */
+export interface ConnectorInvokeOptions {
+  /** Continuation session from a prior checkpoint; sent on the wire + hashed. */
+  sessionRef?: string | null;
+  /**
+   * Stable HTTP deadline for the canonical hash. Must be deterministic
+   * across redeliveries of the same logical step (grant replay rejects a
+   * drifted inputHash with 409 INPUT_HASH_MISMATCH).
+   */
+  deadlineAt?: string;
 }
+
+/**
+ * Fixed sentinel used as the canonical-hash deadline when a task carries
+ * no operation deadline. A wall-clock fallback (e.g. now+300s) would make
+ * the inputHash drift on every redelivery, so a pending-yield resume could
+ * never reuse its stored grant (runtime answers 409 INPUT_HASH_MISMATCH).
+ * The sentinel means "no SDK-imposed HTTP deadline"; the connector's own
+ * per-request timeout still applies, and the HTTP deadline never extends
+ * the operation deadline (docs 08).
+ */
+export const OPEN_DEADLINE_SENTINEL = '9999-12-31T23:59:59.000Z';
+
+/** Canonical strict wire input; keep the P4-07 SDK surface in lockstep with contracts. */
+export type ConnectorInvokeInput = InvocationInput;
 
 /** Step checkpoint facade (RUN-04: full output preserved, idempotent replay). */
 export interface StepFacade {
@@ -84,10 +151,20 @@ export interface StepFacade {
    *   stored output WITHOUT re-executing fn (no re-inference)
    * - else execute fn, persist full output (no truncation), return it
    * - inputHash mismatch on an existing checkpoint → InputHashMismatchError
+   *
+   * `opts.sessionRef` (P4-07, additive): persisted with the checkpoint row
+   * so a replayed/resumed delivery can recover the provider session without
+   * downloading the stored output.
    */
-  run<T>(stepKey: string, inputHash: string, fn: () => Promise<T>): Promise<T>;
+  run<T>(stepKey: string, inputHash: string, fn: () => Promise<T>, opts?: StepRunOptions): Promise<T>;
   /** Inspect a checkpoint without executing. */
   peek(stepKey: string): Promise<CheckpointRef | null>;
+}
+
+/** Additive step.run options (P4-07). Omitting keeps the pre-W39 wire shape. */
+export interface StepRunOptions {
+  /** Provider session this step continues; stored on the checkpoint row. */
+  sessionRef?: string | null;
 }
 
 /** Child-spawn facade (RUN-05: parent yields slot, no in-memory wait). */
@@ -191,8 +268,49 @@ export interface WorkerConfig {
   imageDigest?: string;
   /** Custom fetch for tests/proxies. */
   fetchImpl?: typeof fetch;
+  /** Per-artifact stream cap used for worker-side reads and writes (default 64 MiB). */
+  maxArtifactBytes?: number;
+  /**
+   * DATA-04 Step C (auto-branch): writeStream switches to the multipart
+   * lifecycle when the declared size exceeds this threshold AND is at or
+   * above the contract multipart floor (64 MiB + 1). Default =
+   * `maxArtifactBytes`, i.e. exactly where single-PUT stops being legal.
+   */
+  multipartThresholdBytes?: number;
+  /**
+   * Explicit connector invocation function (P4-07 wiring). Takes
+   * precedence over `connectorUrl`; lets a business plug in a
+   * `@du/connector-client` transport (`createSdkConnectorInvoker(
+   * createHttpTransport(...))`) or a test double without the SDK taking
+   * a package dependency on the client.
+   */
+  invokeConnector?: ConnectorInvokeFunction;
   /** Logger component name. */
   component?: string;
+}
+
+/**
+ * The seam `DefaultTaskContext` calls after obtaining a grant. The
+ * payload is the exact wire `InvocationRequest` the connector validates.
+ */
+export type ConnectorInvokeFunction = (
+  grant: InvocationGrant,
+  payload: ConnectorInvocationPayloadShape
+) => Promise<InvocationResponse>;
+
+/** Structural mirror of `ConnectorInvocationPayload` (task-context.ts). */
+export interface ConnectorInvocationPayloadShape {
+  contractVersion: '1';
+  invocationId: string;
+  grant: string;
+  operationId: string;
+  taskId: string;
+  stepKey: string;
+  bindingSlot: string;
+  input: ConnectorInvokeInput;
+  options?: Record<string, unknown>;
+  sessionRef?: string | null;
+  deadlineAt: string;
 }
 
 /** Lifecycle handle returned by startWorker. */

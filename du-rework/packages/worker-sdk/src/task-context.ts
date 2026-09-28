@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { Readable } from 'node:stream';
 import {
   ArtifactRef,
   CheckpointRef,
@@ -8,19 +9,27 @@ import {
   InvocationResponseSchema,
   TaskDisposition,
   contentHash,
+  hashInvocationInput,
 } from '@du/contracts';
 import { Logger } from '@du/observability';
+import { MULTIPART_MAX_TOTAL_BYTES, MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts';
 import { RuntimeClient, RuntimeError, AmbiguousReportError } from './runtime-client';
+import { OPEN_DEADLINE_SENTINEL } from './types';
+import { openArtifactStream, toNodeReadable, uploadArtifactStream } from './artifact-streams';
+import { uploadArtifactMultipart, type MultipartUploadTransport } from './artifact-multipart';
+import { bindTaskCrypto, CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from './crypto-seam';
 import type {
   ArtifactFacade,
   ArtifactPurpose,
   ConnectorFacade,
   ConnectorInvokeInput,
+  ConnectorInvokeOptions,
   HumanWaitFacade,
   ProgressFacade,
   SpawnFacade,
   ChildTaskSpecInput,
   StepFacade,
+  StepRunOptions,
   TaskContext,
 } from './types';
 
@@ -55,8 +64,26 @@ export class InputHashMismatchError extends Error {
 export interface TaskContextDeps {
   runtime: RuntimeClient;
   logger: Logger;
+  fetchImpl?: typeof fetch;
+  maxArtifactBytes?: number;
+  /** DATA-04 Step C auto-branch threshold; default = maxArtifactBytes. */
+  multipartThresholdBytes?: number;
   /** Performs the actual HTTP invocation against the connector service. */
   invokeConnector: (grant: InvocationGrant, req: ConnectorInvocationPayload) => Promise<InvocationResponse>;
+  /**
+   * W-ENC-04-SEAM: optional application-encryption seam for artifact bytes.
+   *
+   * When present, the single-PUT artifact path seals bytes under the tenant the
+   * SERVER asserted at claim time before they are streamed to storage, and
+   * finalizeArtifact reports the CIPHERTEXT size/digest (what storage actually
+   * holds). When absent the upload path is byte-identical to the pre-ENC-04
+   * behaviour, so every existing worker keeps working unchanged.
+   *
+   * Absent is a deployment decision, not a silent fallback: a handler that
+   * asks for the seam when it is not configured gets an error rather than
+   * plaintext bytes (see `cryptoFor`). No caller wires this yet (delta 45).
+   */
+  crypto?: WorkerCryptoSeam;
 }
 
 export interface ConnectorInvocationPayload {
@@ -112,6 +139,7 @@ export class DefaultTaskContext implements TaskContext {
 
   private readonly abortController: AbortController;
   private checkpointList: CheckpointRef[];
+  private readonly finalizedOutputArtifacts: ArtifactRef[] = [];
   private cancelFlag: boolean;
   private terminalReported = false;
 
@@ -121,6 +149,82 @@ export class DefaultTaskContext implements TaskContext {
   readonly progress: ProgressFacade;
   readonly artifacts: ArtifactFacade;
   readonly connector: ConnectorFacade;
+
+  /**
+   * W-ENC-04-SEAM: artifact encryption bound to this task's claim tenant.
+   *
+   * Deliberately NOT part of the public `TaskContext` interface: adding a
+   * member there would break every other implementer (document-core ships
+   * `MockTaskContext`, which this packet may not touch). A handler that wants
+   * encryption calls this on the concrete context; a handler that does not is
+   * unaffected.
+   *
+   * Throws when the deployment configured no seam, so a handler that asks for
+   * encryption can never silently continue with plaintext.
+   */
+  public cryptoFor(binding: TaskArtifactBinding): TaskArtifactCrypto {
+    return bindTaskCrypto(this.deps.crypto, this.task);
+  }
+
+  /**
+   * The configured crypto seam, or UNDEFINED when encryption is off.
+   *
+   * This exists because `cryptoFor` is present on the class either way, so
+   * probing for the METHOD is not the same as asking whether encryption is
+   * actually configured - a caller that checked the method would receive a
+   * handle that throws on first use. Consumers that need to BRANCH on whether
+   * encryption is on (rather than demand it) must read this instead.
+   */
+  public cryptoSeam(): WorkerCryptoSeam | undefined {
+    return this.deps.crypto;
+  }
+
+  /**
+   * W-ENC-04-SEAM: buffer a candidate artifact, verify the plaintext contract,
+   * and seal it. Single-shot only: an object larger than the 5 MiB ceiling is
+   * REFUSED rather than quietly written in the clear, because the chunked
+   * manifest has no place to travel yet (the finalize body has no manifest
+   * field — see delta 46). Bounding the refusal keeps the failure loud.
+   */
+  private async sealArtifactBytes(
+    content: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array> | Readable,
+    artifactId: string,
+    purpose: ArtifactPurpose,
+    expectedSha256?: string
+  ): Promise<{ body: Buffer; ciphertextSizeBytes: number; ciphertextSha256: string }> {
+    const crypto = this.cryptoFor({ artifactId, purpose });
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of toNodeReadable(content)) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += bytes.byteLength;
+      chunks.push(bytes);
+    }
+    if (total > CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES) {
+      for (const chunk of chunks) chunk.fill(0);
+      throw new Error(
+        'artifact exceeds the single-shot encryption ceiling; chunked manifest upload is not wired yet',
+      );
+    }
+    const plaintext = Buffer.concat(chunks, total);
+    for (const chunk of chunks) chunk.fill(0);
+    try {
+      if (expectedSha256 !== undefined) {
+        const digest = createHash('sha256').update(plaintext).digest('hex');
+        if (digest !== expectedSha256) {
+          throw new Error('artifact stream does not match the declared plaintext digest');
+        }
+      }
+      const sealed = await crypto.seal(plaintext, { artifactId, purpose });
+      return {
+        body: Buffer.from(sealed.encrypted.ciphertext),
+        ciphertextSizeBytes: sealed.ciphertextSizeBytes,
+        ciphertextSha256: sealed.ciphertextSha256,
+      };
+    } finally {
+      plaintext.fill(0);
+    }
+  }
 
   constructor(
     private readonly task: ClaimedTask,
@@ -162,6 +266,11 @@ export class DefaultTaskContext implements TaskContext {
     return this.checkpointList;
   }
 
+  /** Output refs returned here have completed the mandatory finalize call. */
+  committedOutputArtifacts(): readonly ArtifactRef[] {
+    return [...this.finalizedOutputArtifacts];
+  }
+
   /** Called by the worker loop when heartbeat detects lease loss/cancel. */
   abort(reason: 'lease-lost' | 'cancel' | 'shutdown'): void {
     if (reason === 'cancel') this.cancelFlag = true;
@@ -199,7 +308,7 @@ export class DefaultTaskContext implements TaskContext {
   private createStepFacade(): StepFacade {
     const self = this;
     return {
-      async run<T>(stepKey: string, inputHash: string, fn: () => Promise<T>): Promise<T> {
+      async run<T>(stepKey: string, inputHash: string, fn: () => Promise<T>, opts?: StepRunOptions): Promise<T> {
         self.assertLease();
         const existing = self.checkpointList.find((c) => c.stepKey === stepKey);
         if (existing) {
@@ -217,12 +326,18 @@ export class DefaultTaskContext implements TaskContext {
         const output = await runWithStepKey(stepKey, fn);
         self.assertLease();
         const outputRef = await self.persistStepOutput(stepKey, output);
+        // Normalize null → undefined so a session-less step serializes the
+        // exact pre-W39 saveStep body (JSON.stringify drops undefined keys).
+        const sessionRef = opts?.sessionRef ?? undefined;
         const ack = await self.wrapLeaseErrors(() =>
           self.deps.runtime.saveStep(self.taskId, stepKey, {
             leaseEpoch: self.leaseEpoch,
             inputHash,
             outputRef,
             status: 'SUCCEEDED',
+            // Additive (P4-07): undefined is dropped by JSON serialization,
+            // so the pre-W39 wire body is byte-identical when not supplied.
+            sessionRef,
           })
         );
         self.checkpointList.push({
@@ -231,6 +346,7 @@ export class DefaultTaskContext implements TaskContext {
           inputHash,
           status: 'SUCCEEDED',
           outputRef,
+          sessionRef,
         });
         return output;
       },
@@ -344,21 +460,222 @@ export class DefaultTaskContext implements TaskContext {
 
   private createArtifactFacade(): ArtifactFacade {
     const self = this;
+    const maxBytes = self.deps.maxArtifactBytes ?? 64 * 1024 * 1024;
+
+    const readGrant = async (artifactId: string) => {
+      self.assertLease();
+      return self.wrapLeaseErrors(() =>
+        self.deps.runtime.requestAccessGrant(artifactId, {
+          taskId: self.taskId,
+          leaseEpoch: self.leaseEpoch,
+          mode: 'read',
+        })
+      );
+    };
+
+    const openGrantedRead = async (
+      grant: Awaited<ReturnType<typeof readGrant>>,
+      options: { expectedSha256?: string; expectedSizeBytes?: number } = {}
+    ): Promise<Readable> => {
+      if (!grant.downloadUrl) throw new Error('access grant did not include a download URL');
+      if (grant.sizeBytes !== undefined && grant.sizeBytes > maxBytes) {
+        throw new Error('artifact size exceeds the configured worker byte limit');
+      }
+      if (options.expectedSha256 && grant.sha256 && options.expectedSha256 !== grant.sha256) {
+        throw new Error('requested artifact digest does not match the authorized artifact descriptor');
+      }
+      if (
+        options.expectedSizeBytes !== undefined &&
+        grant.sizeBytes !== undefined &&
+        options.expectedSizeBytes !== grant.sizeBytes
+      ) {
+        throw new Error('requested artifact size does not match the authorized artifact descriptor');
+      }
+      return openArtifactStream(grant.downloadUrl, {
+        maxBytes,
+        expectedSha256: grant.sha256 ?? options.expectedSha256,
+        expectedSizeBytes: grant.sizeBytes ?? options.expectedSizeBytes,
+        signal: self.signal,
+        fetcher: self.deps.fetchImpl,
+      });
+    };
+
+    const readStream = async (
+      artifactId: string,
+      options: { expectedSha256?: string; expectedSizeBytes?: number } = {}
+    ): Promise<Readable> => {
+      const grant = await readGrant(artifactId);
+      return openGrantedRead(grant, options);
+    };
+
+    /**
+     * DATA-04 Step C (W49-Q4-2 §7.2): objects past the single-PUT cap ride
+     * the DATA-00-M multipart lifecycle — same facade signature, same
+     * finalize gate, same committed ref. The business caller never learns
+     * which branch ran.
+     */
+    const writeStreamMultipart = async (
+      content: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array> | Readable,
+      fileName: string,
+      mimeType: string,
+      sizeBytes: number,
+      purpose: ArtifactPurpose,
+      expectedSha256?: string
+    ): Promise<ArtifactRef> => {
+      const runtime = self.deps.runtime;
+      const transport: MultipartUploadTransport = {
+        init: (body) =>
+          self.wrapLeaseErrors(() => runtime.multipartInit(self.taskId, { ...body, leaseEpoch: self.leaseEpoch })),
+        partGrant: (artifactId, body) =>
+          self.wrapLeaseErrors(() => runtime.multipartPartGrant(artifactId, { ...body, leaseEpoch: self.leaseEpoch })),
+        complete: (artifactId, body) =>
+          self.wrapLeaseErrors(() => runtime.multipartComplete(artifactId, { ...body, leaseEpoch: self.leaseEpoch })),
+        abort: (artifactId, body) =>
+          self.wrapLeaseErrors(() => runtime.multipartAbort(artifactId, { ...body, leaseEpoch: self.leaseEpoch })),
+      };
+      const upload = await uploadArtifactMultipart(content, {
+        transport,
+        fileName,
+        mimeType,
+        sizeBytes,
+        purpose,
+        expectedSha256,
+        signal: self.signal,
+        fetcher: self.deps.fetchImpl,
+      });
+      await self.wrapLeaseErrors(() =>
+        runtime.finalizeArtifact(upload.artifactId, {
+          taskId: self.taskId,
+          leaseEpoch: self.leaseEpoch,
+          sizeBytes: upload.sizeBytes,
+          sha256: upload.sha256,
+        })
+      );
+      const ref: ArtifactRef = {
+        artifactId: upload.artifactId,
+        role: purpose,
+        fileName,
+        mimeType,
+        sizeBytes: upload.sizeBytes,
+        hashSha256: upload.sha256,
+      };
+      if (purpose === 'output') self.finalizedOutputArtifacts.push(ref);
+      return ref;
+    };
+
+    const writeStream = async (
+      content: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array> | Readable,
+      fileName: string,
+      mimeType: string,
+      sizeBytes: number,
+      purpose: ArtifactPurpose = 'output',
+      expectedSha256?: string
+    ): Promise<ArtifactRef> => {
+      self.assertLease();
+      const multipartThreshold = self.deps.multipartThresholdBytes ?? maxBytes;
+      if (sizeBytes > multipartThreshold && sizeBytes >= MULTIPART_MIN_TOTAL_BYTES) {
+        if (sizeBytes > MULTIPART_MAX_TOTAL_BYTES) {
+          throw new Error('artifact size exceeds the multipart wire ceiling');
+        }
+        return writeStreamMultipart(content, fileName, mimeType, sizeBytes, purpose, expectedSha256);
+      }
+      if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0 || sizeBytes > maxBytes) {
+        throw new Error('artifact size exceeds the configured worker byte limit');
+      }
+      const grant = await self.wrapLeaseErrors(() =>
+        self.deps.runtime.requestUploadGrant(self.taskId, {
+          leaseEpoch: self.leaseEpoch,
+          purpose,
+          fileName,
+          mimeType,
+          sizeBytes,
+        })
+      );
+      if (!grant.uploadUrl) throw new Error('upload grant did not include an upload URL');
+      // W-ENC-04-SEAM: when a seam is configured, plaintext is sealed BEFORE
+      // anything leaves the process, and the finalize call reports the
+      // CIPHERTEXT size/digest because that is what storage committed. The
+      // caller's expectedSha256 stays a PLAINTEXT contract value, so it is
+      // verified here against the plaintext before sealing rather than being
+      // forwarded to the upload helper.
+      const sealed = self.deps.crypto
+        ? await self.sealArtifactBytes(content, grant.artifactId, purpose, expectedSha256)
+        : null;
+      const integrity = sealed
+        ? await uploadArtifactStream(Readable.from([sealed.body]), {
+            uploadUrl: grant.uploadUrl,
+            mimeType,
+            sizeBytes: sealed.ciphertextSizeBytes,
+            maxBytes,
+            expectedSha256: sealed.ciphertextSha256,
+            signal: self.signal,
+            fetcher: self.deps.fetchImpl,
+          })
+        : await uploadArtifactStream(content, {
+            uploadUrl: grant.uploadUrl,
+            mimeType,
+            sizeBytes,
+            maxBytes,
+            expectedSha256,
+            signal: self.signal,
+            fetcher: self.deps.fetchImpl,
+          });
+      await self.wrapLeaseErrors(() =>
+        self.deps.runtime.finalizeArtifact(grant.artifactId, {
+          taskId: self.taskId,
+          leaseEpoch: self.leaseEpoch,
+          sizeBytes: integrity.sizeBytes,
+          sha256: integrity.sha256,
+        })
+      );
+      const ref: ArtifactRef = {
+        artifactId: grant.artifactId,
+        role: purpose,
+        fileName,
+        mimeType,
+        sizeBytes: integrity.sizeBytes,
+        hashSha256: integrity.sha256,
+      };
+      if (purpose === 'output') self.finalizedOutputArtifacts.push(ref);
+      return ref;
+    };
+
     return {
       async read(artifactId: string): Promise<Buffer> {
-        self.assertLease();
-        const grant = await self.wrapLeaseErrors(() =>
-          self.deps.runtime.requestAccessGrant(artifactId, {
-            taskId: self.taskId,
-            leaseEpoch: self.leaseEpoch,
-            mode: 'read',
-          })
-        );
-        if (!grant.downloadUrl) throw new Error(`no download URL in access grant for ${artifactId}`);
-        const res = await fetch(grant.downloadUrl);
-        if (!res.ok) throw new Error(`artifact download failed: ${res.status}`);
-        return Buffer.from(await res.arrayBuffer());
+        const stream = await readStream(artifactId);
+        const chunks: Buffer[] = [];
+        let totalBytes = 0;
+        for await (const chunk of stream) {
+          const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          totalBytes += bytes.length;
+          chunks.push(bytes);
+        }
+        return Buffer.concat(chunks, totalBytes);
       },
+
+      async readWithMetadata(artifactId: string) {
+        const grant = await readGrant(artifactId);
+        const stream = await openGrantedRead(grant);
+        const chunks: Buffer[] = [];
+        let sizeBytes = 0;
+        for await (const chunk of stream) {
+          const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          sizeBytes += bytes.length;
+          chunks.push(bytes);
+        }
+        const buffer = Buffer.concat(chunks, sizeBytes);
+        const sha256 = createHash('sha256').update(buffer).digest('hex');
+        self.assertLease();
+        return {
+          buffer,
+          filename: grant.fileName,
+          mimeType: grant.mimeType,
+          sizeBytes,
+          sha256,
+        };
+      },
+
+      readStream,
 
       async write(
         content: Buffer | string,
@@ -366,35 +683,12 @@ export class DefaultTaskContext implements TaskContext {
         mimeType: string,
         purpose: ArtifactPurpose = 'output'
       ): Promise<ArtifactRef> {
-        self.assertLease();
         const buf = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
         const sha256 = createHash('sha256').update(buf).digest('hex');
-        const grant = await self.wrapLeaseErrors(() =>
-          self.deps.runtime.requestUploadGrant(self.taskId, {
-            leaseEpoch: self.leaseEpoch,
-            purpose,
-            mimeType,
-            sizeBytes: buf.byteLength,
-          })
-        );
-        const upload = await fetch(grant.uploadUrl, {
-          method: 'PUT',
-          headers: { 'content-type': mimeType },
-          body: buf,
-        });
-        if (!upload.ok) throw new Error(`artifact upload failed: ${upload.status}`);
-        await self.wrapLeaseErrors(() =>
-          self.deps.runtime.finalizeArtifact(grant.artifactId, { sizeBytes: buf.byteLength, sha256 })
-        );
-        return {
-          artifactId: grant.artifactId,
-          role: purpose,
-          fileName,
-          mimeType,
-          sizeBytes: buf.byteLength,
-          hashSha256: sha256,
-        };
+        return writeStream(Readable.from([buf]), fileName, mimeType, buf.byteLength, purpose, sha256);
       },
+
+      writeStream,
 
       async accessGrant(artifactId: string, mode: 'read' | 'write') {
         self.assertLease();
@@ -407,6 +701,16 @@ export class DefaultTaskContext implements TaskContext {
         );
         return { downloadUrl: grant.downloadUrl, uploadUrl: grant.uploadUrl, expiresAt: grant.expiresAt };
       },
+
+      async stat(artifactId: string) {
+        const grant = await readGrant(artifactId);
+        return {
+          fileName: grant.fileName,
+          mimeType: grant.mimeType,
+          sizeBytes: grant.sizeBytes,
+          sha256: grant.sha256,
+        };
+      },
     };
   }
 
@@ -417,10 +721,41 @@ export class DefaultTaskContext implements TaskContext {
   private createConnectorFacade(): ConnectorFacade {
     const self = this;
     return {
-      async invoke(slot: string, input: ConnectorInvokeInput, options?: Record<string, unknown>): Promise<InvocationResponse> {
+      async invoke(
+        slot: string,
+        input: ConnectorInvokeInput,
+        options?: Record<string, unknown>,
+        invokeOpts?: ConnectorInvokeOptions
+      ): Promise<InvocationResponse> {
         self.assertLease();
         const stepKey = currentStepKey();
-        const inputHash = contentHash({ slot, input, options: options ?? null });
+        // Canonical hash (W11-C1): computed over the exact wire fields the
+        // Connector validates, so the signed grant verifies unchanged — no
+        // shim. The deadline is computed first because it is part of the hash.
+        //
+        // P4-07 stable-invocation fix: when the task carries no operation
+        // deadline, the previous wall-clock fallback (now+300s) made the
+        // inputHash drift on every redelivery — the runtime keys grants by
+        // (task, stepKey, slot) and answers a drifted hash with 409
+        // INPUT_HASH_MISMATCH, so a pending-yield resume could never reuse
+        // its stored grant. The fixed sentinel keeps the hash (and thus the
+        // stable invocationId) identical across deliveries; the connector's
+        // own request timeout still bounds the HTTP call.
+        const deadlineAt =
+          invokeOpts?.deadlineAt ?? self.deadlineAt ?? OPEN_DEADLINE_SENTINEL;
+        const sessionRef = invokeOpts?.sessionRef ?? null;
+        const inputHash = hashInvocationInput({
+          contractVersion: '1',
+          tenantId: self.tenantId,
+          operationId: self.operationId,
+          taskId: self.taskId,
+          stepKey,
+          bindingSlot: slot,
+          input,
+          options,
+          sessionRef,
+          deadlineAt,
+        });
         // Runtime issues a stable invocationId for (task, stepKey, slot,
         // inputHash); replays reuse the same ID (no duplicate provider cost).
         const grant = await self.grantFor(stepKey, slot, inputHash);
@@ -434,8 +769,8 @@ export class DefaultTaskContext implements TaskContext {
           bindingSlot: slot,
           input,
           options,
-          sessionRef: null,
-          deadlineAt: self.deadlineAt ?? new Date(Date.now() + 300_000).toISOString(),
+          sessionRef,
+          deadlineAt,
         };
         const response = await self.deps.invokeConnector(grant, payload);
         return InvocationResponseSchema.parse(response);

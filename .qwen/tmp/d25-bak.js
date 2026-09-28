@@ -1,0 +1,10 @@
+const fs = require('fs');
+const SRC = 'D:/Git/dugate/du-rework/packages/contracts/src/';
+const b = fs.readFileSync(SRC + 'encryption.ts');
+const r = fs.readFileSync(SRC + 'runtime.ts');
+fs.writeFileSync('D:/Git/dugate/.qwen/tmp/bak-encryption.ts', b);
+fs.writeFileSync('D:/Git/dugate/.qwen/tmp/bak-runtime.ts', r);
+console.log('backed up encryption=' + b.length + ' runtime=' + r.length);
+const crypto = require('crypto');
+console.log('enc sha=' + crypto.createHash('sha256').update(b).digest('hex').slice(0,8));
+console.log('rt  sha=' + crypto.createHash('sha256').update(r).digest('hex').slice(0,8));

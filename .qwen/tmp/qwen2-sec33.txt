@@ -1,0 +1,17 @@
+
+
+## 33 — W48-A6fb4: R1-B patch đã lên disk → LẬT PROBE MM-10b 200→410 + nộp RUN REQUEST vòng 4 (giờ thật 2026-09-25 02:08:35 +0700; Qwen-2 / `term_4d79e7d3`)
+
+**Phát hiện khi kiểm trigger (user nhắn "tiếp"):** `heartbeatTask` (runtime.ts:127-177) ĐÃ chứa đúng patch §31 — comment "R1-B / MM-10b" trong code; guard order epoch→409 trước (bảo toàn test stale-epoch của p8-02 §3), terminal→410 TASK_TERMINAL sau, UPDATE thêm `AND state NOT IN (terminal)`, return `cancel_requested` thật. Tester CHƯA verify sau patch (tester.md dừng ở vòng 3) ⇒ probe pin-200 cũ sẽ báo đỏ GIẢ trên code đã sửa — phải lật NGAY rồi để 3× của Tester là verify.
+
+**Đã làm (chỉ file của tôi):**
+1. MM-10b lật: `expect(hb.status).toBe(410)` + `code TASK_TERMINAL` + assertion MỚI `lease_expires_at không bị kéo dài` (so trước/sau qua `lease_expires_at` cột db); header file cập nhật vòng feedback.
+2. Compile/skip: `6 skipped, 6 total` **EXIT=0**; `npm run lint` orchestrator (code patch của Claude Code, offline typecheck): **EXIT=0** — patch compile sạch, không lỗi TS.
+3. docs/35 R14: ghi UPDATE (patch vận hành + lật + pending vòng 4) — giữ nguyên lịch sử 3/3 cũ.
+4. docs/29: block "W48-A6fb4 RUN REQUEST (vòng 4)" — 3 lần liên tiếp `set DU_LIVE_INFRA=1` + lệnh cũ; kèm nhắc Tester chạy cả `p8-02-fault-recovery` + `runtime.test.ts` để chắc 409-stale contract không bị lật nhầm thành 410.
+
+**Trạng thái chờ (tên):** `tester-round4-p802b` → xanh 3/3 = đóng MM-10b/RUN-07 + điều kiện reconcile P8-02. Qwen-2 hết việc offline; về standby. Không commit/push/tick.
+
+## Nhật ký (tiếp)
+
+- 02:08 (25/09) — W48-A6fb4: trigger check thấy R1-B patch đã lên disk (runtime.ts:127-177, đúng §31); lật probe 200→410 + lease-not-extended; compile 6 skipped EXIT=0; orchestrator lint EXIT=0; docs/35 R14 UPDATE; RUN REQUEST vòng 4 vào docs/29. Standby chờ tester-round4-p802b. — Mục 33.

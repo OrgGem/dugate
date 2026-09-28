@@ -1,0 +1,20 @@
+const fs = require('fs');
+const NL = String.fromCharCode(10);
+const p = 'D:/Git/dugate/.qwen/tmp/seam-test-p1.txt';
+let s = fs.readFileSync(p, 'utf8');
+const bad1 = "import { createHash, createHmac, readFileSync } from 'node:crypto';";
+const good1 = "import { createHash, createHmac } from 'node:crypto';";
+console.log('bad1=' + (s.indexOf(bad1) >= 0));
+s = s.split(bad1).join(good1);
+const bad2 = "import { mkdtempSync, readFileSync as readFileSyncFs, rmSync } from 'node:fs';";
+const good2 = "import { readFileSync } from 'node:fs';";
+console.log('bad2=' + (s.indexOf(bad2) >= 0));
+s = s.split(bad2).join(good2);
+// drop imports the trimmed file no longer uses
+const bad3 = "import { tmpdir } from 'node:os';";
+const bad4 = "import { join } from 'node:path';";
+const bad5 = "import { Readable } from 'node:stream';";
+s = s.split(bad3).join('').split(bad4).join('').split(bad5).join('');
+fs.writeFileSync(p, s, 'utf8');
+console.log('cleaned lines=' + s.split(NL).length);
+s.split(NL).slice(20, 32).forEach(function (l, i) { console.log((i + 21) + '|' + l); });

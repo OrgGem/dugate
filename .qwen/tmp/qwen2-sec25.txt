@@ -1,0 +1,17 @@
+
+
+## 25 — W47-Q2-4 (tiếp theo): quy thuộc file vô danh + vá §1.4 docs/35 (ĐÃ ÁP DỤNG THẬT, 22:5x; bản §25 đầu bị trôi do va chạm sửa ngoài — khôi phục kèm đính chính)
+
+**A. QUY THUỘC ĐÃ KIỂM CHỨNG LẠI THEO docs/29 nguyên văn** (tự phê: bản draft đầu của tôi ghi `black-box-durable` là `tests/integration/...`, 1 test, tạo 13:05 vì A6-5 — **SAI**; bằng chứng thật docs/29:394-410,454:
+
+| File (đúng theo docs/29) | Loại | Run + literal | Chủ sở hữu theo ledger |
+|---|---|---|---|
+| `services/connector/tests/black-box-durable.test.ts` | LIVE gated (`CONNECTOR_INTEGRATION=1`, PG :5433 + Redis :6380) | 1/1 exit 0 (2.871s; 101ms test); TÁI XÁC NHẬN 3/3 exit 0 (3.734s) — W44-C2Z-4 | **Codex-2** (RUN REQUEST của Codex-2, P3-07/P4-07 High B&C) |
+| `services/connector/tests/durable-integration.test.ts` | LIVE gated | 2/2 exit 0 (1.981s; 22ms test) | **Codex-2** |
+| `tests/integration/connector-usage.integration.test.ts` | LIVE | 1/1 exit 0 (512ms, exactly-once usage) | ledger không ghi tên tác giả (A6-6 kê EXISTS) — coordinator chú thích khi reconcile |
+| `tests/integration/usage-projection.integration.test.ts` | LIVE | đã có dòng §3.2 (1/1) | đã inventory |
+
+Ứng viên `services/orchestrator/tests/usage-projection.integration.test.ts` = **FILE MISSING** (đừng cite; trùng tên dễ nhầm — đã ghi docs/35 §3.5).
+
+**B. VÁ §1.4 docs/35 — ĐÃ ÁP DỤNG THẬT (22:5x, exit của edit có verify):** thêm khoản "GHI NHAN BATCH (W47-Q2-4)": `[PASS]` per-file đòi literal riêng; chỉ có literal batch → `[PASS-BATCH]` (đã dán nhãn cho R7-R9); đồng thời cập nhật câu tiền lệ A96→"chỉ còn giá trị lịch sử tới 18:04" vì W46-A6-7 `13/13, 0 skipped, exit 0` đã đạt §1.4 → row 20 [PASS].
+

@@ -1,0 +1,24 @@
+
+**Why — cycle 22 (W-DATA-03-URL-ACQ, URL task chua READY thi khong chay duoc):**
+- Phan lon DATA-03 DA CO (source-acquisition.ts + source-ingestion.ts + 2 test file, lam
+  boi lane DATA + Muc 9 cua chinh lane nay). Task nao "viet test xac nhan policy" thi
+  PHAI INVENTORY TRUOC: doc test ton tai, tim LO HONG con lai, don vao do — khong viet
+  lai policy da cover va lam cham bang.
+- LO HONG tim duoc: `if (pin && artifactInputs.length > 0)` — pin chi kiem khi CO artifact.
+  Task URL chua READY co 0 artifact nen pin bi bo qua; neu task con mang `input.text`
+  => parse mode parse TEXT DO va bao thanh cong, du platform chua tai byte nao. Khong READY,
+  khong bytes, van co ket qua.
+- Fix 2 phan: (1) kiem pin BAT KI co pin, phan biet 0 artifact (INGESTION_SOURCE_UNRESOLVED)
+  vs artifact khong khop (SOURCE_PIN_MISMATCH); (2) `inlineText: pin ? undefined : input.text` —
+  text noi tuyen khong phai object da pin. Duong inline khi KHONG co pin giong het.
+- Pin schema la IngestionReceiptSchema STRICT: {storageKey, versionId, sha256, sizeBytes,
+  artifactId?} — KHONG co `url`. Lan dau test toi viet pin co `url` bi contract validator
+  chan; phai doc schema that chu doan shape.
+- FULL document-core 46/46 542/542 (45/537 Muc 21 + 1/5). 2 mutation: ve gate cu -> 2 test do;
+  bo inlineText -> 1 test do. Restore byte-exact f05634ea.
+- **BAI HOC 7 (don vao do, khong nhan ban):** khi task ban giao "viet test xac nhan policy"
+  ma policy DA duoc implement + test boi lane khac, viec dung la doc het test ton tai, gap
+  cai CHUA pin, va viet test cho gap do. Viet them test cho cai da cover thi ton tai thoi
+  va ton thuong reviewer bang mot lan doc lai.
+- **BAI HOC 8 (schema strict):** fixture phai khop contract that; `IngestionReceiptSchema`
+  strict nen field thua (vi du `url`) bi reject — doc schema, khong doan shape tu ten bien.

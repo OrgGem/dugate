@@ -1,0 +1,16 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "url-ingestion-backend-failclosed-offline"
+
+PASS tests/url-ingestion-backend-failclosed-offline.test.ts
+  W-INGEST-PG-FAILCLOSED-1 backend admission
+    √ postgres backend + sourceUrl: 422 UNSUPPORTED_STORAGE_BACKEND with ZERO database calls (5 ms)
+    √ unwired backend (absent option): fails CLOSED the same way - no silent accept (1 ms)
+    √ s3 backend + sourceUrl: unchanged 202-path - PENDING_INGESTION rows + gate-ingestion outbox dispatch (27 ms)
+    √ postgres backend + inline payload: fully unaffected - ACCEPTED/READY, no gate key (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        3.857 s
+Ran all test suites matching /url-ingestion-backend-failclosed-offline/i.

@@ -1,4 +1,5 @@
 import { InputNormalizer } from '../src/validation/input-normalizer';
+import { SchemaValidator } from '../src/validation/schema-validator';
 import { ValidationError } from '../src/types/results';
 
 describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
@@ -234,6 +235,262 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
     test('Valid maxWords passes', () => {
       const res = InputNormalizer.normalizeGenerate({ task: 'summary', maxWords: 500 });
       expect(res.maxWords).toBe(500);
+    });
+  });
+
+  describe('Compare Input Normalization & source_file / target_file Aliases (P0-03)', () => {
+    test('maps legacy source_file and target_file string aliases to artifactId objects', () => {
+      const result = InputNormalizer.normalizeCompare({
+        mode: 'diff',
+        source_file: 'art-source-100',
+        target_file: 'art-target-200',
+      });
+
+      expect(result.mode).toBe('diff');
+      expect(result.source).toEqual({ artifactId: 'art-source-100' });
+      expect(result.target).toEqual({ artifactId: 'art-target-200' });
+    });
+
+    test('maps object source_file with legacy artifact_id alias', () => {
+      const result = InputNormalizer.normalizeCompare({
+        mode: 'semantic',
+        source_file: { artifact_id: 'art-source-legacy' },
+        target_file: { artifact_id: 'art-target-legacy' },
+      });
+
+      expect(result.source).toEqual({ artifactId: 'art-source-legacy' });
+      expect(result.target).toEqual({ artifactId: 'art-target-legacy' });
+    });
+
+    test('supports raw text comparison strings', () => {
+      const result = InputNormalizer.normalizeCompare({
+        mode: 'diff',
+        source: 'Original contract draft',
+        target: 'Revised contract draft',
+      });
+
+      expect(result.source).toEqual({ text: 'Original contract draft' });
+      expect(result.target).toEqual({ text: 'Revised contract draft' });
+    });
+
+    test('rejects missing source or target comparison sides', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({ mode: 'diff', target_file: 'art-1' });
+      }).toThrow(expect.objectContaining({ code: 'MISSING_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({ mode: 'diff', source_file: 'art-1' });
+      }).toThrow(expect.objectContaining({ code: 'MISSING_COMPARISON_SIDE' }));
+    });
+
+    test('rejects conflicting canonical parameter and legacy file alias with CONFLICTING_COMPARISON_PARAMETERS', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: 'Canonical text',
+          source_file: 'art-conflicting',
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'CONFLICTING_COMPARISON_PARAMETERS' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { text: 'Source text' },
+          target: { text: 'Canonical target' },
+          target_file: 'art-conflicting-target',
+        });
+      }).toThrow(expect.objectContaining({ code: 'CONFLICTING_COMPARISON_PARAMETERS' }));
+    });
+
+    test('rejects ambiguous comparison side with both artifactId and text with AMBIGUOUS_COMPARISON_SIDE', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'semantic',
+          source: { artifactId: 'art-123', text: 'ambiguous literal text' },
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'AMBIGUOUS_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'semantic',
+          source: { text: 'Source text' },
+          target_file: { artifact_id: 'art-123', text: 'ambiguous literal text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'AMBIGUOUS_COMPARISON_SIDE' }));
+    });
+
+    test('rejects nonstring artifactId or text with INVALID_COMPARISON_SIDE', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { artifactId: 12345 },
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { text: true },
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source_file: 99999,
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+    });
+
+    test('rejects arrays passed as comparison parameters with INVALID_COMPARISON_SIDE', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: ['array-element-1'],
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { text: 'Source text' },
+          target_file: ['art-target-array'],
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+    });
+
+    test('rejects empty or whitespace-only string values with INVALID_COMPARISON_SIDE', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: '   ',
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source_file: '',
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { artifactId: '   ' },
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'INVALID_COMPARISON_SIDE' }));
+    });
+
+    test('rejects object comparison side with neither artifactId nor text with MISSING_COMPARISON_SIDE', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { irrelevantField: 'value' },
+          target: { text: 'Target text' },
+        });
+      }).toThrow(expect.objectContaining({ code: 'MISSING_COMPARISON_SIDE' }));
+    });
+  });
+
+  describe('JSON Schema Nesting Depth Bounds (SchemaValidator MAX_DEPTH=5)', () => {
+    function buildNestedSchema(depth: number): Record<string, unknown> {
+      let schema: Record<string, unknown> = { type: 'string' };
+      for (let i = depth - 1; i > 0; i--) {
+        schema = {
+          type: 'object',
+          properties: {
+            [`field_${i}`]: schema,
+          },
+        };
+      }
+      return schema;
+    }
+
+    test('accepts custom extraction schema with depth up to 5', () => {
+      const schemaDepth5 = buildNestedSchema(5);
+      expect(() => {
+        SchemaValidator.validateCustomSchema(schemaDepth5);
+      }).not.toThrow();
+    });
+
+    test('rejects custom extraction schema with depth > 5 with SCHEMA_DEPTH_EXCEEDED', () => {
+      const schemaDepth6 = buildNestedSchema(6);
+      expect(() => {
+        SchemaValidator.validateCustomSchema(schemaDepth6);
+      }).toThrow(expect.objectContaining({ code: 'SCHEMA_DEPTH_EXCEEDED' }));
+    });
+
+    test('rejects schema containing network $ref keywords with FORBIDDEN_SCHEMA_REF', () => {
+      const schemaWithRef = {
+        type: 'object',
+        properties: {
+          external: { $ref: 'https://evil.example.com/schema.json' },
+        },
+      };
+      expect(() => {
+        SchemaValidator.validateCustomSchema(schemaWithRef);
+      }).toThrow(expect.objectContaining({ code: 'FORBIDDEN_SCHEMA_REF' }));
+    });
+  });
+
+  describe('Legacy Parameter Characterization Grounded in Legacy Registry (P0-03)', () => {
+    test('normalizes legacy snake_case output_format across endpoints', () => {
+      const ingestRes = InputNormalizer.normalizeIngest({
+        mode: 'parse',
+        text: 'Invoice test',
+        output_format: 'markdown',
+      });
+      expect(ingestRes.outputFormat).toBe('md');
+
+      const compareRes = InputNormalizer.normalizeCompare({
+        mode: 'diff',
+        source_file: 'art-1',
+        target_file: 'art-2',
+        output_format: 'text',
+      });
+      expect(compareRes.outputFormat).toBe('text');
+    });
+
+    test('normalizes legacy transform action parameter to canonical variant', () => {
+      const transformRes = InputNormalizer.normalizeTransform({
+        action: 'convert',
+        text: 'Hello world',
+      });
+      expect(transformRes.variant).toBe('convert');
+    });
+
+    test('normalizes comma-separated string lists to typed arrays (fields, categories, redact_patterns)', () => {
+      const extractRes = InputNormalizer.normalizeExtract({
+        type: 'custom',
+        text: 'Doc',
+        fields: 'invoice_number, total_amount, due_date',
+        schema: { type: 'object' },
+      });
+      expect(extractRes.fields).toEqual(['invoice_number', 'total_amount', 'due_date']);
+
+      const analyzeRes = InputNormalizer.normalizeAnalyze({
+        task: 'classify',
+        text: 'Doc',
+        categories: 'legal, financial, operational',
+      });
+      expect(analyzeRes.categories).toEqual(['legal', 'financial', 'operational']);
+
+      const transformRes = InputNormalizer.normalizeTransform({
+        variant: 'redact',
+        text: 'Doc',
+        redact_patterns: 'EMAIL, PHONE_NUMBER',
+      });
+      expect(transformRes.redactPatterns).toEqual(['EMAIL', 'PHONE_NUMBER']);
     });
   });
 });

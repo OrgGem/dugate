@@ -1,0 +1,87 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "data-03-url-acq"
+
+FAIL tests/data-03-url-acq.test.ts
+  ● Test suite failed to run
+
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m1[0m - [91merror[0m[90m TS2304: [0mCannot find name 'widget'.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m10[0m - [91merror[0m[90m TS2554: [0mExpected 1-3 arguments, but got 8.
+
+    [7m 25[0m widget,10', 'utf8');
+    [7m   [0m [91m         ~~~~~~~~~~~[0m
+    [7m 26[0m 
+    [7m   [0m [91m[0m
+    [7m...[0m 
+    [7m 84[0m   });
+    [7m   [0m [91m~~~~~[0m
+    [7m 85[0m });
+    [7m   [0m [91m~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m14[0m - [91merror[0m[90m TS2304: [0mCannot find name 'utf8'.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m             ~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m42[0m:[93m15[0m - [91merror[0m[90m TS2304: [0mCannot find name 'pinFor'.
+
+    [7m42[0m       source: pinFor(PINNED),
+    [7m  [0m [91m              ~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m60[0m:[93m15[0m - [91merror[0m[90m TS2304: [0mCannot find name 'pinFor'.
+
+    [7m60[0m       source: pinFor(PINNED),
+    [7m  [0m [91m              ~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m76[0m:[93m15[0m - [91merror[0m[90m TS2304: [0mCannot find name 'pinFor'.
+
+    [7m76[0m       source: pinFor(PINNED),
+    [7m  [0m [91m              ~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m103[0m:[93m15[0m - [91merror[0m[90m TS2304: [0mCannot find name 'pinFor'.
+
+    [7m103[0m       source: pinFor(PINNED),
+    [7m   [0m [91m              ~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m24[0m:[93m39[0m - [91merror[0m[90m TS1002: [0mUnterminated string literal.
+
+    [7m24[0m const PINNED = Buffer.from('item,total
+    [7m  [0m [91m                                      [0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m1[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m10[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m         ~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m14[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m             ~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m18[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m                 ~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m25[0m:[93m21[0m - [91merror[0m[90m TS1002: [0mUnterminated string literal.
+
+    [7m25[0m widget,10', 'utf8');
+    [7m  [0m [91m                    [0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m27[0m:[93m1[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+    [7m27[0m function pinFor(bytes: Buffer) {
+    [7m  [0m [91m~~~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m37[0m:[93m1[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+    [7m37[0m describe('W-DATA-03: a URL task is not runnable before its source is READY', () => {
+    [7m  [0m [91m~~~~~~~~[0m
+    [96mtests/data-03-url-acq.test.ts[0m:[93m85[0m:[93m3[0m - [91merror[0m[90m TS1005: [0m')' expected.
+
+    [7m85[0m });
+    [7m  [0m [91m  ~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        2.341 s
+Ran all test suites matching /data-03-url-acq/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "data-03-url-acq"`
+Exit status 1

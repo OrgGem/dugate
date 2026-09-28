@@ -1,0 +1,119 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand
+
+PASS tests/bullmq-smoke.test.ts
+PASS tests/p8-03-provider-convergence.test.ts
+PASS tests/sdk-consumer.test.ts
+{"operationId":"a13b9978-7673-405a-8331-f70162c871ab","businessId":"document-core","businessVersion":"1.0.0","errorCode":"DOCUMENT_TOO_LARGE","timestamp":"2026-09-27T20:56:48.028Z","level":"error","service":"worker:document-core","environment":"test","correlationId":"corr-1b5e5303-a627-48e8-a907-82b2d68688ec","taskId":"2aec7108-7ff9-44e3-9cde-995007613bcf","invocationId":null,"message":"handler failed"}
+PASS tests/provider-backed-variant.test.ts
+PASS tests/p8-01-traceability-harness.test.ts
+PASS tests/r1-e-artifact-inputs.test.ts (5.86 s)
+PASS tests/r1-e-layer6-archive-worker.test.ts (5.14 s)
+PASS tests/ingest.test.ts
+PASS tests/parser-budgets.test.ts
+PASS tests/r1-e-trusted-format-propagation.test.ts
+PASS tests/child-lifecycle.test.ts
+PASS tests/parser-budget-band.test.ts
+  ● Console
+
+    console.log
+      PARSER-RSS budget=10.00MiB peakMarginalExternal=8.01MiB residentExternal=8.01MiB
+
+      at Object.<anonymous> (tests/parser-budget-band.test.ts:158:13)
+
+PASS tests/r1-e-sdk-metadata-adapter.test.ts
+PASS tests/read-stream-acquisition.test.ts
+PASS tests/artifact-metadata.functional.test.ts
+PASS tests/transform.test.ts
+PASS tests/ingest-source-pin.test.ts
+PASS tests/compare.test.ts
+PASS tests/six-action-fail-closed-matrix.functional.test.ts
+PASS tests/checkpoint-replay.test.ts
+PASS tests/all-variants-e2e.test.ts
+PASS tests/corpus-regression.test.ts
+PASS tests/execution-pin.functional.test.ts
+PASS tests/checkpoint.test.ts
+PASS tests/analyze.test.ts
+PASS tests/config.test.ts
+  ● Console
+
+    console.error
+      {"ts":"2026-09-27T20:57:13.692Z","level":"error","msg":"Failed to parse worker environment configuration","meta":{"error":"Invalid worker configuration: RUNTIME_URL: RUNTIME_URL must be a valid URL; RUNTIME_TOKEN: Required; REDIS_URL: Required"}}
+
+    [0m [90m 21 |[39m     [36mconst[39m log [33m=[39m [36mthis[39m[33m.[39mdeps[33m.[39monLog [33m?[39m[33m?[39m ((level[33m,[39m msg[33m,[39m meta) [33m=>[39m {
+     [90m 22 |[39m       [36mconst[39m line [33m=[39m [33mJSON[39m[33m.[39mstringify({ ts[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m level[33m,[39m msg[33m,[39m meta })[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m       [36mif[39m (level [33m===[39m [32m'error'[39m) console[33m.[39merror(line)[33m;[39m
+     [90m    |[39m                                      [31m[1m^[22m[39m
+     [90m 24 |[39m       [36melse[39m console[33m.[39mlog(line)[33m;[39m
+     [90m 25 |[39m     })[33m;[39m
+     [90m 26 |[39m[0m
+
+      at log (src/main.ts:23:38)
+      at DocumentCoreProcess.start (src/main.ts:32:7)
+      at Object.<anonymous> (tests/config.test.ts:158:25)
+
+    console.log
+      {"ts":"2026-09-27T20:57:13.696Z","level":"info","msg":"Starting Document Core Worker service","meta":{"runtimeUrl":"http://localhost:3000/api/runtime/v1","runtimeToken":"[REDACTED]","redisUrl":"redis://localhost:6380","connectorUrl":"http://localhost:3100/internal/v1","concurrency":4,"heartbeatIntervalMs":5000,"workerInstanceId":"worker-doc-test-1","imageDigest":"sha256:test-image-digest","shutdownGraceMs":10000}}
+
+      at log (src/main.ts:24:20)
+
+    console.error
+      {"ts":"2026-09-27T20:57:13.697Z","level":"error","msg":"Worker failed to start","meta":{"error":"Connection refused to runtime"}}
+
+    [0m [90m 21 |[39m     [36mconst[39m log [33m=[39m [36mthis[39m[33m.[39mdeps[33m.[39monLog [33m?[39m[33m?[39m ((level[33m,[39m msg[33m,[39m meta) [33m=>[39m {
+     [90m 22 |[39m       [36mconst[39m line [33m=[39m [33mJSON[39m[33m.[39mstringify({ ts[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m level[33m,[39m msg[33m,[39m meta })[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m       [36mif[39m (level [33m===[39m [32m'error'[39m) console[33m.[39merror(line)[33m;[39m
+     [90m    |[39m                                      [31m[1m^[22m[39m
+     [90m 24 |[39m       [36melse[39m console[33m.[39mlog(line)[33m;[39m
+     [90m 25 |[39m     })[33m;[39m
+     [90m 26 |[39m[0m
+
+      at log (src/main.ts:23:38)
+      at DocumentCoreProcess.start (src/main.ts:53:7)
+      at Object.<anonymous> (tests/config.test.ts:174:7)
+
+    console.log
+      {"ts":"2026-09-27T20:57:13.697Z","level":"info","msg":"Starting Document Core Worker service","meta":{"runtimeUrl":"http://localhost:3000/api/runtime/v1","runtimeToken":"[REDACTED]","redisUrl":"redis://localhost:6380","connectorUrl":"http://localhost:3100/internal/v1","concurrency":4,"heartbeatIntervalMs":5000,"workerInstanceId":"worker-doc-test-1","imageDigest":"sha256:test-image-digest","shutdownGraceMs":10000}}
+
+      at log (src/main.ts:24:20)
+
+    console.log
+      {"ts":"2026-09-27T20:57:13.698Z","level":"info","msg":"Document Core Worker successfully registered and listening","meta":{"workerInstanceId":"inst-1","queueName":"q-1"}}
+
+      at log (src/main.ts:24:20)
+
+    console.log
+      {"ts":"2026-09-27T20:57:13.698Z","level":"info","msg":"Shutting down worker gracefully...","meta":{"graceMs":10000}}
+
+      at log (src/main.ts:88:15)
+
+    console.log
+      {"ts":"2026-09-27T20:57:13.698Z","level":"info","msg":"Worker shutdown completed cleanly"}
+
+      at log (src/main.ts:88:15)
+
+PASS tests/extract.test.ts
+PASS tests/generate.test.ts
+PASS tests/cancellation-fencing.test.ts
+PASS tests/worker.test.ts
+PASS tests/cross-service-boundary.test.ts
+PASS tests/profile-binding-fixture.test.ts
+PASS tests/doc-core-crypto-seam.test.ts
+PASS tests/bounded-input.test.ts
+PASS tests/build-dependency-order.test.ts
+PASS tests/barrier-cleanup-lifecycle.test.ts
+PASS tests/package-boundary.test.ts
+PASS tests/test-target-guard.test.ts
+PASS tests/manifest.test.ts
+PASS tests/output-validation.test.ts
+PASS tests/traceability.test.ts
+PASS tests/br06-checkpoint-dedup-offline.test.ts
+PASS tests/helpers/synthetic-fixtures.test.ts
+PASS tests/suite-bootstrap-contract.test.ts
+
+Test Suites: 44 passed, 44 total
+Tests:       529 passed, 529 total
+Snapshots:   0 total
+Time:        32.316 s, estimated 62 s
+Ran all test suites.

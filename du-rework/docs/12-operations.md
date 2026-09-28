@@ -2,7 +2,7 @@
 
 ## Environments
 
-Dev/test trong namespace riêng: PostgreSQL database/schema riêng, Redis prefix/instance riêng, MinIO/S3 bucket riêng, ports riêng. Không dùng `.env`, uploads, outputs hoặc credentials của DUGate cũ. `infra` sẽ có `.env.example` placeholders ở phase implementation, chưa tạo ở planning.
+Dev/test dùng PostgreSQL và Redis cô lập qua `infra/docker-compose.yml` (ports 5433/6380, theo gate `runtime-ready`). Object storage/MinIO và production environment template chưa được triển khai, vì vậy artifact-storage readiness vẫn là gap. Không dùng `.env`, uploads, outputs hoặc credentials của DUGate cũ.
 
 Compose dự kiến: orchestrator, connector, document-core, postgres, redis, object-storage, mock-provider. Example-review chỉ thêm vào extension test profile. Không có Coordinator/Document service độc lập.
 
@@ -31,7 +31,7 @@ Logs cấu trúc dùng operationId, taskId, stepKey, invocationId, business/vers
 
 Metrics: submission p95/p99, queue oldest age, outbox age, active/expired leases, retries, failed/cancelled/unknown invocation, provider latency/429, in-flight, bytes/pages, DB connections, artifact orphan count, usage lag, webhook lag.
 
-Alert gắn runbook: queue không có matching worker; outbox backlog; reconciliation repeat; UNKNOWN invocation; credential revoked; storage inaccessible; usage duplication attempt; capacity rejected.
+Alert gắn runbook: queue không có matching worker; outbox backlog; reconciliation repeat; UNKNOWN invocation; credential revoked; storage inaccessible; usage duplication attempt; capacity rejected; `queueIntegrity.state=SUSPECT` trên GET /health (MM-05, docs/38 §6 — body 'degraded' nhưng HTTP vẫn 200 theo D2, để monitor alert, không đá LB).
 
 ## Load-test matrix
 

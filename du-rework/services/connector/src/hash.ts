@@ -1,17 +1,17 @@
-import { createHash } from 'node:crypto';
+import { hashInvocationInput as canonicalInvocationHash } from '@du/contracts';
 import type { LocalInvocationRequest } from './types';
 
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, item]) => item !== undefined)
-    .sort(([a], [b]) => a.localeCompare(b));
-  return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalize(item)}`).join(',')}}`;
-}
-
+/**
+ * Canonical Connector invocation input hash (W11-C1 / R08-02).
+ *
+ * Delegates to the single source of truth in @du/contracts so the SDK (which
+ * hashes the outgoing wire payload), the Orchestrator (which signs the hash
+ * into grant claims) and the Connector (which re-derives it from the verified
+ * request here) cannot drift apart again. The `sha256:` multihash-style prefix
+ * is part of the canonical digest on all three sides.
+ */
 export function canonicalInput(request: LocalInvocationRequest): string {
-  return canonicalize({
+  const digest = canonicalInvocationHash({
     contractVersion: request.contractVersion,
     tenantId: request.tenantId,
     operationId: request.operationId,
@@ -19,12 +19,13 @@ export function canonicalInput(request: LocalInvocationRequest): string {
     stepKey: request.stepKey,
     bindingSlot: request.bindingSlot,
     input: request.input,
-    options: request.options ?? {},
-    sessionRef: request.sessionRef ?? null,
+    options: request.options,
+    sessionRef: request.sessionRef,
     deadlineAt: request.deadlineAt,
   });
+  return digest;
 }
 
 export function hashInvocationInput(request: LocalInvocationRequest): string {
-  return createHash('sha256').update(canonicalInput(request)).digest('hex');
+  return canonicalInput(request);
 }

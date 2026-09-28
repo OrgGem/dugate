@@ -1,5 +1,11 @@
-import { DocumentParser, FormatDetectionResult, ParseResult } from '../types';
-import { SafeArchiveExtractor } from '../archives/zip-extractor';
+import { DocumentParser, FormatDetectionResult, ParseResult, ParserOptions } from '../types';
+import { ArchiveSecurityError, SafeArchiveExtractor } from '../archives/zip-extractor';
+import { validateParserOptions, withTimeout } from './limits';
+import { isMainThread } from 'worker_threads';
+import {
+  DEFAULT_PARSER_CPU_TIMEOUT_MS,
+  parseBuiltInParserInWorker,
+} from './worker-isolation';
 
 export class WordParser implements DocumentParser {
   public readonly name = 'WordParser';
@@ -8,12 +14,69 @@ export class WordParser implements DocumentParser {
     return ['docx', 'doc'].includes(formatInfo.format);
   }
 
-  public async parse(fileBuffer: Buffer, fileName?: string): Promise<ParseResult> {
+  public async parse(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    validateParserOptions(options, fileBuffer.length);
+
+    if (isMainThread && this.constructor === WordParser) {
+      return parseBuiltInParserInWorker(
+        'word-parser',
+        'WordParser',
+        fileBuffer,
+        fileName,
+        options,
+        options?.timeoutMs ?? DEFAULT_PARSER_CPU_TIMEOUT_MS
+      );
+    }
+
+    const parsePromise = this.parseCore(fileBuffer, fileName, options);
+    return options?.timeoutMs === undefined
+      ? parsePromise
+      : withTimeout(parsePromise, options.timeoutMs, this.name);
+  }
+
+  /** @internal Executes the parser body inside the isolated worker or a boundary test. */
+  public async parseCore(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    validateParserOptions(options, fileBuffer.length);
+    return this.doParse(fileBuffer, fileName, options);
+  }
+
+  private async doParse(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    const sourceBuffer = SafeArchiveExtractor.hasPreflightedBuffer(fileBuffer)
+      ? fileBuffer
+      : Buffer.from(fileBuffer);
+    const claimsDocx = fileName?.toLowerCase().endsWith('.docx') ?? false;
+    if (SafeArchiveExtractor.isZipBuffer(sourceBuffer) || claimsDocx) {
+      try {
+        await SafeArchiveExtractor.preflightBuffer(sourceBuffer, {}, 'docx');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const wrappedMessage =
+          `Unable to parse Word document "${fileName || 'document'}": archive preflight failed: ${message}`;
+        if (err instanceof ArchiveSecurityError) {
+          throw new ArchiveSecurityError(err.code, wrappedMessage);
+        }
+        throw new Error(wrappedMessage);
+      }
+    }
+
     const warnings: string[] = [];
 
-    // 1. Direct OpenXML extraction via SafeArchiveExtractor (supports rich markdown tables)
-    try {
-      const archiveResult = await SafeArchiveExtractor.extractBuffer(fileBuffer);
+    // 1. Direct OpenXML extraction via SafeArchiveExtractor (supports rich markdown tables).
+    // Do not swallow archive failures into Mammoth: preflight errors must fail closed.
+    if (SafeArchiveExtractor.isZipBuffer(sourceBuffer) || claimsDocx) {
+      const archiveResult = await SafeArchiveExtractor.extractBuffer(sourceBuffer);
       const docXmlEntry = archiveResult.entries.find(
         (e) => e.path === 'word/document.xml' || e.path.endsWith('/document.xml')
       );
@@ -36,9 +99,6 @@ export class WordParser implements DocumentParser {
           warnings,
         };
       }
-    } catch (zipErr: unknown) {
-      const msg = zipErr instanceof Error ? zipErr.message : String(zipErr);
-      warnings.push(`Direct XML extraction failed: ${msg}`);
     }
 
     // 2. Fallback to mammoth if installed
@@ -46,12 +106,9 @@ export class WordParser implements DocumentParser {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const mammoth = require('mammoth');
       if (mammoth && typeof mammoth.extractRawText === 'function') {
-        const textResult = (await Promise.race([
-          mammoth.extractRawText({ buffer: fileBuffer }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Mammoth extraction timed out')), 500)
-          ),
-        ])) as { value: string; messages: Array<{ message: string }> };
+        const textResult = (await mammoth.extractRawText({
+          buffer: sourceBuffer,
+        })) as { value: string; messages: Array<{ message: string }> };
 
         const text = textResult.value || '';
         const wordCount = text.trim().split(/\s+/).filter(Boolean).length;

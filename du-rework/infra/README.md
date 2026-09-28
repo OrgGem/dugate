@@ -1,6 +1,22 @@
-# Infrastructure plan
+# Infrastructure
 
-Planning only. Implementation sẽ tạo Compose/config/runbooks tại đây cho Orchestrator, Connector, document-core, PostgreSQL, Redis, object storage và mock provider. Namespace/ports/volumes độc lập DUGate cũ. Không có Coordinator/Document service riêng.
+`docker-compose.yml` provides the isolated `du-rework-test` PostgreSQL 16 and
+Redis 7 dependencies on loopback ports 5433 and 6380. The default Compose
+project remains dependency-only. Its opt-in `connector` profile builds the
+Connector image, waits for both dependencies to become healthy, and probes
+`GET /health/ready` on the local-only port 8081. The profile is a single
+replica integration fixture, not a production deployment topology.
 
-Đọc [operations](../docs/12-operations.md), [P1 foundation](../tasks/P1-foundation-contracts.md), [P8 readiness](../tasks/P8-release-readiness.md). One-shot migrations, health/shutdown, backup restore và multi-replica quota tests là deliverables. Không deploy production trong scope plan.
+The Connector image uses the Node 20 Alpine base and its exec-form shell
+entrypoint leaves Node as the signal receiver. The Compose stop grace is 40
+seconds for the Connector's default 30-second HTTP and usage-outbox drain.
+Connector startup applies pending SQL migrations before opening the listener;
+do not enable the profile against a shared or production database without the
+approved migration run request and recovery point.
+
+See [operational runbooks](../docs/17-operational-runbooks.md#connector-compose-health-and-shutdown-contract),
+[operations](../docs/12-operations.md), [P1 foundation](../tasks/P1-foundation-contracts.md),
+and [P8 readiness](../tasks/P8-release-readiness.md). Production deployment,
+backup/restore rehearsal, and multi-replica Compose topology remain separate
+readiness work.
 

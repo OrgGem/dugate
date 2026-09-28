@@ -1,0 +1,42 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "doc-core-crypto-seam"
+
+FAIL tests/doc-core-crypto-seam.test.ts
+  W-ENC-04-DOC-CORE adapter: the seam follows the worker configuration
+    √ exposes crypto on the internal context when the worker has a seam (3 ms)
+    √ leaves crypto undefined when the worker has none (fallback preserved) (1 ms)
+    √ binds the seam to the CONTEXT tenant, never a handler-supplied one
+  W-ENC-04-DOC-CORE checkpoints: sealed at rest, transparent on replay
+    × persists an envelope with no plaintext when a seam is configured (5 ms)
+    √ replays from the sealed record without re-executing the step (2 ms)
+    √ stores the value unchanged when no seam is configured (byte-for-byte fallback) (1 ms)
+    √ fails BEFORE the step body when encryption is required but absent (1 ms)
+    √ refuses to open a sealed checkpoint on a worker that lost its seam (1 ms)
+    √ a sealed checkpoint from tenant A will not open under tenant B (2 ms)
+
+  ● W-ENC-04-DOC-CORE checkpoints: sealed at rest, transparent on replay › persists an envelope with no plaintext when a seam is configured
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    [0m [90m 199 |[39m     expect(record)[33m.[39mtoBeDefined()[33m;[39m
+     [90m 200 |[39m     expect([33mStepCheckpointManager[39m[33m.[39misSealedRecord(record[33m?[39m[33m.[39moutput))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 201 |[39m     expect(leaksSentinel(record[33m?[39m[33m.[39moutput))[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m     |[39m                                           [31m[1m^[22m[39m
+     [90m 202 |[39m   })[33m;[39m
+     [90m 203 |[39m
+     [90m 204 |[39m   it([32m'replays from the sealed record without re-executing the step'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/doc-core-crypto-seam.test.ts:201:43)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 8 passed, 9 total
+Snapshots:   0 total
+Time:        2.633 s, estimated 3 s
+Ran all test suites matching /doc-core-crypto-seam/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "doc-core-crypto-seam"`
+Exit status 1

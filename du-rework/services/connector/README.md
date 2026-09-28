@@ -40,6 +40,13 @@ When `USAGE_SINK_URL` and `USAGE_SINK_TOKEN` are configured, a lifecycle-managed
 durable outbox dispatcher validates and posts contract usage events with
 idempotency keys, capped exponential retry, and persisted retry scheduling.
 
+Shutdown stops accepting new invocations and drains accepted HTTP handlers and
+usage delivery under one `DRAIN_TIMEOUT_MS` deadline (30 seconds by default).
+At the deadline, active HTTP connections are force-closed before durable
+dependencies are closed. `shutdown({ timeoutMs: 0 })` is an explicit teardown
+opt-out for tests; it does not change the production default or prove graceful
+drain behavior.
+
 ## Evidence
 
 Local Connector tests cover adapters, grant and identity failures, lifecycle,

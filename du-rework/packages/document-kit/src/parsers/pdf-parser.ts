@@ -1,4 +1,10 @@
-import { DocumentParser, FormatDetectionResult, ParseResult } from '../types';
+import { DocumentParser, FormatDetectionResult, ParseResult, ParserOptions } from '../types';
+import { validateParserOptions, withTimeout } from './limits';
+import { isMainThread } from 'worker_threads';
+import {
+  DEFAULT_PARSER_CPU_TIMEOUT_MS,
+  parseBuiltInParserInWorker,
+} from './worker-isolation';
 
 export class PdfParser implements DocumentParser {
   public readonly name = 'PdfParser';
@@ -7,7 +13,45 @@ export class PdfParser implements DocumentParser {
     return formatInfo.format === 'pdf';
   }
 
-  public async parse(fileBuffer: Buffer, fileName?: string): Promise<ParseResult> {
+  public async parse(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    validateParserOptions(options, fileBuffer.length);
+
+    if (isMainThread && this.constructor === PdfParser) {
+      return parseBuiltInParserInWorker(
+        'pdf-parser',
+        'PdfParser',
+        fileBuffer,
+        fileName,
+        options,
+        options?.timeoutMs ?? DEFAULT_PARSER_CPU_TIMEOUT_MS
+      );
+    }
+
+    const parsePromise = this.parseCore(fileBuffer, fileName, options);
+    return options?.timeoutMs === undefined
+      ? parsePromise
+      : withTimeout(parsePromise, options.timeoutMs, this.name);
+  }
+
+  /** @internal Executes the parser body inside the isolated worker or a boundary test. */
+  public async parseCore(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
+    validateParserOptions(options, fileBuffer.length);
+    return this.doParse(fileBuffer, fileName, options);
+  }
+
+  private async doParse(
+    fileBuffer: Buffer,
+    fileName?: string,
+    options?: ParserOptions
+  ): Promise<ParseResult> {
     const warnings: string[] = [];
     let pageCount = 1;
 

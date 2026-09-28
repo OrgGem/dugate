@@ -247,7 +247,7 @@ export async function completeWorkflow(ctx: WorkflowContext, outputContent: stri
 export async function pauseWorkflow(ctx: WorkflowContext, message: string, currentStep: number) {
   // Persist schema-driven nodeResults alongside stepsResult for resume
   let stepsResultJson = JSON.stringify(ctx.stepsResult);
-  const schemaNodeResults = (ctx as any)._nodeResults;
+  const schemaNodeResults = ctx._nodeResults;
   if (schemaNodeResults && typeof schemaNodeResults === 'object' && Object.keys(schemaNodeResults).length > 0) {
     stepsResultJson = JSON.stringify({ stepsResult: ctx.stepsResult, _nodeResults: schemaNodeResults });
   }

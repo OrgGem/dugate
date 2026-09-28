@@ -2,3 +2,8 @@ packages:
   - 'packages/*'
   - 'services/*'
   - 'businesses/*'
+  - 'tests/*'
+
+overrides:
+  '@types/mammoth': npm:empty-npm-package@1.0.0
+  pdf-lib@^1.17.9: ^1.17.1

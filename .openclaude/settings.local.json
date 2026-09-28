@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"export interface OperationView\\\\|export type OperationView\" D:/Git/dugate/du-rework/packages/contracts/src/*.ts)",
+      "Bash(grep -n export.*Profile D:/Git/dugate/du-rework/packages/contracts/src/*.ts)",
+      "Bash(done)",
+      "Bash(npx jest:*)",
+      "Bash(npx tsc:*)"
+    ]
+  },
+  "spinnerTipsEnabled": false
+}

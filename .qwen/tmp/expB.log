@@ -1,0 +1,21 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "connector-revision-http-offline.functional"
+
+PASS tests/connector-revision-http-offline.functional.test.ts
+  VAULT-06 lifecycle over the real orchestrator↔connector HTTP wire
+    √ rotate #1 over HTTP: PENDING cloned from CURRENT then CAS-activated (37 ms)
+    √ pin separation: new work reads CURRENT (v2 pin); in-flight revision 2 keeps its OLD pin (24 ms)
+    √ CAS discipline over HTTP: activate with a stale expectedCurrent is a no-op (409) (13 ms)
+    √ emergency revoke (disable): CURRENT gone → new rotations fail CLOSED, no phantom ACTIVE (15 ms)
+    √ restart/reconcile: stranded PENDING from a crashed orchestrator is promoted (or retired) by the NEW instance (10 ms)
+    √ transport failure is fail-closed 503 on every port call (adapter never guesses) (5 ms)
+    √ invalid credential source at the HTTP edge → rejected, zero PENDING churn (3 ms)
+  VAULT-06 draft schema pin
+    √ migration 007 exists, is additive JSONB and documents NULL=legacy-db (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        3.138 s
+Ran all test suites matching /connector-revision-http-offline.functional/i.

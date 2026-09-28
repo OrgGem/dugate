@@ -1,0 +1,7 @@
+
+
+## 32 — Standby (thông báo coordinator ~00:4x 25/09): patch MM-10b đã giao Claude Code theo đúng đề xuất mục 31
+
+- **Trạng thái Qwen-2: STANDBY.** Trigger hành động duy nhất của tôi: patch vào + Tester verify → tôi lật probe `p8-02b` MM-10b (`expect(hb.status).toBe(200)` @358 → `expect(hb.status).toBe(410)` + code `TASK_TERMINAL`, form lật đã ghi sẵn tại comment :356-357) rồi nộp RUN REQUEST 3/3 mới để tiến tới đóng P8-02.
+- Chờ bị chặn bởi (tên rõ): (1) `claude-code-heartbeat-patch` (Claude Code), (2) `tester-verify-after-patch` (Tester). Không có việc offline treo nào của lane tôi; hàng đợi RUN REQUEST docs/29 CLEAN phía Qwen-2 (4 file [UNRUN] W47-Q2-4 thuộc lane khác).
+- Không sửa gì thêm cho tới trigger. P8-02 vẫn [~].

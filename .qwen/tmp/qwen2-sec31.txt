@@ -1,0 +1,46 @@
+
+
+## 31 — R1-B/RR: KHẢO SÁT DEFECT MM-10b (heartbeat 200 sau cancel) — nguyên nhân gốc + patch đề xuất cho Claude Code (KHÔNG sửa src; giờ thật 2026-09-25 ~00:3x +0700; Qwen-2 / `term_4d79e7d3`)
+
+### Chuỗi nguyên nhân (tất cả đọc trực tiếp từ disk phiên này)
+1. `POST /api/runtime/v1/tasks/:id/heartbeat` (server.ts:636-644) → `heartbeatTask` tại **runtime.ts:127-145**: SELECT chỉ `lease_epoch, lease_expires_at`; UPDATE fence **CHỈ by epoch** (`WHERE id=$1 AND lease_epoch=$3`), **không có điều kiện state**.
+2. `cancelOperation` (**lifecycle.ts:19-54**): set `operations.state='CANCELLED', cancel_requested=true`, set `tasks.state='CANCELLED'` (non-terminal tasks), đóng human waits — **NHƯNG không bump `lease_epoch`, không clear `leased_by`/`lease_expires_at`**.
+3. ⇒ Task CANCELLED giữ nguyên epoch của worker cuối claim → same-epoch heartbeat khớp UPDATE (1 row) → **200 + kéo dài `lease_expires_at` trên task terminal**.
+4. Thêm: `heartbeatTask` trả **`cancelRequested: false` CỨNG** (dòng 145) dù `operations.cancel_requested=true` — trong khi SDK worker dựa vào cờ đó để cooperative-abort (`packages/worker-sdk/src/worker.ts:328: if (ack.cancelRequested) ctx.abort('cancel')`) ⇒ kênh cancel qua heartbeat ĐANG CHẾT.
+5. Vì sao 20/20 p8-02 cũ không thấy: test §3 "stale heartbeat on cancelled task" gửi `leaseEpoch: cancelLeaseEpoch + 99` (p8-02-fault-recovery:607) — cố ý EPOCH SAI → 409; còn R1-B/MM-10b dùng epoch ĐÚNG nên lộ hole. claim sau cancel đã fence đúng (410 TASK_TERMINAL @:614-625); complete cũng fence state trước (`runtime.ts:206-214` state-guard → `gone()` 410) — **heartbeat là route duy nhất thiếu guard state**.
+
+### Blast radius (chính xác, không phóng đại)
+- KHÔNG có kết quả sai ghi được (mọi write path terminal-fenced — MM-10a + 20/20 chứng minh).
+- VI PHẠM chấp nhận P8-02 "Cancelled Worker Cannot Keep Leases" (OPS-02/RUN-07): cancelled worker tiếp tục giữ/hẹn giờ lease trên hàng terminal.
+- Cooperative cancel qua heartbeat mất tác dụng → worker đốt hết thời lượng handler rồi mới ăn 409/410 ở complete.
+- Ghi chú lan cận: `PUT /workers/:instanceId/heartbeat` (server.ts:620-623) là stub tĩnh trả `{health:'HEALTHY',...}` không DB — đây nhiều khả năng là nguồn câu chữ "constant HEALTHY @:510" cũ trong docs/31 (đã sửa tuần trước); liveness worker không durable là khoảng riêng, không nhập vào defect này.
+
+### Patch đề xuất (Claude Code — boundary của họ; thứ tự guard CHỌN ĐỂ KHÔNG GÃY suite 20/20 hiện có)
+`heartbeatTask` (runtime.ts:127-145):
+```ts
+const res = await db.query(
+  `SELECT t.lease_epoch, t.lease_expires_at, t.state, o.cancel_requested
+     FROM tasks t JOIN operations o ON o.id = t.operation_id WHERE t.id=$1`, [taskId]);
+// 1) 404 nếu mất row (giữ nguyên).
+// 2) EPOCH-STALE TRƯỚC (bảo toàn test §3 hiện hữu trả 409):
+//    if (row.lease_epoch !== leaseEpoch) throw conflict('LEASE_LOST', ...)
+// 3) STATE-TERMINAL SAU (mô hình completeTask :211-214):
+//    if (['SUCCEEDED','FAILED','CANCELLED','TIMED_OUT'].includes(row.state))
+//      throw gone(`task ${taskId} is terminal ${row.state}`);           // 410 TASK_TERMINAL
+// 4) UPDATE giữ nguyên epoch-conditional, THÊM belt-and-braces:
+//    ... WHERE id=$1 AND lease_epoch=$3
+//        AND state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+// 5) return { leaseExpiresAt, cancelRequested: Boolean(row.cancel_requested) }; // bỏ hardcode false
+```
+Ghi chú thêm (optional, cùng tx của `cancelOperation` ở lifecycle.ts:36-40): thêm `leased_by=NULL, lease_expires_at=NULL` vào UPDATE tasks khi cancel — bookkeeping lease trung thực; không bắt buộc vì state-guard đã chặn.
+
+### Kế hoạch lật phía tôi khi patch vào (KHÔNG chạy gì cho tới lúc đó)
+- `p8-02b` MM-10b: đổi `expect(hb.status).toBe(200)` → `expect(hb.status).toBe(410)` + `code TASK_TERMINAL` (form đã ghi trong comment file).
+- Nộp RUN REQUEST mới (3/3 lần, per-run ExitCode) — qua Tester/Agent-6.
+- Nếu patch chỉ sửa 2/5 mục (ví dụ quên cancelRequested thật), probe phụ cờ nên được thêm lúc đó.
+
+**Trạng thái:** P8-02 vẫn [~] — defect MM-10b ghi nhận + REQUEST đã soạn sẵn để coordinator route Claude Code. Tôi không sửa `services/orchestrator/src/**` (boundary), không commit/push/tick.
+
+## Nhật ký (tiếp)
+
+- 00:3x (25/09) — R1-B: khảo sát MM-10b xong — gốc at runtime.ts:127-145 (epoch-only fence) + lifecycle.ts:36-40 (cancel không bump epoch/clear lease) + hardcode cancelRequested:false; patch đề xuất theo thứ tự epoch→state để bảo toàn 20/20 cũ; flip plan ghi cho p8-02b. — Mục 31.

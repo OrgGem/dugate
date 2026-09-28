@@ -8,6 +8,7 @@ import {
 } from '../types/actions';
 import { ValidationError } from '../types/results';
 import { SchemaValidator } from './schema-validator';
+import { resolveIngestionSource, type IngestionReceipt } from '@du/contracts';
 
 /**
  * Normalizes and audits input payloads across all six actions (WORKLOAD-REBALANCE-04).
@@ -44,6 +45,28 @@ export class InputNormalizer {
       );
     }
 
+    // Δ14: the READY envelope carries the pinned ingestion source under the
+    // contract field `source` (legacy `__source` still readable). A missing
+    // pin is the NORMAL inline case and never fails here; a present pin is
+    // contract-validated, and once it names an artifact the business layer
+    // reads, that reference is resolved into `artifactIds` so every downstream
+    // step keeps its single source-of-truth (the artifact read path).
+    let source: IngestionReceipt | null = null;
+    try {
+      source = resolveIngestionSource(raw);
+    } catch {
+      throw new ValidationError(
+        'Ingestion source pin in the task payload failed contract validation',
+        'INVALID_INGESTION_RECEIPT'
+      );
+    }
+    const effectiveArtifactIds =
+      artifactIds && artifactIds.length > 0
+        ? artifactIds
+        : source?.artifactId
+        ? [source.artifactId]
+        : artifactIds;
+
     const text = typeof raw.text === 'string' ? raw.text : undefined;
     if (text && text.length > this.MAX_TEXT_LENGTH) {
       throw new ValidationError(
@@ -59,7 +82,8 @@ export class InputNormalizer {
 
     return {
       mode: mode as IngestInput['mode'],
-      artifactIds,
+      artifactIds: effectiveArtifactIds,
+      source: source ?? undefined,
       text,
       pages,
       language: typeof raw.language === 'string' ? raw.language : undefined,
@@ -275,35 +299,156 @@ export class InputNormalizer {
       throw new ValidationError(`Invalid compare mode: "${mode}"`, 'INVALID_DISCRIMINATOR');
     }
 
-    const sourceRaw = (raw.source ?? raw.source_file) as Record<string, unknown> | undefined;
-    const targetRaw = (raw.target ?? raw.target_file) as Record<string, unknown> | undefined;
-
-    if (!sourceRaw || (!sourceRaw.artifactId && !sourceRaw.text && typeof sourceRaw !== 'string')) {
-      throw new ValidationError(
-        'Missing required comparison side: "source"',
-        'MISSING_COMPARISON_SIDE'
-      );
-    }
-    if (!targetRaw || (!targetRaw.artifactId && !targetRaw.text && typeof targetRaw !== 'string')) {
-      throw new ValidationError(
-        'Missing required comparison side: "target"',
-        'MISSING_COMPARISON_SIDE'
-      );
-    }
+    const source = this.parseComparisonSide(raw.source, raw.source_file, 'source');
+    const target = this.parseComparisonSide(raw.target, raw.target_file, 'target');
 
     return {
       mode: mode as CompareInput['mode'],
-      source: typeof sourceRaw === 'string' ? { text: sourceRaw } : {
-        artifactId: (sourceRaw.artifactId ?? sourceRaw.artifact_id) as string | undefined,
-        text: sourceRaw.text as string | undefined,
-      },
-      target: typeof targetRaw === 'string' ? { text: targetRaw } : {
-        artifactId: (targetRaw.artifactId ?? targetRaw.artifact_id) as string | undefined,
-        text: targetRaw.text as string | undefined,
-      },
+      source,
+      target,
       focus: typeof raw.focus === 'string' ? raw.focus : undefined,
       outputFormat: this.normalizeOutputFormat(raw.outputFormat ?? raw.output_format),
     };
+  }
+
+  private static parseComparisonSide(
+    direct: unknown,
+    fileAlias: unknown,
+    sideName: 'source' | 'target'
+  ): { artifactId?: string; text?: string } {
+    const hasDirect = direct !== undefined && direct !== null;
+    const hasAlias = fileAlias !== undefined && fileAlias !== null;
+
+    // 1. Conflict check: reject when both canonical parameter and legacy file alias are supplied
+    if (hasDirect && hasAlias) {
+      throw new ValidationError(
+        `Conflicting comparison parameters: cannot specify both canonical "${sideName}" and legacy alias "${sideName}_file"`,
+        'CONFLICTING_COMPARISON_PARAMETERS'
+      );
+    }
+
+    // 2. Missing side check: reject when neither parameter is supplied
+    if (!hasDirect && !hasAlias) {
+      throw new ValidationError(
+        `Missing required comparison side: "${sideName}"`,
+        'MISSING_COMPARISON_SIDE'
+      );
+    }
+
+    // 3. Process legacy file alias (source_file / target_file)
+    if (hasAlias) {
+      if (Array.isArray(fileAlias)) {
+        throw new ValidationError(
+          `Invalid "${sideName}_file": arrays are not supported`,
+          'INVALID_COMPARISON_SIDE'
+        );
+      }
+      if (typeof fileAlias === 'string') {
+        const trimmed = fileAlias.trim();
+        if (trimmed.length === 0) {
+          throw new ValidationError(
+            `Empty or whitespace-only value for "${sideName}_file"`,
+            'INVALID_COMPARISON_SIDE'
+          );
+        }
+        return { artifactId: trimmed };
+      }
+      if (typeof fileAlias === 'object') {
+        return this.parseSideObject(fileAlias as Record<string, unknown>, `${sideName}_file`);
+      }
+      throw new ValidationError(
+        `Invalid "${sideName}_file": must be a string artifact ID or object reference`,
+        'INVALID_COMPARISON_SIDE'
+      );
+    }
+
+    // 4. Process canonical direct parameter (source / target)
+    if (Array.isArray(direct)) {
+      throw new ValidationError(
+        `Invalid "${sideName}": arrays are not supported`,
+        'INVALID_COMPARISON_SIDE'
+      );
+    }
+    if (typeof direct === 'string') {
+      const trimmed = direct.trim();
+      if (trimmed.length === 0) {
+        throw new ValidationError(
+          `Empty or whitespace-only value for "${sideName}"`,
+          'INVALID_COMPARISON_SIDE'
+        );
+      }
+      return { text: direct };
+    }
+    if (typeof direct === 'object') {
+      return this.parseSideObject(direct as Record<string, unknown>, sideName);
+    }
+
+    throw new ValidationError(
+      `Invalid "${sideName}": must be a string text or object reference`,
+      'INVALID_COMPARISON_SIDE'
+    );
+  }
+
+  private static parseSideObject(
+    obj: Record<string, unknown>,
+    paramName: string
+  ): { artifactId?: string; text?: string } {
+    const rawArtifactId = obj.artifactId ?? obj.artifact_id;
+    const rawText = obj.text;
+
+    let parsedArtifactId: string | undefined;
+    if (rawArtifactId !== undefined && rawArtifactId !== null) {
+      if (typeof rawArtifactId !== 'string') {
+        throw new ValidationError(
+          `Invalid "artifactId" in "${paramName}": must be a string`,
+          'INVALID_COMPARISON_SIDE'
+        );
+      }
+      const trimmed = rawArtifactId.trim();
+      if (trimmed.length === 0) {
+        throw new ValidationError(
+          `Empty or whitespace-only "artifactId" in "${paramName}"`,
+          'INVALID_COMPARISON_SIDE'
+        );
+      }
+      parsedArtifactId = trimmed;
+    }
+
+    let parsedText: string | undefined;
+    if (rawText !== undefined && rawText !== null) {
+      if (typeof rawText !== 'string') {
+        throw new ValidationError(
+          `Invalid "text" in "${paramName}": must be a string`,
+          'INVALID_COMPARISON_SIDE'
+        );
+      }
+      const trimmed = rawText.trim();
+      if (trimmed.length === 0) {
+        throw new ValidationError(
+          `Empty or whitespace-only "text" in "${paramName}"`,
+          'INVALID_COMPARISON_SIDE'
+        );
+      }
+      parsedText = rawText;
+    }
+
+    // Reject ambiguous simultaneous specification of both artifactId and text
+    if (parsedArtifactId && parsedText) {
+      throw new ValidationError(
+        `Ambiguous comparison side in "${paramName}": cannot specify both "artifactId" and "text" simultaneously`,
+        'AMBIGUOUS_COMPARISON_SIDE'
+      );
+    }
+
+    // Reject object lacking both artifactId and text
+    if (!parsedArtifactId && !parsedText) {
+      throw new ValidationError(
+        `Missing comparison reference in "${paramName}": must specify either "artifactId" or "text"`,
+        'MISSING_COMPARISON_SIDE'
+      );
+    }
+
+    return parsedArtifactId ? { artifactId: parsedArtifactId } : { text: parsedText! };
   }
 
   private static validatePageRange(pages: string): void {
@@ -369,10 +514,10 @@ export class InputNormalizer {
 
   private static normalizeOutputFormat(val: unknown): 'json' | 'md' | 'text' | undefined {
     if (typeof val !== 'string') return undefined;
-    const lower = val.toLowerCase();
-    if (['json', 'md', 'text'].includes(lower)) {
-      return lower as 'json' | 'md' | 'text';
-    }
+    const lower = val.toLowerCase().trim();
+    if (lower === 'markdown' || lower === 'md') return 'md';
+    if (lower === 'text' || lower === 'txt') return 'text';
+    if (lower === 'json') return 'json';
     return undefined;
   }
 }

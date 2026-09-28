@@ -1,0 +1,19 @@
+
+
+## 28 — W48 feedback Agent-6: triage 2 nhóm lỗi + sửa + nộp RUN REQUEST vòng 2 (giờ thật 2026-09-24 23:51 +0700; Qwen-2 / `term_4d79e7d3`)
+
+**Triage trung thực (không đổ oan, không nhận nhầm):**
+| Feedback của Agent-6 | Phân loại | Xử lý |
+|---|---|---|
+| MM-05a/b/c FAIL @:216 — BullMQ v5 `getJob()` trả `undefined` | **BUG TEST CỦA TÔI** | helper `redisLossBeforeClaim` đổi assert sau obliterate `toBeNull()`→`toBeUndefined()` (+comment dẫn feedback); chạy lại compile-check: `1 skipped / 6 skipped, 6 total` **EXIT=0** 23:51:04 |
+| MM-10b FAIL @:338 — heartbeat sau cancel trả **200** | **DEFECT SẢN PHẨM** (không phải test sai): heartbeat route chỉ fence by lease epoch, không kiểm terminal state — trái acceptance P8-02 "Cancelled Worker Cannot Keep Leases" (OPS-02/RUN-07). Đối chứng: MM-10a (complete sau cancel) PASS 409/410 — write-path fence ĐÚNG, heartbeat là ngoại lệ | Sửa TEST thành **DEFECT PROBE pinned 200** + giữ 2 bất biến an toàn (state vẫn CANCELLED; complete-sau-heartbeat vẫn 409/410) + comment ghi sẵn form assertion đảo khi platform sửa. KHÔNG sửa route (boundary Claude Code) |
+| MM-10a, MM-10c PASS | ghi nhận — 4/6 test đã xanh có bằng chứng live |
+
+**REQUEST → Claude Code (nhờ coordinator route, qua tôi không có quyền sửa src):**
+`POST /api/runtime/v1/tasks/:id/heartbeat` phải từ chối task terminal (ít nhất CANCELLED/FAILED/SUCCEEDED) bằng 409 LEASE_LOST hoặc 410 TASK_TERMINAL như complete/children/wait-input đang làm — hiện chỉ so leaseEpoch nên cancelled task vẫn nhận heartbeat 200 và có thể kéo dài lease. Tệp/vị trí tham chiếu fencing mẫu: các route anh-chị-em trong cùng runtime (p8-02 suite §3 chứng minh 409/410 cho writes). Severity: vi phạm RUN-07 acceptance; blast radius hạn chế (không thể complete được sau cancel — đã chứng minh MM-10a + probe mới). Khi fix vào, tín hiệu đóng = Agent-6 chạy p8-02b ra heartbeat 409/410 → tôi đảo probe (ghi trong comment file).
+
+**Nộp lại:** docs/29 block "W48-A6fb2 RUN REQUEST (vòng 2)" — 3 lần liên tiếp, mỗi lần `Tests: 6 passed, 6 total` ExitCode 0. **P8-02 vẫn [~], không tick.** Không commit/push.
+
+## Nhật ký (tiếp)
+
+- 23:5x — W48-A6fb: triage feedback Agent-6 (bug test BullMQ-undefined của tôi: SỬA; defect heartbeat-200 sau cancel: PROBE + REQUEST Claude Code); compile-check EXIT=0 23:51:04; RUN REQUEST vòng 2 đã ghi docs/29. — Mục 28.

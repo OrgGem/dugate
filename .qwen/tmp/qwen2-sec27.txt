@@ -1,0 +1,23 @@
+
+
+## 27 — W48-Q2-1: P8-02b suite ĐÃ VIẾT (MM-05 Redis-loss drill + MM-10 same-epoch fault injection) — P8-02 vẫn [~], KHÔNG tick (giờ thật 2026-09-24 23:35 +0700; Qwen-2 / `term_4d79e7d3`)
+
+**Ranh giới đã giữ:** file mới DUY NHẤT `tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts` (6 test) — không đụng multi-container (Qwen-3), connector/connector-client (Codex-2), worker-sdk (xong W47-Q2-5), server.ts/admin (Claude Code); chỉ READ-reuse harness p8-02 hiện có (isolation ctx, createApp autoDispatch:false, claim/heartbeat/complete routes, sweep-deadlines). Không commit/push. Không mở DB.
+
+**Test design (đóng đúng 2 khoảng MM-05/MM-10 mà tasks/P8:33-36 khai còn treo):**
+- **MM-05a** Redis-loss-before-claim: `queue.add` rồi `obliterate` (mất data Redis trước claim) → task vẫn READY + `leased_by` NULL (PG durable truth, zero half-written); ép `deadline_at` quá hạn → `sweep-deadlines` đưa op về TIMED_OUT (escape hatch có chặn); sweep lần 2 không đếm twice (exactly-once).
+- **MM-05b** submission_keys bền qua Redis loss: cùng Idempotency-Key resubmit sau queue wipe → `replayed:true`, đúng operation cũ, đúng 1 dòng operations.
+- **MM-05c** CHARACTERIZATION probe: health vẫn báo HEALTHY khi queue wiped — ghi nguyên trạng defect "durable health" (docs/31 MM-05 server.ts:510); test PHẢI đảo kỳ vọng khi platform sửa, comment ngay trong file.
+- **MM-10a/b** same-epoch production fault: cancel xong, dùng ĐÚNG leaseEpoch của claim cuối (không có takeover, epoch không bump) gọi `complete`/`heartbeat` → phải bị 409/410 [LEASE_LOST|TASK_TERMINAL]; assert thêm: op/task vẫn CANCELLED, `result_ref` không leak, `lease_expires_at` đứng nguyên.
+- **MM-10c** recovery: sau chuỗi same-epoch rejection, submission mới claim được, complete 200, task SUCCEEDED — không có poison state toàn hệ thống.
+
+**Bằng chứng offline (honest, [SKIP-QUALIFIED] theo docs/35 §1.4):**
+`cd du-rework && npx jest tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts --config tests/integration/jest.config.cjs --runInBand`
+→ `Test Suites: 1 skipped, 0 of 1 total | Tests: 6 skipped, 6 total` **EXIT=0** (23:33) — compile sạch, gate `DU_LIVE_INFRA` tự skip nên KHÔNG thể vô tình chạm DB.
+**Bằng chứng nghiệm thu = RUN REQUEST 3 lần liên tiếp** (docs/29 block "W48-Q2-1 RUN REQUEST", routing Agent-6/`term_47a1d44b`): `set DU_LIVE_INFRA=1` + lệnh trên, mỗi lần literal `Tests: 6 passed, 6 total` 0 skipped/0 failed + ExitCode riêng.
+
+**Tự phê trong phiên (2 lỗi của tôi, đã sửa TRƯỚC khi giao):** (1) TS2339 `describe.runIf` không tồn tại ở jest bản này — đổi sang `LIVE ? describe : describe.skip`; (2) SQL `interval 1 minute` thiếu nháy (PG syntax) — đổi `interval '1 minute'`, đối chiếu đúng form của p8-02 hiện có (`deadline_at`, `TIMED_OUT`).
+
+## Nhật ký (tiếp)
+
+- 23:3x — W48-Q2-1: P8-02 transfer về Qwen-2; viết mới `tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts` (MM-05a/b/c + MM-10a/b/c, 6 test); compile/skip-check EXIT=0 (6 skipped, 23:33) — KHÔNG mở DB; RUN REQUEST 3-run-agent-6 đã ghi docs/29 (700 dòng); 2 lỗi của tôi (describe.runIf, interval quotes) sửa trước khi giao; P8-02 vẫn [~], không tick, không commit. — Mục 27.

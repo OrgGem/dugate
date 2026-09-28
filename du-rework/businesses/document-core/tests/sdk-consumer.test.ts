@@ -25,10 +25,32 @@ interface Route {
 }
 
 function stubFetch(routes: Route[], calls: { path: string; method: string; body?: unknown }[]) {
-  return async (url: string, init?: { method?: string; body?: string }) => {
+  return async (url: string, init?: { method?: string; body?: unknown }) => {
     const path = url.replace(/^http:\/\/[^/]+/, '');
     const method = init?.method ?? 'GET';
-    const body = init?.body ? JSON.parse(init.body) : undefined;
+    // Body may be a JSON string (runtime calls) OR a web ReadableStream (the
+    // uploadArtifactStream PUT since the ART-02 streaming work). Naive
+    // JSON.parse(stream) threw SyntaxError and failed every artifact write.
+    const rawBody = init?.body;
+    let body: unknown;
+    if (typeof rawBody === 'string') {
+      try {
+        body = JSON.parse(rawBody);
+      } catch {
+        body = rawBody;
+      }
+    } else if (rawBody && typeof (rawBody as ReadableStream).getReader === 'function') {
+      const reader = (rawBody as ReadableStream<Uint8Array>).getReader();
+      let streamedBytes = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) streamedBytes += value.byteLength;
+      }
+      body = { streamedBytes };
+    } else if (rawBody != null) {
+      body = { opaque: true };
+    }
     calls.push({ path, method, body });
     for (const r of routes) {
       if (r.method === method) {
@@ -314,6 +336,14 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       await push(job);
       await workerHandle.stop();
 
+      const uploadedBytes = calls.some((call) => {
+        if (call.method !== 'PUT' || !call.path.includes('/upload/blob')) return false;
+        if (typeof call.body !== 'object' || call.body === null) return false;
+        const byteCount = (call.body as { streamedBytes?: unknown }).streamedBytes;
+        return typeof byteCount === 'number' && byteCount > 0;
+      });
+      expect(uploadedBytes).toBe(true);
+
       return { completedBody, failedBody, calls };
     };
 
@@ -411,6 +441,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       const taskId = randomUUID();
       const operationId = randomUUID();
       const calls: { path: string; method: string; body?: unknown }[] = [];
+      let reportedFailure: unknown;
 
       const routes: Route[] = [
         {
@@ -503,6 +534,17 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
             json: { taskId, state: 'SUCCEEDED', operationState: 'SUCCEEDED', replayed: false },
           }),
         },
+        {
+          method: 'POST',
+          pattern: /^\/tasks\/[^/]+\/fail$/,
+          handler: (_m, body) => {
+            reportedFailure = body;
+            return {
+              status: 200,
+              json: { taskId, state: 'FAILED', operationState: 'FAILED', replayed: false },
+            };
+          },
+        },
       ];
 
       const { consumer, push } = testConsumer();
@@ -528,6 +570,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
 
       await workerHandle.stop();
 
+      expect(reportedFailure).toBeUndefined();
       const stepCalls = calls.filter((c) => c.method === 'PUT' && c.path.includes('/steps/'));
       expect(stepCalls.length).toBeGreaterThan(0);
       const firstStep = stepCalls[0]!;
@@ -646,6 +689,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       const taskId = randomUUID();
       const operationId = randomUUID();
       const calls: { path: string; method: string; body?: unknown }[] = [];
+      let terminalFailureReports = 0;
 
       const routes: Route[] = [
         {
@@ -742,6 +786,17 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
             json: { taskId, state: 'SUCCEEDED', operationState: 'SUCCEEDED', replayed: false },
           }),
         },
+        {
+          method: 'POST',
+          pattern: /^\/tasks\/[^/]+\/fail$/,
+          handler: () => {
+            terminalFailureReports += 1;
+            return {
+              status: 200,
+              json: { taskId, state: 'FAILED', operationState: 'FAILED', replayed: false },
+            };
+          },
+        },
       ];
 
       const { consumer, push } = testConsumer();
@@ -770,6 +825,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
 
       // Verified: worker handled lease loss without crashing and stopped cleanly
       expect(workerHandle.stopped).toBe(true);
+      expect(terminalFailureReports).toBe(0);
     });
   });
 });

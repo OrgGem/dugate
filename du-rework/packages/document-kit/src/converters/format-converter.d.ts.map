@@ -1,1 +1,0 @@
-{"version":3,"file":"format-converter.d.ts","sourceRoot":"","sources":["format-converter.ts"],"names":[],"mappings":"AAAA;;GAEG;AACH,qBAAa,eAAe;WACZ,WAAW,CACvB,UAAU,EAAE,MAAM,EAClB,YAAY,EAAE,MAAM,EACpB,YAAY,EAAE,MAAM,GACnB,MAAM;WA2BK,eAAe,CAAC,cAAc,EAAE,MAAM,GAAG,MAAM;WAW/C,oBAAoB,CAAC,QAAQ,EAAE,MAAM,GAAG,MAAM;IAuB5D,OAAO,CAAC,MAAM,CAAC,UAAU;CAQ1B"}

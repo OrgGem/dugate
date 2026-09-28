@@ -1,0 +1,13 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "checkpoint"
+
+PASS tests/checkpoint-replay.test.ts
+PASS tests/checkpoint.test.ts
+PASS tests/br06-checkpoint-dedup-offline.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        4.751 s
+Ran all test suites matching /checkpoint/i.

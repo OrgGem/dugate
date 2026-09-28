@@ -8,11 +8,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "jest --runInBand",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc --noEmit -p tsconfig.json",
     "clean": "rimraf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@du/contracts": "workspace:*",
+    "@du/egress": "workspace:*",
     "@du/observability": "workspace:*",
     "bullmq": "^5.34.0"
   },

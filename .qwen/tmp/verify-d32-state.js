@@ -1,0 +1,10 @@
+const fs=require('fs');const crypto=require('crypto');const NL=String.fromCharCode(10);
+const p='D:/Git/dugate/du-rework/services/orchestrator/tests/connector-revision-http-offline.functional.test.ts';
+const b=fs.readFileSync(p);const s=b.toString('utf8');const L=s.split(NL);
+console.log('sha8='+crypto.createHash('sha256').update(b).digest('hex').slice(0,8)+' bytes='+b.length+' lines='+L.length);
+console.log('---L377-410 (delta32 test)---');
+for(let i=376;i<410&&i<L.length;i++) console.log((i+1)+'|'+L[i]);
+console.log('---L341---');
+console.log('341|'+L[340]);
+console.log('---L355---');
+console.log('355|'+L[354]);

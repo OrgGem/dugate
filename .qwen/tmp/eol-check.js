@@ -1,0 +1,14 @@
+const fs = require('fs');
+const p = 'D:/Git/dugate/du-rework/services/orchestrator/src/server.ts';
+const b = fs.readFileSync(p);
+const s = b.toString('utf8');
+const crlf = (s.match(/\r\n/g) || []).length;
+const lfOnly = (s.match(/[^\r]\n/g) || []).length;
+const loneCR = (s.match(/\r(?!\n)/g) || []).length;
+console.log('CRLF=' + crlf + ' LFonly=' + lfOnly + ' loneCR=' + loneCR);
+console.log('emDashCount=' + (s.match(/\u2014/g) || []).length);
+const i = s.indexOf('function bindOperationsListSortKey');
+const seg = s.slice(i, s.indexOf('COALESCE(', i + 60));
+console.log('editedRegionHasCRLF=' + /\r\n/.test(seg) + ' hasLFonly=' + /[^\r]\n/.test(seg));
+console.log('REPLACED_BY_UFFFD=' + (s.includes('\ufffd')));
+console.log('lines=' + s.split(/\r?\n/).length);

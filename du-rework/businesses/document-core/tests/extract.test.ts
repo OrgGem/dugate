@@ -294,4 +294,41 @@ describe('Action: Extract (DOC-02) — 5 Variants', () => {
       ExtractAction.executeRecipe(ctx, recipe, input, sources)
     ).rejects.toThrow(/exceeds maximum supported size for extraction/);
   });
+
+  // Response marker survival and artifact contract regression test (W22-A)
+  it('preserves provider revision marker and custom metadata through extraction mapping into result envelope', async () => {
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-ext-marker',
+      status: 'SUCCESS',
+      data: {
+        supplier: { name: 'Acme Revision Corp', taxId: 'TAX-REV2' },
+        buyer: { name: 'Dugate Gateway Inc' },
+        invoiceNumber: 'INV-2026-REV2',
+        revisionMarker: 'connector-rev-2',
+        total: 4200,
+        subtotal: 4200,
+        currency: 'USD',
+      },
+    };
+
+    const input = ExtractAction.validateInput({
+      type: 'invoice',
+      text: 'Invoice INV-2026-REV2 Total $4200 under connector revision 2',
+    });
+    const recipe = ExtractAction.selectRecipe(input);
+    const sources = await ExtractAction.prepareSources(ctx, input);
+    const result = (await ExtractAction.executeRecipe(ctx, recipe, input, sources)) as Record<string, unknown>;
+    const validated = ExtractAction.validateResult(result, input.type);
+    const envelope = ExtractAction.formatResult(ctx, validated);
+
+    expect(envelope.status).toBe('COMPLETED');
+    expect(envelope.provenance.method).toBe('llm_extraction');
+    expect(envelope.provenance.modelSlot).toBe('reasoning');
+
+    // Verify semantic fields survive mapping and validation intact
+    const data = envelope.data as Record<string, unknown>;
+    expect(data.invoiceNumber).toBe('INV-2026-REV2');
+    expect(data.revisionMarker).toBe('connector-rev-2');
+    expect(data.total).toBe(4200);
+  });
 });

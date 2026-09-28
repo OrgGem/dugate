@@ -1,0 +1,73 @@
+FAIL tests/network-boundaries.boundary.test.ts
+  ● [OPEN:FIX-CR-08 caller-signal-aborts-body]
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "rejected"
+    Received: "resolved"
+
+    [0m [90m 262 |[39m     [36mconst[39m elapsed [33m=[39m [33mDate[39m[33m.[39mnow() [33m-[39m abortedAt[33m;[39m
+     [90m 263 |[39m
+    [31m[1m>[22m[39m[90m 264 |[39m     expect(handle[33m.[39msettled)[33m.[39mtoBe([32m'rejected'[39m)[33m;[39m [90m// today: 'resolved' — the body was drained anyway[39m
+     [90m     |[39m                            [31m[1m^[22m[39m
+     [90m 265 |[39m     expect(elapsed)[33m.[39mtoBeLessThanOrEqual([35m400[39m)[33m;[39m
+     [90m 266 |[39m     expect(existsSync(filePath))[33m.[39mtoBe([36mfalse[39m)[33m;[39m [90m// no partial file after a cancelled lease[39m
+     [90m 267 |[39m     expect(listener[33m.[39mclosedWithoutFinish)[33m.[39mtoBeGreaterThanOrEqual([35m1[39m)[33m;[39m [90m// slot released on the wire[39m[0m
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:264:28)
+
+  ● [OPEN:ADM-BASE-03 download-error-body-no-raw-echo]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 14
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "path": "$[1]",
+    +     "sentinel": "dlerr-9c456492885e-probe",
+    +   },
+    +   Object {
+    +     "path": "$[0]",
+    +     "sentinel": "dlerr-9c456492885e-probe",
+    +   },
+    +   Object {
+    +     "path": "$[0]!json.error.message",
+    +     "sentinel": "dlerr-9c456492885e-probe",
+    +   },
+    + ]
+
+    [0m [90m 306 |[39m   [90m// echoed verbatim into err.message, which the worker forwards into failTask. Red until the[39m
+     [90m 307 |[39m   [90m// detail is sanitised to a stable code + correlationId.[39m
+    [31m[1m>[22m[39m[90m 308 |[39m   expect(scanForSentinels([err[33m.[39mmessage[33m,[39m err[33m.[39mstack [33m?[39m[33m?[39m [32m''[39m][33m,[39m [sentinel]))[33m.[39mtoEqual([])[33m;[39m
+     [90m     |[39m                                                                        [31m[1m^[22m[39m
+     [90m 309 |[39m })[33m;[39m
+     [90m 310 |[39m
+     [90m 311 |[39m [90m/* -------------------------------------------------------------------- */[39m[0m
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:308:72)
+
+{"ts":"2026-09-24T21:06:00.291Z","level":"info","component":"worker:sweep-biz","msg":"temp workspace sweep removed stale dirs","removed":1}
+{"ts":"2026-09-24T21:06:00.451Z","level":"info","component":"worker:sweep-biz","msg":"temp workspace sweep removed stale dirs","removed":1}
+PASS tests/temp-sweep.test.ts
+PASS tests/fan-out.test.ts
+PASS tests/worker.test.ts
+{"ts":"2026-09-24T21:06:01.041Z","level":"info","component":"worker:test-biz","msg":"delivery fenced at claim (busy/terminal)","correlationId":"corr-12345","operationId":"43c1c3e2-7042-4530-9eba-27c7b6d53f4f","taskId":"e4b8bd67-af6d-47c5-b0bf-12b24e426968","businessId":"test-biz","businessVersion":"1.0.0","status":409,"code":"STATE_CONFLICT"}
+{"ts":"2026-09-24T21:06:01.042Z","level":"info","component":"worker:test-biz","msg":"delivery fenced at claim (busy/terminal)","correlationId":"corr-12345","operationId":"43c1c3e2-7042-4530-9eba-27c7b6d53f4f","taskId":"e4b8bd67-af6d-47c5-b0bf-12b24e426968","businessId":"test-biz","businessVersion":"1.0.0","status":410,"code":"TASK_TERMINAL"}
+{"ts":"2026-09-24T21:06:01.043Z","level":"error","component":"worker:test-biz","msg":"delivery for unregistered handler kind","correlationId":"corr-12345","operationId":"43c1c3e2-7042-4530-9eba-27c7b6d53f4f","taskId":"e4b8bd67-af6d-47c5-b0bf-12b24e426968","businessId":"test-biz","businessVersion":"1.0.0","kind":"root"}
+{"ts":"2026-09-24T21:06:01.045Z","level":"error","component":"worker:test-biz","msg":"handler failed","correlationId":"corr-12345","operationId":"43c1c3e2-7042-4530-9eba-27c7b6d53f4f","taskId":"e4b8bd67-af6d-47c5-b0bf-12b24e426968","businessId":"test-biz","businessVersion":"1.0.0","errorCode":"PROVIDER_RATE_LIMITED"}
+{"ts":"2026-09-24T21:06:01.047Z","level":"info","component":"worker:test-biz","msg":"task yielded","correlationId":"corr-12345","operationId":"43c1c3e2-7042-4530-9eba-27c7b6d53f4f","taskId":"e4b8bd67-af6d-47c5-b0bf-12b24e426968","businessId":"test-biz","businessVersion":"1.0.0","kind":"waiting-children"}
+{"ts":"2026-09-24T21:06:01.048Z","level":"info","component":"worker:test-biz","msg":"task yielded","correlationId":"corr-12345","operationId":"43c1c3e2-7042-4530-9eba-27c7b6d53f4f","taskId":"e4b8bd67-af6d-47c5-b0bf-12b24e426968","businessId":"test-biz","businessVersion":"1.0.0","kind":"waiting-input"}
+PASS tests/connector-session.test.ts
+PASS tests/workspace-reference-wiring.test.ts
+PASS tests/artifact-streams.test.ts
+PASS tests/artifact-sweep-guard.test.ts
+PASS tests/connector-input-contract.test.ts
+
+Test Suites: 1 failed, 8 passed, 9 total
+Tests:       2 failed, 137 passed, 139 total
+Snapshots:   0 total
+Time:        3.917 s, estimated 6 s
+Ran all test suites.

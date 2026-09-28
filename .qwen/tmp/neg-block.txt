@@ -1,0 +1,37 @@
+  it('invalid credential source at the HTTP edge → rejected for the reason it claims, zero PENDING churn', async () => {
+    const post = async (body: Record<string, unknown>) => {
+      const res = await jfetch(`${h.baseUrl}/connectors/${connectorId}/revisions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { status: res.status, payload: (await res.json()) as Record<string, unknown> };
+    };
+    const errOf = (payload: Record<string, unknown>) =>
+      (payload.error ?? {}) as { code?: string; message?: string };
+    const BINDING_GUARD = 'credentialSource and independent revision binding are required.';
+    const BINDING = { tenantId: 'tenant-a', accountId: 'du-conn-openai-main' };
+    // ONLY the `path` differs from an otherwise accepted source, so whatever
+    // rejects it is answering the path rule and not an absent field. M1 measured
+    // the earlier draft of this test: a source that merely omitted `account` was
+    // also a 400, and the test stayed green while proving nothing about traversal.
+    const traversal = { ...REASON, kind: 'vault-kv2', path: '../etc', version: 1 };
+    // Without the independent binding the guard rejects BEFORE any source is
+    // parsed, so this particular 400 says nothing about the path at all.
+    const noBinding = await post({ credentialSource: traversal });
+    expect(noBinding.status).toBe(400);
+    expect(errOf(noBinding.payload).message).toBe(BINDING_GUARD);
+    // With the binding supplied the path rule is the only reason left to reject,
+    // and the response must not reflect the attempted path.
+    const withBinding = await post({ credentialSource: traversal, ...BINDING });
+    expect(withBinding.status).toBe(400);
+    expect(errOf(withBinding.payload).code).toBe('INVALID_INPUT');
+    expect(errOf(withBinding.payload).message).not.toBe(BINDING_GUARD);
+    expect(JSON.stringify(withBinding.payload)).not.toContain('../etc');
+    expect(h.repo.rows).toHaveLength(1);
+    // Positive control: the same request carrying the canonical path is ACCEPTED,
+    // which is what makes the 400 above a verdict about the path specifically.
+    const accepted = await post({ credentialSource: { ...REASON, kind: 'vault-kv2', version: 1 }, ...BINDING });
+    expect(accepted.status).toBe(201);
+    expect(accepted.payload.revision).toBe(2);
+    expect(h.repo.rows.map((r) => r.state)).toEqual(['ACTIVE', 'PENDING']);

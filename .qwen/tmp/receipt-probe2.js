@@ -1,0 +1,10 @@
+const fs = require('fs');
+const p = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const s = fs.readFileSync(p, 'utf8');
+const NL = String.fromCharCode(10);
+const L = s.split(NL);
+console.log('TOTAL_LINES=' + L.length);
+console.log('---H2/H3 headings---');
+L.forEach(function (t, i) { if (/^#{2,3} /.test(t)) console.log((i + 1) + ': ' + t.slice(0, 80)); });
+console.log('---RESUME POINT block (1..34)---');
+for (let i = 0; i < 34; i++) console.log((i + 1) + '|' + L[i]);

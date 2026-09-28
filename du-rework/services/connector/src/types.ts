@@ -4,6 +4,7 @@ export type InvocationState =
   | 'NEW'
   | 'IN_FLIGHT'
   | 'PENDING'
+  | 'POLLING'
   | 'SUCCEEDED'
   | 'FAILED'
   | 'UNKNOWN'
@@ -98,6 +99,12 @@ export interface ProviderRequest {
 export interface ProviderAdapter {
   readonly id: string;
   readonly mode: AdapterMode;
+  /**
+   * Async adapters replay the same POST with the same Idempotency-Key. The
+   * provider MUST deduplicate that key and return the current state or terminal
+   * result for a duplicate; distinct status URLs are not part of this contract.
+   */
+  readonly asyncPollingMode: 'idempotency-key-replay';
   buildRequest(request: LocalInvocationRequest, config: AdapterConfig): ProviderRequest;
   normalizeResponse(response: ProviderResponse, config: AdapterConfig): NormalizedProviderResult;
   classifyFailure(response: ProviderResponse | Error): ConnectorErrorCode;
@@ -111,6 +118,14 @@ export interface AdapterConfig {
   responseMapping?: Readonly<Record<string, string>>;
   timeoutMs: number;
   capability?: string;
+  /**
+   * VAULT-05 (SEC-05): approved provider credential slot. undefined|'bearer'
+   * = authorization: Bearer <secret> (historic default);
+   * 'header:<Name>' = inject as that header instead. Never a secret itself.
+   */
+  credentialSlot?: string;
+  /** Provider contract required before this HTTP endpoint may return 202. */
+  asyncPollingMode?: 'idempotency-key-replay';
 }
 
 export interface InvocationRecord {
@@ -121,6 +136,10 @@ export interface InvocationRecord {
   errorCode?: ConnectorErrorCode;
   providerRequestId?: string;
   nextPollAt?: string;
+  providerPollAttempts?: number;
+  pollLeaseToken?: string;
+  pollLeaseExpiresAt?: string;
+  quotaLease?: QuotaLease;
   updatedAt: string;
 }
 
@@ -131,14 +150,24 @@ export interface InvocationLedger {
     | { kind: 'replay'; record: InvocationRecord }
     | { kind: 'conflict'; record: InvocationRecord }
   >;
+  claimPendingPoll(invocationId: string, inputHash: string, now: number, leaseMs: number): Promise<string | undefined>;
   complete(
     invocationId: string,
     result: NormalizedProviderResult,
+    pollLeaseToken?: string,
   ): Promise<InvocationRecord>;
-  fail(invocationId: string, errorCode: ConnectorErrorCode): Promise<InvocationRecord>;
+  failPending(invocationId: string, inputHash: string, errorCode: ConnectorErrorCode): Promise<boolean>;
+  fail(invocationId: string, errorCode: ConnectorErrorCode, pollLeaseToken?: string): Promise<InvocationRecord>;
   cancel(invocationId: string): Promise<InvocationRecord>;
-  markUnknown(invocationId: string): Promise<InvocationRecord>;
-  markPending(invocationId: string, nextPollAt: string): Promise<InvocationRecord>;
+  markUnknown(invocationId: string, pollLeaseToken?: string): Promise<InvocationRecord>;
+  markPending(
+    invocationId: string,
+    nextPollAt: string,
+    providerRequestId?: string,
+    pollLeaseToken?: string,
+    quotaLease?: QuotaLease,
+    providerPollAttempt?: boolean,
+  ): Promise<InvocationRecord>;
 }
 
 export interface QuotaLease {
@@ -149,6 +178,7 @@ export interface QuotaLease {
 
 export interface QuotaStore {
   acquire(key: string, now: number, leaseMs: number, maxInFlight: number): Promise<QuotaLease | undefined>;
+  renew(lease: QuotaLease, now: number, leaseMs: number): Promise<QuotaLease | undefined>;
   release(lease: QuotaLease): Promise<void>;
 }
 

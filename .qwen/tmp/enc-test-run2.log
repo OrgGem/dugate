@@ -1,0 +1,19 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "runtime-encryption-metadata"
+
+FAIL tests/runtime-encryption-metadata.test.ts
+  ● Test suite failed to run
+
+    [96mtests/runtime-encryption-metadata.test.ts[0m:[93m276[0m:[93m39[0m - [91merror[0m[90m TS2345: [0mArgument of type 'TestProvider' is not assignable to parameter of type 'MetadataKeyProvider'.
+      Type 'TestProvider' is missing the following properties from type 'MetadataKeyProvider': wrapDek, unwrapDek
+
+    [7m276[0m     expect(() => createMetadataCrypto(makeProvider(), '')).toThrow(MetadataCryptoError);
+    [7m   [0m [91m                                      ~~~~~~~~~~~~~~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        3.51 s, estimated 4 s
+Ran all test suites matching /runtime-encryption-metadata/i.
+ ELIFECYCLE  Command failed with exit code 1.

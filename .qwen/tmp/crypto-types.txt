@@ -1,0 +1,27 @@
+/**
+ * Vault Transit ciphertext plus the application key reference it was made
+ * with. Structurally identical to the orchestrator provider WrappedDek, so the
+ * same provider object satisfies both packages.
+ */
+export interface WrappedDek {
+  readonly keyRef: string;
+  readonly keyVersion: number;
+  readonly ciphertext: string;
+}
+
+/** What the facade asks the provider to wrap. */
+export interface WrapDekInput {
+  readonly keyRef: string;
+  readonly dek: Uint8Array;
+  /** Pin to a known Transit key version; omitted uses the latest. */
+  readonly keyVersion?: number;
+}
+
+/**
+ * The only key surface this seam needs. A provider returns wrapped DEKs and
+ * resolves them again; it never hands out a long-lived master key.
+ */
+export interface CryptoKeyProvider {
+  wrapDek(input: WrapDekInput): Promise<WrappedDek>;
+  unwrapDek(wrapped: WrappedDek): Promise<Buffer>;
+}

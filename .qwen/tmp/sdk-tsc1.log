@@ -1,0 +1,6 @@
+src/crypto-storage.ts(57,18): error TS2395: Individual declarations in merged declaration 'CryptoKeyProvider' must be all exported or all local.
+src/crypto-storage.ts(157,6): error TS2395: Individual declarations in merged declaration 'CryptoKeyProvider' must be all exported or all local.
+src/crypto-storage.ts(157,31): error TS2304: Cannot find name 'KeyProvider'.
+undefined
+D:\Git\dugate\du-rework\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found

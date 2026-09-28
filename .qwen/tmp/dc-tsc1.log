@@ -1,0 +1,6 @@
+src/types/context.ts(3,15): error TS2305: Module '"@du/worker-sdk"' has no exported member 'TaskArtifactCrypto'.
+src/worker.ts(27,31): error TS2305: Module '"@du/worker-sdk"' has no exported member 'TaskArtifactBinding'.
+src/worker.ts(27,57): error TS2305: Module '"@du/worker-sdk"' has no exported member 'TaskArtifactCrypto'.
+undefined
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found

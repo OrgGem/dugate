@@ -24,4 +24,13 @@ export class InMemoryQuotaStore implements QuotaStore {
   public async release(lease: QuotaLease): Promise<void> {
     this.leases.get(lease.key)?.delete(lease.leaseId);
   }
+
+  public async renew(lease: QuotaLease, now: number, leaseMs: number): Promise<QuotaLease | undefined> {
+    const active = this.leases.get(lease.key);
+    const current = active?.get(lease.leaseId);
+    if (!current || current.expiresAt <= now || leaseMs <= 0) return undefined;
+    const renewed = { ...current, expiresAt: now + leaseMs };
+    active!.set(lease.leaseId, renewed);
+    return renewed;
+  }
 }

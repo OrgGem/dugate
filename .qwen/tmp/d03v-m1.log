@@ -1,0 +1,66 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "url-ingestion-consumer-offline"
+
+FAIL tests/url-ingestion-consumer-offline.functional.test.ts
+  W-DATA03-CONSUMER-JOIN-1 offline functional
+    √ happy path: claim -> real acquire -> real ingestor -> real materialize -> gate opens QUEUED/READY with an artifactId pin (48 ms)
+    √ replay after success: the second sweep claims nothing (durable dispatched_at) (24 ms)
+    √ crash between the gate commit and the completion stamp: replay consumes the row, fetches nothing, writes nothing (13 ms)
+    √ crash after materialize but before the gate: pin answers with zero network, materialize is SELECT-idempotent, artifactId unchanged (14 ms)
+    √ permanent: non-HTTPS sourceUrl escalates to FAILED with zero network, zero storage, zero gate writes (1 ms)
+    √ retryable: transport failure re-arms with backoff and escalates only after the attempt budget (4 ms)
+    √ retryable: an upstream 404 exhausts into FAILED(SOURCE_REJECTED), never a silent drop (2 ms)
+    √ fail-closed: storage digest disagreement is PIN_MISMATCH, no artifact row, no gate (17 ms)
+    √ fail-closed: a refused artifact write is MATERIALIZATION_FAILED; committed bytes stay invisible behind the closed gate (16 ms)
+    √ budget: mid-stream oversize is TOO_LARGE before any storage write (12 ms)
+    √ budget: a declared content-length above maxBytes is refused before the first byte (2 ms)
+    √ cancel: an operation with a cancel signal is never opened; the delivery is consumed visibly (1 ms)
+    √ integrity: sourceUrl disagreement between the dispatch pointer and the DB envelope escalates without touching the network
+    √ integrity: a dispatch pointing at a non-root taskId escalates TASK_INVALID
+    √ ownership: the consumer claim selects ONLY gate-ingestion rows and leaves others for the dispatcher (1 ms)
+    √ determinism: sourceArtifactId is a stable RFC-4122 v5 over the pin coordinates
+    √ config: a consumer without a positive byte budget refuses to be constructed (25 ms)
+    √ dispatcher routing: gate-ingestion rows never reach a business queue; ready/plain rows do (1 ms)
+    √ T180-D1: replica losing the claim mid-download writes NOTHING terminal; the newer live claim survives untouched (14 ms)
+    √ T180-D1: a stale RETRY cannot re-arm the newer owner row (no due_at or claim_until clobber) (2 ms)
+    √ T180-D1: a stale escalation must NOT fail the operation the current owner may still open (1 ms)
+    √ T180-D1 unit: markIngestionReady runs the commit guard INSIDE the tx; when it throws, zero gate statements execute (1 ms)
+    √ T180-D1 config: a claim lease not exceeding the transfer deadline is refused at construction
+    √ T180-D2 replay: a stored READY row whose digest disagrees with the pin is MATERIALIZATION_CONFLICT, never reused, never overwritten (18 ms)
+    √ T180-D2 replay: two READY rows for one storage version is a conflict, never an arbitrary pick (16 ms)
+    √ T180-D2 PK conflict: the persisted row is RE-READ and verified; a matching one is adopted, id and all (14 ms)
+    √ T180-D1 layering: a steal landing between gate commit and the stamp leaves the gate OPEN but the row UN-STAMPED for the newer owner (19 ms)
+    √ s3 pin store: resolvePinned answers the READY artifact row, lowercasing the digest
+    √ s3 pin store: no READY row answers null (a cold key acquires, it does not invent a pin) (1 ms)
+    √ s3 putVerified: streams, measures, and reports the immutable version S3 answered (3 ms)
+    √ s3 putVerified: no immutable VersionId fails closed with STORAGE_FAILURE (5 ms)
+    √ s3 putVerified: an S3 checksum that disagrees with the streamed bytes fails closed PIN_MISMATCH (3 ms)
+    √ s3 putVerified: exceeding the byte budget mid-upload raises TOO_LARGE (2 ms)
+    × claim boundary: a PENDING_INGESTION task is refused and takes NO lease (3 ms)
+    √ claim boundary: once the gate opens, the SAME task claims normally (24 ms)
+
+  ● W-DATA03-CONSUMER-JOIN-1 offline functional › claim boundary: a PENDING_INGESTION task is refused and takes NO lease
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"attempt": 1, "checkpointRefs": [], "deadlineAt": null, "executionSnapshot": {"action": "ingest", "businessId": "du-doc", "businessVersion": "1.0.0", "cancelRequested": false, "deadlineAt": null, "kind": "root", "manifestDigest": "sha256:offline", "operationId": "61000000-0000-4000-8000-000000000001", "payloadRef": {"ingestionState": "PENDING", "input": {"url": "inline-doc"}, "sourceUrl": "https://example.com/report.pdf"}, "pinned": {"connectorBindings": {}, "profileRevision": 0, "promptRevisions": {}}, "resolvedInputRef": {"url": "inline-doc"}, "schemaDigest": "sha256:slice", "taskKey": "root", "tenantId": "60000000-0000-4000-8000-000000000001"}, "leaseEpoch": 1, "leaseExpiresAt": "2026-09-27T22:14:30.063Z", "operationId": "61000000-0000-4000-8000-000000000001", "taskId": "62000000-0000-4000-8000-000000000001"}
+
+    [0m [90m 1298 |[39m     h[33m.[39mseedGatedSubmission()[33m;[39m
+     [90m 1299 |[39m     [36mconst[39m runtime [33m=[39m createRuntimeService(h[33m.[39mdb)[33m;[39m
+    [31m[1m>[22m[39m[90m 1300 |[39m     [36mawait[39m expect(
+     [90m      |[39m           [31m[1m^[22m[39m
+     [90m 1301 |[39m       runtime[33m.[39mclaimTask([33mTASK[39m[33m,[39m [32m'delivery-gated-1'[39m[33m,[39m [32m'worker-a-1'[39m[33m,[39m [32m'du-doc'[39m)[33m,[39m
+     [90m 1302 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'STATE_CONFLICT'[39m })[33m;[39m
+     [90m 1303 |[39m     [36mconst[39m task [33m=[39m h[33m.[39mstore[33m.[39mtasks[33m.[39m[36mget[39m([33mTASK[39m)[33m;[39m[0m
+
+      at expect (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:113:15)
+      at Object.<anonymous> (tests/url-ingestion-consumer-offline.functional.test.ts:1300:11)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 34 passed, 35 total
+Snapshots:   0 total
+Time:        5.03 s
+Ran all test suites matching /url-ingestion-consumer-offline/i.
+ ELIFECYCLE  Command failed with exit code 1.

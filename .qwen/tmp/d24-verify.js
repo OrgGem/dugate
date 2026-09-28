@@ -1,0 +1,11 @@
+const fs = require('fs');
+const L = fs.readFileSync('D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md', 'utf8').split(/\r?\n/);
+console.log('--- ledger 22..24 ---');
+for (let i = 118; i < 122; i++) console.log((i+1) + ': ' + String(L[i]).slice(0, 60) + ' ...');
+console.log('--- Muc 24 head ---');
+const i = L.findIndex(function (x) { return /^## 24 /.test(x); });
+L.slice(i, i + 6).forEach(function (x, k) { console.log((i + k + 1) + ': ' + x.slice(0, 150)); });
+console.log('--- Verify block ---');
+const v = L.findIndex(function (x, k) { return k > i && /#### Verify/.test(x); });
+L.slice(v, v + 9).forEach(function (x, k) { console.log((v + k + 1) + ': ' + x.slice(0, 150)); });
+console.log('stale_placeholder=' + (/con số 42 = 38/.test(L.join('\n')) ? 'present' : 'clean'));

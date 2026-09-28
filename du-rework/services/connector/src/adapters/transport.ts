@@ -1,14 +1,31 @@
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { adjudicateUrlDestination, isDestinationAddressAllowed } from '@du/contracts';
 import { ConnectorError } from '../errors';
+import { createPinnedFetch } from '@du/egress';
 import type { ProviderTransport } from '../invoke';
 import type { ProviderRequest, ProviderResponse } from '../types';
 
+/**
+ * R1-C FIX-CR-01: destination adjudication delegates to the shared byte-space policy in
+ * @du/contracts (single source of truth pinned by tests/harness/network-boundaries +
+ * services/connector/tests/network-boundaries.boundary.test.ts). allowPrivateNetworks
+ * is a narrow opt-in for RFC1918, loopback, and IPv6 ULA (default false); it does not
+ * permit link-local/metadata, unspecified, CGNAT, multicast, or reserved ranges.
+ * allowHosts honors EXACT IP-literal opt-ins only; a listed DOMAIN still resolves and
+ * every DNS answer still gets adjudicated (A-red-4).
+ * R1-C FIX-CR-08: response bodies are consumed with a hard streaming cap — reading stops
+ * and the body is cancelled the moment the limit is crossed (B1-red), instead of
+ * buffering the whole stream first.
+ */
+
 export interface FetchProviderTransportOptions {
   maxResponseBytes?: number;
+  /** When omitted, the DEFAULT is the PR-Q3-03 pinned fetch (policy+connect share ONE resolution). */
   fetcher?: typeof fetch;
   allowHosts?: readonly string[];
   allowPrivateNetworks?: boolean;
+  /** Resolver seam forwarded to the pinned default fetch (tests pin rebinding sequences). */
+  resolve?: (host: string) => Promise<string[]>;
 }
 
 export class FetchProviderTransport implements ProviderTransport {
@@ -19,9 +36,15 @@ export class FetchProviderTransport implements ProviderTransport {
 
   public constructor(options: FetchProviderTransportOptions = {}) {
     this.maxResponseBytes = options.maxResponseBytes ?? 10 * 1024 * 1024;
-    this.fetcher = options.fetcher ?? fetch;
     this.allowHosts = new Set((options.allowHosts ?? []).map((host) => host.toLowerCase()));
     this.allowPrivateNetworks = options.allowPrivateNetworks ?? false;
+    this.fetcher =
+      options.fetcher ??
+      createPinnedFetch({
+        allowHosts: this.allowHosts,
+        allowPrivateNetworks: this.allowPrivateNetworks,
+        resolve: options.resolve,
+      });
   }
 
   public async send(request: ProviderRequest, signal?: AbortSignal): Promise<ProviderResponse> {
@@ -56,10 +79,7 @@ export class FetchProviderTransport implements ProviderTransport {
     if (contentLength && Number(contentLength) > this.maxResponseBytes) {
       throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Provider response is too large.');
     }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > this.maxResponseBytes) {
-      throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Provider response is too large.');
-    }
+    const bytes = await readCappedBody(response, this.maxResponseBytes);
     const text = new TextDecoder().decode(bytes);
     let body: unknown = text;
     if (text.length > 0 && response.headers.get('content-type')?.includes('application/json')) {
@@ -77,37 +97,76 @@ export class FetchProviderTransport implements ProviderTransport {
   }
 }
 
+/** FIX-CR-08: cap DURING streaming, not after buffering; cancel the body on breach. */
+async function readCappedBody(response: Response, maxBytes: number): Promise<Uint8Array> {
+  const tooLarge = (): ConnectorError =>
+    new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Provider response is too large.');
+  if (!response.body) {
+    const buffered = new Uint8Array(await response.arrayBuffer());
+    if (buffered.byteLength > maxBytes) throw tooLarge();
+    return buffered;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw tooLarge();
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    // Pre-existing semantics: transport/abort errors propagate unchanged (classify.ts
+    // and the durable tests depend on AbortError identity); only cap breach is ours.
+    throw error;
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
 export async function validateProviderUrl(
   value: string,
   options: { allowHosts?: ReadonlySet<string>; allowPrivateNetworks?: boolean } = {},
 ): Promise<URL> {
+  // Scheme/credentials are ALWAYS validated (pinned by the A-lock-2 boundary case).
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     throw new ConnectorError('INVALID_INPUT', 'Provider URL is invalid.');
   }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new ConnectorError('INVALID_INPUT', 'Provider URL scheme or credentials are not supported.');
   }
-  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  if (options.allowHosts?.has(host) || options.allowPrivateNetworks) return url;
-  const addresses = isIP(host) ? [host] : (await lookup(host, { all: true })).map((entry) => entry.address);
-  if (addresses.some(isBlockedAddress)) {
+  if (url.username !== '' || url.password !== '') {
+    throw new ConnectorError('INVALID_INPUT', 'Provider URL scheme or credentials are not supported.');
+  }
+  const decision = adjudicateUrlDestination(value, {
+    allowHosts: options.allowHosts,
+    allowPrivateNetworks: options.allowPrivateNetworks,
+  });
+  if (decision.kind === 'DENIED') {
     throw new ConnectorError('INVALID_INPUT', 'Provider destination is not allowed.');
   }
+  if (decision.kind === 'NEEDS_RESOLUTION' && decision.host) {
+    const answers = await lookup(decision.host, { all: true });
+    if (answers.length === 0 || !answers.every((entry) => isDestinationAddressAllowed(entry.address, {
+      allowPrivateNetworks: options.allowPrivateNetworks,
+    }))) {
+      throw new ConnectorError('INVALID_INPUT', 'Provider destination is not allowed.');
+    }
+  }
   return url;
-}
-
-function isBlockedAddress(address: string): boolean {
-  const normalized = address.toLowerCase();
-  if (normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
-  const parts = normalized.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
-  return parts[0] === 10
-    || parts[0] === 127
-    || (parts[0] === 169 && parts[1] === 254)
-    || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
-    || (parts[0] === 192 && parts[1] === 168)
-    || parts[0] === 0;
 }

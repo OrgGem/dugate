@@ -6,10 +6,14 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "test:unit": "jest --config jest.unit.config.cjs --runInBand --forceExit",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@du/contracts": "workspace:*",
+    "@du/egress": "workspace:*",
     "@du/observability": "workspace:*",
     "ioredis": "^5.4.1",
     "pg": "^8.12.0"

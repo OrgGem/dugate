@@ -2,12 +2,22 @@
  * Typed domain interfaces for document-core 6 actions and 28 variants.
  */
 
+import type { IngestionReceipt } from '@du/contracts';
+
 // ── Ingest Variants (4) ──────────────────────────────────────────────────────────
 export type IngestMode = 'parse' | 'ocr' | 'digitize' | 'split';
 
 export interface IngestInput {
   mode: IngestMode;
   artifactIds?: string[];
+  /**
+   * DATA-03 ingestion source pin (Δ14 envelope, `@du/contracts`
+   * `IngestionReceipt`). Present on tasks whose READY gate was opened by
+   * `markIngestionReady`; absent for inline submissions. Validated by
+   * InputNormalizer through the contract schema — a malformed pin is a
+   * validation failure, never a silently ignored field.
+   */
+  source?: IngestionReceipt;
   text?: string;
   pages?: string;
   language?: string;

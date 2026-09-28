@@ -1,0 +1,47 @@
+  it('parses the PINNED bytes and ignores attached inline text', async () => {
+    const ctx = new MockTaskContext();
+    const ref = await ctx.artifacts.write(PINNED, 'invoice.csv', 'text/csv');
+    const input = IngestAction.validateInput({
+      mode: 'parse',
+      source: pinFor(PINNED),
+      artifactIds: [ref.artifactId],
+      text: 'inline text that is NOT the pinned document',
+    });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    // The inline text is dropped: only the pinned object may satisfy the task.
+    expect(sources.inlineText).toBeUndefined();
+    expect(sha256(sources.buffers[0] as Buffer)).toBe(sha256(PINNED));
+  });
+});
+
+describe('W-DATA-03: the inline path is untouched when there is no pin', () => {
+  it('accepts inline text with no source pin (ordinary case)', async () => {
+    const ctx = new MockTaskContext();
+    const input = IngestAction.validateInput({ mode: 'parse', text: 'plain inline document' });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    expect(sources.inlineText).toBe('plain inline document');
+    const result = await IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources);
+    expect(result.text).toBe('plain inline document');
+  });
+});
+
+describe('W-DATA-03: a failed acquisition leaves nothing parseable', () => {
+  it('a pin with zero materialized bytes yields no buffers to parse', async () => {
+    const ctx = new MockTaskContext();
+    const input = IngestAction.validateInput({
+      mode: 'parse',
+      source: pinFor(PINNED),
+      text: 'leftover text from a failed acquisition',
+    });
+    let caught: unknown;
+    try {
+      await IngestAction.prepareSources(ctx, input);
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as { code?: string }).code).toBe('INGESTION_SOURCE_UNRESOLVED');
+    // Nothing partial was written into the context store either.
+    expect(ctx.artifactsStore.size).toBe(0);
+    expect(ctx.checkpointsStore.size).toBe(0);
+  });
+});

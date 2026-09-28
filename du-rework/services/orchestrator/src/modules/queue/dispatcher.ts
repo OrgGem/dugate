@@ -26,12 +26,19 @@ export function createDispatcher(opts: DispatcherOptions) {
     // only fences when held by a tx, and concurrent sweepers must not
     // double-dispatch the same row (docs 04 OPS-01).
     return opts.db.tx(async (client) => {
+      // W-DATA03-CONSUMER-JOIN-1: gate 'ingestion' dispatches are durable
+      // work for the ingestion consumer (modules/operations/
+      // ingestion-consumer.ts), NOT business jobs. Publishing them here was
+      // the audit's ungated leak: a worker claim would run the root task
+      // while its source still sat behind the ingestion gate. gate 'ready'
+      // rows (markIngestionReady's own dispatch) stay on this path.
       const res = await client.query(
         `SELECT id, aggregate_id, type, delivery_id, payload, attempts
          FROM outbox
          WHERE dispatched_at IS NULL
            AND (claim_until IS NULL OR claim_until < now())
            AND due_at <= now()
+           AND (payload->>'gate') IS DISTINCT FROM 'ingestion'
          ORDER BY due_at
          LIMIT $1
          FOR UPDATE SKIP LOCKED`,
@@ -57,8 +64,7 @@ export function createDispatcher(opts: DispatcherOptions) {
           );
           dispatched++;
         } catch (err) {
-          const msg = String(err);
-          if (msg.includes('already exists') || msg.includes('JobIdAlreadyExists')) {
+          if (isDuplicateJobIdError(err)) {
             // Deterministic job IDs mean re-enqueue dedups at the queue layer;
             // treat as dispatched (at-least-once is safe — claim fences).
             await client.query(`UPDATE outbox SET dispatched_at = now() WHERE id = $1`, [row.id]);
@@ -87,6 +93,19 @@ export function createDispatcher(opts: DispatcherOptions) {
       if (timer) clearInterval(timer);
     },
   };
+}
+
+/**
+ * BullMQ exposes duplicate job IDs as a typed error in production; the
+ * message fallback is retained only for older queue clients and is used for
+ * control flow. It is never persisted, logged, or returned to a caller.
+ */
+function isDuplicateJobIdError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const candidate = err as { code?: unknown; name?: unknown; message?: unknown };
+  if (candidate.code === 'JOB_ID_ALREADY_EXISTS' || candidate.name === 'JobIdAlreadyExistsError') return true;
+  return typeof candidate.message === 'string'
+    && (candidate.message.includes('already exists') || candidate.message.includes('JobIdAlreadyExists'));
 }
 
 async function resolveQueueForTask(

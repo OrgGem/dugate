@@ -1,0 +1,46 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand "--" "crypto-seam"
+
+FAIL tests/crypto-seam.test.ts
+  W-ENC-04 port fidelity: worker facade is the orchestrator facade
+    × the implementation body is byte-identical to the orchestrator source (3 ms)
+    √ the AAD format strings the two sides must agree on are present (3 ms)
+  W-ENC-04 binding: a sealed artifact opens only for its own task and tenant
+    √ round-trips bytes under the claim tenant (5 ms)
+    √ reports the CIPHERTEXT digest, not the plaintext digest (2 ms)
+    √ refuses to open under a different tenant (3 ms)
+    √ refuses to open under a different artifact binding (1 ms)
+    √ refuses to open a tampered ciphertext (2 ms)
+    √ fails closed when the key provider cannot wrap the DEK (1 ms)
+    √ fails closed when the provider returns the wrong DEK on open (1 ms)
+  W-ENC-04 chunked seal: the manifest is authenticated before any plaintext
+    √ round-trips a 6 MiB stream and verifies the manifest (62 ms)
+    √ refuses a manifest belonging to another artifact (43 ms)
+    √ uses the 4 MiB chunk size the orchestrator indexes expect
+  W-ENC-04 no silent plaintext: asking for the seam without one must fail
+    √ refuses to seal when the deployment configured no seam (3 ms)
+    √ the handle still reports the claim tenant it was bound to
+
+  ● W-ENC-04 port fidelity: worker facade is the orchestrator facade › the implementation body is byte-identical to the orchestrator source
+
+    ENOENT: no such file or directory, open 'D:\Git\dugate\du-rework\services\orchestrator\src\modules\encryption\crypto-storage.ts'
+
+    [0m [90m 91 |[39m   it([32m'the implementation body is byte-identical to the orchestrator source'[39m[33m,[39m () [33m=>[39m {
+     [90m 92 |[39m     [36mconst[39m here [33m=[39m readFileSync(join(__dirname[33m,[39m [32m'..'[39m[33m,[39m [32m'src'[39m[33m,[39m [32m'crypto-storage.ts'[39m)[33m,[39m [32m'utf8'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 93 |[39m     [36mconst[39m source [33m=[39m readFileSync(join(__dirname[33m,[39m [32m'..'[39m[33m,[39m [32m'..'[39m[33m,[39m [32m'..'[39m[33m,[39m [32m'services'[39m[33m,[39m [32m'orchestrator'[39m[33m,[39m [32m'src'[39m[33m,[39m [32m'modules'[39m[33m,[39m [32m'encryption'[39m[33m,[39m [32m'crypto-storage.ts'[39m)[33m,[39m [32m'utf8'[39m)[33m;[39m
+     [90m    |[39m                                [31m[1m^[22m[39m
+     [90m 94 |[39m     [36mconst[39m marker [33m=[39m [32m'export const CRYPTO_STORAGE_CHUNK_SIZE_BYTES'[39m[33m;[39m
+     [90m 95 |[39m     [90m// The ONLY intended difference is the provider type NAME: worker-sdk cannot[39m
+     [90m 96 |[39m     [90m// import the orchestrator module, so the local alias was renamed and the[39m[0m
+
+      at Object.<anonymous> (tests/crypto-seam.test.ts:93:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 13 passed, 14 total
+Snapshots:   0 total
+Time:        2.454 s, estimated 3 s
+Ran all test suites matching /crypto-seam/i.
+D:\Git\dugate\du-rework\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/worker-sdk@0.1.0 test: `jest --runInBand "--" "crypto-seam"`
+Exit status 1

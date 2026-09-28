@@ -1,0 +1,65 @@
+describe('ENC-META-01 legacy rows: readable only behind the backfill flag', () => {
+  it('isSealed does not mistake a legacy plaintext object for an envelope', () => {
+    const crypto = makeCrypto().crypto;
+    expect(crypto.isSealed(SENSITIVE)).toBe(false);
+    expect(crypto.isSealed({ version: 1, algorithm: 'aes-256-gcm' })).toBe(false);
+  });
+
+  it('readStored fails closed on a plaintext row when the flag is off', async () => {
+    const crypto = makeCrypto().crypto;
+    await expectCryptoError(() => crypto.readStored(SENSITIVE, CTX, false), 'NOT_SEALED');
+  });
+
+  it('readStored passes a legacy row through during the backfill window', async () => {
+    const crypto = makeCrypto().crypto;
+    expect(await crypto.readStored(SENSITIVE, CTX, true)).toBe(SENSITIVE);
+  });
+
+  it('readStored still enforces the binding on a sealed row even with the flag on', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    await expectCryptoError(
+      () => crypto.readStored(sealed, { ...CTX, tenantId: 'tenant-b' }, true),
+      'CONTEXT_MISMATCH',
+    );
+  });
+});
+
+describe('ENC-META-01 semantics: hashing stays stable so idempotency survives sealing', () => {
+  it('key order does not change the hash; array order does', () => {
+    expect(metadataPlaintextHash({ b: 1, a: 2 })).toBe(metadataPlaintextHash({ a: 2, b: 1 }));
+    expect(metadataPlaintextHash([1, 2])).not.toBe(metadataPlaintextHash([2, 1]));
+  });
+
+  it('the sealed plaintextSha256 matches the hash of the original value', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal({ z: 1, a: [1, 2] }, CTX);
+    expect(sealed.plaintextSha256).toBe(metadataPlaintextHash({ z: 1, a: [1, 2] }));
+  });
+
+  it('canonicalize emits sorted keys so equal documents are byte-equal', () => {
+    expect(canonicalizeMetadataJson({ b: 1, a: 2 }).toString('utf8')).toBe('{"a":2,"b":1}');
+  });
+
+  it('hashing the raw column would mismatch, which is why the runtime opens first', async () => {
+    const crypto = makeCrypto().crypto;
+    const sealed = await crypto.seal(SENSITIVE, CTX);
+    expect(contentHash(sealed)).not.toBe(contentHash(SENSITIVE));
+    expect(contentHash(await crypto.open(sealed, CTX))).toBe(contentHash(SENSITIVE));
+  });
+});
+
+describe('ENC-META-01 slot inventory', () => {
+  it('covers exactly the four control-plane columns the packet names', () => {
+    expect([...METADATA_SLOTS].sort()).toEqual([
+      'human_waits.response_ref',
+      'operations.input_ref',
+      'step_checkpoints.output_ref',
+      'tasks.payload_ref',
+    ]);
+  });
+
+  it('refuses to build a crypto seam without a keyRef', () => {
+    expect(() => createMetadataCrypto(makeProvider().provider, '')).toThrow(MetadataCryptoError);
+  });
+});

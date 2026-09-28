@@ -74,3 +74,66 @@ Hai schema PostgreSQL có thể nằm cùng một instance, dùng DB role riêng
 ## Tại sao không thêm service ngay
 
 Document worker riêng chỉ có lợi khi parse CPU/RAM thành bottleneck dùng chung. Coordinator riêng chỉ cần khi vòng đời hoặc tải runtime khác hẳn API. Cả hai đều có module boundary để tách sau, chưa tăng deployment hiện tại.
+
+
+
+## Trạng thái kiến trúc đã hiện thực (ARCH-DOC-01, snapshot 2026-09-28)
+
+> **Phần trên là `kiến trúc mục tiêu` — dung ở mức độ, KHÔNG phải mô tả thứ đã chạy.** Phần này ghi phần **đã materialize trên cây**, tách bạch bằng chứng offline và receipt đọc trực tiếp. **Mọi hàng `verified` dưới đây đều là OFFLINE; không hàng nào có live S3 / PostgreSQL thật / Redis thật / Vault thật / browser thật.**
+
+### 1. Native parse/split so với Connector OCR/vision
+
+| Phần | Ai chạy | Hiện trạng | Bằng chứng |
+|---|---|---|---|
+| Native parse + split | **business worker, cục bộ** | Parse/split chạy **local trong document-core**, không gọi Connector | [INGEST-WIRE-01 Mục 21](../coordination/reports/qwen-platform.md#L2018); [Mục 22](../coordination/reports/qwen-platform.md#L2101) sửa pin gate |
+| OCR / vision | **qua Connector** | Worker gửi **artifact reference**; provider fetch **chưa được chứng minh** | Mục 21 ghi **Δ48**: connector nhận artifacts reference nhưng **chưa chứng minh nó FETCH ĐƯỢC** byte thật cho provider; bytes sau reference khớp digest/MIME (test ingest-wire) |
+
+**Mục 23 (W-DATA-03-ORCH-VERIFY) vừa bổ sung một lớp gate phía Orchestrator:** `claimTask` từ chễi `PENDING_INGESTION` là `STATE_CONFLICT` **trước khi cấp lease** — nên claim bị từ **không lấy lease, không tăng attempt, không ghi last_delivery_id**. Dispatcher không dispatch row gate-ingestion **không đủ là boundary** — cánh claim mới là ranh giới thật.
+
+**Mục 22 sửa gap thật ở phía business:** `prepareSources` chỉ kiểm pin khi `artifactInputs.length > 0`, nên một task URL chưa READY (0 artifact) có thể bỏ qua pin và vẫn parse `input.text` báo thành công dù chưa tải byte nào. Sau đó pin được kiểm **khi pin có**, phân biệt *có artifact sai* (SOURCE_PIN_MISMATCH) và *chưa READY* (INGESTION_SOURCE_UNRESOLVED). **Đây là TIGHTENING fail-closed** — breaking cho task URL dùng inline text (Δ52), coordinator cần biết trước production.
+
+### 2. Đường mã hóa: app gateway / Vault Transit / recipient delivery
+
+| Đoạn | Hiện trạng | Bằng chứng |
+|---|---|---|
+| Storage envelope (AES-256-GCM) | Đã có schema trong @du/contracts | [ENC-01](../coordination/reports/tester.md#L8350) — 7 schema + 2 constant, build 0 |
+| Vault Transit key provider | Đã có adapter: DEK wrap/unwrap + rewrap | [ENC-02](../coordination/reports/tester.md#L7831) 9/9 tsc 0 |
+| Storage crypto facade | Đã có: chunk + bounded stream + fresh DEK | [ENC-03](../coordination/reports/tester.md#L7916) 10/10 tsc 0 |
+| Recipient key registry | Đã có: PoP, fingerprint, version CAS, revoke | [ENC-06](../coordination/reports/tester.md#L7875) 8/8 tsc 0 |
+| Public upload gateway | Đã có: mã hóa trước khi ghi S3 | [ENC-05](../coordination/reports/tester.md#L8102) 41/41 tsc 0 |
+| Delivery encryption (recipient) | Đã có: policy server-side, fail-closed | [ENC-07](../coordination/reports/tester.md#L7938) 22/22 tsc 0 |
+| Worker-sdk crypto seam | Đã có: port trung thực của facade | [INGEST-WIRE-01](../coordination/reports/qwen-platform.md#L2018) 14/14; [DATA-04 independent](../coordination/reports/tester.md#L8438) 311/542 tsc 0 |
+
+**Response wire đã freeze:** `GET /operations/{id}/result` = 200 JSON (plain = strict v1 ResultEnvelope, encrypted = strict v1 wrapper); `GET /artifacts/{id}/download` = **200 raw bytes** (plain) hoặc 200 JSON wrapper (encrypted) — **302 đã bị loại khỏi contract**. Xem [RESULT-WIRE-01](../coordination/reports/tester.md#L8245).
+
+**Phần chưa có bằng chứng offline:** metadata/control-plane encryption ([ENC-META-01](../coordination/reports/tester.md#L7955) 23/23), tiêu đạt **byte-scan** thật, và **migration** legacy plaintext sang ciphertext ([ENC-09](../coordination/reports/tester.md#L8139) 9/9 offline).
+
+### 3. Ranh giới S3 durable artifact so với PostgreSQL metadata
+
+| Lớp | Vai trò | Hiện trạng |
+|---|---|---|
+| S3 / object storage | **File bytes durable** | Adapter đã có: [DATA-01](../coordination/reports/tester.md#L8350) 3 suites 35/35 tsc 0, độc lập |
+| PostgreSQL platform | **Metadata + ref + control plane** | Vẫn là nguồn sự thật nghiệp vụ; **không** giữ file bytes |
+| PostgreSQL bytea (fallback) | **Chỉ là pilot có kiểm soát** | [DATA-05](../coordination/reports/tester.md#L8461) 20/20 tsc 0: migration chỉ xong khi hết ref chưa resolve / orphan / S3 READY chưa pin; fallback **bắt buộc** migrationWindow: true, window đóng thì đọc chỉ S3 |
+
+**Boundary quan trọng:** artifact **bytes** đi theo đường S3/encryption; **không có** bytea trong queue, log hay metadata DB. Job payload không chứa file bytes ([docs/09](09-queue-sdk.md)).
+
+### 4. Bảng target / current / verified
+
+| Hạng mục | Target (ADR) | Current (đã materialize) | Verified offline | Còn thiếu để ACCEPTED |
+|---|---|---|---|---|
+| Artifact storage S3 | S3 durable bytes (ADR-10) | S3 adapter + facade | [DATA-01](../coordination/reports/tester.md#L8350) 35/35 independent | Live S3 |
+| Public upload | Gateway mã hóa trước S3 | Có gateway | [ENC-05](../coordination/reports/tester.md#L8102) 41/41 | Live S3/PG/Redis |
+| Worker streaming | Bounded stream + finalize epoch | Có | [DATA-04](../coordination/reports/tester.md#L8438) 311/542 independent | Live object storage, Redis |
+| PG blob migration | Backfill có verify + rollback | Có | [DATA-05](../coordination/reports/tester.md#L8461) 20/20 independent | Live migration, restore |
+| Ingest artifact ref | Worker gửi reference thật; task chưa READY không claim được | Có (pin gate + **claim gate**) | [INGEST-WIRE-01 Muc 21](../coordination/reports/qwen-platform.md#L2018) 542/542; [Mục 23](../coordination/reports/qwen-platform.md#L2184) | **Δ48** connector fetch, **Δ53** live |
+| Result delivery | 200 JSON, không 302 | Có | [RESULT-WIRE-01](../coordination/reports/tester.md#L8245) 22/22 + contract freeze | External decrypt thật |
+| Metadata encryption | Control plane mã hóa | Có | [ENC-META-01](../coordination/reports/tester.md#L7955) 23/23 | Live byte-scan |
+| Admin crypto config | UI + API + CSRF | Có, Δ112 đóng | [ENC-08 CSRF](../coordination/reports/qwen-admin.md#L3280) 47/47 + 79/79 | **Δ110**, **Δ113** OIDC |
+| Log schema | Shared JSON + redaction | Có | [LOG-01](../coordination/reports/tester.md#L8265) 23/23 + 21/21 | Live collector |
+
+**Không hàng nào ở trên là ACCEPTED.** Gate G-DATA, G-ENC, G6 đều NO-GO; task row vẫn là [~].
+
+### 5. Snapshot 20/09 và tương lai
+
+Các snapshot cũ ngày 20/09 là **lịch sử**, không phải trạng thái hiện tại. [docs/03](03-project-structure.md) ghi những khác biệt framework/DB **cần ADR**; phần trên của file này vẫn là **mục tiêu**. Khi ADR HTTP/UI framework được chốt, phần này và phần mục tiêu phải đồng bộ cùng lúc.

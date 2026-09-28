@@ -1,0 +1,23 @@
+{
+  "tasteLearning": true,
+  "permissions": {
+    "allow": [
+      "Shell(dir:*)",
+      "Shell(type:*)",
+      "Shell(node -e console.log(require('fs').readFileSync('app/api/v1/operations/[id]/resume/route.ts','utf8')) 2 >& 1)",
+      "Shell(node -e console.log(require('fs').readFileSync('app/api/v1/operations/[id]/resume/route.ts','utf8')))",
+      "Shell(npx jest tests/workflow-builder/run-schema.test.ts --no-coverage 2 >& 1)",
+      "Shell(npm:*)",
+      "Shell(findstr:*)",
+      "Shell(pnpm:*)",
+      "Shell(npx tsc --noEmit -p tsconfig.json 2 >& 1)",
+      "Shell(npx tsc --noEmit --project tsconfig.json 2 >& 1)",
+      "Shell(npx next lint --file tests/workflow-builder/run-schema.test.ts --file tests/workflow-builder/schema-route.test.ts --file lib/workflow-builder/interpreter.ts --file lib/workflow-builder/run-schema.ts --file app/api/v1/docs/workflows/schema/route.ts 2 >& 1)",
+      "Shell(npx tsc --noEmit --target es2020 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck --strict 2 >& 1)",
+      "Shell(git:*)",
+      "Shell(node -e console.log(require('fs').readFileSync('app/api/v1/operations/[id]/route.ts','utf8').slice(0,4000)))"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

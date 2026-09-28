@@ -1,0 +1,39 @@
+
+> @du/orchestrator@0.1.0 test:unit D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand --config jest.unit.config.cjs "--" "connector-revision-http-offline.functional"
+
+FAIL tests/connector-revision-http-offline.functional.test.ts
+  VAULT-06 lifecycle over the real orchestrator↔connector HTTP wire
+    √ rotate #1 over HTTP: PENDING cloned from CURRENT then CAS-activated (40 ms)
+    √ pin separation: new work reads CURRENT (v2 pin); in-flight revision 2 keeps its OLD pin (20 ms)
+    √ CAS discipline over HTTP: activate with a stale expectedCurrent is a no-op (409) (9 ms)
+    √ emergency revoke (disable): CURRENT gone → new rotations fail CLOSED, no phantom ACTIVE (18 ms)
+    × restart/reconcile: stranded PENDING from a crashed orchestrator is promoted (or retired) by the NEW instance (5 ms)
+    √ transport failure is fail-closed 503 on every port call (adapter never guesses) (6 ms)
+    √ invalid credential source at the HTTP edge → rejected, zero PENDING churn (3 ms)
+  VAULT-06 draft schema pin
+    √ migration 007 exists, is additive JSONB and documents NULL=legacy-db (2 ms)
+
+  ● VAULT-06 lifecycle over the real orchestrator↔connector HTTP wire › restart/reconcile: stranded PENDING from a crashed orchestrator is promoted (or retired) by the NEW instance
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: undefined
+
+    [0m [90m 341 |[39m       body[33m:[39m [33mJSON[39m[33m.[39mstringify({ credentialSource[33m:[39m { kind[33m:[39m [32m'vault-kv2'[39m[33m,[39m [33m...[39m[33mREASON[39m[33m,[39m version[33m:[39m [35m1[39m } })[33m,[39m
+     [90m 342 |[39m     }))[33m.[39mjson() [36mas[39m { revision[33m:[39m number }[33m;[39m
+    [31m[1m>[22m[39m[90m 343 |[39m     expect(stranded[33m.[39mrevision)[33m.[39mtoBe([35m2[39m)[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 344 |[39m
+     [90m 345 |[39m     [90m// 'restart' = fresh workflow over a fresh adapter instance[39m
+     [90m 346 |[39m     [36mconst[39m wf2 [33m=[39m wfViaHttp(h[33m.[39mbaseUrl[33m,[39m createScopedVaultFixture())[33m;[39m[0m
+
+      at Object.<anonymous> (tests/connector-revision-http-offline.functional.test.ts:343:31)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+Snapshots:   0 total
+Time:        3.011 s
+Ran all test suites matching /connector-revision-http-offline.functional/i.
+ ELIFECYCLE  Command failed with exit code 1.

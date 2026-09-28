@@ -1,0 +1,60 @@
+FAIL tests/network-boundaries.boundary.test.ts
+  ● Console
+
+    console.info
+      [C2-3 measurement] A-invalid-json echo=ABSENT prefixLeakChars=1 msgLen=187 capApplied=false | B-invalid-enum-value echo=PRESENT prefixLeakChars=26 msgLen=307 capApplied=true
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:469:13)
+
+  ● R1-C createHttpTransport - timeout/abort scope and error-message secret boundaries › [OPEN:FIX-CR-08 stall-after-headers-must-reject]
+
+    transport.get() was still pending 400ms after a 120ms timeoutMs budget: headers flushed, so the finally at transport.ts:100-101 cleared the timeout timer and dropped the chained caller abort, leaving the body read at transport.ts:104 outside every abort scope. Expected once FIX-CR-08 lands: one abort scope covering headers AND body, rejecting as INVOCATION_UNKNOWN (status 0, retryable true).
+
+    [0m [90m 285 |[39m       })[33m;[39m
+     [90m 286 |[39m       [36mif[39m (timed[33m.[39moutcome[33m.[39mkind [33m===[39m [32m'budget'[39m) {
+    [31m[1m>[22m[39m[90m 287 |[39m         [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 288 |[39m           [32m'transport.get() was still pending 400ms after a 120ms timeoutMs budget: headers flushed, '[39m [33m+[39m
+     [90m 289 |[39m             [32m'so the finally at transport.ts:100-101 cleared the timeout timer and dropped the chained '[39m [33m+[39m
+     [90m 290 |[39m             [32m'caller abort, leaving the body read at transport.ts:104 outside every abort scope. '[39m [33m+[39m[0m
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:287:15)
+
+  ● R1-C createHttpTransport - timeout/abort scope and error-message secret boundaries › [OPEN:FIX-CR-08 caller-abort-after-headers-must-cancel-body]
+
+    aborting the caller signal after headers resolved was a no-op: transport.ts:101 removed onOuterAbort as soon as fetch resolved, so lease loss / cancel can never stop the body read at transport.ts:104 (still pending 400ms after abort with timeoutMs=30s). Expected once FIX-CR-08 lands: the outer signal stays attached for the whole request.
+
+    [0m [90m 329 |[39m           [36mconst[39m timed [33m=[39m { outcome[33m:[39m [36mawait[39m raceBudget(pending[33m,[39m [35m400[39m)[33m,[39m elapsed[33m:[39m [33mDate[39m[33m.[39mnow() [33m-[39m started }[33m;[39m
+     [90m 330 |[39m           [36mif[39m (timed[33m.[39moutcome[33m.[39mkind [33m===[39m [32m'budget'[39m) {
+    [31m[1m>[22m[39m[90m 331 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 332 |[39m               [32m'aborting the caller signal after headers resolved was a no-op: transport.ts:101 removed '[39m [33m+[39m
+     [90m 333 |[39m                 [32m'onOuterAbort as soon as fetch resolved, so lease loss / cancel can never stop the body '[39m [33m+[39m
+     [90m 334 |[39m                 [32m'read at transport.ts:104 (still pending 400ms after abort with timeoutMs=30s). Expected '[39m [33m+[39m[0m
+
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:331:19)
+
+  ● R1-C createHttpTransport - timeout/abort scope and error-message secret boundaries › [OPEN:ADM-BASE-03 transport-error-message-no-sentinel]
+
+    2 sentinel hit(s) in sink 'ConnectorClientError.message+stack' at: $[1], $[0]
+
+    [0m [90m 202 |[39m   [36mconst[39m hits [33m=[39m scanForSentinels(payload[33m,[39m sentinels)[33m;[39m
+     [90m 203 |[39m   [36mif[39m (hits[33m.[39mlength [33m>[39m [35m0[39m) {
+    [31m[1m>[22m[39m[90m 204 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 205 |[39m       hits[33m.[39mlength [33m+[39m
+     [90m 206 |[39m         [32m" sentinel hit(s) in sink '"[39m [33m+[39m
+     [90m 207 |[39m         sink [33m+[39m[0m
+
+      at expectNoSentinel (tests/network-boundaries.boundary.test.ts:204:11)
+      at Object.<anonymous> (tests/network-boundaries.boundary.test.ts:384:5)
+
+PASS tests/sdk-invoker.test.ts
+PASS tests/transport.test.ts
+PASS tests/client.test.ts
+
+Test Suites: 1 failed, 1 skipped, 3 passed, 4 of 5 total
+Tests:       3 failed, 1 skipped, 28 passed, 32 total
+Snapshots:   0 total
+Time:        3.483 s, estimated 6 s
+Ran all test suites.

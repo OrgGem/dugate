@@ -6,17 +6,12 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
+    "test:integration": "pnpm --filter @du/contracts build && pnpm --filter @du/observability build && pnpm --filter @du/connector build && pnpm --filter @du/orchestrator build && pnpm --filter @du/integration-tests test",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/mammoth": "npm:empty-npm-package@1.0.0",
-      "pdf-lib@^1.17.9": "^1.17.1"
-    }
   }
 }
