@@ -1,7 +1,7 @@
 ﻿{
     "schemaVersion":  1,
     "intervalMinutes":  30,
-    "lastCheckedAt":  "2026-09-28T09:23:00+07:00",
+    "lastCheckedAt":  "2026-09-28T10:24:00+07:00",
     "dispatches":  {
                        "ctx_f57469bd76f4":  {
                                                 "taskId":  "task_370713dea9d2",
@@ -1247,14 +1247,14 @@
                        "ctx_f53c772c1589":  {
                                                 "taskId":  "task_478e15090f32",
                                                 "terminalHandle":  "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
-                                                "lastObservedAt":  "2026-09-28T08:54:00+07:00",
+                                                "lastObservedAt":  "2026-09-28T09:52:00+07:00",
                                                 "lastProgressAt":  "2026-09-28T08:54:00+07:00",
-                                                "transcriptCursor":  "22766099",
+                                                "transcriptCursor":  "23857670",
                                                 "consecutiveUnfinishedChecks":  0,
                                                 "lastNudgeAt":  "2026-09-28T08:26:40+07:00",
                                                 "blocker":  null,
                                                 "status":  "settled",
-                                                "receipt":  "coordination/reports/qwen-admin.md#W-ADM-UX-02-AUDIT-PAGE"
+                                                "receipt":  "coordination/reports/qwen-admin.md#Muc-30"
                                             },
                        "ctx_9b165ca0357b":  {
                                                 "taskId":  "task_34d73cbfbe44",

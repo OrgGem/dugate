@@ -8,7 +8,7 @@
   Mục 1 = W-ADMUX-01, 2 = -03-FILTER-1, 3 = W-ADMUX02-SRV-1,
   4 = -SRV-1-FIX, 5 = -CLEAN-1, 6 = -COPY-2, 7 = -IDX-1, 8 = -IDX-2, 9 = -EXPLAIN-FIX-1,
   10 = -STATUS-SYNC-1, 11 = W-CONTRACT-ALIGN-1, 12 = W-ADMUX02-EXT-1, 13 = -TOOLBAR-CHIPS-1,
-  14 = -SORT-ALLOWLIST-1, 15 = -SORT-CURSOR-BIND-1, 16 = -SHELL-SORT-1, 17 = -IDX-SORT-0018, 18 = -EXPLAIN-SORT-1, 19 = -CROSS-SORT-422-1, 20 = W-ADMUX02-0019-LITERAL-HARNESS-1, 21 = W-ADMIN-ALIGN-EXPLAIN-0019, 22 = W-ENC-07-DELIVERY-1, 23 = W-ENC-08-CONFIG, 24 = W-ENC-08-WIRING, 25 = W-ENC-08-WIRE-ENC07, 26 = W-ADM-UX-08-SHELL, 27 = W-ENC-08-RENDERER-CSRF, 28 = W-ENC-08-CSRF-OIDC, 29 = W-ENC-08-WEBHOOK. Chờ packet mới.
+  14 = -SORT-ALLOWLIST-1, 15 = -SORT-CURSOR-BIND-1, 16 = -SHELL-SORT-1, 17 = -IDX-SORT-0018, 18 = -EXPLAIN-SORT-1, 19 = -CROSS-SORT-422-1, 20 = W-ADMUX02-0019-LITERAL-HARNESS-1, 21 = W-ADMIN-ALIGN-EXPLAIN-0019, 22 = W-ENC-07-DELIVERY-1, 23 = W-ENC-08-CONFIG, 24 = W-ENC-08-WIRING, 25 = W-ENC-08-WIRE-ENC07, 26 = W-ADM-UX-08-SHELL, 27 = W-ENC-08-RENDERER-CSRF, 28 = W-ENC-08-CSRF-OIDC, 29 = W-ENC-08-WEBHOOK, 30 = W-ADM-UX-02-AUDIT-PAGE. Chờ packet mới.
   **T70-C1 đã đóng ở Mục 11** (contract về một nguồn, tham số ngoài contract = lỗi biên dịch).
   **Bug thật Mục 13 sửa:** `Clear all` giữ nguyên page size đang dùng (`?limit=50`) thay vì về
   `?limit=20` — trái chính checklist C1 mà Mục 10 tôi soạn cho Tester. Chip đã có từ Mục 2 nên
@@ -3554,7 +3554,155 @@ remedy-text, sentinel-order, bound 128, bearer check, 404 guard ngoài `/api/v1/
 ---
 
 
+## 30 — CYCLE 30
+
+**W-ADM-UX-02-AUDIT-PAGE** (task_478e15090f32 / ctx_f53c772c1589) — bộ lọc audit + keyset sort
+allowlist cho `GET /api/v1/admin/audit`.
+
+### 30.1 Phạm vi thực thi
+
+| File | Thay đổi |
+|---|---|
+| `packages/contracts/src/public-api.ts` | `ADMIN_AUDIT_LIST_QUERY_PARAMS` +5 tên (`actor`,`resource`,`from`,`to`,`sort`); allowlist sort **riêng** `ADMIN_AUDIT_LIST_SORT_VALUES` (2 giá trị) + `ADMIN_AUDIT_LIST_SORT_DEFAULT`; `AdminAuditListSortSchema`; `ADMIN_LIST_TIME_PATTERN` + `isAdminListTimeBound()`; `AdminAuditListQuerySchema` +5 field |
+| `services/orchestrator/src/server.ts` | `interface AdminAuditListQuery` +5 field + đổi kiểu cursor; `parseAdminAuditListQuery` đọc 5 param mới, validate sort/cross-sort, `parseAdminListTimeBound()` mới; `listAuditEventPage` chuyển `keysetPage` → `sortableAdminKeysetPage`; executor: `sortColumns` `Partial` + guard 422 |
+| `tests/admin-audit-list-page.test.ts` | **MỚI, 30 test** |
+| `tests/admin-list-contract-conformance.test.ts` | 3 khai báo cũ cập nhật theo hợp đồng mới (xem 30.5) |
+
+### 30.2 Vì sao allowlist sort của audit KHÔNG dùng chung `ADMIN_RESOURCE_LIST_SORT_VALUES`
+
+Đây là quyết định thiết kế, không phải lười. `admin_audit_events` (migration `0010_admin_audit.sql`)
+có **đúng một cột thời gian: `created_at`** — không có `updated_at`. Nếu tái dùng allowlist 4 giá trị
+của business/version/api-key thì `?sort=updatedAt:desc` sẽ trở thành `ORDER BY updated_at` trên một
+bảng không có cột đó: lỗi SQL lúc chạy, không phải 422. Nên audit có allowlist **riêng, là tập con**:
+
+- `ADMIN_AUDIT_LIST_SORT_VALUES = ['createdAt:asc', 'createdAt:desc']`
+- `ADMIN_AUDIT_LIST_SORT_DEFAULT = 'createdAt:desc'` — **trùng byte-for-byte với hành vi cũ**
+  (`keysetPage` hardcode `ORDER BY created_at DESC, id DESC`), nên URL cũ vẫn ra cùng lát cắt.
+
+Codec cursor **vẫn dùng chung** `encode/decodeAdminResourceListSortCursor` (tập con nên encode/decode
+không đổi). `sortColumns` trong executor đổi `Record` → `Partial<Record<...>>` kèm guard: sort field
+caller chưa map thì **422**, không bao giờ dựng `ORDER BY` trên cột không tồn tại. Ba executor cũ
+(business/version/api-key) truyền đủ 2 key nên hành vi của chúng **không đổi**.
+
+### 30.3 Bộ lọc mới — toàn bộ là tham số bind
+
+| Param | SQL | Ghi chú |
+|---|---|---|
+| `actor` | `strpos(lower(actor), lower($n)) > 0` | qua `sanitizeAdminListToken` → chặn hex 32+ |
+| `resource` | `strpos(lower(resource), lower($n)) > 0` | như trên |
+| `from` | `created_at >= $n::timestamptz` | UTC bắt buộc |
+| `to` | `created_at <= $n::timestamptz` | đóng hai đầu |
+| `sort` | chọn hướng `ORDER BY` | allowlist 2 giá trị, ngoài = 422 |
+
+Cả 5 filter **và** `count(*)` dùng chung một mảng `clauses`, nên `total` không bao giờ lệch với tập
+đã lọc — có test riêng cho từng filter (kể cả time window) trên **query count**.
+
+`from`/`to` chỉ nhận **instant UTC** (`...Z`). `isAdminListTimeBound` kiểm tra cả hình dạng lẫn
+lịch thật: `Date.parse('2026-02-30T00:00:00Z')` **không** NaN — nó lăn sang tháng 3 — nên nếu chỉ
+so khớp regex thì ngày không tồn tại lọt qua. Hàm so lại `toISOString().slice(0,19)` với tiền tố
+đầu vào nên chặn được. Offset `+07:00` cũng bị từ chối: ledger là UTC, giờ địa phương là mơ hồ.
+Cửa sổ đảo ngược (`from > to`) là **422** chứ không phải trang rỗng — trang rỗng sẽ đọc như
+"không có gì xảy ra trong khoảng đó", tức là một câu trả lời sai.
+
+### 30.4 Bằng chứng
+
+Lệnh (chạy ở `du-rework`):
+
+```
+pnpm --filter @du/contracts build                                    # Exit Code: 0
+pnpm --filter @du/orchestrator typecheck                             # Exit Code: 0
+pnpm --filter @du/orchestrator test -- tests/admin-audit-list-page.test.ts \
+  tests/admin-list-contract-conformance.test.ts tests/admin-audit-scope.test.ts \
+  tests/admin-sort-allowlist.test.ts
+```
+
+- Suite mới: **30/30 pass** (`admin-audit-list-page.test.ts`), 4 `describe`, 0 network.
+- 4 suite liên quan: **81 passed / 81 total**, `Test Suites: 4 passed, 4 total` — chạy **3 lần**,
+  cả 3 đều exit 0 (PASS theo luật 3 lần liên tiếp).
+- `tsc --noEmit` orchestrator: **Exit Code: 0**.
+
+### 30.5 Ba khai báo cũ phải cập nhật, và vì sao đó là đúng
+
+Đây là thay đổi hợp đồng thật, nên ba chỗ cũ **sai** sau khi tính năng lên:
+
+1. `admin-list-contract-conformance.test.ts` chốt `ADMIN_AUDIT_LIST_QUERY_PARAMS` bằng
+   `toEqual([...5 tên])` → nay là 10 tên.
+2. Cùng file đó dùng `actor=' OR 1=1--` làm ví dụ "param **không** khai báo bị bỏ qua". Nay
+   `actor` **đã** khai báo nên phải là 422. Tôi tách thành hai assertion: `&note=whatever`
+   (tên chưa khai báo → vẫn 200, không lọt vào SQL) và `&actor=' OR 1=1--` (→ 422). Ý nghĩa của
+   test được giữ nguyên, chỉ chọn đúng ví dụ cho từng nhánh.
+3. Cùng file đó decode cursor audit bằng `decodeListCursor` (dialect 3-slot của operations list).
+   Audit **giờ phát cursor có ràng buộc sort** (4-slot, `encodeAdminResourceListSortCursor`) — cùng
+   họ với business/version/api-key. Đổi sang codec đúng và **thêm** assertion cursor mang
+   `sort: 'createdAt:desc'`.
+
+Hệ quả cần coordinator biết: **mọi token `nextCursor`/`prevCursor` do bản cũ phát ra sẽ bị 422** khi
+replay vào bản mới (đây chính là fail-closed mong muốn — xem Δ124).
+### 30.6 Đỏ trong sweep — quy kết không phải của lane này
+
+Sweep offline đầy đủ: `3 failed, 216 skipped, 2065 passed, 2284 total`
+(`Test Suites: 3 failed, 16 skipped, 95 passed, 98 of 114 total`). Cả **3** đều nằm ở file tôi không
+sửa, và `mtime` của chúng đều cũ hơn thay đổi của tôi:
+
+| Suite | Nguyên nhân | Owner |
+|---|---|---|
+| `admin-operations-list-pagination.test.ts` | Δ92 — `wrapTablesForReflow` đổi `aria-label` từ `"Scrollable table"` sang `"Scrollable data table 1 of 1"`; `shell-render.ts` mtime 28/09 02:54 | lane khác sửa renderer |
+| `adm-base-03-safe-error-offline.functional.test.ts` | Δ114 — test socket thật | lane khác |
+| `admin-shell-session-lifecycle.test.ts` | `W-SEC-AUDIT-TAXONOMY-1` — bắt `console.warn` 1 dòng, nhận 0; mtime 26/09 | Qwen-SEC (Mục 11) |
+
+Không suite nào trong 3 đó chạm route audit list. Không có đỏ nào do Mục 30.
+
+### 30.7 Sai sót của chính tôi trong lúc làm (ghi công khai)
+
+- **Lỗi splice của tôi, không phải lỗi code:** script ghép file đầu tiên cộng `\n` vào mỗi dòng
+  fragment rồi lại `join("\n")`, nên hai vùng dùng EOL `\n` bị chèn dòng trống xen kẽ. Phát hiện
+  bằng quét "hai dòng trống liên tiếp" (3 cặp; 2 cặp còn lại là **có sẵn từ trước** ở dòng 2680 và
+  3286, không nằm trong vùng tôi sửa), sửa và xác minh lại. Typecheck ngay sau đó exit 0.
+- **Bốn kỳ vọng sai trong test của tôi** (đã sửa, không phải bug sản phẩm): tôi quên `LIMIT` cũng
+  được bind nên mảng `params` có phần tử cuối; và tôi khẳng định SQL trang-1 có mệnh đề
+  `(created_at, id)` — sai, chỉ khi **có cursor** mới có mệnh đề biên. Ba lỗi này lộ ra vì tôi tin
+  bản thân thay vì chạy thử.
+- **Ba khai báo cũ trong `admin-list-contract-conformance.test.ts` sai sau thay đổi này** — đã cập
+  nhật, xem 30.5. Đây là thay đổi hợp đồng có chủ đích, không phải nới lỏng.
+
+---
+## Δ-DEVIATION Mục 30 (chờ coordinator adjudicate)
+
+- **Δ124 — Đổi DIALECT cursor của `/api/v1/admin/audit` (thay đổi hợp đồng, cần thông báo).** Trước
+  Mục 30 route này phát cursor 3-slot qua `encodeListCursor` (`<ISO>|<uuid>[|p]`) và decode bằng
+  `decodeListCursor`. Nay nó dùng chung `encode/decodeAdminResourceListSortCursor` với
+  business/version/api-key — 4 slot, có **mã sort**, và **cursor phát ra dưới sort A sẽ bị 422** khi
+  replay dưới sort B. Đây là cùng hình thức T140-A1 đã áp cho operations list, và là điều ADM-UX-02
+  đòi hỏi, nhưng nó **làm hỏng mọi client đang giữ token cũ** (deep-link đã lưu, script đã chạy).
+  Mặt fail-closed vẫn đúng: 422 kèm remedy trong message thay vì đọc sai lát cắt. Cần nói rõ trong
+  docs 06 / release note nếu route này đã từng có client ngoài.
+- **Δ125 — Chạm `packages/contracts/src/public-api.ts`, ngoài phạm vi file packet nêu.** Packet ghi
+  "tại services/orchestrator", nhưng `parseAdminAuditListQuery` đọc tên tham số **từ** mảng contract
+  `ADMIN_AUDIT_LIST_QUERY_PARAMS` (khoá T70-C1: tham số ngoài contract là lỗi biên dịch). Thêm
+  `actor`/`resource`/`from`/`to`/`sort` mà không khai báo ở contracts thì hoặc là lỗi biên dịch,
+  hoặc là đọc literal trong orchestrator — phá đúng thứ mà T70-C1 đã khoá. Nên tôi sửa cả hai nơi
+  và coi đây là hệ quả bắt buộc của packet, không phải mở rộng phạm vi tự ý.
+- **Δ126 — `ADMIN_AUDIT_LIST_SORT_VALUES` là tập con, không dùng chung `ADMIN_RESOURCE_LIST_SORT_VALUES`.**
+  `admin_audit_events` không có `updated_at`; tái dùng allowlist 4 giá trị sẽ tạo `ORDER BY` trên cột
+  không tồn tại (lỗi SQL lúc chạy) thay vì 422. Hệ quả cần biết: **allowlist giờ KHÔNG đồng nhất**
+  giữa 4 list — audit 2 giá trị, ba list kia 4 giá trị. Nếu sau này thêm `updated_at` vào ledger
+  (migration), phải nhớ mở rộng lại allowlist audit.
+- **Δ127 — `sortColumns` trong `sortableAdminKeysetPage` đổi `Record` → `Partial<Record>`.** Đây là
+  executor dùng chung của **4** route. Ba caller cũ truyền đủ 2 key nên hành vi không đổi (đã xác
+  nhận: `admin-sort-allowlist` + `operations-list-cursor-sort-binding` vẫn xanh), nhưng đây là
+  thay đổi đụng bề mặt chung nên ghi ra để Reviewer soi.
+- **Δ128 — Chưa có index phục vụ `actor`/`resource`/`from`.** Index hiện có là
+  `admin_audit_events_tenant_time (tenant_id, created_at DESC)` — phục vụ sort + time window,
+  **không** phục vụ hai cột text khi lọc `strpos(lower(...))` (và `strpos` dùng dẩu-sequential scan
+  vốn không index được trừ khi dùng `pg_trgm`). Với ledger lớn, filter actor sẽ quét. Cần
+  **DB window** để đo và cân nhắc `pg_trgm`; tôi không đo được offline nên **không** tuyên bố
+  gì về query plan.
+- **Δ129 — ADM-UX-02 vẫn `[~]`, `G-ADMIN-OPS` vẫn NO-GO.** Mục này đóng được phần *code* của
+  filter + sort + keyset cho audit, nhưng **không** có: index cho filter actor/resource (Δ128),
+  kiểm thử live keyset trong DB window (cursor audit chưa từng có bằng chứng live), và UI sort
+  control cho pane audit (ADM-UX-03 vẫn `[ ]`). Toàn bộ bằng chứng ở đây là **offline**.
 ## Ledger
+- 30 — W-ADM-UX-02-AUDIT-PAGE (task_478e15090f32 / ctx_f53c772c1589): bộ lọc audit + keyset sort allowlist cho `GET /api/v1/admin/audit` — SỬA `packages/contracts/src/public-api.ts` (`ADMIN_AUDIT_LIST_QUERY_PARAMS` 5→10 tên; **allowlist sort RIÊNG** `ADMIN_AUDIT_LIST_SORT_VALUES = [createdAt:asc, createdAt:desc]` vì `admin_audit_events` không có `updated_at` — tái dùng allowlist 4 giá trị sẽ dựng `ORDER BY` trên cột không tồn tại; `ADMIN_LIST_TIME_PATTERN` + `isAdminListTimeBound` chặn cả ngày không tồn tại vì `Date.parse("2026-02-30...")` **không** NaN mà lăn sang tháng 3; `AdminAuditListQuerySchema` +5 field) + SỬA `src/server.ts` (`actor`/`resource` qua `sanitizeAdminListToken` nên hex 32+ = 422; `from`/`to` là `created_at >= / <= $n::timestamptz` đóng hai đầu, cửa sổ đảo ngược = 422 chứ không phải trang rỗng; `listAuditEventPage` chuyển `keysetPage` → `sortableAdminKeysetPage` dùng chung executor 4 route; `sortColumns` `Record`→`Partial` + guard 422) + MỚI `tests/admin-audit-list-page.test.ts` (**30 test / 4 describe**) + SỬA 3 khai báo lỗi thời trong `admin-list-contract-conformance.test.ts`. Mọi filter dùng chung một mảng `clauses` với `count(*)` nên `total` không lệch tập đã lọc (test riêng cho từng filter trên query count). Evidence: suite mới **30/30**, 4 suite liên quan **81/81 ×3 Exit Code: 0**, contracts build + tsc `Exit Code: 0`, sweep **2065 passed / 216 skipped / 2284 total, 3 đỏ — không đỏ nào thuộc lane** (Δ92 renderer aria-label, Δ114 socket, W-SEC-AUDIT-TAXONOMY-1 của Qwen-SEC; cả 3 file tôi không sửa, mtime cũ hơn thay đổi của tôi). Tự ghi công khai: script ghép file của tôi chèn dòng trống xen kẽ ở 2 vùng EOL LF (quét "2 dòng trống liên tiếp" bắt, sửa, tsc xanh) + 4 kỳ vọng sai trong test của tôi (quên LIMIT cũng bind; khẳng định SQL trang-1 có mệnh đề `(created_at, id)` trong khi chỉ có khi **có cursor**). Δ124 **ĐỔI DIALECT cursor audit** (3-slot `decodeListCursor` → 4-slot có mã sort) ⇒ client giữ token cũ sẽ 422, cần báo; Δ125 chạm contracts ngoài phạm vi packet nhưng bắt buộc theo khoá T70-C1; Δ126 allowlist sort giờ KHÔNG đồng nhất giữa 4 list; Δ127 `sortColumns` đụng executor chung (3 caller cũ truyền đủ key, hành vi không đổi); Δ128 chưa index cho `actor`/`resource` (`strpos(lower(...))` không dùng được index thường) — cần DB window, tôi không đo offline nên không claim query plan; Δ129 ADM-UX-02 vẫn `[~]`, ADM-UX-03 `[ ]`, `G-ADMIN-OPS` giữ **NO-GO**; offline-only, không commit/push — Mục 30.
 
 - 1 — W-ADMUX-01: operations list phân trang server-side (limit) + cursor forward-compat + nền responsive mở rộng; tsc x3 exit 0, jest targeted 640/640 x3 exit 0, full offline 1313 pass/15 skip exit 0 — Mục 1.
 - 2 — W-ADMUX-03-FILTER-1: toolbar state/tenant/id + chip + clear-all + deep link giữ filter; tsc x3 exit 0, jest targeted 656/656 x3 exit 0, full offline 1342 pass/15 skip exit 0 — Mục 2.
