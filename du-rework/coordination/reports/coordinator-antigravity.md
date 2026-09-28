@@ -4407,3 +4407,22 @@ Hệ thống đã phát hiện và kết nối thành công 3 terminal mới qua
   - **Windows Scheduled Task:** Đã hủy đăng ký task cũ `DU-Rework-Orca-Coordinator-10m` và đăng ký task mới **`DU-Rework-Orca-Coordinator-30m`** với `Repetition.Interval = PT30M` (30 phút).
   - **Mẫu chỉ lệnh (Prompt Template):** Đã cập nhật `coordinator-cycle-prompt.md` sang chu kỳ kiểm tra 30 phút.
   - **Trạng thái điều phối:** Đã đồng bộ `interval_minutes: 30` và `schedule_task_id: DU-Rework-Orca-Coordinator-30m` vào `coordinator-state.json` và `agent-watch-state.json`.
+
+### Turn 309 Cycle Conclusion — 2026-09-28T08:54:00+07:00
+
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * Tất cả 11 handle được đọc trực tiếp từ `orca terminal read --terminal <handle> --limit 30 --json`.
+  * **Codex Worker 1 (`term_2b05b203`):** Đã hoàn tất `W-COST-03-DRILLDOWN` (`task_24cca6ec64e6`), bàn giao endpoint keyset export phân trang tenant-scoped, 18/18 contracts và 12/12 orchestrator tests pass. Receipt: `coordination/reports/tester.md#COST-03-DRILLDOWN`. Chuyển `ctx_380da801808a` → `settled`.
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất `W-ENC-04-GRANT-SCHEMA` (`task_34d73cbfbe44`), schema envelope cho artifact grants. Receipt: `coordination/reports/qwen-platform.md#Muc-25`. Chuyển `ctx_9b165ca0357b` → `settled`.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất `D-OPENAPI-ENC-RESULT` (`task_a78de4c6e5c6`), schema delivery & download routes. Receipt: `coordination/reports/qwen-docs.md#Muc-41`. Chuyển `ctx_ddd407434cb4` → `settled`.
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất `V-OFFLINE-INGEST-WIRE-01` (`task_f9f87a483280`). Receipt: `coordination/reports/tester.md#T-CODEX-OFFLINE-WIRE-01-STATIC`. Chuyển `ctx_16dc7dd0041e` → `settled`.
+  * **Qwen Admin (`term_742c2474`):** Đã hoàn tất `W-ADM-UX-02-AUDIT-PAGE` (`task_478e15090f32`), route và filter audit logs. Chuyển `ctx_f53c772c1589` → `settled`.
+  * **Codex Worker 2 (`term_949d489b`):** Đang hoàn tất `W-COST-04-RESERVATION` (`task_80f7dd4dc633`, `ctx_0cffa253546b`), cursor tăng từ 12380 → 16269; suite `budget-reservations.test.ts` đã pass, đang finalize scope locks.
+- **Tính toàn vẹn hệ thống & Build:**
+  * Toàn bộ 13 workspace projects trong monorepo `du-rework` chạy `pnpm -r run build` và đạt Exit Code 0.
+- **Dọn dẹp & Chuẩn bị Git Commit:**
+  * Đã xóa sạch 14 probe/splice scripts tạm thời ở thư mục gốc `du-rework/`.
+  * Đã unstage toàn bộ các file ngoài phạm vi. Đã stage chuẩn xác 695 files thuộc phạm vi `du-rework/` sẵn sàng commit.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 310):**
+  * Thu nhận kết quả `W-COST-04-RESERVATION` từ Worker 2.
+  * Tiếp tục giao các gói tiếp theo theo ma trận G6/Roadmap khi Worker 2 hoàn tất.

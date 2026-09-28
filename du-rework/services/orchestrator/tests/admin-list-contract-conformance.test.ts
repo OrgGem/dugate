@@ -14,7 +14,7 @@ import {
   AUDIT_SEVERITY_VALUES,
   API_KEY_STATUS_VALUES,
   ListPageBaseSchema,
-  decodeListCursor,
+  decodeAdminResourceListSortCursor,
 } from '@du/contracts';
 import type { QueryResult, QueryResultRow } from 'pg';
 import { route, type RouteContext } from '../src/server';
@@ -150,7 +150,9 @@ describe('ADM-UX-02 audit list: standard page envelope', () => {
     });
     const nextCursor = forward.body['nextCursor'] as string;
     expect(typeof nextCursor).toBe('string');
-    expect(decodeListCursor(nextCursor)?.direction).toBe('next');
+    const decodedNext = decodeAdminResourceListSortCursor(nextCursor);
+    expect(decodedNext?.direction).toBe('next');
+    expect(decodedNext?.sort).toBe('createdAt:desc');
 
     const second = await audit('tenantId=' + TENANT_A + '&limit=1&cursor=' + encodeURIComponent(nextCursor), {
       fixture: { audit: [auditRow(3, TENANT_A)], auditTotal: 3 },
@@ -159,7 +161,8 @@ describe('ADM-UX-02 audit list: standard page envelope', () => {
     expect(backPage!.sql).toMatch(/\(created_at, id\) < \(/i);
     const prevCursor = second.body['prevCursor'] as string;
     expect(prevCursor).toBeTruthy();
-    expect(decodeListCursor(prevCursor)?.direction).toBe('prev');
+    const decodedPrev = decodeAdminResourceListSortCursor(prevCursor);
+    expect(decodedPrev?.direction).toBe('prev');
 
     const back = await audit('tenantId=' + TENANT_A + '&limit=1&cursor=' + encodeURIComponent(prevCursor), {
       fixture: { audit: [auditRow(2, TENANT_A)], auditTotal: 3 },
@@ -224,10 +227,17 @@ describe('ADM-UX-02 audit list: tenant fence and safe filters', () => {
   });
 
   it('reads exactly the declared audit parameters and ignores anything else', async () => {
-    expect([...ADMIN_AUDIT_LIST_QUERY_PARAMS]).toEqual(['tenantId', 'limit', 'cursor', 'severity', 'action']);
-    await expect(
-      route(ctxFor({ pathname: AUDIT_PATH, search: 'tenantId=' + TENANT_A + "&actor=' OR 1=1--" }).ctx),
-    ).resolves.toMatchObject({ status: 200 });
+    expect([...ADMIN_AUDIT_LIST_QUERY_PARAMS]).toEqual([
+      'tenantId', 'limit', 'cursor', 'severity', 'action',
+      'actor', 'resource', 'from', 'to', 'sort',
+    ]);
+    // An UNDECLARED name is still ignored, so a pane cannot smuggle a
+    // parameter in. actor is declared now, so it is the one that must
+    // refuse a value the shared token class does not accept.
+    const ignored = 'tenantId=' + TENANT_A + '&note=whatever';
+    await expect(route(ctxFor({ pathname: AUDIT_PATH, search: ignored }).ctx)).resolves.toMatchObject({ status: 200 });
+    const injected = 'tenantId=' + TENANT_A + '&actor=' + "' OR 1=1--";
+    await expect(route(ctxFor({ pathname: AUDIT_PATH, search: injected }).ctx)).rejects.toMatchObject({ status: 422 });
   });
 });
 

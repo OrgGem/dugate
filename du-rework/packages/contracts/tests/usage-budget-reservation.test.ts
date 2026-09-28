@@ -2,6 +2,7 @@ import { ZodError } from 'zod';
 import {
   BudgetReservationRequestSchema,
   BudgetReservationReconcileSchema,
+  BudgetReservationReconcileRequestSchema,
   budgetQuotaScopeKey,
   budgetReservationCountsAsHeld,
   isBudgetReservationTrusted,
@@ -81,6 +82,31 @@ describe('COST-04 reservation contract', () => {
       actual: { tokens: 95, costMicroUsd: 412 },
       rawError: 'must not be accepted',
     })).toThrow(ZodError);
+  });
+
+  test('post-call wire contract refuses unknown diagnostics and preserves valid measured usage', () => {
+    const request = {
+      reservationId: OPERATION,
+      quotaScope: quotaScopeForBudget(BUDGET),
+      attempt: 1,
+      usageEvent: {
+        eventId: 'event:actual/1',
+        invocationId: 'invocation-a',
+        operationId: OPERATION,
+        taskId: TASK,
+        units: { inputTokens: 90, outputTokens: 10 },
+        costMicrousd: 800,
+        currency: 'USD' as const,
+        measurement: 'measured' as const,
+        occurredAt: '2026-09-28T12:00:00.000Z',
+      },
+    };
+    expect(BudgetReservationReconcileRequestSchema.parse(request).usageEvent.eventId).toBe('event:actual/1');
+    expect(() => BudgetReservationReconcileRequestSchema.parse({
+      ...request,
+      usageEvent: { ...request.usageEvent, rawProviderError: 'credential-bearing detail' },
+    })).toThrow(ZodError);
+    expect(() => BudgetReservationReconcileRequestSchema.parse({ ...request, debugDump: 'not part of the contract' })).toThrow(ZodError);
   });
 
   test('daily and monthly windows are exact UTC half-open intervals', () => {

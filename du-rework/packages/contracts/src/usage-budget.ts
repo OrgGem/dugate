@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { USAGE_ATTRIBUTION_ID_PATTERN } from './usage-metrics';
 import { UsageSummarySchema, type UsageSummary } from './usage-reconciliation';
+import { UsageEventSchema } from './runtime';
 
 /**
  * COST-04 budget configuration + threshold evaluation (docs/admin-ops-monitoring-cost.md,
@@ -299,7 +300,7 @@ export const BudgetReservationReconcileSchema = z
     taskId: z.string().uuid(),
     invocationId: SafeIdSchema,
     attempt: z.number().int().min(1),
-    eventId: SafeIdSchema,
+    eventId: z.string().min(1).max(128),
     actual: z
       .object({
         tokens: SafeNonNegativeIntSchema,
@@ -309,6 +310,18 @@ export const BudgetReservationReconcileSchema = z
   })
   .strict();
 export type BudgetReservationReconcile = z.infer<typeof BudgetReservationReconcileSchema>;
+
+/** Strict wire command accepted by the post-call boundary. Unknown fields on
+ * the provider usage event (including raw upstream diagnostics) are rejected. */
+export const BudgetReservationReconcileRequestSchema = z
+  .object({
+    reservationId: z.string().uuid(),
+    quotaScope: BudgetQuotaScopeSchema,
+    attempt: z.number().int().min(1),
+    usageEvent: UsageEventSchema.strict(),
+  })
+  .strict();
+export type BudgetReservationReconcileRequest = z.infer<typeof BudgetReservationReconcileRequestSchema>;
 
 export const BudgetReservationTransitionSchema = z
   .object({
@@ -351,7 +364,7 @@ export const BudgetReservationSchema = z
     reserve: BudgetReservationAmountSchema,
     confidence: BudgetReservationConfidenceSchema,
     status: BudgetReservationStatusSchema,
-    usageEventId: SafeIdSchema.optional(),
+    usageEventId: z.string().min(1).max(128).optional(),
     createdAt: BudgetTimestampSchema,
     updatedAt: BudgetTimestampSchema,
   })

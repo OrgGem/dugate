@@ -8781,3 +8781,25 @@ The current full contracts run exits 1 because `usage-budget.test.ts` has COST-0
 - `businesses/document-core/tests/ingest-wire.test.ts` contains six focused assertions: OCR sends the exact artifact ID and `expect(payload.hasBuffer).toBeUndefined()`, the ID resolves to the expected PNG bytes/digest, missing OCR input fails without a connector call, digitize sends `task: 'digitize_handwriting'` plus the artifact ID, missing digitize input fails closed, and foreign artifact IDs are not transmitted. These assertions could not execute during the requested full run because of the contracts `dist/encryption.js` parse blocker.
 
 - Honest result: **No source/test changes were made.** Typecheck is independently green (ExitCode 0), and static wiring confirms authorized artifact references reach OCR and digitize without `hasBuffer`; however, the required full test command is blocked (ExitCode 1) by the pre-existing contracts distribution parse artifact, so runtime acceptance remains unresolved until that artifact is repaired/rebuilt.
+
+# COST-04-RESERVATION
+
+- Receipt time: `2026-09-28T09:12:26+07:00`. Task: `task_80f7dd4dc633`; dispatch context: `ctx_0cffa253546b`. CWD: `D:\Git\dugate\du-rework`.
+- Added quota-scope/window, reservation lifecycle, confidence/trust, and strict post-call usage reconciliation contracts. Orchestrator's usage service now exposes durable reservation admission, RUNNING/UNKNOWN transitions, proof-gated release, and atomic idempotent reconciliation; PostgreSQL uses a transaction advisory lock on the canonical scope/window, retains held amounts in RESERVED/RUNNING/UNKNOWN, and links reconciled usage events to the original reservation window.
+- Hard-cap admission is enabled only for active hard-cap budgets when the atomic reservation transaction succeeds, all committed usage is schema-validated, the scope matches the operation, and all held estimates are declared upper bounds. Storage or accounting uncertainty returns `503 BUDGET_RESERVATION_UNAVAILABLE` before admission; alert-only budgets can still record best-effort holds.
+
+### Focused verification
+
+- `pnpm --filter @du/contracts build` — ExitCode **0**.
+- `pnpm --filter @du/contracts exec tsc --noEmit -p tsconfig.json` — ExitCode **0**.
+- `pnpm --filter @du/contracts test` — ExitCode **0**; **23 suites / 463 tests passed**.
+- `pnpm --filter @du/orchestrator run typecheck` (`tsc --noEmit -p tsconfig.json`) — ExitCode **0**.
+- `pnpm --filter @du/orchestrator exec jest --runInBand tests/budget-reservations.test.ts tests/budget-evaluation-validator.test.ts tests/usage-contracts-integration-offline.test.ts tests/migrations-ledger-guard.test.ts` — ExitCode **0**; **4 suites / 50 tests passed**. Cases include same-scope concurrency, idempotent admission and reconcile, UTC window rollover, RUNNING/UNKNOWN holds, scope fences, upper-bound trust, fail-closed DB errors, and proof-gated release.
+- Migration guard tests pass; live PostgreSQL migration execution was not performed (the live migration suite is skipped without its DB window).
+
+### Broad test runs
+
+- Root `pnpm test` — ExitCode **1** in unrelated `packages/egress` redirect/IP-literal boundary tests: two expected `DestinationDeniedError` checks received generic `Error`, and one test hit `EADDRINUSE`. The contracts workspace completed successfully before that failure.
+- `pnpm --filter @du/orchestrator test` — ExitCode **1** with unrelated existing Admin session log capture, operation-list reflow, safe-error log capture, audit-page fixture type, and audit-list cursor/filter failures. Reservation and related usage tests passed in that run and again in the focused run above.
+
+- Honest result: **COST-04 reservation contracts and the Orchestrator durable pre-call/reconcile service are implemented; focused tests and both package typechecks pass.** Workspace-wide tests are not green because of the unrelated failures listed above, and no live PostgreSQL reservation race/migration or connector call-site wiring was exercised.

@@ -1,7 +1,6 @@
-import type { PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient } from 'pg';
 import type { BudgetConfigInput, UsageEvent } from '@du/contracts';
 import type { Db } from '../src/db/db';
-import { HttpError } from '../src/http/errors';
 import { createBudgetReservationService } from '../src/modules/usage/budget-reservations';
 
 const TENANT = 'tenant-a';
@@ -317,6 +316,28 @@ describe('COST-04 durable quota reservations', () => {
     }), 'BUDGET_RESERVATION_CONFLICT');
   });
 
+  test('late reconcile stays attached to the reservation window after a UTC day boundary', async () => {
+    const memory = new MemoryDb();
+    let now = new Date('2026-09-28T23:59:00.000Z');
+    const service = createBudgetReservationService(memory.db, () => now);
+    const admission = await service.reserve(reserveRequest('reserve-midnight', 90));
+    expect(admission.reservation.window).toStrictEqual({
+      period: 'daily', from: '2026-09-28T00:00:00.000Z', to: '2026-09-29T00:00:00.000Z',
+    });
+    await service.markUnknown({ reservationId: admission.reservation.reservationId, quotaScope: admission.reservation.quotaScope });
+    now = new Date('2026-09-29T00:05:00.000Z');
+    await service.reconcile({
+      reservationId: admission.reservation.reservationId,
+      quotaScope: admission.reservation.quotaScope,
+      attempt: 1,
+      usageEvent: actualUsage('event-after-midnight', 'inv-reserve-midnight', 90, 900),
+    });
+    const nextWindow = await service.reserve(reserveRequest('next-calendar-day', 90));
+    expect(nextWindow).toMatchObject({ decision: 'ADMITTED', reservation: { window: {
+      from: '2026-09-29T00:00:00.000Z', to: '2026-09-30T00:00:00.000Z',
+    } } });
+  });
+
   test('same-scope checks fence reservation and reconciliation from another budget', async () => {
     const memory = new MemoryDb();
     const service = createBudgetReservationService(memory.db, () => NOW);
@@ -341,6 +362,16 @@ describe('COST-04 durable quota reservations', () => {
       confidence: 'best-effort',
     }));
     expect(soft).toMatchObject({ decision: 'ADMITTED', hardCapEnabled: false });
+  });
+
+  test('a prior best-effort in-flight hold prevents a hard-cap decision in the same scope', async () => {
+    const memory = new MemoryDb();
+    const service = createBudgetReservationService(memory.db, () => NOW);
+    await service.reserve(reserveRequest('soft-running', 10, {
+      budget: { ...BUDGET, policy: 'alert-only' },
+      confidence: 'best-effort',
+    }));
+    await expectHttpError(service.reserve(reserveRequest('hard-cap-now', 10)), 'BUDGET_RESERVATION_UNAVAILABLE');
   });
 
   test('only an unstarted hold with an explicit no-call proof can be released', async () => {

@@ -3,11 +3,11 @@ import {
   BudgetConfigSchema,
   BudgetReservationAdmissionSchema,
   BudgetReservationReconcileSchema,
+  BudgetReservationReconcileRequestSchema,
   BudgetReservationRequestSchema,
   BudgetReservationSchema,
   BudgetReservationStatusSchema,
   BudgetReservationTransitionSchema,
-  BudgetQuotaScopeSchema,
   UsageEventSchema,
   UsageLedgerEventSchema,
   UsageSummarySchema,
@@ -23,6 +23,7 @@ import type {
   BudgetReservation,
   BudgetReservationAdmission,
   BudgetReservationReconcile,
+  BudgetReservationReconcileRequest,
   BudgetReservationRequest,
   BudgetReservationStatus,
   BudgetReservationTransition,
@@ -130,12 +131,6 @@ function conflict(message: string): HttpError {
 
 function parseRequest(input: unknown): BudgetReservationRequest {
   const parsed = BudgetReservationRequestSchema.safeParse(input);
-  if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
-  return parsed.data;
-}
-
-function parseScope(input: unknown): BudgetQuotaScope {
-  const parsed = BudgetQuotaScopeSchema.safeParse(input);
   if (!parsed.success) throw zodIssuesToProblem(parsed.error.issues);
   return parsed.data;
 }
@@ -281,7 +276,8 @@ function usageAmounts(row: UsageDbRow): { tokens: number; costMicroUsd: number }
   if (ledger.success) {
     if (
       ledger.data.eventId !== row.event_id || ledger.data.operationId !== row.operation_id || ledger.data.taskId !== row.task_id ||
-      ledger.data.tenantId !== row.tenant_id
+      ledger.data.tenantId !== row.tenant_id || ledger.data.apiKeyId !== row.api_key_id ||
+      ledger.data.businessId !== row.business_id
     ) throw safeFailure();
     return checked(ledger.data.units.inputTokens, ledger.data.units.outputTokens, ledger.data.costMicrousd);
   }
@@ -554,18 +550,12 @@ export function createBudgetReservationService(db: Db, clock: () => Date = () =>
       return transition(input, 'RELEASED');
     },
     async reconcile(input) {
-      if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-        throw zodIssuesToProblem([{ path: [], message: 'request must be an object' }]);
-      }
-      const raw = input as Record<string, unknown>;
-      const eventResult = UsageEventSchema.safeParse(raw['usageEvent']);
-      if (!eventResult.success) throw zodIssuesToProblem(eventResult.error.issues);
-      const event: UsageEvent = eventResult.data;
-      const scope = parseScope(raw['quotaScope']);
-      const attempt = raw['attempt'];
+      const parsedInput = BudgetReservationReconcileRequestSchema.safeParse(input);
+      if (!parsedInput.success) throw zodIssuesToProblem(parsedInput.error.issues);
+      const { reservationId, quotaScope: scope, attempt, usageEvent: event }: BudgetReservationReconcileRequest = parsedInput.data;
       const command: BudgetReservationReconcile = (() => {
         const parsed = BudgetReservationReconcileSchema.safeParse({
-          reservationId: raw['reservationId'],
+          reservationId,
           quotaScope: scope,
           operationId: event.operationId,
           taskId: event.taskId,
