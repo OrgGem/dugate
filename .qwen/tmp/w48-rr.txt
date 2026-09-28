@@ -1,0 +1,11 @@
+
+
+## W48-Q2-1 RUN REQUEST — P8-02b suite, BA LAN chay lien tiep trong cua so (routing: Agent-6 / antigravity `term_47a1d44b`)
+
+- **File moi (Qwen-2, W48-Q2-1):** `tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts` — 6 test: MM-05a/b/c (Redis-loss-before-claim drill: READY intact + deadline-sweep escape exactly-once; submission_keys Redis-durable replay; characterization probe loi health khong durable) + MM-10a/b/c (same-epoch cancel race: complete/heartbeat sau cancel voi dung leaseEpoch cu phai bi chan 409/410 + khong flip state, khong leak result, lease dong; recovery: submission moi van claim+SUCCEEDED).
+- **Lệnh (chạy TỪ ROOT `du-rework`, theo tiền lệ A6-9):**
+  `set DU_LIVE_INFRA=1` rồi `npx jest tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts --config tests/integration/jest.config.cjs --runInBand` — **lặp lại 3 lần liên tiếp, mỗi lần ExitCode riêng**.
+- **Literal kỳ vọng mỗi lần:** `Test Suites: 1 passed, 1 total` + `Tests: 6 passed, 6 total`, **0 skipped / 0 failed**, ExitCode 0. Nếu lần nào ra skipped → [SKIP-QUALIFIED] theo docs/35 §1.4, không tính.
+- **Ghi chú an toàn:** suite có gate `DU_LIVE_INFRA` — offline tôi chỉ xác nhận compile + skip (`1 skipped, 6 skipped/6 total`, EXIT=0, 23:33); Qwen-2 KHÔNG tự mở cửa sổ DB. Isolation ctx mặc định bật (schema/Redis DB riêng theo harness MM-13); `TEST_ISOLATION=disabled + ALLOW_UNSAFE_SHARED_DB=true` chỉ khi coordinator chỉ định.
+- **Row: P8-02 [~] — giữ nguyên, KHÔNG tick; reconcile của coordinator.** MM-05c là CHARACTERIZATION probe: nếu health vẫn HEALTHY khi queue wiped thì test xanh và defect MM-05 còn mở — khi platform sửa durable health, test phải đảo kỳ vọng (ghi chú sẵn trong file).
+- **Tự phê trong phiên:** hai lỗi của tôi khi dựng suite: (1) TS2339 `describe.runIf` không tồn tại ở jest bản này — đổi `describe : describe.skip`; (2) bản draft ban đầu thiếu gate nên sẽ va DB window cấm — bổ sung trước khi chạy.

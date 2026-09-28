@@ -1,0 +1,73 @@
+describe('INGEST-WIRE-01: digitize transmits the form image', () => {
+  it('hands the vision slot the form artifact, not just a task name', async () => {
+    const ctx = new MockTaskContext();
+    ctx.mockConnectorResponses.set('vision', {
+      invocationId: 'inv-dig',
+      status: 'SUCCESS',
+      data: { text: 'INTAKE FORM', formFields: { patientName: 'Jane Roe' } },
+    });
+    const form = scanBytes();
+    const ref = await ctx.artifacts.write(form, 'intake.png', 'image/png');
+    const input = IngestAction.validateInput({ mode: 'digitize', artifactIds: [ref.artifactId] });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    await IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources);
+
+    const call = ctx.connectorInvocations.find((inv) => inv.slot === 'vision');
+    expect(call).toBeDefined();
+    const payload = call?.payload as Record<string, unknown>;
+    expect(payload.task).toBe('digitize_handwriting');
+    expect(payload.artifacts).toEqual([{ artifactId: ref.artifactId }]);
+  });
+
+  it('fails visibly when digitize has no form to read', async () => {
+    const ctx = new MockTaskContext();
+    const input = IngestAction.validateInput({ mode: 'digitize', text: 'no-form' });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    expect(sources.artifactIds).toHaveLength(0);
+    let caught: unknown;
+    try {
+      await IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources);
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as { code?: string }).code).toBe('INGESTION_SOURCE_UNRESOLVED');
+    expect(ctx.connectorInvocations.filter((inv) => inv.slot === 'vision')).toHaveLength(0);
+  });
+});
+
+describe('INGEST-WIRE-01: foreign references and the native boundary', () => {
+  it('never hands the Connector a reference the task did not read', async () => {
+    const ctx = new MockTaskContext();
+    ctx.mockConnectorResponses.set('ocr', okConnector('x'));
+    const mine = scanBytes();
+    const mineRef = await ctx.artifacts.write(mine, 'mine.png', 'image/png');
+    const foreignRef = await ctx.artifacts.write(scanBytes(), 'foreign.png', 'image/png');
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [mineRef.artifactId] });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    await IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources);
+    const call = ctx.connectorInvocations.find((inv) => inv.slot === 'ocr');
+    const payload = call?.payload as { artifacts?: { artifactId: string }[] };
+    expect(payload.artifacts?.map((a) => a.artifactId)).toEqual([mineRef.artifactId]);
+    expect(payload.artifacts?.some((a) => a.artifactId === foreignRef.artifactId)).toBe(false);
+  });
+
+  it('keeps native parse local: no Connector call at all', async () => {
+    const ctx = new MockTaskContext();
+    const csv = Buffer.from('item,total' + String.fromCharCode(10) + 'widget,10', 'utf8');
+    const ref = await ctx.artifacts.write(csv, 'invoice.csv', 'text/csv');
+    const input = IngestAction.validateInput({ mode: 'parse', artifactIds: [ref.artifactId] });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    await IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources);
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  it('keeps native split local: the Connector is never involved', async () => {
+    const ctx = new MockTaskContext();
+    const { TestFixtures } = await import('../../../packages/document-kit/tests/fixtures/test-fixtures');
+    const ref = await ctx.artifacts.write(TestFixtures.createSamplePdf('p1'), 'doc.pdf', 'application/pdf');
+    const input = IngestAction.validateInput({ mode: 'split', artifactIds: [ref.artifactId], pages: '1' });
+    const sources = await IngestAction.prepareSources(ctx, input);
+    await IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources);
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+});

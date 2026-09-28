@@ -1,0 +1,10 @@
+  ● W-SEC-AUDIT-TAXONOMY-1 login + TLS denials on the legacy plane › auth.login_failed: exactly one closed event, NEVER the rejected token (sentinel)
+  ● W-SEC-AUDIT-TAXONOMY-1 login + TLS denials on the legacy plane › auth.tls_required: a validated credential denied mints audits once; secret + accepted token never ride it
+  ● W-SEC-AUDIT-TAXONOMY-1 login + TLS denials on the legacy plane › denial ordering: an invalid token under requireSecure audits ONLY login_failed (tls_required unreached)
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › absolute deadline -> auth.session_expired/expired_absolute, audited BEFORE the sweep; the sid never rides
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › idle window -> auth.session_expired/expired_idle (distinct reason, same wire)
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › destroyed session -> auth.session_revoked/absent_or_revoked with the identical 302 sweep
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › forged well-formed id is audited as absent_or_revoked (one merged class, honestly)
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › a store WITHOUT the classify seam falls back honestly to session_revoked/absent_or_revoked
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › closed vocabulary: every event field is on the allow-list, every kind in the taxonomy
+  ● W-SEC-AUDIT-TAXONOMY-1 default console sink through the REAL shell listener › mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line

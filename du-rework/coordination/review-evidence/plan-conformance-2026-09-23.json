@@ -1,0 +1,73 @@
+{
+  "capturedAt": "2026-09-23T05:03:55.895Z",
+  "scope": "loopback HTTP + offline scripted seams; no DB/Redis",
+  "findings": [
+    {
+      "id": "MM-01",
+      "observation": {
+        "status": 401,
+        "code": "INVALID_INPUT",
+        "message": "{\"error\":{\"code\":\"GRANT_INVALID\",\"message\":\"Service identity is invalid.\"}}"
+      },
+      "serviceRuntimeReached": false
+    },
+    {
+      "id": "MM-07",
+      "replayedState": "IN_FLIGHT",
+      "providerCalls": 1,
+      "outcome": "completed",
+      "seam": "real invokeAdapter; scripted ledger/quota/provider"
+    },
+    {
+      "id": "MM-07",
+      "replayedState": "CANCELLED",
+      "providerCalls": 1,
+      "outcome": "completed",
+      "seam": "real invokeAdapter; scripted ledger/quota/provider"
+    },
+    {
+      "id": "MM-06",
+      "replayedState": "PENDING",
+      "providerCalls": 0,
+      "outcome": "pending",
+      "seam": "real invokeAdapter; scripted ledger/quota/provider"
+    },
+    {
+      "id": "MM-04/11",
+      "waitingInputMetadataExposed": false,
+      "schemaErrors": [
+        {
+          "path": [
+            "tenantId"
+          ],
+          "code": "invalid_type"
+        }
+      ]
+    },
+    {
+      "id": "MM-09",
+      "declaredDigestLengths": {
+        "postgres": 64,
+        "redis": 64,
+        "orchestrator": 64,
+        "connector": 64,
+        "worker": 64
+      },
+      "identityIsDescriptorOnly": true
+    }
+  ],
+  "sourceSha256": {
+    "services/connector/src/http/server.ts": "05f129243703cfdd9de281173167188cac0c17da2e9bd175d8af3176d3a95bba",
+    "services/connector/src/config.ts": "8b072f49e22642686351ae972301626c1a822b7ecb10c02d14e911f6f020a805",
+    "services/connector/src/errors.ts": "5fc6fe12d99f14b20bfcf0206ff1555b4dea8d953d965e6b953cbdab44bff8ee",
+    "services/connector/src/identity.ts": "cbb505cd3d349cfc63e9b970f843d61f25700293da90f905d0ea34252ba00700",
+    "services/connector/src/contract-grants.ts": "5771b232cdbbb3120fd37988e017c3ebec4722c3f89a661ace5b26759bbf65d9",
+    "services/connector/src/contracts.ts": "18d892e965c497023b84be6c1a57742b77a2e568d96c6821df8b8b4f30cc3b65",
+    "packages/worker-sdk/src/connector-invoker.ts": "66569df5fbb1e9926187f0184a2a34a8f44d597040ed369ef2000392fb295109",
+    "services/connector/src/invoke.ts": "895fdc3f2116daab90633d86e5579d8c816eb2764d724e82cf7f90aaee51d05f",
+    "services/connector/src/hash.ts": "9b88d361bc758318f4ef48b7ae423c4e5410654627bd9e36bb8c4d010e5c8ac2",
+    "services/orchestrator/src/modules/operations/facade.ts": "10a305731132c3d11363efe828f6b3c0a134416b8eb7ac61693e200e2688b1eb",
+    "businesses/example-review/src/registry-tool.ts": "4b72dfeda92e486b180f239a2c8edbcee5093fe6a61490e56961d782840cb77d",
+    "businesses/example-review/src/manifest.ts": "18b4a09276c3fcdef2ee80da413f3c9fb74ac07342912a08f4138469592fe5c3"
+  }
+}

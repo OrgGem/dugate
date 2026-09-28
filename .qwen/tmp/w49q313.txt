@@ -1,0 +1,33 @@
+
+---
+
+## W49-Q3-13 — CYCLE 102: SSRF & PRIVATE-IP DENY MATRIX tren @du/egress (2026-09-25)
+
+> Packet 102: them offline test cho @du/egress — hostname external resolve ve
+> private/link-local/loopback (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16, ::1,
+> fc00::/7) phai nem DestinationDeniedError VA khong bao mo socket. DONE —
+> **matrix 116/116 exit 0** (7 suite), egress lint/build 0, khong DB window, khong commit/push.
+
+### Voi ma tran (MOI file tests/egress-ssrf-deny-matrix.boundary.test.ts — 15 case)
+- 12 vector DENY: moi dai mot case (ca hai nua fc/fd cua ULA /7, ca hai mép 172.16 va
+  172.31, breadth 127.5.6.7 / 169.254.1.1 / 192.168.100.5 khong chi dia-chi-dau)
+  + 3 case cau-truc-chinh-chinh: mixed [public, private] van DENY (chinh sach moi-answer,
+  khong first-answer), `::ffff:7f00:1` compressed-mapped vanish, va **opt-in hep**:
+  allowPrivateNetworks=TRUE van tu choi 169.254.169.254 (metadata/CGNAT/multicast
+  ngoai le-hoan opt-in theo contracts turn R1-D-siêt).
+- Nhan chung "khong mo socket" = MOT BoundaryListener dung-chung duoc ca 15 case tro
+  thang vao PORT THAT cua no: moi case assert `listener.requests === 0` — neu bat ky
+  case nao thoat adjudication ra toi connect, nhan chung phat hien NGAY (khong phai
+  do hung/timeout). Kem `resolveCalls === 1` = bi tu choi tai answer DA-DUYET dau tien,
+  khong bao-gio tai-phan-giai sau deny.
+- Khap voi vector table cua connector (A.2): contracts la nguon chan-ly; file nay khang
+  dinh DIA-DIEM THI-HANH (enforcement site) o bien egress — 2 tang, 2 doi tuong, khong trung lap.
+
+### Receipt
+```
+verify-r1c (aggregator da them entry moi): egress-core 10 · egress-ssrf-matrix 15 ·
+  connector 41 · orch-webhook 32 · orch-shutdown 5 · cc 7 · worker-sdk 6 = 116/116 exit 0.
+Su dung: 1 file test MOI trong packages/egress + 1 dong aggregator (kit cua to). src egress
+KHONG doi (102 la test-only); build/lint egress 0 sau do. Khong DB/Redis/DNS that —
+resolver LUON inject. Khong commit, khong push. Khong tick row.
+```

@@ -1,0 +1,9 @@
+
+
+## W48-A6fb4 RUN REQUEST (vòng 4) — p8-02b SAU LẬT PROBE MM-10b (R1-B patch đã vào runtime.ts:127-177)
+
+- **Bối cảnh:** patch theo đề xuất §31 đã nằm trên disk (`heartbeatTask`: epoch→409 trước, terminal→410 TASK_TERMINAL sau, state-guard trong UPDATE, `cancel_requested` thật). Bằng chứng offline phía tôi: `npm run lint` orchestrator **EXIT=0**; suite compile/skip **EXIT=0** (02:08:35 +07).
+- **Thay đổi test:** MM-10b lật từ pin-200 thành `expect(hb.status).toBe(410)` + `code TASK_TERMINAL` + **lease_expires_at KHÔNG bị kéo dài** sau heartbeat-bị-chặn (assertion mới).
+- **Lệnh (root `du-rework`, 3 LAN lien tiep, ExitCode tung lan):** `set DU_LIVE_INFRA=1` + `npx jest tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts --config tests/integration/jest.config.cjs --runInBand`
+- **Literal ky vọng moi lan:** `Test Suites: 1 passed, 1 total | Tests: 6 passed, 6 total`, 0 skipped/0 failed, ExitCode 0.
+- **Y NGHIA:** 3/3 xanh tren ban nay = verify live cua R1-B patch (RUN-07/MM-10b DONG bang bang chung), va la dieu kien de coordinator reconcile P8-02. **Luu ý cho Tester/Claude Code:** test §3 cua p8-02-fault-recovery (stale epoch → 409 tren task cancelled) van phai xanh — thu tu guard epoch-truoc-nen-bao-toan; dung quen chay ca `tests/integration/p8-02-fault-recovery...` + `runtime.test.ts` trong lan verify nay de chang lan nao bi dao 409→410.

@@ -1,0 +1,2 @@
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › absolute deadline -> auth.session_expired/expired_absolute, audited BEFORE the sweep; the sid never rides
+  ● W-SEC-AUDIT-TAXONOMY-1 session termination on the OIDC gate › idle window -> auth.session_expired/expired_idle (distinct reason, same wire)

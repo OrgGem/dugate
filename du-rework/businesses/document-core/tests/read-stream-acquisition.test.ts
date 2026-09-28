@@ -1,0 +1,217 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { Readable } from 'node:stream';
+import { DocumentFormatDetector } from '@du/document-kit';
+import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk';
+import { ParserBudgetHelper } from '../src/pipelines/parser-budget';
+import { ArtifactReadResult, TaskContext } from '../src/types/context';
+
+/**
+ * DATA-04 Step B — disk-backed streaming acquisition (offline unit tests).
+ * Covers: large-doc disk path with identity propagation, zero-byte size
+ * pre-flight, mid-stream cap, declared-size/digest mismatch, inline exception,
+ * cancel/lease fences mid-stream, buffer-only legacy path, and bounded file
+ * lifetime (every outcome leaves no du-worker-<taskId> temp dir behind).
+ */
+
+const BUDGET_MAX = ParserBudgetHelper.DEFAULT_MAX_BUFFER_SIZE_BYTES;
+
+interface FakeFacade {
+  stat?: jest.Mock;
+  readStream?: jest.Mock;
+  read?: jest.Mock;
+  readWithMetadata?: jest.Mock;
+}
+
+function makeCtx(init: {
+  taskId: string;
+  facade: FakeFacade;
+  signal?: AbortSignal;
+  cancelRequested?: boolean;
+}) {
+  const mustNotBeCalled = (name: string) =>
+    jest.fn(async () => { throw new Error(`${name} must not be reached`); });
+  return {
+    taskId: init.taskId,
+    operationId: randomUUID(),
+    businessId: 'document-core',
+    businessVersion: '1.0.0',
+    tenantId: 'tenant-test',
+    signal: init.signal,
+    cancelRequested: init.cancelRequested,
+    artifacts: {
+      read: init.facade.read ?? mustNotBeCalled('read'),
+      write: mustNotBeCalled('write'),
+      ...(init.facade.stat ? { stat: init.facade.stat } : {}),
+      ...(init.facade.readStream ? { readStream: init.facade.readStream } : {}),
+      ...(init.facade.readWithMetadata ? { readWithMetadata: init.facade.readWithMetadata } : {}),
+    },
+  } as unknown as TaskContext;
+}
+
+async function expectWorkspaceSweep(taskId: string): Promise<void> {
+  const safeTaskId = taskId.replace(/[^A-Za-z0-9-]/g, '-');
+  const entries = await readdir(tmpdir());
+  expect(entries.filter((name) => name.startsWith(`${TEMP_WORKSPACE_PREFIX}${safeTaskId}-`))).toEqual([]);
+}
+
+function textBytes(sizeBytes: number, seed: string): Buffer {
+  const base = Buffer.from(`${seed}:`, 'utf8');
+  const repeats = Math.ceil(sizeBytes / base.length);
+  return Buffer.concat(Array.from({ length: repeats }, () => base), sizeBytes);
+}
+
+function sha256(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+function chunkStream(buffer: Buffer, chunkBytes: number): Readable {
+  const chunks: Buffer[] = [];
+  for (let offset = 0; offset < buffer.length; offset += chunkBytes) {
+    chunks.push(buffer.subarray(offset, Math.min(offset + chunkBytes, buffer.length)));
+  }
+  return Readable.from(chunks);
+}
+
+describe('ParserBudgetHelper.readArtifact — Step B disk-backed acquisition', () => {
+  it('streams a large artifact to disk, verifies integrity, and propagates declared identity', async () => {
+    const taskId = randomUUID();
+    const artifactId = randomUUID();
+    const bytes = textBytes(2 * 1024 * 1024, 'step-b-large-doc');
+    const stat = jest.fn(async () => ({
+      fileName: 'notes.txt',
+      mimeType: 'text/plain',
+      sizeBytes: bytes.length,
+      sha256: sha256(bytes),
+    }));
+    const readStream = jest.fn(async (_id: string, options?: { expectedSizeBytes?: number; expectedSha256?: string }) => {
+      expect(options).toEqual({ expectedSha256: sha256(bytes), expectedSizeBytes: bytes.length });
+      return chunkStream(bytes, 64 * 1024);
+    });
+    const ctx = makeCtx({ taskId, facade: { stat, readStream } });
+
+    const artifact = await ParserBudgetHelper.readArtifact(ctx, artifactId);
+
+    expect(artifact.buffer.equals(bytes)).toBe(true);
+    expect(artifact.formatMetadata.declaredFileName).toBe('notes.txt');
+    expect(artifact.formatMetadata.declaredMimeType).toBe('text/plain');
+    const canonical = DocumentFormatDetector.detect(bytes, 'notes.txt', 'text/plain');
+    expect(artifact.formatMetadata.canonicalFormat).toBe(canonical.format);
+    expect(artifact.formatMetadata.canonicalMimeType).toBe(canonical.mimeType);
+    expect(stat).toHaveBeenCalledWith(artifactId);
+    await expectWorkspaceSweep(taskId);
+  });
+
+  it('rejects an over-budget declared size BEFORE any byte transfer', async () => {
+    const taskId = randomUUID();
+    const stat = jest.fn(async () => ({ sizeBytes: BUDGET_MAX + 1, sha256: sha256(Buffer.from('x')) }));
+    const readStream = jest.fn();
+    const ctx = makeCtx({ taskId, facade: { stat, readStream } });
+
+    await expect(
+      ParserBudgetHelper.readArtifact(ctx, randomUUID())
+    ).rejects.toMatchObject({ code: 'DOCUMENT_TOO_LARGE' });
+    expect(readStream).not.toHaveBeenCalled();
+  });
+
+  it('aborts mid-stream when bytes exceed the parser budget', async () => {
+    const taskId = randomUUID();
+    const stat = jest.fn(async () => ({ fileName: 'huge.txt', mimeType: 'text/plain' }));
+    const readStream = jest.fn(async () => chunkStream(textBytes(BUDGET_MAX + 1, 'bomb'), 512 * 1024));
+    const ctx = makeCtx({ taskId, facade: { stat, readStream } });
+
+    await expect(
+      ParserBudgetHelper.readArtifact(ctx, randomUUID())
+    ).rejects.toMatchObject({ code: 'DOCUMENT_TOO_LARGE' });
+    await expectWorkspaceSweep(taskId);
+  });
+
+  it('detects a lying declared size against the bytes that actually landed', async () => {
+    const taskId = randomUUID();
+    const bytes = textBytes(2 * 1024 * 1024, 'lying-size');
+    const stat = jest.fn(async () => ({ sizeBytes: 1024 * 1024 + 100, sha256: undefined }));
+    const readStream = jest.fn(async () => chunkStream(bytes, 256 * 1024));
+    const ctx = makeCtx({ taskId, facade: { stat, readStream } });
+
+    await expect(
+      ParserBudgetHelper.readArtifact(ctx, randomUUID())
+    ).rejects.toMatchObject({ code: 'ARTIFACT_SIZE_MISMATCH' });
+    await expectWorkspaceSweep(taskId);
+  });
+
+  it('detects digest mismatch against the authorized grant hash', async () => {
+    const taskId = randomUUID();
+    const bytes = textBytes(1024 * 1024 + 16, 'tampered');
+    const stat = jest.fn(async () => ({ sizeBytes: bytes.length, sha256: '0'.repeat(64) }));
+    const readStream = jest.fn(async () => chunkStream(bytes, 64 * 1024));
+    const ctx = makeCtx({ taskId, facade: { stat, readStream } });
+
+    await expect(
+      ParserBudgetHelper.readArtifact(ctx, randomUUID())
+    ).rejects.toMatchObject({ code: 'ARTIFACT_INTEGRITY_MISMATCH' });
+    await expectWorkspaceSweep(taskId);
+  });
+
+  it('keeps the quantified inline exception: sub-1MiB artifacts stay on the memory path', async () => {
+    const taskId = randomUUID();
+    const bytes = Buffer.from('tiny config payload');
+    const stat = jest.fn(async () => ({ sizeBytes: bytes.length, mimeType: 'text/plain' }));
+    const readStream = jest.fn();
+    const readWithMetadata = jest.fn(async (): Promise<ArtifactReadResult> => ({
+      buffer: bytes,
+      formatMetadata: {
+        canonicalFormat: 'txt',
+        canonicalMimeType: 'text/plain',
+        declaredFileName: 'tiny.txt',
+        declaredMimeType: 'text/plain',
+      },
+    }));
+    const ctx = makeCtx({ taskId, facade: { stat, readStream, readWithMetadata } });
+
+    const artifact = await ParserBudgetHelper.readArtifact(ctx, randomUUID());
+    expect(artifact.buffer.equals(bytes)).toBe(true);
+    expect(readStream).not.toHaveBeenCalled();
+    expect(readWithMetadata).toHaveBeenCalled();
+  });
+
+  it('maps a mid-stream lease abort to LEASE_LOST and a cancel reason to OPERATION_CANCELLED', async () => {
+    for (const [reason, code] of [
+      [undefined, 'LEASE_LOST'],
+      ['cancel', 'OPERATION_CANCELLED'],
+    ] as const) {
+      const taskId = randomUUID();
+      const controller = new AbortController();
+      const stat = jest.fn(async () => ({ sizeBytes: undefined as number | undefined }));
+      const readStream = jest.fn(async () =>
+        Readable.from((async function* () {
+          yield Buffer.from('first chunk');
+          controller.abort(reason);
+          yield Buffer.from('never');
+        })())
+      );
+      const ctx = makeCtx({
+        taskId,
+        facade: { stat, readStream },
+        signal: controller.signal,
+        cancelRequested: reason === 'cancel',
+      });
+
+      await expect(
+        ParserBudgetHelper.readArtifact(ctx, randomUUID())
+      ).rejects.toMatchObject({ code });
+      await expectWorkspaceSweep(taskId);
+    }
+  });
+
+  it('buffer-only facades keep the legacy path byte-identically', async () => {
+    const taskId = randomUUID();
+    const bytes = Buffer.from('legacy buffer read still works');
+    const read = jest.fn(async () => bytes);
+    const ctx = makeCtx({ taskId, facade: { read } });
+
+    const artifact = await ParserBudgetHelper.readArtifact(ctx, randomUUID());
+    expect(artifact.buffer.equals(bytes)).toBe(true);
+    expect(artifact.formatMetadata.canonicalMimeType).toBe('text/plain');
+  });
+});

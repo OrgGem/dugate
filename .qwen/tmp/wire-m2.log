@@ -1,0 +1,42 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "ingest-wire"
+
+FAIL tests/ingest-wire.test.ts (5.756 s)
+  INGEST-WIRE-01: OCR transmits the scan, not a claim about it
+    √ hands the Connector a reference whose bytes are the scan we wrote (12 ms)
+    √ the referenced bytes carry the scan digest and PNG identity (1 ms)
+    √ fails visibly instead of invoking a provider with no document (1 ms)
+  INGEST-WIRE-01: digitize transmits the form image
+    × hands the vision slot the form artifact, not just a task name (2 ms)
+    √ fails visibly when digitize has no form to read
+  INGEST-WIRE-01: foreign references and the native boundary
+    √ never hands the Connector a reference the task did not read (1 ms)
+    √ keeps native parse local: no Connector call at all (748 ms)
+    √ keeps native split local: the Connector is never involved (275 ms)
+
+  ● INGEST-WIRE-01: digitize transmits the form image › hands the vision slot the form artifact, not just a task name
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: [{"artifactId": "a0450611-7600-4608-8a5c-bc673f2b7bab"}]
+    Received: undefined
+
+    [0m [90m 111 |[39m     [36mconst[39m payload [33m=[39m call[33m?[39m[33m.[39mpayload [36mas[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m[33m;[39m
+     [90m 112 |[39m     expect(payload[33m.[39mtask)[33m.[39mtoBe([32m'digitize_handwriting'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 113 |[39m     expect(payload[33m.[39martifacts)[33m.[39mtoEqual([{ artifactId[33m:[39m ref[33m.[39martifactId }])[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 114 |[39m   })[33m;[39m
+     [90m 115 |[39m
+     [90m 116 |[39m   it([32m'fails visibly when digitize has no form to read'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/ingest-wire.test.ts:113:31)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+Snapshots:   0 total
+Time:        6.233 s
+Ran all test suites matching /ingest-wire/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "ingest-wire"`
+Exit status 1

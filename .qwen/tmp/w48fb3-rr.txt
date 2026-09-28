@@ -1,0 +1,9 @@
+
+
+## W48-A6fb3 RUN REQUEST (vòng 3) — p8-02b sau fix MM-05c theo Tester-3-run (giờ thật 2026-09-25 00:09 +0700)
+
+- **Nguyên nhân red duy nhất vòng 2 (Tester reports/tester.md, 3/3 lan):** MM-05c do TOI characterize `/health` theo mo cu CUA docs/31 ("server.ts:510 constant HEALTHY") — da DOI chieu code that (server.ts:433-461): health la probe ket noi `{status:'ok'|'degraded', db, redis, activeLeases}`; body Tester ghi nhan `{"status":"ok","db":true,"redis":true,"activeLeases":0}` khong chua chu 'HEALTHY'. **Day la loi ki thuc cua test toi, khong phai loi san pham.** docs/31 MM-05 da duoc toI chinh hang muc bang chung theo dung code.
+- **Sua:** MM-05c gio characterize dung hop dong that: `toEqual({status:'ok',db:true,redis:true,activeLeases:0})` + key-set `['activeLeases','db','redis','status']` (pin khoảng trong MM-05 con lai: khong co queue-integrity signal; dao assertion khi platform them signal).
+- **Lệnh (root `du-rework`, 3 LAN lien tiep tren ban code NAY, ExitCode tung lan):** `set DU_LIVE_INFRA=1` + `npx jest tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts --config tests/integration/jest.config.cjs --runInBand`
+- **Literal ky vong moi lan:** `Test Suites: 1 passed, 1 total | Tests: 6 passed, 6 total`, 0 skipped/0 failed, ExitCode 0. Quy tac 3-run: code da doi sau 3 lan cua Tester → lam lai 3 lan tren ban nay.
+- Compile-check offline cua toi (khong phai bang chung): `6 skipped, 6 total` EXIT=0, 00:09:45.

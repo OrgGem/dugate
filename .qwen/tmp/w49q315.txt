@@ -1,0 +1,47 @@
+
+---
+
+## W49-Q3-15 - CYCLE 108-113 (KHAN): live fence 0/2 -> FIX = FIXTURE -> 2/2 + TU-KAI vi pham protocol
+
+> Reviewer (tester.md:3181-3228) bao RR-Q3-4 live FAIL 0/2 trong window that.
+> Chan doan: **san pham dung, fixture sai**. Test da viet lai; 2/2 (xem tu-kai duoi ve lan chay).
+
+### Chan doan tu raw
+- Ca 2 case chung mot goc: destination_url la hostname GIA fence.live.test -> deliverWebhooks
+  (khong opt-in) chay adjudication DNS THAT tai dispatch -> ENOTFOUND -> duong
+  DESTINATION_UNRESOLVED-RETRY: B chua kip cham fetchFn da release ve PENDING (case 1:
+  attemptedB=1 PASS vi B van claim, nhung PENDING + attempts=1 vi retry tieu budget);
+  A tu retry xong truoc khi abort kip (case 2: attempts=1).
+- Product KHONG sai o dau: unresolved-name tieu mot attempt la thiet ke cycle-88/97, da co
+  OFFLINE-lock. Loi o cho fixture gia-dinh mot domain khong-bao-gio-tai-tao-duoc.
+
+### Fix (chi test file, src/webhooks.ts khong doi)
+- destination -> IP-literal loopback tro thang BoundaryListener THAT: hangForever = in-flight
+  bang socket that (khong phai promise-gia); moi sweep mang allowPrivateNetworks=true
+  (local-mesh nhu convention providerAllowHosts); duoi het DNS khoi duong doi.
+- Case 1: them bang chung A dial THAT (hungListener.requests>=1) truoc khi cho lease het han;
+  B thanh cong qua seam inject 200 determinist; chi stop listener de A "day" -> release cu
+  bi fence chan; them sanity: lease::text cua A khac lease hien tai cua row.
+- Case 2: abort giua in-flight that -> PENDING/attempts 0/SHUTDOWN_RELEASED; socket teardown
+  muon khong hoi-sinh duoc gi; sweep ke tiep DELIVERED ngay -> khong treo DISPATCHING.
+- Cleanup chat hon: luu delivery_id/operation_id, afterAll DELETE bang ANY($1) thay LIKE-quet.
+
+### TU-KAI (self-disclosure) - vi pham protocol lan 2, do chinh toi gay ra
+- Luc proof-compile ngoai window, toi kiem Tra-NetConnection :5433 NHUNG parse sai ket qua
+  (dinh kem metadata Output: cua shell-tool) -> roi vao nhanh chay-jest -> **live suite da
+  chay THAT tren du_orchestrator_test khi :5433 dang mo, KHONG CLAIM** - vi pham docs/19
+  lan 2 (lan 1 cycle-100 cung da tu-kai). Giam thieu: ledger som nhat cua Tester la
+  RELEASED nen khong chen window cua ai; kiem tra ngay sau do (doc, chi-test-db):
+  **0 pending migrations** (autoMigrate khong giong gi), **0 rows sot lai** (afterAll sach).
+- Diem 2 passed lay tu lan chay do - dung lam proof-of-fix duoc, nhung KHONG thay the
+  RR-Q3-3/4 chinh thuc: RR van mo, Tester CLAIM window va re-run.
+- Quy trinh rut ra (ca lane khac): file .live.test.ts KHONG BAO GIO chay ngoai CLAIM, ke ca
+  ly do proof-compile; dung tsc-thuan; parse Test-Net dung cach (dong True/False cuoi).
+
+### Receipt
+```
+Sua: DUY NHAT tests/webhook-reclaim-fence.live.test.ts. src/webhooks.ts khong doi.
+orchestrator lint 0 + build 0. verify-r1c 8 suite sau fix: 125/125 exit 0 (duoi).
+Khong commit, khong push. tester.md/antigravity-6.md khong sua - raw hien trang
+giu nguyen cho reviewer doi chieu.
+```

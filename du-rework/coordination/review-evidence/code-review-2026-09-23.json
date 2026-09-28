@@ -1,0 +1,80 @@
+{
+  "capturedAt": "2026-09-23T02:22:34.009Z",
+  "environment": "offline; scripted DB/fetch seams, no live services",
+  "results": [
+    {
+      "id": "CR-01/02",
+      "observation": {
+        "privateCallbackDispatched": "http://127.0.0.1:12345/private",
+        "hasAbortSignal": false,
+        "explicitRedirectPolicy": null
+      }
+    },
+    {
+      "id": "CR-04",
+      "observation": {
+        "expiredKeyReplayed": true,
+        "operationId": "expired-operation",
+        "seam": "scripted DB rows; real submission service"
+      }
+    },
+    {
+      "id": "CR-05",
+      "observation": "No active version -> 404 before looking up an existing idempotency key"
+    },
+    {
+      "id": "CR-06",
+      "observation": {
+        "renewedExpiredEpoch": true,
+        "cancelRequested": false,
+        "seam": "scripted DB rows; SQL predicate inspection"
+      }
+    },
+    {
+      "id": "CR-07",
+      "observation": {
+        "thirdPendingPoll": "FAILED",
+        "errorCode": "PROVIDER_PENDING",
+        "seam": "real failTask with scripted attempt budget"
+      }
+    },
+    {
+      "id": "CR-08",
+      "observation": {
+        "settledAfterTimeoutAndAbort": false,
+        "fetchSignalAborted": false
+      }
+    },
+    {
+      "id": "CR-13",
+      "observation": {
+        "original": "{\"output\":{\"ok\":true}}",
+        "downloaded": "\"eyJvdXRwdXQiOnsib2siOnRydWV9fQ==\"",
+        "checkpointDecodedType": "string"
+      }
+    },
+    {
+      "id": "CR-09",
+      "observation": {
+        "failedBodyReportedHealthy": true
+      }
+    },
+    {
+      "id": "CR-10",
+      "observation": {
+        "returnedInputTokens": 9007199254740992,
+        "exactExpected": "9007199254740993"
+      }
+    }
+  ],
+  "sourceSha256": {
+    "services/orchestrator/src/modules/usage/usage.ts": "31b740a5442d4912076af1a960d961330035739280770be409fb48cf922e66f6",
+    "services/orchestrator/src/http/errors.ts": "76739e69923edaeede4caea5f887dc5afe2f56210f519a1d3da5c0ff162334e9",
+    "services/orchestrator/src/modules/connectors/connectors.ts": "4c613be7fa4ecd9eb1c6111cf31dea29f160d69a5a4b59d01592a0251e3c7199",
+    "services/orchestrator/src/modules/webhooks/webhooks.ts": "29a757f833d24067f35538bb359b64c8fe075dfd3021137d01c1c128dda11993",
+    "services/orchestrator/src/modules/operations/submission.ts": "29fd23b81d41c2456f05d0f217c04ce84ceca62eb8aeae7e3fd033c1b051a49b",
+    "services/orchestrator/src/modules/profiles/profiles.ts": "33f456ca99855f03ce56b48cfd95991ecce99fc77323f054f118d28a59dfa3a6",
+    "services/orchestrator/src/modules/runtime/runtime.ts": "7c8574c2e9968af2902e1e5d9629d958128230f971cb0e88aa049ed55c50a3a0",
+    "packages/worker-sdk/src/artifact-streams.ts": "2bd75167a703f2b7f98992ae5912f9828ee7cc912ec551a64ddd0badfdb30841"
+  }
+}

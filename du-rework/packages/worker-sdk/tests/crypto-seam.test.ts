@@ -1,0 +1,248 @@
+/**
+ * W-ENC-04-SEAM tests: the worker artifact-encryption seam.
+ *
+ * Three layers, each pinning something different:
+ *  1. PORT FIDELITY - the ported facade must still be the orchestrator one.
+ *     A "helpful" cleanup that changed an AAD string or the nonce layout
+ *     would compile, pass, and silently break every ciphertext the two
+ *     services exchange, so the body is compared against the source file.
+ *  2. BINDING - a task seals under the tenant the server asserted at claim.
+ *     A ciphertext sealed for one tenant must not open for another, must not
+ *     open under a different artifact/version binding, and must not open at
+ *     all with a tampered byte. That is the ADR-18 fail-closed requirement
+ *     stated as behaviour rather than as a comment.
+ *  3. NO SILENT PLAINTEXT - asking for the seam with none configured must
+ *     throw, and the single-PUT upload path must report CIPHERTEXT size and
+ *     digest to finalizeArtifact, because that is what storage committed.
+ *
+ * The key provider is a real reversible transform, not an echo: an echo
+ * would make a broken AAD binding look authenticated.
+ */
+
+import { createHash, createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+
+
+import {
+  CRYPTO_STORAGE_CHUNK_SIZE_BYTES,
+  CryptoStorageFacade,
+  type CryptoKeyProvider,
+  type WrappedDek,
+} from '../src/crypto-storage';
+import { bindTaskCrypto, type WorkerCryptoSeam } from '../src/crypto-seam';
+
+const KEY_REF = 'du-worker-meta-v1';
+const TENANT = 'tenant-a';
+const SENTINEL = 'CONFIDENTIAL-WORKER-ARTIFACT-BODY-4c81de';
+
+function keystream(seed: string, length: number): Buffer {
+  const out = Buffer.alloc(length);
+  let block = 0;
+  for (let offset = 0; offset < length; offset += 32) {
+    const digest = createHmac('sha256', 'worker-test-double').update(seed + String.fromCharCode(58) + block).digest();
+    digest.copy(out, offset, 0, Math.min(32, length - offset));
+    block += 1;
+  }
+  return out;
+}
+
+function xor(data: Buffer, stream: Buffer): Buffer {
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i += 1) {
+    out[i] = (data[i] ?? 0) ^ (stream[i] ?? 0);
+  }
+  return out;
+}
+
+interface ProviderOptions {
+  failWrap?: boolean;
+  wrongKey?: boolean;
+}
+
+function makeProvider(options: ProviderOptions = {}): { provider: CryptoKeyProvider; wraps: number } {
+  const state = { wraps: 0 };
+  const provider: CryptoKeyProvider = {
+    async wrapDek(input): Promise<WrappedDek> {
+      state.wraps += 1;
+      if (options.failWrap) throw new Error('vault transit unavailable');
+      return {
+        keyRef: input.keyRef,
+        keyVersion: input.keyVersion ?? 1,
+        ciphertext: xor(Buffer.from(input.dek), keystream(input.keyRef + String.fromCharCode(35) + String(input.keyVersion ?? 1), input.dek.length)).toString('base64'),
+      };
+    },
+    async unwrapDek(wrapped: WrappedDek): Promise<Buffer> {
+      const raw = Buffer.from(wrapped.ciphertext, 'base64');
+      if (options.wrongKey) return Buffer.alloc(32, 7);
+      return xor(raw, keystream(wrapped.keyRef + String.fromCharCode(35) + String(wrapped.keyVersion), raw.length));
+    },
+  };
+  return { provider, get wraps() { return state.wraps; } };
+}
+
+function makeSeam(options: ProviderOptions = {}): { seam: WorkerCryptoSeam; wraps: number } {
+  const { provider, wraps } = makeProvider(options);
+  return { seam: { facade: new CryptoStorageFacade(provider), keyRef: KEY_REF }, wraps };
+}
+
+describe('W-ENC-04 port fidelity: worker facade is the orchestrator facade', () => {
+  it('the implementation body is byte-identical to the orchestrator source', () => {
+    const here = readFileSync(join(__dirname, '..', 'src', 'crypto-storage.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, '..', '..', '..', 'services', 'orchestrator', 'src', 'modules', 'encryption', 'crypto-storage-facade.ts'), 'utf8');
+    const marker = 'export const CRYPTO_STORAGE_CHUNK_SIZE_BYTES';
+    // The ONLY intended difference is the provider type NAME: worker-sdk cannot
+    // import the orchestrator module, so the local alias was renamed and the
+    // provider shape re-declared here. Normalise that name on both sides; every
+    // byte of the cryptography below must still match.
+    const normalise = (text: string): string =>
+      text
+        .replaceAll('Pick<CryptoKeyProvider,', 'Pick<PROVIDER,')
+        .replaceAll('Pick<KeyProvider,', 'Pick<PROVIDER,')
+        .replaceAll('Pick<CryptoStorageKeyProvider,', 'Pick<PROVIDER,')
+        .replaceAll('CryptoStorageKeyProvider', 'PROVIDER')
+        .replaceAll('CryptoKeyProvider', 'PROVIDER')
+        .replaceAll('KeyProvider', 'PROVIDER');
+    const mine = normalise(here.slice(here.indexOf(marker)));
+    const theirs = normalise(source.slice(source.indexOf(marker)));
+    expect(mine).toBe(theirs);
+  });
+
+  it('the AAD format strings the two sides must agree on are present', () => {
+    const here = readFileSync(join(__dirname, '..', 'src', 'crypto-storage.ts'), 'utf8');
+    for (const format of ['du-crypto-storage-v1', 'du-crypto-storage-single-v1', 'du-crypto-storage-chunk-v1', 'du-crypto-storage-manifest-v1']) {
+      expect(here).toContain(format);
+    }
+  });
+});
+
+describe('W-ENC-04 binding: a sealed artifact opens only for its own task and tenant', () => {
+  it('round-trips bytes under the claim tenant', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const plaintext = Buffer.from(SENTINEL, 'utf8');
+    const sealed = await crypto.seal(plaintext, { artifactId: 'art-1', purpose: 'output' });
+    expect(sealed.ciphertextSizeBytes).toBeGreaterThan(0);
+    expect(JSON.stringify(sealed.encrypted)).not.toContain(SENTINEL);
+    const opened = await crypto.open(sealed, { artifactId: 'art-1', purpose: 'output' });
+    expect(opened.toString('utf8')).toBe(SENTINEL);
+  });
+
+  it('reports the CIPHERTEXT digest, not the plaintext digest', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const plaintext = Buffer.from(SENTINEL, 'utf8');
+    const sealed = await crypto.seal(plaintext, { artifactId: 'art-1' });
+    const ciphertextDigest = createHash('sha256').update(sealed.encrypted.ciphertext).digest('hex');
+    expect(sealed.ciphertextSha256).toBe(ciphertextDigest);
+    expect(sealed.ciphertextSha256).not.toBe(sealed.encrypted.plaintextSha256);
+  });
+
+  it('refuses to open under a different tenant', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const sealed = await crypto.seal(Buffer.from(SENTINEL, 'utf8'), { artifactId: 'art-1' });
+    const other = bindTaskCrypto(seam, { tenantId: 'tenant-b' });
+    await expect(other.open(sealed, { artifactId: 'art-1' })).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED' });
+  });
+
+  it('refuses to open under a different artifact binding', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const sealed = await crypto.seal(Buffer.from(SENTINEL, 'utf8'), { artifactId: 'art-1' });
+    await expect(crypto.open(sealed, { artifactId: 'art-2' })).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED' });
+  });
+
+  it('refuses to open a tampered ciphertext', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const sealed = await crypto.seal(Buffer.from(SENTINEL, 'utf8'), { artifactId: 'art-1' });
+    const flipped = Buffer.from(sealed.encrypted.ciphertext);
+    flipped[0] = (flipped[0] ?? 0) ^ 0xff;
+    await expect(
+      crypto.open({ ...sealed, encrypted: { ...sealed.encrypted, ciphertext: flipped } }, { artifactId: 'art-1' }),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED' });
+  });
+
+  it('fails closed when the key provider cannot wrap the DEK', async () => {
+    const { seam } = makeSeam({ failWrap: true });
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    await expect(crypto.seal(Buffer.from(SENTINEL, 'utf8'), { artifactId: 'art-1' })).rejects.toMatchObject({
+      code: 'KEY_PROVIDER_FAILED',
+    });
+  });
+
+  it('fails closed when the provider returns the wrong DEK on open', async () => {
+    // A wrong DEK can only surface on the READ path: seal never unwraps, so the
+    // honest negative is seal-with-a-good-provider then open-with-a-bad-one.
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const sealed = await crypto.seal(Buffer.from(SENTINEL, 'utf8'), { artifactId: 'art-1' });
+    const { seam: badSeam } = makeSeam({ wrongKey: true });
+    const bad = bindTaskCrypto(badSeam, { tenantId: TENANT });
+    await expect(bad.open(sealed, { artifactId: 'art-1' })).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+    });
+  });
+});
+
+describe('W-ENC-04 chunked seal: the manifest is authenticated before any plaintext', () => {
+  async function* largeSource(): AsyncGenerator<Buffer, void, void> {
+    const block = Buffer.alloc(1024 * 1024, 0x61);
+    for (let i = 0; i < 6; i += 1) yield block;
+  }
+
+  it('round-trips a 6 MiB stream and verifies the manifest', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const { ciphertext, manifest } = crypto.sealStream(largeSource(), { artifactId: 'art-big' });
+    const chunks: Buffer[] = [];
+    for await (const chunk of ciphertext) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const resolved = await manifest;
+    expect(resolved.totalChunks).toBe(2);
+    expect(resolved.chunks.map((c) => c.index)).toEqual([0, 1]);
+    async function* replay(list: Buffer[]): AsyncGenerator<Buffer, void, void> {
+      for (const item of list) yield item;
+    }
+    const opened = crypto.openStream(replay(chunks), resolved, { artifactId: 'art-big' });
+    const openedChunks: Buffer[] = [];
+    for await (const chunk of opened) {
+      openedChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    expect(Buffer.concat(openedChunks).equals(Buffer.alloc(6 * 1024 * 1024, 0x61))).toBe(true);
+  });
+
+  it('refuses a manifest belonging to another artifact', async () => {
+    const { seam } = makeSeam();
+    const crypto = bindTaskCrypto(seam, { tenantId: TENANT });
+    const { ciphertext, manifest } = crypto.sealStream(largeSource(), { artifactId: 'art-big' });
+    const chunks: Buffer[] = [];
+    for await (const chunk of ciphertext) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const resolved = await manifest;
+    async function* replay(list: Buffer[]): AsyncGenerator<Buffer, void, void> {
+      for (const item of list) yield item;
+    }
+    expect(() => crypto.openStream(replay(chunks), resolved, { artifactId: 'art-other' })).toThrow();
+  });
+
+  it('uses the 4 MiB chunk size the orchestrator indexes expect', () => {
+    expect(CRYPTO_STORAGE_CHUNK_SIZE_BYTES).toBe(4_194_304);
+  });
+});
+
+describe('W-ENC-04 no silent plaintext: asking for the seam without one must fail', () => {
+  it('refuses to seal when the deployment configured no seam', async () => {
+    const crypto = bindTaskCrypto(undefined, { tenantId: TENANT });
+    await expect(crypto.seal(Buffer.from('x'), { artifactId: 'art-1' })).rejects.toThrow(/not configured/);
+  });
+
+  it('the handle still reports the claim tenant it was bound to', () => {
+    const { seam } = makeSeam();
+    expect(bindTaskCrypto(seam, { tenantId: TENANT }).tenantId).toBe(TENANT);
+  });
+});

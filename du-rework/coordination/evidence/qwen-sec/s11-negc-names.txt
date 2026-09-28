@@ -1,0 +1,5 @@
+  ● W-SEC-COOKIE-CONFIG-1 through the REAL shell listener (loopback socket, offline) › a comma chain over the wire proves nothing: no Secure in auto mode
+  ● W-SEC-COOKIE-CONFIG-1 through the REAL shell listener (loopback socket, offline) › mount default with the knobs unset: env parses to {false,false} -> legacy mint, no Secure
+  ● W-SEC-AUDIT-TAXONOMY-1 auth.csrf_denied on the dispatcher gate › the CSRF leg emits exactly one closed event carrying the ACTION, nothing else
+  ● W-SEC-AUDIT-TAXONOMY-1 auth.csrf_denied on the dispatcher gate › authorizeAdminAction delegates the sink through the stable name
+  ● W-SEC-AUDIT-TAXONOMY-1 auth.csrf_denied on the dispatcher gate › sentinel CSRF values (STORED and PROVIDED) never reach the event through the REAL resolver

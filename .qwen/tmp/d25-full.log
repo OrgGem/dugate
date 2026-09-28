@@ -1,0 +1,33 @@
+
+> @du/contracts@0.1.0 test D:\Git\dugate\du-rework\packages\contracts
+> jest --runInBand
+
+PASS tests/grant-encryption-envelope.test.ts
+PASS tests/usage-budget-reservation.test.ts
+PASS tests/usage-event-export.test.ts
+PASS tests/usage-reconciliation.test.ts
+PASS tests/pricing.test.ts
+PASS tests/usage-metrics.test.ts
+PASS tests/usage-budget.test.ts
+PASS tests/dto.test.ts
+PASS tests/manifest.test.ts
+PASS tests/queue.test.ts
+PASS tests/result-wire.test.ts
+PASS tests/multipart-contract.test.ts
+PASS tests/ingestion-receipt.test.ts
+PASS tests/vault-ref.test.ts
+PASS tests/hashing-errors.test.ts
+PASS tests/operations-list-contract.test.ts
+PASS tests/vault-policies.test.ts
+PASS tests/state-machine.test.ts
+PASS tests/ip-policy.test.ts
+PASS tests/invocation-hash.test.ts
+PASS tests/admin-resource-list-contract.test.ts
+PASS tests/encryption.test.ts
+PASS tests/oidc-claim-shapes.test.ts
+
+Test Suites: 23 passed, 23 total
+Tests:       462 passed, 462 total
+Snapshots:   0 total
+Time:        12.839 s, estimated 20 s
+Ran all test suites.

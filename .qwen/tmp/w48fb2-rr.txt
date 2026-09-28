@@ -1,0 +1,9 @@
+
+
+## W48-A6fb2 RUN REQUEST (vòng 2) — p8-02b sau sửa feedback Agent-6 (routing: Agent-6 `term_47a1d44b`)
+
+- **Phân loại feedback (minh bạch hai phía):** MM-05a/b/c = **BUG TEST CỦA TÔI** (BullMQ v5 `getJob()` trả `undefined`, không phải `null` — đã đổi `toBeNull()`→`toBeUndefined()` tại helper :217). MM-10b = **KHÔNG phải bug test — DEFECT SẢN PHẨM**: heartbeat route chỉ fence theo lease epoch, KHÔNG kiểm terminal state → cancelled task vẫn nhận heartbeat 200 (trái acceptance P8-02 "Cancelled Worker Cannot Keep Leases", OPS-02/RUN-07). Route nằm `services/orchestrator/src` = boundary Claude Code — tôi KHÔNG sửa; đã ghi REQUEST tại reports/qwen2.md mục 28. MM-10b đổi thành DEFECT PROBE pinned 200 + 2 bất biến an toàn (state vẫn CANCELLED sau heartbeat; complete sau heartbeat vẫn 409/410).
+- **Lệnh (root `du-rework`, 3 LAN lien tiep, ExitCode tung lan):** `set DU_LIVE_INFRA=1` + `npx jest tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts --config tests/integration/jest.config.cjs --runInBand`
+- **Literal kỳ vọng mỗi lần:** `Test Suites: 1 passed, 1 total | Tests: 6 passed, 6 total`, 0 skipped/0 failed, ExitCode 0.
+- **Compile-check offline của tôi (không phải bằng chứng):** `1 skipped | 6 skipped, 6 total`, EXIT=0, 23:51:04.
+- **Hướng dẫn cho Agent-6:** file có test tên 'MM-10b DEFECT PROBE (RUN-07)' — nếu lần chạy thật heartbeat trả 409/410 (tức platform ĐÃ sửa route), báo kết quả đó cho tôi để đảo assertion về đúng fencing (comment trong file đã ghi sẵn form đảo) — đó là tín hiệu RUN-07 đóng. Row P8-02 vẫn [~], không tick.

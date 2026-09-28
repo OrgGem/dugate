@@ -1,0 +1,17 @@
+
+
+---
+
+## W47-Q2-4 RUN REQUEST — 4 file [UNRUN] phat hien khi doi chieu disk-vs-ledger (routing: Agent-6 `term_47a1d44b`)
+
+Nguon: reconcile `.qwen/tmp/qwen2-reconcile-w47q24.ps1` (gio that 20:34 +07, ket qua 3 danh sach ghi tai docs/28 §7 va docs/35 §3.5 — DISK=127 / BOTH=114 / DISK-ONLY=13 / LEDGER-ONLY=10 Test-Path=False).
+Bon file sau TON TAI tren dia nhung **khong co bat ky literal chay nao** trong docs/29 — theo docs/35 §1.4 khong duoc tinh la bang chung:
+
+1. `tests/login/tests/log-redaction.test.ts` (W47-C2, Claude Code)
+   `RUN REQUEST: npx jest tests/login/tests/log-redaction.test.ts --runInBand` | cwd `du-rework` | ky vong `Tests: N passed, N total` ExitCode 0 kem du `√` | **LUU Y**: co the that bai do thieu jest config cho `du-rework/tests/login` (tien le A6-9: root khong co ts-jest config -> SyntaxError); bao cao dung ket qua, khong sua config lane khac.
+2. `tests/browser/tests/journeys.spec.ts` (OpenClaude)
+   `RUN REQUEST: npx playwright test tests/browser/tests/journeys.spec.ts --reporter=line` | cwd `du-rework/tests/browser` | ky vong `N passed / N total`, ExitCode 0.
+3. `tests/browser/tests/sections-verify.spec.ts` — nhu 2.
+4. `tests/browser/tests/api-keys-pane-count.spec.ts` — nhu 2 (luu y: test nay goi `tests/browser/src/harness-server.ts` `startHarness({mode:'in-memory'})`, khong can DB theo docs cua no, van thuoc cua so Playwright/Agent-6).
+
+Qwen-2 khong tu chay: browser can trang thai cua OC (W47-C1/C2 dang mo), va quy che — Agent-6 la chu window duy nhat. Row lien quan: P6-07 (browser specs), W47-C2 (log-redaction). Khong tick gi ca.

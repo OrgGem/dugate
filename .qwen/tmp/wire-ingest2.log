@@ -1,0 +1,12 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "ingest"
+
+PASS tests/ingest.test.ts
+PASS tests/ingest-source-pin.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       22 passed, 22 total
+Snapshots:   0 total
+Time:        3.145 s, estimated 4 s
+Ran all test suites matching /ingest/i.

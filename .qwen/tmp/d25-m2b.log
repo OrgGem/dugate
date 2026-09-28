@@ -1,0 +1,98 @@
+
+> @du/contracts@0.1.0 test D:\Git\dugate\du-rework\packages\contracts
+> jest --runInBand "--" "grant-encryption-envelope"
+
+FAIL tests/grant-encryption-envelope.test.ts
+  W-ENC-04-GRANT-SCHEMA: a read grant can carry a storage envelope
+    √ accepts the exact envelope the storage facade emits (3 ms)
+    √ leaves a plaintext grant unchanged and unencrypted
+    √ preserves unknown-free round trip: re-parsing a parsed grant is stable (1 ms)
+    √ keeps storage size and plaintext size as separate facts
+  W-ENC-04-GRANT-SCHEMA: the envelope fails closed
+    × rejects a nonce that is valid base64 but not 12 bytes (3 ms)
+    × rejects a tag that is not 16 bytes (1 ms)
+    √ rejects a non-hex plaintext digest
+    √ rejects a DEK without a pinned key version (1 ms)
+    √ rejects an unknown algorithm instead of assuming aes-gcm
+    × rejects extra fields so a tampered envelope cannot ride along (1 ms)
+    × surfaces the failure at the GRANT, not only on the envelope alone
+  W-ENC-04-GRANT-SCHEMA: the storage DEK is NOT the ADR-18 delivery DEK
+    √ accepts the storage shape (keyRef/keyVersion/ciphertext) (1 ms)
+    √ does NOT accept the delivery shape (keyId/wrappedKey)
+
+  ● W-ENC-04-GRANT-SCHEMA: the envelope fails closed › rejects a nonce that is valid base64 but not 12 bytes
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    [0m [90m  95 |[39m   it([32m'rejects a nonce that is valid base64 but not 12 bytes'[39m[33m,[39m () [33m=>[39m {
+     [90m  96 |[39m     [36mconst[39m bad [33m=[39m { [33m...[39mruntimeEnvelope()[33m,[39m nonce[33m:[39m [33mBuffer[39m[33m.[39malloc([35m13[39m[33m,[39m [35m1[39m)[33m.[39mtoString([32m'base64'[39m) }[33m;[39m
+    [31m[1m>[22m[39m[90m  97 |[39m     expect([33mStorageEnvelopeRefSchema[39m[33m.[39msafeParse(bad)[33m.[39msuccess)[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m     |[39m                                                             [31m[1m^[22m[39m
+     [90m  98 |[39m   })[33m;[39m
+     [90m  99 |[39m
+     [90m 100 |[39m   it([32m'rejects a tag that is not 16 bytes'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/grant-encryption-envelope.test.ts:97:61)
+
+  ● W-ENC-04-GRANT-SCHEMA: the envelope fails closed › rejects a tag that is not 16 bytes
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    [0m [90m 100 |[39m   it([32m'rejects a tag that is not 16 bytes'[39m[33m,[39m () [33m=>[39m {
+     [90m 101 |[39m     [36mconst[39m bad [33m=[39m { [33m...[39mruntimeEnvelope()[33m,[39m tag[33m:[39m [33mBuffer[39m[33m.[39malloc([35m8[39m[33m,[39m [35m1[39m)[33m.[39mtoString([32m'base64'[39m) }[33m;[39m
+    [31m[1m>[22m[39m[90m 102 |[39m     expect([33mStorageEnvelopeRefSchema[39m[33m.[39msafeParse(bad)[33m.[39msuccess)[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m     |[39m                                                             [31m[1m^[22m[39m
+     [90m 103 |[39m   })[33m;[39m
+     [90m 104 |[39m
+     [90m 105 |[39m   it([32m'rejects a non-hex plaintext digest'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/grant-encryption-envelope.test.ts:102:61)
+
+  ● W-ENC-04-GRANT-SCHEMA: the envelope fails closed › rejects extra fields so a tampered envelope cannot ride along
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    [0m [90m 121 |[39m   it([32m'rejects extra fields so a tampered envelope cannot ride along'[39m[33m,[39m () [33m=>[39m {
+     [90m 122 |[39m     [36mconst[39m bad [33m=[39m { [33m...[39mruntimeEnvelope()[33m,[39m purpose[33m:[39m [32m'output'[39m }[33m;[39m
+    [31m[1m>[22m[39m[90m 123 |[39m     expect([33mStorageEnvelopeRefSchema[39m[33m.[39msafeParse(bad)[33m.[39msuccess)[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m     |[39m                                                             [31m[1m^[22m[39m
+     [90m 124 |[39m   })[33m;[39m
+     [90m 125 |[39m
+     [90m 126 |[39m   it([32m'surfaces the failure at the GRANT, not only on the envelope alone'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/grant-encryption-envelope.test.ts:123:61)
+
+  ● W-ENC-04-GRANT-SCHEMA: the envelope fails closed › surfaces the failure at the GRANT, not only on the envelope alone
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+    [0m [90m 128 |[39m     [90m// plaintext grant and hand the worker ciphertext to parse as a document.[39m
+     [90m 129 |[39m     [36mconst[39m bad [33m=[39m { [33m...[39mruntimeEnvelope()[33m,[39m nonce[33m:[39m [33mBuffer[39m[33m.[39malloc([35m5[39m[33m,[39m [35m1[39m)[33m.[39mtoString([32m'base64'[39m) }[33m;[39m
+    [31m[1m>[22m[39m[90m 130 |[39m     expect([33mArtifactAccessGrantSchema[39m[33m.[39msafeParse(readGrant({ encryption[33m:[39m bad }))[33m.[39msuccess)[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m     |[39m                                                                                         [31m[1m^[22m[39m
+     [90m 131 |[39m   })[33m;[39m
+     [90m 132 |[39m })[33m;[39m
+     [90m 133 |[39m[0m
+
+      at Object.<anonymous> (tests/grant-encryption-envelope.test.ts:130:89)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 9 passed, 13 total
+Snapshots:   0 total
+Time:        3.164 s
+Ran all test suites matching /grant-encryption-envelope/i.
+D:\Git\dugate\du-rework\packages\contracts:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/contracts@0.1.0 test: `jest --runInBand "--" "grant-encryption-envelope"`
+Exit status 1

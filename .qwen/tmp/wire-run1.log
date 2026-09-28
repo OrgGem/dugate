@@ -1,0 +1,22 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "ingest-wire"
+
+PASS tests/ingest-wire.test.ts
+  INGEST-WIRE-01: OCR transmits the scan, not a claim about it
+    √ hands the Connector a reference whose bytes are the scan we wrote (6 ms)
+    √ the referenced bytes carry the scan digest and PNG identity (1 ms)
+    √ fails visibly instead of invoking a provider with no document (4 ms)
+  INGEST-WIRE-01: digitize transmits the form image
+    √ hands the vision slot the form artifact, not just a task name (1 ms)
+    √ fails visibly when digitize has no form to read
+  INGEST-WIRE-01: foreign references and the native boundary
+    √ never hands the Connector a reference the task did not read (1 ms)
+    √ keeps native parse local: no Connector call at all (413 ms)
+    √ keeps native split local: the Connector is never involved (143 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        2.663 s
+Ran all test suites matching /ingest-wire/i.

@@ -1,0 +1,1595 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DUGate rework API (code-derived, W40-CX)",
+    "version": "1.1.0",
+    "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:2023"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      },
+      "AdminBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "RuntimeBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "UsageBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "Svc": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "ArtifactDownloadResponse": {
+        "oneOf": [
+          {
+            "type": "string",
+            "format": "binary"
+          },
+          {
+            "$ref": "#/components/schemas/EncryptedArtifactDownload"
+          }
+        ],
+        "description": "ArtifactDownloadResponseSchema (operations.ts) = plain bytes | EncryptedArtifactDownload. The plain branch is a byte string or an async byte stream, which JSON Schema cannot express, so it is published as format: binary and the response content map names its media type."
+      },
+      "ArtifactRef": {
+        "type": "object",
+        "required": [
+          "artifactId",
+          "role"
+        ],
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "default": "output",
+            "description": "Top-level role from the submit_artifacts declaration for a declared input, else the stored purpose (input|output)."
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hashSha256": {
+            "type": "string"
+          },
+          "download": {
+            "type": "string",
+            "description": "Relative public URL, /api/v1/artifacts/{id}/download. Tenant-scoped and grant-free; the id still has to pass the READY and SUCCEEDED checks of that route."
+          }
+        },
+        "description": "ArtifactRefSchema (operations.ts). role carries a zod default, so it is optional to a producer and always present on this route's wire."
+      },
+      "EncryptedArtifactDownload": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "encrypted",
+          "delivery",
+          "artifactId",
+          "mimeType"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "1"
+            ]
+          },
+          "encrypted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/RecipientDeliveryEnvelope"
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mimeType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "The artifact's stored MIME, defaulted server-side to application/octet-stream. It names the PLAINTEXT a recipient recovers after decrypting; it is NOT the response content type, which is application/json for this variant."
+          }
+        },
+        "additionalProperties": false,
+        "description": "EncryptedArtifactDownloadSchema (operations.ts): the same bytes as the plain download, carried as a JSON wrapper. Strict."
+      },
+      "EncryptedResultEnvelope": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "encrypted",
+          "delivery"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "1"
+            ]
+          },
+          "encrypted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Always true. Present so a client can branch without inferring from the absence of data."
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/RecipientDeliveryEnvelope"
+          }
+        },
+        "additionalProperties": false,
+        "description": "EncryptedResultEnvelopeSchema (operations.ts). Decrypting delivery yields the exact ResultEnvelope above."
+      },
+      "RecipientDeliveryEnvelope": {
+        "type": "object",
+        "required": [
+          "version",
+          "suite",
+          "recipientKeyId",
+          "recipientKeyVersion",
+          "enc",
+          "nonce",
+          "tag",
+          "ciphertext"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ],
+            "description": "Delivery envelope version, always 1."
+          },
+          "suite": {
+            "type": "string",
+            "enum": [
+              "hpke-rfc9180",
+              "rsa-oaep-sha256"
+            ],
+            "description": "hpke-rfc9180 = DHKEM(X25519)/HKDF-SHA256 with an AES-256-GCM payload, the preferred suite; rsa-oaep-sha256 = RSA-OAEP-SHA256 key wrap over an AES-256-GCM payload, kept for enterprise and legacy recipients."
+          },
+          "recipientKeyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "recipientKeyVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Pinned at result-generation time, not read back from current tenant state."
+          },
+          "enc": {
+            "type": "string",
+            "description": "Base64 (RFC 4648) encapsulated or wrapped delivery DEK."
+          },
+          "nonce": {
+            "type": "string",
+            "description": "Base64 payload nonce, 12 bytes for AES-GCM."
+          },
+          "tag": {
+            "type": "string",
+            "description": "Base64 payload GCM auth tag, 16 bytes."
+          },
+          "ciphertext": {
+            "type": "string",
+            "description": "Base64 encrypted payload."
+          },
+          "aad": {
+            "type": "string",
+            "description": "Optional base64 AAD; a wire-profile decision, not a per-request input."
+          }
+        },
+        "additionalProperties": false,
+        "description": "RecipientDeliveryEnvelopeSchema (encryption.ts), shared by the encrypted result and the encrypted download. Strict."
+      },
+      "ResultEnvelope": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "data",
+          "artifacts",
+          "usage",
+          "warnings"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "enum": [
+              "1"
+            ],
+            "description": "Envelope version. Literal '1'; a v1 reader must refuse anything else rather than guess."
+          },
+          "data": {
+            "description": "Opaque worker result. This route copies result_ref verbatim as {resultRef} and never guesses an inner envelope."
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRef"
+            },
+            "description": "REAL refs: submit-declared inputs plus task-produced READY outputs. This route projects them from a join; it never returns the [] the contract default allows."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Defaults to [] in the contract; this route currently always sends []."
+          }
+        },
+        "additionalProperties": false,
+        "description": "ResultEnvelopeSchema (operations.ts), the PLAIN variant of the result wire. Strict."
+      },
+      "ResultResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ResultEnvelope"
+          },
+          {
+            "$ref": "#/components/schemas/EncryptedResultEnvelope"
+          }
+        ],
+        "description": "ResultResponseSchema (operations.ts) = ResultEnvelope | EncryptedResultEnvelope. Exactly one branch matches, and which one is decided by the server-side tenant policy, never by a request parameter."
+      },
+      "Usage": {
+        "type": "object",
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "costMicrousd",
+          "measurement"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "costMicrousd": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Integer micro-USD. A money integer on purpose: no float ever crosses this field."
+          },
+          "measurement": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimated",
+              "pending",
+              "final",
+              "corrected"
+            ]
+          }
+        },
+        "description": "UsageSchema (operations.ts). Not .strict() in the contract, so it is not additionalProperties: false here."
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness alias, no auth. server.ts:315.",
+        "responses": {
+          "200": {
+            "description": "ok|degraded {status,db,redis,activeLeases}"
+          },
+          "503": {
+            "description": "degraded"
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "summary": "Liveness alias, no auth. server.ts:315.",
+        "responses": {
+          "200": {
+            "description": "ok|degraded"
+          },
+          "503": {
+            "description": "degraded"
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{id}/actions/{action}": {
+      "post": {
+        "summary": "Generic business submission. server.ts:559.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "input": {
+                  "type": "invoice"
+                },
+                "artifacts": [],
+                "output": {
+                  "format": "json"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "SubmitAck, replayed=false"
+          },
+          "200": {
+            "description": "SubmitAck replayed=true"
+          }
+        }
+      }
+    },
+    "/api/v1/operations": {
+      "get": {
+        "summary": "List operations. server.ts parseOperationsListQuery + listOperationsPage; contracts public-api.ts OPERATIONS_LIST_QUERY_PARAMS (6 names) and OPERATIONS_LIST_SORT_*. Admin bearer is an alternate auth path on the same contract (ADM-UX-02).",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1..100, default 20. The only parameter that CLAMPS instead of returning 422.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque base64url keyset token. Grammar: <ISO>|<uuid>|<field>:<direction>[|p]. The third slot names the ordering the position belongs to, and the trailing |p marks a backward walk. 422 INVALID_SCHEMA when the token cannot be decoded, when it exceeds the 128-character bound, or when its ordering slot differs from the requested sort. A mismatch is refused, never reinterpreted, and omitting ?sort is not a way around it: absent sort resolves to created_at:desc. A token minted before the sort parameter existed omits the third slot and is read as created_at:desc, so links written earlier keep paging. Reviewer T140-A1 is still open: that binding is IMPLEMENTED and offline VERIFIED, not live-verified or accepted.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Operator UI enum only. Each value expands server-side into a set of machine wire states; RUNNING covers seven. A machine state such as QUEUED is a 422 by design.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RUNNING",
+                "COMPLETED",
+                "FAILED",
+                "TIMED_OUT"
+              ]
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "description": "Exact tenant id; the accepted charset is schema.pattern, taken from OPERATIONS_LIST_TOKEN_PATTERN. A solid hex string of 32+ chars is rejected as API-key material, not an id. 403 when outside caller scope rather than 422.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Case-insensitive substring of the operation id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Allow-listed ordering, <field>:<direction>. Case-insensitive; split on the LAST colon, so an extra colon is rejected rather than truncated. Absent or empty is created_at:desc, the pre-parameter order. Anything outside the allow-list is 422 INVALID_SCHEMA, never a silent fallback to the default. Allow-list (OPERATIONS_LIST_SORT_VALUES): created_at:asc, created_at:desc, updated_at:asc, updated_at:desc, deadline_at:asc, deadline_at:desc. deadline_at orders NULLs last via COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) for desc and '9999-12-31T23:59:59.999Z'::timestamptz for asc, written as an inline literal constant (Const node) rather than a bind parameter, so migration 0019 expression indexes match the ORDER BY form.",
+            "schema": {
+              "type": "string",
+              "default": "created_at:desc",
+              "enum": [
+                "created_at:asc",
+                "created_at:desc",
+                "updated_at:asc",
+                "updated_at:desc",
+                "deadline_at:asc",
+                "deadline_at:desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Five-field page: {items: OperationView[], nextCursor, prevCursor, total, limit}. total is a COUNT(*) over the FILTERED population, never items.length, and does not vary with sort. prevCursor is null on the first page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor",
+                    "prevCursor",
+                    "total",
+                    "limit"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "prevCursor": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "items": [],
+                  "nextCursor": "MjAyNi0wOS0yNlQwMDowMDowMC4wMDBafDFmMmUzZDRjLTViNmEtNDc5OC04ODk5LWFhYmJjY2RkZWVmZnxjcmVhdGVkX2F0OmRlc2M",
+                  "prevCursor": null,
+                  "total": 1284,
+                  "limit": 20
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid auth"
+          },
+          "403": {
+            "description": "tenant outside caller scope; a foreign tenant is a fence, not a widened view"
+          },
+          "422": {
+            "description": "INVALID_SCHEMA on state, tenant, id, cursor or sort. A query key outside the allow-list is ignored, not 422. This route never returns 400."
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{id}": {
+      "get": {
+        "summary": "Poll; ?wait seconds clamped [0,30]. server.ts:602 facade.ts:16.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "wait",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OperationView"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{id}/result": {
+      "get": {
+        "summary": "ResultEnvelope or its encrypted delivery wrapper. Handler server.ts:1724.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Both variants are application/json and the choice is made by the SERVER-SIDE tenant policy, never by a request parameter: a client cannot ask for plaintext, and a failed encryption is a 503 rather than a downgrade, so this route cannot quietly serve plaintext under a tenant that switched encryption on. PLAIN: ResultEnvelope v1, schemaVersion \"1\", strict. data carries the worker's opaque resultRef verbatim as {resultRef} with no envelope guessing; artifacts carries REAL refs for submit-declared inputs and task-produced READY outputs, each with a relative /api/v1/artifacts/{id}/download URL; usage and warnings complete the envelope. ENCRYPTED: {schemaVersion \"1\", encrypted true, delivery}, strict, and decrypting delivery yields the exact ResultEnvelope above, so a recipient needs the matching recipient private key to rebuild the plain shape.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND when the operation belongs to another tenant. Deliberately indistinguishable from an unknown id: no existence leak."
+          },
+          "409": {
+            "description": "STATE_CONFLICT: the operation is not SUCCEEDED (facade.ts resultHttpStatus decides the split), or delivery encryption is not enabled for this tenant."
+          },
+          "410": {
+            "description": "GONE: the operation is in an expired terminal state."
+          },
+          "503": {
+            "description": "TEMPORARY_UNAVAILABLE: encrypted delivery failed, including a revoked recipient key. The route does not fall back to the plain variant."
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{id}/download": {
+      "get": {
+        "summary": "Tenant-scoped artifact download. MIME proxy or encrypted wrapper. Handler server.ts:1817.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Two variants, and the SERVER-SIDE tenant policy picks one; a caller cannot opt out and no request parameter would change it. PLAIN (policy absent or disabled): a MIME PROXY. The stored bytes stream raw, unwrapped and not re-encoded (CR-13), and the response Content-Type is the artifact's stored MIME type, or application/octet-stream when that column is empty. That is the application/octet-stream entry below; the contract types the body as a byte string or an async byte stream, which JSON Schema cannot express, so it is published as format: binary. ENCRYPTED (policy enabled): the SAME bytes as a JSON body with Content-Type application/json and the EncryptedArtifactDownload shape - schemaVersion \"1\", encrypted true, the delivery envelope, plus the artifactId and the mimeType the recipient recovers after decrypting. Wrapping only the metadata and streaming plaintext underneath would leave the payload - the part that matters - in the clear, so both public delivery routes encrypt or neither does.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncryptedArtifactDownload"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND for a foreign or an unknown id, deliberately indistinguishable: no existence leak."
+          },
+          "409": {
+            "description": "STATE_CONFLICT: the row exists but is not READY, so its bytes are not yet integrity-verified."
+          },
+          "413": {
+            "description": "TOO_LARGE: the encrypted variant has to hold the whole payload (AES-GCM is single-shot) and fails closed past maxBlobBytes, default 64 MiB, instead of degrading to an unbounded buffer or to plaintext."
+          },
+          "503": {
+            "description": "TEMPORARY_UNAVAILABLE: encrypted delivery failed, including a revoked recipient key."
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{id}/cancel": {
+      "post": {
+        "summary": "Idempotent cancel. server.ts:646.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "no longer needed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "cancelling"
+          },
+          "200": {
+            "description": "replayed"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{id}/resume": {
+      "post": {
+        "summary": "Resume with CAS. server.ts:656.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "waitId": "w1",
+                "input": {},
+                "expectedStateVersion": 3
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "resumed"
+          },
+          "200": {
+            "description": "replayed"
+          }
+        }
+      }
+    },
+    "/api/v1/usage/summary": {
+      "get": {
+        "summary": "Tenant usage projection. server.ts:361.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UsageSummary"
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/{id}/test": {
+      "get": {
+        "summary": "Connector probe proxy, sanitized. server.ts:378.",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ConnectorProbeOutcome"
+          },
+          "502": {
+            "description": "unhealthy/unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "summary": "Admin audit ledger page. server.ts GET /api/v1/admin/audit (ADM-BASE-01, W-ADMUX02-EXT-1). Reads the real admin_audit_events table from migration 0010. Previously listed as an absent surface.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, clamped like the other list routes.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque keyset token. Direction-bearing, like the operations cursor.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "description": "Narrows the scope, but AUTHORIZES nothing: the scope comes from the credential. A platform principal may narrow to any tenant; a tenant operator is pinned to its own tenant and receives 403 on a foreign one. No tenant in scope returns an honest empty 200 page, never platform-global rows.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "description": "Allow-listed severity filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Allow-listed action filter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The same five-field page envelope as the operations list: {items, nextCursor, prevCursor, total, limit}. The retired {tenantId, events} shape is gone. This route does NOT accept sort, state or id, so its ordering stays created-at keyset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor",
+                    "prevCursor",
+                    "total",
+                    "limit"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "prevCursor": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "items": [],
+                  "nextCursor": null,
+                  "prevCursor": null,
+                  "total": 0,
+                  "limit": 20
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid admin bearer"
+          },
+          "403": {
+            "description": "tenant outside the credential scope; identical wording for foreign and unknown ids"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/businesses/{id}/versions/{version}/enable": {
+      "put": {
+        "summary": "Enable version, fail-closed 404. server.ts:666",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "202": {
+            "description": "async"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/businesses/{id}/versions/{version}/activate": {
+      "put": {
+        "summary": "Activate version. server.ts:690",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "202": {
+            "description": "async"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/businesses/{id}/versions/{version}/deactivate": {
+      "put": {
+        "summary": "Drain version. server.ts:702",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "202": {
+            "description": "async"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/profile-bindings": {
+      "post": {
+        "summary": "Create profile revision. server.ts:714.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "apiKey": "RAW-NEVER-STORED",
+                "businessId": "document-core",
+                "businessVersion": "1.0.0",
+                "action": "extract",
+                "connectorBindings": {
+                  "reasoning": {
+                    "connectorId": "c1",
+                    "revision": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "revision"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/operations/sweep-deadlines": {
+      "post": {
+        "summary": "Deadline sweep trigger. server.ts:732.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{timedOut}"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/usage-events": {
+      "post": {
+        "summary": "Usage ingest (usageToken). server.ts:348",
+        "security": [
+          {
+            "UsageBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/businesses/{id}/versions/{version}": {
+      "put": {
+        "summary": "Register version. server.ts:451",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/workers/{id}/heartbeat": {
+      "put": {
+        "summary": "Worker heartbeat. server.ts:460",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/claim": {
+      "post": {
+        "summary": "Claim. server.ts:467",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/heartbeat": {
+      "post": {
+        "summary": "Heartbeat. server.ts:478",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/steps/{step}": {
+      "put": {
+        "summary": "Save step. server.ts:489",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/progress": {
+      "post": {
+        "summary": "Progress. server.ts:499",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/complete": {
+      "post": {
+        "summary": "Complete. server.ts:509",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/fail": {
+      "post": {
+        "summary": "Fail. server.ts:519",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/children": {
+      "post": {
+        "summary": "Spawn children 202. server.ts:529",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      },
+      "get": {
+        "summary": "Join view. server.ts:539",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/wait-input": {
+      "post": {
+        "summary": "Human wait. server.ts:549",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/artifacts": {
+      "post": {
+        "summary": "Upload grant 201. server.ts:388",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/artifacts/{id}/finalize": {
+      "post": {
+        "summary": "Finalize. server.ts:399",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/artifacts/{id}/access": {
+      "post": {
+        "summary": "Access grant. server.ts:408",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/tasks/{id}/invocation-grants": {
+      "post": {
+        "summary": "Grant 201. server.ts:421",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/api/runtime/v1/artifacts/blob/{key}": {
+      "put": {
+        "summary": "Blob put 204 ?grant=. server.ts:432",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      },
+      "get": {
+        "summary": "Blob get ?grant=. server.ts:432",
+        "security": [
+          {
+            "RuntimeBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "summary": "Liveness. http/server.ts:80",
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Readiness. http/server.ts:81",
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "summary": "Catalog. http/server.ts:85",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/connectors": {
+      "get": {
+        "summary": "List redacted. http/server.ts:86",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create revision. http/server.ts:90",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/invocations": {
+      "post": {
+        "summary": "Invoke 200|202. http/server.ts:122",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/invocations/{id}": {
+      "get": {
+        "summary": "Query. http/server.ts:112",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/invocations/{id}/cancel": {
+      "post": {
+        "summary": "Cancel 202. http/server.ts:130",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/connectors/{id}/credentials/rotate": {
+      "post": {
+        "summary": "Rotate 204 write-only. http/server.ts:139",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/connectors/{id}/disable": {
+      "post": {
+        "summary": "Disable 204. http/server.ts:148",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    },
+    "/connectors/{id}/test": {
+      "post": {
+        "summary": "Self-test. http/server.ts:153",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "201": {
+            "description": "created"
+          },
+          "202": {
+            "description": "accepted"
+          },
+          "204": {
+            "description": "no content"
+          }
+        }
+      }
+    }
+  },
+  "x-absent": [
+    "GET /api/v1/businesses",
+    "GET schema",
+    "POST /docs/{action}",
+    "POST /api/v1/artifacts",
+    "GET /api/v1/artifacts/{id} metadata",
+    "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay",
+    "GET /api/runtime/v1/tasks/{id}/context"
+  ]
+}

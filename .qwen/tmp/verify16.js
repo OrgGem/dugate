@@ -1,0 +1,12 @@
+const fs = require('fs');
+const p = 'D:/Git/dugate/du-rework/coordination/reports/qwen-platform.md';
+const s = fs.readFileSync(p, 'utf8');
+const NL = String.fromCharCode(10);
+const L = s.split(NL);
+console.log('lines=' + L.length + ' bytes=' + Buffer.byteLength(s));
+console.log('CRLF=' + (s.split(String.fromCharCode(13) + NL).length - 1));
+console.log('has_Muc16=' + (s.indexOf('## 16') >= 0));
+console.log('has_D36=' + (s.indexOf('Δ36') >= 0));
+console.log('has_ENC_schema=' + (s.indexOf('W-ENC-01-SCHEMA') >= 0));
+const strict = L.filter(l => /^- \d+ \u2014/.test(l));
+console.log('LEDGER_ASC=' + strict.every((l, i) => l.startsWith('- ' + (i + 1) + ' ')));

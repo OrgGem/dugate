@@ -1,0 +1,58 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "ingest-wire"
+
+FAIL tests/ingest-wire.test.ts
+  INGEST-WIRE-01: OCR transmits the scan, not a claim about it
+    × hands the Connector a reference whose bytes are the scan we wrote (5 ms)
+    √ the referenced bytes carry the scan digest and PNG identity (1 ms)
+    √ fails visibly instead of invoking a provider with no document (1 ms)
+  INGEST-WIRE-01: digitize transmits the form image
+    √ hands the vision slot the form artifact, not just a task name (1 ms)
+    √ fails visibly when digitize has no form to read
+  INGEST-WIRE-01: foreign references and the native boundary
+    × never hands the Connector a reference the task did not read (1 ms)
+    √ keeps native parse local: no Connector call at all (404 ms)
+    √ keeps native split local: the Connector is never involved (145 ms)
+
+  ● INGEST-WIRE-01: OCR transmits the scan, not a claim about it › hands the Connector a reference whose bytes are the scan we wrote
+
+    expect(received).toBeUndefined()
+
+    Received: true
+
+    [0m [90m 54 |[39m     [36mconst[39m payload [33m=[39m call[33m?[39m[33m.[39mpayload [36mas[39m [33mRecord[39m[33m<[39m[33mstring[39m[33m,[39m unknown[33m>[39m[33m;[39m
+     [90m 55 |[39m     [90m// The forbidden evidence: a boolean is not a document.[39m
+    [31m[1m>[22m[39m[90m 56 |[39m     expect(payload[33m.[39mhasBuffer)[33m.[39mtoBeUndefined()[33m;[39m
+     [90m    |[39m                               [31m[1m^[22m[39m
+     [90m 57 |[39m     expect(payload[33m.[39martifacts)[33m.[39mtoEqual([{ artifactId[33m:[39m ref[33m.[39martifactId }])[33m;[39m
+     [90m 58 |[39m   })[33m;[39m
+     [90m 59 |[39m[0m
+
+      at Object.<anonymous> (tests/ingest-wire.test.ts:56:31)
+
+  ● INGEST-WIRE-01: foreign references and the native boundary › never hands the Connector a reference the task did not read
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: ["a650a110-247d-4863-9e04-bbdac03d3b3a"]
+    Received: undefined
+
+    [0m [90m 142 |[39m     [36mconst[39m call [33m=[39m ctx[33m.[39mconnectorInvocations[33m.[39mfind((inv) [33m=>[39m inv[33m.[39mslot [33m===[39m [32m'ocr'[39m)[33m;[39m
+     [90m 143 |[39m     [36mconst[39m payload [33m=[39m call[33m?[39m[33m.[39mpayload [36mas[39m { artifacts[33m?[39m[33m:[39m { artifactId[33m:[39m string }[] }[33m;[39m
+    [31m[1m>[22m[39m[90m 144 |[39m     expect(payload[33m.[39martifacts[33m?[39m[33m.[39mmap((a) [33m=>[39m a[33m.[39martifactId))[33m.[39mtoEqual([mineRef[33m.[39martifactId])[33m;[39m
+     [90m     |[39m                                                         [31m[1m^[22m[39m
+     [90m 145 |[39m     expect(payload[33m.[39martifacts[33m?[39m[33m.[39msome((a) [33m=>[39m a[33m.[39martifactId [33m===[39m foreignRef[33m.[39martifactId))[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+     [90m 146 |[39m   })[33m;[39m
+     [90m 147 |[39m[0m
+
+      at Object.<anonymous> (tests/ingest-wire.test.ts:144:57)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 6 passed, 8 total
+Snapshots:   0 total
+Time:        2.707 s, estimated 3 s
+Ran all test suites matching /ingest-wire/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "ingest-wire"`
+Exit status 1

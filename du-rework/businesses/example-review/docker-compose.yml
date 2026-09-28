@@ -1,0 +1,74 @@
+# Extension Proof Deployment Overlay (P7-03 / EXT-01)
+# Standalone container deployment pinning frozen platform digests and network ACLs.
+name: du-extension-proof
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:d8b2d131f41e57c8d9e7ec7884d50c1f52d9b62f55c2cb1a2d69f063b48227be
+    container_name: du-proof-postgres
+    environment:
+      POSTGRES_USER: du
+      POSTGRES_PASSWORD: du-test-only
+      POSTGRES_DB: du_orchestrator
+    networks:
+      - du-platform-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U du -d du_orchestrator"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine@sha256:c2210816a3a41e97664ff025b6a7157cc7a6ec0b37e8c3b400f074d2091461ff
+    container_name: du-proof-redis
+    networks:
+      - du-platform-net
+      - du-worker-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  orchestrator:
+    image: du-orchestrator:latest@sha256:4b912ec91d293f9c6d370e28d9c2876527ba3e84a270dbb88e0c46b96e625a66
+    container_name: du-proof-orchestrator
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://du:du-test-only@postgres:5432/du_orchestrator
+      REDIS_URL: redis://redis:6379
+      RUNTIME_TOKEN: ${RUNTIME_TOKEN:-rt-token-example-review}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-adm-token-example-review}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - du-platform-net
+      - du-worker-net
+    ports:
+      - "3000:3000"
+
+  example-review-worker:
+    build:
+      context: ../..
+      dockerfile: businesses/example-review/Dockerfile
+    image: du-example-review:1.0.0@sha256:d470b00cbfe2008556f343fcb79829567ed5e2ff702fc58e18f3e5640de48540
+    container_name: du-proof-example-review-worker
+    environment:
+      RUNTIME_URL: http://orchestrator:3000/api/runtime/v1
+      RUNTIME_TOKEN: ${RUNTIME_TOKEN:-rt-token-example-review}
+      REDIS_URL: redis://redis:6379
+      CONCURRENCY: 2
+      WORKER_ID: worker-example-review-01
+    depends_on:
+      - orchestrator
+      - redis
+    networks:
+      - du-worker-net
+
+networks:
+  du-platform-net:
+    internal: true
+  du-worker-net:

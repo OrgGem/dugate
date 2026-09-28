@@ -3523,7 +3523,6 @@ interface AdminSortablePageInput<T> {
   limit: number;
   sort: AdminResourceListSort;
   sortColumns: Partial<Record<'createdAt' | 'updatedAt', string>>;
-
   timestampRowKey: 'created_at_cursor' | 'updated_at_cursor';
   timestampFallbackRowKey: 'created_at' | 'updated_at';
   tieColumn: string;
@@ -3542,23 +3541,14 @@ async function sortableAdminKeysetPage<T extends Record<string, unknown>>(
 ): Promise<AdminPageResult<T>> {
   const [sortField, sortDirection] = input.sort.split(':') as ['createdAt' | 'updatedAt', 'asc' | 'desc'];
 /**
-
  * Only the sort field the caller actually mapped may be requested. The audit
-
  * ledger has no updated_at, so a table that maps created_at alone turns any
-
  * other field into a 422 rather than an ORDER BY over a missing column.
-
  */
-
   const sortKey = input.sortColumns[sortField];
-
   if (!sortKey) {
-
     throw new HttpError(422, 'INVALID_SCHEMA', `sort is not available on this list: ${sortField}`);
-
   }
-
   const descending = sortDirection === 'desc';
   const backwards = input.cursor?.direction === 'prev';
   const scanDescending = backwards ? !descending : descending;

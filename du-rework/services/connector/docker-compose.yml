@@ -1,0 +1,78 @@
+# Connector — per-service compose (doc lap)
+name: du-connector
+
+services:
+  connector:
+    build:
+      context: ../..
+      dockerfile: services/connector/Dockerfile
+    image: du-connector:latest
+    environment:
+      PORT: ${CONNECTOR_PORT:-8080}
+      HOST: "0.0.0.0"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://du:du_production_change_me@postgres:5432/du_orchestrator}
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      REDIS_KEY_PREFIX: ${CONNECTOR_REDIS_PREFIX:-du:connector:}
+      DRAIN_TIMEOUT_MS: ${CONNECTOR_DRAIN_TIMEOUT_MS:-30000}
+      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:-}
+      INVOCATION_GRANT_SECRET: ${INVOCATION_GRANT_SECRET:-}
+      CONNECTOR_ENCRYPTION_KEY: ${CONNECTOR_ENCRYPTION_KEY:-}
+    ports:
+      - "${CONNECTOR_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks:
+      - du-platform-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    stop_grace_period: 40s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-du}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-du_production_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-du_orchestrator}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - du-platform-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-du} -d ${POSTGRES_DB:-du_orchestrator}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - valkeydata:/data
+    networks:
+      - du-platform-net
+      - du-worker-net
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+networks:
+  du-platform-net:
+    name: du-platform-net
+  du-worker-net:
+    name: du-worker-net
+
+volumes:
+  pgdata:
+  valkeydata:

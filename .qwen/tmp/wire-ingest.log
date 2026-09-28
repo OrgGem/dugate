@@ -1,0 +1,64 @@
+
+> @du/document-core@1.0.0 test D:\Git\dugate\du-rework\businesses\document-core
+> jest --runInBand "--" "ingest"
+
+FAIL tests/ingest.test.ts
+  ● Action: Ingest (DOC-01) — 4 Variants › DOC-01-v2: dispatches to OCR connector slot with language hint
+
+    BusinessExecutionError: OCR requires a source artifact reference; nothing was transmitted to the Connector
+
+    [0m [90m 192 |[39m       [36mconst[39m sourceArtifactId [33m=[39m sources[33m.[39martifactIds[[35m0[39m][33m;[39m
+     [90m 193 |[39m       [36mif[39m ([33m![39msourceArtifactId) {
+    [31m[1m>[22m[39m[90m 194 |[39m         [36mthrow[39m [36mnew[39m [33mBusinessExecutionError[39m(
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 195 |[39m           [32m'OCR requires a source artifact reference; nothing was transmitted to the Connector'[39m[33m,[39m
+     [90m 196 |[39m           [32m'INGESTION_SOURCE_UNRESOLVED'[39m[33m,[39m
+     [90m 197 |[39m           [36mfalse[39m[0m
+
+      at Function.executeRecipe (src/actions/ingest/index.ts:194:15)
+      at Object.<anonymous> (tests/ingest.test.ts:50:20)
+
+  ● Action: Ingest (DOC-01) — 4 Variants › DOC-01-v3: dispatches handwritten digitize to vision connector slot
+
+    BusinessExecutionError: Digitize requires a source artifact reference; nothing was transmitted to the Connector
+
+    [0m [90m 234 |[39m       [36mconst[39m sourceArtifactId [33m=[39m sources[33m.[39martifactIds[[35m0[39m][33m;[39m
+     [90m 235 |[39m       [36mif[39m ([33m![39msourceArtifactId) {
+    [31m[1m>[22m[39m[90m 236 |[39m         [36mthrow[39m [36mnew[39m [33mBusinessExecutionError[39m(
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 237 |[39m           [32m'Digitize requires a source artifact reference; nothing was transmitted to the Connector'[39m[33m,[39m
+     [90m 238 |[39m           [32m'INGESTION_SOURCE_UNRESOLVED'[39m[33m,[39m
+     [90m 239 |[39m           [36mfalse[39m[0m
+
+      at Function.executeRecipe (src/actions/ingest/index.ts:236:15)
+      at Object.<anonymous> (tests/ingest.test.ts:78:20)
+
+FAIL tests/ingest-source-pin.test.ts
+  ● Test suite failed to run
+
+    [96mtests/ingest-source-pin.test.ts[0m:[93m142[0m:[93m59[0m - [91merror[0m[90m TS2345: [0mArgument of type '{ buffers: never[]; fileNames: never[]; artifactInputs: never[]; inlineText: undefined; }' is not assignable to parameter of type '{ buffers: Buffer<ArrayBufferLike>[]; fileNames: string[]; artifactInputs: ArtifactReadResult[]; artifactIds: string[]; inlineText?: string | undefined; }'.
+      Property 'artifactIds' is missing in type '{ buffers: never[]; fileNames: never[]; artifactInputs: never[]; inlineText: undefined; }' but required in type '{ buffers: Buffer<ArrayBufferLike>[]; fileNames: string[]; artifactInputs: ArtifactReadResult[]; artifactIds: string[]; inlineText?: string | undefined; }'.
+
+    [7m142[0m     return IngestAction.executeRecipe(ctx, recipe, input, {
+    [7m   [0m [91m                                                          ~[0m
+    [7m143[0m       buffers: [],
+    [7m   [0m [91m~~~~~~~~~~~~~~~~~~[0m
+    [7m...[0m 
+    [7m146[0m       inlineText: undefined,
+    [7m   [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    [7m147[0m     });
+    [7m   [0m [91m~~~~~[0m
+
+      [96msrc/actions/ingest/index.ts[0m:[93m85[0m:[93m94[0m
+        [7m85[0m     sources: { buffers: Buffer[]; fileNames: string[]; artifactInputs: ArtifactReadResult[]; artifactIds: string[]; inlineText?: string }
+        [7m  [0m [96m                                                                                             ~~~~~~~~~~~[0m
+        'artifactIds' is declared here.
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 6 passed, 8 total
+Snapshots:   0 total
+Time:        3.681 s
+Ran all test suites matching /ingest/i.
+D:\Git\dugate\du-rework\businesses\document-core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/document-core@1.0.0 test: `jest --runInBand "--" "ingest"`
+Exit status 1

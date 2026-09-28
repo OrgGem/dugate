@@ -1,0 +1,22 @@
+{
+  "name": "@du/browser-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright + axe-core browser harness for the Admin shell (W47-O / P6-07).",
+  "scripts": {
+    "smoke": "playwright test --reporter=list,html",
+    "browser:smoke": "playwright test --reporter=list,html",
+    "lint": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@playwright/test": "1.63.0",
+    "@axe-core/playwright": "4.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

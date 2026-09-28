@@ -1,0 +1,58 @@
+# du-rework — Full-stack production compose (phuong an C: tong hop)
+# Chay toan bo he thong 1 lenh:  docker compose up -d --build
+# Chay rieng tung service:       docker compose -f services/orchestrator/docker-compose.yml up -d
+#                               docker compose -f services/connector/docker-compose.yml up -d
+#                               docker compose -f businesses/document-core/docker-compose.yml up -d
+#
+# Yeu cau: Docker Compose v2.17+ (ho tro `include`)
+# Bien moi truong: xem .env.example — copy thanh .env truoc khi chay
+name: du-rework
+
+include:
+  - services/orchestrator/docker-compose.yml
+  - services/connector/docker-compose.yml
+  - businesses/document-core/docker-compose.yml
+
+services:
+  # Infra: Postgres + Valkey (BSD fork cua Redis, wire-compatible voi BullMQ)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-du}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-du_production_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-du_orchestrator}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - du-platform-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-du} -d ${POSTGRES_DB:-du_orchestrator}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - valkeydata:/data
+    networks:
+      - du-platform-net
+      - du-worker-net
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+networks:
+  du-platform-net:
+    name: du-platform-net
+  du-worker-net:
+    name: du-worker-net
+
+volumes:
+  pgdata:
+  valkeydata:

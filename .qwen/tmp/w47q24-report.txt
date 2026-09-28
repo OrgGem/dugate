@@ -1,0 +1,47 @@
+W47-Q2-4 reconcile report - 2026-09-24 20:34:16 +0700
+DISK test files total: 127
+LEDGER distinct path tokens (docs/28+docs/35): 223
+BOTH: 114 | DISK-ONLY: 13 | LEDGER-ONLY: 10
+
+=== A. DISK-ONLY (on disk, missing from ledger) ===
+  businesses/document-core/tests/suite-bootstrap-contract.test.ts
+  packages/connector-client/tests/sdk-invoker.test.ts
+  packages/worker-sdk/tests/connector-input-contract.test.ts
+  services/connector/tests/invocation-access.test.ts
+  services/orchestrator/tests/admin-error-boundary.test.ts
+  services/orchestrator/tests/admin-shell-live-pane.test.ts
+  services/orchestrator/tests/artifact-grant-fencing.test.ts
+  services/orchestrator/tests/operation-tenant-fence.test.ts
+  services/orchestrator/tests/workspace-reference.test.ts
+  tests/browser/tests/api-keys-pane-count.spec.ts
+  tests/browser/tests/journeys.spec.ts
+  tests/browser/tests/sections-verify.spec.ts
+  tests/login/tests/log-redaction.test.ts
+
+=== B. LEDGER-ONLY (with Test-Path) ===
+  services/orchestrator/tests/usage-projection.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/blob-wire-binary.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/bullmq-task-queue.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/connector-e2e.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/connector-real-service.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/continuation-resume.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/cross-service-boundary.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/full-system-e2e.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/p7-03-extension-deployment.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+  tests/integration/p7-04-generic-admin-profile.integration.test.ts  Test-Path=False  cited:35-acceptance-baseline.md
+
+=== C. BOTH (match) grouped by top-2 segments ===
+  businesses/document-core                           34
+  businesses/example-review                          14
+  packages/connector-client                          3
+  packages/contracts                                 6
+  packages/document-kit                              6
+  packages/observability                             1
+  packages/worker-sdk                                6
+  services/connector                                 11
+  services/orchestrator                              20
+  tests/browser                                      2
+  tests/integration                                  7
+  tests/isolation                                    1
+  tests/stubs                                        1
+  tests/unit                                         2
