@@ -178,6 +178,120 @@ describe('W47-Q2-5 createWorkspaceReferenceCheck (offline, injected fetch)', () 
     expect(log[0]!.headers.authorization).toBeUndefined();
   });
 
+  it('keeps traversal-looking workspace paths in one encoded query parameter and fails safe on 422', async () => {
+    const traversalPath = `${root}/../../outside?tenantId=${TENANT_B}&workspacePath=/override`;
+    const uncertain: string[] = [];
+    const hook = check({
+      tenantIds: [TENANT_A],
+      fetchImpl: fakeFetch(() => jsonResponse(422, { error: 'INVALID_SCHEMA' }), log),
+      onUncertain: (_dir, reason) => uncertain.push(reason),
+    });
+
+    await expect(hook(traversalPath)).resolves.toBe(true);
+
+    const requestUrl = new URL(log[0]!.url);
+    expect(requestUrl.pathname).toBe('/api/runtime/v1/workspace-reference');
+    expect(requestUrl.searchParams.getAll('workspacePath')).toEqual([traversalPath]);
+    expect(requestUrl.searchParams.getAll('tenantId')).toEqual([TENANT_A]);
+    expect(uncertain).toEqual(['HTTP 422']);
+  });
+
+  it.each([
+    { label: 'empty', workspacePath: '' },
+    { label: 'overlong', workspacePath: 'x'.repeat(1025) },
+  ])('treats a malformed $label workspace path as uncertain', async ({ workspacePath }) => {
+    const uncertain: string[] = [];
+    const hook = check({
+      tenantIds: [TENANT_A],
+      fetchImpl: fakeFetch(() => jsonResponse(422, { error: 'INVALID_SCHEMA' }), log),
+      onUncertain: (_dir, reason) => uncertain.push(reason),
+    });
+
+    await expect(hook(workspacePath)).resolves.toBe(true);
+    expect(new URL(log[0]!.url).searchParams.getAll('workspacePath')).toEqual([workspacePath]);
+    expect(uncertain).toEqual(['HTTP 422']);
+  });
+
+  it.each(['not-a-uuid', `${TENANT_A}&tenantId=${TENANT_B}`, ''])(
+    'treats malformed tenant reference ID %j as uncertain',
+    async (tenantId) => {
+      const uncertain: string[] = [];
+      const hook = check({
+        tenantIds: [tenantId],
+        fetchImpl: fakeFetch(() => jsonResponse(422, { error: 'INVALID_SCHEMA' }), log),
+        onUncertain: (_dir, reason) => uncertain.push(reason),
+      });
+
+      await expect(hook('/tmp/workspace')).resolves.toBe(true);
+      expect(new URL(log[0]!.url).searchParams.getAll('tenantId')).toEqual([tenantId]);
+      expect(uncertain).toEqual(['HTTP 422']);
+    }
+  );
+
+  it('keeps a stale workspace when its reference lease expires during the query', async () => {
+    const stale = await plantStale(root, 'lease-expires-in-flight');
+    const uncertain: string[] = [];
+    let requestSignal: AbortSignal | undefined;
+    const hook = check({
+      tenantIds: [TENANT_A],
+      timeoutMs: 15,
+      fetchImpl: ((_url: string | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        requestSignal = init?.signal ?? undefined;
+        const onAbort = (): void => reject(new Error('reference lease expired while wiring'));
+        if (requestSignal?.aborted) onAbort();
+        else requestSignal?.addEventListener('abort', onAbort, { once: true });
+      })) as typeof fetch,
+      onUncertain: (_dir, reason) => uncertain.push(reason),
+    });
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0, hasActiveReference: hook });
+
+    expect(requestSignal?.aborted).toBe(true);
+    expect(uncertain[0]).toContain('reference lease expired while wiring');
+    expect(result.removed).not.toContain(stale);
+    expect(result.kept).toContain(stale);
+    expect(existsSync(stale)).toBe(true);
+  });
+
+  it('treats a missing workspace root as an empty sweep without querying references', async () => {
+    const missingRoot = join(root, 'root-that-does-not-exist');
+    let referenceChecks = 0;
+
+    const result = await sweepStaleWorkspaces({
+      rootDir: missingRoot,
+      olderThanMs: 0,
+      hasActiveReference: async () => {
+        referenceChecks += 1;
+        return false;
+      },
+    });
+
+    expect(result).toEqual({ removed: [], kept: [] });
+    expect(referenceChecks).toBe(0);
+    expect(existsSync(missingRoot)).toBe(false);
+  });
+
+  it('keeps a stale workspace when reference metadata JSON is corrupt', async () => {
+    const stale = await plantStale(root, 'corrupt-reference-metadata');
+    const uncertain: string[] = [];
+    const hook = check({
+      tenantIds: [TENANT_A],
+      fetchImpl: fakeFetch(() => ({
+        ok: true,
+        status: 200,
+        json: async () => { throw new SyntaxError('corrupt reference metadata JSON'); },
+      } as unknown as Response), log),
+      onUncertain: (_dir, reason) => uncertain.push(reason),
+    });
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0, hasActiveReference: hook });
+
+    expect(uncertain[0]).toContain('corrupt reference metadata JSON');
+    expect(result.removed).not.toContain(stale);
+    expect(result.kept).toContain(stale);
+    expect(existsSync(stale)).toBe(true);
+  });
+
   it('sweep integration: hook-protected dir UNTOUCHED while genuine orphan reaped in same pass', async () => {
     const protectedDir = await plantStale(root, 'guarded');
     const orphan = await plantStale(root, 'garbage');

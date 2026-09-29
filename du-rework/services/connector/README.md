@@ -23,12 +23,19 @@ The three secrets must be base64-encoded 32-byte values. Optional settings are
 PostgreSQL/Redis clients. Provider private-network access is denied by default;
 allowing it is intended only for controlled development/test environments.
 
-Build and run the standalone image with the repository workspace tooling:
+From `du-rework/`, install/build workspace dependencies, then run the
+standalone entrypoint with the environment above:
 
-```text
-pnpm --filter @du/connector build
+```sh
+pnpm install --frozen-lockfile
+pnpm build
 node services/connector/dist/entrypoint.js
 ```
+
+For a local container fixture, use
+`docker compose -f infra/docker-compose.yml --profile connector up -d --build connector`.
+This targets only the isolated test database, not a production topology; see
+the [root README](../../README.md) for the full-stack Compose blocker.
 
 Connector revisions and encrypted credential versions are managed through the
 durable repository. Provider credentials are write-only through rotation and
@@ -50,8 +57,8 @@ drain behavior.
 ## Evidence
 
 Local Connector tests cover adapters, grant and identity failures, lifecycle,
-durable repository boundaries, quota, and replay behavior. The opt-in suites
-use Claude's read-only Compose dependencies:
+durable repository boundaries, quota, and replay behavior. Start the isolated
+PostgreSQL/Redis test infra and claim the DB window before opt-in live suites:
 
 ```text
 CONNECTOR_INTEGRATION=1 pnpm --filter @du/connector test -- --runInBand

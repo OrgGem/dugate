@@ -6,19 +6,23 @@ checkpoints, completion/result retrieval, and Connector usage ingestion.
 
 ## Development
 
-The integration suite requires the isolated PostgreSQL and Redis services:
+From `du-rework/`, install/build the pnpm workspace first. The integration
+suite requires isolated PostgreSQL and Redis plus an approved test-DB window:
 
 ```sh
-cd du-rework
-docker compose -f infra/docker-compose.yml up -d
-cd services/orchestrator
-pnpm run build
-pnpm test
+pnpm install --frozen-lockfile
+pnpm build
+pnpm --filter @du/orchestrator test:unit
+docker compose -f infra/docker-compose.yml up -d postgres redis
+pnpm --filter @du/orchestrator test
 ```
 
 Defaults used by the suite are PostgreSQL
 `postgresql://du:du-test-only@localhost:5433/du_orchestrator_test` and Redis
-`redis://localhost:6380`. Override them with `DATABASE_URL` and `REDIS_URL`.
+`redis://localhost:6380`. Override them with `DATABASE_URL` and `REDIS_URL`,
+but never use the legacy DUGate or production DB. For standalone startup,
+migration order, Docker limitations, and Public API examples, see the
+[root README](../../README.md).
 
 ## Server configuration
 
@@ -55,12 +59,12 @@ settings:
   by the signed policy even though S3 admits 5 GiB: the producer buffers exactly
   one part while hashing it, and the worker SDK refuses a larger geometry, so a
   higher ceiling would mint sessions no peer can fill.
-- Client source uploads use the public branch (`POST /api/v1/uploads` plus
-  `/{id}/part|complete|abort`, `x-api-key` + tenant fencing): the verified
-  `complete` IS the STAGING -> READY edge for those rows, and the submit guard
-  still rejects STAGING, expired, foreign and over-budget embedded bytes. An
-  expired session on either branch is swept to ABORTED on the recovery-timer
-  cadence, single-flight per tick.
+- Client source uploads use the public branch (`POST /api/v1/uploads`, then
+  `PUT /api/v1/uploads/{id}/content`, with `x-api-key` + tenant fencing) when
+  the encrypted public upload gateway is configured. The response includes
+  the upload URL; a direct public `/{id}/part` call is rejected. A PostgreSQL-
+  only deployment without the gateway cannot serve this path. See the
+  [current Public API guidance](../../README.md#tích-hợp-qua-public-api).
 DATA-05 migration code is exported from the Orchestrator package. Run it only
 after migrations `0003` and `0013` have been applied and the S3 versioned bucket
 is ready. Its completion report counts legacy references, missing blobs,
@@ -88,8 +92,8 @@ No events produces `measurement: 'pending'`; all-measured events produce
 
 ## Current limits
 
-This remains a vertical slice: fan-out/join, human wait, cancellation and
-deadline sweepers, artifact endpoints, invocation grants, admin enablement,
-and emitted list cursors are still deferred. Usage projection currently
-contains only the fields in `UsageSchema`; page counts remain stored in each
-event but are not present in the public result DTO.
+The repository is not release-ready. Do not infer deployment or encryption
+acceptance from an individual route or offline suite. See the current
+[task board and release gates](../../tasks/README.md) and the
+[API compatibility plan](../../tasks/API-COMPAT-DUGATE-2026-09-28.md);
+legacy `/api/v1/docs/{action}` facade routes are not yet implemented.

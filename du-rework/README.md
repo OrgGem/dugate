@@ -27,9 +27,20 @@ pnpm lint
 
 `pnpm build` build các package/service/business trong workspace; `pnpm lint` hiện chạy các script lint của từng package (chủ yếu là TypeScript typecheck). Cấu hình mẫu ở [`.env.example`](.env.example); copy thành `.env` rồi thay toàn bộ token, mật khẩu và khóa mẫu trước khi chạy. Không commit `.env` hoặc dùng secret mẫu ngoài môi trường test. `RUNTIME_TOKEN` dành cho worker/runtime, `ADMIN_TOKEN` dành cho admin; **external client chỉ dùng `x-api-key`** đã được cấp.
 
+Hướng dẫn riêng: [Orchestrator](services/orchestrator/README.md), [Connector](services/connector/README.md), [document-core](businesses/document-core/README.md), [integration tests](tests/README.md) và [test infra](infra/README.md).
+
 ### Chạy phụ thuộc local và service
 
-Compose test infra bên dưới cung cấp PostgreSQL trên `127.0.0.1:5433` và Redis trên `127.0.0.1:6380`, tách khỏi DUGate cũ. Trước khi start Orchestrator từ source, đặt `DATABASE_URL=postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test`, `REDIS_URL=redis://127.0.0.1:6380`, `RUNTIME_TOKEN`, `ADMIN_TOKEN`, rồi chạy migration trên **database rework riêng** và start process:
+Compose test infra bên dưới cung cấp PostgreSQL trên `127.0.0.1:5433` và Redis trên `127.0.0.1:6380`, tách khỏi DUGate cũ. File `.env` được Compose đọc, nhưng process chạy trực tiếp từ terminal cần biến môi trường của chính terminal. Ví dụ PowerShell (thay token mẫu bằng giá trị riêng, không dùng production secret trên test DB):
+
+```powershell
+$env:DATABASE_URL = 'postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test'
+$env:REDIS_URL = 'redis://127.0.0.1:6380'
+$env:RUNTIME_TOKEN = '<runtime-token-rieng>'
+$env:ADMIN_TOKEN = '<admin-token-rieng>'
+```
+
+Sau đó chạy migration trên **database rework riêng** và start Orchestrator:
 
 ```sh
 docker compose -f infra/docker-compose.yml up -d postgres redis
@@ -39,6 +50,8 @@ pnpm --filter @du/orchestrator start
 ```
 
 Lệnh `migrate` **ghi vào DB**: chỉ chạy khi đã xác nhận đúng URL, có backup/window phù hợp; `AUTO_MIGRATE=false` mặc định khiến startup kiểm tra migration thay vì tự áp dụng. Để xử lý operation end-to-end, còn cần Connector, worker `document-core`, business version/profile và API key đang active được provision; chỉ start Orchestrator không tự tạo các thành phần đó. Xem [deployment guide](docs/12b-deployment-guide.md), [registry](docs/05-business-registry.md) và [runbooks](docs/17-operational-runbooks.md). Cấu hình `ARTIFACT_STORAGE_BACKEND=postgres` chỉ dành cho pilot/test; production yêu cầu private S3, mã hóa tầng ứng dụng/Vault và các gate DATA/ENC/SEC chưa được nghiệm thu.
+
+Để start worker `document-core` từ source trong terminal khác, dùng lại `RUNTIME_TOKEN` và `REDIS_URL` ở trên, đặt `RUNTIME_URL=http://127.0.0.1:3000/api/runtime/v1`, rồi chạy `pnpm --filter @du/document-core start`. Action cần provider còn đòi Connector, profile và service token tương ứng; worker đơn lẻ không chứng minh luồng đó đã sẵn sàng. Connector có entrypoint `services/connector/dist/entrypoint.js` sau build và yêu cầu ba secret base64 mã hóa 32 byte (`SERVICE_IDENTITY_SECRET`, `INVOCATION_GRANT_SECRET`, `CONNECTOR_ENCRYPTION_KEY`); xem [Connector API](docs/08-connector-api.md) trước khi bật.
 
 ## Kiểm thử
 
@@ -50,7 +63,7 @@ pnpm --filter @du/connector test:unit
 pnpm --filter @du/document-core test
 ```
 
-Khi cần kiểm thử DB/Redis, khởi động `infra/docker-compose.yml` như trên và chạy `pnpm test:integration`; script này build dependency rồi chạy package `@du/integration-tests`. Suite multi-container của `document-core` là lệnh riêng `pnpm --filter @du/document-core test:integration:full`. Chỉ chạy test live khi đã claim DB window theo [quy tắc repository](AGENTS.md), trỏ đúng test DB và đọc [test strategy](docs/13-test-strategy.md); không dùng DB của DUGate cũ hoặc production. `pnpm test` là toàn workspace, phù hợp sau khi đã chuẩn bị đầy đủ môi trường. Dừng infra bằng `docker compose -f infra/docker-compose.yml down` (giữ dữ liệu test); không thêm `-v` nếu muốn giữ volume.
+Khi cần kiểm thử DB/Redis, khởi động `infra/docker-compose.yml` như trên và chạy `pnpm test:integration`; script này build dependency rồi chạy package `@du/integration-tests`. Suite multi-container của `document-core` là lệnh riêng `pnpm --filter @du/document-core test:integration:full`. Chỉ chạy test live khi đã claim DB window theo [quy tắc repository](AGENTS.md), trỏ đúng test DB và đọc [test strategy](docs/13-test-strategy.md); không dùng DB của DUGate cũ hoặc production. `pnpm test` là toàn workspace, phù hợp sau khi đã chuẩn bị đầy đủ môi trường. Dừng infra bằng `docker compose -f infra/docker-compose.yml down`; file Compose test không khai báo persistent volume cho PostgreSQL, nên thao tác này xóa dữ liệu test trong container.
 
 ## Docker
 
@@ -79,8 +92,15 @@ $headers = @{ 'x-api-key' = $apiKey; 'idempotency-key' = '<uuid-moi-cho-request>
 $body = @{ input = @{ mode = 'parse'; text = 'Van ban can xu ly'; outputFormat = 'json' } } | ConvertTo-Json -Depth 8
 $submitted = Invoke-RestMethod -Method Post -Uri "$baseUrl/businesses/document-core/actions/ingest" -Headers $headers -ContentType 'application/json' -Body $body
 $operationId = $submitted.operationId
-Invoke-RestMethod -Uri "$baseUrl/operations/$operationId" -Headers @{ 'x-api-key' = $apiKey }
-Invoke-RestMethod -Uri "$baseUrl/operations/$operationId/result" -Headers @{ 'x-api-key' = $apiKey }
+for ($attempt = 0; $attempt -lt 60; $attempt++) {
+  $operation = Invoke-RestMethod -Uri "$baseUrl/operations/$operationId" -Headers @{ 'x-api-key' = $apiKey }
+  if ($operation.state -eq 'SUCCEEDED') { break }
+  if ($operation.state -in @('FAILED', 'CANCELLED', 'TIMED_OUT')) { throw "Operation failed: $($operation.state)" }
+  Start-Sleep -Seconds 2
+}
+if ($operation.state -ne 'SUCCEEDED') { throw "Operation is not ready: $($operation.state)" }
+$result = Invoke-RestMethod -Uri "$baseUrl/operations/$operationId/result" -Headers @{ 'x-api-key' = $apiKey }
+$result
 ```
 
 Submit thường trả `202` với `operationId`, `state`, `stateVersion`, `replayed`, `correlationId`, `links`; replay cùng `idempotency-key` và body trả `200`, key trùng với body khác trả `409`. Poll `GET /operations/{id}` đến `SUCCEEDED` rồi mới gọi `/result` (`409` khi chưa xong; `410` khi hết hạn). Result plaintext có dạng `{schemaVersion,data,artifacts,usage,warnings}`; `data.resultRef` có thể là `artifact://...`, còn `artifacts[].download` là URL tương đối dùng cùng `x-api-key` để tải bytes. Nếu admin bật delivery encryption, `/result` trả envelope `{schemaVersion,encrypted:true,delivery}`; client **không** được chọn giải mã bằng query param. `sourceUrl` chỉ được nhận khi backend S3; backend khác trả `422 UNSUPPORTED_STORAGE_BACKEND`. Không gửi dữ liệu nhạy cảm, key hoặc token vào log.

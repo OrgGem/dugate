@@ -9,10 +9,17 @@ docker compose -f infra/docker-compose.yml up -d
 pnpm test:integration
 ```
 
+Run both commands from `du-rework/`, with an approved test-DB window. Defaults
+are PostgreSQL `127.0.0.1:5433/du_orchestrator_test` and Redis
+`127.0.0.1:6380`; do not point this suite at DUGate's old or production DB.
+The package-local `document-core` multi-container suite is separate:
+`pnpm --filter @du/document-core test:integration:full`.
+
 The suite uses synthetic data and an ephemeral HTTP port. It registers a unique
 test business through the runtime HTTP API, uses the exported test-only version
 enable hook because no admin enable endpoint exists yet, submits and completes a
 real task over HTTP, reads its dispatch from the documented BullMQ queue, and
 verifies usage deduplication/projection before and after an Orchestrator restart.
-It does not claim document-core or full-system E2E coverage: artifact APIs and
-invocation-grant issuance are not implemented in the current runtime slice.
+It does not by itself claim document-core or full-system E2E coverage; artifact,
+invocation-grant, encryption, and deployment readiness have separate gates.
+See the [root README](../README.md) and [test strategy](../docs/13-test-strategy.md).
