@@ -72,7 +72,12 @@ function listen(server: Server): Promise<number> {
     await composition.start();
   };
 
-  const auth = token({ sub: 'black-box-worker', aud: 'connector', scopes: ['connector:invoke', 'connector:manage'] }, identitySecret);
+  const auth = token({
+    sub: 'black-box-worker',
+    aud: 'connector',
+    scopes: ['connector:invoke', 'connector:manage'],
+    exp: Math.floor(Date.now() / 1000) + 3_600,
+  }, identitySecret);
 
   const grantFor = (local: LocalInvocationRequest, revision = 1): string => {
     const nowSeconds = Math.floor(Date.now() / 1000);

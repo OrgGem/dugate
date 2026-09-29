@@ -1,9 +1,17 @@
 {
     "schedulerVersion":  1,
-    "cycleId":  "4f5bcfe6f9ed4576b19f57aa63d7d97a",
-    "startedAt":  "2026-09-28T03:21:31.2841900Z",
-    "completedAt":  "2026-09-28T03:21:31.2841900Z",
+    "cycleId":  "23f2f87291da4dac8e3f4197b2312bca",
+    "startedAt":  "2026-09-29T01:31:31.6505139Z",
+    "completedAt":  "2026-09-29T01:31:31.6505139Z",
     "incompleteChecks":  0,
     "lastNudgeAt":  null,
-    "terminalHandle":  "term_28e988ef-2530-4f1a-80d4-f71ac48ddade"
+    "terminalHandle":  "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
+    "previousCycle":  {
+                          "cycleId":  "4761da7c74934a47af9518f4c20cd1ad",
+                          "startedAt":  "2026-09-28T13:21:31.5072682Z",
+                          "lastNudgeAt":  "2026-09-28T14:51:31.3438027Z",
+                          "incompleteChecks":  4,
+                          "terminalHandle":  "term_28e988ef-2530-4f1a-80d4-f71ac48ddade",
+                          "handoverReason":  "Previous coordinator did not emit the cycle completion marker."
+                      }
 }

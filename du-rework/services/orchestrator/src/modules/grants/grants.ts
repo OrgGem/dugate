@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
+  CONNECTOR_ARTIFACT_MAX_BYTES,
   InvocationGrantRequestSchema,
+  type InvocationArtifactPin,
   type InvocationGrant,
 } from '@du/contracts';
 import { Db } from '../../db/db';
@@ -58,6 +60,18 @@ function stableInvocationId(taskId: string, stepKey: string, bindingSlot: string
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
+function hasDeclaredArtifactReference(value: unknown, artifactId: string): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some(
+    (entry) =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      !Array.isArray(entry) &&
+      'artifactId' in entry &&
+      entry.artifactId === artifactId,
+  );
+}
+
 /**
  * Parse the operation pin ("connectorId@revision" per slot) back to the
  * structured pin. Submission writes the pin via renderPinnedBindings; claims
@@ -102,10 +116,11 @@ export function createGrantService(
     taskId: string,
     t: { operation_id: string; tenant_id: string },
     invocationId: string,
-    req: { stepKey: string; bindingSlot: string; inputHash: string },
+    req: { stepKey: string; bindingSlot: string; inputHash: string; artifactIds: string[] },
     now: number,
     connectorId: string,
-    connectorRevision: number
+    connectorRevision: number,
+    artifactPins: InvocationArtifactPin[],
   ): Record<string, unknown> {
     return {
       audience: 'connector',
@@ -118,7 +133,8 @@ export function createGrantService(
       connectorId,
       connectorRevision,
       bindingSlot: req.bindingSlot,
-      artifactIds: [] as string[],
+      artifactIds: req.artifactIds,
+      artifactPins,
       iat: now,
       exp: now + GRANT_TTL_SECONDS,
     };
@@ -139,7 +155,7 @@ export function createGrantService(
       return db.tx(async (client) => {
         const tRes = await client.query(
           `SELECT t.lease_epoch, t.lease_expires_at, t.state, t.operation_id, o.tenant_id, o.business_id, o.business_version, o.action,
-                  o.connector_bindings
+                  o.connector_bindings, o.submit_artifacts AS "submitArtifacts"
            FROM tasks t JOIN operations o ON o.id = t.operation_id WHERE t.id=$1 FOR UPDATE`,
           [taskId]
         );
@@ -154,6 +170,7 @@ export function createGrantService(
           business_version: string;
           action: string;
           connector_bindings: unknown;
+          submitArtifacts: unknown;
         };
         if (t.lease_epoch !== leaseEpoch) {
           throw conflict('LEASE_LOST', `stale leaseEpoch ${leaseEpoch}, current ${t.lease_epoch}`);
@@ -186,6 +203,73 @@ export function createGrantService(
         const connectorId = pinSlot?.connectorId ?? opts.connectorId;
         const connectorRevision = pinSlot?.revision ?? opts.connectorRevision;
 
+        // Bind every content reference to the tenant, operation and immutable
+        // READY version before minting a connector grant. Cross-operation reads
+        // are limited to public input/output artifacts explicitly submitted on
+        // this operation, matching the worker artifact access policy.
+        const artifactPins: InvocationArtifactPin[] = [];
+        if (req.artifactIds.length > 0) {
+          const artifactsRes = await client.query(
+            `SELECT id AS "artifactId", tenant_id AS "tenantId", operation_id AS "operationId",
+                    purpose, state, storage_backend AS "storageBackend", storage_version_id AS "storageVersionId",
+                    file_name AS "fileName", mime_type AS "mimeType", size_bytes AS "sizeBytes", sha256
+             FROM artifacts WHERE id = ANY($1::uuid[]) ORDER BY id FOR SHARE`,
+            [req.artifactIds]
+          );
+          const rows = artifactsRes.rows as Array<{
+            artifactId: string;
+            tenantId: string;
+            operationId: string | null;
+            purpose: string;
+            state: string;
+            storageBackend: string | null;
+            storageVersionId: string | null;
+            fileName: string | null;
+            mimeType: string | null;
+            sizeBytes: number | string | null;
+            sha256: string | null;
+          }>;
+          const byId = new Map(rows.map((row) => [row.artifactId, row]));
+          let totalBytes = 0;
+          for (const artifactId of req.artifactIds) {
+            const artifact = byId.get(artifactId);
+            if (!artifact || artifact.tenantId !== t.tenant_id || artifact.state !== 'READY') {
+              throw conflict('BINDING_DENIED', 'connector grant references an unauthorized or non-ready artifact');
+            }
+            const sameOperation = artifact.operationId === t.operation_id;
+            const declaredReference =
+              (artifact.purpose === 'input' || artifact.purpose === 'output') &&
+              hasDeclaredArtifactReference(t.submitArtifacts, artifactId);
+            if (!sameOperation && !declaredReference) {
+              throw conflict('BINDING_DENIED', 'connector grant references an artifact outside the task operation');
+            }
+            const sizeBytes = Number(artifact.sizeBytes);
+            const storageVersionId = artifact.storageVersionId ??
+              ((artifact.storageBackend ?? 'postgres') === 'postgres' ? artifact.sha256 ?? undefined : undefined);
+            if (
+              !Number.isSafeInteger(sizeBytes) || sizeBytes < 1 ||
+              !artifact.fileName || !artifact.mimeType || !artifact.sha256 || !storageVersionId
+            ) {
+              throw conflict('BINDING_DENIED', 'connector grant references an artifact without immutable integrity metadata');
+            }
+            if ((artifact.storageBackend ?? 'postgres') === 's3' && storageVersionId === 'null') {
+              throw conflict('BINDING_DENIED', 'connector grant requires an immutable object version');
+            }
+            totalBytes += sizeBytes;
+            if (totalBytes > CONNECTOR_ARTIFACT_MAX_BYTES) {
+              throw conflict('BINDING_DENIED', 'connector grant artifact payload exceeds the size limit');
+            }
+            artifactPins.push({
+              artifactId: artifact.artifactId,
+              fileName: artifact.fileName,
+              mimeType: artifact.mimeType,
+              sizeBytes,
+              sha256: artifact.sha256,
+              storageVersionId,
+            });
+          }
+        }
+
         const invocationId = stableInvocationId(taskId, req.stepKey, req.bindingSlot);
         const now = Math.floor(Date.now() / 1000);
         const expiresAt = new Date((now + GRANT_TTL_SECONDS) * 1000).toISOString();
@@ -206,7 +290,7 @@ export function createGrantService(
           if (new Date(row.expires_at).getTime() > Date.now()) {
             // Unexpired: re-sign the same identity and refresh the row so a
             // transport retry reuses the stable invocationId end to end.
-            const claims = buildClaims(taskId, t, invocationId, req, now, connectorId, connectorRevision);
+            const claims = buildClaims(taskId, t, invocationId, req, now, connectorId, connectorRevision, artifactPins);
             const grantToken = sign(claims);
             await client.query(
               'UPDATE invocation_grants SET grant_token=$1, expires_at=$2 WHERE task_id=$3 AND step_key=$4 AND invocation_id=$5',
@@ -223,7 +307,7 @@ export function createGrantService(
           }
         }
 
-        const claims = buildClaims(taskId, t, invocationId, req, now, connectorId, connectorRevision);
+        const claims = buildClaims(taskId, t, invocationId, req, now, connectorId, connectorRevision, artifactPins);
         const grantToken = sign(claims);
 
         await client.query(

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { MULTIPART_MAX_TOTAL_BYTES, MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts';
 import {
@@ -13,6 +14,7 @@ import { uploadArtifactMultipart } from '../src/artifact-multipart';
 import type { MultipartUploadTransport } from '../src/artifact-multipart';
 import type { SdkFetcher } from '../src/fan-out';
 import { BoundaryListener } from '../../../tests/harness/network-boundaries/mock-listener';
+import { listenLoopback } from '../../../tests/harness/listen-loopback';
 
 /**
  * DATA-04 (packet W-DATA04-STREAM-1): the 1 MiB - 64 MiB upload band that
@@ -62,6 +64,29 @@ async function startListener(): Promise<BoundaryListener> {
 afterAll(async () => {
   await Promise.all(listeners.map((l) => l.stop()));
 });
+
+async function startMidUploadResetServer(): Promise<{
+  url: string;
+  receivedBytes: () => number;
+  stop: () => Promise<void>;
+}> {
+  let received = 0;
+  const server = createServer((req) => {
+    req.on('data', (chunk: Buffer | string) => {
+      received += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.byteLength;
+      if (received >= 64 * KiB) req.socket.destroy();
+    });
+    req.on('error', () => undefined);
+  });
+  const port = await listenLoopback(server, QUIET_PORT_BASE + portOffset++);
+  return {
+    url: `http://127.0.0.1:${port}/direct-upload`,
+    receivedBytes: () => received,
+    stop: () => new Promise<void>((resolve, reject) => {
+      server.close((err) => err ? reject(err) : resolve());
+    }),
+  };
+}
 
 /* ---------------- deterministic pattern (never materialized) -------- */
 
@@ -189,6 +214,14 @@ describe('upload size band policy (T20-D1, zero sockets)', () => {
     expect(DIRECT_ARTIFACT_MAX_BYTES + 1).toBe(MULTIPART_MIN_TOTAL_BYTES);
   });
 
+  it.each([
+    [DIRECT_ARTIFACT_MAX_BYTES - 1, 'direct'],
+    [DIRECT_ARTIFACT_MAX_BYTES, 'direct'],
+    [DIRECT_ARTIFACT_MAX_BYTES + 1, 'multipart'],
+  ] as const)('selects the expected upload band at the 64 MiB edge (%i)', (sizeBytes, band) => {
+    expect(resolveArtifactUploadBand(sizeBytes)).toBe(band);
+  });
+
   it('fails closed on a size past the wire ceiling', () => {
     let caught: ArtifactStreamError | null = null;
     try {
@@ -252,10 +285,10 @@ describe('direct band on the wire (real loopback, quiet band)', () => {
     expect(record?.headers['content-type']).toBe('application/pdf');
   });
 
-  it('never reports a rejected storage as a committed artifact', async () => {
+  it.each([500, 503])('never reports storage HTTP %i as a committed artifact', async (status) => {
     const sizeBytes = INLINE_ARTIFACT_MAX_BYTES + 1;
     const listener = await startListener();
-    listener.setDefault({ kind: 'respond', status: 500, body: 'storage refused the object' });
+    listener.setDefault({ kind: 'respond', status, body: 'storage refused the object' });
 
     await expectStreamError(
       uploadArtifactStream(patternSource(sizeBytes, 64 * KiB), {
@@ -265,7 +298,7 @@ describe('direct band on the wire (real loopback, quiet band)', () => {
         maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
         fetcher: realFetch,
       }),
-      500,
+      status,
       'DOWNLOAD_REJECTED'
     );
     expect(listener.recordedRequests[0]?.bodyBytes).toBe(sizeBytes);
@@ -289,9 +322,60 @@ describe('direct band on the wire (real loopback, quiet band)', () => {
       'TIMEOUT'
     );
   });
+
+  it('maps a real peer socket reset after partial direct-band bytes to transport failure', async () => {
+    const sizeBytes = DIRECT_ARTIFACT_MAX_BYTES;
+    const peer = await startMidUploadResetServer();
+    try {
+      await expectStreamError(
+        uploadArtifactStream(patternSource(sizeBytes, 64 * KiB), {
+          uploadUrl: peer.url,
+          mimeType: 'application/octet-stream',
+          sizeBytes,
+          maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
+          fetcher: realFetch,
+        }),
+        0,
+        'TRANSPORT_FAILURE'
+      );
+      expect(peer.receivedBytes()).toBeGreaterThanOrEqual(64 * KiB);
+      expect(peer.receivedBytes()).toBeLessThan(sizeBytes);
+    } finally {
+      await peer.stop();
+    }
+  });
 });
 
 describe('direct band fail-closed on a lying or tampered source (zero sockets)', () => {
+  it.each([-1, 1.5])('rejects invalid declared size %p before pulling or connecting', async (sizeBytes) => {
+    let sourceRead = false;
+    let fetchCalled = false;
+    const source = new Readable({
+      read() {
+        sourceRead = true;
+        this.push(null);
+      },
+    });
+    const fetcher: SdkFetcher = async () => {
+      fetchCalled = true;
+      return new Response(null, { status: 200 });
+    };
+
+    await expectStreamError(
+      uploadArtifactStream(source, {
+        uploadUrl: 'https://storage.invalid/grant',
+        mimeType: 'application/octet-stream',
+        sizeBytes,
+        maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
+        fetcher,
+      }),
+      422,
+      'SIZE_MISMATCH'
+    );
+    expect(sourceRead).toBe(false);
+    expect(fetchCalled).toBe(false);
+  });
+
   it('never puts the over-declared bytes on the wire', async () => {
     const sizeBytes = INLINE_ARTIFACT_MAX_BYTES + 1;
     const { fetcher, consumed } = drainingFetcher();
@@ -346,6 +430,27 @@ describe('direct band fail-closed on a lying or tampered source (zero sockets)',
       422,
       'HASH_MISMATCH'
     );
+  });
+
+  it('refuses a corrupted digest at the exact 64 MiB direct-band boundary', async () => {
+    const sizeBytes = DIRECT_ARTIFACT_MAX_BYTES;
+    const { fetcher, consumed } = drainingFetcher();
+    const validDigest = patternDigest(0, sizeBytes);
+    const corruptedDigest = (validDigest[0] === '0' ? '1' : '0') + validDigest.slice(1);
+
+    await expectStreamError(
+      uploadArtifactStream(patternSource(sizeBytes, 64 * KiB), {
+        uploadUrl: 'https://storage.invalid/grant',
+        mimeType: 'application/octet-stream',
+        sizeBytes,
+        maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
+        expectedSha256: corruptedDigest,
+        fetcher,
+      }),
+      422,
+      'HASH_MISMATCH'
+    );
+    expect(consumed()).toBeLessThan(sizeBytes);
   });
 });
 

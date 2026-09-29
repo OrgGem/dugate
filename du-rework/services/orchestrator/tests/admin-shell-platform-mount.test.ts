@@ -47,15 +47,71 @@ import {
 
 const TOKEN = 'integration-platform-token';
 const SECRET = 'integration-platform-secret';
-const QUIET_PORT_BASE = 44_600 + (process.pid % 10) * 16;
-let quietPortOffset = 0;
+/**
+ * W-ADM-UX-05-PLATFORM-MOUNT-PORT-ISOLATION: this file has 13 mount sites,
+ * so the port logic lives in ONE wrapper and every call site keeps calling
+ * it unchanged - including the listen() call, which is where the retry
+ * has to live because binding happens after the factory returns.
+ *
+ * Band 43000-43504. Deliberately DISJOINT from the 42000-42504 band the two
+ * audit suites now use, so all three can run concurrently without ever
+ * meeting. Disjointness is hygiene, NOT the guarantee - the bounded retry
+ * below is the guarantee. The band sits far below 49152 because Windows
+ * draws outbound source ports from that range and a listener placed there
+ * fights the host's own requests (cycle 45: connect EADDRINUSE :59673).
+ */
+const PORT_BAND_BASE = 43_000 + (process.pid % 64) * 8;
+const PORT_BAND_SLOTS = 16;
+const claimedPorts = new Set<number>();
+let portCursor = 0;
 
-/** Keep this offline HTTP suite on deterministic loopback ports below the OS ephemeral range. */
+/** Hand out a port no other mount site in this file has taken. */
+function claimPort(): number {
+  for (let i = 0; i < PORT_BAND_SLOTS; i += 1) {
+    const candidate = PORT_BAND_BASE + ((portCursor + i) % PORT_BAND_SLOTS) * 8;
+    if (!claimedPorts.has(candidate)) {
+      claimedPorts.add(candidate);
+      portCursor += 1;
+      return candidate;
+    }
+  }
+  // Band exhausted: fall back to an OS ephemeral port rather than failing.
+  return 0;
+}
+
+/**
+ * Keep this offline HTTP suite on deterministic loopback ports below the OS
+ * ephemeral range, and retry past anything already taken. Only EADDRINUSE
+ * is swallowed; every other error propagates unchanged.
+ */
 function createAdminShellServer(options: CreateAdminShellServerOptions): AdminShellHandle {
-  const port = options.port === undefined || options.port === 0
-    ? QUIET_PORT_BASE + quietPortOffset++
-    : options.port;
-  return createAdminShellServerOnPort({ ...options, port });
+  if (options.port !== undefined && options.port !== 0) {
+    return createAdminShellServerOnPort(options);
+  }
+  let current = createAdminShellServerOnPort({ ...options, port: claimPort() });
+  return {
+    listen: async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await current.listen();
+        } catch (err) {
+          if ((err as { code?: string }).code !== 'EADDRINUSE' || attempt >= PORT_BAND_SLOTS) {
+            throw err;
+          }
+          await current.close().catch(() => undefined);
+          current = createAdminShellServerOnPort({ ...options, port: claimPort() });
+        }
+      }
+    },
+    close: () => current.close(),
+    get url() {
+      return current.url;
+    },
+    get port() {
+      return current.port;
+    },
+    lastRouteId: () => current.lastRouteId(),
+  };
 }
 
 interface Response {
@@ -143,7 +199,9 @@ describe('platform-mount: attachAdminShell from server.ts (P6-01, real HTTP)', (
   });
 
   afterAll(async () => {
-    await shell.handle.close();
+    // Guarded: if beforeAll died part way, an unguarded teardown throws a
+    // SECOND error on top of the real one and hides the mount failure.
+    if (shell) await shell.handle.close();
   });
 
   it('mounts the shell on an ephemeral port owned by the platform call', () => {

@@ -44,6 +44,7 @@ const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 
 import { fetchApiKeys } from './api-key-section-data';
 import { fetchOperationDetail } from './operation-section-data';
 import { fetchOverview } from './overview-section-data';
+import { fetchAuditEvents } from './audit-section-data';
 import { normalizeCorrelationId } from '@du/observability';
 
 // ---------------------------------------------------------------------------
@@ -320,6 +321,7 @@ export function createAdminShellServer(
         apiKeys: (input) => fetchApiKeys({ ...input, jsonBaseUrl: '' }),
         operations: (input) => fetchOperationDetail({ ...input, jsonBaseUrl: '' }),
         overview: (input) => fetchOverview({ ...input, jsonBaseUrl: '' }),
+        audit: (input) => fetchAuditEvents({ ...input, jsonBaseUrl: '' }),
       };
     }
     return {
@@ -335,6 +337,8 @@ export function createAdminShellServer(
         fetchOperationDetail({ ...input, jsonBaseUrl: options.jsonBaseUrl! }),
       overview: (input) =>
         fetchOverview({ ...input, jsonBaseUrl: options.jsonBaseUrl! }),
+      audit: (input) =>
+        fetchAuditEvents({ ...input, jsonBaseUrl: options.jsonBaseUrl! }),
     };
   })();
 

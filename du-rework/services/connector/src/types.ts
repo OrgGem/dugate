@@ -1,3 +1,5 @@
+import type { InvocationArtifactContent, InvocationArtifactPin } from '@du/contracts';
+
 export type AdapterMode = 'json' | 'multipart';
 
 export type InvocationState =
@@ -29,7 +31,9 @@ export type ConnectorErrorCode =
 export interface InvocationInput {
   prompt?: string;
   text?: string;
-  artifacts?: readonly { artifactId: string }[];
+  task?: string;
+  language?: string;
+  artifacts?: readonly InvocationArtifactContent[];
   outputSchema?: unknown;
 }
 
@@ -64,6 +68,8 @@ export interface GrantClaims {
   connectorRevision: string;
   expiresAt: string;
   allowedModel?: string;
+  artifactIds?: readonly string[];
+  artifactPins?: readonly InvocationArtifactPin[];
 }
 
 export interface ProviderUsage {

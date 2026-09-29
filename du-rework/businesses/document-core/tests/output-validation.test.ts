@@ -208,4 +208,73 @@ describe('Strict Provider Output Validation (WORKLOAD-REBALANCE-04, P5-05/P5-06/
       ).not.toThrow();
     });
   });
+
+  describe('Negative and boundary provider payload cases', () => {
+    // These expected-failure assertions capture validation gaps without changing
+    // production behavior in this test-only task; see the receipt for details.
+    test.failing('rejects NaN confidence rather than treating it as an in-range number', () => {
+      expect(() => OutputValidator.validateProviderOutput('analyze', 'classify', {
+        category: 'Finance',
+        confidence: Number.NaN,
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects NaN quality score', () => {
+      expect(() => OutputValidator.validateProviderOutput('analyze', 'quality', { score: Number.NaN }))
+        .toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects a negative invoice total', () => {
+      expect(() => OutputValidator.validateProviderOutput('extract', 'invoice', {
+        invoiceNumber: 'INV-NEGATIVE',
+        supplier: 'Example Supplier',
+        total: -0.01,
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects provider arrays that exceed the supported output item cap', () => {
+      const answers = Array.from({ length: 100_001 }, (_, index) => ({
+        question: `Question ${index}`,
+        answer: 'bounded answer',
+      }));
+      expect(() => OutputValidator.validateProviderOutput('generate', 'qa', { answers }))
+        .toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects control characters in provider text', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'ocr', { text: 'recognized\u0000\u0001text' }))
+        .toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects replacement characters from corrupted UTF-8 provider text', () => {
+      // OutputValidator receives decoded strings; U+FFFD represents invalid byte sequences after decoding.
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'digitize', { text: 'scan\uFFFD\uFFFDtext' }))
+        .toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects unknown provider fields on a known output variant', () => {
+      expect(() => OutputValidator.validateProviderOutput('extract', 'invoice', {
+        invoiceNumber: 'INV-EXTRA',
+        supplier: 'Example Supplier',
+        total: 1,
+        providerDirective: 'unexpected-field',
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects a provider-owned __proto__ field', () => {
+      const output = JSON.parse(
+        '{"text":"recognized text","__proto__":{"polluted":"yes"}}'
+      ) as Record<string, unknown>;
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'ocr', output))
+        .toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test('does not mutate Object.prototype while inspecting a provider __proto__ field', () => {
+      const output = JSON.parse(
+        '{"text":"recognized text","__proto__":{"polluted":"yes"}}'
+      ) as Record<string, unknown>;
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'ocr', output)).not.toThrow();
+      expect(Object.prototype.hasOwnProperty.call(Object.prototype, 'polluted')).toBe(false);
+    });
+  });
 });

@@ -44,18 +44,28 @@ export interface ArtifactStat {
   mimeType?: string;
   sizeBytes?: number;
   sha256?: string;
+  storageVersionId?: string;
+  grantExpiresAt?: string;
 }
 
 /** Integrity/limits options accepted by a streaming read facade. */
 export interface ArtifactReadStreamOptions {
   expectedSha256?: string;
   expectedSizeBytes?: number;
+  expectedVersionId?: string;
+  signal?: AbortSignal;
 }
 
 /** An artifact buffer and its byte-derived format identity. */
 export interface ArtifactReadResult {
   buffer: Buffer;
   formatMetadata: ArtifactFormatMetadata;
+  identity?: {
+    storageVersionId: string;
+    grantExpiresAt: string;
+    sizeBytes: number;
+    sha256: string;
+  };
 }
 
 export interface TaskContext {
@@ -72,13 +82,13 @@ export interface TaskContext {
   artifacts: {
     read(artifactId: string): Promise<Buffer>;
     /** Optional enriched read for facades that retain source filename/MIME metadata. */
-    readWithMetadata?(artifactId: string): Promise<ArtifactReadResult>;
+    readWithMetadata?(artifactId: string, options?: { signal?: AbortSignal }): Promise<ArtifactReadResult>;
     write(content: Buffer | string, fileName: string, mimeType: string): Promise<ArtifactRef>;
     /**
      * Authorized read descriptor WITHOUT bytes (DATA-04 Step B pre-flight).
      * SDK facades expose it; buffer-only facades keep the legacy in-memory path.
      */
-    stat?(artifactId: string): Promise<ArtifactStat>;
+    stat?(artifactId: string, options?: { signal?: AbortSignal }): Promise<ArtifactStat>;
     /**
      * Bounded streaming read; the SDK facade enforces grant digest/size and the
      * worker byte cap DURING transfer (Step B disk-backed acquisition).

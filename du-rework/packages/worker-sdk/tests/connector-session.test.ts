@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
-import type { CheckpointRef, InvocationResponse } from '@du/contracts';
+import { InvocationResponseSchema, type CheckpointRef, type InvocationResponse } from '@du/contracts';
 import {
   DEFAULT_PENDING_RETRY_MS,
   DefaultTaskContext,
@@ -353,6 +353,29 @@ describe('classifyInvocation', () => {
     expect(out.usage).toBeNull();
   });
 
+  it('normalizes a missing sessionRef on a result to null', () => {
+    const response = InvocationResponseSchema.parse({
+      invocationId: 'inv-no-session',
+      state: 'SUCCEEDED',
+      result: { content: 'complete' },
+    });
+    const out = classifyInvocation(response);
+
+    expect(out.kind).toBe('result');
+    if (out.kind !== 'result') return;
+    expect(out.sessionRef).toBeNull();
+  });
+
+  it.each([42, false, {}, []])('rejects a malformed non-string sessionRef (%p)', (sessionRef) => {
+    const parsed = InvocationResponseSchema.safeParse({
+      invocationId: 'inv-malformed-session',
+      state: 'SUCCEEDED',
+      result: { content: 'complete', sessionRef },
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it.each(['NEW', 'IN_FLIGHT', 'PENDING'] as const)('maps %s to pending-yield', (state) => {
     const out = classifyInvocation({ invocationId: 'inv-3', state, nextPollAt: null } as InvocationResponse);
     expect(out.kind).toBe('pending-yield');
@@ -402,6 +425,28 @@ describe('pendingRetryDelayMs', () => {
     expect(pendingRetryDelayMs(null, now)).toBe(DEFAULT_PENDING_RETRY_MS);
     expect(pendingRetryDelayMs('not-a-date', now)).toBe(DEFAULT_PENDING_RETRY_MS);
   });
+
+  it.each(['', '2026-99-99T25:61:61Z', 'Infinity'])('uses DEFAULT for a corrupt nextPollAt timestamp (%s)', (nextPollAt) => {
+    const response = InvocationResponseSchema.parse({
+      invocationId: 'inv-corrupt-poll-time',
+      state: 'PENDING',
+      nextPollAt,
+    });
+    const out = classifyInvocation(response);
+
+    expect(out.kind).toBe('pending-yield');
+    if (out.kind !== 'pending-yield') return;
+    expect(out.retryAfterMs).toBe(DEFAULT_PENDING_RETRY_MS);
+  });
+
+  it.each([0, -1, -MAX_PENDING_RETRY_MS * 10])(
+    'clamps non-positive derived retry delays to MIN (%s ms from now)',
+    (deltaMs) => {
+      const at = new Date(now + deltaMs).toISOString();
+
+      expect(pendingRetryDelayMs(at, now)).toBe(MIN_PENDING_RETRY_MS);
+    },
+  );
 });
 
 describe('assertInvocationResult', () => {
@@ -442,6 +487,18 @@ describe('yield-path classification (pending → RETRY_PENDING, not spin)', () =
       errorCode: 'INVOCATION_UNKNOWN',
       retryable: false,
     });
+  });
+  it.each([2048, 2049])('bounds ReconcileRequiredError detail to 2048 characters (%s input characters)', (messageLength) => {
+    const error = new ReconcileRequiredError('inv-boundary', 'x'.repeat(messageLength));
+    const classification = classifyFailure(error);
+
+    expect(error.name).toBe('ReconcileRequiredError');
+    expect(error.invocationId).toBe('inv-boundary');
+    expect(error.code).toBe('INVOCATION_UNKNOWN');
+    expect(classification.errorCode).toBe('INVOCATION_UNKNOWN');
+    expect(classification.retryable).toBe(false);
+    expect(classification.retryAfterMs).toBeUndefined();
+    expect(classification.detail).toHaveLength(2048);
   });
   it('ConnectorInvocationFailedError keeps the connector retryable flag', () => {
     const c = classifyFailure(new ConnectorInvocationFailedError('inv-1', 'PROVIDER_RATE_LIMITED', true, 'busy', 2500));
@@ -590,6 +647,21 @@ describe('runConnectorStep — session refs', () => {
     const save = h.calls.find((c) => c.method === 'PUT' && c.path.includes('/steps/'))!;
     // JSON serialization drops undefined: the saveStep body must NOT carry sessionRef.
     expect(Object.keys(save.body as Record<string, unknown>)).not.toContain('sessionRef');
+  });
+
+  it('rejects a malformed provider sessionRef before writing a step checkpoint', async () => {
+    const invId = stableInvocationId(TASK_ID, STEP_KEY, SLOT);
+    const malformedResponse = {
+      invocationId: invId,
+      state: 'SUCCEEDED',
+      result: { content: 'provider output', sessionRef: 42 },
+    } as unknown as InvocationResponse;
+    const h = makeHarness({ responses: [malformedResponse] });
+
+    await expect(
+      runConnectorStep(h.ctx, { stepKey: STEP_KEY, slot: SLOT, input: { prompt: 'x' } }),
+    ).rejects.toMatchObject({ name: 'ZodError' });
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(0);
   });
 });
 

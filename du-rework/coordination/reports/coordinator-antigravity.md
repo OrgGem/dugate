@@ -4467,3 +4467,803 @@ Hệ thống đã phát hiện và kết nối thành công 3 terminal mới qua
 - **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 313):**
   * Tiếp tục duy trì đóng băng thay đổi chờ chỉ thị commit của người dùng.
   * Lên danh mục các hạng mục kiểm thử độc lập live/offline tiếp theo cho các gói vừa bàn giao.
+
+### Turn 313 Cycle Conclusion — 2026-09-28T10:52:00+07:00
+
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * Đã đọc log đầy đủ 11 handles qua `orca terminal read --terminal <handle> --limit 30 --json`.
+  * **Tất cả 11 agent duy trì trạng thái settled/idle ổn định:**
+    - `term_31d9ed40` (Codex Technical Lead): Hoàn tất đồng bộ nhịp điều phối 30 phút/lượt trong AGENTS.md, coordinator-state.json và tắt lịch Qwen 10 phút.
+    - `term_2b05b203` (Codex Worker 1): `settled` (`W-COST-03-DRILLDOWN` done, receipt: `tester.md#COST-03-DRILLDOWN`).
+    - `term_949d489b` (Codex Worker 2): `settled` (`W-COST-04-RESERVATION` done, receipt: `tester.md#COST-04-RESERVATION`).
+    - `term_742c2474` (Qwen Admin): `settled` (24 tasks done, audit list filters & conformance ok).
+    - `term_4568d175` (Qwen Platform): `settled` (4 tasks done, grant schema ok).
+    - `term_27eb3380` (Qwen Docs): `settled` (OpenAPI schemas ok).
+    - `term_b2d08e87` (Codex Tester Offline): `settled`.
+    - `term_c4486089` (Codex Tester Live): `settled`.
+    - `term_1b615444` (OpenClaude Backup): standby.
+    - `term_b103836b` (Claude Reviewer): standby.
+    - `term_28e988ef` (Antigravity Coordinator): active.
+- **Tính toàn vẹn mã nguồn & Build:**
+  * Workspace sạch sẽ, không có tệp probe/scratch tạm thời nào phát sinh trong chu kỳ này.
+  * 695 file staged thuần túy trong `du-rework/` sẵn sàng commit.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 314):**
+  * Duy trì trạng thái đóng băng ổn định chờ người dùng quyết định commit code.
+  * Lên danh mục các hạng mục kiểm thử độc lập live/offline tiếp theo cho các gói vừa bàn giao.
+
+### Dispatch Wave — 2026-09-28T11:25:00+07:00
+
+- **Kích hoạt Dispatch mới theo kế hoạch (Zero Idle Policy):**
+  1. **Codex Tester Offline (`term_b2d08e87`):** Giao **`V-OFFLINE-COST-04-RESERVATION`** (`task_3157b7fafcec`, `ctx_24a3d382471b`). Kiểm thử độc lập offline suite budget-reservations và contracts conformance.
+  2. **Qwen Platform (`term_4568d175`):** Giao **`W-CR28-04-SUBMISSION-ENCRYPTION`** (`task_19a47f09e43d`, `ctx_ebd658c65897`). Mã hóa input nhạy cảm trước transaction ghi DB (`submission.ts:237, 262, 379, 385`), bảo toàn idempotency và claim/lease semantics per finding `CR28-04`.
+  3. **Codex Worker 1 (`term_2b05b203`):** Giao **`W-CR28-06-ERROR-TAXONOMY`** (`task_193a071b0d41`, `ctx_25bc190ded5f`). Bảo toàn taxonomy lỗi Connector 409 tại `connector-invoker.ts:63` per finding `CR28-06`.
+  4. **Codex Worker 2 (`term_949d489b`):** Giao **`W-CR28-05-DOCKER-BUILD`** (`task_cf42b52cec76`, `ctx_d795462ab9c9`). Sửa Dockerfile tại `businesses/document-core` và `services/connector` copy đầy đủ root `tsconfig.base.json` và workspace build inputs per finding `CR28-05`.
+  5. **Qwen Docs (`term_27eb3380`):** Giao **`D-DOCS-COST-ADM-SYNC`** (`task_a81acbf3134a`, `ctx_6f465683bd05`). Đồng bộ tài liệu cho các endpoint `GET /api/v1/usage/events` và hợp đồng reservation, đảm bảo `BROKEN=0`.
+  6. **Qwen Admin (`term_742c2474`):** Đã nén context (`/compress` từ 34% xuống 4.4%) và giao **`W-ADM-UX-03-AUDIT-TOOLBAR`** (`task_a848fbd749d6`, `ctx_60b3e9ee8466`). Bổ sung search/filter toolbar chips cho `/admin/audit` per `ADM-UX-03`.
+- **Trạng thái:** Toàn bộ 6 coder/tester đã nhận prompt, bắt đầu chạy phân luồng độc lập, không có xung đột tệp.
+
+### Turn 314 Cycle Conclusion — 2026-09-28T11:31:00+07:00
+
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-COST-04-RESERVATION`** (`task_3157b7fafcec`, `ctx_24a3d382471b`) lúc 11:15 AM (Worked for 2m 14s). Nghiệm thu độc lập 3 suite Orchestrator budget/reservation và usage-contracts conformance pass **33/33 tests**, typecheck exit code 0. Receipt tại `tester.md#T-CODEX-OFFLINE-COST-04-RESERVATION-INDEPENDENT`. Settle `ctx_24a3d382471b`.
+  * **Qwen Admin (`term_742c2474`):** Hỏi fork scope cho `W-ADM-UX-03-AUDIT-TOOLBAR` (`task_a848fbd749d6`, `ctx_60b3e9ee8466`); đã được điều phối viên giải đáp chọn Phương án 1 (tạo 2 file section hoàn chỉnh + test offline, tránh xung đột sửa tệp shared `server.ts`/`shell-router.ts`). Agent đã unblock và đang thực hiện (cursor 24202921).
+  * **Codex Worker 1 (`term_2b05b203`):** Đang tích cực chạy `W-CR28-06-ERROR-TAXONOMY` (`task_193a071b0d41`, `ctx_25bc190ded5f`), 34/34 tests focused suite đã pass, đang chạy full test worker-sdk (cursor 24074).
+  * **Codex Worker 2 (`term_949d489b`):** Đang hoàn tất `W-CR28-05-DOCKER-BUILD` (`task_cf42b52cec76`, `ctx_d795462ab9c9`), đã thêm root `tsconfig.base.json` và `.dockerignore` cho clean-context builds (cursor 17912).
+  * **Qwen Platform (`term_4568d175`):** Đang thực hiện `W-CR28-04-SUBMISSION-ENCRYPTION` (`task_19a47f09e43d`, `ctx_ebd658c65897`), seal metadata submission (cursor 21924334).
+  * **Qwen Docs (`term_27eb3380`):** Đang thực hiện `D-DOCS-COST-ADM-SYNC` (`task_a81acbf3134a`, `ctx_6f465683bd05`), đối chiếu receipt tester COST-03/04 (cursor 15111191).
+- **Trạng thái phân bổ công việc:** 5 coder/docs agents đang xử lý tích cực song song; Codex Tester Offline đã hoàn thành nghiệm thu độc lập và đang chờ đợt kết quả tiếp theo từ các worker.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 315):**
+  * Thu nhận kết quả và receipts từ Worker 1 (`CR28-06`), Worker 2 (`CR28-05`), Platform (`CR28-04`), Docs (`COST-ADM-SYNC`), Admin (`AUDIT-TOOLBAR`).
+  * Giao các gói nghiệm thu độc lập tiếp theo cho Codex Tester Offline.
+
+### Turn 315 Cycle Conclusion — 2026-09-28T12:15:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Worker 1 (`term_2b05b203`):** Đã hoàn tất xuất sắc **`W-CR28-06-ERROR-TAXONOMY`** (`task_193a071b0d41`, `ctx_25bc190ded5f`). Bảo toàn taxonomy lỗi Connector 409 tại `packages/worker-sdk/src/connector-invoker.ts` (allowlist `INPUT_HASH_MISMATCH`, `CANCELLED`, `CONNECTOR_DISABLED`, `INVOCATION_UNKNOWN`). 34/34 focused tests pass, `tsc --noEmit` ExitCode 0. Receipt ghi tại `coordination/reports/tester.md#W-CR28-06-ERROR-TAXONOMY`. Settle `ctx_25bc190ded5f`.
+    * **Giao task mới:** **`W-CR28-02-WORKER-SERVICE-AUTH`** (`task_048d60321fab`, `ctx_0b0193a61d23`) triển khai Bearer service token / HMAC service identity verification cho Worker khi gọi Connector `/invocations` per finding `CR28-02`.
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất xuất sắc **`W-CR28-04-SUBMISSION-ENCRYPTION`** (`task_19a47f09e43d`, `ctx_ebd658c65897`). Mã hóa metadata nhạy cảm `operations.input_ref` và `tasks.payload_ref` trước transaction ghi DB tại `services/orchestrator/src/modules/operations/submission.ts` (:237, :262, :379, :385). 32/32 tests pass trong `runtime-encryption-metadata.test.ts`, tsc clean. Receipt ghi tại `coordination/reports/qwen-platform.md#Muc-26`. Settle `ctx_ebd658c65897`.
+    * **Giao task mới:** **`W-CR28-01-ENCRYPTED-READ-PATH`** (`task_ae6cf869ed78`, `ctx_4def0527a364`) triển khai giải mã có xác thực trên read path artifact tại `services/orchestrator/src/modules/artifacts/artifacts.ts` và `server.ts` per finding `CR28-01`.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất xuất sắc **`D-DOCS-COST-ADM-SYNC`** (`task_a81acbf3134a`, `ctx_6f465683bd05`). Đồng bộ đầy đủ tài liệu cho `GET /api/v1/usage/events` và hợp đồng durable reservation vào `docs/20-openapi-descriptions.md` và `docs/admin-ops-monitoring-cost.md`, link check `BROKEN=0`. Receipt ghi tại `coordination/reports/qwen-docs.md#Muc-42`, gửi `worker_done` (`msg_acafcfee5e31`). Settle `ctx_6f465683bd05`.
+    * **Giao task mới:** **`D-DOCS-OPENAPI-EVENTS-SYNC`** (`task_f2434eeee16a`, `ctx_f0ea55c4bda1`) đồng bộ endpoint `GET /api/v1/usage/events` vào `docs/21-openapi.json` để đóng khoảng cách Δ-A43-1.
+  * **Codex Tester Offline (`term_b2d08e87`):** Settle `V-OFFLINE-COST-04-RESERVATION` (`task_3157b7fafcec`, `ctx_24a3d382471b`, receipt `tester.md#T-CODEX-OFFLINE-COST-04-RESERVATION-INDEPENDENT`).
+    * **Giao task nghiệm thu độc lập mới:** **`V-OFFLINE-CR28-06-TAXONOMY`** (`task_0ca8f59aa81d`, `ctx_47b68684ff14`) kiểm thử độc lập taxonomy lỗi Connector 409 trong `packages/worker-sdk/src/connector-invoker.ts` và tests liên quan, ghi receipt độc lập tại `coordination/reports/tester.md`.
+  * **Codex Worker 2 (`term_949d489b`):** Đang tiếp tục chạy **`W-CR28-05-DOCKER-BUILD`** (`task_cf42b52cec76`, `ctx_d795462ab9c9`). Đã thêm pnpm cache mount, tiến trình docker build connector đạt 319/320 packages (cursor 18134).
+  * **Qwen Admin (`term_742c2474`):** Đang thực hiện **`W-ADM-UX-03-AUDIT-TOOLBAR`** (`task_a848fbd749d6`, `ctx_60b3e9ee8466`). Đã được coordinator nudge khắc phục lỗi cú pháp script python/regex trong `tests/admin-audit-toolbar.test.ts` để tiếp tục test và xuất receipt.
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced chờ live window), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Phân bổ công việc (Zero Idle Policy):**
+  * 100% agent có năng lực triển khai (3 Qwen, 3 Codex) đều đang được giao task và vận hành tích cực.
+  * 4 task mới được tạo và dispatch: `task_0ca8f59aa81d` (`ctx_47b68684ff14`), `task_048d60321fab` (`ctx_0b0193a61d23`), `task_ae6cf869ed78` (`ctx_4def0527a364`), `task_f2434eeee16a` (`ctx_f0ea55c4bda1`).
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 316):**
+  * Thu nhận kết quả và receipts cho `W-CR28-01-ENCRYPTED-READ-PATH`, `W-CR28-02-WORKER-SERVICE-AUTH`, `W-CR28-05-DOCKER-BUILD`, `V-OFFLINE-CR28-06-TAXONOMY`, `D-DOCS-OPENAPI-EVENTS-SYNC`, `W-ADM-UX-03-AUDIT-TOOLBAR`.
+  * Chuẩn bị gói kiểm thử độc lập cho `CR28-04` và `CR28-01` khi Tester hoàn tất chu kỳ hiện tại.
+
+### Turn 315 Execution Addendum — 2026-09-28T12:30:00+07:00
+
+- **Nghiệm thu hoàn tất `W-CR28-05-DOCKER-BUILD` (`task_cf42b52cec76`, `ctx_d795462ab9c9`):**
+  * Codex Worker 2 (`term_949d489b`) hoàn tất lúc 12:18 PM (Worked for 59m 54s). Cả hai Dockerfile (`businesses/document-core/Dockerfile` và `services/connector/Dockerfile`) đã được cấu hình copy root `.npmrc`, `tsconfig.base.json`, build toàn bộ workspace dependencies từ source, và thêm `.dockerignore` loại bỏ hoàn toàn host `node_modules`/`dist`.
+  * Cả hai clean-context Docker build (`du-connector:cr28-05` và `du-document-core:cr28-05`) đều thành công với ExitCode 0; entrypoint check exit 0. Receipt ghi tại `coordination/reports/tester.md#CR28-05-DOCKER-BUILD`.
+  * Trạng thái: `completed` trên Run `run_c896de26ea44`, settle `ctx_d795462ab9c9`.
+- **Giao task mới cho Codex Worker 2 (Zero Idle Policy):**
+  * **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`): Triển khai finding `CR28-03` để OCR/digitize đưa bytes/hash/MIME thật tới provider, resolve reference theo grant/tenant/timeout tại `businesses/document-core/src/actions/ingest/index.ts` và `services/connector/src/adapters/http.ts`. Worker 2 đã nhận prompt và bắt đầu thực hiện.
+- **Tổng kết trạng thái 6 active agents:**
+  1. `codex_tester_offline` (`term_b2d08e87`): Running `V-OFFLINE-CR28-06-TAXONOMY` (`task_0ca8f59aa81d`, `ctx_47b68684ff14`) — 30/30 tests và tsc sạch.
+  2. `codex_worker_1` (`term_2b05b203`): Running `W-CR28-02-WORKER-SERVICE-AUTH` (`task_048d60321fab`, `ctx_0b0193a61d23`) — đang wire HMAC service identity verifier.
+  3. `codex_worker_2` (`term_949d489b`): Running `W-CR28-03-OCR-BYTES` (`task_398f8a7b0021`, `ctx_316d4b511f7a`) — đang nối payload adapter OCR.
+  4. `qwen_platform` (`term_4568d175`): Running `W-CR28-01-ENCRYPTED-READ-PATH` (`task_ae6cf869ed78`, `ctx_4def0527a364`) — đang kết nối manifest/AAD vào read path.
+  5. `qwen_docs` (`term_27eb3380`): Running `D-DOCS-OPENAPI-EVENTS-SYNC` (`task_f2434eeee16a`, `ctx_f0ea55c4bda1`) — đang đồng bộ OpenAPI usage/events.
+  6. `qwen_admin` (`term_742c2474`): Running `W-ADM-UX-03-AUDIT-TOOLBAR` (`task_a848fbd749d6`, `ctx_60b3e9ee8466`) — đang hoàn tất receipt Mục 31.
+
+### Turn 316 Cycle Conclusion — 2026-09-28T13:02:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-CR28-06-TAXONOMY`** (`task_0ca8f59aa81d`, `ctx_47b68684ff14`) lúc 12:29 PM (Worked for 5m 58s). Chạy độc lập 3 lần liên tiếp: mỗi lần 1 suite, 10/10 tests, ExitCode 0; `tsc --noEmit` ExitCode 0. Đã gửi `worker_done` (`msg_d20a4ad35358`), receipt tại `coordination/reports/tester.md#T-CODEX-OFFLINE-CR28-06-TAXONOMY-INDEPENDENT`. Settle `ctx_47b68684ff14`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-CR28-04-SUBMISSION-ENCRYPTION`** (`task_e2c09d94e4e5`, `ctx_a205b493d546`). Kiểm thử độc lập offline cho finding `CR28-04` (metadata encryption) tại `services/orchestrator/src/modules/operations/submission.ts` và `tests/runtime-encryption-metadata.test.ts`. Tester đã nhận prompt và bắt đầu thực hiện.
+  * **Qwen Admin (`term_742c2474`):** Đã hoàn tất xuất sắc **`W-ADM-UX-03-AUDIT-TOOLBAR`** (`task_a848fbd749d6`, `ctx_60b3e9ee8466`). Tạo hoàn chỉnh 2 file module: `audit-section-data.ts`, `audit-section-renderer.ts`, và bộ test `tests/admin-audit-toolbar.test.ts` (14/14 tests pass, tsc clean). Đã ghi receipt Mục 31 tại `coordination/reports/qwen-admin.md` và ghi nhận backlog Δ130. Settle `ctx_60b3e9ee8466`.
+    * **Giao task mới (Zero Idle Policy):** **`W-ADM-UX-05-AUDIT-SHELL-ROUTING`** (`task_695c95942370`, `ctx_c013b10dc81b`). Khắc phục Δ130: Wire route `/admin/audit` và navigation tab trong `shell-router.ts` & `shell-render.ts` để kết nối `audit-section-renderer`, tránh 404. Admin đã nhận prompt và bắt đầu thực hiện.
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất giai đoạn phân tích kiến trúc cho **`W-CR28-01-ENCRYPTED-READ-PATH`** (`task_ae6cf869ed78`, `ctx_4def0527a364`), ghi nhận kế hoạch 5 bước chi tiết và handoff tại `coordination/reports/qwen-platform.md#Muc-27`. Settle `ctx_4def0527a364`.
+    * **Giao task mới (Zero Idle Policy):** **`W-CR28-01-ENCRYPTED-READ-PATH-EXEC`** (`task_a1c71649b5e0`, `ctx_11ff0d3cb890`). Thực thi giai đoạn code: Tạo `modules/encryption/artifact-read-decrypt.ts`, wire vào `/artifacts/:id/download` và worker blob read path `/api/runtime/v1/artifacts/blob/:key` trong `server.ts`, giải mã có xác thực qua `CryptoStorageFacade`, fail-closed khi sai key/manifest/version. Platform đã nhận prompt và bắt đầu code.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất xuất sắc **`D-DOCS-OPENAPI-EVENTS-SYNC`** (`task_f2434eeee16a`, `ctx_f0ea55c4bda1`). Sửa generator `tools/openapi/gen_openapi.py`, sinh lại `docs/21-openapi.json`, bổ sung 6 schemas và endpoint `GET /api/v1/usage/events`, đóng Δ-A43-1 với link check `BROKEN=0`, `DANGLING-REFS=0`. Ghi receipt Mục 43 tại `coordination/reports/qwen-docs.md`, gửi `worker_done` (`msg_44fc83037dd0`). Settle `ctx_f0ea55c4bda1`.
+    * **Giao task mới (Zero Idle Policy):** **`D-DOCS-CR28-INVENTORY-SYNC`** (`task_8114385da7a7`, `ctx_ddab6192530d`). Đồng bộ hồ sơ kiểm thử và baseline nghiệm thu cho các findings `CR28-04`, `CR28-05`, `CR28-06` vào `docs/28-test-inventory.md` và `docs/35-acceptance-baseline.md`, link check `BROKEN=0`. Docs đã nhận prompt và bắt đầu thực hiện.
+  * **Codex Worker 1 (`term_2b05b203`):** Đang tích cực thực hiện **`W-CR28-02-WORKER-SERVICE-AUTH`** (`task_048d60321fab`, `ctx_0b0193a61d23`). Đang chạy test suites `security-lifecycle.test.ts`, `invocation-access.test.ts` và kiểm tra typecheck (cursor 26127).
+  * **Codex Worker 2 (`term_949d489b`):** Đang tích cực thực hiện **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`). Đang xử lý truyền nhận bytes/MIME thật và grant/tenant/timeout resolver (cursor 18779).
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced chờ live window), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Tổng kết phân bổ công việc (Zero Idle Policy):**
+  * 100% 6 active workers và testers (3 Qwen, 3 Codex) đều đang bận rộn thực hiện các nhiệm vụ song song, không có terminal nào nhàn rỗi.
+  * 4 task mới được tạo, dispatch và gửi prompt thành công:
+    1. `task_a1c71649b5e0` (`ctx_11ff0d3cb890`, `W-CR28-01-ENCRYPTED-READ-PATH-EXEC`) -> Qwen Platform
+    2. `task_e2c09d94e4e5` (`ctx_a205b493d546`, `V-OFFLINE-CR28-04-SUBMISSION-ENCRYPTION`) -> Codex Tester Offline
+    3. `task_695c95942370` (`ctx_c013b10dc81b`, `W-ADM-UX-05-AUDIT-SHELL-ROUTING`) -> Qwen Admin
+    4. `task_8114385da7a7` (`ctx_ddab6192530d`, `D-DOCS-CR28-INVENTORY-SYNC`) -> Qwen Docs
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 317):**
+  * Thu nhận kết quả và receipts cho `W-CR28-02-WORKER-SERVICE-AUTH` (Worker 1), `W-CR28-03-OCR-BYTES` (Worker 2), `W-CR28-01-ENCRYPTED-READ-PATH-EXEC` (Platform), `V-OFFLINE-CR28-04-SUBMISSION-ENCRYPTION` (Tester Offline), `W-ADM-UX-05-AUDIT-SHELL-ROUTING` (Admin), `D-DOCS-CR28-INVENTORY-SYNC` (Docs).
+  * Điều phối các bước nghiệm thu độc lập chéo tiếp theo.
+
+### Turn 317 Cycle Conclusion — 2026-09-28T13:28:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-CR28-04-SUBMISSION-ENCRYPTION`** (`task_e2c09d94e4e5`, `ctx_a205b493d546`) lúc 1:08 PM (Worked for 7m 26s). Chạy độc lập 3 lần liên tiếp: mỗi lần 1 suite, 32/32 tests pass, ExitCode 0; `tsc --noEmit` ExitCode 0. Đã gửi `worker_done` (`msg_c2c682bc78df`), receipt tại `coordination/reports/tester.md#T-CODEX-OFFLINE-CR28-04-INDEPENDENT`. Settle `ctx_a205b493d546`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-ADM-UX-03-TOOLBAR`** (`task_${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.dispatchId}`). Kiểm thử độc lập offline cho Audit Log search/filter toolbar chips (`tests/admin-audit-toolbar.test.ts`, 14/14 tests pass, `tsc --noEmit` exit 0). Tester đã nhận prompt và bắt đầu thực hiện.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất xuất sắc **`D-DOCS-CR28-INVENTORY-SYNC`** (`task_8114385da7a7`, `ctx_ddab6192530d`). Cập nhật hồ sơ kiểm thử và baseline nghiệm thu cho các findings `CR28-04`, `CR28-05`, `CR28-06` vào `docs/28-test-inventory.md` và `docs/35-acceptance-baseline.md` (bump 1.47.0 → 1.48.0), link check `BROKEN=0`. Đã gửi `worker_done` (`msg_8a3e73fd0b46`), receipt Mục 44 tại `coordination/reports/qwen-docs.md`. Settle `ctx_ddab6192530d`.
+    * **Giao task mới (Zero Idle Policy):** **`D-DOCS-CR28-TRACEABILITY-SYNC`** (`task_${newDispatches.find(x => x.targetHandle.includes('27eb3380'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('27eb3380'))?.dispatchId}`). Đồng bộ ma trận truy vết `docs/19-traceability-audit-matrix.md` với các findings CR28-02..06 và test suites mới, link check `BROKEN=0`. Docs đã nhận prompt và bắt đầu thực hiện.
+  * **Qwen Platform (`term_4568d175`):** Đang thực hiện **`W-CR28-01-ENCRYPTED-READ-PATH-EXEC`** (`task_a1c71649b5e0`, `ctx_11ff0d3cb890`). Đã tạo module `modules/encryption/artifact-read-decrypt.ts` và khởi động background test `bg_984c4f2`. Đã gửi nudge tiếp tục thu nhận kết quả test, `tsc --noEmit` x3, xuất receipt Mục 28 và báo `worker_done`.
+  * **Qwen Admin (`term_742c2474`):** Đang thực hiện **`W-ADM-UX-05-AUDIT-SHELL-ROUTING`** (`task_695c95942370`, `ctx_c013b10dc81b`). Đang wire router trong `shell-router.ts`. Đã gửi nudge bổ sung trường audit vào `SectionFetchers` interface, chạy typecheck và tests, xuất receipt Mục 32 và báo `worker_done`.
+  * **Codex Worker 1 (`term_2b05b203`):** Đang tích cực thực hiện các bước kiểm chứng cuối cùng cho **`W-CR28-02-WORKER-SERVICE-AUTH`** (`task_048d60321fab`, `ctx_0b0193a61d23`). Receipt đã được ghi nháp tại `tester.md#CR28-02-WORKER-SERVICE-AUTH` (3 suites / 46 tests pass, ExitCode 0). Worker đang chạy lại kiểm tra lockfile và full `tsc --noEmit` x3 (cursor 26713).
+  * **Codex Worker 2 (`term_949d489b`):** Đang tích cực thực hiện **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`). Đang đọc `worker.ts` và kết nối `cryptoSeam` cùng multipart stream cho OCR bytes (cursor 20126).
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Tổng kết phân bổ công việc (Zero Idle Policy):**
+  * 100% 6 active workers và testers (3 Qwen, 3 Codex) đều đang hoạt động tích cực song song.
+  * 2 task mới được tạo, dispatch và prompt:
+    1. `V-OFFLINE-ADM-UX-03-TOOLBAR` -> Codex Tester Offline
+    2. `D-DOCS-CR28-TRACEABILITY-SYNC` -> Qwen Docs
+  * 2 nudge prompt đã được gửi đúng nhiệm vụ cho Qwen Platform và Qwen Admin để tiếp tục hoàn thành các khâu kiểm thử và xuất receipt.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 318):**
+  * Thu nhận kết quả và receipts cho `W-CR28-02-WORKER-SERVICE-AUTH` (Worker 1), `W-CR28-03-OCR-BYTES` (Worker 2), `W-CR28-01-ENCRYPTED-READ-PATH-EXEC` (Platform), `W-ADM-UX-05-AUDIT-SHELL-ROUTING` (Admin), `V-OFFLINE-ADM-UX-03-TOOLBAR` (Tester Offline), `D-DOCS-CR28-TRACEABILITY-SYNC` (Docs).
+
+### Turn 318 Cycle Conclusion — 2026-09-28T13:54:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Worker 1 (`term_2b05b203`):** Đã hoàn tất xuất sắc **`W-CR28-02-WORKER-SERVICE-AUTH`** (`task_048d60321fab`, `ctx_0b0193a61d23`) lúc 1:28 PM (Worked for 1h 5m 4s). Focused tests: Worker SDK 46/46, Connector 10/10. Cả ba lệnh `tsc --noEmit` (Worker SDK, Connector, Contracts) ExitCode 0; receipt tại `coordination/reports/tester.md#CR28-02-WORKER-SERVICE-AUTH`. Task đã được cập nhật completed trên Run, settle `ctx_0b0193a61d23`.
+    * **Giao task mới (Zero Idle Policy):** **`W-WORKER-DOC-CORE-ALIGN`** (`task_${newDispatches.find(x => x.targetHandle.includes('2b05b203'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('2b05b203'))?.dispatchId}`). Khắc phục lỗi typecheck tại `businesses/document-core/src/worker.ts:319` do thay đổi contract artifact đồng thời, đảm bảo tsc sạch và test suites pass x3.
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-ADM-UX-03-TOOLBAR`** (`task_de7c6def1478`, `ctx_ee7cc3ee5de5`) lúc 1:34 PM (Worked for 5m 44s). Chạy độc lập 3 lần liên tiếp: mỗi lần 1 suite/57 tests, ExitCode 0; đã gửi `worker_done` (`msg_0e0c332267ed`), receipt tại `coordination/reports/tester.md#T-CODEX-OFFLINE-ADM-UX-03-TOOLBAR-INDEPENDENT`. Task đã được cập nhật completed, settle `ctx_ee7cc3ee5de5`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-CR28-01-READ-DECRYPT`** (`task_${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.dispatchId}`). Kiểm thử độc lập offline cho `W-CR28-01` (`artifact-read-decrypt-offline.test.ts`, 14/14 tests pass x3, `tsc --noEmit` exit 0, xác nhận fail-closed).
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất xuất sắc **`W-CR28-01-ENCRYPTED-READ-PATH-EXEC`** (`task_a1c71649b5e0`, `ctx_11ff0d3cb890`). Đã tạo module `modules/encryption/artifact-read-decrypt.ts`, wire vào 2 route đọc trong `server.ts`, 14/14 tests pass x3, `tsc --noEmit` ExitCode 0; receipt Mục 28 tại `coordination/reports/qwen-platform.md`. Task đã được cập nhật completed, settle `ctx_11ff0d3cb890`.
+    * **Giao task mới (Zero Idle Policy):** **`W-CR28-08-METADATA-CRYPTO-SEAM`** (`task_${newDispatches.find(x => x.targetHandle.includes('4568d175'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('4568d175'))?.dispatchId}`). Khắc phục Δ61: Wire `metadataCrypto` provider vào `server.ts:423`, kết nối với CryptoStorageFacade, test x3 và tsc clean.
+  * **Qwen Admin (`term_742c2474`):** Đã hoàn tất xuất sắc **`W-ADM-UX-05-AUDIT-SHELL-ROUTING`** (`task_695c95942370`, `ctx_c013b10dc81b`). Đã wire route `/admin/audit` và navigation tab trong `shell-router.ts` & `shell-render.ts`, tsc sạch, receipt Mục 32 tại `coordination/reports/qwen-admin.md`. Task đã được cập nhật completed, settle `ctx_c013b10dc81b`.
+    * **Giao task mới (Zero Idle Policy):** **`W-ADM-UX-06-AUDIT-ROUTE-TESTS`** (`task_${newDispatches.find(x => x.targetHandle.includes('742c2474'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('742c2474'))?.dispatchId}`). Viết test suite toàn diện `tests/admin-audit-route.test.ts` (12-15 tests) kiểm thử 401, 403, role navigation render, aria-current, query forwarding, test x3 và xuất receipt Mục 33.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất xuất sắc **`D-DOCS-CR28-TRACEABILITY-SYNC`** (`task_754289181e16`, `ctx_12ff8ef27c46`). Đồng bộ ma trận truy vết `docs/19-traceability-audit-matrix.md` với 5 hàng CR28-02..06, tách rõ evidence state vs orchestration state, link check `BROKEN=0`, receipt Mục 45 tại `coordination/reports/qwen-docs.md`. Task đã được cập nhật completed, settle `ctx_12ff8ef27c46`.
+    * **Giao task mới (Zero Idle Policy):** **`D-DOCS-CR28-01-BASELINE-SYNC`** (`task_${newDispatches.find(x => x.targetHandle.includes('27eb3380'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('27eb3380'))?.dispatchId}`). Đồng bộ finding CR28-01 và 14/14 tests giải mã read path vào `docs/28`, `docs/35`, `docs/19`, link check `BROKEN=0`.
+  * **Codex Worker 2 (`term_949d489b`):** Đang tích cực thực hiện **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`). Đang chỉnh sửa `grants.ts` và `grant-artifact-pins.test.ts` để xử lý immutable object version và stream byte (cursor 21229).
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Tổng kết phân bổ công việc (Zero Idle Policy):**
+  * 100% 6 active workers và testers (3 Qwen, 3 Codex) đều đang bận rộn thực hiện các nhiệm vụ song song, không có terminal nào nhàn rỗi.
+  * 5 task mới được tạo, dispatch và gửi prompt thành công.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 319):**
+  * Thu nhận kết quả và receipts cho `W-CR28-03-OCR-BYTES` (Worker 2), `W-WORKER-DOC-CORE-ALIGN` (Worker 1), `V-OFFLINE-CR28-01-READ-DECRYPT` (Tester Offline), `W-CR28-08-METADATA-CRYPTO-SEAM` (Platform), `W-ADM-UX-06-AUDIT-ROUTE-TESTS` (Admin), `D-DOCS-CR28-01-BASELINE-SYNC` (Docs).
+
+### Turn 319 Cycle Conclusion — 2026-09-28T14:24:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Worker 1 (`term_2b05b203`):** Đã hoàn tất xuất sắc **`W-WORKER-DOC-CORE-ALIGN`** (`task_17cb2c0800d7`, `ctx_deea05f15026`) lúc 2:07 PM (Worked for 12m 26s). Sửa adapter trong `businesses/document-core/src/worker.ts` và inline pipeline trong `parser-budget.ts` khớp artifact contract; `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0; 3 lần chạy offline pass 46/46 suites và 545/545 tests; receipt tại `coordination/reports/tester.md#W-WORKER-DOC-CORE-ALIGN`. Task đã được cập nhật completed, settle `ctx_deea05f15026`.
+    * **Giao task mới (Zero Idle Policy):** **`W-INGEST-WIRE-01-OCR-TESTS`** (`task_${newDispatches.find(x => x.targetHandle.includes('2b05b203'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('2b05b203'))?.dispatchId}`). Bổ sung kiểm thử offline cho INGEST-WIRE-01 / OCR stream tại `businesses/document-core/tests` sử dụng fixture `handwriting-scan.png`.
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-CR28-01-READ-DECRYPT`** (`task_a30c25c0d96e`, `ctx_8556fe223198`) lúc 1:58 PM (Worked for 3m 28s). Kiểm thử độc lập 3 lần liên tiếp: mỗi lần 1 suite/14 tests pass, ExitCode 0; `tsc --noEmit` exit 0; receipt tại `coordination/reports/tester.md#T-CODEX-OFFLINE-CR28-01-INDEPENDENT`. Task đã được cập nhật completed, settle `ctx_8556fe223198`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-CR28-08-METADATA-SEAM`** (`task_${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.dispatchId}`). Kiểm thử độc lập offline cho `W-CR28-08` (`runtime-encryption-metadata.test.ts` 32/32 tests pass x3, `tsc --noEmit` exit 0, xác nhận metadata sealing trong runtime).
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất xuất sắc **`W-CR28-08-METADATA-CRYPTO-SEAM`** (`task_4552e96812fa`, `ctx_ee99eb076a56`). Khép lại khiếm khuyết Δ61: Wire `metadataCrypto` provider vào `server.ts:423`, kết nối `CryptoStorageFacade`, 32/32 tests pass x3, `tsc --noEmit` exit 0; receipt Mục 29 tại `coordination/reports/qwen-platform.md`. Task đã được cập nhật completed, settle `ctx_ee99eb076a56`.
+    * **Giao task mới (Zero Idle Policy):** **`W-CR28-01-HTTP-ROUTE-TEST`** (`task_${newDispatches.find(x => x.targetHandle.includes('4568d175'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('4568d175'))?.dispatchId}`). Khắc phục Δ67: Viết test suite `tests/artifact-read-download-route.test.ts` kiểm chứng qua HTTP route download và worker blob GET với artifact đã seal, giải mã có xác thực.
+  * **Qwen Admin (`term_742c2474`):** Đã hoàn tất xuất sắc **`W-ADM-UX-06-AUDIT-ROUTE-TESTS`** (`task_2a3d3241e671`, `ctx_a5989b8cda00`). Tạo hoàn chỉnh `tests/admin-audit-route.test.ts` (12/12 tests pass x3, `tsc --noEmit` exit 0) kiểm chứng 401 unauthenticated, 403 role < operator, tab navigation render, aria-current, query forwarding; receipt Mục 33 tại `coordination/reports/qwen-admin.md`. Task đã được cập nhật completed, settle `ctx_a5989b8cda00`.
+    * **Giao task mới (Zero Idle Policy):** **`W-ADM-UX-07-AUDIT-DEFAULT-FETCHER`** (`task_${newDispatches.find(x => x.targetHandle.includes('742c2474'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('742c2474'))?.dispatchId}`). Cung cấp default `sectionFetchers.audit` trong `services/orchestrator/src/app/admin/shell-server.ts` đọc audit log thật từ db để pane `/admin/audit` hiển thị đầy đủ khi dùng cấu hình shell mặc định.
+  * **Qwen Docs (`term_27eb3380`):** Gặp lỗi transient connection lúc nhận prompt chu kỳ trước; đã re-prompt thành công nhiệm vụ **`D-DOCS-CR28-01-BASELINE-SYNC`** (`task_5ef844b5f918`, `ctx_7b66f45b5631`) đồng bộ finding CR28-01 vào `docs/28`, `docs/35`, `docs/19`, link check `BROKEN=0`.
+  * **Codex Worker 2 (`term_949d489b`):** Đang tích cực thực hiện **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`). Đang biên dịch và chạy các test suites `artifact-read-metadata.test.ts` và `connector-input-contract.test.ts` (cursor 21722).
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Tổng kết phân bổ công việc (Zero Idle Policy):**
+  * 100% 6 active workers và testers (3 Qwen, 3 Codex) đều đang bận rộn thực hiện các nhiệm vụ song song, không có terminal nào nhàn rỗi.
+  * 4 task mới được tạo, dispatch và prompt:
+    1. `V-OFFLINE-CR28-08-METADATA-SEAM` -> Codex Tester Offline
+    2. `W-ADM-UX-07-AUDIT-DEFAULT-FETCHER` -> Qwen Admin
+    3. `W-INGEST-WIRE-01-OCR-TESTS` -> Codex Worker 1
+    4. `W-CR28-01-HTTP-ROUTE-TEST` -> Qwen Platform
+  * 1 prompt re-sent thành công cho Qwen Docs.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 320):**
+  * Thu nhận kết quả và receipts cho `W-CR28-03-OCR-BYTES` (Worker 2), `V-OFFLINE-CR28-08-METADATA-SEAM` (Tester Offline), `W-ADM-UX-07-AUDIT-DEFAULT-FETCHER` (Admin), `W-INGEST-WIRE-01-OCR-TESTS` (Worker 1), `W-CR28-01-HTTP-ROUTE-TEST` (Platform), `D-DOCS-CR28-01-BASELINE-SYNC` (Docs).
+
+### Turn 320 Cycle Conclusion — 2026-09-28T14:54:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-CR28-08-METADATA-SEAM`** (`task_44f1c98e05bb`, `ctx_e39c5b418841`) lúc 2:30 PM (Worked for 5m 46s). Chạy độc lập 3 lần liên tiếp: mỗi lần 1 suite/37 tests pass, ExitCode 0; `tsc --noEmit` ExitCode 0; gửi `worker_done` (`msg_711c6ae6ce11`), receipt tại `coordination/reports/tester.md#T-CODEX-OFFLINE-CR28-08-INDEPENDENT`. Task đã được cập nhật completed trên Run, settle `ctx_e39c5b418841`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-CR28-01-HTTP-ROUTE`** (`task_${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('b2d08e87'))?.dispatchId}`). Kiểm thử độc lập offline cho `W-CR28-01-HTTP-ROUTE` (`artifact-read-download-route.test.ts`, 6/6 tests pass x3, `tsc --noEmit` exit 0).
+  * **Codex Worker 1 (`term_2b05b203`):** Đã hoàn tất xuất sắc **`W-INGEST-WIRE-01-OCR-TESTS`** (`task_036a90427aef`, `ctx_8320df6f65e9`) lúc 2:37 PM (Worked for 12m 17s). Bổ sung test stream OCR với fixture `handwriting-scan.png`; focused tests 19/19 pass, `tsc --noEmit` exit 0; 3 lần full suite 46/46 suites và 547/547 tests pass; receipt tại `coordination/reports/tester.md#W-INGEST-WIRE-01-OCR`. Task đã được cập nhật completed, settle `ctx_8320df6f65e9`.
+    * **Giao task mới (Zero Idle Policy):** **`W-DOCS-INVENTORY-RECONCILE`** (`task_${newDispatches.find(x => x.targetHandle.includes('2b05b203'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('2b05b203'))?.dispatchId}`). Chạy kiểm tra typecheck toàn diện `pnpm -r exec tsc --noEmit` trên toàn bộ 14 workspace packages, xác nhận các gói sạch lỗi biên dịch.
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất xuất sắc **`W-CR28-01-HTTP-ROUTE-TEST`** (`task_6a61c55ffe81`, `ctx_30f787d8c6fc`). Tạo test suite `tests/artifact-read-download-route.test.ts` (6/6 tests pass x3, `tsc --noEmit` exit 0) kiểm chứng route HTTP download và worker blob GET với sealed artifact, giải mã có xác thực; receipt Mục 30 tại `coordination/reports/qwen-platform.md`. Task đã được cập nhật completed, settle `ctx_30f787d8c6fc`.
+    * **Giao task mới (Zero Idle Policy):** **`W-CR28-01-CHUNKED-DECRYPT-TEST`** (`task_${newDispatches.find(x => x.targetHandle.includes('4568d175'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('4568d175'))?.dispatchId}`). Khắc phục Δ68: Viết unit tests cho nhánh `decryptStream` chunked manifest trong `tests/artifact-read-decrypt-offline.test.ts`.
+  * **Qwen Admin (`term_742c2474`):** Đã hoàn tất xuất sắc **`W-ADM-UX-07-AUDIT-DEFAULT-FETCHER`** (`task_a71d64226d55`, `ctx_a51c83dd7a3b`). Cung cấp default `sectionFetchers.audit` trong `services/orchestrator/src/app/admin/shell-server.ts` đọc audit log thật từ db; tests pass x3, `tsc --noEmit` exit 0; receipt Mục 34 tại `coordination/reports/qwen-admin.md`. Task đã được cập nhật completed, settle `ctx_a51c83dd7a3b`.
+    * **Giao task mới (Zero Idle Policy):** **`W-ADM-UX-08-AUDIT-MOUNT`** (`task_${newDispatches.find(x => x.targetHandle.includes('742c2474'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('742c2474'))?.dispatchId}`). Đóng Δ130 ở tầng mount: Gọi `attachAdminShell` trong `server.ts:createApp` với `jsonBaseUrl` được cấu hình.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất xuất sắc **`D-DOCS-CR28-01-BASELINE-SYNC`** (`task_5ef844b5f918`, `ctx_7b66f45b5631`). Đồng bộ finding CR28-01 và 14/14 tests giải mã read path vào `docs/28`, `docs/35`, `docs/19`, link check `BROKEN=0`; receipt Mục 46 tại `coordination/reports/qwen-docs.md`. Task đã được cập nhật completed, settle `ctx_7b66f45b5631`.
+    * **Giao task mới (Zero Idle Policy):** **`D-DOCS-CR28-COMPLETE-SYNC`** (`task_${newDispatches.find(x => x.targetHandle.includes('27eb3380'))?.taskId}`, `${newDispatches.find(x => x.targetHandle.includes('27eb3380'))?.dispatchId}`). Đồng bộ toàn bộ 6 findings CR28-01..06 vào `tasks/CODE-REVIEW-FOLLOWUP-2026-09-28.md` và `docs/35-acceptance-baseline.md` (bump 1.49.0), đối chiếu evidence state giữa tester và implementer.
+  * **Codex Worker 2 (`term_949d489b`):** Đang tích cực thực hiện các bước lưu log và receipt cuối cùng cho **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`). 15/15 typechecks đã pass qua 3 vòng, focused suites qua contracts, connector, orchestrator, worker-sdk, document-core đều pass (cursor 22562).
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Tổng kết phân bổ công việc (Zero Idle Policy):**
+  * 100% 6 active workers và testers (3 Qwen, 3 Codex) đều đang hoạt động tích cực song song.
+  * 5 task mới được tạo, dispatch và gửi prompt thành công.
+- **Kế hoạch Điều phối Chu kỳ Kế tiếp (Turn 321):**
+  * Thu nhận kết quả và receipts cho `W-CR28-03-OCR-BYTES` (Worker 2), `V-OFFLINE-CR28-01-HTTP-ROUTE` (Tester Offline), `W-ADM-UX-08-AUDIT-MOUNT` (Admin), `W-DOCS-INVENTORY-RECONCILE` (Worker 1), `W-CR28-01-CHUNKED-DECRYPT-TEST` (Platform), `D-DOCS-CR28-COMPLETE-SYNC` (Docs).
+
+## Turn 321 — 2026-09-28T15:25:00+07:00 (30-Minute Cycle)
+
+### 1. Terminal Inspection & Evidence Verification
+All 11 Orca terminals inspected directly via raw `orca terminal read --limit 30 --json`. Zero idle policy enforced.
+- **Codex Worker 2** (`term_949d489b`): Finished `W-CR28-03-OCR-BYTES` (`task_398f8a7b0021`). Verified OCR artifact bytes resolution, digest/MIME checks, pinned storage version, grant expiries. 10 suites / 105 tests passed, 15/15 package typechecks across 3 rounds passed. Receipt at `tester.md#W-CR28-03-OCR-BYTES`. Status: **completed / settled**.
+- **Codex Tester Offline** (`term_b2d08e87`): Finished `V-OFFLINE-CR28-01-HTTP-ROUTE` (`task_bea8db7d598b`). 3 consecutive runs of `artifact-read-download-route.test.ts` passed 6/6 tests, `tsc --noEmit` ExitCode 0. Receipt at `tester.md#T-CODEX-OFFLINE-CR28-01-ROUTE-INDEPENDENT`. Status: **completed / settled**.
+- **Codex Worker 1** (`term_2b05b203`): Finished `W-DOCS-INVENTORY-RECONCILE` (`task_8e5f40be25b5`). Verified full workspace typecheck `pnpm -r exec tsc --noEmit` exited 0 across all 14 packages. Receipt at `tester.md#WORKSPACE-TSC-VERIFY`. Status: **completed / settled**.
+- **Qwen Admin** (`term_742c2474`): Finished `W-ADM-UX-08-AUDIT-MOUNT` (`task_66c5a3888b06`). Added `tests/admin-audit-mount.test.ts` (6/6 tests passed x3, route 17/17, regression 275/275 pass, tsc exit 0). Delta 130 closed at mount layer. Receipt at `qwen-admin.md#Muc-35`. Status: **completed / settled**.
+- **Qwen Platform** (`term_4568d175`): Finished `W-CR28-01-CHUNKED-DECRYPT-TEST` (`task_20fe5a4dfc41`). Added 9 unit tests to `tests/artifact-read-decrypt-offline.test.ts` (23/23 tests pass x3, tsc clean, mutation probe M1b verified). Closed Delta 68. Receipt at `qwen-platform.md#Muc-31`. Status: **completed / settled**.
+- **Qwen Docs** (`term_27eb3380`): Finished `D-DOCS-CR28-COMPLETE-SYNC` (`task_1cf9f0ac9021`). Synced all 6 CR28 findings into `tasks/CODE-REVIEW-FOLLOWUP-2026-09-28.md` and `docs/35-acceptance-baseline.md` (bumped to 1.49.0). Link check S0/S1 BROKEN=0. Receipt at `qwen-docs.md#Muc-47`. Status: **completed / settled**.
+
+### 2. Dispatches for Turn 321
+1. **Codex Tester Offline** (`term_b2d08e87`): `V-OFFLINE-CR28-03-OCR-BYTES` — Independent verification of `W-CR28-03-OCR-BYTES` across contracts, connector, orchestrator, worker-sdk, document-core.
+2. **Codex Worker 1** (`term_2b05b203`): `V-OFFLINE-CR28-02-SERVICE-AUTH` — Verification for `W-CR28-02-WORKER-SERVICE-AUTH` (Bearer service token, Connector HmacServiceIdentityVerifier).
+3. **Codex Worker 2** (`term_949d489b`): `W-INGEST-WIRE-02-DEADLINE-ABORT` — Ingestion parser budget timeout abort signal propagation and unit tests.
+4. **Qwen Platform** (`term_4568d175`): `W-CR28-04-SUBMISSION-SERVICE-TEST` — Closing Delta 63 via E2E tests for `createSubmissionService` with live `metadataCrypto` provider.
+5. **Qwen Admin** (`term_742c2474`): `W-ADM-UX-09-AUDIT-SESSION-FLOW` — Testing complete query forwarding and error recovery on `/admin/audit`.
+6. **Qwen Docs** (`term_27eb3380`): `D-DOCS-CR28-FINAL-CONSOLIDATION` — Consolidating all recent test receipts into docs/19, docs/28, docs/35 (bump to 1.50.0) with BROKEN=0 link checks.
+
+### 3. Acceptance & Gates Status
+- **CR28-01**: Verified offline independently on read decrypt and HTTP route. Chunked decrypt tested (Δ68 closed).
+- **CR28-02**: Owner verified; independent verification in flight.
+- **CR28-03**: Owner verified (105 tests, 15 typechecks); independent verification in flight.
+- **CR28-04**: Verified offline independently; Δ61 closed by CR28-08; Δ63 in flight.
+- **CR28-05**: Clean Docker build verified with digests.
+- **CR28-06**: Verified offline independently.
+- **Gates**: `G-ENC`, `G-SEC`, `G-DATA`, `G-ADMIN-OPS`, `G6` remain NO-GO pending live integration verification.
+
+### Turn 321 Cycle Conclusion — 2026-09-28T15:25:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 30 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Trực tiếp đọc log 11 Agent Terminals (Source of Truth):**
+  * **Codex Worker 2 (`term_949d489b`):** Đã hoàn tất xuất sắc **`W-CR28-03-OCR-BYTES`** (`task_398f8a7b0021`, `ctx_316d4b511f7a`) lúc 3:00 PM (Worked for 2h 37m 29s). Triển khai đầy đủ việc truyền artifact bytes, SHA-256, MIME type, pinned storage version, kiểm tra grant expiry và bounding acquisition timer trên OCR pipeline. 10 suites / 105 tests focused pass, 15/15 package typechecks qua 3 vòng sạch hoàn toàn; full doc-core offline 46/46 suites và 547/547 tests pass x3. Receipt tại `coordination/reports/tester.md#W-CR28-03-OCR-BYTES`. Task `task_398f8a7b0021` đã được cập nhật completed trên Run, settle `ctx_316d4b511f7a`.
+    * **Giao task mới (Zero Idle Policy):** **`W-INGEST-WIRE-02-DEADLINE-ABORT`** (`task_8a865d9c1987`, `ctx_9221d05c0889`). Củng cố parser budget timeout abort signal handling trong `parser-budget.ts` và unit test `parser-budget-band.test.ts`.
+  * **Codex Tester Offline (`term_b2d08e87`):** Đã hoàn tất xuất sắc **`V-OFFLINE-CR28-01-HTTP-ROUTE`** (`task_bea8db7d598b`, `ctx_677530db3f95`) lúc 2:59 PM (Worked for 4m 45s). Chạy độc lập 3 lần liên tiếp: mỗi lần 1 suite/6 tests pass, ExitCode 0; `tsc --noEmit` ExitCode 0; gửi `worker_done` (`msg_e626fbfcd11a`), receipt tại `coordination/reports/tester.md#T-CODEX-OFFLINE-CR28-01-ROUTE-INDEPENDENT`. Task `task_bea8db7d598b` đã được cập nhật completed, settle `ctx_677530db3f95`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-CR28-03-OCR-BYTES`** (`task_5c8c553decfc`, `ctx_ad6d61469852`). Kiểm thử độc lập offline cho `W-CR28-03-OCR-BYTES` trên toàn bộ 5 package liên quan (contracts, connector, orchestrator, worker-sdk, document-core).
+  * **Codex Worker 1 (`term_2b05b203`):** Đã hoàn tất xuất sắc **`W-DOCS-INVENTORY-RECONCILE`** (`task_8e5f40be25b5`, `ctx_d332f4554e9b`) lúc 2:58 PM (Worked for 3m 39s). Kiểm tra toàn bộ workspace `pnpm -r exec tsc --noEmit`, 14 packages và 5 gói cốt lõi đều đạt ExitCode 0 không có diagnostics; receipt tại `coordination/reports/tester.md#WORKSPACE-TSC-VERIFY`. Task `task_8e5f40be25b5` đã được cập nhật completed, settle `ctx_d332f4554e9b`.
+    * **Giao task mới (Zero Idle Policy):** **`V-OFFLINE-CR28-02-SERVICE-AUTH`** (`task_28e1089e9ea8`, `ctx_eef5853767ab`). Kiểm thử verification cho `W-CR28-02-WORKER-SERVICE-AUTH` (Bearer service token, Connector HmacServiceIdentityVerifier).
+  * **Qwen Admin (`term_742c2474`):** Đã hoàn tất xuất sắc **`W-ADM-UX-08-AUDIT-MOUNT`** (`task_66c5a3888b06`, `ctx_858609af9be8`). Tạo suite `tests/admin-audit-mount.test.ts` (6/6 tests pass x3, route 17/17 pass, regression 275/275 pass, tsc exit 0); chứng minh chuỗi mount shell đọc ledger thật qua loopback HTTP với default fetcher, đóng Delta 130 ở tầng mount; receipt Mục 35 tại `coordination/reports/qwen-admin.md`. Task đã được cập nhật completed, settle `ctx_858609af9be8`.
+    * **Giao task mới (Zero Idle Policy):** **`W-ADM-UX-09-AUDIT-SESSION-FLOW`** (`task_f0df3db16174`, `ctx_afc434ee3ea7`). Hoàn thiện Audit pane UX / Delta 143: kiểm tra hành vi của pane `/admin/audit` khi query đầy đủ và xử lý lỗi khi `jsonBaseUrl` không hợp lệ.
+  * **Qwen Platform (`term_4568d175`):** Đã hoàn tất xuất sắc **`W-CR28-01-CHUNKED-DECRYPT-TEST`** (`task_20fe5a4dfc41`, `ctx_f7e7151d21dd`). Bổ sung 9 unit tests cho nhánh chunked `decryptStream` trong `tests/artifact-read-decrypt-offline.test.ts` (23/23 tests pass x3, tsc clean, mutation M1b bắt được nhánh sai); đóng Delta 68 ở mức module; receipt Mục 31 tại `coordination/reports/qwen-platform.md`. Task đã được cập nhật completed, settle `ctx_f7e7151d21dd`.
+    * **Giao task mới (Zero Idle Policy):** **`W-CR28-04-SUBMISSION-SERVICE-TEST`** (`task_90a6ad3f43d0`, `ctx_a68b6e211093`). Đóng khoảng cách Delta 63 của CR28-04: Thêm E2E unit test cho `createSubmissionService` có gắn `metadataCrypto` provider thật.
+  * **Qwen Docs (`term_27eb3380`):** Đã hoàn tất xuất sắc **`D-DOCS-CR28-COMPLETE-SYNC`** (`task_1cf9f0ac9021`, `ctx_1958294b0537`). Đồng bộ toàn bộ 6 findings CR28-01..06 vào `tasks/CODE-REVIEW-FOLLOWUP-2026-09-28.md` và `docs/35-acceptance-baseline.md` (bump 1.49.0), đối chiếu evidence state với tester receipts, ghi nhận CR28-08 đóng Delta 61; link check S0/S1 `BROKEN=0`; receipt Mục 47 tại `coordination/reports/qwen-docs.md`. Task đã được cập nhật completed, settle `ctx_1958294b0537`.
+    * **Giao task mới (Zero Idle Policy):** **`D-DOCS-CR28-FINAL-CONSOLIDATION`** (`task_749fc5614c1a`, `ctx_e02388577208`). Đồng bộ toàn bộ các bằng chứng mới nhất vào `docs/19`, `docs/28`, `docs/35` (bump 1.50.0) với link check `BROKEN=0`.
+  * **Standby Terminals:** Codex Technical Lead (`term_31d9ed40`), Codex Tester Live (`term_c4486089`, fenced), Claude Reviewer (`term_b103836b`), OpenClaude Backup (`term_1b615444`).
+- **Tổng kết phân bổ công việc (Zero Idle Policy):**
+  * 100% 6 active workers và testers (3 Qwen, 3 Codex) đều đang hoạt động song song trên các nhiệm vụ độc lập, không conflict.
+  * 6 task mới được tạo, dispatch và gửi prompt thành công.
+
+---
+
+### Turn 331 Settlement & Turn 332 Cycle — 2026-09-29T03:06:00+07:00
+
+- **Thời gian chu kỳ:** Chu kỳ 10 phút (`DU-Rework-Orca-Coordinator-30m`).
+- **Đọc trực tiếp log thật 6 Worker Terminals (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_555e5cf64874` (`ctx_31b08e28a99d`, `V-OFFLINE-METADATA-AND-SOURCE-PIN-INDEPENDENT`). 30/30 tests trên `artifact-read-metadata` và 54/54 tests trên `ingest-source-pin` pass x3, `tsc` ExitCode 0; receipt `tester.md#T-CODEX-OFFLINE-METADATA-AND-SOURCE-PIN-INDEPENDENT`. Settle `ctx_31b08e28a99d`.
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_4e8240b75181` (`ctx_e564c6ce6c2c`, `W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE`). 6/6 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE`. Settle `ctx_e564c6ce6c2c`.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_7a5feb1453f7` (`ctx_eb965178f713`, `W-DOC-CORE-INGEST-TIMEOUT-RECOVERY-NEGATIVE`). 5/5 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-INGEST-TIMEOUT-RECOVERY-NEGATIVE`. Settle `ctx_eb965178f713`.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_3bcbacb4bbd3` (`ctx_e52d52372513`, `W-ADM-UX-05-AUDIT-TOOLBAR-NEGATIVE`). 67/67 tests pass x3, regression 76/76 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#Muc-43`. Settle `ctx_e52d52372513`.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_be3bf21a6279` (`ctx_718d0b2899e8`, `W-PLAT-CR28-01-STORAGE-FACADE-CRYPTO-BOUNDS`). 27/27 tests pass x3, `tsc` ExitCode 0 log rỗng, zero production diff; receipt `qwen-platform.md#Muc-38` (line 3510), msg `msg_9e732bae59dc`. Settle `ctx_718d0b2899e8`.
+  * **Qwen Docs (`term_27eb3380`)**: `task_818c5f22ec14` (`ctx_7d6c0796908c`, `D-DOCS-EVID-SYNC-331`). Đã kiểm tra 9 mục nội dung thực `CONTENT_FAILS=0`; sau khi hồi phục stream model, agent đang tích cực chạy link check và hoàn tất ghi Mục 54 (`latestCursor: 23719775`). Giữ trạng thái `running`.
+
+- **Phát động làn sóng Turn 332 (Zero Idle Policy — Hoàn toàn phân tách phạm vi file):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_1150021b384f` (`ctx_1150021b384f`) — Kiểm thử độc lập read-only 2 suite `temp-workspace.test.ts` (6 tests x3) và `ingest-timeout-recovery.test.ts` (5 tests x3) kèm 2 package typecheck. Ghi receipt `tester.md#T-CODEX-OFFLINE-WORKSPACE-AND-TIMEOUT-INDEPENDENT`.
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_e2694b4e9f3b` (`ctx_e2694b4e9f3b`) — Gói `W-WORKER-SDK-SERVICE-AUTH-NEGATIVE`. Thêm negative / boundary tests trong `packages/worker-sdk/tests/worker-service-auth.test.ts` (bearer token dị dạng, signature expiry, replay defense).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_ca43126f554a` (`ctx_ca43126f554a`) — Gói `W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE`. Thêm negative / boundary tests trong `businesses/document-core/tests/ingest-scan-fixtures.test.ts` (header fixture bị cắt cụt, magic bytes lệch content-type, header buffer overflow).
+  4. **Qwen Admin (`term_742c2474`)**: `task_4d5bce418290` (`ctx_4d5bce418290`) — Gói `W-ADM-UX-05-AUDIT-ROUTE-NEGATIVE`. Thêm negative / boundary tests trong `services/orchestrator/tests/admin-audit-route.test.ts` (cursor dị dạng, limit ngoài ngưỡng, tenant không hợp lệ, cách ly loopback port tránh va chạm).
+  5. **Qwen Platform (`term_4568d175`)**: `task_b92e741c9b68` (`ctx_b92e741c9b68`) — Gói `W-PLAT-CR28-01-RECIPIENT-KEY-REGISTRY-BOUNDS`. Thêm negative / boundary tests trong `services/orchestrator/tests/recipient-key-registry.test.ts` (public key hỏng, thuật toán không hỗ trợ, revoked key, NOT_FOUND cho tenant không tồn tại).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 332-B Settlement & Re-dispatch Wave — 2026-09-29T03:13:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_1150021b384f` (`ctx_1150021b384f`). 18/18 tests `temp-workspace` và 15/15 tests `ingest-timeout-recovery` pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-WORKSPACE-AND-TIMEOUT-INDEPENDENT`. Settle `ctx_1150021b384f`.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_818c5f22ec14` (`ctx_7d6c0796908c`). S0/S1 link check BROKEN=0 x3; docs/35 lên 1.56.0; docs/28 cập nhật; receipt `qwen-docs.md#Muc-54`; msg `msg_1b16dd3596d5`. Settle `ctx_7d6c0796908c`.
+  * **Codex Worker 1 (`term_2b05b203`)**: `task_e2694b4e9f3b` (`ctx_e2694b4e9f3b`, `W-WORKER-SDK-SERVICE-AUTH-NEGATIVE`). Đang chạy suite `worker-service-auth.test.ts` (cursor 31533). Trạng thái: `running`.
+  * **Codex Worker 2 (`term_949d489b`)**: `task_ca43126f554a` (`ctx_ca43126f554a`, `W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE`). Đang đọc fixtures và dựng negative assertions (cursor 26508). Trạng thái: `running`.
+  * **Qwen Admin (`term_742c2474`)**: `task_4d5bce418290` (`ctx_4d5bce418290`, `W-ADM-UX-05-AUDIT-ROUTE-NEGATIVE`). Đang splice test vào `admin-audit-route.test.ts` (cursor 37618934). Trạng thái: `running`.
+  * **Qwen Platform (`term_4568d175`)**: `task_b92e741c9b68` (`ctx_b92e741c9b68`, `W-PLAT-CR28-01-RECIPIENT-KEY-REGISTRY-BOUNDS`). Đang viết negative tests (cursor 37122724). Trạng thái: `running`.
+
+- **Phát động làn sóng Turn 332-B (Zero Idle Policy):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_2f40b17e889a` (`ctx_2f40b17e889a`) — Xác minh độc lập read-only 2 suite `admin-audit-toolbar.test.ts` (67 tests x3) và `crypto-storage-facade.test.ts` (27 tests x3), typecheck Orchestrator ExitCode 0 log rỗng. Ghi receipt `tester.md#T-CODEX-OFFLINE-TOOLBAR-AND-FACADE-BOUNDS-INDEPENDENT`.
+  2. **Qwen Docs (`term_27eb3380`)**: `task_9cb53198ebae` (`ctx_9cb53198ebae`) — Gói `D-DOCS-EVID-SYNC-332`. Đồng bộ các receipt hoàn thành vào docs/28 và docs/35 (nâng 1.56.0 lên 1.57.0), kiểm tra link check BROKEN=0 x3. Ghi receipt `qwen-docs.md#Muc-55`.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 333 Settlement & Parallel Wave — 2026-09-29T03:24:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_2f40b17e889a` (`ctx_2f40b17e889a`). 201/201 tests `admin-audit-toolbar` và 81/81 tests `crypto-storage-facade` pass x3, `tsc` ExitCode 0; receipt `tester.md#T-CODEX-OFFLINE-TOOLBAR-AND-FACADE-BOUNDS-INDEPENDENT`. Đã gửi status msg `msg_286720859007`. Settle `ctx_2f40b17e889a`.
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_e2694b4e9f3b` (`ctx_e2694b4e9f3b`, `W-WORKER-SDK-SERVICE-AUTH-NEGATIVE`). 15/15 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-SERVICE-AUTH-NEGATIVE`. Settle `ctx_e2694b4e9f3b`.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_ca43126f554a` (`ctx_ca43126f554a`, `W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE`). 8/8 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE`. Settle `ctx_ca43126f554a`.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_b92e741c9b68` (`ctx_b92e741c9b68`, `W-PLAT-CR28-01-RECIPIENT-KEY-REGISTRY-BOUNDS`). 16/16 tests pass x3, `tsc` ExitCode 0 log rỗng, mutation M1 verified (2 tests red), zero production diff; receipt `qwen-platform.md#Muc-39`. Settle `ctx_b92e741c9b68`.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_4d5bce418290` (`ctx_4d5bce418290`, `W-ADM-UX-05-AUDIT-ROUTE-NEGATIVE`). 30/30 tests pass x3, regression 6 suites 355/355 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#Muc-44`. Settle `ctx_4d5bce418290`.
+  * **Qwen Docs (`term_27eb3380`)**: `task_9cb53198ebae` (`ctx_9cb53198ebae`, `D-DOCS-EVID-SYNC-332`). Đang hoàn tất assert nội dung và chạy link check (cursor 24496092). Trạng thái: `running`.
+
+- **Phát động làn sóng Turn 333 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_38df693b4a20` (`ctx_38df693b4a20`) — Xác minh độc lập read-only 2 suite `worker-service-auth.test.ts` (15 tests x3) và `ingest-scan-fixtures.test.ts` (8 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-SERVICE-AUTH-AND-SCAN-FIXTURES-INDEPENDENT`.
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_5630d71bf460` (`ctx_5630d71bf460`) — Gói `W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE`. Bổ sung negative tests trong `packages/worker-sdk/tests/connector-invoker.test.ts` (ingress buffer cap >64 MiB, signal abort propagation, corrupt response body).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_f6c24388e2d4` (`ctx_f6c24388e2d4`) — Gói `W-DOC-CORE-INGEST-SCAN-TAMPER-BOUNDARY`. Bổ sung negative tests trong `businesses/document-core/tests/ingest-scan-tamper.test.ts` (payload checksum corruption, stream truncation ngay sau magic bytes, content-length header mismatch).
+  4. **Qwen Platform (`term_4568d175`)**: `task_06ea09424751` (`ctx_06ea09424751`) — Gói `W-PLAT-CR28-01-GRANT-ARTIFACT-PINS-NEGATIVE`. Bổ sung negative tests trong `services/orchestrator/tests/grant-artifact-pins.test.ts` (cross-tenant access refusal fail-closed, expired pin, tampered hash / storage version mismatch).
+  5. **Qwen Admin (`term_742c2474`)**: `task_7e12c140b91d` (`ctx_7e12c140b91d`) — Gói `W-ADM-UX-05-PORT-ISOLATION-HARDENING`. Chuyển sang port dynamic ephemeral (0) hoặc offset ngẫu nhiên trong `services/orchestrator/tests/admin-audit-query.test.ts` và đảm bảo teardown sau mỗi test để đóng triệt để nợ kỹ thuật va chạm port loopback.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 334 Settlement & Parallel Wave — 2026-09-29T03:55:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_38df693b4a20` (`ctx_38df693b4a20`, `T-CODEX-OFFLINE-SERVICE-AUTH-AND-SCAN-FIXTURES-INDEPENDENT`). 45/45 tests `worker-service-auth` và 24/24 tests `ingest-scan-fixtures` pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-SERVICE-AUTH-AND-SCAN-FIXTURES-INDEPENDENT`. Đã gửi status msg `msg_c672b1de7585`. Settle `ctx_38df693b4a20`.
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_5630d71bf460` (`ctx_5630d71bf460`, `W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE`). 17/17 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE`. Đã gửi status msg `msg_909a4bec`. Settle `ctx_5630d71bf460`.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_f6c24388e2d4` (`ctx_f6c24388e2d4`, `W-DOC-CORE-INGEST-SCAN-TAMPER-BOUNDARY`). 9/9 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-INGEST-SCAN-TAMPER-BOUNDARY`. Settle `ctx_f6c24388e2d4`.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_06ea09424751` (`ctx_06ea09424751`, `W-PLAT-CR28-01-GRANT-ARTIFACT-PINS-NEGATIVE`). 25/25 tests pass x3, `tsc` ExitCode 0 log rỗng, mutation M1 verified (3 tests red), zero production diff; receipt `qwen-platform.md#Muc-40`. Settle `ctx_06ea09424751`.
+  * **Qwen Admin (`term_742c2474`)**: `task_7e12c140b91d` (`ctx_7e12c140b91d`, `W-ADM-UX-05-PORT-ISOLATION-HARDENING`). Đã tái hiện thành công va chạm port đồng thời và đang áp dụng giải pháp cổng ephemeral động (cursor 40114815). Trạng thái: `running`.
+  * **Qwen Docs (`term_27eb3380`)**: `task_9cb53198ebae` (`ctx_9cb53198ebae`, `D-DOCS-EVID-SYNC-332`). Đã vượt qua kiểm tra needle (`MINE_ANCHOR_FAILS=0`) và đang hoàn tất ghi Mục 55 (cursor 25011917). Trạng thái: `running`.
+
+- **Phát động làn sóng Turn 334 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_78d591c28fa1` (`ctx_78d591c28fa1`) — Xác minh độc lập read-only 2 suite deliverables của Turn 333: `connector-invoker.test.ts` (17 tests x3) và `ingest-scan-tamper.test.ts` (9 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-CONNECTOR-INVOKER-AND-SCAN-TAMPER-INDEPENDENT`.
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_9e15fa7b3120` (`ctx_9e15fa7b3120`) — Gói `W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/connector-input-contract.test.ts` (schema validation thiếu trường bắt buộc, payload vượt biên, headers không hợp lệ).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_c4b281d76349` (`ctx_c4b281d76349`) — Gói `W-DOC-CORE-INGEST-WIRE-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/ingest-wire.test.ts` (wire payload lỗi định dạng, headers multipart sai lệch, stream gián đoạn).
+  4. **Qwen Platform (`term_4568d175`)**: `task_a831e50f72c4` (`ctx_a831e50f72c4`) — Gói `W-PLAT-CR28-02-ARTIFACT-GRANT-FENCING-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/artifact-grant-fencing.test.ts` (cross-tenant fencing, expired task lease, tampered token, fail-closed enforcement).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 335 Settlement & Parallel Wave — 2026-09-29T04:04:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_78d591c28fa1` (`ctx_78d591c28fa1`). 51/51 tests `connector-invoker` và 27/27 tests `ingest-scan-tamper` pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-CONNECTOR-INVOKER-AND-SCAN-TAMPER-INDEPENDENT`. Đã gửi status msg `msg_3131701e12a0`. Settle `ctx_78d591c28fa1`.
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_9e15fa7b3120` (`ctx_9e15fa7b3120`, `W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE`). 25/25 tests pass x3 (75 executions total), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE`. Đã gửi status msg `msg_6eea4674-17a5`. Settle `ctx_9e15fa7b3120`.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_c4b281d76349` (`ctx_c4b281d76349`, `W-DOC-CORE-INGEST-WIRE-NEGATIVE`). 15/15 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-INGEST-WIRE-NEGATIVE`. Đã gửi status msg `msg_6e36dea37ee5`. Settle `ctx_c4b281d76349`.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_9cb53198ebae` (`ctx_9cb53198ebae`, `D-DOCS-EVID-SYNC-332`). Đã ghi Mục 55 vào `qwen-docs.md`, cập nhật `docs/28` (+4) và `docs/35` (bump 1.56.0 → 1.57.0), S0/S1 link check BROKEN=0 x3; receipt `qwen-docs.md#Muc-55`. Đã gửi status msg `msg_f8ce8f482bcb`. Settle `ctx_9cb53198ebae`.
+  * **Qwen Platform (`term_4568d175`)**: `task_a831e50f72c4` (`ctx_a831e50f72c4`, `W-PLAT-CR28-02-ARTIFACT-GRANT-FENCING-NEGATIVE`). Đã hoàn tất skip-mode runs và tsc sạch, đang thực hiện mutation test M1 (cursor 39199498). Trạng thái: `running`.
+  * **Qwen Admin (`term_742c2474`)**: `task_7e12c140b91d` (`ctx_7e12c140b91d`, `W-ADM-UX-05-PORT-ISOLATION-HARDENING`). Đã chứng minh cả 3 instance song song đều đạt 26/26 xanh, đang hoàn tất ghi receipt (cursor 40703018). Trạng thái: `running`.
+
+- **Phát động làn sóng Turn 335 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_4e731b0a88dc` (`ctx_4e731b0a88dc`) — Xác minh độc lập read-only 2 suite deliverables của Turn 334: `connector-input-contract.test.ts` (25 tests x3) và `ingest-wire.test.ts` (15 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-INPUT-CONTRACT-AND-INGEST-WIRE-INDEPENDENT`.
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_71a029fe43a1` (`ctx_71a029fe43a1`) — Gói `W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-stream-bounds.test.ts` (vượt ngưỡng buffer/stream, truncated stream, chunk out-of-order, backpressure abort).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_3840af72691b` (`ctx_3840af72691b`) — Gói `W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/bounded-input.test.ts` (zero-byte payload, memory overflow guard, oversized dimensions, corrupted format).
+  4. **Qwen Docs (`term_27eb3380`)**: `task_f29c017d841e` (`ctx_f29c017d841e`) — Gói `D-DOCS-EVID-SYNC-334`. Đồng bộ các receipts hoàn tất của Turn 333 và Turn 334 vào `docs/28` và `docs/35` (bump 1.57.0 → 1.58.0), kiểm tra link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-56`.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 336 Settlement & Parallel Wave — 2026-09-29T04:33:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_4e731b0a88dc` (`ctx_4e731b0a88dc`). 75/75 tests `connector-input-contract` và 45/45 tests `ingest-wire` pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-INPUT-CONTRACT-AND-INGEST-WIRE-INDEPENDENT`. Đã gửi status msg `msg_bf4da7d5170b`. Settle `ctx_4e731b0a88dc`.
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_71a029fe43a1` (`ctx_71a029fe43a1`, `W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE`). 31/31 tests pass x3 (93 executions total), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE`. Đã gửi status msg `msg_a0f913fd-7527`. Settle `ctx_71a029fe43a1`.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_3840af72691b` (`ctx_3840af72691b`, `W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`). 36/36 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`. Đã gửi status msg `msg_26279d0e9f26`. Settle `ctx_3840af72691b`.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_a831e50f72c4` (`ctx_a831e50f72c4`, `W-PLAT-CR28-02-ARTIFACT-GRANT-FENCING-NEGATIVE`). 18 tests (10 pre-existing + 8 added) skip-qualified, zero DB leak, byte-exact restore verified, `tsc` ExitCode 0; receipt `qwen-platform.md#Muc-41`. Settle `ctx_a831e50f72c4`.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_7e12c140b91d` (`ctx_7e12c140b91d`, `W-ADM-UX-05-PORT-ISOLATION-HARDENING`). Đã chứng minh triệt để: 3 instance song song pass 3/3 x4 rounds (12/12 pass), sequential 26/26 x3, batch 8 suites 410/410 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#Muc-45`. Settle `ctx_7e12c140b91d`.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_f29c017d841e` (`ctx_f29c017d841e`, `D-DOCS-EVID-SYNC-334`). Đã ghi Mục 56 vào `qwen-docs.md`, cập nhật `docs/28` (+4) và `docs/35` (bump 1.57.0 → 1.58.0), S0/S1 link check BROKEN=0 x3; receipt `qwen-docs.md#Muc-56`. Đã gửi status msg `msg_3f5098d88503`. Settle `ctx_f29c017d841e`.
+
+- **Phát động làn sóng Turn 336 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_85f1c24a91b2` (`ctx_85f1c24a91b2`) — Xác minh độc lập read-only 2 suite deliverables của Turn 335: `artifact-stream-bounds.test.ts` (31 tests x3) và `bounded-input.test.ts` (36 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-STREAM-BOUNDS-AND-BOUNDED-INPUT-INDEPENDENT`.
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_1b44ec078a9c` (`ctx_1b44ec078a9c`) — Gói `W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-read-metadata.test.ts` (thiếu required metadata keys, hash/checksum sai định dạng, tiêu đề metadata quá dài, fail-closed khi payload hỏng).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_2d499ec76b50` (`ctx_2d499ec76b50`) — Gói `W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/ingest-source-pin.test.ts` (source pin token rỗng/sai, expired source pin lease, tampered digest, từ chối cross-operation reuse).
+  4. **Qwen Platform (`term_4568d175`)**: `task_59e0a4f5b741` (`ctx_59e0a4f5b741`) — Gói `W-PLAT-CR28-02-ARTIFACT-SUBMIT-GUARDS-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/artifact-submit-guards.test.ts` (thiếu tenant id, malformed payload shape, zero-byte submit rejection, unauthorized scope).
+  5. **Qwen Admin (`term_742c2474`)**: `task_6c384e912b7a` (`ctx_6c384e912b7a`) — Gói `W-ADM-UX-05-MOUNT-PORT-ISOLATION-HARDENING`. Áp dụng cơ chế cổng retry pool 42000-42504 tương tự cho `services/orchestrator/tests/admin-audit-mount.test.ts`, teardown afterAll sạch sẽ, đóng triệt để va chạm port loopback còn sót.
+  6. **Qwen Docs (`term_27eb3380`)**: `task_e814a72d0cb5` (`ctx_e814a72d0cb5`) — Gói `D-DOCS-EVID-SYNC-335`. Đồng bộ các receipts hoàn tất của Turn 334 và Turn 335 vào `docs/28` và `docs/35` (bump 1.58.0 → 1.59.0), kiểm tra link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-57`.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+
+
+
+
+
+
+---
+
+### Turn 337 Settlement & Parallel Wave — 2026-09-29T04:47:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_85f1c24a91b2` (`ctx_85f1c24a91b2`). 31/31 tests `artifact-stream-bounds` (3 lượt = 93/93) và 36/36 tests `bounded-input` (3 lượt = 108/108) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-STREAM-BOUNDS-AND-BOUNDED-INPUT-INDEPENDENT`. Đã gửi status msg `msg_633ca7f96147`. Settle `ctx_85f1c24a91b2` (cursor 21075, idle lúc 4:34 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_1b44ec078a9c` (`ctx_1b44ec078a9c`, `W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE`). 18/18 tests pass x3 (54 test executions total), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE`. Đã gửi status msg `msg_faa65a3e-9e37`. Settle `ctx_1b44ec078a9c` (cursor 32713, idle lúc 4:37 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_2d499ec76b50` (`ctx_2d499ec76b50`, `W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`). 23/23 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`. Đã gửi status msg `msg_fd89117773f9`. Settle `ctx_2d499ec76b50` (cursor 27461, idle lúc 4:37 AM).
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_e814a72d0cb5` (`ctx_e814a72d0cb5`, `D-DOCS-EVID-SYNC-335`). Đã ghi Mục 57 vào `qwen-docs.md`, cập nhật `docs/28` và `docs/35` (bump 1.58.0 → 1.59.0), S0/S1 link check BROKEN=0 x3; receipt `qwen-docs.md#Muc-57`. Settle `ctx_e814a72d0cb5` (cursor 26237994, idle).
+  * **Qwen Platform (`term_4568d175`)**: `task_59e0a4f5b741` (`ctx_59e0a4f5b741`, `W-PLAT-CR28-02-ARTIFACT-SUBMIT-GUARDS-NEGATIVE`). Đã hoàn thiện assert `.extra` thay vì `.detail`, patch Jest và đang chạy kiểm thử xác minh (cursor 40270187). Trạng thái: `running`.
+  * **Qwen Admin (`term_742c2474`)**: `task_6c384e912b7a` (`ctx_6c384e912b7a`, `W-ADM-UX-05-MOUNT-PORT-ISOLATION-HARDENING`). Đã chứng minh triệt để: concurrent 2 instance mount (6/6) và query (26/26) chạy đồng thời 2 vòng đều 100% xanh, không còn flake EADDRINUSE; đang hoàn tất receipt (cursor 42059607). Trạng thái: `running`.
+
+- **Phát động làn sóng Turn 337 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_70f1a23b49c0` (`ctx_70f1a23b49c0`) — Xác minh độc lập read-only 2 suite deliverables của Turn 336: `packages/worker-sdk/tests/artifact-read-metadata.test.ts` (18 tests x3) và `businesses/document-core/tests/ingest-source-pin.test.ts` (23 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-READ-METADATA-AND-SOURCE-PIN-INDEPENDENT`. Đã nhận lệnh và đang thực thi (cursor 21086).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_3d79b18f0c2a` (`ctx_3d79b18f0c2a`) — Gói `W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-stat.test.ts` (negative contentLength, out-of-range bounds, malformed checksum, expired lease, tenant/operation mismatch). Đã nhận lệnh và đang thực thi (cursor 32720).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_8a50c18d3b9e` (`ctx_8a50c18d3b9e`) — Gói `W-DOC-CORE-CANCELLATION-FENCING-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/cancellation-fencing.test.ts` (abort signal khi chuyển step checkpoint, abort liên tiếp đa lần/idempotent fail-closed, cancel reason bất thường, abort khi stream write). Đã nhận lệnh và đang thực thi (cursor 27469).
+  4. **Qwen Docs (`term_27eb3380`)**: `task_a7491cf0e42b` (`ctx_a7491cf0e42b`) — Gói `D-DOCS-EVID-SYNC-336`. Đồng bộ các receipts hoàn tất của Turn 336 vào `docs/28` và `docs/35` (bump 1.59.0 → 1.60.0), kiểm tra link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-58`. Đã nhận lệnh và đang thực thi (cursor 26242695).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 338 Settlement & Parallel Wave — 2026-09-29T05:14:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_70f1a23b49c0` (`ctx_70f1a23b49c0`). 18/18 tests `artifact-read-metadata` (3 lượt = 54/54) và 23/23 tests `ingest-source-pin` (3 lượt = 69/69) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-READ-METADATA-AND-SOURCE-PIN-INDEPENDENT`. Đã gửi status msg `msg_6ca505f780a6`. Settle `ctx_70f1a23b49c0` (cursor 21207, idle lúc 4:46 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_3d79b18f0c2a` (`ctx_3d79b18f0c2a`, `W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE`). 14/14 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE`. Đã gửi status msg `msg_0fea970f-197d`. Settle `ctx_3d79b18f0c2a` (cursor 32936, idle lúc 4:50 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_8a50c18d3b9e` (`ctx_8a50c18d3b9e`, `W-DOC-CORE-CANCELLATION-FENCING-NEGATIVE`). 14/14 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-CANCELLATION-FENCING-NEGATIVE`. Đã gửi status msg `msg_41e18c2ce513`. Settle `ctx_8a50c18d3b9e` (cursor 27656, idle lúc 4:48 AM).
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_59e0a4f5b741` (`ctx_59e0a4f5b741`, `W-PLAT-CR28-02-ARTIFACT-SUBMIT-GUARDS-NEGATIVE`). 24/24 tests pass x3, `tsc` ExitCode 0 x2, M1 mutation red-then-green byte-exact restore, production code không đổi; receipt `qwen-platform.md#Muc-42`. Settle `ctx_59e0a4f5b741` (cursor 40836215, idle).
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_6c384e912b7a` (`ctx_6c384e912b7a`, `W-ADM-UX-05-MOUNT-PORT-ISOLATION-HARDENING`). Chạy song song 2 mount (6/6) và 2 query (26/26) đồng thời 2 vòng đạt 8/8 xanh, 0 va chạm port, batch 8 suites 410/410, `tsc` ExitCode 0; receipt `qwen-admin.md#Muc-46`. Settle `ctx_6c384e912b7a` (cursor 42236168, idle).
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_a7491cf0e42b` (`ctx_a7491cf0e42b`, `D-DOCS-EVID-SYNC-336`). Đã ghi Mục 58 vào `qwen-docs.md`, cập nhật `docs/28` (+2), bump `docs/35` (1.59.0 → 1.60.0), link check x3 S0/S1 BROKEN=0; receipt `qwen-docs.md#Muc-58`. Settle `ctx_a7491cf0e42b` (cursor 26630775, idle).
+
+- **Phát động làn sóng Turn 338 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_91e304b827df` (`ctx_91e304b827df`) — Xác minh độc lập read-only 2 deliverables của Turn 337: `packages/worker-sdk/tests/artifact-stat.test.ts` (14 tests x3) và `businesses/document-core/tests/cancellation-fencing.test.ts` (14 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-STAT-AND-CANCELLATION-FENCING-INDEPENDENT`. Đang thực thi (cursor 21218).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_4e81561a73bc` (`ctx_4e81561a73bc`) — Gói `W-WORKER-SDK-TEMP-SWEEP-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/temp-sweep.test.ts` (negative hoặc zero sweepIntervalMs/staleThresholdMs, file không phải directory khớp prefix du-worker-*, lỗi permission/file khoá không làm crash sweep, subdirectory traversal safety). Đang thực thi (cursor 32944).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_c72b1894d03e` (`ctx_c72b1894d03e`) — Gói `W-DOC-CORE-CHECKPOINT-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/checkpoint.test.ts` (checkpoint payload hỏng trong storage, missing step name hoặc sequence index âm, replay checkpoint với mismatched operationId/taskId, biên chính xác 500 ký tự và oversized outputs). Đang thực thi (cursor 27664).
+  4. **Qwen Platform (`term_4568d175`)**: `task_9a2f76814c9e` (`ctx_9a2f76814c9e`) — Gói `W-PLAT-CR28-03-ARTIFACT-READ-AUTH-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/artifact-read-authorization.test.ts` (artifactId rỗng/sai cú pháp, tiêm cross-tenant qua declared references array, malformed token signature, worker lease expiration boundaries). Đang thực thi (cursor 40840607).
+  5. **Qwen Admin (`term_742c2474`)**: `task_7e1b54a29c3f` (`ctx_7e1b54a29c3f`) — Gói `W-ADM-UX-05-PLATFORM-MOUNT-PORT-ISOLATION-HARDENING`. Áp dụng cơ chế cổng retry pool 42000-42504 cho `services/orchestrator/tests/admin-shell-platform-mount.test.ts`, teardown afterAll sạch sẽ có guard, loại bỏ triệt để khả năng đụng port. Đang thực thi (cursor 42239944).
+  6. **Qwen Docs (`term_27eb3380`)**: `task_b46c820f1e8a` (`ctx_b46c820f1e8a`) — Gói `D-DOCS-EVID-SYNC-337`. Đồng bộ các receipts hoàn tất của Turn 337 vào `docs/28` và `docs/35` (bump 1.60.0 → 1.61.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-59`. Đang thực thi (cursor 26633858).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 339 Settlement & Parallel Wave — 2026-09-29T05:24:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_91e304b827df` (`ctx_91e304b827df`). 14/14 tests `artifact-stat` (3 lượt = 42/42) và 14/14 tests `cancellation-fencing` (3 lượt = 42/42) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-STAT-AND-CANCELLATION-FENCING-INDEPENDENT`. Đã gửi status msg `msg_0f82420d67f4`. Settle `ctx_91e304b827df` (cursor 21335, idle lúc 5:14 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_4e81561a73bc` (`ctx_4e81561a73bc`, `W-WORKER-SDK-TEMP-SWEEP-NEGATIVE`). 14/14 tests pass x3 (42 test executions total), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-TEMP-SWEEP-NEGATIVE`. Đã gửi status msg `msg_727418c1-bfbc`. Settle `ctx_4e81561a73bc` (cursor 33260, idle lúc 5:20 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_c72b1894d03e` (`ctx_c72b1894d03e`, `W-DOC-CORE-CHECKPOINT-NEGATIVE`). 8/8 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-CHECKPOINT-NEGATIVE`. Đã gửi status msg `msg_e47c95428b6c`. Settle `ctx_c72b1894d03e` (cursor 27892, idle lúc 5:17 AM).
+  * **Qwen Platform (`term_4568d175`)**: `task_9a2f76814c9e` (`ctx_9a2f76814c9e`, `W-PLAT-CR28-03-ARTIFACT-READ-AUTH-NEGATIVE`). Đang tích cực mở rộng và kiểm thử các nhóm test token/lease (cursor 41409483). Trạng thái: `running`.
+  * **Qwen Admin (`term_742c2474`)**: `task_7e1b54a29c3f` (`ctx_7e1b54a29c3f`, `W-ADM-UX-05-PLATFORM-MOUNT-PORT-ISOLATION-HARDENING`). Đã chứng minh cả 3 suite loopback cùng lúc (2x shell mount + 1x audit mount + 1x audit query = 106 tests) đều pass 100% không va chạm port; đang hoàn tất receipt (cursor 42873269). Trạng thái: `running`.
+  * **Qwen Docs (`term_27eb3380`)**: `task_b46c820f1e8a` (`ctx_b46c820f1e8a`, `D-DOCS-EVID-SYNC-337`). Đã kiểm tra S0/S1 link check BROKEN=0 x3, đang hoàn tất ghi Mục 59 (cursor 27199423). Trạng thái: `running`.
+
+- **Phát động làn sóng Turn 339 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_6b1a37c025ef` (`ctx_6b1a37c025ef`) — Xác minh độc lập read-only 2 deliverables của Turn 338: `packages/worker-sdk/tests/temp-sweep.test.ts` (14 tests x3) và `businesses/document-core/tests/checkpoint.test.ts` (8 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-TEMP-SWEEP-AND-CHECKPOINT-INDEPENDENT`. Đang thực thi (cursor 21345).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_5e3d7a810f2c` (`ctx_5e3d7a810f2c`) — Gói `W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/temp-workspace.test.ts` (TTL/lifetime âm hoặc sai định dạng, taskId rỗng/ký tự đặc biệt, idempotent cleanup trên dir đã xoá, concurrency limit/race condition khi cấp phát workspace). Đang thực thi (cursor 33268).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_3b8f104d5a7e` (`ctx_3b8f104d5a7e`) — Gói `W-DOC-CORE-INGEST-TIMEOUT-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/ingest-timeout-recovery.test.ts` (stream termination đột ngột giữa chừng, recovery token hỏng/mismatched lease resumption, zero-byte cleanup khi timeout, timeout liên tiếp). Đang thực thi (cursor 27900).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 340 Settlement & Parallel Wave — 2026-09-29T05:35:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_6b1a37c025ef` (`ctx_6b1a37c025ef`). 14/14 tests `temp-sweep` (3 lượt = 42/42) và 8/8 tests `checkpoint` (3 lượt = 24/24) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-TEMP-SWEEP-AND-CHECKPOINT-INDEPENDENT`. Đã gửi status msg `msg_a8f68a0ff214`. Settle `ctx_6b1a37c025ef` (cursor 21464, idle lúc 5:25 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_5e3d7a810f2c` (`ctx_5e3d7a810f2c`, `W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE`). 13/13 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE`. Đã gửi status msg `msg_40cba568-7257`. Settle `ctx_5e3d7a810f2c` (cursor 33470, idle lúc 5:27 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_3b8f104d5a7e` (`ctx_3b8f104d5a7e`, `W-DOC-CORE-INGEST-TIMEOUT-NEGATIVE`). 9/9 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-INGEST-TIMEOUT-NEGATIVE`. Đã gửi status msg `msg_1b284fe3-3df6`. Settle `ctx_3b8f104d5a7e` (cursor 28192, idle lúc 5:28 AM).
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_9a2f76814c9e` (`ctx_9a2f76814c9e`, `W-PLAT-CR28-03-ARTIFACT-READ-AUTH-NEGATIVE`). 90/90 tests pass x3 (+78 tests mới), `tsc` ExitCode 0 x2, M1 mutation red-then-green byte-exact restore, production code không đổi; receipt `qwen-platform.md#Muc-43`. Settle `ctx_9a2f76814c9e` (cursor 41992990, idle).
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_7e1b54a29c3f` (`ctx_7e1b54a29c3f`, `W-ADM-UX-05-PLATFORM-MOUNT-PORT-ISOLATION-HARDENING`). 37/37 tests pass x3, cả 4 suite đồng thời đạt 4/4 xanh không va chạm port, batch 9 suites 447/447 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#Muc-47`. Settle `ctx_7e1b54a29c3f` (cursor 42998394, idle).
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_b46c820f1e8a` (`ctx_b46c820f1e8a`, `D-DOCS-EVID-SYNC-337`). Đã ghi Mục 59 vào `qwen-docs.md`, cập nhật `docs/28` (+5 entries), bump `docs/35` (1.60.0 → 1.61.0), link check x3 S0/S1 BROKEN=0; receipt `qwen-docs.md#Muc-59`. Settle `ctx_b46c820f1e8a` (cursor 27573104, idle).
+
+- **Phát động làn sóng Turn 340 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_82f1b4091a3c` (`ctx_82f1b4091a3c`) — Xác minh độc lập read-only 2 deliverables của Turn 339: `packages/worker-sdk/tests/temp-workspace.test.ts` (13 tests x3) và `businesses/document-core/tests/ingest-timeout-recovery.test.ts` (9 tests x3), typecheck 2 package ExitCode 0. Ghi receipt `tester.md#T-CODEX-OFFLINE-TEMP-WORKSPACE-AND-TIMEOUT-RECOVERY-INDEPENDENT`. Đang thực thi (cursor 21475).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_1a89c25f4d10` (`ctx_1a89c25f4d10`) — Gói `W-WORKER-SDK-SERVICE-AUTH-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/worker-service-auth.test.ts` (token header tamper/thiếu alg, future iat/nbf vượt clock skew, thiếu claims bắt buộc sub/iss/aud, requestId replay). Đang thực thi (cursor 33478).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_7f4d91c28b30` (`ctx_7f4d91c28b30`) — Gói `W-DOC-CORE-OUTPUT-VALIDATION-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/output-validation.test.ts` (số âm/NaN cho numeric fields, mảng vượt kích thước, control characters/corrupted UTF-8, prototype pollution). Đang thực thi (cursor 28203).
+  4. **Qwen Platform (`term_4568d175`)**: `task_d3e21a94b80c` (`ctx_d3e21a94b80c`) — Gói `W-PLAT-CR28-04-RUNTIME-ENCRYPTION-METADATA-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/runtime-encryption-metadata.test.ts` (oversized metadata payload >64KB, malformed DEK ciphertext / truncated IV, non-base64 AAD tampering, expired context unwrap). Đang thực thi (cursor 41998383).
+  5. **Qwen Admin (`term_742c2474`)**: `task_4d91a27e8c3b` (`ctx_4d91a27e8c3b`) — Gói `W-ADM-UX-02-IDEMPOTENCY-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-idempotency.test.ts` (whitespace-only key, key vượt boundary + Unicode normalization, null/empty hash, stale marker race condition, tampered stored response). Đang thực thi (cursor 43004480).
+  6. **Qwen Docs (`term_27eb3380`)**: `task_c81f034d92a1` (`ctx_c81f034d92a1`) — Gói `D-DOCS-EVID-SYNC-338`. Đồng bộ các receipts hoàn tất của Turn 338 vào `docs/28` và `docs/35` (bump 1.61.0 → 1.62.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-60`. Đang thực thi (cursor 27577804).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (`G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+
+---
+
+### Turn 341 Settlement & Parallel Wave — 2026-09-29T05:45:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (	erm_b2d08e87)**: Đã hoàn tất độc lập 	ask_82f1b4091a3c (ctx_82f1b4091a3c). 13/13 tests 	emp-workspace (3 lượt = 39/39) và 9/9 tests ingest-timeout-recovery (3 lượt = 27/27) pass x3, 	sc ExitCode 0 cả hai package; receipt 	ester.md#T-CODEX-OFFLINE-TEMP-WORKSPACE-AND-TIMEOUT-RECOVERY-INDEPENDENT. Đã gửi status msg msg_6a97cec6c778. Settle ctx_82f1b4091a3c (cursor 21594, idle lúc 5:34 AM).
+  * **Codex Worker 1 (	erm_2b05b203)**: Đã hoàn tất 	ask_1a89c25f4d10 (ctx_1a89c25f4d10, W-WORKER-SDK-SERVICE-AUTH-NEGATIVE). 19/19 tests pass x3, 	sc ExitCode 0; receipt 	ester.md#W-WORKER-SDK-SERVICE-AUTH-NEGATIVE. Đã gửi status msg msg_26b794e7-9365. Settle ctx_1a89c25f4d10 (cursor 33683, idle lúc 5:38 AM). Ghi nhận finding: real verifier hiện không enforce iss/iat/nbf claims.
+  * **Codex Worker 2 (	erm_949d489b)**: Đã hoàn tất 	ask_7f4d91c28b30 (ctx_7f4d91c28b30, W-DOC-CORE-OUTPUT-VALIDATION-NEGATIVE). 32/32 tests pass x3, 	sc ExitCode 0; receipt 	ester.md:9679 under # W-DOC-CORE-OUTPUT-VALIDATION-NEGATIVE. Đã gửi status msg msg_fcd6b177-87c5. Settle ctx_7f4d91c28b30 (cursor 28402, idle lúc 5:38 AM). Ghi nhận 8 expected-failing probes cho validator behavior.
+  * **Qwen Admin (	erm_742c2474)**: Đã hoàn tất 	ask_4d91a27e8c3b (ctx_4d91a27e8c3b, W-ADM-UX-02-IDEMPOTENCY-NEGATIVE). 45/45 tests pass x3 (+18 tests mới), hồi quy 7 suite 277/277 pass, 	sc ExitCode 0; receipt qwen-admin.md#Muc-48. Settle ctx_4d91a27e8c3b (cursor 43518301, idle).
+  * **Qwen Platform (	erm_4568d175)**: 	ask_d3e21a94b80c (ctx_d3e21a94b80c, W-PLAT-CR28-04-RUNTIME-ENCRYPTION-METADATA-NEGATIVE). Đang tích cực chạy suite kiểm thử Jest 3x và mutation checks (cursor 42729575). Trạng thái: 
+unning.
+  * **Qwen Docs (	erm_27eb3380)**: 	ask_c81f034d92a1 (ctx_c81f034d92a1, D-DOCS-EVID-SYNC-338). Đang hoàn tất Mục 60 và đồng bộ evidence vào docs/28 và docs/35 (cursor 28242776). Trạng thái: 
+unning.
+
+- **Phát động làn sóng Turn 341 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (	erm_b2d08e87)**: 	ask_2e8a104c91bf (ctx_2e8a104c91bf) — Xác minh độc lập read-only 2 deliverables của Turn 340: packages/worker-sdk/tests/worker-service-auth.test.ts (19 tests x3) và usinesses/document-core/tests/output-validation.test.ts (32 tests x3), typecheck 2 package ExitCode 0. Ghi receipt 	ester.md#T-CODEX-OFFLINE-SERVICE-AUTH-AND-OUTPUT-VALIDATION-INDEPENDENT. Đang thực thi (cursor 21598).
+  2. **Codex Worker 1 (	erm_2b05b203)**: 	ask_8a7d10b4c29e (ctx_8a7d10b4c29e) — Gói W-WORKER-SDK-ARTIFACT-MULTIPART-NEGATIVE. Bổ sung negative/boundary tests trong packages/worker-sdk/tests/artifact-multipart.test.ts (baseline: 21 tests; multipart upload abort, out-of-order chunks, part size boundaries, corrupt digest, expired session). Đang thực thi (cursor 33687).
+  3. **Codex Worker 2 (	erm_949d489b)**: 	ask_5f3b92c10a7e (ctx_5f3b92c10a7e) — Gói W-DOC-CORE-PARSER-BUDGET-BAND-NEGATIVE. Bổ sung negative/boundary tests trong usinesses/document-core/tests/parser-budget-band.test.ts (baseline: 13 tests; budget band overflow, zero/negative timeout allocation, malformed budget config, truncated stream). Đang thực thi (cursor 28408).
+  4. **Qwen Admin (	erm_742c2474)**: 	ask_3e91b4027a8c (ctx_3e91b4027a8c) — Gói W-ADM-UX-02-PAGINATION-NEGATIVE. Bổ sung negative/boundary tests trong services/orchestrator/tests/admin-operations-list-pagination.test.ts (baseline: 89 tests; malformed/corrupt keyset cursor, boundary limit <=0 / >100, empty result state, duplicate key paging). Đang thực thi (cursor 43521768).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+
+---
+
+### Turn 342 Settlement & Parallel Wave — 2026-09-29T05:54:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (	erm_b2d08e87)**: Đã hoàn tất độc lập 	ask_2e8a104c91bf (ctx_2e8a104c91bf). 19/19 tests worker-service-auth (3 lượt = 57/57) và 32/32 tests output-validation (3 lượt = 96/96) pass x3, 	sc ExitCode 0 cả hai package; receipt 	ester.md#T-CODEX-OFFLINE-SERVICE-AUTH-AND-OUTPUT-VALIDATION-INDEPENDENT. Đã gửi status msg msg_4208c1006bca. Settle ctx_2e8a104c91bf (cursor 21730, idle lúc 5:48 AM).
+  * **Qwen Docs (	erm_27eb3380)**: Đã hoàn tất 	ask_c81f034d92a1 (ctx_c81f034d92a1, D-DOCS-EVID-SYNC-338). Đồng bộ 5 receipts Turn 338 vào docs/28 và docs/35 (bump 1.61.0 → 1.62.0), link check x3 S0/S1 BROKEN=0, ghi Mục 60 vào qwen-docs.md; receipt qwen-docs.md#Muc-60. Đã gửi status msg msg_2373d08a6ab8. Settle ctx_c81f034d92a1 (cursor 28292595, idle).
+  * **Codex Worker 1 (	erm_2b05b203)**: 	ask_8a7d10b4c29e (ctx_8a7d10b4c29e, W-WORKER-SDK-ARTIFACT-MULTIPART-NEGATIVE). Đang chạy typecheck và hoàn tất receipt (27/27 tests pass x3, cursor 33986). Trạng thái: 
+unning.
+  * **Codex Worker 2 (	erm_949d489b)**: 	ask_5f3b92c10a7e (ctx_5f3b92c10a7e, W-DOC-CORE-PARSER-BUDGET-BAND-NEGATIVE). Đang tích cực bổ sung probes cho parser-budget-band.test.ts (cursor 28534). Trạng thái: 
+unning.
+  * **Qwen Platform (	erm_4568d175)**: 	ask_d3e21a94b80c (ctx_d3e21a94b80c, W-PLAT-CR28-04-RUNTIME-ENCRYPTION-METADATA-NEGATIVE). Đang hoàn tất cập nhật memory và ghi receipt (cursor 43068606). Trạng thái: 
+unning.
+  * **Qwen Admin (	erm_742c2474)**: 	ask_3e91b4027a8c (ctx_3e91b4027a8c, W-ADM-UX-02-PAGINATION-NEGATIVE). Đang triển khai negative/boundary test suites trong dmin-operations-list-pagination.test.ts (cursor 43873504). Trạng thái: 
+unning.
+
+- **Phát động làn sóng Turn 342 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (	erm_b2d08e87)**: 	ask_7d2b104c8f1e (ctx_7d2b104c8f1e) — Xác minh độc lập read-only 2 deliverable suites: services/orchestrator/tests/artifact-read-authorization.test.ts (90 tests x3) và services/orchestrator/tests/admin-idempotency.test.ts (45 tests x3), 	sc --noEmit ExitCode 0. Ghi receipt 	ester.md#T-CODEX-OFFLINE-ARTIFACT-AUTH-AND-ADMIN-IDEMPOTENCY-INDEPENDENT. Đang thực thi (cursor 21735).
+  2. **Qwen Docs (	erm_27eb3380)**: 	ask_a47e1934b02c (ctx_a47e1934b02c) — Gói D-DOCS-EVID-SYNC-339. Đồng bộ 5 receipts Turn 339 vào docs/28 và docs/35 (bump 1.62.0 → 1.63.0), link check x3 S0/S1 BROKEN=0. Ghi receipt qwen-docs.md#Muc-61. Đang thực thi (cursor 28296062).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+
+---
+
+### Turn 343 Settlement & Parallel Wave — 2026-09-29T06:02:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (	erm_b2d08e87)**: Đã hoàn tất độc lập 	ask_7d2b104c8f1e (ctx_7d2b104c8f1e). 90/90 tests rtifact-read-authorization (3 lượt = 270/270) và 45/45 tests dmin-idempotency (3 lượt = 135/135) pass x3, 	sc ExitCode 0; receipt 	ester.md#T-CODEX-OFFLINE-ARTIFACT-AUTH-AND-ADMIN-IDEMPOTENCY-INDEPENDENT. Đã gửi status msg msg_bb1f045d5898. Settle ctx_7d2b104c8f1e (cursor 21894, idle lúc 5:57 AM).
+  * **Codex Worker 1 (	erm_2b05b203)**: Đã hoàn tất 	ask_8a7d10b4c29e (ctx_8a7d10b4c29e, W-WORKER-SDK-ARTIFACT-MULTIPART-NEGATIVE). 27/27 tests pass x3 (+6 tests mới), 	sc ExitCode 0; receipt 	ester.md#W-WORKER-SDK-ARTIFACT-MULTIPART-NEGATIVE. Đã gửi status msg msg_87c8cd4f-f47d. Settle ctx_8a7d10b4c29e (cursor 34044, idle lúc 5:53 AM).
+  * **Codex Worker 2 (	erm_949d489b)**: Đã hoàn tất 	ask_5f3b92c10a7e (ctx_5f3b92c10a7e, W-DOC-CORE-PARSER-BUDGET-BAND-NEGATIVE). 22/22 tests pass x3 (+9 tests mới), 	sc ExitCode 0; receipt 	ester.md:9425 under # W-DOC-CORE-PARSER-BUDGET-BAND-NEGATIVE. Đã gửi status msg msg_2ee17d51983e. Settle ctx_5f3b92c10a7e (cursor 28877, idle lúc 5:58 AM).
+  * **Qwen Platform (	erm_4568d175)**: Đã hoàn tất 	ask_d3e21a94b80c (ctx_d3e21a94b80c, W-PLAT-CR28-04-RUNTIME-ENCRYPTION-METADATA-NEGATIVE). 105/105 tests pass x3 (+50 tests mới), M1 mutations verified red-then-green byte-exact restore, 	sc ExitCode 0; receipt qwen-platform.md#Muc-44. Settle ctx_d3e21a94b80c (cursor 43125125, idle).
+  * **Qwen Admin (	erm_742c2474)**: Đã hoàn tất 	ask_3e91b4027a8c (ctx_3e91b4027a8c, W-ADM-UX-02-PAGINATION-NEGATIVE). 103/103 tests pass x3 (+14 tests mới), hồi quy 7 suite 233/233 pass, 	sc ExitCode 0; receipt qwen-admin.md#Muc-49. Settle ctx_3e91b4027a8c (cursor 44421205, idle).
+  * **Qwen Docs (	erm_27eb3380)**: 	ask_a47e1934b02c (ctx_a47e1934b02c, D-DOCS-EVID-SYNC-339). Đang hoàn tất ghép Mục 61 và link check S0/S1 (cursor 28753211). Trạng thái: 
+unning.
+
+- **Phát động làn sóng Turn 343 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (	erm_b2d08e87)**: 	ask_9c1b47e20a3d (ctx_9c1b47e20a3d) — Xác minh độc lập read-only 2 deliverable suites của Turn 341: packages/worker-sdk/tests/artifact-multipart.test.ts (27 tests x3) và usinesses/document-core/tests/parser-budget-band.test.ts (22 tests x3), 	sc --noEmit ExitCode 0 cả hai package. Ghi receipt 	ester.md#T-CODEX-OFFLINE-MULTIPART-AND-BUDGET-BAND-INDEPENDENT. Đang thực thi (cursor 21919).
+  2. **Codex Worker 1 (	erm_2b05b203)**: 	ask_4b8e2194c03d (ctx_4b8e2194c03d) — Gói W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE. Bổ sung negative/boundary tests trong packages/worker-sdk/tests/connector-invoker.test.ts (baseline: 17 tests; HTTP status rejections 500/502/503/504, malformed error headers, AbortController timeout race condition, empty response stream). Đang thực thi (cursor 34067).
+  3. **Codex Worker 2 (	erm_949d489b)**: 	ask_6d1f92e30a4b (ctx_6d1f92e30a4b) — Gói W-DOC-CORE-INGEST-SCAN-TAMPER-NEGATIVE. Bổ sung negative/boundary tests trong usinesses/document-core/tests/ingest-scan-tamper.test.ts (baseline: 9 tests; OCR/handwriting payload tamper, invalid magic bytes, truncated scan stream, corrupted storage version). Đang thực thi (cursor 28903).
+  4. **Qwen Platform (	erm_4568d175)**: 	ask_5c8e2194b17a (ctx_5c8e2194b17a) — Gói W-PLAT-CR28-05-CRYPTO-STORAGE-FACADE-NEGATIVE. Bổ sung negative/boundary tests trong services/orchestrator/tests/crypto-storage-facade.test.ts (baseline: 27 tests; context AAD bounds, malformed manifest sidecar, stream chunk typing anomalies, tampered key version, M1 mutation test). Đang thực thi (cursor 43145532).
+  5. **Qwen Admin (	erm_742c2474)**: 	ask_2b91a4038c1f (ctx_2b91a4038c1f) — Gói W-ADM-UX-06-ERROR-BOUNDARY-NEGATIVE. Bổ sung negative/boundary tests trong services/orchestrator/tests/admin-error-boundary-offline.test.ts (baseline: 22 tests; unhandled exception masking, correlation ID preservation, XSS reflection prevention, loopback HTTP boundary contract). Đang thực thi (cursor 44427444).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+
+---
+
+### Turn 344 Settlement & Parallel Wave — 2026-09-29T06:12:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (	erm_b2d08e87)**: Đã hoàn tất độc lập 	ask_9c1b47e20a3d (ctx_9c1b47e20a3d). 27/27 tests rtifact-multipart (3 lượt = 81/81) và 22/22 tests parser-budget-band (3 lượt = 66/66) pass x3, 	sc ExitCode 0 cả 2 packages; receipt 	ester.md#T-CODEX-OFFLINE-MULTIPART-AND-BUDGET-BAND-INDEPENDENT. Đã gửi status msg msg_f3896696732f. Settle ctx_9c1b47e20a3d (cursor 22040, idle lúc 6:06 AM).
+  * **Codex Worker 1 (	erm_2b05b203)**: Đã hoàn tất 	ask_4b8e2194c03d (ctx_4b8e2194c03d, W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE). 26/26 tests pass x3 (+9 tests mới), 	sc ExitCode 0; receipt 	ester.md#W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE. Đã gửi status msg msg_ecb74e2a-3ea1. Settle ctx_4b8e2194c03d (cursor 34339, idle lúc 6:09 AM).
+  * **Codex Worker 2 (	erm_949d489b)**: Đã hoàn tất 	ask_6d1f92e30a4b (ctx_6d1f92e30a4b, W-DOC-CORE-INGEST-SCAN-TAMPER-NEGATIVE). 16/16 tests pass x3 (+7 tests mới, 3 expected-failing probes), 	sc ExitCode 0; receipt 	ester.md:10268 under # W-DOC-CORE-INGEST-SCAN-TAMPER-NEGATIVE. Đã gửi status msg msg_faac89db-366f. Settle ctx_6d1f92e30a4b (cursor 29230, idle lúc 6:11 AM).
+  * **Qwen Docs (	erm_27eb3380)**: Đã hoàn tất 	ask_a47e1934b02c (ctx_a47e1934b02c, D-DOCS-EVID-SYNC-339). Đồng bộ 5 receipts Turn 339 vào docs/28 và docs/35 (bump 1.62.0 → 1.63.0), link check x3 S0/S1 BROKEN=0, ghi Mục 61 vào qwen-docs.md; receipt qwen-docs.md#Muc-61. Settle ctx_a47e1934b02c (cursor 29022326, idle).
+  * **Qwen Platform (	erm_4568d175)**: 	ask_5c8e2194b17a (ctx_5c8e2194b17a, W-PLAT-CR28-05-CRYPTO-STORAGE-FACADE-NEGATIVE). Đang tích cực chạy d82-run2.log (cursor 43598292). Trạng thái: 
+unning.
+  * **Qwen Admin (	erm_742c2474)**: 	ask_2b91a4038c1f (ctx_2b91a4038c1f, W-ADM-UX-06-ERROR-BOUNDARY-NEGATIVE). Đang chạy suite kiểm thử unhandled error contract (cursor 44866498). Trạng thái: 
+unning.
+
+- **Phát động làn sóng Turn 344 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (	erm_b2d08e87)**: 	ask_3e1a8b94c01d (ctx_3e1a8b94c01d) — Xác minh độc lập read-only 2 deliverable suites của Turn 343: packages/worker-sdk/tests/connector-invoker.test.ts (26 tests x3) và usinesses/document-core/tests/ingest-scan-tamper.test.ts (16 tests x3), 	sc --noEmit ExitCode 0 cả hai package. Ghi receipt 	ester.md#T-CODEX-OFFLINE-CONNECTOR-INVOKER-AND-SCAN-TAMPER-INDEPENDENT. Đang thực thi (cursor 22066).
+  2. **Codex Worker 1 (	erm_2b05b203)**: 	ask_1c7b94e20d8f (ctx_1c7b94e20d8f) — Gói W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE. Bổ sung negative/boundary tests trong packages/worker-sdk/tests/connector-input-contract.test.ts (baseline: 25 tests; bindingSlot format, deadlineAt boundaries, temperature/maxTokens anomalies, overlong session reference). Đang thực thi (cursor 34373).
+  3. **Codex Worker 2 (	erm_949d489b)**: 	ask_8f3a91c20b7e (ctx_8f3a91c20b7e) — Gói W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE. Bổ sung negative/boundary tests trong usinesses/document-core/tests/ingest-scan-fixtures.test.ts (baseline: 8 tests; magic bytes vs MIME mismatch, truncated fixture payloads, expired reference during pre-flight, zero-length scan). Đang thực thi (cursor 29243).
+  4. **Qwen Docs (	erm_27eb3380)**: 	ask_6e2a91b40c3d (ctx_6e2a91b40c3d) — Gói D-DOCS-EVID-SYNC-340. Đồng bộ 5 receipts Turn 340 vào docs/28 và docs/35 (bump 1.63.0 → 1.64.0), link check x3 S0/S1 BROKEN=0. Ghi receipt qwen-docs.md#Muc-62. Đang thực thi (cursor 29028873).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 345 Settlement & Parallel Wave — 2026-09-29T06:45:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_3e1a8b94c01d` (`ctx_3e1a8b94c01d`). 26/26 tests `connector-invoker` (3 lượt = 78/78) và 16/16 tests `ingest-scan-tamper` (3 lượt = 48/48) pass x3, `tsc` ExitCode 0 cả 2 packages; receipt `tester.md#T-CODEX-OFFLINE-CONNECTOR-INVOKER-AND-SCAN-TAMPER-INDEPENDENT`. Đã gửi status msg `msg_06a7f8ced089`. Settle `ctx_3e1a8b94c01d` (cursor 22185, idle lúc 6:16 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_1c7b94e20d8f` (`ctx_1c7b94e20d8f`, `W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE`). 42/42 tests pass x3 (+17 tests mới), `tsc` ExitCode 0, git diff check 0; receipt `tester.md:9902/9909`. Settle `ctx_1c7b94e20d8f` (cursor 34680, idle lúc 6:22 AM). Ghi nhận finding: schema hiện vẫn chấp nhận slot whitespace/hostile, deadline sai định dạng/hết hạn, maxTokens dương không giới hạn, sessionRef dài.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_8f3a91c20b7e` (`ctx_8f3a91c20b7e`, `W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE`). 19/19 tests pass x3 (+11 tests mới, 5 expected-failing probes), `tsc` ExitCode 0; receipt `tester.md:9827`. Đã gửi status msg `msg_633bc3b2-cbb3`. Settle `ctx_8f3a91c20b7e` (cursor 29616, idle lúc 6:21 AM). Ghi nhận 5 test.failing cho MIME/TIFF/PNG format gaps và filename CRLF.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_5c8e2194b17a` (`ctx_5c8e2194b17a`, `W-PLAT-CR28-05-CRYPTO-STORAGE-FACADE-NEGATIVE`). 101/101 tests pass x3 (+74 tests mới), M1a và M1b mutations verified red-then-green byte-exact restore, `tsc` ExitCode 0; receipt `qwen-platform.md#Muc-45`. Settle `ctx_5c8e2194b17a` (cursor 44404714, idle). Ghi nhận finding: purpose check trong stream decryption throws `INVALID_MANIFEST`.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_2b91a4038c1f` (`ctx_2b91a4038c1f`, `W-ADM-UX-06-ERROR-BOUNDARY-NEGATIVE`). 37/37 tests pass x3 (+15 tests mới), hồi quy 8/9 suite (369/370 pass, 1 pre-existing logger stdout defect ghi nhận là Δ130), `tsc` ExitCode 0; receipt `qwen-admin.md#50`. Đã gửi status msg `msg_f337a0754f7a`. Settle `ctx_2b91a4038c1f` (cursor 45968214, idle). Thiết lập port band 44000-44504 chuẩn tránh đụng độ Windows ephemeral ports.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_6e2a91b40c3d` (`ctx_6e2a91b40c3d`, `D-DOCS-EVID-SYNC-340`). Đồng bộ 5 receipts Turn 340 vào `docs/28` và `docs/35` (bump 1.63.0 → 1.64.0), link check x3 S0/S1 BROKEN=0, ghi Mục 62 vào `qwen-docs.md`; receipt `qwen-docs.md#Muc-62`. Settle `ctx_6e2a91b40c3d` (cursor 29580424, idle).
+
+- **Phát động làn sóng Turn 345 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_5d1a8e94c02f` (`ctx_5d1a8e94c02f`) — Xác minh độc lập read-only 2 deliverable suites của Turn 344: `packages/worker-sdk/tests/connector-input-contract.test.ts` (42 tests x3) và `businesses/document-core/tests/ingest-scan-fixtures.test.ts` (19 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-INPUT-CONTRACT-AND-SCAN-FIXTURES-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_9e2b104c8f3a` (`ctx_9e2b104c8f3a`) — Gói `W-WORKER-SDK-CONNECTOR-SESSION-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/connector-session.test.ts` (baseline: 30 tests; missing/malformed sessionRef, corrupt nextPollAt timestamp, negative retryDelayMs clamping, ReconcileRequiredError boundaries). Đang thực thi (`turn_started`).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_7a1b92c40e8b` (`ctx_7a1b92c40e8b`) — Gói `W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/ingest-source-pin.test.ts` (baseline: 23 tests; whitespace-only storage key, uppercase digest, non-hex chars, negative length, cross-tenant pin binding, expired pin lease token). Đang thực thi (`turn_started`).
+  4. **Qwen Platform (`term_4568d175`)**: `task_4d8e2194b28c` (`ctx_4d8e2194b28c`) — Gói `W-PLAT-CR28-06-SUBMISSION-METADATA-CRYPTO-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/submission-metadata-crypto-e2e.test.ts` (baseline: 7 tests; cross-column envelope swapping, malformed envelope insertion, simulated key-service outage, AAD context tamper on read-back, M1 mutation test). Đang thực thi.
+  5. **Qwen Admin (`term_742c2474`)**: `task_3c91a4038d2e` (`ctx_3c91a4038d2e`) — Gói `W-ADM-UX-07-OPERATION-VIEW-MODEL-NEGATIVE` (Cycle 51). Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-operation-view-model.test.ts` (baseline: 74 tests; missing/malformed status enum values, corrupted casToken in resume payload, hostile HTML/XSS in inputSchema, negative sizeBytes, port band 44000-44504). Đang thực thi.
+  6. **Qwen Docs (`term_27eb3380`)**: `task_5e3a91b40c4e` (`ctx_5e3a91b40c4e`) — Gói `D-DOCS-EVID-SYNC-341` (Cycle 63). Đồng bộ 5 receipts Turn 341 vào `docs/28` và `docs/35` (bump 1.64.0 → 1.65.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-63`. Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 346 Settlement & Parallel Wave — 2026-09-29T06:54:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_5d1a8e94c02f` (`ctx_5d1a8e94c02f`, `T-CODEX-OFFLINE-INPUT-CONTRACT-AND-SCAN-FIXTURES-INDEPENDENT`). 42/42 tests `connector-input-contract` (3 lượt = 126/126) và 19/19 tests `ingest-scan-fixtures` (3 lượt = 57/57) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md:10312#T-CODEX-OFFLINE-INPUT-CONTRACT-AND-SCAN-FIXTURES-INDEPENDENT`. Đã gửi status msg `msg_a4ed28ec1265`. Settle `ctx_5d1a8e94c02f` (cursor 22333, idle lúc 6:47 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_9e2b104c8f3a` (`ctx_9e2b104c8f3a`, `W-WORKER-SDK-CONNECTOR-SESSION-NEGATIVE`). 44/44 tests pass x3 (+14 tests mới), `tsc` ExitCode 0, git diff check 0; receipt `tester.md:10366#W-WORKER-SDK-CONNECTOR-SESSION-NEGATIVE`. Đã gửi status msg `msg_61802f6b-3810`. Settle `ctx_9e2b104c8f3a` (cursor 35054, idle). Ghi nhận boundary: missing sessionRef normalize null, malformed non-string reject schema, malformed nextPollAt fallback default retry delay, non-positive delay clamp MIN_PENDING_RETRY_MS, ReconcileRequiredError non-retryable & capped 2048 chars.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_7a1b92c40e8b` (`ctx_7a1b92c40e8b`, `W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`). 28/28 tests pass x3 (+5 tests mới, 2 expected-failing probes), `tsc` ExitCode 0; receipt `tester.md:9657#W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`. Đã gửi status msg `msg_06bbde057ac7`. Settle `ctx_7a1b92c40e8b` (cursor 29832, idle lúc 6:49 AM). Ghi nhận 2 test.failing cho whitespace-only storage keys và tenant unbinding.
+  * **Qwen Platform (`term_4568d175`)**: `task_4d8e2194b28c` (`ctx_4d8e2194b28c`, `W-PLAT-CR28-06-SUBMISSION-METADATA-CRYPTO-NEGATIVE`). Đang tích cực chạy Jest và kiểm tra cross-column swapping/sealing findings (cursor 44802037). Trạng thái: running.
+  * **Qwen Admin (`term_742c2474`)**: `task_3c91a4038d2e` (`ctx_3c91a4038d2e`, `W-ADM-UX-07-OPERATION-VIEW-MODEL-NEGATIVE`). Đang thực thi Jest test suite `admin-operation-view-model.test.ts` (cursor 46370465). Trạng thái: running.
+  * **Qwen Docs (`term_27eb3380`)**: `task_5e3a91b40c4e` (`ctx_5e3a91b40c4e`, `D-DOCS-EVID-SYNC-341`). Đang hoàn tất ghép Mục 63, bump docs/35 lên v1.65.0 và link check (cursor 29941248). Trạng thái: running.
+
+- **Phát động làn sóng Turn 346 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_2c1a8e94d03e` (`ctx_2c1a8e94d03e`) — Xác minh độc lập read-only 2 deliverable suites của Turn 345: `packages/worker-sdk/tests/connector-session.test.ts` (44 tests x3) và `businesses/document-core/tests/ingest-source-pin.test.ts` (28 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-SESSION-AND-SOURCE-PIN-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_3e2b104c8f4b` (`ctx_3e2b104c8f4b`) — Gói `W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-read-metadata.test.ts` (baseline: 18 tests; malformed digest encodings, extreme expiresAt time horizons, conflicting grant headers, truncated download descriptor). Đang thực thi (`turn_started`).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_8a1b92c40e9c` (`ctx_8a1b92c40e9c`) — Gói `W-DOC-CORE-INGEST-WIRE-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/ingest-wire.test.ts` (baseline: 15 tests; malformed multipart boundary markers, CRLF injection in wire headers, corrupted Content-Disposition filename quoting, aborted chunked streaming). Đang thực thi (`turn_started`).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 347 Settlement & Parallel Wave — 2026-09-29T07:04:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_2c1a8e94d03e` (`ctx_2c1a8e94d03e`, `T-CODEX-OFFLINE-SESSION-AND-SOURCE-PIN-INDEPENDENT`). 44/44 tests `connector-session` (3 lượt = 132/132) và 28/28 tests `ingest-source-pin` (3 lượt = 84/84) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md:10364#T-CODEX-OFFLINE-SESSION-AND-SOURCE-PIN-INDEPENDENT`. Đã gửi status msg `msg_ec6749cfdfc8`. Settle `ctx_2c1a8e94d03e` (cursor 22471, idle lúc 6:55 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_3e2b104c8f4b` (`ctx_3e2b104c8f4b`, `W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE`). 27/27 tests pass x3 (+9 tests mới), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE`. Đã gửi status msg `msg_5c92d4b6-dc80`. Settle `ctx_3e2b104c8f4b` (cursor 35372, idle lúc 6:59 AM). Ghi nhận boundary: digest encoding sai, expiry cực xa/cực cũ, Content-Length mâu thuẫn với grant, JSON descriptor bị cắt cụt và download truncation.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_8a1b92c40e9c` (`ctx_8a1b92c40e9c`, `W-DOC-CORE-INGEST-WIRE-NEGATIVE`). 19/19 tests pass x3 (+4 tests mới, 1 expected-failing probe), `tsc` ExitCode 0; receipt `tester.md:9950#W-DOC-CORE-INGEST-WIRE-NEGATIVE`. Đã gửi status msg `msg_d859028a-35bc`. Settle `ctx_8a1b92c40e9c` (cursor 30071, idle lúc 6:58 AM). Ghi nhận 1 test.failing cho multipart boundary header không khớp encoded body.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_3c91a4038d2e` (`ctx_3c91a4038d2e`, `W-ADM-UX-07-OPERATION-VIEW-MODEL-NEGATIVE`, Cycle 51). 151/151 tests pass x3 (+77 tests mới), hồi quy 5 suite lân cận 487/487 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#51`. Settle `ctx_3c91a4038d2e` (cursor 46667839, idle). Ghi nhận 4 phát hiện: renderHumanWaitForm crash trên properties {foo: null}, corrupt expiresAt fails open, malformed status doesn't fail closed, negative sizeBytes unclamped.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_5e3a91b40c4e` (`ctx_5e3a91b40c4e`, `D-DOCS-EVID-SYNC-341`, Cycle 63). Đồng bộ 5 receipts Turn 341 vào `docs/28` (v1.48.0) và `docs/35` (v1.65.0), link check x3 S0/S1 BROKEN=0, ghi Mục 63 vào `qwen-docs.md`; receipt `qwen-docs.md#Muc-63`. Settle `ctx_5e3a91b40c4e` (cursor 30140062, idle).
+  * **Qwen Platform (`term_4568d175`)**: `task_4d8e2194b28c` (`ctx_4d8e2194b28c`, `W-PLAT-CR28-06-SUBMISSION-METADATA-CRYPTO-NEGATIVE`). 42/42 tests pass, typecheck sạch, đang ghi receipt Mục 46 (cursor 45477250). Trạng thái: running.
+
+- **Phát động làn sóng Turn 347 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_7e1a8e94e04f` (`ctx_7e1a8e94e04f`) — Xác minh độc lập read-only 2 deliverable suites của Turn 346: `packages/worker-sdk/tests/artifact-read-metadata.test.ts` (27 tests x3) và `businesses/document-core/tests/ingest-wire.test.ts` (19 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-READ-METADATA-AND-INGEST-WIRE-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_4f2b104c8f5c` (`ctx_4f2b104c8f5c`) — Gói `W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-stream-bounds.test.ts` (baseline: 31 tests; zero/negative stream limits, non-integer highWaterMarkBytes, premature stream close before headers, socket hang-up during chunk read, buffer re-entrancy under rapid backpressure). Đang thực thi (`turn_started`).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_9b1b92c40fad` (`ctx_9b1b92c40fad`) — Gói `W-DOC-CORE-READ-STREAM-ACQUISITION-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/read-stream-acquisition.test.ts` (baseline: 11 tests; disk full/write error during acquisition, corrupted SHA-256 hash stream, lease lost during disk flush, zero-byte artifact on large budget path, cleanup failure handling). Đang thực thi (`turn_started`).
+  4. **Qwen Admin (`term_742c2474`)**: `task_4c91a4038e3f` (`ctx_4c91a4038e3f`) — Gói `W-ADM-UX-08-CONNECTOR-VIEW-MODEL-NEGATIVE` (Cycle 52). Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-connector-view-model.test.ts` (baseline: 33 tests; unknown/malformed connectorState enum values, invalid connectorTestBadge status, secret slot corruption, raw secret leakage prevention in error states). Đang thực thi.
+  5. **Qwen Docs (`term_27eb3380`)**: `task_6e3a91b40c5f` (`ctx_6e3a91b40c5f`) — Gói `D-DOCS-EVID-SYNC-342` (Cycle 64). Đồng bộ 5 receipts Turn 342 vào `docs/28` và `docs/35` (bump 1.65.0 → 1.66.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-64`. Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 348 Settlement & Parallel Wave — 2026-09-29T07:14:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_7e1a8e94e04f` (`ctx_7e1a8e94e04f`, `T-CODEX-OFFLINE-READ-METADATA-AND-INGEST-WIRE-INDEPENDENT`). 27/27 tests `artifact-read-metadata` (3 lượt = 81/81) và 19/19 tests `ingest-wire` (3 lượt = 57/57) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md:10408#T-CODEX-OFFLINE-READ-METADATA-AND-INGEST-WIRE-INDEPENDENT`. Đã gửi status msg `msg_f684d31d35d3`. Settle `ctx_7e1a8e94e04f` (cursor 22611, idle lúc 7:05 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_4f2b104c8f5c` (`ctx_4f2b104c8f5c`, `W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE`). 35/35 tests pass x3 (+4 tests mới), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE`. Đã gửi status msg `msg_4e93e8b8-039e`. Settle `ctx_4f2b104c8f5c` (cursor 35647, idle lúc 7:08 AM). Ghi nhận boundary: giới hạn stream bằng 0, high-water mark fractional, socket đóng trước headers và giữa lúc đọc, pause/resume nhanh dưới backpressure.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_9b1b92c40fad` (`ctx_9b1b92c40fad`, `W-DOC-CORE-READ-STREAM-ACQUISITION-NEGATIVE`). 16/16 tests pass x3 (+5 tests mới), `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-READ-STREAM-ACQUISITION-NEGATIVE`. Đã gửi status msg `msg_ee4fd232-a2ec`. Settle `ctx_9b1b92c40fad` (cursor 30379, idle lúc 7:09 AM). Ghi nhận boundary: disk write failure, corrupted SHA-256 bytes, lease loss sau khi chunk ghi vào temporary file, zero-byte streamed artifacts và cleanup errors.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_4d8e2194b28c` (`ctx_4d8e2194b28c`, `W-PLAT-CR28-06-SUBMISSION-METADATA-CRYPTO-NEGATIVE`). 42/42 tests pass x3 (+35 tests mới), M1 mutation red-then-green (8 failed / 34 passed), `tsc` ExitCode 0; receipt `qwen-platform.md#Muc-46`. Settle `ctx_4d8e2194b28c` (cursor 45868026, idle). Ghi nhận finding: plaintextSha256 không verify trong seal path, cross-column envelope swapping prevented.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_4c91a4038e3f` (`ctx_4c91a4038e3f`, `W-ADM-UX-08-CONNECTOR-VIEW-MODEL-NEGATIVE`, Cycle 52). 91/91 tests pass x3 (+58 tests mới), hồi quy 7 suite view-model 438/438 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#52`. Settle `ctx_4c91a4038e3f` (cursor 47018500, idle). Ghi nhận 4 phát hiện: unknown state raises TypeError, gate/display asymmetry, `hasValue` bare truthiness ('false' renders as Configured), vacuous tests discovered where sentinel was declared but never injected into inputs.
+  * **Qwen Docs (`term_27eb3380`)**: `task_6e3a91b40c5f` (`ctx_6e3a91b40c5f`, `D-DOCS-EVID-SYNC-342`, Cycle 64). Đang chạy link check cuối và kiểm tra census (cursor 30615462). Trạng thái: running.
+
+- **Phát động làn sóng Turn 348 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_8f1a8e94f05a` (`ctx_8f1a8e94f05a`) — Xác minh độc lập read-only 2 deliverable suites của Turn 347: `packages/worker-sdk/tests/artifact-stream-bounds.test.ts` (35 tests x3) và `businesses/document-core/tests/read-stream-acquisition.test.ts` (16 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-STREAM-BOUNDS-AND-READ-STREAM-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_5a2b104c8f6d` (`ctx_5a2b104c8f6d`) — Gói `W-WORKER-SDK-ARTIFACT-DIRECT-BAND-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-direct-band.test.ts` (baseline: 12 tests; exact band boundary edges 64 MiB +/- 1 byte, negative/fractional size declarations, server 500/503 during upload stream, digest corruption on 64 MiB boundary, socket reset mid-stream). Đang thực thi (`turn_started`).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_1a1b92c40ebe` (`ctx_1a1b92c40ebe`) — Gói `W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/bounded-input.test.ts` (baseline: 36 tests; negative page numbers, non-numeric page range specs, deep circular schema references, negative QA question limits, conflicting legacy parameter overrides). Đang thực thi (`turn_started`).
+  4. **Qwen Platform (`term_4568d175`)**: `task_5d8e2194b39d` (`ctx_5d8e2194b39d`) — Gói `W-PLAT-CR28-07-ADMIN-CRYPTO-CONFIG-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-crypto-config.test.ts` (baseline: 35 tests; revoked key version pinning races, malformed tenant IDs with control chars, CSRF token forgery and timing boundaries, AAD fingerprint preview truncation bounds, M1 mutation verification). Đang thực thi.
+  5. **Qwen Admin (`term_742c2474`)**: `task_5c91a4038e4a` (`ctx_5c91a4038e4a`) — Gói `W-ADM-UX-09-BUSINESS-VIEW-MODEL-NEGATIVE` (Cycle 53). Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-business-view-model.test.ts` (baseline: 54 tests; unknown/corrupt BusinessStatus enum values, hostile HTML in businessId/version names, boundary heartbeat timestamps, conflicting activeVersion states). Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 349 Settlement & Parallel Wave — 2026-09-29T07:24:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_8f1a8e94f05a` (`ctx_8f1a8e94f05a`, `T-CODEX-OFFLINE-STREAM-BOUNDS-AND-READ-STREAM-INDEPENDENT`). 35/35 tests `artifact-stream-bounds` (3 lượt = 105/105) và 16/16 tests `read-stream-acquisition` (3 lượt = 48/48) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-STREAM-BOUNDS-AND-READ-STREAM-INDEPENDENT`. Đã gửi status msg `msg_666399e9cd74`. Settle `ctx_8f1a8e94f05a` (cursor 22814, idle lúc 7:18 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_5a2b104c8f6d` (`ctx_5a2b104c8f6d`, `W-WORKER-SDK-ARTIFACT-DIRECT-BAND-NEGATIVE`). 20/20 tests pass x3 (+8 tests mới), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-DIRECT-BAND-NEGATIVE`. Đã gửi status msg `msg_f4e647bb-0803`. Settle `ctx_5a2b104c8f6d` (cursor 35998, idle lúc 7:20 AM). Ghi nhận boundary: band boundary edges 64 MiB +/- 1 byte, negative/fractional size declarations rejected pre-flight, HTTP 500/503 refused, corrupted digest fails closed, loopback peer reset reported as `TRANSPORT_FAILURE`.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_1a1b92c40ebe` (`ctx_1a1b92c40ebe`, `W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`). 41/41 tests pass x3 (+5 tests mới), `tsc` ExitCode 0; receipt `tester.md:9974#W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`. Đã gửi status msg `msg_caae2bec-9967`. Settle `ctx_1a1b92c40ebe` (cursor 30626, idle lúc 7:18 AM). Ghi nhận boundary: zero/negative page numbers, non-numeric page specs, circular schema depth exceeded boundary, negative QA count rejected as missing input, legacy alias conflict handling.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_5c91a4038e4a` (`ctx_5c91a4038e4a`, `W-ADM-UX-09-BUSINESS-VIEW-MODEL-NEGATIVE`, Cycle 53). 95/95 tests pass x3 (+41 tests mới), hồi quy 5 suite view-model 465/465 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#53`. Settle `ctx_5c91a4038e4a` (cursor 47537868, idle). Ghi nhận 4 phát hiện: corrupt status reads as healthy without isActive:false, health counters don't reconcile across unknown statuses, corrupt heartbeat timestamps vanish silently without error, conflicting activeVersion resolved solely by array order.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_6e3a91b40c5f` (`ctx_6e3a91b40c5f`, `D-DOCS-EVID-SYNC-342`, Cycle 64). Đồng bộ 4 receipts Turn 342 vào `docs/28` (v1.48.0) và `docs/35` (v1.66.0), link check x3 S0/S1 BROKEN=0; receipt `qwen-docs.md#Muc-64`. Đã gửi status msgs `msg_9461f0c4778b`, `msg_a86021ab1f77`. Settle `ctx_6e3a91b40c5f` (cursor 30744514, idle). Ghi nhận finding: `test.failing` lan sang 3 files (10 blocks) chưa được công bố ở một số receipt độc lập, cross-tenant pin chấp nhận trái phép.
+  * **Qwen Platform (`term_4568d175`)**: `task_5d8e2194b39d` (`ctx_5d8e2194b39d`, `W-PLAT-CR28-07-ADMIN-CRYPTO-CONFIG-NEGATIVE`). Đang tích cực chạy Jest và background verification cho admin crypto config negative/boundary tests (cursor 46432285). Trạng thái: running.
+
+- **Phát động làn sóng Turn 349 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_9f1a8e94f06b` (`ctx_9f1a8e94f06b`) — Xác minh độc lập read-only 2 deliverable suites của Turn 348: `packages/worker-sdk/tests/artifact-direct-band.test.ts` (20 tests x3) và `businesses/document-core/tests/bounded-input.test.ts` (41 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-DIRECT-BAND-AND-BOUNDED-INPUT-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_6a2b104c8f7e` (`ctx_6a2b104c8f7e`) — Gói `W-WORKER-SDK-ARTIFACT-STREAMS-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-streams.test.ts` (stream abortion mid-flight, invalid pipe destinations, chunk framing boundaries, backpressure starvation, socket reset during stream, invalid stream encoding). Đang thực thi (`turn_started`).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_2a1b92c40ecf` (`ctx_2a1b92c40ecf`) — Gói `W-DOC-CORE-MANIFEST-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/manifest.test.ts` (malformed manifest JSON, unsupported schema versions, tampering with artifact metadata hashes, missing required manifest sections, excessive artifact counts in manifest). Đang thực thi (`turn_started`).
+  4. **Qwen Admin (`term_742c2474`)**: `task_6c91a4038e5b` (`ctx_6c91a4038e5b`) — Gói `W-ADM-UX-10-API-KEY-VIEW-MODEL-NEGATIVE` (Cycle 54). Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-api-key-view-model.test.ts` (secret key masking validation, expired key badge degradation, malformed scope arrays, revoked key action guards, corrupt timestamps). Đang thực thi.
+  5. **Qwen Docs (`term_27eb3380`)**: `task_7e3a91b40c6a` (`ctx_7e3a91b40c6a`) — Gói `D-DOCS-EVID-SYNC-343` (Cycle 65). Đồng bộ Turn 343 receipts vào `docs/28` và `docs/35` (bump 1.66.0 -> 1.67.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-65`. Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 350 Settlement & Parallel Wave — 2026-09-29T07:34:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_9f1a8e94f06b` (`ctx_9f1a8e94f06b`, `T-CODEX-OFFLINE-DIRECT-BAND-AND-BOUNDED-INPUT-INDEPENDENT`). 20/20 tests `artifact-direct-band` (3 lượt = 60/60) và 41/41 tests `bounded-input` (3 lượt = 123/123) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md:10515#T-CODEX-OFFLINE-DIRECT-BAND-AND-BOUNDED-INPUT-INDEPENDENT`. Đã gửi status msg `msg_8bf60865dfab`. Settle `ctx_9f1a8e94f06b` (cursor 22952, idle lúc 7:27 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_6a2b104c8f7e` (`ctx_6a2b104c8f7e`, `W-WORKER-SDK-ARTIFACT-STREAMS-NEGATIVE`). 53/53 tests pass x3 (+22 tests mới), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-STREAMS-NEGATIVE`. Đã gửi status msg qua orca orchestration send. Settle `ctx_6a2b104c8f7e` (cursor 36364, idle lúc 7:33 AM). Ghi nhận boundary: mid-flight abort cleanup, invalid directory destinations fail closed, 1024-byte chunk framing, consumer backpressure pausing, socket reset cleanup, invalid UTF-8 bytes remain opaque binary.
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_2a1b92c40ecf` (`ctx_2a1b92c40ecf`, `W-DOC-CORE-MANIFEST-NEGATIVE`). 10/10 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-MANIFEST-NEGATIVE`. Đã gửi status msg `msg_495a4344-57b7`. Settle `ctx_2a1b92c40ecf` (cursor 30844, idle lúc 7:30 AM). Ghi nhận finding: excessive maxFiles boundary là `test.failing` do hiện tại chưa có validation trần trên trường này.
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_6c91a4038e5b` (`ctx_6c91a4038e5b`, `W-ADM-UX-10-API-KEY-VIEW-MODEL-NEGATIVE`, Cycle 54). 84/84 tests pass x3 (+59 tests mới), hồi quy 9 suite view-model & contracts 628/628 pass, `tsc` ExitCode 0; receipt `qwen-admin.md#54`. Settle `ctx_6c91a4038e5b` (cursor 47918097, idle). Ghi nhận 5 phát hiện: không có trạng thái EXPIRED trên enum dẫn đến crash trang, mask để lộ hoàn toàn key 4 ký tự, revoke guard bỏ qua revokedAt đã có, không parse timestamp (opaque passthrough), maskedHint không được re-validate.
+  * **Qwen Platform (`term_4568d175`)**: `task_5d8e2194b39d` (`ctx_5d8e2194b39d`, `W-PLAT-CR28-07-ADMIN-CRYPTO-CONFIG-NEGATIVE`). Đã đạt 83/83 tests green trên vòng chạy thử nghiệm, đang chạy 2 vòng tiếp theo + tsc và backup file cho M1 mutation (cursor 46994539). Trạng thái: running.
+  * **Qwen Docs (`term_27eb3380`)**: `task_7e3a91b40c6a` (`ctx_7e3a91b40c6a`, `D-DOCS-EVID-SYNC-343`, Cycle 65). Đang kiểm tra anchor targets và chuẩn bị file splice cho Mục 65 (cursor 31164628). Trạng thái: running.
+
+- **Phát động làn sóng Turn 350 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_1d1a8e94f08e` (`ctx_1d1a8e94f08e`) — Xác minh độc lập read-only 2 deliverable suites của Turn 349: `packages/worker-sdk/tests/artifact-streams.test.ts` (53 tests x3) và `businesses/document-core/tests/manifest.test.ts` (10 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-STREAMS-AND-MANIFEST-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_7a2b104c8f8f` (`ctx_7a2b104c8f8f`) — Gói `W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-stat.test.ts` (non-existent artifact IDs, malformed SHA-256 digests in stat response, extreme size values, expired leases, network timeouts during stat query). Đang thực thi (`turn_started`).
+  3. **Codex Worker 2 (`term_949d489b`)**: `task_3a1b92c40ed0` (`ctx_3a1b92c40ed0`) — Gói `W-DOC-CORE-PARSER-BUDGETS-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/parser-budgets.test.ts` (zero/negative buffer caps, timeout boundary fences, non-integer page budget limits, excessive memory allocation thresholds, missing parser budget profiles). Đang thực thi (`turn_started`).
+  4. **Qwen Admin (`term_742c2474`)**: `task_7c91a4038e6c` (`ctx_7c91a4038e6c`) — Gói `W-ADM-UX-11-OVERVIEW-VIEW-MODEL-NEGATIVE` (Cycle 55). Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-overview-view-model.test.ts` (malformed status summaries, NaN/negative counters, corrupt throughput metrics, boundary time-window intervals, tenant breakdown edge cases). Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 351 Settlement & Parallel Wave — 2026-09-29T07:44:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_1d1a8e94f08e` (`ctx_1d1a8e94f08e`, `T-CODEX-OFFLINE-STREAMS-AND-MANIFEST-INDEPENDENT`). 53/53 tests `artifact-streams` (3 lượt = 159/159) và 10/10 tests `manifest` (3 lượt = 30/30) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-STREAMS-AND-MANIFEST-INDEPENDENT`. Đã gửi status msg `msg_9e5c8afdbef2`. Settle `ctx_1d1a8e94f08e` (cursor 23103, idle lúc 7:37 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_7a2b104c8f8f` (`ctx_7a2b104c8f8f`, `W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE`). 20/20 tests pass x3 (+8 tests mới), `tsc` ExitCode 0; receipt `tester.md#W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE`. Đã gửi status msg `msg_cbb4fd05-d68d`. Settle `ctx_7a2b104c8f8f` (cursor 36655, idle lúc 7:42 AM). Ghi nhận boundary: missing IDs reject NotFound, short digests, size bounds, expired leases.
+  * **Codex Worker 2 (`term_949d489b`)**: `task_3a1b92c40ed0` (`ctx_3a1b92c40ed0`, `W-DOC-CORE-PARSER-BUDGETS-NEGATIVE`). Đã viết xong bộ test negative/boundary cho parser-budgets và chạy qua vòng test tập trung pass (cursor 31082). Trạng thái: running (đang hoàn thiện các vòng chạy tiếp theo).
+  * **Qwen Admin (`term_742c2474`)**: Đã hoàn tất `task_7c91a4038e6c` (`ctx_7c91a4038e6c`, `W-ADM-UX-11-OVERVIEW-VIEW-MODEL-NEGATIVE`, Cycle 55). 108/108 tests pass x3 (+59 tests mới), `tsc` ExitCode 0; receipt `qwen-admin.md:5163#55`. Đã gửi status msg `msg_a21a23b661e8`. Settle `ctx_7c91a4038e6c` (cursor 48425607, idle lúc 7:41 AM). Ghi nhận findings: module không có hàm tính rate/throughput (metrics là raw counters), 3 mode degradation khác nhau cho enum lạ trong cùng file (`usageMeasurementBadge` throw TypeError, `auditKindLabel` throw TypeError, `auditSeverityBadge` trả về `undefined`), 5 defects không fix (wire severity bị ghi đè, tenant filter sụp đổ khi cả 2 undefined, fullyHealthy trả về chuỗi 'false').
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_7e3a91b40c6a` (`ctx_7e3a91b40c6a`, `D-DOCS-EVID-SYNC-343`, Cycle 65). Đồng bộ 4 receipts Turn 343 vào `docs/28` (v1.48.0) và `docs/35` (v1.67.0), link check x3 S0/S1 BROKEN=0; receipt `qwen-docs.md#Muc-65`. Settle `ctx_7e3a91b40c6a` (cursor 31559638, idle). Ghi nhận finding: `test.failing` đã lan sang 4 files (11 blocks) chưa được công bố ở một số receipt độc lập.
+  * **Qwen Platform (`term_4568d175`)**: `task_5d8e2194b39d` (`ctx_5d8e2194b39d`, `W-PLAT-CR28-07-ADMIN-CRYPTO-CONFIG-NEGATIVE`). Đã đạt 83/83 tests green, đang viết báo cáo chi tiết Mục 47 thành các file section m47-c1.md .. m47-c7.md với findings Δ105 và Δ106 (cursor 47630251). Trạng thái: running.
+
+- **Phát động làn sóng Turn 351 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_5e1a8e94f09f` (`ctx_5e1a8e94f09f`) — Xác minh độc lập read-only 2 deliverable suites của Turn 350: `packages/worker-sdk/tests/artifact-stat.test.ts` (20 tests x3) và `services/orchestrator/tests/admin-overview-view-model.test.ts` (108 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-STAT-AND-OVERVIEW-VIEW-MODEL-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_8a2b104c8f9a` (`ctx_8a2b104c8f9a`) — Gói `W-WORKER-SDK-ARTIFACT-SWEEP-GUARD-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-sweep-guard.test.ts` (unrecognized sweep triggers, locked artifact eviction attempts, expired retention boundary conditions, partial sweep failure handling, sweep concurrency limits). Đang thực thi (`turn_started`).
+  3. **Qwen Admin (`term_742c2474`)**: `task_8c91a4038e7d` (`ctx_8c91a4038e7d`) — Gói `W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE` (Cycle 56). Bổ sung negative/boundary tests trong `services/orchestrator/tests/admin-profile-view-model.test.ts` (malformed role permissions, missing profile attributes, avatar URL injection attempts, profile update schema validations, concurrent edit race protections). Đang thực thi.
+  4. **Qwen Docs (`term_27eb3380`)**: `task_8e3a91b40c7b` (`ctx_8e3a91b40c7b`) — Gói `D-DOCS-EVID-SYNC-344` (Cycle 66). Đồng bộ Turn 344 receipts vào `docs/28` và `docs/35` (bump 1.67.0 -> 1.68.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-66`. Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 352 Settlement & Parallel Wave — 2026-09-29T07:56:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_5e1a8e94f09f` (`ctx_5e1a8e94f09f`, `T-CODEX-OFFLINE-STAT-AND-OVERVIEW-VIEW-MODEL-INDEPENDENT`). 20/20 tests `artifact-stat` (3 lượt = 60/60) và 108/108 tests `admin-overview-view-model` (3 lượt = 324/324) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md:10620#T-CODEX-OFFLINE-STAT-AND-OVERVIEW-VIEW-MODEL-INDEPENDENT`. Đã gửi status msg `msg_156f84eb61b5`. Settle `ctx_5e1a8e94f09f` (cursor 23244, idle lúc 7:53 AM).
+  * **Codex Worker 1 (`term_2b05b203`)**: Đã hoàn tất `task_8a2b104c8f9a` (`ctx_8a2b104c8f9a`, `W-WORKER-SDK-ARTIFACT-SWEEP-GUARD-NEGATIVE`). 9/9 tests pass x3, `tsc` ExitCode 0; receipt `tester.md:10666#W-WORKER-SDK-ARTIFACT-SWEEP-GUARD-NEGATIVE`. Đã gửi status msg `msg_514c18c3-593e`. Settle `ctx_8a2b104c8f9a` (cursor 36882, idle lúc 7:53 AM). Ghi nhận boundary: corrupt lease timestamps fail closed giữ stale workspace, TTL boundary chính xác, active locks ngăn sweep, concurrent sweeps không lỗi và xoá sạch orphan, disk removal failure giữ an toàn workspace.
+  * **Codex Worker 2 (`term_949d489b`)**: `task_3a1b92c40ed0` (`ctx_3a1b92c40ed0`, `W-DOC-CORE-PARSER-BUDGETS-NEGATIVE`). Đang chạy suite kiểm thử Jest và regression runs (cursor 31194). Trạng thái: running.
+  * **Qwen Admin (`term_742c2474`)**: `task_8c91a4038e7d` (`ctx_8c91a4038e7d`, `W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE`, Cycle 56). Đang sinh mã và tích hợp các negative test cases cho admin-profile-view-model (cursor 49041995). Trạng thái: running.
+  * **Qwen Docs (`term_27eb3380`)**: `task_8e3a91b40c7b` (`ctx_8e3a91b40c7b`, `D-DOCS-EVID-SYNC-344`, Cycle 66). Đã giải quyết xong census cho manifest.test.ts và admin-overview-view-model, đang tạo fragments f28a66.md và f28b66.md để đồng bộ Turn 344 receipts vào `docs/28` và `docs/35` (cursor 32154850). Trạng thái: running.
+  * **Qwen Platform (`term_4568d175`)**: `task_5d8e2194b39d` (`ctx_5d8e2194b39d`, `W-PLAT-CR28-07-ADMIN-CRYPTO-CONFIG-NEGATIVE`). Đã viết xong các file mem47a.md, mem47b.md, mem47c.md và appendmem47.js (tăng byte từ 104893 lên 108939), đang cập nhật index MEMORY.md (cursor 48300767). Trạng thái: running.
+
+- **Phát động làn sóng Turn 352 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_7e1a8e94f0a0` (`ctx_7e1a8e94f0a0`) — Gói `T-CODEX-OFFLINE-SWEEP-GUARD-AND-API-KEY-VIEW-MODEL-INDEPENDENT`. Xác minh độc lập read-only 2 deliverable suites của Turn 349/351: `packages/worker-sdk/tests/artifact-sweep-guard.test.ts` (9 tests x3) và `services/orchestrator/tests/admin-api-key-view-model.test.ts` (84 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-SWEEP-GUARD-AND-API-KEY-VIEW-MODEL-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 1 (`term_2b05b203`)**: `task_9a2b104c8f0b` (`ctx_9a2b104c8f0b`) — Gói `W-WORKER-SDK-ARTIFACT-MULTIPART-RSS-NEGATIVE`. Bổ sung negative/boundary tests trong `packages/worker-sdk/tests/artifact-multipart-rss.test.ts` (memory/RSS threshold breaches during multi-part assembly, corrupted/truncated chunk boundaries, out-of-order part arrival and missing part sequence numbers, abort signal during chunk stream upload, invalid/mismatched part checksums). Đang thực thi (`turn_started`).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 353 Settlement & Parallel Wave — 2026-09-29T08:04:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_7e1a8e94f0a0` (`ctx_7e1a8e94f0a0`, `T-CODEX-OFFLINE-SWEEP-GUARD-AND-API-KEY-VIEW-MODEL-INDEPENDENT`). 9/9 tests `artifact-sweep-guard` (3 lượt = 27/27) và 84/84 tests `admin-api-key-view-model` (3 lượt = 252/252) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md#T-CODEX-OFFLINE-SWEEP-GUARD-AND-API-KEY-VIEW-MODEL-INDEPENDENT`. Đã gửi status msg `msg_0d77a6f75ca2`. Settle `ctx_7e1a8e94f0a0` (cursor 23384, idle lúc 7:59 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_3a1b92c40ed0` (`ctx_3a1b92c40ed0`, `W-DOC-CORE-PARSER-BUDGETS-NEGATIVE`). 53/53 tests pass x3, `tsc` ExitCode 0; receipt `tester.md#W-DOC-CORE-PARSER-BUDGETS-NEGATIVE`. Đã gửi status msg `msg_f04b67dd-45f4`. Settle `ctx_3a1b92c40ed0` (cursor 31306, idle lúc 7:59 AM). Ghi nhận boundary: zero/negative buffer caps, memory ceiling bounds, exact timeout/deadline fences, non-integer page selection handling, missing parser budget profiles, ổn định cancellation test fixture không đổi production code.
+  * **Qwen Platform (`term_4568d175`)**: Đã hoàn tất `task_5d8e2194b39d` (`ctx_5d8e2194b39d`, `W-PLAT-CR28-07-ADMIN-CRYPTO-CONFIG-NEGATIVE`, Cycle 47). 83/83 tests pass x3 (+59 tests mới), 2 mutation tests đỏ 6/77 và 12/71, khôi phục byte-identical cho 2 file production tạm, `tsc` ExitCode 0; receipt `qwen-platform.md:4356#47`. Settle `ctx_5d8e2194b39d` (cursor 48395478, idle). Ghi nhận 2 findings quan trọng (Δ105, Δ106): test leak của suite cũ pass vì lý do yếu hơn vẻ ngoài (sentinel kiểm tra sai chỗ hoặc lọt 12 ký tự đầu), CSRF timing boundary không chứng minh được offline được tuyên bố trung thực thay vì dựng test timing giả.
+  * **Codex Worker 1 (`term_2b05b203`)**: `task_9a2b104c8f0b` (`ctx_9a2b104c8f0b`, `W-WORKER-SDK-ARTIFACT-MULTIPART-RSS-NEGATIVE`). Đang đọc mã multipart và thiết kế negative/boundary tests trong `packages/worker-sdk/tests/artifact-multipart-rss.test.ts` (cursor 36914). Trạng thái: running.
+  * **Qwen Admin (`term_742c2474`)**: `task_8c91a4038e7d` (`ctx_8c91a4038e7d`, `W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE`, Cycle 56). 79/79 tests pass x3, hồi quy 9/9 suite 743/743 tests pass, `tsc` ExitCode 0, thêm 446 dòng test; đang hoàn thiện phần suy nghĩ và viết receipt (cursor 49444705). Trạng thái: running / finalizing.
+  * **Qwen Docs (`term_27eb3380`)**: `task_8e3a91b40c7b` (`ctx_8e3a91b40c7b`, `D-DOCS-EVID-SYNC-344`, Cycle 66). Đã xác minh tính toàn vẹn tài liệu (28-test-inventory v1.48.0, 35-acceptance-baseline v1.68.0, qwen-docs v1.17.0), toàn bộ release gates NO-GO; đang hoàn tất chuẩn bị gửi tín hiệu và receipt (cursor 32563335). Trạng thái: running / finalizing.
+
+- **Phát động làn sóng Turn 353 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_1f1a8e94f0b1` (`ctx_1f1a8e94f0b1`) — Gói `T-CODEX-OFFLINE-PARSER-BUDGETS-AND-CRYPTO-CONFIG-INDEPENDENT`. Xác minh độc lập read-only 2 deliverable suites của Turn 351/352: `businesses/document-core/tests/parser-budgets.test.ts` (53 tests x3) và `services/orchestrator/tests/admin-crypto-config.test.ts` (83 tests x3), `tsc --noEmit` ExitCode 0 cả hai package. Ghi receipt `tester.md#T-CODEX-OFFLINE-PARSER-BUDGETS-AND-CRYPTO-CONFIG-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 2 (`term_949d489b`)**: `task_4a1b92c40ed1` (`ctx_4a1b92c40ed1`) — Gói `W-DOC-CORE-CHECKPOINT-REPLAY-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/checkpoint-replay.test.ts` (missing checkpoint steps, corrupt step hashes, replay from mid-run abort, parameter drift fences, deduplication barriers on repeated replays). Đang thực thi (`turn_started`).
+  3. **Qwen Platform (`term_4568d175`)**: `task_6d8e2194b39e` (`ctx_6d8e2194b39e`, Cycle 48) — Gói `W-PLAT-CR28-08-CRYPTO-CONFIG-STORE-NEGATIVE`. Bổ sung negative/boundary tests trong `services/orchestrator/tests/crypto-config-store.test.ts` (unsupported key versions, malformed JSON schemas, non-existent tenant lookup, corrupt public key PEM formats, store race conditions, revoked key lookup fences). Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 354 Settlement & Parallel Wave — 2026-09-29T08:14:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_1f1a8e94f0b1` (`ctx_1f1a8e94f0b1`, `T-CODEX-OFFLINE-PARSER-BUDGETS-AND-CRYPTO-CONFIG-INDEPENDENT`). 53/53 tests `parser-budgets` (3 lượt = 159/159) và 83/83 tests `admin-crypto-config` (3 lượt = 249/249) pass x3, `tsc` ExitCode 0 cả hai package; receipt `tester.md:10713#T-CODEX-OFFLINE-PARSER-BUDGETS-AND-CRYPTO-CONFIG-INDEPENDENT`. Đã gửi status msg `msg_e835c2b508fd`. Settle `ctx_1f1a8e94f0b1` (cursor 23552, idle lúc 8:09 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_4a1b92c40ed1` (`ctx_4a1b92c40ed1`, `W-DOC-CORE-CHECKPOINT-REPLAY-NEGATIVE`). 10/10 tests pass x3, `tsc` ExitCode 0; receipt `tester.md:10762#W-DOC-CORE-CHECKPOINT-REPLAY-NEGATIVE`. Đã gửi status msg `msg_b1875f62-b903`. Settle `ctx_4a1b92c40ed1` (cursor 31679, idle lúc 8:11 AM). Ghi nhận boundary: thiếu checkpoint steps, hash bước bị hỏng, hồi phục sau khi huỷ ngang mid-run, parameter drift, chống trùng lặp replay lặp lại; 0 dòng production code bị đổi.
+  * **Qwen Docs (`term_27eb3380`)**: Đã hoàn tất `task_8e3a91b40c7b` (`ctx_8e3a91b40c7b`, `D-DOCS-EVID-SYNC-344`, Cycle 66). Đồng bộ 6 receipts Turn 344 vào `docs/28` (v1.48.0) và `docs/35` (v1.68.0), link check x3 S0/S1 BROKEN=0; receipt `qwen-docs.md:4275#Muc-66`. Đã gửi status msgs (`msg_ceb28c9a8756`, `msg_93a2e1037312`, `msg_cc03baeca61e`). Settle `ctx_8e3a91b40c7b` (cursor 32668132, idle). Ghi nhận 10 findings phân tích sâu: làn sóng kỷ luật tự công bố expected-failing, từ chối dựng test timing giả, 3 mode degradation khác nhau cho bad enum trong 1 file, và lỗi dịch parser diacritics.
+  * **Codex Worker 1 (`term_2b05b203`)**: `task_9a2b104c8f0b` (`ctx_9a2b104c8f0b`, `W-WORKER-SDK-ARTIFACT-MULTIPART-RSS-NEGATIVE`). Đang chạy suite kiểm thử multipart RSS trên background terminal (cursor 37138). Trạng thái: running.
+  * **Qwen Platform (`term_4568d175`)**: `task_6d8e2194b39e` (`ctx_6d8e2194b39e`, Cycle 48, `W-PLAT-CR28-08-CRYPTO-CONFIG-STORE-NEGATIVE`). Đang chạy test run 2 trên background shell cho crypto-config-store (cursor 48908917). Trạng thái: running.
+  * **Qwen Admin (`term_742c2474`)**: `task_8c91a4038e7d` (`ctx_8c91a4038e7d`, Cycle 56, `W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE`). Đã pass 79/79 tests x3 và hồi quy 743/743 tests; dừng tạm thời do luồng stream model kết thúc trước khi ghi receipt. Đã gửi nudge `[CONTINUE task_8c91a4038e7d]` để hoàn tất ghi receipt Mục 56 và gửi status (cursor 49621114). Trạng thái: running.
+
+- **Phát động làn sóng Turn 354 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_8f1a8e94f0c2` (`ctx_8f1a8e94f0c2`) — Gói `T-CODEX-OFFLINE-CHECKPOINT-REPLAY-AND-READ-STREAM-INDEPENDENT`. Xác minh độc lập read-only 2 deliverable suites của Turn 353: `businesses/document-core/tests/checkpoint-replay.test.ts` (10 tests x3) và `businesses/document-core/tests/read-stream-acquisition.test.ts` (16 tests x3), `tsc --noEmit` ExitCode 0 document-core. Ghi receipt `tester.md#T-CODEX-OFFLINE-CHECKPOINT-REPLAY-AND-READ-STREAM-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 2 (`term_949d489b`)**: `task_5a1b92c40ed2` (`ctx_5a1b92c40ed2`) — Gói `W-DOC-CORE-BARRIER-CLEANUP-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/barrier-cleanup-lifecycle.test.ts` (barrier timeout expiration, crash trong pha cleanup, unlinked/missing barrier markers, concurrent cleanup requests, dập tắt lỗi cleanup an toàn không leak resource). Đang thực thi (`turn_started`).
+  3. **Qwen Docs (`term_27eb3380`)**: `task_9e3a91b40c7c` (`ctx_9e3a91b40c7c`, Cycle 67) — Gói `D-DOCS-EVID-SYNC-345`. Đồng bộ receipts Turn 345 vào `docs/28` (v1.48.0) và `docs/35` (bump 1.68.0 -> 1.69.0), link check x3 S0/S1 BROKEN=0. Ghi receipt `qwen-docs.md#Muc-67`. Đang thực thi.
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.
+
+---
+
+### Turn 355 Settlement & Parallel Wave — 2026-09-29T08:24:00+07:00
+
+- **Đối soát log thật terminal (Source of Truth):**
+  * **Codex Tester Offline (`term_b2d08e87`)**: Đã hoàn tất độc lập `task_8f1a8e94f0c2` (`ctx_8f1a8e94f0c2`, `T-CODEX-OFFLINE-CHECKPOINT-REPLAY-AND-READ-STREAM-INDEPENDENT`). 10/10 tests `checkpoint-replay` (3 lượt = 30/30) và 16/16 tests `read-stream-acquisition` (3 lượt = 48/48) pass x3, `tsc` ExitCode 0 document-core; receipt `tester.md:10769#T-CODEX-OFFLINE-CHECKPOINT-REPLAY-AND-READ-STREAM-INDEPENDENT`. Đã gửi status msg `msg_fec78eb74080`. Settle `ctx_8f1a8e94f0c2` (cursor 23717, idle lúc 8:18 AM).
+  * **Codex Worker 2 (`term_949d489b`)**: Đã hoàn tất `task_5a1b92c40ed2` (`ctx_5a1b92c40ed2`, `W-DOC-CORE-BARRIER-CLEANUP-NEGATIVE`). 9/9 tests pass x3 (+5 tests mới, từ 4 lên 9), `tsc` ExitCode 0; receipt `tester.md:10800#W-DOC-CORE-BARRIER-CLEANUP-NEGATIVE`. Đã gửi status msg `msg_c23451d7-7853`. Settle `ctx_5a1b92c40ed2` (cursor 32005, idle lúc 8:20 AM). Ghi nhận boundary: barrier timeout expiration trước release, crash recovery trong cleanup phase, unlinked/missing barrier markers, concurrent cleanup requests, dập tắt lỗi cleanup an toàn không rò rỉ tài nguyên.
+  * **Codex Worker 1 (`term_2b05b203`)**: `task_9a2b104c8f0b` (`ctx_9a2b104c8f0b`, `W-WORKER-SDK-ARTIFACT-MULTIPART-RSS-NEGATIVE`). Đang chạy vòng lặp 3 lượt test execution cho `artifact-multipart-rss.test.ts` trên background terminal (cursor 37264). Trạng thái: running.
+  * **Qwen Platform (`term_4568d175`)**: `task_6d8e2194b39e` (`ctx_6d8e2194b39e`, Cycle 48, `W-PLAT-CR28-08-CRYPTO-CONFIG-STORE-NEGATIVE`). 59/59 tests pass x3 (+55 tests mới), tsc exit 0, M1 mutation test đỏ 3/56 (2 mới), đã viết xong 9 file phân mục m48-c1..c9 và đang ghép thành receipt Mục 48 (cursor 49519219). Trạng thái: running / stitching.
+  * **Qwen Docs (`term_27eb3380`)**: `task_9e3a91b40c7c` (`ctx_9e3a91b40c7c`, Cycle 67, `D-DOCS-EVID-SYNC-345`). Đang lắp ráp và kiểm tra liên kết an toàn cho Mục 67 đồng bộ Turn 345 receipts vào docs/28 và docs/35 (cursor 33115658). Trạng thái: running.
+  * **Qwen Admin (`term_742c2474`)**: `task_8c91a4038e7d` (`ctx_8c91a4038e7d`, Cycle 56, `W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE`). Đã nhận prompt hành động điều phối gửi script ghi receipt ngắn gọn Mục 56 vào `coordination/reports/qwen-admin.md` để tránh đứt stream API (cursor 49827476). Trạng thái: running / writing.
+
+- **Phát động làn sóng Turn 355 (Zero Idle Policy — Phân tách phạm vi file 100%):**
+  1. **Codex Tester Offline (`term_b2d08e87`)**: `task_9f1a8e94f0d3` (`ctx_9f1a8e94f0d3`) — Gói `T-CODEX-OFFLINE-BARRIER-CLEANUP-AND-CROSS-SERVICE-BOUNDARY-INDEPENDENT`. Xác minh độc lập read-only 2 deliverable suites của Turn 354: `businesses/document-core/tests/barrier-cleanup-lifecycle.test.ts` (9 tests x3) và `businesses/document-core/tests/cross-service-boundary.test.ts` (4 tests x3), `tsc --noEmit` ExitCode 0 document-core. Ghi receipt `tester.md#T-CODEX-OFFLINE-BARRIER-CLEANUP-AND-CROSS-SERVICE-BOUNDARY-INDEPENDENT`. Đang thực thi (`turn_started`).
+  2. **Codex Worker 2 (`term_949d489b`)**: `task_6a1b92c40ed3` (`ctx_6a1b92c40ed3`) — Gói `W-DOC-CORE-CHILD-LIFECYCLE-NEGATIVE`. Bổ sung negative/boundary tests trong `businesses/document-core/tests/child-lifecycle.test.ts` (child worker crash non-zero exit code, unhandled promise rejection trong child, IPC disconnect mid-task, child heartbeat timeout and SIGKILL escalation, zombie process reap guards). Đang thực thi (`turn_started`).
+
+- **Trạng thái Release Gates:**
+  * Toàn bộ các release gates (G-ADMIN-OPS, G-SEC, G-DATA, G-ENC, G6) tiếp tục giữ nghiêm ngặt **NO-GO**.

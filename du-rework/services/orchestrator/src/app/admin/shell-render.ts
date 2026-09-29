@@ -16,7 +16,14 @@
  */
 
 import type { AdminScreenState, AdminShellView, BreadcrumbEntry } from './p6-01-shell-fixtures';
+import { ROLE_ORDER } from './types';
 import type { AdminSection, NavItem } from './types';
+
+/**
+ * W-ADM-UX-03-AUDIT-ROUTE (Delta 130): the audit ledger pane path.
+ * Exported so the route matcher and the nav tab cannot drift.
+ */
+export const AUDIT_NAV_PATH = '/admin/audit';
 
 // ---------------------------------------------------------------------------
 // HTML escape
@@ -288,6 +295,29 @@ export function renderErrorPage(opts: {
 // Shell chrome
 // ---------------------------------------------------------------------------
 
+/**
+ * W-ADM-UX-03-AUDIT-ROUTE (Delta 130): the Audit Log tab.
+ *
+ * The ledger pane is reached by its OWN PATH, not as a data section:
+ * NavItem.section is a closed union in types.ts, outside this packet
+ * scope, so the tab is appended here rather than faked as a section -
+ * the same treatment /admin/crypto-config already gets.
+ *
+ * Role gate is operator, matching the profiles/connectors panes: the
+ * ledger is tenant-scoped operational data. A tab the route would then
+ * refuse would be a lie, so tab and route share one gate.
+ */
+export function renderAuditNavTab(view: AdminShellView): string {
+  if (ROLE_ORDER[view.role] < ROLE_ORDER.operator) return '';
+  const active = view.currentPath === AUDIT_NAV_PATH;
+  return renderNode(
+    h('li',
+      { class: active ? 'admin-nav__item admin-nav__item--active' : 'admin-nav__item' },
+      h('a', { href: AUDIT_NAV_PATH, 'aria-current': active ? 'page' : undefined }, 'Audit Log'),
+    ),
+  );
+}
+
 function renderNav(view: AdminShellView): string {
   const items = view.visibleNav.map((item: NavItem) => {
     const active = item.section === view.currentSection;
@@ -302,6 +332,7 @@ function renderNav(view: AdminShellView): string {
   return [
     '<ul class="admin-nav" role="list">',
     items,
+    renderAuditNavTab(view),
     '</ul>',
   ].join('');
 }

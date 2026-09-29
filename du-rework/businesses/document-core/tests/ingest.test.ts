@@ -93,9 +93,16 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
     const ocrCall = ctx.connectorInvocations.find((inv) => inv.slot === 'ocr');
     expect(ocrCall).toBeDefined();
     // The wire carries the DOCUMENT, not a boolean about it.
-    const payload = ocrCall?.payload as { artifacts?: { artifactId: string }[]; hasBuffer?: boolean };
+    const payload = ocrCall?.payload as { artifacts?: Array<Record<string, unknown>>; hasBuffer?: boolean };
     expect(payload.hasBuffer).toBeUndefined();
-    expect(payload.artifacts).toEqual([{ artifactId: artRef.artifactId }]);
+    expect(payload.artifacts?.[0]).toMatchObject({
+      artifactId: artRef.artifactId,
+      fileName: 'receipt-scan.png',
+      mimeType: 'image/png',
+      sha256: createHash('sha256').update(scan).digest('hex'),
+      storageVersionId: createHash('sha256').update(scan).digest('hex'),
+    });
+    expect(Buffer.from(payload.artifacts?.[0]?.contentBase64 as string, 'base64')).toEqual(scan);
     // The bytes behind that reference are the scan we wrote, byte for byte.
     expect(ctx.artifactsStore.get(artRef.artifactId)?.equals(scan)).toBe(true);
   });
@@ -130,9 +137,16 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
     const visionCall = ctx.connectorInvocations.find((inv) => inv.slot === 'vision');
     expect(visionCall).toBeDefined();
     // A task NAME is not a document: the payload must name the artifact.
-    const visionPayload = visionCall?.payload as { task?: string; artifacts?: { artifactId: string }[] };
+    const visionPayload = visionCall?.payload as { task?: string; artifacts?: Array<Record<string, unknown>> };
     expect(visionPayload.task).toBe('digitize_handwriting');
-    expect(visionPayload.artifacts).toEqual([{ artifactId: formRef.artifactId }]);
+    expect(visionPayload.artifacts?.[0]).toMatchObject({
+      artifactId: formRef.artifactId,
+      fileName: 'intake-form.png',
+      mimeType: 'image/png',
+      sha256: createHash('sha256').update(form).digest('hex'),
+      storageVersionId: createHash('sha256').update(form).digest('hex'),
+    });
+    expect(Buffer.from(visionPayload.artifacts?.[0]?.contentBase64 as string, 'base64')).toEqual(form);
     expect(ctx.artifactsStore.get(formRef.artifactId)?.equals(form)).toBe(true);
   });
 

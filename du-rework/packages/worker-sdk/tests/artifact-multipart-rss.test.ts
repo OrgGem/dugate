@@ -223,6 +223,22 @@ function makeRssFake(sizeBytes: number, partSizeBytes: number): RssFake {
   return { artifactId, transport, fetcher, evidence };
 }
 
+function smallUploadOptions(
+  fake: RssFake,
+  sizeBytes: number,
+  overrides: Partial<MultipartUploadOptions> = {}
+): MultipartUploadOptions {
+  return {
+    transport: fake.transport,
+    fetcher: fake.fetcher,
+    fileName: 'small-boundary.bin',
+    mimeType: 'application/octet-stream',
+    sizeBytes,
+    retryBaseDelayMs: 0,
+    ...overrides,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* scenario runner: in-data-path sampling (generator chunks + PUTs)    */
 /* ------------------------------------------------------------------ */
@@ -398,5 +414,202 @@ describe('uploadArtifactMultipart RSS measurement (W-DATA04-RSS-1, offline)', ()
     const { result, fake, uploadResult } = await runRssScenario('misaligned-5MiB', 5 * MiB);
     assertFidelity(fake, uploadResult);
     assertMemoryCeilings(result);
+  });
+});
+
+describe('multipart RSS threshold guard negative boundaries', () => {
+  function syntheticMeasurement(overrides: Partial<RssScenarioResult> = {}): RssScenarioResult {
+    return {
+      baselineMedianRss: 100,
+      baselineMedianExternal: 100,
+      chunkSamples: Math.floor(TOTAL_BYTES / (16 * MiB)),
+      uploadMedianRss: 100,
+      uploadMaxRss: 101,
+      marginalMaxRss: RSS_MARGINAL_MAX_BYTES,
+      marginalMaxExternal: EXTERNAL_MARGINAL_MAX_BYTES,
+      perPartRss: [],
+      perPartExternal: [],
+      slopeRssMiBPerPart: 0,
+      durationMs: 1,
+      ...overrides,
+    };
+  }
+
+  it('accepts measurements exactly at both RSS and external-memory ceilings', () => {
+    expect(() => assertMemoryCeilings(syntheticMeasurement())).not.toThrow();
+  });
+
+  it.each([
+    ['RSS', { marginalMaxRss: RSS_MARGINAL_MAX_BYTES + 1 }],
+    ['external-memory', { marginalMaxExternal: EXTERNAL_MARGINAL_MAX_BYTES + 1 }],
+  ])('fails the multipart sample gate when the %s threshold is breached', (_metric, breach) => {
+    expect(() => assertMemoryCeilings(syntheticMeasurement(breach))).toThrow();
+  });
+});
+
+describe('multipart RSS integrity and ordering negatives (small offline geometry)', () => {
+  it('rejects a truncated final part at its chunk boundary and aborts before complete', async () => {
+    const sizeBytes = 14;
+    const fake = makeRssFake(sizeBytes, 4);
+
+    await expect(uploadArtifactMultipart(
+      patternSource(sizeBytes - 1, 5),
+      smallUploadOptions(fake, sizeBytes)
+    )).rejects.toMatchObject({ status: 409, code: 'SIZE_MISMATCH' });
+
+    expect(fake.evidence.grants.map((grant) => grant.partNumber)).toEqual([1, 2, 3, 4]);
+    expect(fake.evidence.parts.map((part) => part.receivedLength)).toEqual([4, 4, 4]);
+    expect(fake.evidence.complete).toBeNull();
+    expect(fake.evidence.aborts).toEqual(['failed']);
+  });
+
+  it('rejects a corrupted byte exactly on a multipart boundary before completion', async () => {
+    const sizeBytes = 12;
+    const fake = makeRssFake(sizeBytes, 4);
+    const corruptedTail = patternSlice(5, 7);
+    corruptedTail[3] = (corruptedTail[3] ?? 0) ^ 0xff; // global byte 8 starts part 3
+    const source = Readable.from([patternSlice(0, 5), corruptedTail]);
+
+    await expect(uploadArtifactMultipart(
+      source,
+      smallUploadOptions(fake, sizeBytes, { expectedSha256: patternDigest(0, sizeBytes) })
+    )).rejects.toMatchObject({ status: 422, code: 'HASH_MISMATCH' });
+
+    expect(fake.evidence.parts).toHaveLength(3);
+    expect(fake.evidence.parts[2]?.receivedSha256).not.toBe(patternDigest(8, 4));
+    expect(fake.evidence.complete).toBeNull();
+    expect(fake.evidence.aborts).toEqual(['failed']);
+  });
+
+  it('keeps part arrival and completion sequences ordered when source chunks straddle boundaries', async () => {
+    const sizeBytes = 13;
+    const fake = makeRssFake(sizeBytes, 4);
+    const result = await uploadArtifactMultipart(
+      patternSource(sizeBytes, 5),
+      smallUploadOptions(fake, sizeBytes, { expectedSha256: patternDigest(0, sizeBytes) })
+    );
+    const completedParts = fake.evidence.complete?.parts as { partNumber: number }[] | undefined;
+
+    expect(result.partCount).toBe(4);
+    expect(fake.evidence.grants.map((grant) => grant.partNumber)).toEqual([1, 2, 3, 4]);
+    expect(fake.evidence.parts.map((part) => part.partNumber)).toEqual([1, 2, 3, 4]);
+    expect(completedParts?.map((part) => part.partNumber)).toEqual([1, 2, 3, 4]);
+    expect(fake.evidence.aborts).toHaveLength(0);
+  });
+
+  it('rejects an init acknowledgement that omits the required part count', async () => {
+    const sizeBytes = 12;
+    const fake = makeRssFake(sizeBytes, 4);
+    const init = fake.transport.init.bind(fake.transport);
+    fake.transport.init = async (body) => ({ ...await init(body), partCount: undefined as unknown as number });
+
+    await expect(uploadArtifactMultipart(
+      patternSource(sizeBytes, 4),
+      smallUploadOptions(fake, sizeBytes)
+    )).rejects.toMatchObject({ status: 409, code: 'SIZE_MISMATCH' });
+
+    expect(fake.evidence.grants).toHaveLength(0);
+    expect(fake.evidence.parts).toHaveLength(0);
+    expect(fake.evidence.complete).toBeNull();
+    expect(fake.evidence.aborts).toEqual(['failed']);
+  });
+
+  it('rejects an out-of-order part arrival caused by a mis-sequenced grant URL', async () => {
+    const sizeBytes = 12;
+    const fake = makeRssFake(sizeBytes, 4);
+    const originalPartGrant = fake.transport.partGrant.bind(fake.transport);
+    fake.transport.partGrant = async (artifactId, request) => {
+      const grant = await originalPartGrant(artifactId, request);
+      const serverPartNumber = request.partNumber === 1 ? 2 : request.partNumber === 2 ? 1 : request.partNumber;
+      return { ...grant, partUrl: `http://parts.rss.test/p/${serverPartNumber}?sig=mis-sequenced` };
+    };
+    const arrivalOrder: number[] = [];
+    const fetcher: RssFake['fetcher'] = async (url, init) => {
+      const serverPartNumber = Number(new URL(String(url)).pathname.split('/').at(-1));
+      arrivalOrder.push(serverPartNumber);
+      if (serverPartNumber !== arrivalOrder.length) {
+        return new Response('part arrived out of order', { status: 409 });
+      }
+      return fake.fetcher(url, init);
+    };
+
+    await expect(uploadArtifactMultipart(
+      patternSource(sizeBytes, 4),
+      smallUploadOptions(fake, sizeBytes, { fetcher, partPutAttempts: 1 })
+    )).rejects.toMatchObject({ status: 409, code: 'DOWNLOAD_REJECTED' });
+
+    expect(arrivalOrder).toEqual([2]);
+    expect(fake.evidence.parts).toHaveLength(0);
+    expect(fake.evidence.complete).toBeNull();
+    expect(fake.evidence.aborts).toEqual(['failed']);
+  });
+
+  it.each([
+    ['invalid encoding', 'not-base64'],
+    ['valid but mismatched digest', Buffer.alloc(32, 7).toString('base64')],
+  ])('aborts when a part checksum is %s', async (_caseName, wrongChecksum) => {
+    const sizeBytes = 8;
+    const fake = makeRssFake(sizeBytes, 4);
+    const originalPartGrant = fake.transport.partGrant.bind(fake.transport);
+    fake.transport.partGrant = async (artifactId, request) => {
+      const grant = await originalPartGrant(artifactId, request);
+      return {
+        ...grant,
+        requiredHeaders: {
+          ...grant.requiredHeaders,
+          'x-amz-checksum-sha256': wrongChecksum,
+        },
+      };
+    };
+    const fetcher: RssFake['fetcher'] = async (url, init) => {
+      const body = init?.body;
+      if (!Buffer.isBuffer(body)) throw new Error('expected a buffered multipart body');
+      const headers = init?.headers as Record<string, string>;
+      const actualChecksum = createHash('sha256').update(body).digest('base64');
+      if (headers['x-amz-checksum-sha256'] !== actualChecksum) {
+        return new Response('part checksum rejected', { status: 400 });
+      }
+      return fake.fetcher(url, init);
+    };
+
+    await expect(uploadArtifactMultipart(
+      patternSource(sizeBytes, 3),
+      smallUploadOptions(fake, sizeBytes, { fetcher, partPutAttempts: 1 })
+    )).rejects.toMatchObject({ status: 400, code: 'DOWNLOAD_REJECTED' });
+
+    expect(fake.evidence.grants[0]?.sha256).toBe(patternDigest(0, 4));
+    expect(fake.evidence.complete).toBeNull();
+    expect(fake.evidence.aborts).toEqual(['failed']);
+  });
+
+  it('aborts the multipart session when the caller cancels an active part upload', async () => {
+    const sizeBytes = 8;
+    const fake = makeRssFake(sizeBytes, 4);
+    const controller = new AbortController();
+    let uploadSignal: AbortSignal | undefined;
+    const fetcher: RssFake['fetcher'] = async (_url, init) => new Promise<Response>((_resolve, reject) => {
+      uploadSignal = init?.signal ?? undefined;
+      if (!uploadSignal) {
+        reject(new Error('multipart part request did not receive an abort signal'));
+        return;
+      }
+      const onAbort = (): void => reject(new Error('part request aborted by caller'));
+      if (uploadSignal.aborted) onAbort();
+      else uploadSignal.addEventListener('abort', onAbort, { once: true });
+      setImmediate(() => controller.abort());
+    });
+
+    await expect(uploadArtifactMultipart(
+      patternSource(sizeBytes, 4),
+      smallUploadOptions(fake, sizeBytes, {
+        signal: controller.signal,
+        fetcher,
+        partPutAttempts: 1,
+      })
+    )).rejects.toMatchObject({ status: 0, code: 'TRANSPORT_FAILURE' });
+
+    expect(uploadSignal?.aborted).toBe(true);
+    expect(fake.evidence.complete).toBeNull();
+    expect(fake.evidence.aborts).toEqual(['cancelled']);
   });
 });

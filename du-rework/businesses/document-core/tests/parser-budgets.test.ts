@@ -9,6 +9,7 @@ import { CompareAction } from '../src/actions/compare';
 import { documentCoreHandlers } from '../src/worker';
 import { TaskContext as SdkTaskContext } from '@du/worker-sdk';
 import { DocumentParserFactory, DocumentParser, ParseResult } from '@du/document-kit';
+import { InputNormalizer } from '../src/validation/input-normalizer';
 
 type SdkArtifactRef = Awaited<ReturnType<SdkTaskContext['artifacts']['writeStream']>>;
 
@@ -171,6 +172,23 @@ describe('Action-Level Document Parser Budgets & Completion Fencing (Wave 17-18,
       }).toThrow(expect.objectContaining({ code: 'INVALID_PARSER_BUDGET' }));
     });
 
+    test('rejects zero and negative buffer caps at the lower boundary', () => {
+      for (const maxBufferSizeBytes of [0, -0, -1, -Number.MIN_VALUE]) {
+        expect(() => ParserBudgetHelper.resolveParserBudget(ctx, { maxBufferSizeBytes })).toThrow(
+          expect.objectContaining({ code: 'INVALID_PARSER_BUDGET' })
+        );
+      }
+    });
+
+    test('accepts the exact materialized-memory ceiling and rejects one byte above it', () => {
+      const maxBufferSizeBytes = ParserBudgetHelper.MAX_BUFFER_SIZE_CEILING_BYTES;
+
+      expect(ParserBudgetHelper.resolveParserBudget(ctx, { maxBufferSizeBytes }).maxBufferSizeBytes)
+        .toBe(maxBufferSizeBytes);
+      expect(() => ParserBudgetHelper.resolveParserBudget(ctx, { maxBufferSizeBytes: maxBufferSizeBytes + 1 }))
+        .toThrow(expect.objectContaining({ code: 'INVALID_PARSER_BUDGET' }));
+    });
+
     test('validates finite positive numbers for timeoutMs', () => {
       expect(() => {
         ParserBudgetHelper.resolveParserBudget(ctx, { timeoutMs: -500 });
@@ -201,6 +219,38 @@ describe('Action-Level Document Parser Budgets & Completion Fencing (Wave 17-18,
       const budget = ParserBudgetHelper.resolveParserBudget(boundedCtx);
       expect(budget.timeoutMs).toBeLessThanOrEqual(5000);
       expect(budget.timeoutMs).toBeGreaterThan(4000);
+    });
+
+    test('fences a deadline at the exact boundary and caps by remaining time', () => {
+      const exactDeadline = new MockTaskContext({ deadlineAt: new Date().toISOString() });
+      expect(() => ParserBudgetHelper.resolveParserBudget(exactDeadline)).toThrow(
+        expect.objectContaining({ code: 'DEADLINE_EXCEEDED' })
+      );
+
+      const positiveRemainingTime = new MockTaskContext({
+        deadlineAt: new Date(Date.now() + 1000).toISOString(),
+      });
+      const bounded = ParserBudgetHelper.resolveParserBudget(positiveRemainingTime, { timeoutMs: 5000 });
+      expect(bounded.timeoutMs).toBeGreaterThan(0);
+      expect(bounded.timeoutMs).toBeLessThanOrEqual(1000);
+    });
+
+    test('rejects non-integer page budget selections before parser or split work', () => {
+      for (const pages of ['1.5', '2-3.5', '1, 2.25']) {
+        expect(() => InputNormalizer.normalizeIngest({ mode: 'split', pages })).toThrow(
+          expect.objectContaining({ code: 'INVALID_PAGE_RANGE' })
+        );
+      }
+    });
+
+    test('falls back to conservative defaults when no parser budget profile is supplied', () => {
+      const profilelessContext = new MockTaskContext({ input: {} });
+
+      expect(profilelessContext.input['parserBudget']).toBeUndefined();
+      expect(ParserBudgetHelper.resolveParserBudget(profilelessContext)).toEqual({
+        maxBufferSizeBytes: ParserBudgetHelper.DEFAULT_MAX_BUFFER_SIZE_BYTES,
+        timeoutMs: ParserBudgetHelper.DEFAULT_PARSER_TIMEOUT_MS,
+      });
     });
 
     test('enforces exact byte boundary: rejects (limit + 1) and accepts exact limit', async () => {
@@ -477,10 +527,12 @@ describe('Action-Level Document Parser Budgets & Completion Fencing (Wave 17-18,
       const artifactsWriteMock = jest.fn();
       const stepRunMock = jest.fn().mockImplementation(async (_k, _h, fn) => fn());
       const readArtifact = async (id: string) => {
-        // Cancel context during artifact read
+        // Let the storage read start before cancelling, so acquisition has
+        // attached its abort/rejection handlers to the in-flight metadata read.
+        const buffer = await ctx.artifacts.read(id);
         controller.abort('cancel');
         mockSdkCtx.setCancelRequested(true);
-        return ctx.artifacts.read(id);
+        return buffer;
       };
 
       const mockSdkCtx = createMockSdkContext({
@@ -617,19 +669,20 @@ describe('Action-Level Document Parser Budgets & Completion Fencing (Wave 17-18,
     test.each(actionsTable)(
       'Action "$name": parses valid document artifact successfully with bounded options',
       async ({ prepare }) => {
-        ctx.defaultConnectorResponse = {
+        const actionCtx = new MockTaskContext();
+        actionCtx.defaultConnectorResponse = {
           invocationId: 'inv-test-1',
           status: 'SUCCESS',
           data: { invoiceNumber: 'INV-100', total: 50, sentiment: 'positive', score: 0.9, summary: 'Summary text' },
         };
 
-        const art = await ctx.artifacts.write(
+        const art = await actionCtx.artifacts.write(
           Buffer.from('Valid plain text content for test verification', 'utf8'),
           'doc.txt',
           'text/plain'
         );
 
-        const result = await prepare(ctx, art.artifactId);
+        const result = await prepare(actionCtx, art.artifactId);
         expect(result).toBeDefined();
       }
     );

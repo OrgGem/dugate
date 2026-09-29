@@ -4,6 +4,8 @@ import {
   SpawnChildrenRequestSchema,
   UsageIngestBatchSchema,
   InvocationRequestSchema,
+  InvocationArtifactContentSchema,
+  CONNECTOR_ARTIFACT_MAX_BYTES,
   InvocationResponseSchema,
   SubmissionSchema,
   ResultEnvelopeSchema,
@@ -146,7 +148,18 @@ describe('connector invocation DTOs (docs 08)', () => {
     taskId: uuid(6),
     stepKey: 'extract-invoice',
     bindingSlot: 'reasoning',
-    input: { prompt: 'Extract fields.', artifacts: [{ artifactId: uuid(7) }] },
+    input: {
+      prompt: 'Extract fields.',
+      artifacts: [{
+        artifactId: uuid(7),
+        fileName: 'scan.png',
+        mimeType: 'image/png',
+        sizeBytes: 1,
+        sha256: '2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881',
+        storageVersionId: 'sha256:scan-v1',
+        contentBase64: 'eA==',
+      }],
+    },
     options: { temperature: 0 },
     sessionRef: null,
     deadlineAt: '2026-09-20T12:05:00Z',
@@ -183,6 +196,14 @@ describe('connector invocation DTOs (docs 08)', () => {
     expect(
       InvocationResponseSchema.safeParse({ invocationId: 'x', state: 'MAYBE' }).success
     ).toBe(false);
+  });
+
+  it('requires content identity, pinned version, bounded size and correctly sized base64 bytes', () => {
+    const artifact = request.input.artifacts[0]!;
+    expect(InvocationArtifactContentSchema.safeParse(artifact).success).toBe(true);
+    expect(InvocationArtifactContentSchema.safeParse({ artifactId: uuid(7) }).success).toBe(false);
+    expect(InvocationArtifactContentSchema.safeParse({ ...artifact, sizeBytes: 2 }).success).toBe(false);
+    expect(InvocationArtifactContentSchema.safeParse({ ...artifact, sizeBytes: CONNECTOR_ARTIFACT_MAX_BYTES + 1 }).success).toBe(false);
   });
 });
 

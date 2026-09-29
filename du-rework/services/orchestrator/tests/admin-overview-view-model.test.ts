@@ -462,3 +462,482 @@ describe('W39-O3 P6-07: buildHealthOverviewView (reuses GET /api/v1/health wire)
     expect(obj['credential']).toBeUndefined();
   });
 });
+
+// ===========================================================================
+// W-ADM-UX-11-OVERVIEW-VIEW-MODEL-NEGATIVE (Turn 344 / Cycle 55)
+//
+// Negative + boundary tests for the pure overview view models. Every
+// expectation was MEASURED with a throwaway probe against the real function
+// first. Several pin behaviour that is arguably wrong; those are marked
+// DEFECT and reported, not fixed (production code is out of scope).
+//
+// Pure unit file: no DB, no HTTP, no listener, so no port band applies.
+// ===========================================================================
+
+const WADMUX11_XSS = '<script>alert(1)</script>';
+const WADMUX11_ZERO_TOTALS = {
+  operations: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  pages: 0,
+  costMicrousd: 0,
+};
+
+const usageRow = (o: {
+  provider?: string;
+  model?: string;
+  operations?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  pages?: number;
+  costMicrousd?: number;
+  measurement?: string;
+} = {}) => ({
+  provider: 'openai',
+  model: 'gpt-4o-mini',
+  operations: 1,
+  inputTokens: 2,
+  outputTokens: 3,
+  pages: 4,
+  costMicrousd: 5,
+  measurement: 'measured',
+  ...o,
+});
+
+// ---------------------------------------------------------------------------
+// 1. Malformed status summaries
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-11: one module, three different degradation modes for a bad enum', () => {
+  // Measured: the meta-table lookups THROW, the switch returns undefined, and
+  // a binary ternary reports the unknown value as degraded. All in one file.
+  const bad: string[] = ['BOGUS', '', 'Measured', 'measured '];
+
+  test.each(bad)('usageMeasurementBadge(%p) throws a TypeError', (m) => {
+    expect(() => usageMeasurementBadge(m as never)).toThrow(TypeError);
+  });
+
+  test.each(bad)('usageMeasurementLabel(%p) throws a TypeError', (m) => {
+    expect(() => usageMeasurementLabel(m as never)).toThrow(TypeError);
+  });
+
+  test.each(bad)('auditKindLabel(%p) throws a TypeError', (kind) => {
+    expect(() => auditKindLabel(kind as never)).toThrow(TypeError);
+  });
+
+  test.each(bad)('auditKindSeverity(%p) throws a TypeError', (kind) => {
+    expect(() => auditKindSeverity(kind as never)).toThrow(TypeError);
+  });
+
+  // The odd one out: auditSeverityBadge is a switch with no default branch, so
+  // an unknown severity returns undefined instead of throwing. The declared
+  // return type excludes undefined, so TypeScript cannot catch this.
+  test.each(bad)('auditSeverityBadge(%p) silently returns undefined', (s) => {
+    expect(auditSeverityBadge(s as never)).toBeUndefined();
+  });
+
+  test('the four declared severities still resolve (control)', () => {
+    expect(auditSeverityBadge('success')).toBe('success');
+    expect(auditSeverityBadge('warning')).toBe('warning');
+    expect(auditSeverityBadge('error')).toBe('error');
+    expect(auditSeverityBadge('info')).toBe('neutral');
+  });
+
+  // SEAL: every kind the contracts declare must have a label and a severity.
+  // This is the check that would have caught a kind added to the union
+  // without a matching meta entry.
+  test('every declared audit kind resolves to a label and a severity', () => {
+    for (const kind of ALL_KINDS) {
+      expect(typeof auditKindLabel(kind)).toBe('string');
+      expect(auditKindLabel(kind).length).toBeGreaterThan(0);
+      expect(['info', 'success', 'warning', 'error']).toContain(auditKindSeverity(kind));
+    }
+  });
+
+  test('a bad measurement takes down the whole rollup row, not just the badge', () => {
+    expect(() => buildUsageRollupRow(usageRow({ measurement: 'BOGUS' }) as never)).toThrow(TypeError);
+  });
+
+  test('a bad kind takes down the whole audit event view', () => {
+    expect(() => buildAuditEventView(baseAuditRow({ kind: 'BOGUS' as never }))).toThrow(TypeError);
+  });
+
+  // DEFECT: buildAuditEventView never reads row.severity. It recomputes the
+  // severity from the kind, so a wire row that claims a HIGHER severity is
+  // silently downgraded and the wire value disappears from the view.
+  test('the wire severity is discarded and recomputed from the kind', () => {
+    const view = buildAuditEventView(baseAuditRow({ kind: 'operation.cancel', severity: 'error' }));
+    expect(view.severity).toBe('warning');
+    expect(view.severityBadge).toBe('warning');
+  });
+
+  test('a wire row claiming info for a failing kind is likewise overwritten', () => {
+    const view = buildAuditEventView(baseAuditRow({ kind: 'operation.fail', severity: 'info' }));
+    expect(view.severity).toBe('error');
+  });
+
+  // The one place this module degrades in the SAFE direction: an unknown
+  // health status is reported as degraded, not as ok.
+  test('an unknown health status is reported as degraded, not ok', () => {
+    const view = buildHealthOverviewView({
+      status: 'BOGUS' as never,
+      db: true,
+      redis: true,
+      activeLeases: 1,
+    });
+    expect(view.status).toBe('BOGUS');
+    expect(view.badge).toBe('error');
+    expect(view.statusLabel).toBe('Degraded');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. NaN / negative counters
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-11: every usage counter is an unclamped passthrough', () => {
+  test('NaN, negative and infinite counters survive verbatim', () => {
+    const row = buildUsageRollupRow(
+      usageRow({ operations: NaN, inputTokens: -1, outputTokens: Infinity, pages: -0, costMicrousd: NaN }) as never,
+    );
+    expect(row.operations).toBeNaN();
+    expect(row.inputTokens).toBe(-1);
+    expect(row.outputTokens).toBe(Infinity);
+    expect(row.pages).toBe(-0);
+    expect(row.costMicrousd).toBeNaN();
+  });
+
+  test('a negative cost is projected as a negative cost', () => {
+    const row = buildUsageRollupRow(usageRow({ costMicrousd: -999_999 }) as never);
+    expect(row.costMicrousd).toBe(-999_999);
+  });
+
+  test('a huge token count is not clamped to a safe-integer bound', () => {
+    const huge = Number.MAX_SAFE_INTEGER + 10;
+    const row = buildUsageRollupRow(usageRow({ inputTokens: huge }) as never);
+    expect(row.inputTokens).toBe(huge);
+  });
+
+  // DEFECT: totals is carried by reference, not copied. Mutating the wire
+  // object after the projection changes the rendered totals.
+  test('the totals object is shared with the wire input, not copied', () => {
+    const totals = { operations: 1, inputTokens: 2, outputTokens: 3, pages: 4, costMicrousd: 5 };
+    const view = buildUsageRollupView({
+      tenantId: 't',
+      from: 'a',
+      to: 'b',
+      rows: [usageRow() as never],
+      totals,
+    });
+    expect(view.totals).toBe(totals);
+    totals.operations = 999;
+    expect(view.totals.operations).toBe(999);
+  });
+
+  test('corrupt totals are never reconciled against the rows', () => {
+    // The rows sum to 1 operation; the totals claim 0. Nothing checks.
+    const view = buildUsageRollupView({
+      tenantId: 't',
+      from: 'a',
+      to: 'b',
+      rows: [usageRow({ operations: 7 }) as never],
+      totals: WADMUX11_ZERO_TOTALS,
+    });
+    expect(view.rows[0]!.operations).toBe(7);
+    expect(view.totals.operations).toBe(0);
+  });
+
+  test('a null rows array throws', () => {
+    expect(() =>
+      buildUsageRollupView({ tenantId: 't', from: 'a', to: 'b', rows: null as never, totals: WADMUX11_ZERO_TOTALS }),
+    ).toThrow(TypeError);
+  });
+
+  test('allUnattributed requires BOTH provider and model to be unattributed', () => {
+    // A half-attributed row reads as attributed, so the empty-state copy
+    // would not show even though the row carries no real attribution.
+    const half = buildUsageRollupView({
+      tenantId: 't',
+      from: '',
+      to: '',
+      rows: [usageRow({ provider: '(unattributed)' }) as never],
+      totals: WADMUX11_ZERO_TOTALS,
+    });
+    const whole = buildUsageRollupView({
+      tenantId: 't',
+      from: '',
+      to: '',
+      rows: [usageRow({ provider: '(unattributed)', model: '(unattributed)' }) as never],
+      totals: WADMUX11_ZERO_TOTALS,
+    });
+    expect(half.allUnattributed).toBe(false);
+    expect(whole.allUnattributed).toBe(true);
+  });
+
+  test('an empty row list is neither hasRows nor allUnattributed', () => {
+    const view = buildUsageRollupView({
+      tenantId: 't',
+      from: 'a',
+      to: 'b',
+      rows: [],
+      totals: WADMUX11_ZERO_TOTALS,
+    });
+    expect(view.hasRows).toBe(false);
+    expect(view.allUnattributed).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Corrupt throughput metrics
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-11: there is no throughput metric to corrupt', () => {
+  // The packet asks for corrupt throughput metrics. This module exports ten
+  // functions and none of them computes a rate or throughput; usage is
+  // projected as raw counters. Those counters are covered in the block above,
+  // so this block pins what the module does and does not do.
+  test('usage is projected as raw counters, never as a derived rate', () => {
+    const row = buildUsageRollupRow(usageRow({ operations: 5, pages: 10 }) as never);
+    expect(row.operations).toBe(5);
+    expect(row.pages).toBe(10);
+    expect(Object.keys(row).sort()).toEqual([
+      'costMicrousd',
+      'inputTokens',
+      'measurement',
+      'measurementBadge',
+      'measurementLabel',
+      'model',
+      'operations',
+      'outputTokens',
+      'pages',
+      'provider',
+    ]);
+  });
+
+  test('a zero-denominator style input cannot produce Infinity here, because no division happens', () => {
+    // With no rate computation there is no divide-by-zero surface - the
+    // counters simply pass through, which is why the clamp question above is
+    // the only metric question this module raises.
+    const row = buildUsageRollupRow(usageRow({ operations: 0, inputTokens: 0 }) as never);
+    expect(row.operations).toBe(0);
+    expect(row.inputTokens).toBe(0);
+  });
+
+  test('NaN in the only health counter is projected verbatim', () => {
+    const view = buildHealthOverviewView({ status: 'ok', db: true, redis: true, activeLeases: NaN });
+    expect(view.activeLeases).toBeNaN();
+  });
+
+  test('a negative lease count is projected verbatim', () => {
+    const view = buildHealthOverviewView({ status: 'ok', db: true, redis: true, activeLeases: -5 });
+    expect(view.activeLeases).toBe(-5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Boundary time-window intervals
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-11: the [from, to] window is never parsed or ordered', () => {
+  // There is no date handling anywhere in this module. The window is carried
+  // through so the renderer can echo it, which means every interval defect
+  // arrives at the UI intact.
+  const viewWith = (from: string, to: string) =>
+    buildUsageRollupView({ tenantId: 't', from, to, rows: [], totals: WADMUX11_ZERO_TOTALS });
+
+  // DEFECT: an inverted window is not detected. to < from is meaningless, and
+  // the renderer will be asked to label it as-is.
+  test('an inverted window (to before from) passes through unchanged', () => {
+    const view = viewWith('2026-09-30T00:00:00Z', '2026-01-01T00:00:00Z');
+    expect(view.from).toBe('2026-09-30T00:00:00Z');
+    expect(view.to).toBe('2026-01-01T00:00:00Z');
+  });
+
+  test('unparseable window bounds pass through unchanged', () => {
+    const view = viewWith('garbage', 'not-a-date');
+    expect(view.from).toBe('garbage');
+    expect(view.to).toBe('not-a-date');
+  });
+
+  test('an empty window passes through as empty strings', () => {
+    const view = viewWith('', '');
+    expect(view.from).toBe('');
+    expect(view.to).toBe('');
+  });
+
+  test('a zero-length window (same instant both ends) is accepted', () => {
+    const view = viewWith('2026-09-23T00:00:00Z', '2026-09-23T00:00:00Z');
+    expect(view.from).toBe(view.to);
+  });
+
+  test('mixed formats (epoch millis vs ISO) are both accepted without complaint', () => {
+    const view = viewWith('1758604800000', '2026-09-23T00:00:00Z');
+    expect(view.from).toBe('1758604800000');
+    expect(view.to).toBe('2026-09-23T00:00:00Z');
+  });
+
+  test('a rolled-over calendar date is indistinguishable from a valid one', () => {
+    const view = viewWith('2026-02-30T00:00:00Z', '2026-03-02T00:00:00Z');
+    expect(view.from).toBe('2026-02-30T00:00:00Z');
+  });
+
+  test('the audit list carries no window at all, so it cannot be bounded', () => {
+    // baseAuditRow defaults to tenant-A; the view is scoped to t1, so the
+    // row needs an explicit tenant or the filter would drop it.
+    const view = buildAuditListView({
+      tenantId: 't1',
+      events: [baseAuditRow({ tenantId: 't1', occurredAt: 'garbage' })],
+    });
+    expect(view.events[0]!.occurredAt).toBe('garbage');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Tenant breakdown edge cases
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-11: tenant scoping is a bare === and collapses when both sides are missing', () => {
+  // DEFECT and the sharpest of this packet: the filter is e.tenantId ===
+  // input.tenantId. When BOTH are undefined the comparison is true, so a view
+  // with no tenantId keeps every event that also has no tenantId. Tenant
+  // scoping silently becomes a no-op instead of failing closed.
+  test('a view with an undefined tenantId keeps every event lacking one', () => {
+    const view = buildAuditListView({
+      tenantId: undefined as never,
+      events: [
+        baseAuditRow({ id: 'a', tenantId: undefined as never }),
+        baseAuditRow({ id: 'b', tenantId: 't1' }),
+        baseAuditRow({ id: 'c', tenantId: undefined as never }),
+      ],
+    });
+    expect(view.events.map((e) => e.id)).toEqual(['a', 'c']);
+  });
+
+  test('two different tenants both missing an id would land in the same view', () => {
+    // The isolation argument in the docstring is "any event whose tenantId
+    // does not match is dropped" - true for present values, false for absent.
+    const view = buildAuditListView({
+      tenantId: undefined as never,
+      events: [
+        baseAuditRow({ id: 'from-tenant-x', tenantId: undefined as never }),
+        baseAuditRow({ id: 'from-tenant-y', tenantId: undefined as never }),
+      ],
+    });
+    expect(view.events).toHaveLength(2);
+    expect(view.hasEvents).toBe(true);
+  });
+
+  test('scoping is case-sensitive, so a case-flipped id drops every event', () => {
+    const view = buildAuditListView({
+      tenantId: 'T1',
+      events: [baseAuditRow({ tenantId: 't1' })],
+    });
+    expect(view.events).toHaveLength(0);
+    expect(view.hasEvents).toBe(false);
+  });
+
+  test('the empty string is a valid tenant id and matches other empty strings', () => {
+    const view = buildAuditListView({
+      tenantId: '',
+      events: [baseAuditRow({ id: 'a', tenantId: '' }), baseAuditRow({ id: 'b', tenantId: 't1' })],
+    });
+    expect(view.events.map((e) => e.id)).toEqual(['a']);
+  });
+
+  test('a null event throws instead of being dropped', () => {
+    expect(() => buildAuditListView({ tenantId: 't1', events: [null as never] })).toThrow(TypeError);
+  });
+
+  test('a null events array throws', () => {
+    expect(() => buildAuditListView({ tenantId: 't1', events: null as never })).toThrow(TypeError);
+  });
+
+  test('kinds and severities are deduplicated in first-appearance order', () => {
+    const view = buildAuditListView({
+      tenantId: 't1',
+      events: [
+        baseAuditRow({ id: 'a', kind: 'operation.fail', tenantId: 't1' }),
+        baseAuditRow({ id: 'b', kind: 'operation.fail', tenantId: 't1' }),
+        baseAuditRow({ id: 'c', kind: 'apikey.revoke', tenantId: 't1' }),
+      ],
+    });
+    expect(view.kinds).toEqual(['operation.fail', 'apikey.revoke']);
+    expect(view.severities).toEqual(['error', 'warning']);
+  });
+
+  test('kinds and severities reflect the view scope, not the dropped events', () => {
+    const view = buildAuditListView({
+      tenantId: 't1',
+      events: [
+        baseAuditRow({ id: 'a', kind: 'operation.fail', tenantId: 't1' }),
+        baseAuditRow({ id: 'b', kind: 'webhook.delivered', tenantId: 'tenant-B' }),
+      ],
+    });
+    expect(view.kinds).toEqual(['operation.fail']);
+    expect(view.severities).toEqual(['error']);
+  });
+
+  test('hostile message and actor text are passed through unescaped', () => {
+    const view = buildAuditListView({
+      tenantId: 't1',
+      events: [baseAuditRow({ tenantId: 't1', message: WADMUX11_XSS, actor: '<img src=x onerror=alert(1)>' })],
+    });
+    expect(view.events[0]!.message).toBe(WADMUX11_XSS);
+    expect(view.events[0]!.actor).toBe('<img src=x onerror=alert(1)>');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Health probe flags: truthiness, not equality
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-11: the health probes are truthiness tests, and fullyHealthy is not always boolean', () => {
+  // Same class as the connector hasValue defect in cycle 52: a truthy string
+  // reports the probe as healthy.
+  test('the string "false" reports BOTH probes as healthy', () => {
+    const view = buildHealthOverviewView({
+      status: 'ok',
+      db: 'false' as never,
+      redis: 'false' as never,
+      activeLeases: 0,
+    });
+    expect(view.dbBadge).toBe('success');
+    expect(view.redisBadge).toBe('success');
+    expect(view.dbLabel).toBe('Healthy');
+  });
+
+  test('fullyHealthy is a && chain, so it can return a non-boolean', () => {
+    // Declared boolean, but 'false' && 'false' short-circuits to the string.
+    const view = buildHealthOverviewView({
+      status: 'ok',
+      db: 'false' as never,
+      redis: 'false' as never,
+      activeLeases: 0,
+    });
+    expect(typeof view.fullyHealthy).not.toBe('boolean');
+    expect(view.fullyHealthy).toBe('false');
+  });
+
+  test('a numeric zero db probe yields the number 0, not the boolean false', () => {
+    const view = buildHealthOverviewView({
+      status: 'degraded',
+      db: 0 as never,
+      redis: 1 as never,
+      activeLeases: 0,
+    });
+    expect(view.dbBadge).toBe('error');
+    expect(view.redisBadge).toBe('success');
+    expect(view.fullyHealthy).toBe(0);
+  });
+
+  test('with real booleans the contract holds (control)', () => {
+    const ok = buildHealthOverviewView({ status: 'ok', db: true, redis: true, activeLeases: 2 });
+    expect(ok.fullyHealthy).toBe(true);
+    expect(ok.badge).toBe('success');
+    const bad = buildHealthOverviewView({ status: 'degraded', db: false, redis: true, activeLeases: 2 });
+    expect(bad.fullyHealthy).toBe(false);
+    expect(bad.dbBadge).toBe('error');
+    expect(bad.redisBadge).toBe('success');
+  });
+});
+

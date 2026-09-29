@@ -6,8 +6,9 @@ import {
   safeTransportErrorText,
 } from '../src/http/errors';
 import {
-  createAdminShellServer,
+  createAdminShellServer as createAdminShellServerOnPort,
   type AdminShellHandle,
+  type CreateAdminShellServerOptions,
 } from '../src/app/admin/shell-server';
 import {
   createOidcFlow,
@@ -17,6 +18,66 @@ import {
 } from '../src/app/admin/oidc-flow';
 import type { OidcClient } from '../src/modules/auth/oidc-client';
 import { signCookie } from '../src/app/admin/shell-auth';
+
+/**
+ * Windows draws outbound source ports from 49152-65535, so a port-0
+ * listener competes with the host's own requests. Measured this cycle:
+ * connect EADDRINUSE 127.0.0.1:57754 on a run that was green the two
+ * runs before it - a flake, not a product failure. Band 44000-44504,
+ * disjoint from 42000-42504 (the two audit suites) and 43000-43504
+ * (admin-shell-platform-mount), so all four can run concurrently without
+ * ever meeting. Disjointness is hygiene, NOT the guarantee - the bounded
+ * retry is the guarantee. Only EADDRINUSE is swallowed; every other error
+ * propagates unchanged.
+ */
+const PORT_BAND_BASE = 44_000 + (process.pid % 64) * 8;
+const PORT_BAND_SLOTS = 16;
+const claimedPorts = new Set<number>();
+let portCursor = 0;
+
+/** Hand out a port no other mount site in this file has taken. */
+function claimPort(): number {
+  for (let i = 0; i < PORT_BAND_SLOTS; i += 1) {
+    const candidate = PORT_BAND_BASE + ((portCursor + i) % PORT_BAND_SLOTS) * 8;
+    if (!claimedPorts.has(candidate)) {
+      claimedPorts.add(candidate);
+      portCursor += 1;
+      return candidate;
+    }
+  }
+  // Band exhausted: fall back to an OS ephemeral port rather than failing.
+  return 0;
+}
+
+function createAdminShellServer(options: CreateAdminShellServerOptions): AdminShellHandle {
+  if (options.port !== undefined && options.port !== 0) {
+    return createAdminShellServerOnPort(options);
+  }
+  let current = createAdminShellServerOnPort({ ...options, port: claimPort() });
+  return {
+    listen: async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await current.listen();
+        } catch (err) {
+          if ((err as { code?: string }).code !== 'EADDRINUSE' || attempt >= PORT_BAND_SLOTS) {
+            throw err;
+          }
+          await current.close().catch(() => undefined);
+          current = createAdminShellServerOnPort({ ...options, port: claimPort() });
+        }
+      }
+    },
+    close: () => current.close(),
+    get url() {
+      return current.url;
+    },
+    get port() {
+      return current.port;
+    },
+    lastRouteId: () => current.lastRouteId(),
+  };
+}
 
 /**
  * W-ADMBASE03-ERR-1 — ADM-BASE-03 error boundary + sentinel-leak defense,
@@ -133,6 +194,29 @@ function explodingFlow(): OidcFlow {
     handleLogin: boom,
     handleCallback: boom,
     handleLogout: benign,
+    sanitizeReturnTo: () => '/admin',
+  };
+}
+
+/** A flow whose login leg SUCCEEDS. Measured: the shell hands the WHOLE
+ *  response to handleLogin (the page is whatever the flow returns), so the
+ *  200-leg tests need a flow that does not throw. explodingFlow() cannot
+ *  serve them: /admin/login calls handleLogin, so a throwing flow turns
+ *  that 200 into the 500 boundary (already pinned by the baseline). */
+function benignLoginFlow(): OidcFlow {
+  const redirect = async (): Promise<OidcFlowResponse> => ({
+    status: 302,
+    headers: { location: '/admin' },
+    body: '',
+  });
+  return {
+    handleLogin: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      body: '<p>login</p>',
+    }),
+    handleCallback: redirect,
+    handleLogout: redirect,
     sanitizeReturnTo: () => '/admin',
   };
 }
@@ -433,3 +517,235 @@ describe('W-ADMBASE03-ERR-1 structural pins (raw echo cannot return to the fixed
     expect(region).toContain('errorClassOf(err)');
   });
 });
+
+describe('W-ADM-UX-06 error boundary: masking and correlationId', () => {
+  let h: AdminShellHandle;
+  let base: string;
+  beforeAll(async () => {
+    h = createAdminShellServer({
+      port: 0,
+      host: '127.0.0.1',
+      cookieSecret: SECRET,
+      adminToken: TOKEN,
+      oidcFlow: explodingFlow(),
+    });
+    const r = await h.listen();
+    base = r.url;
+  });
+  afterAll(async () => { await h.close(); });
+
+  it('an unhandled error masks message, stack and SQL detail, keeps class+id', async () => {
+    const logs = captureLogs();
+    let res: Response;
+    try {
+      const boom: AdminShellHandle = h;
+      void boom;
+      res = await fetch(base + '/admin/oidc/callback?code=abc', { redirect: 'manual' });
+    } finally {
+      logs.restore();
+    }
+    const body = await res.text();
+    expect(res.status).toBe(500);
+    expect(scanForSentinels([body, logs.all()], 'unhandled')).toEqual([]);
+    expect(body).toContain('Internal error. Details redacted');
+    expect(body).not.toContain('at Object.');      // no stack frames
+    expect(body).not.toContain('SELECT');          // no SQL text
+    expect(body).not.toMatch(/\brelation\b/i);      // no DB internals; the \b keeps
+                                                // the legitimate Correlation ID a non-hit
+    const cid = res.headers.get('x-correlation-id');
+    expect(cid).toMatch(UUID_RE);
+    expect(body).toContain(cid as string);
+  });
+
+  it('correlationId header is present and a valid UUID on EVERY error leg', async () => {
+    for (const path of ['/', '/admin/businesses', '/admin/nope', '/admin/login']) {
+      const res = await fetch(base + path, { redirect: 'manual' });
+      const cid = res.headers.get('x-correlation-id');
+      expect(cid).toMatch(UUID_RE);
+    }
+  });
+
+  it('correlationId is unique per request, never a constant', async () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 5; i += 1) {
+      const res = await fetch(base + '/', { redirect: 'manual' });
+      const cid = res.headers.get('x-correlation-id');
+      expect(cid).toMatch(UUID_RE);
+      seen.add(cid as string);
+    }
+    expect(seen.size).toBe(5);
+  });
+
+  it('a VALID client-echoed correlationId is PRESERVED (trace joining depends on it)', async () => {
+    // Measured contract, and the opposite of my first guess: normalizeCorrelationId
+    // passes a well-formed client token straight through so a gateway can join
+    // its own trace to this hop. Server-generated ids are UUIDs; client-echoed
+    // ids are any [A-Za-z0-9._-]{8,128} token.
+    const res = await fetch(base + '/', {
+      redirect: 'manual',
+      headers: { 'x-correlation-id': 'client-trace-0123456789' },
+    });
+    expect(res.headers.get('x-correlation-id')).toBe('client-trace-0123456789');
+  });
+
+  it('a MALFORMED client correlationId is replaced by a server UUID, never echoed', async () => {
+    for (const bad of ['has space', 'short', 'x'.repeat(200), 'semi;colon']) {
+      const res = await fetch(base + '/', {
+        redirect: 'manual',
+        headers: { 'x-correlation-id': bad },
+      });
+      const cid = res.headers.get('x-correlation-id');
+      expect(cid).toMatch(UUID_RE);
+      expect(cid).not.toBe(bad);
+    }
+  });
+});
+
+
+describe('W-ADM-UX-06 error boundary: XSS reflection and status contract', () => {
+  let h: AdminShellHandle;
+  let base: string;
+  beforeAll(async () => {
+    h = createAdminShellServer({
+      port: 0,
+      host: '127.0.0.1',
+      cookieSecret: SECRET,
+      adminToken: TOKEN,
+      oidcFlow: benignLoginFlow(),
+    });
+    const r = await h.listen();
+    base = r.url;
+  });
+  afterAll(async () => { await h.close(); });
+
+  it('a script tag in the path is never reflected into the error page', async () => {
+    const payload = encodeURIComponent('<script>alert(1)</script>');
+    const res = await fetch(base + '/admin/' + payload, { redirect: 'manual' });
+    const body = await res.text();
+    expect(res.status).toBe(404);
+    expect(body.toLowerCase()).not.toContain('<script>');
+    expect(body.toLowerCase()).not.toContain('</script>');
+  });
+
+  it('an onerror payload in the query is never reflected', async () => {
+    const payload = encodeURIComponent('<img src=x onerror=alert(1)>');
+    const res = await fetch(base + '/admin/login?redirect=' + payload, { redirect: 'manual' });
+    const body = await res.text();
+    expect(res.status).toBe(200);
+    expect(body.toLowerCase()).not.toContain('onerror=alert');
+  });
+
+  it('the 404 page does not reflect the path back AT ALL (stronger than escaping)', async () => {
+    // Measured: the boundary page carries no echo of the requested path, so a
+    // payload is not merely escaped - it is absent. Absent is safer than escaped.
+    const payload = encodeURIComponent('<b>x</b>');
+    const res = await fetch(base + '/admin/' + payload, { redirect: 'manual' });
+    const body = await res.text();
+    expect(body).not.toContain('<b>');
+    expect(body).not.toContain('x</b>');
+  });
+
+  it('401 unauth, 404 unknown, 200 login: the status contract is intact', async () => {
+    const unauth = await fetch(base + '/admin/businesses', { redirect: 'manual' });
+    expect(unauth.status).toBe(401);
+    const unknown = await fetch(base + '/admin/nope', { redirect: 'manual' });
+    expect(unknown.status).toBe(404);
+    const login = await fetch(base + '/admin/login', { redirect: 'manual' });
+    expect(login.status).toBe(200);
+  });
+
+  it('route match runs BEFORE auth: an unknown path is 404 even unauthenticated', async () => {
+    // Probed behaviour: 404 is decided by the router before any cookie check,
+    // so an unauthenticated probe cannot use 404 vs 401 to map the routes.
+    const res = await fetch(base + '/admin/does-not-exist', { redirect: 'manual' });
+    expect(res.status).toBe(404);
+  });
+
+  it('every error leg answers text/html, never a raw stack or JSON dump', async () => {
+    for (const path of ['/', '/admin/nope', '/admin/businesses']) {
+      const res = await fetch(base + path, { redirect: 'manual' });
+      expect(res.headers.get('content-type')).toContain('text/html');
+      const body = await res.text();
+      expect(body).not.toContain('at Object.');
+      expect(body).not.toContain(String.fromCharCode(10) + '    at ');
+    }
+  });
+});
+
+
+describe('W-ADM-UX-06 IdP exchange: fail-closed edges', () => {
+  function flowWith(client: Partial<OidcClient>) {
+    let created = 0;
+    const flow = createOidcFlow({
+      client: client as OidcClient,
+      sessions: {
+        create: async () => { created += 1; throw new Error('must not be reached'); },
+        get: async () => null,
+        destroy: async () => true,
+      },
+      challenges: {
+        put: async () => undefined,
+        consume: async () => ({ verifier: 'v'.repeat(43), nonce: 'n'.repeat(43), returnTo: '/admin', expiresAt: Date.now() + 60_000 }),
+      },
+      publicOrigin: 'http://localhost:2023',
+    });
+    return { flow, created: () => created };
+  }
+
+  it('an upstream throw of a NON-Error value is still a clean denial', async () => {
+    const { flow, created } = flowWith({
+      exchangeAuthorizationCode: async () => {
+        throw sentinelMessage('a bare string, not an Error');
+      },
+    });
+    const res = await flow.handleCallback({
+      method: 'GET',
+      path: '/admin/oidc/callback',
+      query: { code: 'c', state: 's' },
+      cookies: {},
+    });
+    expect(res.status).toBe(403);
+    expect(scanForSentinels([res.body], 'bare string throw')).toEqual([]);
+    expect(created()).toBe(0);
+  });
+
+  it('a rejection whose message is an empty string still denies, never 500s', async () => {
+    const { flow, created } = flowWith({
+      exchangeAuthorizationCode: async () => {
+        throw new Error('');
+      },
+    });
+    const res = await flow.handleCallback({ method: 'GET', path: '/admin/oidc/callback', query: { code: 'c', state: 's' }, cookies: {} });
+    expect(res.status).toBe(403);
+    expect(created()).toBe(0);
+  });
+
+  it('a missing authorization code denies without touching the upstream', async () => {
+    let called = 0;
+    const { flow, created } = flowWith({
+      exchangeAuthorizationCode: async () => {
+        called += 1;
+        return { accessToken: 'a', idToken: 'i' } as never;
+      },
+    });
+    const res = await flow.handleCallback({ method: 'GET', path: '/admin/oidc/callback', query: { state: 's' }, cookies: {} });
+    expect(res.status).toBe(403);
+    expect(called).toBe(0);
+    expect(created()).toBe(0);
+  });
+
+  it('no denial leg ever mints a session cookie', async () => {
+    for (const bad of [
+      () => { throw new Error(sentinelMessage('boom-a')); },
+      () => { throw new Error(''); },
+      () => { throw sentinelMessage('boom-c'); },
+    ]) {
+      const { flow, created } = flowWith({ exchangeAuthorizationCode: bad });
+      const res = await flow.handleCallback({ method: 'GET', path: '/admin/oidc/callback', query: { code: 'c', state: 's' }, cookies: {} });
+      expect(res.status).toBe(403);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(created()).toBe(0);
+    }
+  });
+});
+

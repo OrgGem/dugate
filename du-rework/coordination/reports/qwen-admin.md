@@ -8,7 +8,7 @@
   Mục 1 = W-ADMUX-01, 2 = -03-FILTER-1, 3 = W-ADMUX02-SRV-1,
   4 = -SRV-1-FIX, 5 = -CLEAN-1, 6 = -COPY-2, 7 = -IDX-1, 8 = -IDX-2, 9 = -EXPLAIN-FIX-1,
   10 = -STATUS-SYNC-1, 11 = W-CONTRACT-ALIGN-1, 12 = W-ADMUX02-EXT-1, 13 = -TOOLBAR-CHIPS-1,
-  14 = -SORT-ALLOWLIST-1, 15 = -SORT-CURSOR-BIND-1, 16 = -SHELL-SORT-1, 17 = -IDX-SORT-0018, 18 = -EXPLAIN-SORT-1, 19 = -CROSS-SORT-422-1, 20 = W-ADMUX02-0019-LITERAL-HARNESS-1, 21 = W-ADMIN-ALIGN-EXPLAIN-0019, 22 = W-ENC-07-DELIVERY-1, 23 = W-ENC-08-CONFIG, 24 = W-ENC-08-WIRING, 25 = W-ENC-08-WIRE-ENC07, 26 = W-ADM-UX-08-SHELL, 27 = W-ENC-08-RENDERER-CSRF, 28 = W-ENC-08-CSRF-OIDC, 29 = W-ENC-08-WEBHOOK, 30 = W-ADM-UX-02-AUDIT-PAGE. Chờ packet mới.
+  14 = -SORT-ALLOWLIST-1, 15 = -SORT-CURSOR-BIND-1, 16 = -SHELL-SORT-1, 17 = -IDX-SORT-0018, 18 = -EXPLAIN-SORT-1, 19 = -CROSS-SORT-422-1, 20 = W-ADMUX02-0019-LITERAL-HARNESS-1, 21 = W-ADMIN-ALIGN-EXPLAIN-0019, 22 = W-ENC-07-DELIVERY-1, 23 = W-ENC-08-CONFIG, 24 = W-ENC-08-WIRING, 25 = W-ENC-08-WIRE-ENC07, 26 = W-ADM-UX-08-SHELL, 27 = W-ENC-08-RENDERER-CSRF, 28 = W-ENC-08-CSRF-OIDC, 29 = W-ENC-08-WEBHOOK, 30 = W-ADM-UX-02-AUDIT-PAGE, 31 = W-ADM-UX-03-AUDIT-TOOLBAR. Chờ packet mới.
   **T70-C1 đã đóng ở Mục 11** (contract về một nguồn, tham số ngoài contract = lỗi biên dịch).
   **Bug thật Mục 13 sửa:** `Clear all` giữ nguyên page size đang dùng (`?limit=50`) thay vì về
   `?limit=20` — trái chính checklist C1 mà Mục 10 tôi soạn cho Tester. Chip đã có từ Mục 2 nên
@@ -3700,8 +3700,1651 @@ Không suite nào trong 3 đó chạm route audit list. Không có đỏ nào do
 - **Δ129 — ADM-UX-02 vẫn `[~]`, `G-ADMIN-OPS` vẫn NO-GO.** Mục này đóng được phần *code* của
   filter + sort + keyset cho audit, nhưng **không** có: index cho filter actor/resource (Δ128),
   kiểm thử live keyset trong DB window (cursor audit chưa từng có bằng chứng live), và UI sort
-  control cho pane audit (ADM-UX-03 vẫn `[ ]`). Toàn bộ bằng chứng ở đây là **offline**.
+  control cho pane audit (ADM-UX-03 vẫn `[ ]`). Toàn bộ bằng chứng ở đây là **offline**.## 31 — CYCLE 31
+
+**W-ADM-UX-03-AUDIT-TOOLBAR** (task_a848fbd749d6 / ctx_60b3e9ee8466) — toolbar chips search/filter
+cho pane `/admin/audit`, dựng trên bộ lọc Mục 30.
+
+### 31.0 Tiền đề bắt buộc: tiền đề của packet không đúng, và tôi đã hỏi trước khi code
+
+Packet nêu hai file `services/orchestrator/src/app/admin/audit-section-renderer.ts` và
+`audit-section-data.ts`. **Cả hai không tồn tại** khi tôi nhận việc: thư mục `src/app/admin/` chỉ có
+api-key, business, connector, crypto-config, operation, overview, profile. Tôi cũng đọc route table
+của `shell-router.ts` (1685 dòng): có `/admin/login`, `/admin/logout`, `/admin/crypto-config`,
+`/admin/businesses`, `/admin/profiles`, `/admin/connectors`, `/admin/api-keys`, `/admin/operations` —
+**không có `/admin/audit`**. API `/api/v1/admin/audit` thì có (Mục 30), nhưng admin shell chưa có pane nào
+đọc nó.
+
+Hệ quả: nếu chỉ tạo hai file như packet nêu thì toolbar là code không reachable. Tôi **dừng lại hỏi**
+thay vì tự mở rộng phạm vi; coordinator chốt **2 file mới, không wire shell**. Phần wiring là packet
+riêng (Δ130).
+
+Điểm nữa phải nói thẳng: trong `tasks/ADMIN-OPS-UX-2026-09-24.md`, dòng `ADM-UX-03` **đã là `[~]`**
+và nói về toolbar của **Operations** (Mục 13/16/19 của chính lane này, bằng chứng kép Qwen-Admin +
+Codex Tester `T-CODEX-OFFLINE-ADM-UX-03-INDEPENDENT` 79/79). Packet này **tái sử dụng ID** cho toolbar
+audit. Tôi không tự tick dòng ledger; xem Δ131.
+
+### 31.1 Phạm vi thực thi
+
+| File | Dòng | Thay đổi |
+|---|---:|---|
+| `src/app/admin/audit-section-data.ts` | 604 | MỚI — fetcher + sanitisers + view model |
+| `src/app/admin/audit-section-renderer.ts` | 444 | MỚI — toolbar, chips, bảng, pagination |
+| `tests/admin-audit-toolbar.test.ts` | 675 | MỚI — 57 test / 8 describe, offline |
+
+Không sửa file nào khác: `shell-router.ts`, `shell-render.ts`, `server.ts`, `packages/contracts`.
+
+### 31.2 Sáu quyết định thiết kế, và lý do
+
+**1. O nhap thoi gian la `type=text`, KHONG phai `datetime-local`.** Control `datetime-local` no
+mot chuoi gio cuc bo khong mui gio (`2026-09-28T10:30`), route chi nhan UTC co `Z` nen se 422 — va
+dien giai am tham no thanh UTC dung la dieu mot bo loc thoi gian cua ledger tuyet doi khong duoc lam.
+Shell khong co JS nen khong co buoc chuyen doi nao; o text kem hint la lua chon trung thuc duy nhat.
+Test khoa: hint neu dung dinh dang, va 2 test chan offset `+07:00` lan ngay khong ton tai `2026-02-30`.
+
+**2. Cua so thoi gian dao nguoc thi FAIL CLOSED, khong phat request.** Day la ngoai le DUY NHAT so voi
+luat bo-roi-ghi-ten ma toolbar Operations dung. Gui request voi cua so bi bo am tham se dua cho
+nguoi van hanh **toan bo ledger duoi nhan khoang thoi gian ho yeu cau**. Cung ly do voi viec route 422 o Muc 30.
+Test: `fetchAuditEvents` voi from > to tra `kind: error` va `stub.calls` **bang 0** (Δ132).
+
+**3. `severity` KHONG fold case.** Route nhan dung bon bucket chu thuong; nhan `ERROR` roi gui di la
+dat vao URL mot gia tri route tu choi — dung cai ranh gioi nay sinh ra de chan. Day la **loi that cua
+chinh toi**: toi viet `.toUpperCase()` vi enum cua toolbar Operations la chu hoa, roi test bat (31.4).
+
+**4. Chi goi TEN field bi tu choi, khong bao gio goi gia tri.** Token invalid co the la credential
+dan nham; no khong duoc quay lai DOM, URL hay log. Test dung 40 ky tu hex lien mach (`deadbeef`×5) va
+assert chuoi do vang mat trong ca `ignored` lan URL.
+
+**5. Dong doc loi duoc dem va hien ra, khong nuot lang le.** `droppedRows` dem dong khong co `id`;
+neu > 0, pane render canh bao `data-dropped-rows`. Bang tu nhien nho di ma nguoi van hanh khong hoi
+la su co du lieu ho can thay (Δ134).
+
+**6. Thieu `jsonBaseUrl` tra `error`, KHONG tra `empty`.** `empty` se mac ao loi wiring thanh du
+lieu. Vi pane chua duoc mount, day chinh la trang thai dau tien mot caller se gap (Δ135).
+
+Ngoai ra: HTML attribute dung **nhay don**. `esc()` escape ca `0x22` lan `0x27` nen hai kieu an toan
+nhau; toi chon nhay don mot phan vi kenh ghi file tren may nay khong mang duoc dau nhay kep (31.4).
+
+### 31.3 Bang chung
+
+| Han muc | Ket qua |
+|---|---|
+| Suite moi `admin-audit-toolbar` | **57/57**, 3 lan lien tiep, moi lan `Test Suites: 1 passed` |
+| `pnpm --filter @du/orchestrator typecheck` | **Exit Code: 0** |
+| 6 suite admin lien quan | 5 passed / 1 failed — **345 passed, 346 total** |
+
+Do duy nhat la `admin-operations-list-pagination.test.ts`: test doi `aria-label=Scrollable table`, con
+`shell-render.ts:544` phat `aria-label=Scrollable data table N of M`. Day la **red co san Δ92** o file
+cua lane khac; toi khong sua `shell-render.ts`, va grep xac nhan 8 cho khop `adm-reflow-scroller` deu
+khong nam trong hai file cua toi.
+
+Moi bang chung o day la **offline**: fetch stub ghi lai URL; khong mang, khong DB, khong Redis, khong doc
+dong ho luc import. `SKIP` khong tinh la `PASS` — khong suite nao bi skip trong 3 lan chay.
+
+### 31.4 Sai sot cua chinh toi trong luc lam (ghi cong khai)
+
+- **Bug product that, test bat duoc:** `sanitizeAuditSeverityFilter` dung `.toUpperCase()` trong khi
+  `AUDIT_SEVERITY_VALUES` la chu thuong, nen **moi** severity tra ve `ALL`. Test *accepts every
+  ledger severity the route accepts* do tren ca 4 gia tri. Da sua thanh so khop khong fold case, kem
+  comment neu ly do (Δ133, Δ136).
+- **8 ky vong test sai cua toi**, deu la loi hieu markup chu khong phai loi product: gia dinh thu tu
+  attribute (toi nghi `data-filter-clear` dung truoc `href` — thuc te nguoc lai), gia dinh attribute
+  lien nhau, va parse href bang `URLSearchParams` khi href da esc thanh `&amp;`. Toi them helper
+  `hrefFor` / `paramsOf` de test khong phu thuoc thu tu attribute — vi thu tu attribute khong phai
+  hop dong.
+- **Kenh ghi file:** `python -c` di qua `cmd.exe` **an mat moi dau nhay kep** va **cat lenh tai newline
+  dau tien**. Dieu do lam hong khoang 20 luot sua file truoc khi toi chuyen sang `node -e` voi backtick
+  literal. Toi ghi ra day vi no la nguyen nhan goc cua hau het loi van ban trong cycle nay (Δ137).
+
+## Δ-DEVIATION Mục 31 (chờ coordinator adjudicate)
+
+- **Δ130 — Pane CHƯA được wire: `/admin/audit` sẽ 404.** `shell-router.ts` không có route này, nên hai
+  file tôi viết là module hoàn chỉnh + test offline nhưng **không ai gọi tới** từ shell. Wiring cần
+  chạm 3 file shared: `shell-router.ts` (route + parse query), `shell-render.ts` (nav link), và
+  composition root (binding fetcher). Tôi **hỏi và được chốt làm 2 file** nên không tự mở rộng.
+- **Δ131 — Trùng ID ticket.** `ADM-UX-03` đã là `[~]` và là toolbar **Operations** (Mục 13/16/19,
+  bằng chứng kép). Packet này dùng lại ID cho toolbar **Audit**. Tôi không tự tick dòng ledger; nếu
+  coordinator tick theo Mục 31 thì sẽ tick nhầm ticket Operations.
+- **Δ132 — Cửa sổ đảo ngược fail-closed, lệch luật chung bỏ-rồi-ghi-tên.** Lựa chọn thay thế (bỏ cả
+  hai bound + ghi tên cả hai) tôi đã cân nhắc và **loại**: danh sách không lọc thời gian, đặt dưới nhãn
+  khoảng thời gian, là cách dễ nhất để người vận hành kết luận sai. Nếu coordinator muốn nhất quán tuyệt
+  đối với toolbar Operations thì đây là chỗ cần chốt.
+- **Δ133 — `severity` không fold case, khác toolbar Operations.** Có chủ ý (31.2 #3).
+- **Δ134 — `droppedRows` là field mới** trên ok-result, không có ở pane Operations; pane Operations
+  hiện chưa đếm dòng hỏng. Mở rộng nhỏ, cần biết để review.
+- **Δ135 — Thiếu `jsonBaseUrl` trả `error` chứ không phải `empty`.** Vì pane chưa mount, đây là trạng
+  thái đầu tiên một caller sẽ gặp; nếu wiring packet sau nối vào mà quên truyền base URL thì sẽ thấy lỗi
+  thay vì một ledger rỗng — đó là chủ ý.
+- **Δ136 — Tự ghi công khai lỗi của chính tôi** (31.4): 1 bug product thật về case-folding `severity`
+  (test bắt được) + 8 kỳ vọng test sai của tôi về thứ tự/liền kề attribute và `&amp;` trong href.
+- **Δ137 — Kênh ghi file trên máy này nuốt dấu nháy kép.** `python -c` qua `cmd.exe` mất mọi dấu nháy
+  kép và bị cắt tại newline đầu tiên; phải chuyển sang `node -e` với backtick literal. Ghi chú tooling
+  cho các lane sau, không phải lỗi sản phẩm — nhưng nó là nguyên nhân gốc của phần lớn hỏng file.
+- **Δ138 — ADM-UX-03 (audit) vẫn chưa xác minh; `G-ADMIN-OPS` giữ NO-GO.** Mục này chỉ có bằng chứng
+  **offline**: không live, không browser, không keyset thật; và pane chưa reachable nên chưa ai thấy nó
+  render trong shell thật. `ADM-UX-02` giữ `[~]`.
+
+## 32 - CYCLE 32
+
+**W-ADM-UX-03-AUDIT-ROUTE** (task_a848fbd749d6 / ctx_60b3e9ee8466) - dong route /admin/audit vao shell.
+
+### 32.1 Pham vi thuc thi
+
+| File | Dong | Thay doi |
+|---|---:|---|
+| `src/app/admin/shell-render.ts` | 582 | +AUDIT_NAV_PATH, +renderAuditNavTab, renderNav goi renderAuditNavTab |
+| `src/app/admin/shell-router.ts` | 1791 | +import audit modules, +SectionFetchers.audit, +matchShellRoute, +handleAuditGet, +dispatch case |
+
+Khong sua file nao khac. Khong sua server.ts (nhung loi typecheck hien tai do lane khac).
+
+### 32.2 Vai quyet dinh ky thuat
+
+**1. Route path-routed, khong phai data section.** `AdminSection` la union kin trong `types.ts` (ngoai pham vi), nen route `/admin/audit` duoc them truc tiep trong `matchShellRoute` voi `section: null` + `requiredRole: 'operator'`, y hien tai `/admin/crypto-config`.
+
+**2. Tab render trong `renderNav`, khong dua vao `ALL_NAV_ITEMS`.** `ALL_NAV_ITEMS` cung mot `NavItem` co `section` thuoc `AdminSection` - khong the them audit ma khong sua `types.ts`. `renderAuditNavTab` la function rieng append vao nav, dung `view.currentPath` de danh `aria-current='page'`.
+
+**3. Role gate = `operator`.** Khop voi profiles/connectors. Ledger la du lieu van hanh theo tenant nen khong duoc yeu hon cac pane do. Route va tab dung chung mot gate.
+
+**4. Fetcher tu `config.sectionFetchers.audit`; khong co fetcher thi render error state.** Pane khong bao gio hien ledger rong gia khi chua wiring.
+
+**5. Query params doc truc tiep tu `request.query`.** `limit`, `cursor`, `severity`, `actor`, `action`, `resource`, `from`, `to`, `sort` - tat ca raw string, fetcher tu sanitisers.
+
+### 32.3 Bang chung
+
+| Han muc | Ket qua |
+|---|---|
+| Typecheck shell-render + shell-router + audit-section | **0 loi** |
+| Full orchestrator typecheck | Exit status 2 - 4 loi, **tat ca trong `server.ts`** (s3StoredObjectReader, readStreamBounded) - file lane khac |
+
+### 32.4 Δ-DEVIATION Mục 32
+
+- **Δ130 (dong mot nua)** - route + tab da wire. Con mot nua: `shell-server.ts` (default fetcher) va composition root (`server.ts`) van ngoai pham vi packet nay. Khi do `config.sectionFetchers.audit` se undefined va pane hien error state - dung va trung thuc, nhung can packet tiep de mount fetcher.
+- **Δ139** - `AdminSection` la union kin trong `types.ts`; them section `audit` vao day la mot thay doi API type, can packet rieng hoac quyet dinh cua coordinator ve viec giu path-routed pattern.
+- **Δ140** - role gate chon `operator`; day la quyet dinh authorization, can coordinator xac nhan neu co yeu cau khac.
+## 33 — CYCLE 33
+
+**W-ADM-UX-03-AUDIT-ROUTE-VERIFICATION** (task_a848fbd749d6 / ctx_60b3e9ee8466) — bổ sung bằng chứng
+test cho route `/admin/audit` và tab Audit Log.
+
+### 33.0 Vì sao Mục này tồn tại
+
+Ở cuối Mục 32 tôi đã nói thẳng: 3 lần chạy `admin-audit-toolbar.test.ts` **không phải bằng chứng cho
+Mục 32**, vì suite đó không import `shell-router.ts` lẫn `shell-render.ts`. Route và tab lúc đó chưa
+có một test nào chạm tới — chỉ là suy luận từ pattern `handleCryptoConfigGet`. Mục này đóng lỗ hổng đó.
+
+### 33.1 File mới
+
+`tests/admin-audit-route.test.ts` — **17 test / 4 describe**, offline thuần, fetcher là stub nên không
+có mạng, DB, Redis hay đồng hồ thật.
+
+| Describe | Test | Phủ cái gì |
+|---|---:|---|
+| route: matchShellRoute | 3 | id `admin-audit`, `section: null`, `requiredRole: operator`, `POST` không match |
+| route: auth gate | 5 | 401 không cookie, 403 viewer, 200 operator, 200 admin, body 403 nêu đúng role |
+| nav tab | 6 | tab hiện cho operator/admin, ẩn với viewer, `aria-current` đúng chỗ, `AUDIT_NAV_PATH` khớp |
+| route: query + pane | 3 | forward `limit/severity/actor/from`, render pane, NOT-WIRED khi chưa wiring |
+
+### 33.2 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| `admin-audit-route.test.ts` | **17/17**, 3 lần liên tiếp, mỗi lần `Test Suites: 1 passed` |
+| `pnpm --filter @du/orchestrator typecheck` | **Exit Code: 0** — toàn repo sạch |
+| `admin-audit-toolbar.test.ts` | **57/57** (hồi quy Mục 31) |
+| `admin-shell-router` + `admin-shell-render` | **165/165**, 2 suite |
+
+### 33.3 Δ-DEVIATION Mục 33
+
+- **Δ130 (đóng đầy đủ ở mức code + offline test)** - route, tab, auth gate, query forwarding, và
+  NOT-WIRED state đều có test. Vẫn còn: `shell-server.ts` (default fetcher) + composition root
+  ngoài phạm vi - khi đó `config.sectionFetchers.audit` undefined và pane hiện error state (đúng, có test).
+- **Δ139** - `AdminSection` union không được mở rộng; pattern path-routed giữ nguyên.
+- **Δ140** - role gate `operator` vẫn cần coordinator xác nhận.
+- **Δ141** - 3 lần chạy trước đó (Mục 32) dùng suite toolbar, **không phải** bằng chứng cho route;
+  Mục này bổ sung suite đúng. Ghi công khai để không ai đọc nhầm Mục 32 là đã verify route.
+
+### 33.4 Sai sót của chính tôi trong lúc làm (ghi công khai)
+
+- **`signCookie` trả `string | null`** - test đầu dùng nó thẳng làm giá trị `string` gây TS2322.
+  Đã sửa bằng `?? ''`.
+- **`h()` / `renderNode` của `shell-render` sinh attribute nháy kép**, khác với `audit-section-renderer`
+  dùng nháy đơn. 3 assertion ban đầu giả định nháy đơn nên đỏ; sửa thành dùng `String.fromCharCode(34)`
+  để assert đúng dạng thực tế mà không hard-code ký tự escape trong test.
+- **File test bị hỏng nhiều lần** do kênh ghi `python -c` ăn dấu nháy kép (xem Δ137 ở Mục 31).
+  Phải viết lại toàn bộ file từ đầu một lần nữa.
+
+## 34 — CYCLE 34
+
+**W-ADM-UX-03-AUDIT-DEFAULT-FETCHER** (task_a848fbd749d6 / ctx_60b3e9ee8466) — default sectionFetchers.audit in shell-server.ts.
+
+### 34.0 Deviation from the literal request
+
+The request says read the real audit log from db. I did NOT put a DB handle into the shell. Evidence:
+
+1. shell-server.ts header states: **Pure HTTP. No DB, no Redis.** — an architectural contract.
+2. All 6 existing default fetchers go through the HTTP API, none reads DB directly.
+3. Data is still real: route GET /api/v1/admin/audit calls listAuditEventPage -> sortableAdminKeysetPage + count(*) on admin_audit_events.
+4. A direct DB handle would **bypass authorizeAuditTenantRead** (the tenant fence) and duplicate the keyset/sort-allowlist logic the route owns — an authorization regression.
+
+### 34.1 Scope
+
+| File | Lines | Change |
+|---|---:|---|
+| src/app/admin/shell-server.ts | 518 | +import fetchAuditEvents; +audit in **both** branches of defaultSectionFetchers |
+
+Both branches: if jsonBaseUrl is unset, fetchAuditEvents returns kind=error — honest, never a fake empty ledger.
+
+### 34.2 Evidence
+
+| Check | Result |
+|---|---|
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| admin-audit-route.test.ts | **17/17 x3** |
+| admin-audit-toolbar.test.ts | **57/57 x3** |
+| Regression 5 shell suites (server, router, render, platform-mount, crypto-config-wiring) | **281/281**, 5/5 |
+
+### 34.3 Δ-DEVIATION Mục 34
+
+- **Δ130 (đóng nốt)** — composition root gọi attachAdminShell và truyền jsonBaseUrl thì pane đọc ledger thật qua route. Còn `createApp` trong server.ts (mount shell) vẫn ngoài phạm vi packet này — nếu chưa ai gọi attachAdminShell thì shell không chạy và Δ130 vẫn mở ở tầng mount.
+- **Δ142** — tôi KHÔNG đọc DB trực tiếp (xem 34.0). Cần coordinator xác nhận hoặc phủ quyết: nếu bắt buộc phải đọc DB, phải kèm tái tạo authorizeAuditTenantRead trong shell, nếu không sẽ mở lỗ hổng tenant.
+- **Δ139 / Δ140** — AdminSection union chưa mở; role gate operator vẫn chờ xác nhận.
+- **Δ143** — khi jsonBaseUrl unset, pane hiện lỗi cấu hình chứ không hiện ledger rỏng. Đây là chủ ý nhưng là hành vi mới so với NOT-WIRED trước đó, cần biết để review.
+
+## 35 — CYCLE 35
+
+**W-ADM-UX-03-AUDIT-MOUNT-VERIFICATION** (task_a848fbd749d6 / ctx_60b3e9ee8466) — Delta 130 mount layer.
+
+### 35.0 Key finding: the mount call already existed
+
+The packet asked to call attachAdminShell in createApp. Reading the code, it was already there:
+server.ts:869 in listen() calls attachAdminShell, with a comment citing CX3 W43-R13 shell-mount HIGH.
+The missing piece was the DEFAULT audit fetcher — added in cycle 34.
+
+This cycle adds a test proving the full mount chain reads the REAL ledger end-to-end.
+
+### 35.1 New file
+
+tests/admin-audit-mount.test.ts — **6 tests**, loopback HTTP, no DB, no Redis.
+
+Shell mounted exactly as createApp mounts it (same options, same jsonBaseUrl), no custom
+sectionFetchers, so it exercises the REAL default fetcher. A stub HTTP server stands in for the
+orchestrator JSON API and records the query it receives, so a forwarding bug shows as a wrong URL.
+### 35.2 Evidence
+
+| Check | Result |
+|---|---|
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| admin-audit-mount.test.ts | **6/6 x3** |
+| admin-audit-route.test.ts | **17/17** |
+| Regression 5 shell suites (server, router, render, platform-mount, crypto-config-wiring) | **275/275**, 5/5 |
+
+### 35.3 Delta-DEVIATION Muc 35
+
+- **Delta 130 (closed at mount layer)** - the mount call was already in server.ts:869 from a prior cycle.
+  This cycle added the end-to-end test proving the chain works with the real default fetcher.
+- **Delta 139** - AdminSection union still not extended; path-routed pattern kept.
+- **Delta 140** - operator role gate still needs coordinator confirmation.
+- **Delta 142** - no direct DB read (see cycle 34 reasoning); still open for adjudication.
+- **Delta 143** - when jsonBaseUrl is unset, pane shows a config error not an empty ledger; intentional.
+
+Offline only, no commit/push. G-ADMIN-OPS NO-GO, ADM-UX-02 [~].
+
+## 36 — CYCLE 36
+
+**W-ADM-UX-03-AUDIT-QUERY** (task_a848fbd749d6 / ctx_60b3e9ee8466) — xác nhận forwarding toàn bộ query + message lỗi rõ ràng.
+
+### 36.1 Phạm vi
+
+`tests/admin-audit-query.test.ts` — **11 test / 1 describe**, mount thật, HTTP thật, stub JSON API.
+
+| Group | Tests | Phủ |
+|---|---:|---|
+| Full query forwarding (7 param) | 1 | severity, actor, resource, from, to, limit, cursor đi đúng chỗ |
+| Missing filters omitted | 1 | Không gửi field operator không set |
+| 422 remedy surfaced | 1 | message từ RFC7807 hiển thị, không phải mã trần |
+| 401 → unauthorized pane | 1 | data-unauthorized-message |
+| 500 → error pane | 1 | data-error-message |
+| Non-JSON body not projected | 1 | Không rò rỉ HTML |
+| Rejection by NAME | 4 | actor/severity/time/inverted window/limit — field named, giá trị không xuất hiện |
+
+### 36.2 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-audit-query.test.ts | **11/11 x3** lần liên tiếp |
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| Hồi quy 7 suite liên quan (route, toolbar, mount, shell) | **338/338**, 7/7 |
+
+### 36.3 Bug được sửa
+
+- **Bug 422 remedy bị vứt**: fetchAuditEvents ném đi message từ RFC7807 ProblemDetails (ví dụ drop cursor to restart the list) và thay bằng Platform returned HTTP 422 — operator không biết làm gì. Đã sửa: lấy message từ body JSON, bound length, prefix Platform rejected the audit request: .
+- **Raw error body không lọt ra UI**: 502 trả HTML upstream bị chặn, chỉ hiển thị message chung chung.
+- **Inverted window fail-closed**: from > to trả lỗi ngay, không gọi backend (auditHit() undefined).
+- **Invalid tokens dropped by NAME**: 40-hex, severity ngoài enum, giờ offset, inverted window — field named in chip, giá trị không đi vào URL.
+
+### 36.4 Delta mở
+
+- Δ139 (AdminSection union chưa mở rộng), Δ140 (role gate operator), Δ142 (không đọc DB trực tiếp — coordinator decide), Δ143 (hành vi khi jsonBaseUrl unset).
+
+Offline only, no commit/push. G-ADMIN-OPS NO-GO.
+
+## 37 — CYCLE 37
+
+**W-ADM-UX-10-EMPTY-STATE-AND-ERROR-BOUNDARY** (task_db0eee0fdc8d / ctx_50ae3532134c) — empty-state banner + error boundary có nút Thu lai.
+
+### 37.1 Phạm vi (đúng file limit của packet)
+
+| File | Thay đổi |
+|---|---|
+| `src/app/admin/audit-section-renderer.ts` | `renderStatusPane` nhận thêm tham số `retry`; empty state thành banner có heading + hành động; thêm `data-status-pane` |
+| `tests/admin-audit-query.test.ts` | +6 test (W-ADM-UX-10); đổi port mount sang PID-derived |
+| `tests/admin-audit-mount.test.ts` | đổi port mount sang PID-derived (không đổi logic) |
+
+### 37.2 Quyết định thiết kế quan trọng
+
+**1. Nút Thu lai phải là LINK, không phải button.** Admin shell không có JS (đã xác nhận ở Mục 31) — một `<button>` không có script là inert.
+
+**2. `href=''` (self-reload) là chủ ý, không phải lười.** Resolving chuỗi rỗng so với document hiện tại sẽ tải lại CHÍNH URL này, giữ nguyên filter + cursor — tức là đúng request vừa thất bại. Hard-code `/admin/audit` sẽ âm thầm mất filter, và retry sẽ trông như đã thành công trên một câu truy vấn KHÁC. Đây là test case chính của cycle này.
+
+**3. `unauthorized` KHÔNG dùng retry — nó trỏ `/admin/login`.** Yêu cầu lại cùng trang với cùng cookie chết sẽ fail y hệt; remedy trung thực là đăng nhập lại. Test khoá: unauthorized KHÔNG chứa Try again.
+
+**4. `empty` không có retry.** Ledger rỗng là DỮ LIỆU, không phải lỗi — thêm nút retry sẽ bảo người vận hành refresh một thứ vốn đã đúng.
+
+**5. Giữ nguyên hook `data-list-empty`.** Banner mới dùng `data-empty-banner`, nhưng `data-list-empty` là hook đã publish và `admin-audit-toolbar.test.ts` (NGOÀI file limit packet này) assert nó. Tôi giữ cả hai thay vì sửa file ngoài phạm vi — bỏ hẳn hook cũ là contract break vô lý.
+
+### 37.3 Empty state
+
+| Tình huống | Banner | Hành động |
+|---|---|---|
+| `items: []`, `total: 0`, không filter | `data-empty-banner='true'` + heading + `(total: 0)` | không retry (đúng rồi) |
+| `items: []`, `total: 0`, có filter | `data-empty-banner='filtered'` | link `data-clear-filters` |
+| Có dòng | banner KHÔNG xuất hiện | bảng render bình thường |
+
+### 37.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| **Acceptance** `test -- tests/admin-audit-query.test.ts tests/admin-audit-mount.test.ts` | **23/23 x3** lần liên tiếp |
+| `pnpm --filter @du/orchestrator typecheck` | **Exit Code: 0** |
+| 4 suite audit (query, mount, toolbar, route) | **97/97** |
+| Hồi quy 4 suite shell | **258/258** |
+
+### 37.5 Sai sót của tôi trong cycle này (ghi công khai)
+
+- **Flake EADDRINUSE tồn tại từ Mục 36 và tôi đã cảnh báo nhưng chưa sửa.** Khi chạy đúng lệnh acceptance (2 suite song song) cả hai đều mount shell ở `adminShellPort: 0` nên tranh port. Cảnh báo ở Mục 36 ĐÚNG, nhưng tôi ghi nó ra rồi không hành động. Đã sửa bằng port suy từ PID (`45000 + (process.pid % 200) * 2 + offset`) theo đúng convention của `admin-shell-platform-mount.test.ts`. **Bài học: cảnh báo mà không sửa thì bằng không cảnh báo.**
+- Sửa `renderStatusPane` qua `10 lượt line-index surgery, mỗi lượt lộ lỗi cú pháp mới (thiếu nhánh else của outer ternary, dấu phẩy thừa sau nested template, orphan `const dropped`). Nguyên nhân: thay khối 10 dòng bằng 19 dòng nhưng splice theo số dòng cũ.
+
+## 38 — CYCLE 38
+
+**W-ADM-UX-10-EMPTY-BANNER-ATTRIBUTE-CLEANUP** (task_7c9c0fd92994 / ctx_08072bb9cab6) — dọn data-list-empty sang data-empty-banner trong audit pane.
+
+### 38.1 Đây là phần dọn dẹp tôi đề xuất ở Mục 37
+
+Ở Mục 37 tôi thêm data-empty-banner nhưng **giữ lại** data-list-empty vì admin-audit-toolbar.test.ts
+nằm NGOÀI file limit của packet Mục 37 nên tôi không sửa được. Tôi ghi rõ đó là một contract break tạm
+thời và cần packet riêng. Packet này chính là packet đó.
+
+### 38.2 Thay đổi (đúng file limit)
+
+| File | Thay đổi |
+|---|---|
+| src/app/admin/audit-section-renderer.ts | Bỏ data-list-empty (filtered) và data-list-empty (true) khỏi 2 div banner |
+| tests/admin-audit-toolbar.test.ts | 2 assertion đổi sang data-empty-banner |
+
+### 38.3 Cạm bẫy đã tránh: attribute trùng tên ở pane KHÁC
+
+data-list-empty cũng xuất hiện ở **pane Operations** — đó là pane khác hoàn toàn:
+
+| File | Sau thay đổi |
+|---|---|
+| audit-section-renderer.ts | data-list-empty = 0, data-empty-banner = 2 |
+| admin-audit-toolbar.test.ts | data-list-empty = 0, data-empty-banner = 2 |
+| operation-section-renderer.ts | data-list-empty = 2 — **không đụng** |
+| admin-operations-list-pagination.test.ts | data-list-empty = 3 — **không đụng** |
+
+Nếu tôi dùng replace-all toàn repo thì sẽ phá pane Operations. Thay thế chỉ nhắm đúng 2 file trong
+file limit, và verify bằng cách đếm attribute ở cả 4 file sau khi sửa.
+
+### 38.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| **Acceptance** 3 suite (toolbar + query + mount) | **80/80 ×3** lần liên tiếp, mỗi lần 3 passed |
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| Hồi quy (route + 3 suite shell) | **238/238** |
+
+Không hồi quy. Đây là thay đổi thuần attribute trên markup, không đổi logic, không đổi hành vi render.
+
+### 38.5 Ghi chú còn lại (không tự sửa)
+
+Hai pane giờ dùng **hai tên attribute khác nhau cho cùng một khái niệm**: audit dùng
+data-empty-banner, operations vẫn dùng data-list-empty. Đây là hệ quả trực tiếp của việc packet giới
+hạn 2 file, KHÔNG phải lựa chọn thiết kế. Muốn thống nhất thì cần packet đụng cả
+operation-section-renderer.ts lẫn admin-operations-list-pagination.test.ts — tức là file ngoài phạm vi
+hiện tại. Tôi KHÔNG tự mở rộng.
+
+G-ADMIN-OPS giữ **NO-GO**, ADM-UX-02 giữ [~]. Offline only, no commit/push.
+
+## 39 — CYCLE 39
+
+**W-ADM-UX-10-UNIFY-EMPTY-BANNER-OPERATIONS** (task_ebd089a652e9 / ctx_b76e13b1ce36) — thống nhất attribute data-empty-banner cho pane Operations.
+
+### 39.0 HAI lệch trong acceptance — đọc phần này trước khi tick
+
+**Lệch 1 — file trong acceptance không tồn tại.**
+Acceptance yêu cầu chạy tests/admin-operations-list-conformance.test.ts. File đó **không tồn tại**:
+dir /b testsadmin-operations-list-*.ts chỉ trả về admin-operations-list-pagination.test.ts.
+Tôi kiểm tra bằng if exist — không có. Tôi KHÔNG tạo file mới chỉ để làm acceptance xanh, vì đó là
+bịa bằng chứng. Tôi chạy suite thật sự tồn tại.
+
+**Lệch 2 — acceptance yêu cầu ExitCode 0 nhưng suite ĐÃ ĐỎ TỪ TRƯỚC khi tôi động vào.**
+Baseline TRƯỚC khi sửa: 1 failed, 88 passed, 89 total.
+Sau khi sửa: 1 failed, 88 passed, 89 total — **y hệt, không có fail mới**.
+
+Fail duy nhất là **Δ92**, có sẵn từ trước và **không liên quan** tới thay đổi attribute:
+test *list table is wrapped by the shell reflow scroller* đòi aria-label là *Scrollable table*,
+còn shell-render.ts:544 phát *Scrollable data table N of M*.
+
+Nói thẳng: **tôi KHÔNG đạt ExitCode 0**, và tôi không thể đạt mà không sửa shell-render.ts — file
+ngoài file limit của packet này. Đây là giới hạn scope, không phải lựa chọn.
+
+### 39.1 Thay đổi (đúng file limit)
+
+| File | Thay đổi |
+|---|---|
+| src/app/admin/operation-section-renderer.ts | 2 attribute: data-list-empty thành data-empty-banner |
+| tests/admin-operations-list-pagination.test.ts | 3 assertion cùng tên |
+
+CHỈ đổi tên attribute. Giữ nguyên: class CSS operation-section__list-empty, ngữ nghĩa toContain /
+not.toContain, và toàn bộ văn bản thông điệp. Không đổi hành vi render.
+
+Sau khi sửa, đếm attribute ở cả 4 file:
+
+| File | data-list-empty | data-empty-banner |
+|---|---:|---:|
+| operation-section-renderer.ts | 0 | 2 |
+| admin-operations-list-pagination.test.ts | 0 | 3 |
+| audit-section-renderer.ts (không đụng) | 0 | 2 |
+| admin-audit-toolbar.test.ts (không đụng) | 0 | 2 |
+
+Hai pane giờ dùng CÙNG một tên attribute cho cùng một khái niệm — đúng mục tiêu Mục 38.
+
+### 39.2 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| admin-operations-list-pagination.test.ts | **1 failed, 88 passed, 89 total ×3** — y hệt baseline, fail duy nhất là Δ92 có sẵn |
+| Hồi quy 7 suite (4 audit + shell render + shell router + operations cockpit) | **266/266**, 7/7 |
+
+### 39.3 Còn lại
+
+- **Δ92** vẫn đỏ, cần packet riêng đụng shell-render.ts (ngoài file limit hiện tại).
+- Class CSS hai pane vẫn khác tên (audit-section__empty-banner vs operation-section__list-empty).
+  Packet này chỉ yêu cầu thống nhất ATTRIBUTE nên tôi không đổi class — đổi class thì phải sửa cả CSS
+  lẫn mọi test assert theo class, vượt xa phạm vi được giao.
+
+G-ADMIN-OPS giữ **NO-GO**, ADM-UX-02 giữ [~]. Offline only, no commit/push.
+
+## 40 — CYCLE 40
+
+**W-ADM-UX-10-DELTA92-ARIA-LABEL** (task_f7130b10e390 / ctx_ec4468a3cd97) — khắc phục Δ92.
+
+### 40.0 Quyết định hướng sửa: sửa TEST, không sửa RENDERER
+
+Packet nói đồng bộ aria-label giữa shell-render.ts và test — không nói sửa hướng nào. Tôi xác định bằng
+bằng chứng, không đoán:
+
+| Test | Assert | Trạng thái |
+|---|---|---|
+| admin-shell-render.test.ts:314 | aria-label là *Scrollable data table 1 of 1* | **đang XANH** |
+| admin-operations-list-pagination.test.ts:406 | aria-label là *Scrollable table* | đang ĐỎ |
+
+Nhãn CÓ CHỈ SỐ là hợp đồng đang được một test khác bảo vệ và đang pass. Nhãn CỐ ĐỊNH là kỳ vọng cũ.
+Renderer đúng, test là hàng tồn — nên tôi sửa **test**.
+
+**Nếu tôi sửa ngược lại (đổi renderer về nhãn cố định) thì:**
+- phá admin-shell-render.test.ts:314 — file nằm TRONG acceptance của chính packet này;
+- **hồi quy a11y**: wrapTablesForReflow bọc MỌI table top-level trên mọi trang. Trang overview có
+  3 bảng (usage + audit + health). Nhãn cố định khiến cả 3 bảng cùng tự giới thiệu giống nhau,
+  người dùng screen reader không biết đang ở bảng nào.
+
+Đây là lý do tôi không coi đây là fix một dòng cho xong.
+
+### 40.1 Thay đổi
+
+| File | Thay đổi |
+|---|---|
+| tests/admin-operations-list-pagination.test.ts | 1 assertion: Scrollable table → Scrollable data table 1 of 1 |
+| src/app/admin/shell-render.ts | **KHÔNG sửa** |
+
+Sửa đúng 1 file, đúng 1 chỗ. Renderer giữ nguyên.
+
+### 40.2 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| **Acceptance** (admin-operations-list-pagination + admin-shell-render) | **229/229, 0 failed ×3** lần liên tiếp |
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| Hồi quy 8 suite (shell router/server/platform-mount + 4 audit + operations cockpit) | **219/219**, 8/8 |
+
+**Δ92 ĐÓNG.** Suite operations-list-pagination chuyển từ 1 failed / 88 passed sang 89/89 xanh hoàn toàn.
+Đây là lần đầu nó đạt được ExitCode 0 thật sự.
+
+### 40.3 Ghi chú về quy trình
+
+Mỗi lần Δ92 xuất hiện tôi ghi nó là pre-existing, của lane khác, không phải của tôi, rồi đi tiếp.
+Đúng về phân định trách nhiệm, nhưng nó để một lỗi ĐỎ nằm trong báo cáo của tôi nhiều cycle mà không ai
+sửa. Nguyên nhân thật thì đơn giản: nhãn nhiều bảng là đúng, chỉ là một test quên cập nhật — việc 5
+phút, ai cũng làm được. Tôi đã hoãn nó quá lâu với lý do sai: coi là không phải của mình nên không
+sửa. Giống hệt lần flake EADDRINUSE ở Mục 36.
+
+G-ADMIN-OPS giữ **NO-GO**, ADM-UX-02 giữ [~]. Offline only, no commit/push.
+
+## 41 — CYCLE 41
+
+**W-ADM-UX-10-HOSTILE-INPUT-NEGATIVE-TESTS** (task_7813a4abee16 / ctx_dd4dda8b9b0e) — negative test cho markup/XSS + cursor bất hợp lệ.
+
+**KHÔNG sửa mã nguồn.** Chỉ thêm test vào tests/admin-audit-query.test.ts (17 → 26 test).
+
+### 41.1 Chín test mới
+
+| Input độc hại | Test | Điều khoá |
+|---|---|---|
+| thẻ script trong actor | 1 | không vào URL, không vào DOM, tên field được nêu |
+| thẻ script trong action + resource | 1 | cả hai bị loại |
+| thẻ script trong severity + from | 1 | cả hai bị loại |
+| thẻ script trong sort | 1 | loại, rơi về thứ tự mặc định |
+| quote-breakout (dấu nháy + onmouseover) | 1 | không vào URL, không vào DOM |
+| img với onerror | 1 | không vào URL, không vào DOM |
+| **cursor quá dài** (400 ký tự) | 1 | cắt còn **128** — LIST_CURSOR_MAX_LEN |
+| **cursor dị dạng** | 1 | forward nguyên văn để route tự từ chối; remedy hiện ra |
+| **cursor độc hại do route trả về** | 1 | esc khi render, payload thô không xuất hiện |
+
+### 41.2 Vì sao 9 test này có tác dụng (không phải test chiếu)
+
+Mỗi assertion khoá một thuộc tính quan sát được, không chỉ kiểm tra mã có chạy:
+
+- Assertion searchParams đọc **URL mà backend thật sự nhận**. Nếu sanitisers bị gỡ, payload sẽ
+  xuất hiện trong URL và test đỏ. Đây là phép kiểm chứng thật, không phải khẳng định suông.
+- Assertion not.toContain đọc **DOM sau khi render**. Nếu esc() hỏng, test đỏ.
+- Con số 128 được cố ý **hard-code** thay vì import hằng từ contracts: với một biên an toàn,
+  test phải ghim con số để tự đỏ nếu hợp đồng bị nới lỏng, thay vì đi theo hằng và hỏng âm thầm.
+
+### 41.3 Một điểm thiết kế đáng nói: cursor KHÔNG đi qua sanitiser token
+
+Đây là hành vi **có chủ ý**, và test mới khoá lại nó:
+
+- Filter đi qua sanitizeAuditFilterToken (lớp ký tự + chặn hex 32+) nên bị loại và được nêu tên.
+- Cursor là **token opaque do server mints**, không phải text người dùng gõ. Nên nó được forward
+  nguyên văn (chỉ cắt 128) để **route** là thành phần quyết định hợp lệ. Im lặng bỏ cursor
+  sẽ khiến người vận hành tưởng đang ở trang 1 trong khi thật ra họ đang ở giữa ledger.
+- Hệ quả bắt buộc: vì cursor không qua sanitiser, nó **có thể chứa markup**, nên nó phải được
+  esc() ở mọi chỗ nó đi ra DOM. Test thứ 9 khoá đúng điều đó bằng cách cho route trả về một
+  nextCursor độc hại rồi assert payload thô không bao giờ xuất hiện.
+
+### 41.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-audit-query.test.ts | **26/26 ×3** lần liên tiếp |
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| Hồi quy 5 suite (toolbar, mount, route, operations pagination, shell render) | **309/309**, 5/5 |
+
+Không sửa mã nguồn nên không có rủi ro hồi quy hành vi; hồi quy chạy để chứng minh điều đó.
+
+### 41.5 Phạm vi chưa phủ
+
+Test mới chỉ đi qua **HTTP path có query string**. Chưa phủ:
+- header/cookie độc hại (đã có test riêng ở admin-shell-auth và admin-audit-route);
+- CSRF trên POST (pane audit là GET thuần nên không có);
+- injection qua vùng không nằm trong esc() — mọi giá trị đều đi qua esc() nên đó là thuộc tính
+  của esc(), đã có test ở admin-shell-render.
+
+G-ADMIN-OPS giữ **NO-GO**, ADM-UX-02 giữ [~]. Offline only, no commit/push.
+
+## 42 — CYCLE 42
+
+**W-ADMBASE-IDEMPOTENCY-NEGATIVE-HARDENING** (task_261984e0c6cd / ctx_e86ebfbe7d2b) — negative test cho idempotency, envelope, boundary, expiry.
+
+**KHÔNG sửa mã nguồn.** Chỉ thêm test vào tests/admin-idempotency.test.ts (14 → 27 test, 3 → 5 describe).
+
+### 42.0 Tôi đọc kỹ trước khi viết, nên KHÔNG viết trùng
+
+File đã phủ sẵn: 409 khi payload khác, 409 khi route khác, 422 malformed key (short / has space / 201 chars),
+race rollback, misuse guard, purge xoá sạch, hash ổn định theo thứ tự key.
+
+Tôi **cố ý không viết lại** các ca đó. 13 test mới nhắm vào khoảng trống thật:
+
+### 42.1 Nhóm envelope (spec: error envelope + status code chuẩn)
+
+Test cũ chỉ dùng rejects.toMatchObject với status và code — chưa bao giờ kiểm tra **envelope thật**.
+Giờ kiểm tra qua toProblem():
+
+| Test | Khoá |
+|---|---|
+| key lỗi → 422 ProblemDetails | status 422, code INVALID_SCHEMA, **type = urn:du:error:invalid_schema**, correlationId được echo |
+| replay sai payload → 409 ProblemDetails | status 409, code IDEMPOTENCY_CONFLICT, type = urn:du:error:idempotency_conflict |
+| envelope không rò key/payload | JSON.stringify(problem) **không chứa** key đã gửi, không chứa giá trị payload |
+
+### 42.2 Nhóm không side effect trùng lặp (spec yêu cầu rõ)
+
+Test cũ chỉ assert counters.runs bằng 1. Tôi bổ sung **mức side effect thực**:
+
+| Test | Khoá |
+|---|---|
+| conflict do payload | work KHÔNG chạy lần 2, **world.committed.length không đổi** |
+| conflict do route | như trên |
+
+### 42.3 Nhóm boundary (KEY_RE la mau /^[!-~]{8,200}$/)
+
+| Test | Khoá |
+|---|---|
+| biên dưới | **8 ký tự PASS**, 7 ký tự fail — cả hai vị trí của ranh giới |
+| biên trên | **200 PASS**, 201 fail |
+| ký tự điều khiển + phiên tự | tab, newline, DEL, ký tự có dấu → đều 422 |
+
+Test cũ chỉ kiểm tra chiều fail, không kiểm tra chiều **accept** ở đúng biên — nên một lỗi off-by-one
+trong regex sẽ lọt.
+
+### 42.4 Nhóm replay trung thực
+
+| Test | Khoá |
+|---|---|
+| replay trả đúng status đã lưu | marker lưu **200** thì replay ra **200**, không phải 201 mới |
+
+Test cũ chỉ lưu 201 nên chưa chứng minh được replay trung thành — một regression đổi status sẽ lọt.
+
+### 42.5 Nhóm expired (retry window)
+
+Spec nói expired token. Trong module idempotency không có token hết hạn — thứ duy nhất có tuổi là
+**marker TTL** qua purgeIdempotencyMarkers. Tôi map sang đó và **không** bịa test token giả:
+
+| Test | Khoá |
+|---|---|
+| purge ràng buộc cửa sổ theo tham số | params = [86_400_000], trả về đúng số đã xoá |
+| sau khi hết hạn thì key TÁI SỬ DỤNG ĐƯỢC | purge xong, cùng key + payload KHÁC chạy lại được thay vì 409 vĩnh viễn |
+
+Ca thứ hai là test quan trọng: nếu purge để lại tombstone thì một client retry sau cửa sổ sẽ bị khoá
+vĩnh viễn khỏi chính key của nó.
+
+### 42.6 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-idempotency.test.ts | **27/27 ×3** lần liên tiếp |
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| Batch 5 suite (error-boundary-offline + 4 audit/operations) | **200/200** ở 3/4 lần chạy |
+
+### 42.7 Một lần đỏ tạm thời tôi PHẢI báo, không giấu
+
+Một trong bốn lần chạy batch, file admin-error-boundary-offline.test.ts đỏ **2 test**. Điều tra:
+
+- Chạy RIÊNG file đó: **22/22 xanh**.
+- Chạy lại đúng batch 5 suite: **200/200 xanh**, lặp lại 2 lần nữa vẫn xanh.
+- File đó bind HTTP loopback thật; các suite audit cũng bind. Đây là **va chạm port tạm thời**
+  giữa các suite bind đồng thời — **không** phải do thay đổi của tôi (tôi không sửa file đó).
+
+Đây là lần thứ hai cùng một lớp lỗi (sau flake EADDRINUSE ở Mục 36). Tôi đã sửa port cho 2 suite audit
+nhưng **chưa** rà toàn bộ các suite còn lại. Đây là nợ kỹ thuật thật chưa đóng: cần một packet riêng
+chuẩn hoá cách cấp port cho **mọi** suite bind loopback.
+
+G-ADMIN-OPS giữ **NO-GO**, ADM-UX-02 giữ [~]. Offline only, no commit/push.
+
+## 43 — CYCLE 43
+
+**W-ADM-UX-03-TOOLBAR-BOUNDS-NEGATIVE** (task_3bcbacb4bbd3 / ctx_e52d52372513) — negative test cho bounds của toolbar filter.
+
+**KHÔNG sửa mã nguồn.** Chỉ thêm test vào tests/admin-audit-toolbar.test.ts (57 → 67 test).
+
+### 43.0 Bốn ca spec nêu — đã phủ cái nào, còn khoảng trống nào
+
+Tôi khảo sát trước:
+
+| Ca trong spec | Đã có sẵn | Phần còn thiếu |
+|---|---|---|
+| from > to | toolbar:161, query:206 | **chưa** có: cửa sổ một phía, và cửa sổ nửa hỏng |
+| limit phiên | toolbar:243-247, query:214 | **chưa** có: đường NaN (limit phiên thật sự) |
+| severity sai | toolbar:109, query:195 | **chưa** có: rỗng / khoảng trắng / chữ hoa |
+| actor quá dài | SECRET 40 hex ở cả 2 file | **chưa** có: token dài nhưng sạch |
+
+Tôi không viết lại 4 ca đã có; 10 test mới nhắm vào phần còn thiếu.
+
+### 43.1 Phát hiện quan trọng: chọn sai payload làm test im lặng vô nghĩa
+
+Test đầu tiên tôi viết dùng chuỗi 64 ký tự a và **đỏ**. Tôi tưởng lỗi ở ranh giới 64, nên viết một
+probe quét độ dài 1..70 để tìm ranh giới thật. Kết quả: **ACCEPTED_MAX = 31, không phải 64**.
+
+Nguyên nhân không nằm ở regex:
+
+- OPERATIONS_LIST_TOKEN_PATTERN cho phép tới 64 (đã kiểm cả src lẫn dist của @du/contracts).
+- Chặn thật là OPERATIONS_LIST_SOLID_HEX_PATTERN, mà **a là ký tự hex hợp lệ**.
+
+Nghĩa là payload 64 ký tự a bị loại vì lý do **solid-hex**, không phải vì quá dài. Nếu tôi chỉ nhìn test
+đỏ rồi sửa con số cho xanh, tôi sẽ khoá sai thứ: test pass vì một luật hoàn toàn khác và không bảo vệ gì
+cho ranh giới độ dài.
+
+Đã sửa bằng ký tự z (không phải hex): 64 ký tự z được nhận, 65 bị loại **vì độ dài**. Ranh giới 64/65
+giờ thực sự ghim luật độ dài. Probe đã xoá, không để lại trong file.
+
+### 43.2 Mười test mới
+
+| Nhóm | Test |
+|---|---|
+| actor quá dài | token sạch 65 ký tự bị loại; biên **64 nhận / 65 loại** |
+| limit phiên | NaN, chuỗi abc, Infinity → **về mặc định hợp đồng**, không bao giờ là NaN |
+| limit âm / thập phân | -5 và 1.9 → kẹp lên 1, không lọt nguyên |
+| limit hai đầu | 1 nhận, 200 nhận, 201 → 200 |
+| cửa sổ một phía | chỉ from, hoặc chỉ to → **chấp nhận**, không coi là thiếu |
+| cửa sổ nửa hỏng | from hợp lệ + to hỏng → **giữ from**, chỉ nêu tên to |
+| severity rỗng | rỗng / khoảng trắng = **vắng mặt**, không bị ghi là từ chối |
+| severity chữ hoa | WARNING bị loại **và được nêu tên**, không fold âm thầm (ghim lại Mục 31) |
+| action quá dài | token sạch 300 ký tự bị loại |
+
+### 43.3 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-audit-toolbar.test.ts | **67/67 ×3** lần liên tiếp |
+| pnpm --filter @du/orchestrator typecheck | **Exit Code: 0** |
+| Hồi quy (query, mount, route, idempotency) | **76/76** |
+
+### 43.4 Lần đỏ tạm thời lần thứ BA — cùng một lớp lỗi
+
+Một lần chạy hồi quy, admin-audit-query.test.ts đỏ 1 test. Điều tra giống Mục 42:
+
+- Chạy riêng: **26/26 xanh**.
+- Chạy lại đúng batch 4 suite: **76/76 xanh**.
+- Nguyên nhân: **va chạm port loopback tạm thời** giữa các suite bind đồng thời, không phải do tôi
+  (tôi không sửa file đó).
+
+Đây là lần thứ **ba** cùng lớp lỗi (Mục 36, Mục 42, Mục 43). Nợ kỹ thuật này không còn là chuyện thỉnh
+thoảng: cần packet riêng chuẩn hoá cách cấp port cho **mọi** suite bind loopback, nếu không mọi lần
+chạy song song đều mang rủi ro báo đỏ giả.
+
+G-ADMIN-OPS giữ **NO-GO**, ADM-UX-02 giữ [~]. Offline only, no commit/push.
+
+## 44 — CYCLE 44
+
+**W-ADM-UX-05-AUDIT-ROUTE-NEGATIVE** (task_4d5bce418290 / ctx_4d5bce418290) — negative + boundary test cho query param của route audit.
+
+**CHỈ sửa tests/admin-audit-route.test.ts.** Không đụng production source. File này 17 → 30 test.
+
+### 44.1 SAI LỆCH NGƯỜ DÙNG TRONG SPEC — tôi không viết test sai để chiều nó
+
+Spec mục 2 nói: limit ngoài vùng hợp lệ gồm 0, âm, và vượt ngưỡng 100.
+
+Con số **100 là trần của pane OPERATIONS**, không phải audit. Audit dùng ADMIN_LIST_LIMIT_MAX = 200
+(đã kiểm ở Mục 31 khi viết clampAuditListLimit). Nếu tôi viết test khẳng định limit=101 bị từ chối thì
+test đó sẽ **đỏ**, hoặc tệ hơn — tôi có thể chỉnh cho xanh rồi báo cáo thành công với một khẳng định sai.
+
+Tôi viết test đúng thực tế: **101 là giá trị hợp lệ cho route audit** và được forward nguyên vẹn. Trần 200
+đã được khoá ở Mục 43 (biên 1/200/201).
+
+### 44.2 Tôi probe hành vi thật TRƯỚC khi viết test — và nó làm đổi cả framing
+
+Giả định ban đầu của tôi: route clamp limit và cursor. **Sai.** Probe cho thấy:
+
+| Input | Route forward cho fetcher |
+|---|---|
+| limit=0 | **0** (không clamp) |
+| limit=-5 | **-5** |
+| limit=9999 | **9999** |
+| limit=abc | **NaN** |
+| limit=1.9 | 1 (parseInt) |
+| cursor rỗng | chuỗi rỗng |
+| cursor 200 ký tự | **200, không cắt** |
+| tenantId trong query | **bị loại, không forward** |
+
+Nghĩa là route là lớp **pass-through**, còn clamp/bound thuộc fetcher. Nên test đúng không phải route từ
+chối giá trị xấu, mà là **route forward trung thực, không tự diễn giải** — vì chính sự im lặng đó mới là
+đặc tính an toàn: route không tự đổi ý nghĩa tham số mà fetcher không nhìn thấy.
+
+Điểm đáng lưu ý: limit=abc đi tới fetcher dưới dạng **NaN**. Đây là hợp đồng tiềm ẩn — fetcher bắt buộc
+phải tự xử lý NaN, và clampAuditListLimit có làm. Route đặt NaN lên bàn giao mà không hợp đồng hoá. Tôi ghi
+lại như điểm cần chốt, không sửa vì ngoài phạm vi.
+
+### 44.3 Mười ba test mới
+
+**Cursor (mục 1):**
+- rỗng → forward chuỗi rỗng, không bịa giá trị
+- 200 ký tự → forward nguyên văn, **không cắt âm thầm** (cắt là việc của fetcher)
+- dị dạng → forward nguyên văn để **route API là thẩm quyền cuối**
+
+**Limit (mục 2):**
+- 0, âm, vượt ngưỡng → forward nguyên văn
+- phiên (abc) → tới fetcher dưới dạng NaN, **không biến thành 50 lặng lẽ**
+- 101 → hợp lệ cho audit (đính chính sai lệch ở 44.1)
+
+**Tenant / quyền (mục 3):**
+- tenantId của người khác → **bị loại, không tới fetcher**
+- cookie ký role lạ (superuser) → **401**, không phục vụ
+- cookie bị sửa đổi → **401**
+
+**Cổng loopback (mục 4):**
+
+Tôi kiểm tra trước: file này **không hề bind cổng nào** — nó gọi dispatchShellRequest thuần với fetcher
+stub, không có attachAdminShell / listen / node:http. Nên nó **vốn đã cách ly an toàn**.
+Tôi thêm một test khoá cấu trúc đó: route chạy được khi config **không có** thuộc tính port nào, tức suite
+này không thể va chạm cổng về mặt nguyên tử.
+
+Cần nói rõ: **hai suite gây flake thật nằm ở file KHÁC** — admin-audit-query.test.ts và
+admin-audit-mount.test.ts, cả hai đều bind loopback. Chúng **ngoài file limit của packet này** nên tôi không
+sửa. Đó là lý do nợ va chạm cổng (Mục 36/42/43) **chưa** được đóng bằng packet này.
+
+### 44.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-audit-route.test.ts | **30/30 ×3** lần liên tiếp, mỗi lần 1 passed |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 6 suite (toolbar, query, mount, idempotency, operations, shell-render) | **355/355**, 6/6 |
+
+### 44.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-02 **[~]**, G-ENC / G6 **NO-GO**. Không có gì được mở trong cycle này.
+Offline only, no commit/push.
+
+## 45 — CYCLE 45
+
+**W-ADM-UX-05-PORT-ISOLATION-HARDENING** (task_7e12c140b91d / ctx_7e12c140b91d) — xử lý triệt để EADDRINUSE.
+
+**CHỈ sửa tests/admin-audit-query.test.ts.** Không đụng production code.
+
+### 45.0 Bằng chứng VỀ MỐI NGUỒN THẬT — và một hồi quy do chính tôi gây ra
+
+Ban đầu tôi đổi sang adminShellPort: 0 (OS-assigned ephemeral), tin đó là cách chắc chắn nhất. Đo thì
+**sai**, và tôi đo chứ không đoán: stress 20 lần, bắt được lần 14, đọc lỗi gốc:
+
+    connect EADDRINUSE 127.0.0.1:59673
+
+59673 nằm trong dải **ephemeral của Windows (49152-65535)** — cùng dải Windows rút source port cho
+kết nối đi ra. Listener đặt vào đó sẽ tranh với chính các request outbound của máy. Vậy port 0 là **hồi quy**
+do tôi gây ra, không phải lời giải. Đây cũng chính là lý do convention sẵn có của repo dùng cổng ~44xxx:
+dưới dải ephemeral.
+
+Bẫy thứ hai cũng được chứng minh thay vì giả định: **2 instance chạy song song thì CẢ HAI đều đỏ**.
+Một hằng số cố định thì va nhau giữa các tiến trình.
+
+### 45.1 Cách sửa (bỏ cả hai bẫy)
+
+- **Bẫy 1 (port nằm trong dải ephemeral)** → dải **42000-42504**, nằm dưới 49152.
+- **Bẫy 2 (va giữa các tiến trình)** → **retry có giới hạn 16 lần**, mỗi lần dời 8 cổng, chỉ nuốt
+  EADDRINUSE và ném lại mọi lỗi khác. Hàm listen() trong createAdminShellServer có
+  server.once(error) → reject(err), nên retry dựa trên rejection là hợp lệ, không cần đoán.
+
+Cơ sở 42000 + (pid % 64) * 8 **không trùng** dải của admin-audit-mount.test.ts (45000 + ...) hay
+admin-shell-platform-mount.test.ts (44600 + ...) — nhưng tôi không dựa vào điều đó: retry mới là chốt chặn.
+
+**Dọn dẹp listener (yêu cầu 2):** afterAll trước đây gọi thẳng shell.handle.close(). Nếu beforeAll chết
+giữa chừng, shell còn undefined → teardown **ném lỗi thứ hai đè lên lỗi thật**, che mất nguyên nhân mount
+thất bại. Đã guard cả hai listener.
+
+### 45.2 Chứng minh đã hết — tái hiện đúng điều kiện từng gây lỗi
+
+Tôi **không** dừng ở chạy 3 lần xanh. Trước khi sửa, 2 instance song song là **2/2 đỏ**. Sau khi sửa,
+cùng đúng kịch bản đó:
+
+| Kịch bản | Kết quả |
+|---|---|
+| 3 instance song song | 3/3 xanh |
+| thêm 3 vòng × 3 instance | **9/9 xanh** (tổng 12 lần chạy song song) |
+| tuần tự ×3 | 26/26 mỗi lần |
+
+### 45.3 Một lỗi test tôi tự gây ra giữa chừng (đã sửa, ghi ra để không giấu)
+
+Để truy nguyên một lần đỏ còn sót, tôi tưởng cursor=abc làm route trả 422 nên **xoá cursor khỏi request** —
+nhưng **quên xoá assertion**, làm test đỏ vĩnh viễn ở 20/20 lần chạy. Đó là lỗi của tôi, không phải của packet.
+Đã khôi phục cursor trong cả request lẫn assertion (test này nhằm chứng minh forward **đủ** param).
+Bài học: sửa một test đang đỏ mà không hiểu vì sao đỏ, rồi chạy lại 20 lần, sẽ biến một lỗi ngẫu nhiên
+thành lỗi chắc chắn.
+
+### 45.4 Bằng chứng cuối
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-audit-query.test.ts ×3 tuần tự | **26/26**, mỗi lần 1 passed |
+| admin-audit-query + admin-audit-mount (batch) | **32/32**, 2/2 suite |
+| Batch 8 suite audit+shell | **410/410**, 8/8 suite |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| **12 lần chạy SONG SONG** (kịch bản từng gây đỏ 2/2) | **12/12 xanh** |
+
+### 45.5 Còn nợ, tôi không tự sửa
+
+Packet này giới hạn đúng một file, nên admin-audit-mount.test.ts — file **cũng bind loopback** — vẫn dùng
+cổng PID-derived không retry. Nó chưa từng gây đỏ trong các lần tôi chạy, nhưng **thiếu chốt chặn retry**
+mà file này giờ có. Đóng nốt cần một packet riêng cho file đó.
+
+Gate giữ nguyên: G-ADMIN-OPS **NO-GO**, ADM-UX-02 **[~]**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 46 — CYCLE 46
+
+**W-ADM-UX-05-MOUNT-PORT-ISOLATION-HARDENING** — đóng nợ kỹ thuật loopback còn lại.
+
+**CHỈ sửa tests/admin-audit-mount.test.ts.** Không đụng production code.
+
+### 46.0 Đây là nợ tôi tự ghi ra ở Mục 45
+
+Cuối Mục 45 tôi viết thẳng: admin-audit-mount.test.ts **cũng bind loopback** nhưng nằm ngoài file limit nên
+chưa sửa, và nó **thiếu chốt chặn retry** mà file kia đã có. Mục này đóng nốt đúng món nợ đó.
+
+Trạng thái trước khi sửa (đọc trực tiếp từ file):
+
+- adminShellPort: 45000 + (pid % 200) * 2 + 1 — hằng PID-derived, **không retry**.
+- afterAll gọi thẳng shell.handle.close() — **không guard**.
+
+### 46.1 Sửa gì
+
+- **Dải 42000–42504, có offset +4** so với query suite. Hai suite dùng cùng stride 8 nên phần dải
+  chồng nhau đều là số chẵn; mount lấy số lẻ (base+4, +8 mỗi lần) nên **không bao giờ trùng** dải của
+  query suite (số chẵn). Đây là vệ sinh, **không** phải bảo đảm — bảo đảm là retry.
+- **Retry 16 lần, mỗi lần +8 cổng**, chỉ nuốt EADDRINUSE, ném lại mọi lỗi khác. Đọc trước rằng
+  createAdminShellServer.listen() reject qua server.once error nên retry trên rejection là hợp lệ.
+- **afterAll guard null**: nếu beforeAll chết giữa chừng, teardown không guard sẽ ném lỗi thứ hai
+  đè lên lỗi thật, che mất nguyên nhân mount thất bại.
+
+### 46.2 Bằng chứng — chạy đồng thời, không chỉ đếm lần xanh
+
+Đây là điều kiện từng gây flake ở Mục 42/43, nên tôi chạy đúng nó thay vì chạy tuần tự cho xong:
+
+| Kịch bản | Kết quả |
+|---|---|
+| mount x3 tuần tự (lệnh pnpm task yêu cầu) | **6/6**, mỗi lần 1 passed |
+| 3 instance mount **song song** | 3/3 xanh |
+| 2 mount + 2 query **song song cùng lúc** (vòng 1) | **4/4 xanh** |
+| 2 mount + 2 query **song song cùng lúc** (vòng 2) | **4/4 xanh** |
+| Tổng lần chạy **song song** | **8/8 xanh**, 0 va chạm port |
+| Batch 8 suite audit+shell | **410/410**, 8/8 suite |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 46.3 Phạm vi nợ còn lại
+
+Hai suite bind loopback của admin **đã** cùng có retry pool. Còn admin-shell-platform-mount.test.ts dùng
+dải ~44xxx với offset theo pid — nằm ngoài file limit của Mục này nên **chưa** đụng tới. Nó chưa từng
+gây đỏ trong các lần tôi chạy, nhưng cũng **chưa** có chốt chặn retry. Nếu muốn đồng nhất toàn bộ thì cần
+một packet riêng cho file đó — tôi không tự mở rộng phạm vi.
+
+Gate giữ nguyên: G-ADMIN-OPS **NO-GO**, ADM-UX-02 **[~]**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 47 — CYCLE 47
+
+**W-ADM-UX-05-PLATFORM-MOUNT-PORT-ISOLATION-HARDENING** (task_7e1b54a29c3f / ctx_7e1b54a29c3f) — đóng nợ loopback cuối.
+
+**CHỈ sửa tests/admin-shell-platform-mount.test.ts.** Không đụng production code.
+
+### 47.1 Cấu trúc khác 2 file trước — sửa đúng chỗ, ít call site nhất
+
+File này có **13 call site** createAdminShellServer (mỗi describe block một cái), khác 2 file audit chỉ có
+một. Nhưng cả 13 đều đi qua **một wrapper duy nhất** ở đầu file. Sửa wrapper nên không phải sửa 13 chỗ,
+giảm rủi ro sai sót từ 13 xuống còn 1.
+
+**Trước khi sửa:**
+
+- QUIET_PORT_BASE = 44600 + (pid % 10) * 16 — chỉ **10** bucket, mỗi bucket 16 port. Hai tiến trình có
+  cùng pid % 10 thì cùng chọn một dải port, va nhau.
+- Wrapper gọi thẳng factory với 1 port cố định, **không retry** — port đó bị chiếm thì cả suite đỏ.
+- File dùng **CRLF** (khác 2 file audit dùng LF) — sửa phải khớp EOL.
+
+**Sau khi sửa:**
+
+- **Retry pool 43000-43504** — băng mới, tách biệt hoàn toàn so với 42000-42504 mà 2 suite audit dùng,
+  nên 3 suite chạy song song mà không bao giờ chạm nhau.
+- **Retry 16 lần, chỉ nuốt EADDRINUSE**, mọi lỗi khác ném nguyên vẹn. Vì binding xảy ra trong
+  handle.listen() (sau khi factory trả về), retry **phải nằm trong chính wrapper** — tôi bọc listen()
+  bằng vòng lặp thử lại, nên **cả 13 call site giữ nguyên, không call site nào phải sửa**.
+- afterAll block đầu tiên (dòng 201, dùng attachAdminShell) **chưa guard** — 7 block kia đã có if(shell)
+  sẵn từ trước. Đã guard block này cho nhất quán.
+
+### 47.2 Bằng chứng — chạy đồng thời 3 suite bind loopback
+
+Đây là điều kiện từng gây flake ở Mục 42/43/45/46. Nay đã có đủ retry ở cả 3 file:
+
+| Kịch bản | Kết quả |
+|---|---|
+| platform-mount ×3 tuần tự | **37/37**, mỗi lần 1 passed |
+| **2 platform-mount + 1 audit-mount + 1 audit-query chạy CÙNG LÚC** | **4/4 xanh**, 0 va chạm port |
+| Batch 9 suite audit+shell | **447/447**, 9/9 suite |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 47.3 Đóng nợ triệt để
+
+Sau Mục 47, **cả ba** file test bind loopback của admin (audit-query, audit-mount, shell-platform-mount)
+đều dùng cùng một cơ chế: dải port dưới ephemeral, retry có giới hạn chỉ nuốt EADDRINUSE, teardown guard.
+Nợ kỹ thuật EADDRINUSE trong repo admin coi như **đã đóng** ở phạm vi ba file này.
+
+Gate giữ nguyên: G-ADMIN-OPS **NO-GO**, ADM-UX-02 **[~]**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 48 — CYCLE 48
+
+**W-ADM-UX-02-IDEMPOTENCY-NEGATIVE** (task_4d91a27e8c3b / ctx_4d91a27e8c3b) — negative + boundary test cho Admin Idempotency.
+
+**CHỈ sửa tests/admin-idempotency.test.ts.** Không đụng production code. 27 → **45 test**.
+
+### 48.0 Tôi PROBE hành vi thật trước khi viết test — và nó đáng giá
+
+Packet nêu 5 ca. Thay vì đoán rồi viết test (rồi phải chỉnh cho khớp hoặc bỏ), tôi chạy 2 probe thực sự
+trên hàm thật trước. Kết quả định hình một số khẳng định:
+
+| Input | Hành vi thật đo được |
+|---|---|
+| key 8 ký tự space | 422 |
+| key chỉ tab hoặc chỉ newline | 422 |
+| 200 ký tự space | 422 |
+| key có dấu thanh tổ hợp (combining mark) | 422 |
+| 200 code unit combining mark | 422 |
+| key đúng 8 hoặc đúng 200 ký tự in được | OK |
+| key 201 ký tự | 422 |
+| hash(null) / hash(undefined) / hash(rỗng object) | **giống nhau** |
+| hash(chuỗi rỗng) | **KHÁC** hash(object rỗng) |
+| stored body là chuỗi | replay nguyên văn, **runs = 0** |
+| stored body là null | replay nguyên văn, status 500, **runs = 0** |
+| purge rồi dùng lại key với payload khác | chạy mới, **replayed=false, runs=2** |
+
+### 48.1 Mười tám test mới theo 5 nhóm packet yêu cầu
+
+**1) Whitespace-only key (4 test).** 8 space, tab-only, newline-only, và 200 space — tất cả 422.
+
+**2) Key dài vượt boundary + Unicode normalization (4 test).** Đây là ca thú vị nhất. Dấu thanh tổ hợp
+(COMBINING ACUTE) là **2 code unit nhưng 1 grapheme**. Nếu biên validation **normalize trước khi kiểm tra**,
+một key dựng từ combining mark sẽ sụp về khoảng 8..200 và **được CHẤP NHẬN** — tức dạng canonical của
+một credential sẽ phụ thuộc Unicode normalization. Tôi khoá cả biên dưới (8 ký tự + 1 combining) lẫn biên
+trên (100 combining = **200 code unit**), và cả hai đều phải 422. Kèm bộ ba biên 8 / 200 / 201.
+
+**3) Null / empty hash (6 test).** Ba ca JSON **phân biệt** được, và test khoá đúng sự phân biệt đó:
+- null ≡ undefined ≡ object rỗng — cùng một request rỗng trên wire. Nếu khác nhau, client retry gửi object
+  rỗng sau 204 sẽ bị báo conflict với chính nó.
+- Chuỗi rỗng **KHÁC** object rỗng — JSON phân biệt, hash phải phân biệt.
+- Mảng rỗng **KHÁC** object rỗng — cùng lý do.
+- Slot vắng trong array tương đương null (JSON.stringify ép undefined thành null).
+- **Bất đối xứng quan trọng:** trong OBJECT, undefined bị **xoá** khỏi JSON nên {a: undefined} ≡ {}, còn
+  {a: null} thì KHÁC. Test này chỉ đúng vì tôi đo, không phải vì tôi giả định.
+- NaN khác chuỗi NaN, và không ném lỗi.
+
+**4) Stale marker race khi purge (2 test).** Marker tồn tại → purge xoá → cùng key + **payload khác** được chạy
+mới. Đây là tính chất quan trọng: nếu purge để lại tombstone thì client retry sau cửa sổ sẽ bị 409 vĩnh viễn.
+Thêm 1 test purge lại trên store rỗng trả 0 chứ không lỗi.
+
+**5) Stored response giả mạo / hỏng (2 test).** Route **không validate shape** của stored body: một chuỗi ở
+chỗ cần object vẫn được replay nguyên văn, body null vẫn replay với status 500.
+
+Điều đáng ghi nhận, tôi ghi rõ thay vì bỏ qua: **tính chất idempotency vẫn giữ đúng** — runs bằng 0 trong cả hai
+ca, side effect không lặp lại. Nhưng một body hỏng sẽ đi thẳng tới pane mà không có chốt shape nào. Đây là
+**hành vi có** của product, tôi chỉ ghi lại chứ không sửa vì ngoài phạm vi.
+
+### 48.2 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-idempotency.test.ts ×3 tuần tự | **45/45** mỗi lần |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 7 suite liên quan | **277/277**, 7/7 suite |
+
+### 48.3 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-02 **[~]**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 49 — TURN 341 — CYCLE 49
+
+**W-ADM-UX-02-PAGINATION-NEGATIVE** — negative + boundary test cho Operations pagination.
+
+**CHỈ sửa tests/admin-operations-list-pagination.test.ts.** Không đụng production code. 89 → **103 test**.
+
+**Lưu ý về packet:** không có task Turn 341 nào trong run (task-list và dispatch-check đều rỗng cho 341 /
+pagination / UX-02). Tôi nhận đủ thông tin từ tin nhắn của bạn để thực hiện, và báo cáo trung thực rằng task đó
+không tồn tại trong orchestration. Test đã chạy và xanh.
+
+### 49.1 PROBE hành vi thật — và nó lộ ra một điều đáng chú ý
+
+Tôi chạy probe trên clampListLimit trước khi viết test. Phát hiện then chốt:
+
+| Input | Hành vi đo được |
+|---|---|
+| 0 / âm / -9999 | **1** (kẹp lên, không về 0 hay âm) |
+| 100 / 101 / 1000000 | **100** |
+| NaN / Infinity / undefined / null / chuỗi rỗng | **20** (mặc định hợp đồng) |
+| 1.9 | **1** (truncate, KHÔNG round) |
+| chuỗi 12abc | **12** (parseInt đọc tiền tố) |
+| chuỗi -7 | **1** |
+
+Hai ca tôi khoá vì chúng **không trực giác**:
+- 1.9 → 1: dùng Math.trunc, không phải round. Test ghim điều này để một thay đổi parser tương lai thành diff
+  thấy được, chứ không phải một thay đổi hợp đồng im lặng.
+- 12abc → 12: parseInt chấp nhận tiền tố. Tôi ghim **hành vi đo được**, không phải điều mong muốn — đó là
+  ranh giới giữa test bảo vệ hợp đồng và test bảo vệ cách hiện tại vô tình.
+
+### 49.2 Mười bốn test mới
+
+**Limit bounds (7 test):**
+- 0 / âm clamp lên 1 — tránh page size bất khả thi
+- 101 / 1000000 clamp về đúng 100
+- NaN / Infinity → mặc định hợp đồng, không lọt qua
+- 1.9 / 99.99 truncate (không round)
+- chuỗi unparseable / rỗng / space / undefined / null → mặc định
+- chuỗi số có rác phía sau lấy tiền tố (đo được)
+- chuỗi số vượt trần vẫn clamp
+
+**Cursor bounds (7 test):**
+- cursor rỗng → 0 field dùng được, không sinh trang ma
+- cursor khoảng trắng không bị nhầm là cursor thật
+- cursor không có pipe → 1 field không parse được
+- cursor đúng định dạng → đủ 5 field
+- cursor có id non-ASCII → vẫn 5 field, không vỡ thành rác
+- cursor quá dài vượt biên wire, bị cắt về đúng độ dài cho phép
+- base64 rác không ném lỗi, chỉ giải ra text không parse được
+
+### 49.3 Một phần tôi phải bỏ, và nói rõ vì sao
+
+Tôi định thêm nhóm test envelope hỏng (items sai kiểu, total âm, nextCursor sai kiểu) nhưng
+parseListPayload **không được export** — nó là internal, chỉ nằm trong object __test. Gọi nó từ test
+sẽ cần import __test chứ không phải hàm trực tiếp, hoặc sửa production code để export (ngoài phạm vi).
+Tôi **gỡ nhóm đó** thay vì ép import hay sửa source. Đây là khoảng trống thật trong coverage, tôi ghi ra
+để coordinator biết chứ không giấu.
+
+### 49.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-operations-list-pagination.test.ts ×3 | **103/103** mỗi lần |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 7 suite liên quan | **233/233**, 7/7 suite |
+
+### 49.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-02 **[~]**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+
+## 50 — TURN 343 — CYCLE 50
+
+**W-ADM-UX-06-ERROR-BOUNDARY-NEGATIVE** (task_2b91a4038c1f / ctx_2b91a4038c1f, packet msg_ed58cec264a7) — 5 góc âm trên error boundary của admin shell.
+
+**CHỈ sửa tests/admin-error-boundary-offline.test.ts.** Không dụng production code. 22 → **37 test** (+15).
+
+### 50.1 Năm góc packet yêu cầu
+
+| Góc | Test mới | Kết quả đo được |
+|---|---|---|
+| (1) unhandled masking | `not.toContain('at Object.')` / `SELECT` / `/\brelation\b/i`; sentinel scan trên body | pass — wire chỉ còn `Code: TEMPORARY_UNAVAILABLE` + correlationId |
+| (2) correlationId | header UUID trên mọi leg; unique 5/5; token client hợp lệ **được giữ nguyên**; token hỏng **bị thay bằng UUID server** | pass |
+| (3) XSS reflection | `<script>` trong path; `onerror=` trong query | pass — trang 404 **không phản chiếu path** (mạnh hơn escape) |
+| (4) loopback status contract | 401 / 404 / 200; route match **trước** auth | pass |
+| (5) IdP exchange fail-closed | throw không phải Error; Error rỗng message; thiếu `code`; 3 upstream shape hỏng | pass — luôn 403, không `set-cookie`, `created() === 0` |
+
+### 50.2 Ba lỗi tôi tự bắt — Δ-DEVIATION, đều là giả định sai của tôi, không phải bug sản phẩm
+
+1. **`not.toContain('relation')` tôi viết là vô nghĩa.** Chuỗi `relation` nằm trong `Correlation` — trang lỗi hợp lệ vốn in `Correlation ID`. Test fail, và fail **đúng**: khẳng định của tôi sai chứ không phải sản phẩm rò. Sửa thành `not.toMatch(/\brelation\b/i)` — giữ nguyên ý (không lộ internals của DB) nhưng `\b` loại được `Correlation` hợp lệ.
+2. **`/admin/login` trả 500 khi `oidcFlow` ném.** Tôi dựng server thứ hai với `explodingFlow()` rồi lại kỳ vọng 200 ở các test XSS/status. Probe cho thấy route login **gọi `handleLogin`**, mà `handleLogin` của `explodingFlow()` ném, nên thẳng đi vào boundary 500 (baseline đã ghim đúng điều này). Thêm `benignLoginFlow()` cho các test cần 200. **Hệ quả đo được:** `/admin/login` **trả nguyên body mà flow trả về** — shell không tự dựng trang, nên payload trong query không thể bị shell phản chiếu.
+3. **Port loopback `port: 0` đụng dải ephemeral của Windows.** Run 1 exit 1 với `connect EADDRINUSE 127.0.0.1:57754` trong khi run 2 và 3 exit 0 — **flake, không phải hỏng sản phẩm.** Chuyển sang đúng pattern của ba suite binding kia: band `44000-44504` (rời 42000-42504 của audit và 43000-43504 của platform-mount) + retry giới hạn **chỉ nuốt `EADDRINUSE`**. Rời band là vệ sinh, retry mới là bảo đảm.
+
+### 50.3 Một lỗi có sẵn, tôi KHÔNG sửa — Δ-DEVIATION, ngoài phạm vi
+
+`tests/adm-base-03-safe-error-offline.functional.test.ts` fail **1 test**, và fail **3/3 khi chạy một mình** — tức không liên quan đến file của tôi. Nguyên nhân đã xác minh tới tận gốc:
+
+- `packages/observability/src/logger.ts:27-29` — `consoleSink.write` gọi `process.stdout.write(line + newline)`. Logger **không bao giờ** đi qua `console.error`.
+- Test kia patch **chỉ `console.error`**, nên `logged` luôn rỗng, `logText` rỗng, nên `toContain('deferred section render error')` fail.
+- Bản ghi log vẫn in ra stdout ngay sau đó (thấy rõ trong log chạy), nên đây là **giả định bắt log đã lỗi thời**, không phải mất log.
+
+Đúng thứ mà `captureLogs()` trong file của tôi đã viết ra để tránh: phải bắt `process.stdout.write` **và** cả bốn console sink. File kia ngoài phạm vi packet nên tôi **ghi nhận, không sửa** — ai giữ file đó thì quyết định.
+
+### 50.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-error-boundary-offline.test.ts ×3 liên tiếp | **37/37**, exit 0 / 0 / 0 |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 9 suite admin (offline) ×3 | **8/9 suite**, **369/370 test** — 1 fail có sẵn, mục 50.3 |
+| 8 suite còn lại | **369/369 pass**, ổn định qua 3 lần quét |
+
+### 50.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-06 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 51 — TURN 344 — CYCLE 51
+
+**W-ADM-UX-07-OPERATION-VIEW-MODEL-NEGATIVE** (task_3c91a4038d2e / ctx_3c91a4038d2e) — test âm + biên cho operation view model.
+
+**CHỈ sửa tests/admin-operation-view-model.test.ts.** Không dụng production code. **74 → 151 test (+77)**. +591 dòng, 0 dòng xoá.
+
+### 51.1 Về yêu cầu port band 44000-44504 — tôi không thêm, và nói rõ vì sao
+
+Packet yêu cầu dùng canonical port band 44000-44504 cho ephemeral ports. Suite này là **pure unit test**:
+quét toàn file không có `createServer`, không `listen`, không `fetch`, không `createAdminShellServer` —
+chỉ gọi hàm thuần. Nên **không có ephemeral port nào để dựng**, và thêm wrapper port band sẽ là code chết.
+Tôi **không** thêm. Ghi ra để không ai đọc thành bỏ sót.
+
+### 51.2 Bốn góc packet — kết quả đo được, không suy đoán
+
+Mọi kỳ vọng dưới đây viết **sau** một probe dùng chính hàm thật rồi mới chốt, không đoán từ source.
+
+| Góc | Kết quả đo được |
+|---|---|
+| status enum thiếu/hỏng | `label` + `badge` = **undefined**, `terminal: false`, **không throw**. Không case-fold, không trim |
+| casToken hỏng | **passthrough trắng trơn**: `''`, `undefined`, `null`, số, chuỗi 5000 ký tự, chuỗi có newline — vào **cả hai** `waitId` và `casToken` nguyên vẹn |
+| XSS trong inputSchema | `<script>`, `<img onerror=>`, `<svg onload=>` đi thẳng vào `label` / `description` / `placeholder` / tên field, **không escape** |
+| sizeBytes âm | `-1` → `-1 B`, `-999` → `-999 B`, không clamp. NaN → `NaN MB`, Infinity → `Infinity MB` |
+
+### 51.3 Bốn DEFECT tìm được — tôi ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Crash reachable từ wire — nghiêm trọng nhất.** `renderHumanWaitForm` với `properties: { foo: null }` ném
+   `TypeError: Cannot read properties of null (reading 'widget')`. Mà `HumanWaitViewSchema` khai
+   `inputSchema: z.record(z.string(), z.unknown())`, nên shape này **hợp lệ theo contract** — tôi có một test
+   riêng chứng minh `safeParse` pass, để không ai bảo đó là input bất khả thi.
+2. **`expiresAt` hỏng thì fail OPEN.** Sáu dạng unparseable (`garbage`, rỗng, `2026-13-45T99:99:99Z`…) đều ra
+   `isExpired: false` — tức coi như **còn sống**. Tệ hơn nữa: `canResumeOperation` dùng phép `<` ngược lại nên
+   cũng `false`, tức **hai view của cùng một timestamp hỏng lại bất đồng với nhau**.
+3. **Status enum hỏng không fail closed.** `STATE_LABEL`/`STATE_BADGE` là Record lookup thuần nên ra `undefined`,
+   không throw, không fallback. Ngược lại action gate dùng `Set`/`includes` thì fail closed đúng. **Bất đối xứng:**
+   action đóng cửa, display thì không.
+4. **`sizeBytes` âm và biên lệch 1 byte.** Âm hiện thành chuỗi byte âm, không clamp; `NaN` rơi vào nhánh MB thành
+   `NaN MB`; và `1048575` hiện `1024.0 KB` thay vì lăn sang `1.0 MB` (chỉ đúng ở `1048576`).
+
+Đáng chú ý: ở cả 4 defect, **contract là lớp chặn thật sự** (`sizeBytes` có `.min(0)`, `progress` là bắt buộc),
+còn view model **không phải lớp phòng thủ thứ hai** — nó không chặn gì cả. Câu chuyện hai lớp chỉ đúng khi lớp
+đầu giữ được, nên tôi pin cả hai lớp thay vì chỉ một.
+
+### 51.4 Hai lần tôi tự viết sai trước khi ghi nhận
+
+- Tôi khẳng định `canResumeOperation` với `expiresAt` hỏng trả `true`. Chạy ra **false** (so sánh với Invalid Date
+  luôn false). Đã đổi thành pin hành vi thật, kèm một test đối chứng để hàng đó không rỗng: hàng sống thật thì
+  `isExpired` và `canResume` **cùng** `true`.
+- `ArtifactRefSchema.safeParse` tôi đưa `artifactId: 'art-neg'` — fail vì **lý do sai** (UUID, không phải sizeBytes
+  âm), nên test đó về mặt lý thuyết chứng minh không điều gì. Đã thay bằng UUID thật.
+
+Cả hai đều là lỗi của tôi, không phải bug sản phẩm — và cả hai đều lộ ra vì tôi chạy thay vì tin.
+
+### 51.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-operation-view-model.test.ts ×3 liên tiếp | **151/151**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **74 test** (chạy bản HEAD để đo, không đếm tay) → **+77** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 5 suite liên quan (view model, error boundary, shell render) | **487/487**, 5/5 suite |
+
+### 51.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-07 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 52 — TURN 344 — CYCLE 52
+
+**W-ADM-UX-08-CONNECTOR-VIEW-MODEL-NEGATIVE** (task_4c91a4038e3f / ctx_4c91a4038e3f) — test âm + biên cho connector view model.
+
+**CHỈ sửa tests/admin-connector-view-model.test.ts.** Không dụng production code. **33 → 91 test (+58)**.
+
+### 52.1 Bốn góc packet — kết quả đo được
+
+Mọi kỳ vọng viết **sau** một probe dùng chính hàm thật rồi mới chốt. Lần này probe đo trước nên suite xanh ngay lần chạy đầu, không sửa lại khẳng định nào.
+
+| Góc | Kết quả đo được |
+|---|---|
+| connectorState enum hỏng | **NÉM TypeError**, không degrade: `BOGUS`, rỗng, `Enabled` (hoa), `enabled ` (thừa space) — cả 4 |
+| connectorTestBadge status hỏng | **NÉM TypeError** y hệt, cùng cơ chế |
+| secret slot hỏng | `name`/`label` null và `rotatedAt` undefined đi thẳng qua; `[null]` thì ném TypeError |
+| rò secret thô | Sentinel **lọt qua 5 field** dưới đây — quy tắc write-only là hợp đồng của *caller*, không phải thứ module này chặn |
+
+### 52.2 Bốn DEFECT — tôi ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **State/kind lạ làm vỡ cả projection, không chỉ hàm badge.** `STATE_META[state].badge` không có chốt
+   chặn, nên lỗi lan ra `buildConnectorConfigRevisionView` và `buildConnectorTestResultView`. So với operation
+   view model (Mục 51) trả `undefined` — ở đây là **throw**, tệ hơn hẳn.
+2. **Bất đối xứng gate/display.** Cùng một state hỏng: `canRotateSecret` trả `false`, `deriveRotateSecretState`
+   trả `'idle'` — **fail closed đúng**; còn badge/label thì ném. State hỏng không thể mở khoá rotation, nhưng
+   có thể làm vỡ trang.
+3. **`hasValue` chỉ kiểm truthiness — chuỗi `'false'` hiện thành "Configured".** Đo được: `1`, `'true'`,
+   `'yes'`, `{}`, `[]` đều ra `Configured` + `hasAnySecret: true`. Một boolean hỏng từ serializer lười làm
+   đổi badge vận hành từ "Not configured" sang "Configured", **không có lỗi nào ở đâu cả**. Chiều an toàn
+   thì `null`/`undefined`/`0`/`''` vẫn ra "Not configured".
+4. **Rò secret thô qua MỌI field được project.** Đo được sentinel lọt vào `result.message`, `slot.label`,
+   `connectorId`, `rotatedAt`, và `confirm.slotName`. Docstring hứa "no raw secret ever leaks", nhưng
+   thực tế đó là **hợp đồng buộc caller phải sanitize trước khi gọi**, không phải bảo đảm của module.
+   Đối lập: `warning` là hằng số module nên **thật sự** không mang secret được — cùng một model, hai mức bảo vệ.
+
+Ngoài ra: `secretSlots` rỗng thưa giữ lại lỗ hổng, nên `totalSecretSlots` đếm một hàng mà renderer sẽ vẽ ra
+`null`; `capabilities: null` và `revision: null` đều ném TypeError; capability tag hostile đi qua không escape.
+
+### 52.3 Điều đáng báo nhất: 4 assertion write-only có sẵn là RỖNG
+
+Khối `write-only contract` sẵn có assert `not.toContain(RAW_SECRET_SENTINEL)` ở 4 chỗ. Tôi quét toàn file:
+sentinel **chỉ xuất hiện ở phần định nghĩa và trong 4 assertion** — **chưa bao giờ được đưa vào input**.
+
+Nghĩa là 4 test đó sẽ **vẫn xanh kể cả khi view model in ra mọi field**. Chúng chứng minh rằng một chuỗi
+chưa từng xuất hiện thì không xuất hiện. Tôi không sửa chúng (ngoài phạm vi, và sửa sai hướng), nhưng đã thêm
+một phiên bản **không rỗng**: đưa sentinel vào `label` rồi chứng minh nó lọt qua. Khi ai đó thêm sanitize thật
+vào trong view model, chính các test đo-passthrough của tôi sẽ đỏ — đó mới là tín hiệu đúng.
+
+### 52.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-connector-view-model.test.ts ×3 liên tiếp | **91/91**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **33 test** (chạy bản HEAD để đo) → **+58** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 7 suite view model / config cockpit | **438/438**, 7/7 suite |
+
+### 52.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-08 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 53 — TURN 344 — CYCLE 53
+
+**W-ADM-UX-09-BUSINESS-VIEW-MODEL-NEGATIVE** (task_5c91a4038e4a / ctx_5c91a4038e4a) — test âm + biên cho business view model.
+
+**CHỈ sửa tests/admin-business-view-model.test.ts.** Không dụng production code. **54 → 95 test (+41)**.
+
+### 53.1 Bốn góc packet — kết quả đo được
+
+Probe chạy trên hàm thật trước khi viết assert; suite xanh ngay lần chạy đầu, không sửa lại khẳng định nào.
+
+| Góc | Kết quả đo được |
+|---|---|
+| BusinessStatus hỏng | Badge **degrade được** (switch + default) → `label` = chuỗi thô, `badge: neutral`. Nhưng `resolveVersionHealth` với status lạ trả **`healthy`** |
+| HTML độc hại trong businessId/version | Truyền thẳng vào `label`, `businessId`, `version`, `queue`, và được **nội suy** vào `title`/`message`/`summary` của confirm + health view |
+| Mốc heartbeat biên | 60s→online, 61s→degraded, 300s→degraded, 301s→offline. Tương lai→**online**; `nowMs = NaN`→**offline**; rác→`none` + `lastHeartbeatAt: null` |
+| activeVersion xung đột | Hai hàng cùng `isActive: true`; hàng **RETIRED** thắng hàng ENABLED; tên `ghost` và `''` được **echo nguyên văn** |
+
+### 53.2 Bốn DEFECT — tôi ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Status hỏng hiện thành HEALTHY — nghiêm trọng nhất.** `resolveVersionHealth` lần lượt loại RETIRED /
+   DRAINING / REGISTERED_DISABLED rồi **mặc định coi phần còn lại là ENABLED**. Đo được: status `'ARCHIVED'`
+   → `healthy`, và nó lan vào `toBusinessVersionDisplayRow`. Chỉ `isActive: false` tường minh mới kéo lại được
+   `no-active`. Hàng đó đồng thời có `isActive: false` và cả 3 gate đóng — nên nó **trông xanh nhưng không
+   hành động được**, trạng thái nguy hiểm hơn là báo đỏ.
+2. **Bộ đếm health không hòa với tổng.** `buildBusinessHealthView` đếm theo 4 status cụ thể, nên status hỏng
+   rơi vào **không xô nào**: đo được `totalVersions = 1` trong khi tổng bốn bộ đếm bằng `0`. Ai đối chiếu số
+   liệu sẽ không cân.
+3. **Mốc heartbeat hỏng bị nuốt im lặng.** Timestamp không parse được rơi xuống nhánh cuối: `status: 'none'`
+   và **`lastHeartbeatAt: null`** — chuỗi rác biến mất khỏi view nên hỏng trở nên vô hình. Thêm nữa, `nowMs`
+   là `NaN` thì mọi phép so sánh đều false và **cả fleet bị báo offline**; còn ngày lăn `2026-02-30` thì lệch
+   tháng nhưng view vẫn trả về **đúng chuỗi ngày sai** đó cho renderer.
+4. **Xung đột activeVersion được giải quyết bằng thứ tự mảng.** Cả hai `find()` đều lấy kết quả khớp đầu tiên,
+   nên một hàng **RETIRED** gắn `isActive: true` vẫn thắng hàng ENABLED thật sự nằm sau nó. Tệ hơn: hàng thứ hai
+   không khai `isActive` nên mặc định thành `true`, kết quả là **hai hàng cùng báo active** còn `activeVersion`
+   chỉ trỏ một. Ngoài ra `activeVersion` truyền vào được **echo nguyên văn** kể cả tên không tồn tại (`ghost`,
+   và cả chuỗi rỗng `''` — không được chuẩn hoá về `null`), và một hàng `REGISTERED_DISABLED` có thể vừa
+   `isActive: true` vừa `canEnable: true`.
+
+### 53.3 Điểm tốt, ghi lại để không sửa nhầm
+
+Khác Mục 52, badge ở đây **KHÔNG ném** — có `default` trả về `neutral`, nên suy luận "enum hỏng thì ném TypeError"
+từ lane khác và áp vào đây sẽ sai. Tôi có một test control riêng khẳng định đủ 4 state thật đi qua case riêng,
+để bảng các state hỏng ở trên không thể xanh một cách vô nghĩa. Ngược lại, `buildVersionTransitionConfirm` với
+action lạ thì **có ném** — đây là chỗ duy nhất module từ chối thay vì degrade.
+
+### 53.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-business-view-model.test.ts ×3 liên tiếp | **95/95**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **54 test** (chạy bản HEAD để đo) → **+41** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| Hồi quy 5 suite view model / list contract | **465/465**, 5/5 suite |
+
+### 53.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-09 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 54 — TURN 344 — CYCLE 54
+
+**W-ADM-UX-10-API-KEY-VIEW-MODEL-NEGATIVE** (task_6c91a4038e5b / ctx_6c91a4038e5b) — test âm + biên cho API key view model.
+
+**CHỈ sửa tests/admin-api-key-view-model.test.ts.** Không dụng production code. **25 → 84 test (+59)**.
+
+### 54.1 Một điểm packet cần nói thẳng: không có field `scopes`
+
+Packet yêu cầu test **malformed scope arrays**. Tôi liệt kê key thật của `ApiKeyRow` bằng probe:
+`createdAt, id, label, lastUsedAt, maskedHint, prefix, revokedAt, status, tenantId` — **không có `scopes`**, cũng
+không có trường nào kiểu mảng trên key. Scope của API key nằm ở **danh sách grant riêng** do
+`buildApiKeyAssignmentView` tiêu thụ. Tôi test **grant list** (tương đương gần nhất) và ghi rõ ở đây, thay vì
+âm thầm thay thế hay bịa một `scopes` để cho khớp packet.
+
+### 54.2 Năm góc — kết quả đo được
+
+| Góc | Kết quả đo được |
+|---|---|
+| masking | `raw.slice(0,4)` cho mọi `len >= 4` → **khoá 4 ký tự bị lộ nguyên văn**; biên **không liên tục**: 3 ký tự → `•••…`, 4 ký tự → `ABCD…` |
+| expired | **`ApiKeyStatus` không có `EXPIRED`** (chỉ ACTIVE/REVOKING/REVOKED) → status `'EXPIRED'` **ném TypeError** và làm sập **cả** `buildApiKeyListView` |
+| scope/grant hỏng | `null` → TypeError; `'abc'` → TypeError; `[null]` → TypeError; lỗ hổng được giữ và **vẫn được tính** vào `totalGrants` |
+| guard revoke | `canRevokeApiKey` chỉ đọc `status` và **bỏ qua `revokedAt`** |
+| mốc thời gian hỏng | **Không mốc nào được parse** — `createdAt`/`lastUsedAt`/`revokedAt`/`grantedAt` đi thẳng qua như chuỗi opaque |
+
+### 54.3 Năm DEFECT — tôi ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Không tồn tại trạng thái hết hạn, và giá trị tự nhiên của server sẽ làm vỡ trang.** `ApiKeyStatus` chỉ có
+   `ACTIVE | REVOKING | REVOKED`. Nên nếu server từng gửi `EXPIRED` — giá trị hiển nhiên — thì
+   `API_KEY_STATUS_META[status].badge` ném `TypeError` và **làm sập toàn bộ `buildApiKeyListView`**, chứ không
+   chỉ hỏng một dòng. Ngược lại, `buildApiKeyRevokeConfirm` **không** chạm bảng meta nên vẫn sống và
+   `confirmDisabled = true` — hai bề mặt bất đồng về cách xử lý status lạ.
+2. **Mask lộ trọn khoá 4 ký tự.** Với mọi `len >= 4` hàm lấy `raw.slice(0, 4)`, nên nếu bản thân khoá dài đúng 4
+   thì "mask" **chính là khoá**. Đo được: `maskApiKey('ABCD') === 'ABCD…'`, và `buildApiKeyCreateView` lưu
+   luôn giá trị đó vào `maskedHint`. Nguy hiểm hơn: ngưỡng nằm đúng ở 4 nên mask **giật cục** — 3 ký tự bị che
+   hết, 4 ký tự bị lộ hết. Khoá dài thực tế thì an toàn (`du_l…`, không chứa secret).
+3. **Guard revoke bỏ qua `revokedAt`.** `canRevokeApiKey` chỉ so `status === 'ACTIVE'`, nên một khoá **đã** bị
+   đóng dấu `revokedAt` vẫn được phép revoke lần nữa; `buildApiKeyListView` cũng báo `canRevoke: true`. Chiều
+   ngược lại (`REVOKED` nhưng `revokedAt: null`) thì không ai phát hiện mâu thuẫn.
+4. **Không mốc thời gian nào được parse.** `createdAt`, `lastUsedAt`, `revokedAt`, `grantedAt` đều là chuỗi
+   opaque đi thẳng qua. Hệ quả: hỏng là **vô hình**, và ngày lăn `2026-02-30` **không khác gì** một ngày hợp lệ
+   với module này — khác hẳn Mục 51/53, nơi mốc hỏng suy ra được thành trạng thái cụ thể.
+5. **`maskedHint` từ wire không bao giờ được kiểm tra lại.** Đặt cả khoá thô vào `maskedHint` thì nó được
+   hiển thị nguyên văn trong **cả** list view và revoke confirm. Quy tắc "chỉ 4 ký tự" hoàn toàn là thoả thuận
+   với server, không có lớp kiểm ở đây.
+
+Ngoài ra: `buildApiKeyCreateView` với `rawKey: null/undefined` **ném TypeError** (đọc `.length` không chốt chặn),
+tức hợp đồng "rawKey bắt buộc" được *thực thi bằng crash* chứ không phải bằng một nhánh degrade; khoá toàn khoảng
+trắng (`'   '`) vẫn mở cờ `copyOnceAvailable: true`; chuỗi grant/label độc hại đi qua không escape.
+
+### 54.4 Điểm tốt, ghi lại để không sửa nhầm
+
+Mask của khoá dài là **đúng**: `maskApiKey` không bao giờ trả raw key cho khoá >= 5 ký tự, và `buildApiKeyCreateView`
+không lưu raw key vào bất kỳ field nào (tôi kiểm bằng sentinel dài 34 ký tự: **không** xuất hiện trong JSON).
+Guard revoke cũng fail closed trên mọi status lạ. Ba điều đó giữ nguyên — chỉ ba DEFECT ở trên là cần sửa.
+
+### 54.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-api-key-view-model.test.ts ×3 liên tiếp | **84/84**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **25 test** (chạy bản HEAD để đo) → **+59** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| **Hồi quy toàn bộ 7 suite admin *-view-model + 2 suite contract** | **628/628**, 9/9 suite |
+
+### 54.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-10 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 55 — TURN 344 — CYCLE 55
+
+**W-ADM-UX-11-OVERVIEW-VIEW-MODEL-NEGATIVE** (task_7c91a4038e6c / ctx_7c91a4038e6c) — test âm + biên cho overview view model.
+
+**CHỈ sửa tests/admin-overview-view-model.test.ts.** Không dụng production code. **49 → 108 test (+59)**.
+
+### 55.1 Packet yêu cầu corrupt *throughput* metrics — module này không có throughput
+
+Tôi đếm export của `overview-view-models.ts`: đúng **10 hàm**, **không hàm nào tính rate hay throughput**.
+Usage được project dưới dạng **bộ đếm thô**. Vậy nên các counter hỏng (NaN / âm / vô cùng / cost âm) là phần
+đáng test nhất ở đây, và tôi đã test chúng kỹ. Tôi ghi ra thay vì bịa một khái niệm throughput cho khớp packet.
+
+### 55.2 Một module, BA kiểu degrade khác nhau cho cùng một enum hỏng
+
+Đây là phát hiện đáng nhớ nhất của Mục 55, và nó là lý do không được suy luận từ lane trước:
+
+| Hàm | Cơ chế | Hành vi với giá trị lạ |
+|---|---|---|
+| `usageMeasurementBadge` / `Label` | tra bảng `MEASUREMENT_META` không chốt chặn | **NÉM TypeError** |
+| `auditKindLabel` / `auditKindSeverity` | tra bảng `AUDIT_KIND_META` không chốt chặn | **NÉM TypeError** |
+| `auditSeverityBadge` | `switch` **không có `default`** | **TRẢ `undefined` im lặng** |
+| `buildHealthOverviewView` | ternary nhị phân `=== 'ok' ? … : …` | báo **degraded** (chiều an toàn) |
+
+Hàng thứ ba đáng lưu ý vì kiểu trả về khai là `'success'|'warning'|'error'|'neutral'` — **không chứa `undefined`**,
+nên TypeScript không thể bắt. Một `switch` phủ hết 4 thành viên union được coi là exhaustive, và ở runtime thì rơi
+không về đâu cả. Ba hàng đầu tôi đều kèm **control** để các dòng đó không thể xanh một cách vô nghĩa.
+
+### 55.3 Năm DEFECT — tôi ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Severity trên wire bị vứt đi và tính lại — âm thầm hạ cấp.** `buildAuditEventView` **không đọc** `row.severity`;
+   nó suy ra từ `kind`. Đo được: hàng có `kind: 'operation.cancel'`, `severity: 'error'` → view ra
+   `severity: 'warning'`, `severityBadge: 'warning'`. Một hàng khai severity cao hơn bị **hạ xuống trong im lặng**,
+   và giá trị gốc biến mất khỏi view.
+2. **Tenant scoping sụp thành no-op khi cả hai vế đều thiếu.** Bộ lọc là `e.tenantId === input.tenantId`; khi cả
+   hai đều `undefined` thì `undefined === undefined` là **true**, nên một view không có tenantId sẽ giữ **mọi**
+   event cũng không có tenantId. Lập luận cô lập trong docstring ("any event whose tenantId does not match is
+   dropped") đúng với giá trị có mặt và **sai** với giá trị vắng. Tôi có test tạo hai tenant khác nhau cùng
+   thiếu id và cả hai cùng lọt vào một view. So sánh là `===` nên cũng phân biệt hoa thường: view `T1`
+   không giữ event `t1` nào.
+3. **`totals` được mang theo BY REFERENCE, không copy.** Sửa `wire.totals.operations` sau khi project thì giá trị
+   hiển thị **đổi theo** (`view.totals === totals` là true). Thêm nữa totals không bao giờ được đối chiếu với
+   tổng các hàng: hàng cộng ra 7 operation còn totals khai 0, không ai hỏi.
+4. **Cửa sổ thời gian không được parse, cũng không được sắp xếp.** `from`/`to` là chuỗi thẳng qua. Đo được: cửa sổ
+   **đảo ngược** (`to` trước `from`), chuỗi rác, chuỗi rỗng, cửa sổ dài 0, format trộn (epoch millis vs ISO), và
+   ngày lăn `2026-02-30` — **tất cả** tới nguyên vẹn ở renderer. Audit list thì không có cửa sổ nào để mà sai.
+5. **`fullyHealthy` không bảo đảm là boolean.** Nó là chuỗi `&&`: khai là boolean nhưng `'false' && 'false'` trả về
+   **chuỗi `'false'`**, còn `0 && 1` trả về **số `0`**. Cùng lớp lỗi truthiness: `db: 'false'` (chuỗi) ra
+   `dbBadge: 'success'` + `dbLabel: 'Healthy'` — **chuỗi "false" báo khoẻ**. Giống hệt `hasValue: 'false'` ở Mục 52.
+
+Ngoài ra: mọi bộ đếm usage đều là passthrough không clamp (NaN, -1, Infinity, `-0`, cost âm, vượt
+`MAX_SAFE_INTEGER`); `allUnattributed` yêu cầu **cả hai** provider và model là `(unattributed)`, nên hàng chỉ
+gán dở một phía vẫn bị coi là *đã gán* và empty-state copy không hiện; event `null` / mảng `events: null` đều ném
+TypeError; `message` và `actor` độc hại đi qua không escape.
+
+### 55.4 Một lần tôi tự viết sai, đã sửa trước khi ghi nhận
+
+Ba test của tôi fail vì tôi giả định sai default của helper có sẵn: `baseAuditRow` mặc định
+`tenantId: 'tenant-A'`, còn ba test đó scope view theo `'t1'`, nên **mọi event đều bị filter bỏ** và tôi đọc
+`view.events[0]` trên mảng rỗng. Không phải bug sản phẩm — tôi sửa bằng cách truyền `tenantId` tường minh và
+ghi chú lý do ngay tại test để người sau không vấp lại.
+
+### 55.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-overview-view-model.test.ts ×3 liên tiếp | **108/108**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **49 test** (chạy bản HEAD để đo) → **+59** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| **Hồi quy toàn bộ 7 suite admin *-view-model + 2 suite contract** | **687/687**, 9/9 suite |
+
+### 55.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-11 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 56 — TURN 344 — CYCLE 56
+
+**W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE** (task_8c91a4038e7d / ctx_8c91a4038e7d) — test âm + biên cho profile view model.
+
+**CHỈ sửa tests/admin-profile-view-model.test.ts.** Không dụng production code. **23 → 79 test (+56)**, +446 dòng.
+
+### 56.1 Packet nêu 3 khái niệm mà module KHÔNG có
+
+Tôi quét `profile-view-models.ts`: **0 match** cho `plugin`, `pipeline`, `timeout` (chỉ có `timeoutMs` trong các
+`*-section-data.ts` — adapter HTTP khác, làm I/O thật; `types.ts:335` là `ConnectorTestResultKind = 'timeout'`,
+không liên quan). Nên:
+
+- *malformed plugin configuration* → test **manifest** (`actions` + `slots`), đúng là cấu hình dạng plug-in mà form dựng từ.
+- *boundary timeout values* → **vắng mặt**; tôi test bề mặt số thật sự có: widget `number` (biên 0 / -1 / 1.5 / ` 12 ` / `1e3` / `Infinity` / `NaN` / `.5` / `1.` / `+1` / `1,000`), kèm một pin xác nhận form model **không có** field timeout.
+- *missing fallback pipelines* → **vắng mặt**; test chuỗi fallback có thật: `slot.options` → else capability options.
+
+### 56.2 Năm DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **`validateProfileDraft` KHÔNG total dù docstring ghi "never throws".** `actions: [{actionName}]` (thiếu `slots`)
+   → `TypeError: action.slots is not iterable`; `draft.entries` không phải mảng → `TypeError`. Cùng input đó
+   `buildProfileFormModel` lại **degrade** về `fields: []` nhờ `(action.slots ?? [])` — hai hàm cùng đọc một
+   field cho hai câu trả lời khác nhau.
+2. **Slot không tên sinh field không có danh tính.** `slotName` và `label` đều `undefined` nên **biến mất khỏi
+   JSON**; field vẫn còn `widget: 'text'`. Cùng kiểu: `manifest.actions[].name` thiếu thì section mất tên.
+3. **`revision` không được kiểm.** NaN → `revisionLabel: 'rev NaN'`; -5 → `'rev -5'`; `checkProfileRevision(NaN, …)`
+   trả `stale` với `formRevision` là NaN, **JSON hoá thành `null`**; revision âm và phân số trùng nhau vẫn
+   `current`. Và `serverProfile` là `undefined` thì **ném TypeError** vì chốt chặn dùng `=== null` chứ không phải
+   falsy check.
+4. **Chuỗi fallback nội suy tên widget thô.** `mapSchemaToWidget('<script>alert(1)</script>')` cho
+   `fallbackReason: 'Unknown widget "<script>…" fallen back to "text"'` — payload độc hại nằm trong chuỗi mà
+   renderer hiển thị làm lời giải thích.
+5. **Select không có gì để chọn.** Cả `slot.options` và `capabilityOptions` rỗng → field `widget: 'select'` mà
+   **không có key `options`**. Thêm nữa fallback kích hoạt khi `length > 0`, nên `options: []` **tường minh rỗng**
+   không phân biệt được với vắng mặt.
+
+Ngoài ra: widget `number` kiểm bằng **regex** chứ không parse số → `1e3` bị từ chối dù là số hợp lệ, còn
+`9007199254740993` **được nhận** dù đã mất chính xác; `businessVersion`, `action.name`, `slot.description` →
+`helpText`, capability `label`, `displayValue('text', …)` và `to:` trong diff đều đi qua không escape.
+
+### 56.3 Ba lần tôi tự viết sai — đều lộ ra vì chạy
+
+- Fixture của tôi set `actionName`, nhưng `buildProfileFormModel` đọc **`action.name`** (shape `ProfileSchemaInput`
+  khác `DraftActionSpec`) → section tên `undefined`. Đã sửa fixture và **ghi chú lý do ngay tên helper**.
+- Tôi khẳng định `Number(huge) !== Number.parseInt(huge, 10)` để chứng minh mất chính xác. Cả hai đều đi qua
+  cùng phép float nên **bằng nhau** — khẳng định sai. Đã đổi sang pin sự thật đo được: `Number(huge) === 9007199254740992`.
+- Probe của tôi vấp `fields[0]` possibly-undefined và shape `diffProfileRevision` case 1 — sửa ở probe, không
+  đụng file giao diện.
+
+### 56.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-profile-view-model.test.ts ×3 liên tiếp | **79/79**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **23 test** (chạy bản HEAD để đo) → **+56** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| **Hồi quy 7 suite admin *-view-model + 2 suite contract** | **743/743**, 9/9 suite |
+
+### 56.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-12 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
 ## Ledger
+- 56 — TURN 344 W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE (task_8c91a4038e7d / ctx_8c91a4038e7d): +56 test trong admin-profile-view-model.test.ts (23 → 79), +446 dong. CHI sua 1 file test, khong dung production code. **PACKET NEU 3 KHAI NIEM MODULE KHONG CO:** quyet profile-view-models.ts co 0 match cho plugin, pipeline, timeout (chi co timeoutMs trong *-section-data.ts la adapter HTTP khac lam IO that; types.ts:335 la ConnectorTestResultKind 'timeout' khong lien quan) — nen test MANIFEST cho malformed plugin configuration, test BIEN SO widget number cho timeout (0/-1/1.5/' 12 '/'1e3'/Infinity/NaN/.5/1./+1/1,000) kem mot pin xac nhan form model khong co field timeout, va test CHUOI FALLBACK that (slot.options → else capability options) cho fallback pipeline; ghi ro thay vi bia khai niem. **5 DEFECT, ghi nhan KHONG sua:** (a) validateProfileDraft KHONG total du docstring ghi never throws — actions thieu slots → TypeError action.slots is not iterable, draft.entries khong phai mang → TypeError, cung input do buildProfileFormModel lai DEGRADE ve fields:[] nho (action.slots ?? []) tuc hai ham doc cung mot field cho hai cau tra loi khac nhau; (b) slot khong ten sinh field KHONG CO DANH TINH — slotName va label deu undefined nen bien mat khoi JSON, field van con widget text, cung kieu manifest.actions[].name thieu thi section mat ten; (c) revision khong duoc kiem — NaN ra revisionLabel 'rev NaN', -5 ra 'rev -5', checkProfileRevision(NaN,…) tra stale voi formRevision la NaN JSON hoa thanh null, revision am va phan so trung nhau van current, va serverProfile la undefined thi NEM TypeError vi chot chan dung === null chu khong phai falsy check; (d) chuoi fallback NOI SUY ten widget tho — mapSchemaToWidget(script) cho fallbackReason 'Unknown widget "<script>…" fallen back to "text"' tuc payload doc hai nam trong chuoi renderer hien thi lam loi giai thich; (e) select khong co gi de chon — ca slot.options va capabilityOptions rong → field widget select ma KHONG co key options, them nua fallback kich hoat khi length > 0 nen options:[] tuong minh rong khong phan biet duoc voi vang mat. Ngoai ra: widget number kiem bang REGEX chu khong parse so → 1e3 bi tu choi du la so hop le, con 9007199254740993 duoc nhan du da mat chinh xac; businessVersion, action.name, slot.description → helpText, capability label, displayValue('text',…) va `to:` trong diff deu di qua khong escape. **3 LAN TOI TU VIET SAI, deu lo ra vi chay:** fixture set actionName nhung buildProfileFormModel doc action.name (shape ProfileSchemaInput khac DraftActionSpec) → section ten undefined, da sua fixture va ghi chu ly do ngay ten helper; toi khang dinh Number(huge) !== Number.parseInt(huge,10) de chung minh mat chinh xac nhung ca hai deu di qua cung phep float nen BANG NHAU, da doi sang pin su that do duoc Number(huge) === 9007199254740992; probe cua toi vap fields[0] possibly-undefined va shape diffProfileRevision case 1 — sua o probe khong dung file giao dien. Evidence: **79/79 x3** (exit 0/0/0), baseline HEAD do la 23 → +56, tsc noEmit **Exit Code: 0**, **hoi quy 7 suite admin *-view-model + 2 suite contract = 743/743, 9/9 suite**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-12 [~], G-SEC/G-ENC/G6 NO-GO. Muc 56.
+- 55 — TURN 344 W-ADM-UX-11-OVERVIEW-VIEW-MODEL-NEGATIVE (task_7c91a4038e6c / ctx_7c91a4038e6c): +59 test trong admin-overview-view-model.test.ts (49 → 108). CHI sua 1 file test, khong dung production code. File la pure unit (0 HTTP, 0 listener) nen khong co port band nao ap dung. **PACKET NOI SAI MOT THU: yeu cau corrupt THROUGHPUT metrics nhung module nay khong co throughput** — export dang 10 ham, khong ham nao tinh rate, usage duoc project duoi dang bo dem tho; nen counter hong (NaN/am/vong cung/cost am) la phan dang test nhat va toi da test ky, ghi ra thay vi bia khai niem throughput cho khop packet. **MOT MODULE, BA KIEU DEGRADE KHAC NHAU cho cung mot enum hong** (day la ly do khong duoc suy luan tu lane truoc): usageMeasurementBadge/Label tra bang MEASUREMENT_META khong chot chan → NEM TypeError; auditKindLabel/auditKindSeverity tra bang AUDIT_KIND_META → NEM TypeError; **auditSeverityBadge la switch KHONG CO default → TRA undefined im lang** (kiu tra ve khai la success|warning|error|neutral nen TS khong bat duoc, mot switch phu het 4 thanh vien union duoc coi exhaustive nhung runtime roi khong ve dau ca); buildHealthOverviewView ternary nhi phan → bao degraded (chieu an toan). **5 DEFECT, ghi nhan KHONG sua:** (a) SEVERITY TREN WIRE BI VUT DI va tinh lai — buildAuditEventView KHONG DOC row.severity, no suy tu kind, do duoc hang kind=operation.cancel + severity=error → view ra severity=warning, mot hang khai severity cao hon bi HA XUONG trong im lang; (b) TENANT SCOPING SUP THANH NO-OP khi ca hai ve deu thieu — bo loc la e.tenantId === input.tenantId, khi ca hai deu undefined thi undefined === undefined la TRUE nen mot view khong co tenantId se giu MOI event cung khong co tenantId, lap luan cong lap trong docstring dung voi gia tri co mat va SAI voi gia tri vang (co test tao hai tenant khac nhau cung thieu id va ca hai lot vao mot view), so sanh la === nen cung phan biet hoa thuong; (c) totals duoc mang theo BY REFERENCE khong copy — sua wire.totals.operations sau khi project thi gia tri hien thi doi theo, va totals khong bao gio duoc doi chieu voi tong cac hang (hang cong ra 7 operation con totals khai 0); (d) CUA SO THOI GIAN khong duoc parse cung khong duoc sap xep — from/to la chuoi thang qua, do duoc cua so DAO NGUOC, chuoi rac, chuoi rong, cua so dai 0, format tron (epoch millis vs ISO), ngay lan 2026-02-30 deu toi nguyen ven o renderer, audit list thi khong co cua so nao de ma sai; (e) fullyHealthy khong bao dam la boolean — no la chuoi &&, 'false' && 'false' tra ve CHUOI 'false' con 0 && 1 tra ve SO 0, cung lop loi truthiness: db 'false' (chuoi) ra dbBadge success + dbLabel Healthy tuc CHUOI false bao khoe, giong het hasValue 'false' o Muc 52. Ngoai ra: moi bo dem usage deu la passthrough khong clamp (NaN, -1, Infinity, -0, cost am, vuot MAX_SAFE_INTEGER); allUnattributed yeu cau ca hai provider va model la (unattributed) nen hang chi gan do mot phia van bi coi la da gan va empty-state copy khong hien; event null / mang events null deu nem TypeError; message va actor doc hai di qua khong escape. **1 LAN TOI TU VIET SAI:** baseAuditRow mac dinh tenantId 'tenant-A' con ba test cua toi scope view theo 't1' nen MOI EVENT DEU BI FILTER BO va toi doc view.events[0] tren mang rong — khong phai bug san pham, da sua bang cach truyen tenantId tuong minh va ghi chu ly do ngay tai test. Evidence: **108/108 x3** (exit 0/0/0), baseline HEAD do la 49 → +59, tsc noEmit **Exit Code: 0**, **hoi quy 7 suite admin *-view-model + 2 suite contract = 687/687, 9/9 suite**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-11 [~], G-SEC/G-ENC/G6 NO-GO. Muc 55.
+- 54 — TURN 344 W-ADM-UX-10-API-KEY-VIEW-MODEL-NEGATIVE (task_6c91a4038e5b / ctx_6c91a4038e5b): +59 test trong admin-api-key-view-model.test.ts (25 → 84). CHI sua 1 file test, khong dung production code. File la pure unit (0 HTTP, 0 listener) nen khong co port band nao ap dung. **PACKET NOI SAI MOT THU: yeu cau test malformed SCOPE arrays nhung ApiKeyRow KHONG co truong scopes** — key that la createdAt, id, label, lastUsedAt, maskedHint, prefix, revokedAt, status, tenantId, khong co truong nao kieu mang; scope nam o danh sach GRANT rieng do buildApiKeyAssignmentView tieu thu, nen toi test grant list va ghi ro thay vi am tham thay the hay bia mot scopes cho khop packet. Probe TRUOC khi viet assert → xanh ngay lan chay dau. **5 DEFECT, ghi nhan KHONG sua:** (a) KHONG TON TAI trang thai het han — ApiKeyStatus chi co ACTIVE/REVOKING/REVOKED, nen neu server tung gui EXPIRED (gia tri hien nhien) thi API_KEY_STATUS_META[status].badge nem TypeError va LAM SAP CA buildApiKeyListView chu khong chi hong mot dong; nguoc lai buildApiKeyRevokeConfirm khong cham bang meta nen van song va confirmDisabled true — hai be mat bat dong ve cach xu ly status la; (b) MASK LO TRON KHOA 4 KY TU — voi moi len >= 4 ham lay raw.slice(0,4) nen neu ban than khoa dai dung 4 thi mask CHINH LA KHOA, do duoc maskApiKey('ABCD') === 'ABCD…' va buildApiKeyCreateView luu gia tri do vao maskedHint; nguy hiem hon nua la nguong nam dung o 4 nen mask GIAT CUC — 3 ky tu bi che het, 4 ky tu bi lo het (khoa dai thuc te thi an toan du_l…); (c) guard revoke BO QUA revokedAt — canRevokeApiKey chi so status === 'ACTIVE' nen mot khoa DA bi dong dau revokedAt van duoc phep revoke lan nua va list view cung bao canRevoke true, chieu nguoc lai REVOKED nhung revokedAt null thi khong ai phat hien mau thuan; (d) KHONG MOC THOI GIAN NAO DUOC PARSE — createdAt/lastUsedAt/revokedAt/grantedAt deu la chuoi opaque di thang qua, hon la hong VO HINH va ngay lan 2026-02-30 khong khac gi mot ngay hop le voi module nay, khac hanh Muc 51/53 noi moc hong suy ra duoc thanh trang thai cu the; (e) maskedHint tu wire khong bao gio duoc kiem tra lai — dat ca khoa tho vao maskedHint thi duoc hien thi nguyen van trong CA list view va revoke confirm, quy tac chi 4 ky tu hoan toan la thoa thuan voi server khong co lop kiem o day. Ngoai ra: buildApiKeyCreateView voi rawKey null/undefined nem TypeError (doc .length khong chot chan) tuc hop dong rawKey bat buoc duoc thuc thi bang CRASH chu khong bang nhanh degrade; khoa toan khoang trang van mo co copyOnceAvailable true; chuoi grant/label doc hai di qua khong escape. **DIEM TOT:** mask cua khoa dai DUNG (khong bao gio tra raw key cho >= 5 ky tu, va buildApiKeyCreateView khong luu raw key vao bat ky field nao — kiem bang sentinel 34 ky tu, KHONG xuat hien trong JSON), guard revoke cung fail closed tren moi status la; ba dieu do giu nguyen, chi ba DEFECT la can sua. Evidence: **84/84 x3** (exit 0/0/0), baseline HEAD do la 25 → +59, tsc noEmit **Exit Code: 0**, **hoi quy toan bo 7 suite admin *-view-model + 2 suite contract = 628/628, 9/9 suite**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-10 [~], G-SEC/G-ENC/G6 NO-GO. Muc 54.
+- 53 — TURN 344 W-ADM-UX-09-BUSINESS-VIEW-MODEL-NEGATIVE (task_5c91a4038e4a / ctx_5c91a4038e4a): +41 test trong admin-business-view-model.test.ts (54 → 95). CHI sua 1 file test, khong dung production code. File la pure unit (0 HTTP, 0 listener) nen khong co port band nao ap dung. Probe TRUOC khi viet assert → xanh ngay lan chay dau, khong sua lai khang dinh nao. 4 goc do duoc: (1) status hong — badge DEGRADE duoc (switch + default, label = chuoi tho, badge neutral) nhung resolveVersionHealth tra HEALTHY; (2) HTML doc hai di thang vao label/businessId/version/queue va duoc NOI SUY vao title/message/summary cua confirm + health view; (3) bien heartbeat 60s→online, 61s→degraded, 300s→degraded, 301s→offline, tuong lai→online, nowMs NaN→offline, rac→none + lastHeartbeatAt null; (4) activeVersion xung dot — hai hang cung isActive true, hang RETIRED thang hang ENABLED, ten ghost va chuoi rong deu duoc echo nguyen van. **4 DEFECT, ghi nhan KHONG sua:** (a) STATUS HONG HIEN THANH HEALTHY — resolveVersionHealth loai RETIRED/DRAINING/REGISTERED_DISABLED roi mac dinh phan con lai la ENABLED; do duoc status ARCHIVED → healthy va lan vao toBusinessVersionDisplayRow; chi isActive false tuong minh moi keo lai duoc no-active, va hang do dong thoi co isActive false + ca 3 gate dong nen TRONG XANH NHUNG KHONG HANH DONG DUOC; (b) bo dem health khong hoa voi tong — status hong roi vao khong xo nao, do duoc totalVersions = 1 trong khi tong bon bo dem bang 0; (c) moc heartbeat hong bi nuot im lang — timestamp khong parse duoc ra status none + lastHeartbeatAt null (chuoi rac bien mat khoi view nen hong tro nen vo hinh), nowMs NaN lam ca fleet bi bao offline, ngay lan 2026-02-30 lech thang nhung van tra ve DUNG chuoi ngay sai do cho renderer; (d) xung dot activeVersion giai quyet bang thu tu mang — ca hai find() lay ket qua khop dau tien nen hang RETIRED gan isActive true van thang hang ENABLED that su nam sau, va hang thu hai khong khai isActive nen mac dinh thanh true → HAI hang cung bao active; ngoai ra activeVersion truyen vao duoc echo nguyen van ke ca ten khong ton tai (ghost, va ca chuoi rong '' khong duoc chuan hoa ve null), va mot hang REGISTERED_DISABLED co the vua isActive true vua canEnable true. **DIEM TOT, ghi lai de khong sua nham:** khac Muc 52, badge o day KHONG nem (co default tra neutral) — suy luan 'enum hong thi nem TypeError' tu lane khac ap vao day se sai; toi co test control rieng khang dinh du 4 state that di qua case rieng de bang state khong the xanh vo nghia; nguoc lai buildVersionTransitionConfirm voi action la THI NEM, la cho duy nhat module tu choi thay vi degrade. Evidence: **95/95 x3** (exit 0/0/0), baseline HEAD do la 54 → +41, tsc noEmit **Exit Code: 0**, hoi quy 5 suite **465/465**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-09 [~], G-SEC/G-ENC/G6 NO-GO. Muc 53.
+- 52 — TURN 344 W-ADM-UX-08-CONNECTOR-VIEW-MODEL-NEGATIVE (task_4c91a4038e3f / ctx_4c91a4038e3f): +58 test trong admin-connector-view-model.test.ts (33 → 91). CHI sua 1 file test, khong dung production code. File la pure unit (0 HTTP, 0 listener) nen khong co port band nao ap dung. 4 goc, tat ca do bang probe tren ham that TRUOC khi viet assert — suite xanh ngay lan chay dau, khong sua lai khang dinh nao. **4 DEFECT, ghi nhan KHONG sua:** (a) state/kind la KHONG throw ma nem TypeError (STATE_META[state].badge khong co chot chan) — te hon operation view model Mục 51 tra undefined; loi lan ra buildConnectorConfigRevisionView va buildConnectorTestResultView; (b) bat doi xung gate/display — cung mot state hong, canRotateSecret tra false va deriveRotateSecretState tra idle (fail closed DUNG) con badge/label thi nem; (c) hasValue chi kiem TRUTHINESS, chuoi 'false' hien thanh Configured + hasAnySecret true, giong ca 1, 'true', 'yes', {}, [] — mot boolean hong lam doi badge van hanh tu Not configured sang Configured khong loi nao o dau ca, chieu an toan thi null/undefined/0/'' van ra Not configured; (d) ro secret tho qua MOI field duoc project — sentinel lot vao result.message, slot.label, connectorId, rotatedAt, confirm.slotName; docstring hua no raw secret never leaks nhung thuc te la hop dong buoc CALLER sanitize truoc, doi lap warning la hang so module nen that su khong mang secret duoc. Ngoai ra: secretSlots rong giu loi hong nen totalSecretSlots dem mot hang renderer ve ra null; capabilities null va revision null deu nem TypeError; capability tag hostile di qua khong escape. **DIEU DANG BAO NHAT: 4 assertion write-only co san la RONG** — sentinel chi xuat hien o dinh nghia va trong 4 assertion, CHUA BAO GIOC duoc dua vao input, nen chung se van xanh ke ca khi view model in ra moi field; toi khong sua (ngoai pham vi) nhung da them phien ban khong rong dua sentinel vao label va chung minh no lot qua; khi ai do them sanitize that, chinh cac test do-passthrough cua toi se do — do moi la tin hieu dung. Evidence: **91/91 x3** (exit 0/0/0), baseline HEAD do la 33 → +58, tsc noEmit **Exit Code: 0**, hoi quy 7 suite **438/438**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-08 [~], G-SEC/G-ENC/G6 NO-GO. Muc 52.
+- 51 — TURN 344 W-ADM-UX-07-OPERATION-VIEW-MODEL-NEGATIVE (task_3c91a4038d2e / ctx_3c91a4038d2e): +77 test trong admin-operation-view-model.test.ts (74 → 151), +591 dong 0 xoa. CHI sua 1 file test, khong dung production code. **PORT BAND: packet yeu cau 44000-44504 nhung suite nay la PURE UNIT — 0 createServer / 0 listen / 0 fetch, khong co ephemeral port nao de dung, nen toi KHONG them wrapper (se la code chet); ghi ra de khong ai doc thanh bo sot.** **4 goc, tat ca do bang probe tren ham that truoc khi viet assert:** (1) status enum hong khong fail closed — STATE_LABEL/STATE_BADGE la Record lookup nen label+badge = undefined, terminal=false, khong throw, khong case-fold khong trim, con action gate (Set/includes) thi fail closed DUNG — bat doi xung action dong display khong; (2) casToken hong passthrough trang tron: '', undefined, null, so, chuoi 5000 ky tu, chuoi co newline vao ca hai waitId va casToken nguyen ven, stepIndex -1/NaN/Infinity cung qua; (3) XSS trong inputSchema di thang vao label/description/placeholder/ten field, khong escape (escape la viec cua renderer — pin lai de khong duoc gia dinh co lop 2); (4) sizeBytes am khong clamp (-1 → -1 B, -999 → -999 B), NaN → NaN MB, Infinity → Infinity MB. **4 DEFECT, ghi nhan KHONG sua:** (a) renderHumanWaitForm voi properties {foo: null} nem TypeError va Day la input HOP LE THEO CONTRACT vi HumanWaitViewSchema khai inputSchema: z.record(z.string(), z.unknown()) — co test rieng chung minh safeParse pass; (b) expiresAt hong fail OPEN, 6 dang unparseable deu ra isExpired=false, va canResumeOperation dung phép < nguoc lai cung false nen HAI VIEW cua cung mot timestamp hong bat dong voi nhau; (c) xem (1); (d) xem (4) + bien lech 1 byte 1048575 → 1024.0 KB thay vi 1.0 MB. **Luu y quan trong:** o ca 4 defect, CONTRACT moi la lop chan that su (sizeBytes co .min(0), progress bat buoc), view model khong phai lop phong thu thu hai — khong chan gi ca. **2 lan toi tu viet sai truoc khi ghi nhan:** (a) toi khang dinh canResumeOperation voi expiresAt hong tra true, chay ra FALSE (so sanh voi Invalid Date luon false) — doi thanh pin hanh vi that + them test doi chung hang rong; (b) ArtifactRefSchema.safeParse toi dua artifactId 'art-neg' nen fail vi LY DO SAI (UUID chu khong phai sizeBytes am), test do ve mat ly thuyet chung minh khong dieu gi — da thay bang UUID that. Evidence: **151/151 x3** (exit 0/0/0), baseline HEAD do la 74 → +77, tsc noEmit **Exit Code: 0**, hoi quy 5 suite **487/487**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-07 [~], G-SEC/G-ENC/G6 NO-GO. Muc 51.
+- 50 — TURN 343 W-ADM-UX-06-ERROR-BOUNDARY-NEGATIVE (task_2b91a4038c1f / ctx_2b91a4038c1f, packet msg_ed58cec264a7): +15 test trong admin-error-boundary-offline.test.ts (22 → 37). CHI sua 1 file test, khong dung production code. 5 goc am: (1) unhandled masking — body chi con Code + correlationId, khong stack/SQL/`/\brelation\b/i`; (2) correlationId UUID tren moi leg, unique 5/5, token client hop le GIU NGUYEN, token hong bi thay bang UUID server; (3) XSS — trang 404 KHONG phan chieu path (manh hon escape); (4) status contract 401/404/200 va route match TRUOC auth; (5) IdP exchange fail-closed — throw khong phai Error / Error rong message / thieu code / 3 upstream shape hong deu 403, khong set-cookie, created()=0. **3 loi tu bat (Δ-DEVIATION, deu la gia dinh sai cua toi khong phai bug san pham):** (a) `not.toContain('relation')` vo nghia vi `relation` nam trong `Correlation` ma trang loi hop le in ra — sua thanh `not.toMatch(/\brelation\b/i)`; (b) `/admin/login` tra 500 khi oidcFlow nem vi route goi `handleLogin` — them `benignLoginFlow()` cho test can 200, he qua do shell tra NGUYEN body ma flow tra ve nen query payload khong the do shell phan chieu; (c) port 0 dung dai ephemeral Windows, run 1 exit 1 voi `connect EADDRINUSE 127.0.0.1:57754` trong khi run 2/3 exit 0 — chuyen sang band 44000-44504 + retry chi EADDRINUSE nhu 3 suite binding kia. **Mot loi co san, KHONG sua (ngoai pham vi):** adm-base-03-safe-error-offline.functional.test.ts fail 1 test, fail 3/3 chay rieng — `packages/observability/src/logger.ts:27-29` consoleSink ghi qua `process.stdout.write` (khong bao gio qua console.error) nen test kia patch console.error luon nhan logText rong; ghi ra day la gia dinh bat log da loi thoi chu khong phai mat log. Evidence: **37/37 x3** (exit 0/0/0), tsc noEmit **Exit Code: 0**, hoi quy 9 suite **8/9 suite, 369/370** on dinh qua 3 lan quet. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-06 [~], G-SEC/G-ENC/G6 NO-GO. Muc 50.
+- 49 — TURN 341 W-ADM-UX-02-PAGINATION-NEGATIVE: +14 test trong admin-operations-list-pagination.test.ts (89 → 103). CHI sua 1 file test, khong dung production code. **Khong co task Turn 341 trong run** (task-list + dispatch-check deu rong) — da du thong tin tu tin nhan de thuc hien va bao cao trung thuc. **PROBE hanh vi that truoc khi viet test:** 0/am → 1; 101/1000000 → 100; NaN/Infinity/undefined/null/chuoi rong → 20; **1.9 → 1 (truncate, KHONG round)**; **chuoi "12abc" → 12 (parseInt doc tien to)**; chuoi "-7" → 1. Hai ca khoa vi khong truc giac — ghim hanh vi DO DUOC, khong phai dieu mong muon, de mot thay doi parser tuong lai thanh diff thay vi mot thay doi hop dong im lang. 7 test limit + 7 test cursor. **Mot phan toi phai bo:** nhom test envelope hong (items sai kieu, total am, nextCursor sai kieu) vi parseListPayload **khong duoc export** (internal, chi nam trong object __test) — goi tu test se can import __test hoac sua production code de export (ngoai pham vi); toi GO nhom do thay vi ep import hay sua source, va ghi ra day la khoang trong thật trong coverage. Evidence: **103/103 x3**, tsc noEmit **Exit Code: 0**, hoi quy 7 suite **233/233**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-02 [~], G-ENC/G6 NO-GO. Muc 49.
+- 48 — W-ADM-UX-02-IDEMPOTENCY-NEGATIVE (task_4d91a27e8c3b / ctx_4d91a27e8c3b): +18 test trong admin-idempotency.test.ts (27 → 45). CHI sua 1 file test, khong dung production code. **PROBE hanh vi that truoc khi viet test** (2 probe tren ham that) — ket qua dinh hinh cac khang dinh: key 8 space / tab-only / newline-only / 200 space deu 422; key co combining mark 422; 200 code unit combining mark 422; key 8/200 OK, 201 → 422; hash(null) ≡ hash(undefined) ≡ hash(object rong) giong nhau; hash(chuoi rong) KHAC hash(object rong); stored body chuoi/null deu replay nguyen van voi **runs = 0**; purge roi dung lai key + payload khac chay moi (replayed=false, runs=2). 5 nhom: (1) whitespace-only key 4 test; (2) **key dai + Unicode normalization** 4 test — combining mark la 2 code unit nhung 1 grapheme, neu bien validation normalize truoc khi kiem tra thi key do se bi CHAP NHAN, tuc dang canonical cua credential se phu thuoc Unicode normalization; khoa ca bien duoi va bien tren; (3) null/empty hash 6 test — quan trong nhat la **bat doi xung**: trong ARRAY undefined ≡ null, nhung trong OBJECT undefined bi xoa nen {a: undefined} ≡ {} con {a: null} thi KHAC; (4) stale marker race khi purge 2 test — neu purge de lai tombstone thi client retry sau cua so se bi 409 vinh vien; (5) **stored response gia mao/hong** 2 test — route KHONG validate shape stored body (chuoi o cho can object van replay nguyen van), tinh chat idempotency van giu dung (runs=0) nhung body hong di thang toi pane khong co chot shape nao; la hanh vi CO cua product, chi ghi lai chu sua. Evidence: **45/45 x3**, tsc noEmit **Exit Code: 0**, hoi quy 7 suite **277/277**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-02 [~], G-ENC/G6 NO-GO. Muc 48.
+- 47 — W-ADM-UX-05-PLATFORM-MOUNT-PORT-ISOLATION-HARDENING (task_7e1b54a29c3f / ctx_7e1b54a29c3f): dong nợ loopback cuối trong admin-shell-platform-mount.test.ts. CHI sua 1 file test, khong dung production code. File nay co **13 call site** createAdminShellServer nhung ca 13 deu di qua MOT wrapper — sua wrapper nen khong phai sua 13 cho. Truoc: QUIET_PORT_BASE 44600 + (pid%10)*16 chi 10 bucket, wrapper goi thang factory voi 1 port co dinh KHONG retry, file dung CRLF. Sau: retry pool **43000-43504** (bang moi, tach biet hoan toan so voi 42000-42504 cua 2 suite audit nen 3 suite chay song song khong bao gio cham nhau), retry 16 lan chi nuot EADDRINUSE; retry dat TRONG wrapper vi binding xay ra o listen() sau khi factory tra ve, nen ca 13 call site giu nguyen khong sua cho nao; afterAll block dau tien (dung attachAdminShell) chua guard duoc guard cho nhat quan (7 block kia da co if(shell) san). Evidence: platform-mount x3 tuan tu **37/37**; **2 platform-mount + 1 audit-mount + 1 audit-query chay CUNG LUC 4/4 xanh, 0 va cham port**; batch 9 suite **447/447**; tsc noEmit **Exit Code: 0**. Sau Muc 47 ca 3 file test bind loopback cua admin deu dung cung co che, no EADDRINUSE trong repo admin coi nhu **da dong** o pham vi ba file nay. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-02 [~], G-ENC/G6 NO-GO. Muc 47.
+- 46 — W-ADM-UX-05-MOUNT-PORT-ISOLATION-HARDENING: dong nợ loopback con lai trong admin-audit-mount.test.ts. CHI sua 1 file test, khong dung production code. Truoc khi sua: adminShellPort 45000 + (pid%200)*2+1 (PID-derived, KHONG retry) + afterAll khong guard — dung nhu toi da ghi o Muc 45. Sua: dai 42000-42504 co offset +4 (le so voi query suite la chan, nen hai suite khong bao gio trung dai), retry 16 lan moi lan +8 cong chi nuot EADDRINUSE nem lai loi khac, afterAll guard null de beforeAll chet giua chung khong nem loi thu hai de len loi that. Evidence: **chay DONG THOI chu khong chi dem lan xanh** (dieu kien tung gay flake o Muc 42/43): mount x3 tuan tu 6/6; 3 instance mount song song 3/3; 2 mount + 2 query song song cung luc 4/4 x2 vong; **tong 8/8 lan chay song song, 0 va cham port**; batch 8 suite 410/410; tsc noEmit Exit Code 0. Con no: admin-shell-platform-mount.test.ts dung dai ~44xxx offset theo pid, ngoai file limit nen chua dung toi va chua co chot chan retry — can packet rieng. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-02 [~], G-ENC/G6 NO-GO. Muc 46.
+- 45 — W-ADM-UX-05-PORT-ISOLATION-HARDENING (task_7e12c140b91d / ctx_7e12c140b91d): dong EADDRINUSE triet de trong admin-audit-query.test.ts. CHI sua 1 file test, khong dung production code. **HOI QUY do toi gay ra da bi phat hien va sua:** doi sang adminShellPort 0 (OS-assigned) hoa ra KHONG phai loi giai — Windows rut outbound source port tu dai 49152-65535, nen listener nam trong do se tranh voi chinh request outbound cua may. Stress 20 lan bat duoc lan 14, loi goc: connect EADDRINUSE 127.0.0.1:59673. Day cung la ly do convention repo dung cong ~44xxx. **Bẫy 2** cung duoc chung minh: 2 instance song song -> CA HAI deu do. **Sua ca hai:** (1) dai 42000-42504 duoi 49152; (2) retry co gioi han 16 lan, moi lan doi 8 cong, chi nuot EADDRINUSE va nem lai loi khac (listen() reject qua server.once error nen retry tren rejection hop le). afterAll guard null de khi beforeAll chet giua chung thi khong nem loi thu hai de len loi that. **Chung minh bang cach tai hien, khong phai dem lan xanh:** truoc khi sua 2 instance song song 2/2 do; sau khi sua cung kich ban do 12/12 xanh (3 + 3vong x 3) + tuan tu x3 26/26. Batch query+mount 32/32, batch 8 suite 410/410, tsc noEmit Exit Code 0. **Tu gay loi test giua chung:** de truy nguyen mot lan do con sot, toi xoa cursor=abc khoi request nhung QUEN xoa assertion -> do vinh vien 20/20 lan; da khoi phuc ca request lan assertion. Con no: admin-audit-mount.test.ts cung bind loopback nhung ngoai file limit nen van thieu chot chan retry — can packet rieng. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-02 [~], G-ENC/G6 NO-GO. Muc 45.
+- 44 — W-ADM-UX-05-AUDIT-ROUTE-NEGATIVE (task_4d5bce418290 / ctx_4d5bce418290): +13 test trong admin-audit-route.test.ts (17 → 30). CHI sua 1 file test, khong dung production source. SAI LECH TRONG SPEC: muc 2 noi vuot nguong 100 nhung 100 la tran cua pane OPERATIONS; audit dung ADMIN_LIST_LIMIT_MAX = 200 nen limit=101 la HOP LE — toi viet test theo thuc te chu khong chieu spec bang cach viet mot khang dinh sai. Probe truoc khi viet test doi ca framing: route KHONG clamp (0/-5/9999 forward nguyen van, abc di toi fetcher duoi dang NaN, cursor 200 ky tu khong cat) — route la lop pass-through, clamp/bound thuoc fetcher. Tenant: tenantId trong query bi loai, khong toi fetcher — pane khong the tu chon tenant. Authz: cookie ky role la (superuser) → 401, cookie sua doi → 401. Cong loopback: file nay khong he bind cong nao (dispatchShellRequest thuan) — von cach ly an toan, them test khoa cau truc do; hai suite gay flake THAT (admin-audit-query, admin-audit-mount) nam NGOAI file limit nen khong sua, do do no va cham cong (Muc 36/42/43) CHUA duoc dong bang packet nay. Evidence: 30/30 x3, exec tsc --noEmit Exit Code 0, hoi quy 6 suite 355/355. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-02 [~], G-ENC/G6 NO-GO. Muc 44.
+- 43 — W-ADM-UX-03-TOOLBAR-BOUNDS-NEGATIVE (task_3bcbacb4bbd3 / ctx_e52d52372513): +10 test trong admin-audit-toolbar.test.ts (57 → 67). **KHONG sua ma nguon.** Khao sat truoc: 4 ca spec nêu (from>to, limit phiên, severity sai, actor dai) **da co san** o toolbar:109/161/243 va query:195/206/214 nen KHONG viet lai; 10 test moi nham phan thieu cua tung ca. **Phat hien quan trong:** test dau tien dung chuoi 64 ky tu a bi DO, toi viet probe quet do dai 1..70 → **ACCEPTED_MAX = 31 khong phai 64**. Khong phai loi regex (TOKEN_PATTERN cho phep 64, kiem ca src lan dist) ma vi **a la ky tu hex hop le** bi chan boi SOLID_HEX_PATTERN. Payload do bi loai vi ly do solid-hex chu khong phai do dai — neu chi nhin test do roi sua con so cho xanh, toi se khoa SAI THU: test pass vi mot luat hoan toan khac va khong bao ve gi cho ranh gioi do dai. Da sua bang ky tu z (khong phai hex): 64 z duoc nhan, 65 bi loai **vi do dai**. Probe da xoa. Phu them: limit NaN/abc/Infinity ve mac dinh, limit am/thap phan, gioi 1/200/201, cua so mot phia duoc chap nhan, cua so nua hong giu bound tot chi neu te, severity rong/khoang trang la VANG MAT khong bi ghi tu choi, severity chu hoa bi loai va duoc neu ten (ghim lai Muc 31). Evidence: **67/67 x3**, tsc **Exit Code: 0**, hoi quy **76/76**. **Lan do tam thoi thu BA** (Muc 36, 42, 43): admin-audit-query do 1 test khi chay batch, chay rieng 26/26 xanh, chay lai batch 76/76 — va cham port loopback tam thoi, khong do toi. No ky thuat nay da khong con la chuyen thinh thoang; can packet rieng chuan hoa cap port cho MOI suite bind loopback. Muc 43.
+- 42 — W-ADMBASE-IDEMPOTENCY-NEGATIVE-HARDENING (task_261984e0c6cd / ctx_e86ebfbe7d2b): +13 test trong admin-idempotency.test.ts (14 → 27). **KHONG sua ma nguon.** Da doc ky truoc: 409 payload khac / 409 route khac / 422 malformed / race rollback da co san nen KHONG viet lai. Phu gap that: (1) **envelope that** qua toProblem() — status/code/type urn:du:error:* / correlationId echo, va envelope KHONG ro key hay payload; (2) **muc side effect that** tren ca 409: world.committed.length khong doi (test cu chi assert counters.runs); (3) **ranh gioi KEY_RE 8..200 theo ca hai chieu** — 8 PASS / 7 fail, 200 PASS / 201 fail, tab/newline/DEL/non-ASCII fail (test cu chi kiem tra chieu fail nen off-by-one lot); (4) replay tra **status da luu** (marker 200 → replay 200, test cu chi luu 201); (5) **expired** map sang marker TTL: purge gan cua so la tham so, va **sau khi het han key tai su dung duoc** chu khong phai 409 vinh vien. Evidence: **27/27 x3**, tsc **Exit Code: 0**, batch 5 suite **200/200 o 3/4 lan**. **Bao mot lan do tam thoi**: 1/4 lan chay batch, admin-error-boundary-offline.test.ts do 2 test — chay rieng 22/22 xanh, chay lai batch 200/200 xanh 3 lan. La va cham port tam thoi giua cac suite bind loopback, KHONG do thay doi cua toi. Day la lan thu hai cung mot lop loi (sau Muc 36) — da sua port cho 2 suite audit nhung chua ra toan bo suite con lai; can packet rieng chuan hoa cach cap port cho MOI suite bind loopback. Muc 42.
+- 41 — W-ADM-UX-10-HOSTILE-INPUT-NEGATIVE-TESTS (task_7813a4abee16 / ctx_dd4dda8b9b0e): +9 negative test trong admin-audit-query.test.ts (17 → 26). **KHONG sua ma nguon** — chi them test. Phu: the script / quote-breakout (onmouseover) / img-onerror tren actor, action, resource, severity, from, sort — assert payload KHONG vao URL backend nhan va KHONG vao DOM, chi ten field duoc neu. Cursor: qua dai 400 ky tu bi cat con **128** (co y hard-code de ghim bien an toan, khong import hang); cursor di dang duoc forward nguyen van de ROUTE tu choi va remedy hien ra; cursor doc hai do route tra ve bi esc khi render. Diem thiet ke da khoa: cursor **khong** di qua sanitizeAuditFilterToken vi la token opaque do server mint — nen no CO THE chua markup va phai esc o moi noi no ra DOM. Evidence: **26/26 x3**, tsc **Exit Code: 0**, hoi quy 5 suite **309/309**. Muc 41.
+- 40 — W-ADM-UX-10-DELTA92-ARIA-LABEL (task_f7130b10e390 / ctx_ec4468a3cd97): **Δ92 ĐÓNG**.Sua 1 assertion trong admin-operations-list-pagination.test.ts (Scrollable table → Scrollable data table 1 of 1); **shell-render.ts KHONG sua**. Huong sua quyet dinh bang chung chu khong doan: admin-shell-render.test.ts:314 da assert nhan CO CHI SO va dang XANH, con test operations assert nhan CO DINH va dang DO — renderer dung, test la hang ton. Sua nguoc lai se pha test trong acceptance cua chinh packet nay VA hoi quy a11y: wrapTablesForReflow boc moi table top-level, trang overview co 3 bang, nhan co dinh se kien 3 bang tu gioi thieu giong nhau. Evidence: acceptance **229/229, 0 failed x3** (lan dau suite nay dat ExitCode 0 that su), tsc **Exit Code: 0**, hoi quy 8 suite **219/219**. Ghi chu: da nhieu cycle toi ghi Δ92 la pre-existing cua lane khac roi di tiep — dung ve phan dia nhiem nhung de mot loi DO nam trong bao cao cua toi. Nguyen nhan that la don gian (mot test quen cap nhat, viec 5 phut) va toi da hoan no qua lau vi ly do sai, giong het lan flake EADDRINUSE o Muc 36. Muc 40.
+- 39 — W-ADM-UX-10-UNIFY-EMPTY-BANNER-OPERATIONS (task_ebd089a652e9 / ctx_b76e13b1ce36): data-list-empty → data-empty-banner trong operation-section-renderer.ts (2) + admin-operations-list-pagination.test.ts (3); chi doi ten attribute, giu nguyen class CSS va nghia cua assertion. **HAI LECH TRONG ACCEPTANCE — (1) tests/admin-operations-list-conformance.test.ts KHONG TON TAI (if exist = false; toi KHONG tao file moi de lam acceptance xanh); (2) acceptance yeu cau ExitCode 0 nhung suite DA DO tu truoc: baseline TRUOC khi sua = 1 failed / 88 passed / 89 total, SAU khi sua = y het, khong co fail moi.** Fail duy nhat la Δ92 co san (test doi aria-label Scrollable table, shell-render.ts:544 phat Scrollable data table N of M) — can sua shell-render.ts, file NGOAI file limit. Evidence: tsc **Exit Code: 0**, pagination **88 passed x3** (khong doi so voi baseline), hoi quy 7 suite **266/266**. Hai pane da dung cung ten attribute. Con lai: Δ92 + class CSS van khac ten (audit-section__empty-banner vs operation-section__list-empty) — packet nay chi yeu cau thong nhat attribute. Muc 39.
+- 38 — W-ADM-UX-10-EMPTY-BANNER-ATTRIBUTE-CLEANUP (task_7c9c0fd92994 / ctx_08072bb9cab6): don data-list-empty sang data-empty-banner trong audit-section-renderer.ts va admin-audit-toolbar.test.ts (2 file, dung file limit). **Canh bao tranh chon**: data-list-empty cung ton tai o pane OPERATIONS — operation-section-renderer.ts (2 cho) va admin-operations-list-pagination.test.ts (3 cho) — da de NGUYEN, khong replace-all; verify bang cach dem attribute o ca 4 file sau khi sua. Evidence: acceptance 3 suite **80/80 x3**, tsc **Exit Code: 0**, hoi quy **238/238**. Ghi chu con lai: hai pane gio dung hai ten attribute khac nhau cho cung mot khai niem (audit data-empty-banner vs operations data-list-empty) — hau qua cua gioi han file, khong phai lua chon thiet ke; can packet rieng de thong nhat. Muc 38.
+- 37 — W-ADM-UX-10-EMPTY-STATE-AND-ERROR-BOUNDARY (task_db0eee0fdc8d / ctx_50ae3532134c): renderStatusPane them tham so retry, empty state thanh banner co heading + clear-filters, them data-status-pane; +6 test trong admin-audit-query.test.ts. **Thay so la LINK vi shell khong co JS**; retry dung href rong (self-reload, GIU filter+cursor) — hard-code /admin/audit se am tham mat filter. unauthorized tro /admin/login khong dung retry; empty khong co retry. Evidence: acceptance **23/23 x3**, tsc **Exit Code: 0**, 4 suite audit **97/97**, hoi quy shell **258/258**. Tu sua flake EADDRINUSE da canh bao o Muc 36 nhung chua hanh dong — da doi sang PID-derived. Muc 37.
+- 36 — W-ADM-UX-03-AUDIT-QUERY (task_a848fbd749d6 / ctx_60b3e9ee8466): tests/admin-audit-query.test.ts (11 test, mount that + HTTP that + stub JSON API) — xac nhan forwarding 7 param day du, 422 remedy, 401/500 mapping, non-JSON body blocked, inverted window fail-closed, rejection-by-NAME. Evidence: tsc **Exit Code: 0**, 11/11 x3, hoi quy 7 suite **338/338**. **Sua bug that**: fetchAuditEvents vucut message tu RFC7807 khi route 422 (operator chi thay ma tran, khong biet phai lam gi) — gio lay message tu body JSON, bound length, prefix. Muc 36.
+- 35 — W-ADM-UX-03-AUDIT-MOUNT-VERIFICATION (task_a848fbd749d6 / ctx_60b3e9ee8466): tests/admin-audit-mount.test.ts (6 test) chung minh chuoi mount doc ledger THAT qua HTTP that. **Phat hien quan trong: attachAdminShell DA DUOC goi trong createApp (server.ts:869, comment CX3 W43-R13) — viec con thieu la DEFAULT audit fetcher da them o Muc 34, khong phai lenh mount.** Evidence: tsc **Exit Code: 0**, mount 6/6 x3, route 17/17, hoi quy 5 suite shell **275/275**. Delta 130 dong o tang mount. Delta 139/140/142/143 van chua adjudicate. Muc 35.
+- 34 — W-ADM-UX-03-AUDIT-DEFAULT-FETCHER (task_a848fbd749d6 / ctx_60b3e9ee8466): +import fetchAuditEvents va +audit trong CA HAI nhanh cua defaultSectionFetchers trong shell-server.ts (518 dong). Evidence: tsc **Exit Code: 0**, route 17/17 x3, toolbar 57/57 x3, hoi quy 5 suite shell **281/281**. **Δ142 — toi KHONG doc DB truc tiep**: shell-server.ts ghi ro Pure HTTP. No DB, no Redis, ca 6 fetcher mac dinh hien deu di qua HTTP API, va mot DB handle se **bo qua authorizeAuditTenantRead** (tenant fence) + nhan ban logic keyset/sort ma route so huu — hoi quy authorization. Du lieu van that tu DB qua route GET /api/v1/admin/audit. Can coordinator xac nhan hoac phu quyet Δ142. Δ130 dong nut o tam attachAdminShell, con `createApp` mount shell trong server.ts van ngoai pham vi. Δ143 hanh vi moi khi jsonBaseUrl unset. G-ADMIN-OPS NO-GO. Muc 34.
+- 33 — W-ADM-UX-03-AUDIT-ROUTE-VERIFICATION (task_a848fbd749d6 / ctx_60b3e9ee8466): 17 test / 4 describe trong tests/admin-audit-route.test.ts — route match, auth gate (401/403/200), nav tab theo role, aria-current, query forwarding, NOT-WIRED state. **17/17 x3 lan lien tiep**, tsc **Exit Code: 0** toan repo, toolbar 57/57, shell router+render 165/165. Delta 130 dong day muc code+offline test; 139/140 chua adjudicate. Tu ghi cong khai: 3 assertion do do ky tu nhay kep (shell-render dung h() sinh attribute nhay kep, khac audit-section-renderer nhay don) + signCookie tra string|null + file bi hong nhieu lan do kenh ghi python -c — Muc 33.
+- 31 — W-ADM-UX-03-AUDIT-TOOLBAR (task_a848fbd749d6 / ctx_60b3e9ee8466): toolbar chips search/filter cho
+pane `/admin/audit` — MỚI `src/app/admin/audit-section-data.ts` (604) + `src/app/admin/audit-section-renderer.ts`
+(444) + MỚI `tests/admin-audit-toolbar.test.ts` (675, **57 test / 8 describe**). **Tiền đề packet sai:** cả hai
+file packet nêu đều KHÔNG tồn tại, và `shell-router.ts` không có route `/admin/audit` — tôi dừng hỏi,
+coordinator chốt **2 file mới, không wire shell**. Sáu quyết định đáng ghi: ô thời gian là `type=text`
+(không `datetime-local`, vì control đó nộp giờ cục bộ không múi giờ mà route chỉ nhận UTC — diễn giải âm
+thầm thành UTC là điều một bộ lọc ledger không được làm); cửa sổ đảo ngược **fail-closed và KHÔNG phát
+request** (ngoại lệ duy nhất so với luật bỏ-rồi-ghi-tên, vì gửi đi sẽ đưa cả ledger dưới nhãn khoảng
+thời gian họ yêu cầu); `severity` **không fold case** (route enum chữ thường); chip chỉ gọi TÊN field bị
+từ chối, không bao giờ gọi giá trị (40 hex liền mạch bị loại, vắng mặt trong `ignored` lẫn URL); dòng đọc lỗi
+được đếm + hiện (`droppedRows`) thay vì nuốt lặng lẽ; thiếu `jsonBaseUrl` trả `error` chứ không phải `empty`.Evidence: suite mới **57/57 ×3 lần liên tiếp**, `typecheck` **Exit Code: 0**; 6 suite admin liên quan
+**345 passed / 346 total**, đỏ duy nhất là Δ92 có sẵn ở `admin-operations-list-pagination.test.ts` (test đòi
+aria-label *Scrollable table*, `shell-render.ts:544` phát *Scrollable data table N of M*) — file của lane khác,
+tôi không sửa; grep xác nhận 8 chỗ khớp `adm-reflow-scroller` không nằm trong file của tôi. Tự ghi công khai:
+**1 bug product thật** do tôi (`.toUpperCase()` trên enum chữ thường ⇒ mọi severity trả `ALL`, test bắt) +
+**8 kỳ vọng test sai** của tôi về thứ tự/liền kề attribute và `&amp;` trong href (thêm `hrefFor`/`paramsOf`
+để test không phụ thuộc thứ tự attribute) + kênh ghi file `python -c` qua `cmd.exe` ăn mất dấu nháy kép và cắt
+lệnh ở newline đầu tiên (chuyển sang `node -e`). Δ130 **pane CHƯA wire, `/admin/audit` sẽ 404** — cần packet
+wiring riêng chạm `shell-router.ts` + `shell-render.ts` + composition root; Δ131 **trùng ID ticket**
+(`ADM-UX-03` đã `[~]` và là toolbar **Operations** — không tự tick ledger); Δ132 fail-closed là chủ ý, cần
+coordinator chốt nếu muốn nhất quán tuyệt đối; Δ133 không fold case có chủ ý; Δ134 `droppedRows` là field mới;
+Δ135 `error` thay `empty`; Δ136 lỗi của tôi; Δ137 ghi chú tooling; Δ138 ADM-UX-03 audit **chưa xác minh**,
+`G-ADMIN-OPS` giữ **NO-GO**, ADM-UX-02 giữ `[~]`; offline-only, không commit/push — Mục 31.
 - 30 — W-ADM-UX-02-AUDIT-PAGE (task_478e15090f32 / ctx_f53c772c1589): bộ lọc audit + keyset sort allowlist cho `GET /api/v1/admin/audit` — SỬA `packages/contracts/src/public-api.ts` (`ADMIN_AUDIT_LIST_QUERY_PARAMS` 5→10 tên; **allowlist sort RIÊNG** `ADMIN_AUDIT_LIST_SORT_VALUES = [createdAt:asc, createdAt:desc]` vì `admin_audit_events` không có `updated_at` — tái dùng allowlist 4 giá trị sẽ dựng `ORDER BY` trên cột không tồn tại; `ADMIN_LIST_TIME_PATTERN` + `isAdminListTimeBound` chặn cả ngày không tồn tại vì `Date.parse("2026-02-30...")` **không** NaN mà lăn sang tháng 3; `AdminAuditListQuerySchema` +5 field) + SỬA `src/server.ts` (`actor`/`resource` qua `sanitizeAdminListToken` nên hex 32+ = 422; `from`/`to` là `created_at >= / <= $n::timestamptz` đóng hai đầu, cửa sổ đảo ngược = 422 chứ không phải trang rỗng; `listAuditEventPage` chuyển `keysetPage` → `sortableAdminKeysetPage` dùng chung executor 4 route; `sortColumns` `Record`→`Partial` + guard 422) + MỚI `tests/admin-audit-list-page.test.ts` (**30 test / 4 describe**) + SỬA 3 khai báo lỗi thời trong `admin-list-contract-conformance.test.ts`. Mọi filter dùng chung một mảng `clauses` với `count(*)` nên `total` không lệch tập đã lọc (test riêng cho từng filter trên query count). Evidence: suite mới **30/30**, 4 suite liên quan **81/81 ×3 Exit Code: 0**, contracts build + tsc `Exit Code: 0`, sweep **2065 passed / 216 skipped / 2284 total, 3 đỏ — không đỏ nào thuộc lane** (Δ92 renderer aria-label, Δ114 socket, W-SEC-AUDIT-TAXONOMY-1 của Qwen-SEC; cả 3 file tôi không sửa, mtime cũ hơn thay đổi của tôi). Tự ghi công khai: script ghép file của tôi chèn dòng trống xen kẽ ở 2 vùng EOL LF (quét "2 dòng trống liên tiếp" bắt, sửa, tsc xanh) + 4 kỳ vọng sai trong test của tôi (quên LIMIT cũng bind; khẳng định SQL trang-1 có mệnh đề `(created_at, id)` trong khi chỉ có khi **có cursor**). Δ124 **ĐỔI DIALECT cursor audit** (3-slot `decodeListCursor` → 4-slot có mã sort) ⇒ client giữ token cũ sẽ 422, cần báo; Δ125 chạm contracts ngoài phạm vi packet nhưng bắt buộc theo khoá T70-C1; Δ126 allowlist sort giờ KHÔNG đồng nhất giữa 4 list; Δ127 `sortColumns` đụng executor chung (3 caller cũ truyền đủ key, hành vi không đổi); Δ128 chưa index cho `actor`/`resource` (`strpos(lower(...))` không dùng được index thường) — cần DB window, tôi không đo offline nên không claim query plan; Δ129 ADM-UX-02 vẫn `[~]`, ADM-UX-03 `[ ]`, `G-ADMIN-OPS` giữ **NO-GO**; offline-only, không commit/push — Mục 30.
 
 - 1 — W-ADMUX-01: operations list phân trang server-side (limit) + cursor forward-compat + nền responsive mở rộng; tsc x3 exit 0, jest targeted 640/640 x3 exit 0, full offline 1313 pass/15 skip exit 0 — Mục 1.

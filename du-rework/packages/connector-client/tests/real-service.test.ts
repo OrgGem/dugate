@@ -126,7 +126,12 @@ function listen(server: Server): Promise<number> {
     const address = composition.address();
     if (!address || typeof address === 'string') throw new Error('Connector did not bind.');
     const base = `http://127.0.0.1:${address.port}`;
-    const auth = token({ sub: 'client-proof', aud: 'connector', scopes: ['connector:invoke', 'connector:manage'] }, identitySecret);
+    const auth = token({
+      sub: 'client-proof',
+      aud: 'connector',
+      scopes: ['connector:invoke', 'connector:manage'],
+      exp: Math.floor(Date.now() / 1000) + 3_600,
+    }, identitySecret);
     const client = new ConnectorClient(createHttpTransport({ baseUrl: base, token: auth }));
 
     const tenantId = 'tenant-client-proof';

@@ -7,6 +7,7 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
     RUNTIME_TOKEN: 'secret-bearer-token-12345',
     REDIS_URL: 'redis://localhost:6380',
     CONNECTOR_URL: 'http://localhost:3100/internal/v1',
+    CONNECTOR_SERVICE_TOKEN: 'connector-service-token-test',
     CONCURRENCY: '4',
     HEARTBEAT_INTERVAL_MS: '5000',
     WORKER_INSTANCE_ID: 'worker-doc-test-1',
@@ -21,6 +22,7 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
       expect(config.runtimeToken).toBe('secret-bearer-token-12345');
       expect(config.redisUrl).toBe('redis://localhost:6380');
       expect(config.connectorUrl).toBe('http://localhost:3100/internal/v1');
+      expect(config.connectorServiceToken).toBe('connector-service-token-test');
       expect(config.concurrency).toBe(4);
       expect(config.heartbeatIntervalMs).toBe(5000);
       expect(config.workerInstanceId).toBe('worker-doc-test-1');
@@ -59,6 +61,12 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
       expect(() => parseWorkerConfig(env)).toThrow(/RUNTIME_URL must be a valid URL/);
     });
 
+    it('requires a separate Connector service identity when Connector is configured', () => {
+      const env = { ...validEnv };
+      delete env.CONNECTOR_SERVICE_TOKEN;
+      expect(() => parseWorkerConfig(env)).toThrow(/CONNECTOR_SERVICE_TOKEN/);
+    });
+
     it('rejects missing RUNTIME_TOKEN', () => {
       const env = { ...validEnv };
       delete env.RUNTIME_TOKEN;
@@ -93,7 +101,9 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
       const redacted = getRedactedConfig(config);
 
       expect(redacted.runtimeToken).toBe('[REDACTED]');
+      expect(redacted.connectorServiceToken).toBe('[REDACTED]');
       expect(JSON.stringify(redacted)).not.toContain('secret-bearer-token-12345');
+      expect(JSON.stringify(redacted)).not.toContain('connector-service-token-test');
       expect(redacted.runtimeUrl).toBe(config.runtimeUrl);
       expect(redacted.redisUrl).toBe(config.redisUrl);
     });
@@ -137,6 +147,7 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
       const handle = await proc.start();
       expect(handle).toBe(mockWorkerHandle);
       expect(workerStartedWith.runtimeUrl).toBe(validEnv.RUNTIME_URL);
+      expect(workerStartedWith.connectorServiceToken).toBe(validEnv.CONNECTOR_SERVICE_TOKEN);
       expect(workerStartedWith.redis.url).toBe(validEnv.REDIS_URL);
       expect(registeredSignals['SIGTERM']).toBeDefined();
       expect(registeredSignals['SIGINT']).toBeDefined();

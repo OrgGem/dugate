@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -9,7 +9,13 @@ import {
   defineBusiness,
   startWorker,
 } from '../src';
+import { sweepStaleWorkspaces } from '../src/artifact-streams';
 import type { QueueConsumer } from '../src';
+
+jest.mock('node:fs/promises', () => {
+  const actual = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises');
+  return { ...actual, rm: jest.fn(actual.rm), stat: jest.fn(actual.stat) };
+});
 
 /**
  * W39-CC2b — sweepStaleWorkspaces wired into startWorker (startup + periodic).
@@ -131,6 +137,7 @@ describe('startWorker temp sweep (W39-CC2b)', () => {
     root = await mkdtemp(join(tmpdir(), 'du-sweep-test-'));
   });
   afterEach(async () => {
+    jest.useRealTimers();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -261,5 +268,77 @@ describe('startWorker temp sweep (W39-CC2b)', () => {
     const stale = await plantStaleWorkspace(root, 'after-stop');
     await new Promise((r) => setTimeout(r, 120));
     expect(existsSync(stale)).toBe(true);
+  });
+
+  it.each([0, -1])('accepts a sweep interval boundary of %i without crashing', async (intervalMs) => {
+    jest.useFakeTimers();
+    try {
+      const handle = await startSweepWorker({ rootDir: root, intervalMs, olderThanMs: 0 });
+      expect(handle.stopped).toBe(false);
+      await handle.stop(500);
+      expect(handle.stopped).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each([0, -1])('treats an older-than threshold boundary of %i as immediately eligible', async (olderThanMs) => {
+    const stale = await plantStaleWorkspace(root, `threshold-${olderThanMs}`);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs });
+
+    expect(result.removed).toContain(stale);
+    expect(existsSync(stale)).toBe(false);
+  });
+
+  it('keeps a regular file whose name matches the workspace prefix', async () => {
+    const prefixedFile = join(root, `${TEMP_WORKSPACE_PREFIX}not-a-directory`);
+    await writeFile(prefixedFile, 'preserve non-directory entries', 'utf8');
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: -1 });
+
+    expect(result.removed).not.toContain(prefixedFile);
+    expect(result.kept).toContain(prefixedFile);
+    expect(existsSync(prefixedFile)).toBe(true);
+  });
+
+  it('keeps a workspace when inspecting it fails with a permission error', async () => {
+    const workspace = await plantStaleWorkspace(root, 'permission-denied');
+    const permissionError = Object.assign(new Error('workspace stat denied'), { code: 'EACCES' });
+    jest.mocked(stat).mockRejectedValueOnce(permissionError);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.removed).not.toContain(workspace);
+    expect(result.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
+  });
+
+  it('keeps a workspace and completes when cleanup reports a locked-file error', async () => {
+    const workspace = await plantStaleWorkspace(root, 'locked-file');
+    const lockedError = Object.assign(new Error('file is locked'), { code: 'EBUSY' });
+    jest.mocked(rm).mockRejectedValueOnce(lockedError);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.removed).not.toContain(workspace);
+    expect(result.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
+  });
+
+  it('does not traverse into unrelated parent directories looking for prefixed workspaces', async () => {
+    const unrelatedParent = join(root, 'foreign-parent');
+    const nestedWorkspace = join(unrelatedParent, `${TEMP_WORKSPACE_PREFIX}nested-stale`);
+    await mkdir(nestedWorkspace, { recursive: true });
+    const marker = join(nestedWorkspace, 'keep.txt');
+    await writeFile(marker, 'nested data', 'utf8');
+    const old = new Date(Date.now() - DEFAULT_STALE_WORKSPACE_MS - 60_000);
+    await utimes(nestedWorkspace, old, old);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: -1 });
+
+    expect(result).toEqual({ removed: [], kept: [] });
+    expect(existsSync(nestedWorkspace)).toBe(true);
+    expect(existsSync(marker)).toBe(true);
   });
 });

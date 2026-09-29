@@ -1,11 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { MULTIPART_MAX_TOTAL_BYTES } from '@du/contracts';
+import {
+  MULTIPART_FIXED_PART_BYTES,
+  MULTIPART_MAX_TOTAL_BYTES,
+  MULTIPART_MIN_TOTAL_BYTES,
+} from '@du/contracts';
 import {
   ArtifactStreamError,
   DefaultTaskContext,
   LeaseLostError,
   RuntimeClient,
+  RuntimeError,
   uploadArtifactMultipart,
   type MultipartUploadOptions,
   type MultipartUploadTransport,
@@ -316,6 +321,128 @@ describe('uploadArtifactMultipart (engine, offline)', () => {
     ).rejects.toMatchObject({ code: 'TOO_LARGE' });
     expect(fake.calls.grants).toHaveLength(0);
     expect(fake.calls.aborts).toHaveLength(1);
+  });
+
+  it('aborts when storage rejects a part whose bytes no longer match the signed digest', async () => {
+    const fake = makeFake({ sizeBytes: 1024 });
+    const corruptingFetcher = (async (url: string | URL | Request, init?: RequestInit) => {
+      const partNumber = Number(new URL(String(url)).pathname.split('/').pop());
+      const bytes = Buffer.from(init?.body as Buffer);
+      bytes[0] = (bytes[0]! + 1) % 256;
+      fake.calls.puts.push({ partNumber, body: bytes });
+      const requestedDigest = fake.calls.grants.find((grant) => grant.partNumber === partNumber)?.sha256;
+      const storedDigest = createHash('sha256').update(bytes).digest('hex');
+      if (storedDigest !== requestedDigest) {
+        return problemResponse(400, 'CHECKSUM_MISMATCH', 'uploaded part bytes do not match the granted digest');
+      }
+      return new Response(null, { status: 200, headers: { etag: '"etag-' + partNumber + '"' } });
+    }) as typeof fetch;
+
+    await expect(
+      uploadArtifactMultipart(patternSource(1024, 1024), engineOpts(fake, { fetcher: corruptingFetcher }))
+    ).rejects.toMatchObject({ code: 'DOWNLOAD_REJECTED', status: 400 });
+    expect(fake.calls.complete).toBeNull();
+    expect(fake.calls.aborts).toEqual([{ reason: 'failed' }]);
+    expect(createHash('sha256').update(fake.calls.puts[0]!.body).digest('hex')).not.toBe(fake.calls.grants[0]!.sha256);
+  });
+
+  it('aborts an expired multipart session when the next part grant is rejected', async () => {
+    const fake = makeFake({ sizeBytes: 2500 });
+    const expiredSession = new RuntimeError(410, 'MULTIPART_SESSION_EXPIRED', null);
+    fake.transport.partGrant = async () => {
+      throw expiredSession;
+    };
+
+    await expect(uploadArtifactMultipart(patternSource(2500, 777), engineOpts(fake))).rejects.toBe(expiredSession);
+    expect(fake.calls.puts).toHaveLength(0);
+    expect(fake.calls.complete).toBeNull();
+    expect(fake.calls.aborts).toEqual([{ reason: 'failed' }]);
+  });
+
+  it('times out an in-flight part PUT and cleans up the multipart session', async () => {
+    const fake = makeFake({ sizeBytes: 1024 });
+    const timeoutFetcher = (async (_url: string | URL | Request, init?: RequestInit) =>
+      await new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        const onAbort = (): void => {
+          const error = new Error('part PUT timed out');
+          error.name = 'AbortError';
+          reject(error);
+        };
+        if (signal?.aborted) onAbort();
+        else signal?.addEventListener('abort', onAbort, { once: true });
+      })) as typeof fetch;
+
+    await expect(
+      uploadArtifactMultipart(
+        patternSource(1024, 1024),
+        engineOpts(fake, { fetcher: timeoutFetcher, timeoutMs: 10, partPutAttempts: 1 })
+      )
+    ).rejects.toMatchObject({ code: 'TIMEOUT' });
+    expect(fake.calls.complete).toBeNull();
+    expect(fake.calls.aborts).toEqual([{ reason: 'failed' }]);
+  });
+
+  it('rejects an init response missing its upload handle', async () => {
+    const client = new RuntimeClient({
+      baseUrl: 'http://runtime.test/api/runtime/v1',
+      token: 'offline-test-token',
+      fetchImpl: (async () => jsonResponse(201, {
+        artifactId: randomUUID(),
+        partSizeBytes: MULTIPART_FIXED_PART_BYTES,
+        partCount: Math.ceil(MULTIPART_MIN_TOTAL_BYTES / MULTIPART_FIXED_PART_BYTES),
+        expiresAt: '2099-01-01T00:00:00.000Z',
+        replayed: false,
+      })) as typeof fetch,
+    });
+
+    await expect(client.multipartInit(TASK_ID, {
+      leaseEpoch: 1,
+      uploadToken: randomUUID(),
+      purpose: 'output',
+      mimeType: 'application/octet-stream',
+      sizeBytes: MULTIPART_MIN_TOTAL_BYTES,
+    })).rejects.toThrow();
+  });
+
+  it('rejects a server part size below the multipart non-final-part boundary', async () => {
+    const tooSmallPartSize = 5 * 1024 * 1024 - 1;
+    const client = new RuntimeClient({
+      baseUrl: 'http://runtime.test/api/runtime/v1',
+      token: 'offline-test-token',
+      fetchImpl: (async () => jsonResponse(201, {
+        artifactId: randomUUID(),
+        uploadHandle: 'mh_test',
+        partSizeBytes: tooSmallPartSize,
+        partCount: Math.ceil(MULTIPART_MIN_TOTAL_BYTES / tooSmallPartSize),
+        expiresAt: '2099-01-01T00:00:00.000Z',
+        replayed: false,
+      })) as typeof fetch,
+    });
+
+    await expect(client.multipartInit(TASK_ID, {
+      leaseEpoch: 1,
+      uploadToken: randomUUID(),
+      purpose: 'output',
+      mimeType: 'application/octet-stream',
+      sizeBytes: MULTIPART_MIN_TOTAL_BYTES,
+    })).rejects.toThrow();
+  });
+
+  it('isolates cleanup when one of two concurrent multipart uploads fails a part', async () => {
+    const failing = makeFake({ sizeBytes: 2048, putStatus: () => 400 });
+    const succeeding = makeFake({ sizeBytes: 2048 });
+    const [failedUpload, successfulUpload] = await Promise.allSettled([
+      uploadArtifactMultipart(patternSource(2048, 512), engineOpts(failing)),
+      uploadArtifactMultipart(patternSource(2048, 777), engineOpts(succeeding)),
+    ]);
+
+    expect(failedUpload).toMatchObject({ status: 'rejected', reason: { code: 'DOWNLOAD_REJECTED', status: 400 } });
+    expect(successfulUpload.status).toBe('fulfilled');
+    expect(failing.calls.complete).toBeNull();
+    expect(failing.calls.aborts).toEqual([{ reason: 'failed' }]);
+    expect(succeeding.calls.complete).not.toBeNull();
+    expect(succeeding.calls.aborts).toHaveLength(0);
   });
 
   it('refuses an init partCount that disagrees with the declared size', async () => {

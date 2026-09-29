@@ -53,7 +53,7 @@ try {
   }
 
   $cycleId = [guid]::NewGuid().ToString('N')
-  $prompt = (Get-Content -LiteralPath $promptPath -Raw -Encoding UTF8) + "`nKết thúc bằng đúng một dòng: CYCLE_COMPLETE:$cycleId"
+  $prompt = (Get-Content -LiteralPath $promptPath -Raw -Encoding UTF8) + "`nEnd your response with exactly one line: CYCLE_COMPLETE:$cycleId"
   $send = & $orcaCommand terminal send --terminal $terminalHandle --text $prompt --enter --json | ConvertFrom-Json
   if (-not $send.ok -or -not $send.result.send.accepted) { throw 'Orca did not accept the coordinator prompt.' }
 

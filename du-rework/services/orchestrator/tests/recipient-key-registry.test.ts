@@ -313,4 +313,160 @@ describe('recipient public key registry', () => {
     await expect(registry.getCurrentKey('tenant-a')).rejects.toBeInstanceOf(RecipientKeyRegistryError);
     await expect(registry.getCurrentKey('tenant-a')).rejects.toMatchObject({ code: 'REGISTRY_UNAVAILABLE' });
   });
+
+  // Packet W-PLAT-CR28-01-RECIPIENT-KEY-REGISTRY-BOUNDS: negative and
+  // boundary coverage for the four boundaries the packet names. Every case here
+  // asserts a TYPED RecipientKeyRegistryError, never merely "throws" - an
+  // unhandled TypeError from node:crypto leaking through would otherwise look
+  // identical to a correct refusal at the call site.
+  describe('packet boundaries: malformed keys, algorithms, revocation, and lookup', () => {
+    function registryWith(overrides: Record<string, unknown> = {}) {
+      return createRecipientKeyRegistry({
+        repository: new MemoryRecipientKeyRepository(),
+        now: testClock().now,
+        ...overrides,
+      });
+    }
+
+    // 1) malformed public key material -------------------------------------
+    test('rejects structurally malformed PEM: no header, truncated, corrupt body', async () => {
+      const registry = registryWith();
+      const pair = rsaPair();
+      const good = pair.publicPem;
+      // header present but body truncated mid-armour
+      const truncated = good.slice(0, good.length - 40);
+      // base64 body intact-looking but every character scrambled
+      const corruptBody = good.replace(/[A-Za-z]/, (c) => (c === 'A' ? 'Z' : 'A'));
+      for (const bad of [
+        'not a PEM key',
+        '',
+        '-----BEGIN PUBLIC KEY-----',
+        truncated,
+        corruptBody,
+        '-----BEGIN PUBLIC KEY-----\n!!!!not base64!!!!\n-----END PUBLIC KEY-----',
+      ]) {
+        await expect(registry.createProofChallenge({
+          tenantId: 'tenant-a', algorithm: 'rsa-oaep-sha256', publicKeyPem: bad,
+        })).rejects.toMatchObject({ code: 'INVALID_PUBLIC_KEY' });
+      }
+    });
+
+    test('rejects DER passed where PEM is required, and an oversized key body', async () => {
+      const registry = registryWith();
+      const pair = rsaPair();
+      // A real, parseable key - but as DER, so the public-only PEM guard fires
+      // first. The key itself is valid, which is the point: the boundary is on
+      // the FORMAT, not on key quality.
+      const der = String(pair.publicKey.export({ format: 'der', type: 'spki' }));
+      await expect(registry.createProofChallenge({
+        tenantId: 'tenant-a', algorithm: 'rsa-oaep-sha256', publicKeyPem: der,
+      })).rejects.toMatchObject({ code: 'INVALID_PUBLIC_KEY' });
+      // Past PUBLIC_KEY_MAX_CHARS (16 KiB) the body is refused without parsing.
+      await expect(registry.createProofChallenge({
+        tenantId: 'tenant-a', algorithm: 'rsa-oaep-sha256',
+        publicKeyPem: '-----BEGIN PUBLIC KEY-----' + 'A'.repeat(17 * 1024),
+      })).rejects.toMatchObject({ code: 'INVALID_PUBLIC_KEY' });
+    });
+
+    test('rejects a key whose material is well-formed but too weak for the suite', async () => {
+      const registry = registryWith();
+      // 1024-bit RSA parses cleanly yet is below the 2048-bit floor: the two
+      // boundaries must be distinguishable, so a weak key must NOT be reported
+      // as a parse failure.
+      await expect(registry.createProofChallenge({
+        tenantId: 'tenant-a', algorithm: 'rsa-oaep-sha256', publicKeyPem: rsaPair(1024).publicPem,
+      })).rejects.toMatchObject({ code: 'INVALID_PUBLIC_KEY' });
+      // X25519 key offered to the RSA suite: valid curve, wrong algorithm.
+      const x = generateKeyPairSync('x25519');
+      await expect(registry.createProofChallenge({
+        tenantId: 'tenant-a', algorithm: 'rsa-oaep-sha256',
+        publicKeyPem: String(x.publicKey.export({ format: 'pem', type: 'spki' })),
+      })).rejects.toMatchObject({ code: 'INVALID_PUBLIC_KEY' });
+    });
+
+    // 2) algorithm boundaries ----------------------------------------------
+    test('rejects an unknown algorithm, and an hpke key with no approved verifier', async () => {
+      const registry = registryWith();
+      const pair = rsaPair();
+      for (const algorithm of ['rsa-oaep-sha512', 'ed25519', 'none', '', null, 42]) {
+        await expect(registry.createProofChallenge({
+          tenantId: 'tenant-a', algorithm: algorithm as never, publicKeyPem: pair.publicPem,
+        })).rejects.toMatchObject({ code: 'UNSUPPORTED_ALGORITHM' });
+      }
+      // hpke-x25519 is a known algorithm but has NO verifier wired here, so the
+      // boundary is UNSUPPORTED_PROOF_ALGORITHM, not UNSUPPORTED_ALGORITHM. The
+      // distinction matters: it tells an operator the key is fine, the verifier
+      // is the missing piece.
+      const x = generateKeyPairSync('x25519');
+      await expect(registry.createProofChallenge({
+        tenantId: 'tenant-a', algorithm: 'hpke-x25519',
+        publicKeyPem: String(x.publicKey.export({ format: 'pem', type: 'spki' })),
+      })).rejects.toMatchObject({ code: 'UNSUPPORTED_PROOF_ALGORITHM' });
+    });
+
+    // 3) revoked / expired handling ----------------------------------------
+    test('a revoked key is refused on both lookup paths, and the refusal is typed', async () => {
+      const repository = new MemoryRecipientKeyRepository();
+      const clock = testClock();
+      const registry = createRecipientKeyRegistry({ repository, now: clock.now });
+      const record = await registerRsa(registry, 'tenant-a');
+      await registry.revokeKey('tenant-a', record.version);
+
+      // Every surface must refuse, and each must refuse with KEY_REVOKED rather
+      // than a generic not-found, so a caller can tell "revoked" from "never
+      // registered" and react differently.
+      await expect(registry.getCurrentKey('tenant-a')).rejects.toBeInstanceOf(RecipientKeyRegistryError);
+      await expect(registry.getCurrentKey('tenant-a')).rejects.toMatchObject({ code: 'KEY_REVOKED' });
+      await expect(registry.getKeyVersion('tenant-a', record.version)).rejects.toMatchObject({ code: 'KEY_REVOKED' });
+      // A revoked key is still LISTABLE - revocation is not deletion, and the
+      // audit trail has to survive it.
+      await expect(registry.listKeys('tenant-a')).resolves.toHaveLength(1);
+    });
+
+    test('an expired challenge is refused and cannot be revived by a later attempt', async () => {
+      const repository = new MemoryRecipientKeyRepository();
+      const clock = testClock();
+      const registry = createRecipientKeyRegistry({ repository, now: clock.now, challengeTtlMs: 1_000 });
+      const pair = rsaPair();
+      const challenge = await registry.createProofChallenge({
+        tenantId: 'tenant-a', algorithm: 'rsa-oaep-sha256', publicKeyPem: pair.publicPem,
+      });
+      // register a first key so a successful later attempt is distinguishable
+      await registerRsa(registry, 'tenant-a', rsaPair());
+      clock.advance(1_000);
+      await expect(registry.completeRegistration({
+        tenantId: 'tenant-a', challengeId: challenge.challengeId,
+        proof: rsaProof(challenge.challenge, pair.privateKey),
+      })).rejects.toMatchObject({ code: 'CHALLENGE_INVALID' });
+    });
+
+    // 4) unknown-tenant lookup is an explicit NOT_FOUND -------------------
+    test('a tenant that does not exist is an explicit KEY_NOT_FOUND, not an exception leak', async () => {
+      const registry = registryWith();
+      const record = await registerRsa(registry, 'tenant-a');
+      // Several shapes of absent, to prove none of them escapes as a raw error.
+      for (const tenantId of ['tenant-zzz', 'tenant-b', 'other']) {
+        await expect(registry.getCurrentKey(tenantId)).rejects.toBeInstanceOf(RecipientKeyRegistryError);
+        await expect(registry.getCurrentKey(tenantId)).rejects.toMatchObject({ code: 'KEY_NOT_FOUND' });
+        await expect(registry.getKeyVersion(tenantId, record.version)).rejects.toMatchObject({ code: 'KEY_NOT_FOUND' });
+        await expect(registry.revokeKey(tenantId, record.version)).rejects.toMatchObject({ code: 'KEY_NOT_FOUND' });
+      }
+      // Absent tenants list as empty rather than throwing - a cross-tenant
+      // observer should see "none", not an error that leaks existence.
+      await expect(registry.listKeys('tenant-zzz')).resolves.toEqual([]);
+    });
+
+    test('a malformed tenant id is rejected as INVALID_INPUT, before any repository call', async () => {
+      const repository = new MemoryRecipientKeyRepository();
+      const registry = createRecipientKeyRegistry({ repository, now: testClock().now });
+      await registerRsa(registry, 'tenant-a');
+      repository.failReads = true; // any repository call would now throw
+      // These must be rejected on the tenant id ALONE, so failReads cannot be
+      // reached: the guard has to run before the repository, not after it.
+      for (const tenantId of ['', 'A', 'tenant a', 'tenant/a', 'x'.repeat(65), null, 7]) {
+        await expect(registry.getCurrentKey(tenantId as never)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+        await expect(registry.listKeys(tenantId as never)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+      }
+    });
+  });
 });

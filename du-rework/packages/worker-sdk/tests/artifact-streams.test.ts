@@ -114,6 +114,14 @@ function totalBytes(chunks: Uint8Array[]): number {
   return chunks.reduce((n, c) => n + c.length, 0);
 }
 
+const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+async function drain(stream: Readable): Promise<number> {
+  let bytes = 0;
+  for await (const chunk of stream) bytes += (chunk as Buffer).length;
+  return bytes;
+}
+
 interface CapturedInit {
   url: string;
   method: string;
@@ -213,6 +221,46 @@ describe('downloadArtifact (bounded-memory streaming download)', () => {
     expect(createHash('sha256').update(onDisk).digest('hex')).toBe(sha256Of(chunks));
     // Every chunk was pulled exactly once: true streaming, no re-reads.
     expect(counter.pulled).toBe(64);
+  });
+
+  it('accepts exact maxBytes when chunk framing splits across the boundary', async () => {
+    const ws = await makeWorkspace();
+    const chunks = [
+      new Uint8Array([0x00]),
+      new Uint8Array(1022).fill(0x7f),
+      new Uint8Array([0xff]),
+    ];
+    const expected = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const fetcher: SdkFetcher = async () => chunkedResponse(chunks, counter, {
+      headers: { 'content-length': String(expected.byteLength) },
+    });
+
+    const result = await downloadArtifact(ws, 'framed-at-limit.bin', 'https://storage.example/framed', {
+      maxBytes: expected.byteLength,
+      expectedSizeBytes: expected.byteLength,
+      expectedSha256: createHash('sha256').update(expected).digest('hex'),
+      fetcher,
+    });
+
+    expect(result.sizeBytes).toBe(1024);
+    expect(await readFile(result.path)).toEqual(expected);
+    expect(counter.pulled).toBe(3);
+  });
+
+  it('preserves malformed UTF-8 sequences as opaque binary bytes', async () => {
+    const ws = await makeWorkspace();
+    const bytes = new Uint8Array([0xff, 0xc3, 0x28, 0x00, 0x80]);
+    const fetcher: SdkFetcher = async () => chunkedResponse([bytes], { pulled: 0, cancelled: false });
+
+    const result = await downloadArtifact(ws, 'opaque-bytes.bin', 'https://storage.example/opaque', {
+      maxBytes: bytes.byteLength,
+      expectedSizeBytes: bytes.byteLength,
+      expectedSha256: createHash('sha256').update(bytes).digest('hex'),
+      fetcher,
+    });
+
+    expect(await readFile(result.path)).toEqual(Buffer.from(bytes));
   });
 
   it('rejects an oversized artifact up-front via content-length (no file written)', async () => {
@@ -315,6 +363,48 @@ describe('downloadArtifact (bounded-memory streaming download)', () => {
     expect(existsSync(ws.filePath('x.bin'))).toBe(false);
   });
 
+  it('maps a socket reset during the response body to TRANSPORT_FAILURE and removes partial output', async () => {
+    const ws = await makeWorkspace();
+    const target = ws.filePath('reset.bin');
+    const socketError = Object.assign(new Error('socket reset while reading response body'), { code: 'ECONNRESET' });
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulls === 0) {
+          pulls += 1;
+          controller.enqueue(new Uint8Array(4096).fill(0x61));
+          return;
+        }
+        pulls += 1;
+        controller.error(socketError);
+      },
+    });
+    const fetcher: SdkFetcher = async () => new Response(body) as unknown as Response;
+
+    await expect(
+      downloadArtifact(ws, 'reset.bin', 'https://storage.example/reset', { maxBytes: 1 << 20, fetcher })
+    ).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE', status: 0 });
+    expect(pulls).toBe(2);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('fails closed when the workspace file destination is a directory', async () => {
+    const ws = await makeWorkspace();
+    const target = ws.filePath('directory-target.bin');
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(target);
+    const fetcher: SdkFetcher = async () =>
+      chunkedResponse(makeChunks(2, 128), { pulled: 0, cancelled: false });
+
+    await expect(
+      downloadArtifact(ws, 'directory-target.bin', 'https://storage.example/invalid-destination', {
+        maxBytes: 1024,
+        fetcher,
+      })
+    ).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE', status: 0 });
+    expect((await stat(target)).isDirectory()).toBe(true);
+  });
+
   it('refuses a 200 with an empty body as EMPTY_BODY', async () => {
     const ws = await makeWorkspace();
     const fetcher: SdkFetcher = async () =>
@@ -385,6 +475,55 @@ describe('downloadArtifact (bounded-memory streaming download)', () => {
     ).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE' });
     expect(existsSync(ws.filePath('x.bin'))).toBe(false);
   });
+
+  it('aborts a download mid-flight and removes its partial destination', async () => {
+    const ws = await makeWorkspace();
+    const target = ws.filePath('aborted-mid-flight.bin');
+    const outer = new AbortController();
+    let capturedSignal: AbortSignal | undefined;
+    let cancelled = false;
+    let sentFirstChunk = false;
+    let notifyPendingPull: (() => void) | undefined;
+    const pendingPull = new Promise<void>((resolve) => { notifyPendingPull = resolve; });
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!sentFirstChunk) {
+          sentFirstChunk = true;
+          controller.enqueue(new Uint8Array(4096).fill(0x61));
+          return;
+        }
+        notifyPendingPull?.();
+        return new Promise<void>((resolve) => {
+          const release = (): void => {
+            outer.signal.removeEventListener('abort', release);
+            resolve();
+          };
+          outer.signal.addEventListener('abort', release, { once: true });
+        });
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetcher: SdkFetcher = async (_input, init) => {
+      capturedSignal = init?.signal ?? undefined;
+      return new Response(body) as unknown as Response;
+    };
+    const download = downloadArtifact(ws, 'aborted-mid-flight.bin', 'https://storage.example/abort', {
+      maxBytes: 1 << 20,
+      signal: outer.signal,
+      fetcher,
+    });
+
+    await pendingPull;
+    await settle();
+    outer.abort();
+
+    await expect(download).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE', status: 0 });
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(cancelled).toBe(true);
+    expect(existsSync(target)).toBe(false);
+  });
 });
 
 /* -------------------------------------------------------------------- */
@@ -441,6 +580,31 @@ describe('worker artifact stream helpers (DATA-04)', () => {
       sizeBytes: expectedBytes.byteLength,
       sha256: createHash('sha256').update(expectedBytes).digest('hex'),
     });
+  });
+
+  it('rejects a source decoded as text when UTF-8 replacement changes its binary size', async () => {
+    const original = Buffer.from([0xff]);
+    const source = new Readable({
+      read() {
+        this.push(original);
+        this.push(null);
+      },
+    });
+    source.setEncoding('utf8');
+    const fetcher: SdkFetcher = async (_input, init) => {
+      const body = init?.body as ReadableStream<Uint8Array>;
+      await new Response(body).arrayBuffer();
+      return new Response(null, { status: 200 }) as unknown as Response;
+    };
+
+    await expect(uploadArtifactStream(source, {
+      uploadUrl: 'https://storage.example/upload',
+      mimeType: 'application/octet-stream',
+      sizeBytes: original.byteLength,
+      maxBytes: 16,
+      expectedSha256: createHash('sha256').update(original).digest('hex'),
+      fetcher,
+    })).rejects.toMatchObject({ code: 'SIZE_MISMATCH', status: 422 });
   });
 
   it('rejects upload size and hash drift before the caller can finalize', async () => {
@@ -511,6 +675,48 @@ describe('worker artifact stream helpers (DATA-04)', () => {
     expect(committedOutputArtifactIds([
       { artifactId, role: 'output', sizeBytes: 12, hashSha256: 'a'.repeat(64) },
     ], finalized)).toEqual([artifactId]);
+  });
+});
+
+describe('artifact stream consumer backpressure boundary', () => {
+  it('bounds upstream pulls while the consumer is paused and resumes without byte loss', async () => {
+    const chunks = makeChunks(64, 64 * 1024);
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream('https://storage.example/backpressure', {
+      maxBytes: totalBytes(chunks),
+      expectedSizeBytes: totalBytes(chunks),
+      expectedSha256: sha256Of(chunks),
+      highWaterMarkBytes: 1024,
+      fetcher: (async (_input: string | URL | Request, init?: RequestInit) => {
+        captured.signal = init?.signal ?? undefined;
+        let i = 0;
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            if (i >= chunks.length) {
+              controller.close();
+              return;
+            }
+            counter.pulled += 1;
+            controller.enqueue(chunks[i++]!);
+          },
+          cancel() {
+            counter.cancelled = true;
+          },
+        });
+        return new Response(body) as unknown as Response;
+      }) as SdkFetcher,
+    });
+
+    stream.pause();
+    for (let i = 0; i < 8; i += 1) await settle();
+    expect(counter.pulled).toBeGreaterThan(0);
+    expect(counter.pulled).toBeLessThan(chunks.length);
+
+    stream.resume();
+    expect(await drain(stream)).toBe(totalBytes(chunks));
+    expect(counter.pulled).toBe(chunks.length);
+    expect(captured.signal?.aborted).toBe(false);
   });
 });
 

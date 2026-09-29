@@ -8,7 +8,7 @@ import type { ConnectorHttpStore, ConnectorRuntime, HttpInvocationResult } from 
 import type { ConnectorConfigRepository, ConnectorRevision, NewConnectorRevision } from './db/repository';
 import type { PostgresInvocationLedger } from './db/repository';
 import type { PostgresUsageOutbox } from './db/usage-outbox';
-import type { AdapterConfig, InvocationRecord, LocalInvocationRequest, QuotaStore } from './types';
+import type { AdapterConfig, GrantClaims, InvocationRecord, LocalInvocationRequest, QuotaStore } from './types';
 import { AdapterRegistry } from './adapters/registry';
 import { applyCredentialSlot, parseCredentialSource, SecretResolver } from './vault/resolver';
 import { deriveRevisionBinding, isBoundRevisionTenant, type RevisionScope } from './db/repository';
@@ -67,7 +67,12 @@ export class DurableConnectorRuntime implements ConnectorRuntime {
 
   public async invoke(body: unknown): Promise<HttpInvocationResult> {
     const request = parseContractInvocationRequest(body);
-    const unsignedClaims = await this.grantVerifier.verify(request.grant);
+    let unsignedClaims: GrantClaims;
+    try {
+      unsignedClaims = await this.grantVerifier.verify(request.grant);
+    } catch {
+      throw new ConnectorError('GRANT_INVALID', 'Invocation grant is invalid.');
+    }
     const local = toLocalRequest(request, unsignedClaims.tenantId);
     const claims = await validateGrant(request.grant, local, hashInvocationInput(local), {
       verify: async () => unsignedClaims,

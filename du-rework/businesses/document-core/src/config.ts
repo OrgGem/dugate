@@ -6,6 +6,9 @@ export const WorkerEnvSchema = z.object({
   RUNTIME_TOKEN: z.string().min(1, { message: 'RUNTIME_TOKEN is required' }),
   REDIS_URL: z.string().min(1, { message: 'REDIS_URL is required' }),
   CONNECTOR_URL: z.string().url({ message: 'CONNECTOR_URL must be a valid URL' }).optional(),
+  CONNECTOR_SERVICE_TOKEN: z.string().refine((value) => value.trim().length > 0, {
+    message: 'CONNECTOR_SERVICE_TOKEN must not be empty',
+  }).optional(),
   CONCURRENCY: z
     .string()
     .optional()
@@ -23,6 +26,14 @@ export const WorkerEnvSchema = z.object({
     .optional()
     .transform((val) => (val !== undefined && val !== '' ? parseInt(val, 10) : 15_000))
     .pipe(z.number().int().min(0, { message: 'SHUTDOWN_GRACE_MS cannot be negative' })),
+}).superRefine((value, context) => {
+  if (value.CONNECTOR_URL && !value.CONNECTOR_SERVICE_TOKEN) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['CONNECTOR_SERVICE_TOKEN'],
+      message: 'CONNECTOR_SERVICE_TOKEN is required when CONNECTOR_URL is configured',
+    });
+  }
 });
 
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;
@@ -32,6 +43,7 @@ export interface DocumentCoreServiceConfig {
   runtimeToken: string;
   redisUrl: string;
   connectorUrl?: string;
+  connectorServiceToken?: string;
   concurrency: number;
   heartbeatIntervalMs: number;
   workerInstanceId: string;
@@ -56,6 +68,7 @@ export function parseWorkerConfig(env: Record<string, string | undefined> = proc
     runtimeToken: data.RUNTIME_TOKEN,
     redisUrl: data.REDIS_URL,
     connectorUrl: data.CONNECTOR_URL,
+    connectorServiceToken: data.CONNECTOR_SERVICE_TOKEN,
     concurrency: data.CONCURRENCY,
     heartbeatIntervalMs: data.HEARTBEAT_INTERVAL_MS,
     workerInstanceId: data.WORKER_INSTANCE_ID || `worker-document-core-${randomUUID()}`,
@@ -73,6 +86,7 @@ export function getRedactedConfig(config: DocumentCoreServiceConfig): Record<str
     runtimeToken: '[REDACTED]',
     redisUrl: config.redisUrl,
     connectorUrl: config.connectorUrl,
+    connectorServiceToken: config.connectorServiceToken === undefined ? undefined : '[REDACTED]',
     concurrency: config.concurrency,
     heartbeatIntervalMs: config.heartbeatIntervalMs,
     workerInstanceId: config.workerInstanceId,

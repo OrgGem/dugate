@@ -641,4 +641,195 @@ describe('CR-12: artifact grant fencing (real HTTP)', () => {
     expect(foreignDl.status).toBe(404);
   });
 });
+
+  /** seedTask with explicit lease expiry, so the lease fence can be exercised. */
+  async function seedTaskWithLease(
+    operationId: string,
+    epoch = 1,
+    leaseExpired = true
+  ): Promise<string> {
+    const t = await app.db.query<{ id: string }>(
+      `INSERT INTO tasks (id, operation_id, task_key, kind, payload_ref, state, attempt, max_attempts,
+                          lease_epoch, lease_expires_at, leased_by, due_at)
+       VALUES ($1,$2,$3,'root',$4,'RUNNING',1,3,$5,$6,'agf-worker',now())
+       RETURNING id`,
+      [
+        randomUUID(),
+        operationId,
+        `root-${randomUUID()}`,
+        JSON.stringify({ q: 'agf' }),
+        epoch,
+        leaseExpired ? new Date(Date.now() - 60_000).toISOString() : new Date(Date.now() + 300_000).toISOString(),
+      ]
+    );
+    return t.rows[0]!.id;
+  }
+
+  /** Drive an artifact to READY and return its ids. */
+  async function readyArtifact(tenantId: string): Promise<{
+    opId: string;
+    taskId: string;
+    artifactId: string;
+    downloadUrl: string;
+  }> {
+    const opId = await seedOperation(tenantId);
+    const taskId = await seedTask(opId);
+    const raw = Buffer.from([0xa1, 0xb2, 0xc3, 0xd4]);
+    const grant = await requestUpload(taskId, 1);
+    const artifactId = grant.body.artifactId as string;
+    await fetch(grant.body.uploadUrl as string, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: raw,
+    });
+    await rt(`/api/runtime/v1/artifacts/${artifactId}/finalize`, 'POST', {
+      sizeBytes: raw.length,
+      sha256: sha256Hex(raw),
+      taskId,
+      leaseEpoch: 1,
+    });
+    const access = await rt(`/api/runtime/v1/artifacts/${artifactId}/access`, 'POST', {
+      taskId,
+      leaseEpoch: 1,
+      mode: 'read',
+    });
+    return { opId, taskId, artifactId, downloadUrl: access.body.downloadUrl as string };
+  }
+
+  // W-PLAT-CR28-02-ARTIFACT-GRANT-FENCING-NEGATIVE: negative + boundary cases
+  // for the four fences the packet names. Deliberately distinct from the suite's
+  // existing tests: the expired case there is an EXPIRED GRANT TOKEN, whereas
+  // here it is an EXPIRED TASK LEASE, and the two fail differently on purpose.
+  describe('CR-02 negatives: cross-tenant, lease fence, tampered tokens', () => {
+    // (1) cross-tenant fence: fail closed, and leak nothing --------------------
+    test('tenant B api-key cannot download tenant A artifact: 404, not a leak', async () => {
+      const { artifactId } = await readyArtifact(TENANT_A);
+      const res = await fetch(`${baseUrl}/api/v1/artifacts/${artifactId}/download`, {
+        headers: keyHeaders(RAW_KEY_B),
+      });
+      // 404 and not 403: a foreign tenant must not learn the artifact exists.
+      expect(res.status).toBe(404);
+    });
+
+    test('tenant B runtime token cannot PUT or GET through tenant A blob grant', async () => {
+      const { downloadUrl } = await readyArtifact(TENANT_A);
+      const asRead = await fetch(downloadUrl, {
+        headers: { authorization: `Bearer ${RUNTIME_TOKEN}` },
+      });
+      // The blob route authorises by the per-artifact grant token, so a valid
+      // runtime token is not sufficient on its own; the fence must still deny.
+      expect(asRead.status).toBe(403);
+
+      const upload = await fetch(
+        `${baseUrl}/api/runtime/v1/tasks/${randomUUID()}/artifacts`,
+        {
+          method: 'POST',
+          headers: rtHeaders(),
+          body: JSON.stringify({ leaseEpoch: 1, purpose: 'output', mimeType: 'application/octet-stream', sizeBytes: 4 }),
+        }
+      );
+      expect(upload.status).toBe(404);
+    });
+
+    // (2) expired TASK LEASE fence (distinct from an expired grant token) -----
+    test('an expired task lease refuses a NEW upload grant (409 LEASE_LOST)', async () => {
+      const opId = await seedOperation(TENANT_A);
+      const taskId = await seedTaskWithLease(opId, 1, true);
+      const grant = await requestUpload(taskId, 1);
+      expect(grant.status).toBe(409);
+      expect(grant.body.code).toBe('LEASE_LOST');
+    });
+
+    test('an expired task lease refuses a NEW read grant (409 LEASE_LOST)', async () => {
+      const opId = await seedOperation(TENANT_A);
+      const taskId = await seedTaskWithLease(opId, 1, true);
+      // Mint a grant while the lease is alive, then expire the lease underneath
+      // it: the token was legitimate at issue time but must not survive a dead
+      // lease, so the read must be refused rather than served.
+      const seeded = await seedTaskWithLease(opId, 1, false);
+      const grant = await requestUpload(seeded, 1);
+      expect(grant.status).toBe(201);
+      const raw = Buffer.from([0x11, 0x22]);
+      await fetch(grant.body.uploadUrl as string, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: raw,
+      });
+      await rt(`/api/runtime/v1/artifacts/${grant.body.artifactId as string}/finalize`, 'POST', {
+        sizeBytes: raw.length,
+        sha256: sha256Hex(raw),
+        taskId: seeded,
+        leaseEpoch: 1,
+      });
+      await app.db.query('UPDATE tasks SET lease_expires_at = now() - interval \'1 minute\' WHERE id = $1', [seeded]);
+      const access = await rt(`/api/runtime/v1/artifacts/${grant.body.artifactId as string}/access`, 'POST', {
+        taskId: seeded,
+        leaseEpoch: 1,
+        mode: 'read',
+      });
+      expect(access.status).toBe(409);
+      expect(access.body.code).toBe('LEASE_LOST');
+      void taskId;
+    });
+
+    // (3) tampered grant tokens --------------------------------------------
+    test('a tampered grant token is refused (403), never treated as valid', async () => {
+      const { downloadUrl } = await readyArtifact(TENANT_A);
+      const url = new URL(downloadUrl);
+      const real = url.searchParams.get('grant') ?? '';
+
+      for (const bad of [
+        real + 'x',
+        real.slice(0, -1),
+        real.split('').reverse().join(''),
+        '00000000-0000-4000-8000-000000000000',
+      ]) {
+        url.searchParams.set('grant', bad);
+        const res = await fetch(url.toString());
+        expect(res.status).toBe(403);
+      }
+    });
+
+    test('a missing or empty grant token is refused identically (403)', async () => {
+      const { downloadUrl } = await readyArtifact(TENANT_A);
+      const url = new URL(downloadUrl);
+      url.searchParams.delete('grant');
+      expect((await fetch(url.toString())).status).toBe(403);
+      url.searchParams.set('grant', '');
+      expect((await fetch(url.toString())).status).toBe(403);
+    });
+
+    test('a correct token on an EXPIRED artifact grant 404s, distinct from tampering 403', async () => {
+      // The distinction is the point: a WRONG token is 403 (proves the fence
+      // compared something), while a token that was RIGHT but has aged out is
+      // 404, so an expired grant is indistinguishable from one that never
+      // existed. Blurring the two would turn 404 into an existence oracle.
+      const { downloadUrl } = await readyArtifact(TENANT_A);
+      const url = new URL(downloadUrl);
+      const real = url.searchParams.get('grant') ?? '';
+      expect((await fetch(url.toString())).status).toBe(200);
+
+      await app.db.query('UPDATE artifacts SET token_expires_at = now() - interval \'1 minute\' WHERE storage_key = $1', [
+        new URL(downloadUrl).pathname.split('/artifacts/blob/')[1],
+      ]);
+      url.searchParams.set('grant', real);
+      expect((await fetch(url.toString())).status).toBe(404);
+    });
+
+    // (4) tenant mismatch on the tenant-scoped surfaces ----------------------
+    test('finalize under a foreign taskId is refused, and writes nothing', async () => {
+      const { taskId, artifactId } = await readyArtifact(TENANT_A);
+      const otherOp = await seedOperation(TENANT_B);
+      const otherTask = await seedTask(otherOp);
+      const res = await rt(`/api/runtime/v1/artifacts/${artifactId}/finalize`, 'POST', {
+        sizeBytes: 4,
+        sha256: sha256Hex(Buffer.from([0xa1, 0xb2, 0xc3, 0xd4])),
+        taskId: otherTask,
+        leaseEpoch: 1,
+      });
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('PERMISSION_DENIED');
+      void taskId;
+    });
+  });
 });

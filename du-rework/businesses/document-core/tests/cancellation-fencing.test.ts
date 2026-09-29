@@ -1,5 +1,5 @@
 import { LeaseLostError } from '@du/worker-sdk';
-import { documentCoreHandlers } from '../src/worker';
+import { documentCoreHandlers, toInternalContext } from '../src/worker';
 import { StepCheckpointManager } from '../src/pipelines/step-checkpoint';
 import { BusinessExecutionError } from '../src/types/results';
 import { TaskContext } from '../src/types/context';
@@ -98,6 +98,67 @@ describe('Cancellation & Lease-Loss Fencing at Side-Effect Boundaries (WORKLOAD-
 
       expect(fnCalled).toBe(false);
       expect(calls.stepExecutions).toBe(0);
+    });
+
+    test('fences output when lease loss arrives during the checkpoint transition', async () => {
+      const { ctx, abortController, calls } = createFencedContext();
+      let stepBodyFinished = false;
+
+      await expect(
+        StepCheckpointManager.executeWithCheckpoint(ctx, 'test:transition', { id: 'step-1' }, async () => {
+          abortController.abort('lease-lost');
+          stepBodyFinished = true;
+          return { output: 'must not be checkpointed' };
+        })
+      ).rejects.toThrow(LeaseLostError);
+
+      expect(stepBodyFinished).toBe(true);
+      expect(calls.stepExecutions).toBe(1);
+      expect(calls.artifactWrites).toBe(0);
+    });
+
+    test('treats repeated abort notifications as one fail-closed cancellation', async () => {
+      const { ctx, abortController, calls } = createFencedContext();
+      let fnCalled = false;
+      abortController.abort('cancel');
+      abortController.abort('lease-lost');
+
+      const runFencedStep = () => StepCheckpointManager.executeWithCheckpoint(ctx, 'test:repeated-abort', {}, async () => {
+        fnCalled = true;
+        return { ok: true };
+      });
+
+      await expect(runFencedStep()).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' });
+      await expect(runFencedStep()).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' });
+      expect(abortController.signal.reason).toBe('cancel');
+      expect(fnCalled).toBe(false);
+      expect(calls.stepExecutions).toBe(0);
+      expect(calls.artifactWrites).toBe(0);
+    });
+
+    test('treats a malformed cancellation reason as lease loss', () => {
+      const { ctx, abortController } = createFencedContext();
+      abortController.abort({ type: 'cancel', reason: 'user requested' });
+
+      expect(() => StepCheckpointManager.assertActive(ctx)).toThrow(LeaseLostError);
+    });
+
+    test('does not commit a streamed artifact when lease loss arrives during transfer', async () => {
+      const { ctx, abortController, calls, writtenArtifacts } = createFencedContext();
+      const internalCtx = toInternalContext(ctx);
+      const payload = Buffer.from('partially transferred result');
+      async function* interruptedChunks(): AsyncGenerator<Buffer> {
+        yield payload.subarray(0, 8);
+        abortController.abort('lease-lost');
+        yield payload.subarray(8);
+      }
+
+      await expect(
+        internalCtx.artifacts.writeStream(interruptedChunks(), 'result.txt', 'text/plain', payload.length)
+      ).rejects.toThrow(LeaseLostError);
+
+      expect(calls.artifactWrites).toBe(0);
+      expect(writtenArtifacts.size).toBe(0);
     });
   });
 

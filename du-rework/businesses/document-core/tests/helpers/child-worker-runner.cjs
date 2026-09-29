@@ -10,10 +10,11 @@ const runtimeUrl = process.env.RUNTIME_URL;
 const runtimeToken = process.env.RUNTIME_TOKEN;
 const redisUrl = process.env.REDIS_URL;
 const connectorUrl = process.env.CONNECTOR_URL;
+const connectorServiceToken = process.env.CONNECTOR_SERVICE_TOKEN;
 const workerInstanceId = process.env.WORKER_INSTANCE_ID || `child-worker-${process.pid}`;
 const holdStep = process.env.HOLD_STEP;
 
-if (!runtimeUrl || !runtimeToken || !redisUrl || !connectorUrl) {
+if (!runtimeUrl || !runtimeToken || !redisUrl || !connectorUrl || !connectorServiceToken) {
   console.error('[ChildWorkerRunner] Missing required environment variables');
   process.exit(1);
 }
@@ -50,6 +51,7 @@ startDocumentCoreWorker({
   runtimeToken,
   redis: { url: redisUrl },
   connectorUrl,
+  connectorServiceToken,
   workerInstanceId,
   concurrency: 1,
   heartbeatIntervalMs: 1000,

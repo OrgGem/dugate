@@ -4,7 +4,7 @@
 
 ## Phân quyền điều phối hiện hành
 
-- **Antigravity** là coordinator chính, chạy một chu kỳ Orca mỗi 10 phút. Chỉ đọc plan, báo cáo điều phối và trạng thái/log terminal trong Orca; không đọc hoặc sửa source code. Antigravity giữ quyền giao task và cập nhật tiến độ theo receipt. Lịch Claude Code coordinator 5 phút và các roster cũ trong `coordination/reports/` là lịch sử, không được chạy song song.
+- **Antigravity** là coordinator chính, chạy một chu kỳ Orca mỗi 30 phút. Chỉ đọc plan, báo cáo điều phối và trạng thái/log terminal trong Orca; không đọc hoặc sửa source code. Antigravity giữ quyền giao task và cập nhật tiến độ theo receipt. Lịch Claude Code coordinator 5 phút và các roster cũ trong `coordination/reports/` là lịch sử, không được chạy song song.
 - **OpenClaude** là coordinator dự phòng khi Antigravity gần hết quota hoặc gián đoạn. Chỉ nhận quyền sau khi xác nhận bàn giao Run/Task/Dispatch và trạng thái theo dõi; một thời điểm chỉ có một coordinator giao việc. OpenClaude có cùng giới hạn không đọc source code.
 - **Ba Qwen** nhận task implement/fix bug; **hai Codex khác** kiểm thử độc lập (offline và live/integration); **Claude Code** review độc lập bắt buộc sau khi module chức năng hoàn tất từ implement đến testing, đồng thời review thay đổi rủi ro cao hoặc kết quả có tranh chấp. Codex chính hỗ trợ quyết định kỹ thuật theo yêu cầu của người dùng. Các owner sửa code, contract và tài liệu kỹ thuật của lane mình; Tester chạy test.
 - Reviewer độc lập cần nêu finding theo task ID, file:line, expected/actual và bằng chứng. Coordinator giao lại finding cho đúng owner, không tự xác nhận acceptance từ lời báo của owner. Packet review cho Claude Code tuân thủ mẫu `tasks/CLAUDE-REVIEW-TEMPLATE.md`.
@@ -21,7 +21,7 @@
 
 ## Nhịp điều phối mỗi chu kỳ
 
-- **Mỗi 10 phút:** kiểm tra inbox Orca, Task/Dispatch đang chạy, trạng thái terminal và receipt. Ghi số lượt kiểm tra chưa hoàn tất theo từng Dispatch vào `coordination/agent-watch-state.json`; không đếm lại từ đầu khi session điều phối đổi.
+- **Mỗi 30 phút:** kiểm tra inbox Orca, Task/Dispatch đang chạy, trạng thái terminal và receipt. Ghi số lượt kiểm tra chưa hoàn tất theo từng Dispatch vào `coordination/agent-watch-state.json`; không đếm lại từ đầu khi session điều phối đổi.
 - **Sau 3 lượt liên tiếp chưa hoàn tất:** đọc log terminal và so với checkpoint trước. Nếu output hoặc test vẫn tiến triển, ghi nhận tiến độ và đặt lại bộ đếm. Nếu agent còn sống nhưng đứng ở prompt hoặc không tiến triển, gửi một yêu cầu `continue` nêu đúng task và yêu cầu báo blocker; ghi thời điểm gửi để tránh nhắc lặp. Nếu agent đã hỏi, trả lời câu hỏi thay vì nhắc tiếp tục. Im lặng không chứng minh process đã chết; không giao trùng task khi chưa xác minh trạng thái.
 - **Trước dispatch:** lấy danh sách thay đổi và consumer bị ảnh hưởng từ owner, xác định ID và mở packet theo `tasks/AGENT-TASK-TEMPLATE.md`. Ưu tiên giao sửa mismatch đang chặn đường đi thật trước khi thêm test slice mới.
 - **Sau handoff:** thu claim và receipt, giao owner/Tester làm consumer/contract test khi đổi wire hoặc state. Khi module hoàn tất cả implement và test, giao Claude Code thẩm định độc lập theo `tasks/CLAUDE-REVIEW-TEMPLATE.md`. Nếu phát sinh finding `HIGH`/`MEDIUM`, giao lại owner sửa; chỉ đóng `ACCEPTED` khi có verdict `APPROVED`. Không cộng các lượt chạy trùng thành số test độc lập.

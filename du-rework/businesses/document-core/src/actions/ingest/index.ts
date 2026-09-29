@@ -9,6 +9,49 @@ import { OutputValidator } from '../../validation/output-validators';
 import { DocumentFormatDetector, PdfSplitter } from '@du/document-kit';
 import { ParserBudgetHelper } from '../../pipelines/parser-budget';
 import { createHash } from 'node:crypto';
+import { CONNECTOR_ARTIFACT_MAX_BYTES, type InvocationArtifactContent } from '@du/contracts';
+
+function connectorArtifact(ctx: TaskContext, artifactId: string, source: ArtifactReadResult): InvocationArtifactContent {
+  ParserBudgetHelper.assertActiveDeadline(ctx);
+  const identity = source.identity;
+  if (!identity || !identity.storageVersionId || !identity.grantExpiresAt) {
+    throw new BusinessExecutionError(
+      'The source was read without a complete, version-pinned artifact grant',
+      'ARTIFACT_GRANT_INVALID',
+      false
+    );
+  }
+  const grantExpiresAt = Date.parse(identity.grantExpiresAt);
+  if (!Number.isFinite(grantExpiresAt) || grantExpiresAt <= Date.now()) {
+    throw new BusinessExecutionError('Artifact read grant has expired', 'ARTIFACT_GRANT_EXPIRED', false);
+  }
+  const bytes = source.buffer;
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const budget = ParserBudgetHelper.resolveParserBudget(ctx);
+  if (bytes.length < 1 || bytes.length > Math.min(budget.maxBufferSizeBytes, CONNECTOR_ARTIFACT_MAX_BYTES)) {
+    throw new BusinessExecutionError(
+      'OCR source exceeds the authorized connector size limit',
+      'DOCUMENT_TOO_LARGE',
+      false
+    );
+  }
+  if (identity.sizeBytes !== bytes.length || identity.sha256 !== digest) {
+    throw new BusinessExecutionError('Artifact bytes do not match the authorized read grant', 'ARTIFACT_INTEGRITY_MISMATCH', false);
+  }
+  const fileName = source.formatMetadata.declaredFileName ?? `artifact-${artifactId}`;
+  // The declared MIME is part of the artifact's authorized metadata; the
+  // content-derived canonical value remains the parser's validation hint.
+  const mimeType = source.formatMetadata.declaredMimeType ?? source.formatMetadata.canonicalMimeType;
+  return {
+    artifactId,
+    fileName,
+    mimeType,
+    sizeBytes: bytes.length,
+    sha256: digest,
+    storageVersionId: identity.storageVersionId,
+    contentBase64: bytes.toString('base64'),
+  };
+}
 
 export class IngestAction {
   public static validateInput(raw: unknown): IngestInput {
@@ -218,14 +261,13 @@ export class IngestAction {
         STEP_KEYS.INGEST.EXECUTE_OCR,
         { language: input.language, artifactId: sourceArtifactId },
         async () => {
-          // INGEST-WIRE-01: the Connector receives a REAL authorized artifact
-          // reference. A boolean such as hasBuffer was never evidence that the
-          // document was transmitted: the provider had no bytes, digest, or
-          // MIME type to act on. Resolving the artifact through the grant keeps
-          // foreign or expired references from reaching the provider.
+          ParserBudgetHelper.assertActiveDeadline(ctx);
+          const source = sources.artifactInputs[0];
+          if (!source) throw new BusinessExecutionError('OCR source could not be resolved', 'INGESTION_SOURCE_UNRESOLVED', false);
+          const artifact = connectorArtifact(ctx, sourceArtifactId, source);
           const invocation = await ctx.connector.invoke('ocr', {
             language: input.language,
-            artifacts: [{ artifactId: sourceArtifactId }],
+            artifacts: [artifact],
           });
 
           if (invocation.status !== 'SUCCESS') {
@@ -260,12 +302,13 @@ export class IngestAction {
         STEP_KEYS.INGEST.EXECUTE_DIGITIZE,
         { artifactId: sourceArtifactId },
         async () => {
-          // INGEST-WIRE-01: same contract as OCR. The task name alone
-          // (digitize_handwriting) never told the provider WHICH document to
-          // read; the artifact reference is the document.
+          ParserBudgetHelper.assertActiveDeadline(ctx);
+          const source = sources.artifactInputs[0];
+          if (!source) throw new BusinessExecutionError('Digitize source could not be resolved', 'INGESTION_SOURCE_UNRESOLVED', false);
+          const artifact = connectorArtifact(ctx, sourceArtifactId, source);
           const invocation = await ctx.connector.invoke('vision', {
             task: 'digitize_handwriting',
-            artifacts: [{ artifactId: sourceArtifactId }],
+            artifacts: [artifact],
           });
 
           if (invocation.status !== 'SUCCESS') {

@@ -355,8 +355,8 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         const artifactRes = await client.query(
           `SELECT tenant_id AS "tenantId", operation_id AS "operationId",
                   storage_key AS "storageKey", storage_backend AS "storageBackend",
-                  file_name AS "fileName", mime_type AS "mimeType", size_bytes AS "sizeBytes",
-                  sha256,
+                  storage_version_id AS "storageVersionId", file_name AS "fileName", mime_type AS "mimeType",
+                  size_bytes AS "sizeBytes", sha256,
                   state, task_id AS "taskId", purpose
            FROM artifacts WHERE id=$1 FOR UPDATE`,
           [artifactId]
@@ -367,6 +367,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           operationId: string | null;
           storageKey: string;
           storageBackend?: string;
+          storageVersionId?: string | null;
           fileName?: string | null;
           mimeType?: string;
           sizeBytes?: number | string | null;
@@ -379,6 +380,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
         const sameTenant = art.tenantId === task.tenantId;
         const sameOperation = sameTenant && art.operationId === task.operationId;
+        let readVersionId: string | undefined;
         if (req.mode === 'read') {
           // Parent and child tasks share an operation id. Cross-operation reads
           // require an exact submit_artifacts reference from this operation;
@@ -392,6 +394,17 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
             throw conflict('PERMISSION_DENIED', 'task is not authorized to read artifact');
           }
           if (art.state !== 'READY') throw conflict('STATE_CONFLICT', 'artifact is not READY');
+          readVersionId = art.storageVersionId ??
+            ((art.storageBackend ?? 'postgres') === 'postgres' ? art.sha256 ?? undefined : undefined);
+          if (
+            !readVersionId ||
+            ((art.storageBackend ?? 'postgres') === 's3' && readVersionId === 'null') ||
+            !art.sha256 ||
+            art.sizeBytes === null ||
+            art.sizeBytes === undefined
+          ) {
+            throw conflict('STATE_CONFLICT', 'artifact has no immutable version and integrity metadata');
+          }
         } else {
           // Write grants remain producer-scoped even when another task shares
           // the operation; STAGING is the only mutable artifact state.
@@ -421,6 +434,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
             ? undefined
             : Number(art.sizeBytes);
           grant.sha256 = art.sha256 ?? undefined;
+          grant.storageVersionId = readVersionId;
         } else {
           if ((art.storageBackend ?? 'postgres') === 's3') {
             try {

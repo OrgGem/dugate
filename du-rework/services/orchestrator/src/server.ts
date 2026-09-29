@@ -4,7 +4,13 @@ import { pipeline } from 'node:stream/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import {
+  decryptStoredArtifact,
+  type ArtifactDecryptDeps,
+  type StoredObjectReader,
+  type StoredObjectMetadata,
+} from './modules/encryption/artifact-read-decrypt';
 import { errorClassOf, safeInternalErrorProblem, zodIssuesToProblem } from './http/errors';
 import { Db, createDb } from './db/db';
 import { migrate, verifyMigrations } from './db/migrations';
@@ -32,6 +38,8 @@ import {
 } from './modules/artifacts/multipart-service';
 import { createS3ArtifactStorageFacade } from './modules/artifacts/s3-storage-facade';
 import { CryptoStorageFacade } from './modules/encryption/crypto-storage-facade';
+import { adaptKeyProviderForMetadata } from './modules/encryption/metadata-key-adapter';
+import { createMetadataCrypto } from './modules/runtime/metadata-crypto';
 import type { KeyProvider } from './modules/encryption/vault-transit-provider';
 import { createGrantService, type GrantService } from './modules/grants/grants';
 import { createLifecycleService } from './modules/lifecycle/lifecycle';
@@ -144,6 +152,79 @@ import {
 } from './app/admin/crypto-config-view-models';
 import { parseCookieHeader, verifyCookie } from './app/admin/shell-auth';
 import type { RecipientKeyRegistry } from './modules/encryption/recipient-key-registry';
+
+const MAX_DECRYPT_BYTES = 64 * 1024 * 1024;
+const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
+
+async function readStreamBounded(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for await (const chunk of stream) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
+      total += buf.length;
+      if (total > maxBytes) {
+        throw new HttpError(413, 'TOO_LARGE', 'artifact exceeds the encrypted delivery size limit');
+      }
+      chunks.push(buf);
+    }
+  } catch (err) {
+    stream.destroy();
+    throw err;
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * CR28-01: S3 adapter for the authenticated artifact read path.
+ *
+ * `StoredObjectReader` is deliberately narrow so the decrypt module is testable
+ * without an S3 client; this is the only place that knows about the SDK. It
+ * mirrors the manifest layout the public upload gateway writes: the sidecar key
+ * comes from the ciphertext object's own `du-manifest-key` metadata and is
+ * re-derived and compared by the module, so a swapped pointer is refused
+ * rather than followed.
+ */
+function s3StoredObjectReader(client: S3Client, bucket: string): StoredObjectReader {
+  return {
+    async head(storageKey: string): Promise<StoredObjectMetadata | null> {
+      try {
+        const head = (await client.send(new HeadObjectCommand({ Bucket: bucket, Key: storageKey }))) as {
+          Metadata?: Record<string, string>;
+        };
+        return head.Metadata ?? {};
+      } catch (error) {
+        if (isNotFoundStorageError(error)) return null;
+        throw error;
+      }
+    },
+    async read(storageKey: string): Promise<Buffer> {
+      const output = (await client.send(new GetObjectCommand({ Bucket: bucket, Key: storageKey }))) as {
+        Body?: unknown;
+      };
+      return await readStreamBounded(output.Body as Readable, MAX_DECRYPT_BYTES);
+    },
+    async readManifest(manifestKey: string): Promise<unknown> {
+      const output = (await client.send(new GetObjectCommand({ Bucket: bucket, Key: manifestKey }))) as {
+        Body?: unknown;
+      };
+      const raw = await readStreamBounded(output.Body as Readable, MAX_MANIFEST_BYTES);
+      try {
+        return JSON.parse(raw.toString('utf8')) as unknown;
+      } catch {
+        throw new HttpError(503, 'STORAGE_FAILURE', 'encrypted artifact manifest is not valid JSON');
+      }
+    },
+  };
+}
+
+function isNotFoundStorageError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+  return e.name === 'NotFound' || e.name === 'NoSuchKey' || e.Code === 'NoSuchKey'
+    || e.$metadata?.httpStatusCode === 404;
+}
+
 
 export interface ServerConfig {
   port: number;
@@ -317,6 +398,22 @@ export interface ServerConfig {
     keyVersion?: number;
     maxBytes?: number;
   };
+  /**
+   * Delta 61: Vault-backed encryption for CONTROL-PLANE metadata (the slots
+   * the runtime already seals: operations.input_ref, tasks.payload_ref,
+   * human_waits.response_ref, step_checkpoints.output_ref). Absent means those
+   * columns keep their plaintext behaviour, which stays supported.
+   *
+   * Deliberately a separate block from `publicUploadEncryption` even though both
+   * wrap a DEK: different key refs, different columns, different blast radius.
+   * One shared flag would mean turning on artifact encryption also silently
+   * starts rewriting control-plane rows, which is not a decision to get by
+   * accident.
+   */
+  metadataEncryption?: {
+    keyProvider: KeyProvider;
+    keyRef: string;
+  };
 }
 
 export async function createApp(config: ServerConfig) {
@@ -420,7 +517,20 @@ export async function createApp(config: ServerConfig) {
   });
   // MM-05: the runtime owns sweepQueueIntegrity; getQueue is a hoisted
   // function declaration below, so a lazy accessor keeps creation order free.
-  const runtime = createRuntimeService(db, { getQueue: (name) => getQueue(name) });
+  // Delta 61: build the metadata crypto seam. Optional on purpose: with no
+  // metadataEncryption config this is undefined and every control-plane column
+  // keeps its pre-delta plaintext behaviour.
+  const metadataCrypto = config.metadataEncryption
+    ? createMetadataCrypto(
+        adaptKeyProviderForMetadata(config.metadataEncryption.keyProvider),
+        config.metadataEncryption.keyRef,
+      )
+    : undefined;
+  const runtime = createRuntimeService(
+    db,
+    { getQueue: (name) => getQueue(name) },
+    metadataCrypto,
+  );
   const usage = createUsageService(db);
   // One facade instance serves both upload branches: the single-PUT grants
   // and the multipart lifecycle must pin and verify the same generations.
@@ -437,6 +547,21 @@ export async function createApp(config: ServerConfig) {
     storage: s3StorageFacade,
     ...config.multipartLimits,
   });
+  // CR28-01: the read side of the same encryption the public upload gateway
+  // writes. One facade instance is shared with the gateway on purpose: the AAD
+  // is rebuilt from the context on decrypt, and two facades with two different
+  // key providers would make the two halves disagree about what was sealed.
+  // Absent when the deployment is not on S3 or has no public-upload encryption
+  // configured, in which case every stored object is plaintext.
+  const s3CryptoStorageFacade: CryptoStorageFacade | null =
+    s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption
+      ? new CryptoStorageFacade(config.publicUploadEncryption.keyProvider)
+      : null;
+  const artifactDecryptDeps: ArtifactDecryptDeps | null =
+    s3Client && storageConfig.backend === 's3' && s3CryptoStorageFacade
+      ? { reader: s3StoredObjectReader(s3Client, storageConfig.bucket), facade: s3CryptoStorageFacade }
+      : null;
+
   const publicUploadGateway: PublicUploadGateway | null =
     s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption
       ? createPublicUploadGateway({
@@ -658,6 +783,7 @@ export async function createApp(config: ServerConfig) {
         artifacts,
         multipart,
         publicUploadGateway,
+        artifactDecryptDeps,
         grants,
         connectors,
         lifecycle,
@@ -855,19 +981,21 @@ export type App = Awaited<ReturnType<typeof createApp>>;
 async function resolveArtifactByStorageKey(
   ctx: RouteContext,
   storageKey: string
-): Promise<{ token: string; tenantId: string; mode: string | null; expiresAt: string | null; businessId: string | null }> {
+): Promise<{ id: string; token: string; tenantId: string; mode: string | null; expiresAt: string | null; businessId: string | null; uploadToken: string | null }> {
   const res = await ctx.db.query(
-    `SELECT a.token, a.tenant_id, a.token_mode, a.token_expires_at, o.business_id
+    `SELECT a.id, a.upload_token, a.token, a.tenant_id, a.token_mode, a.token_expires_at, o.business_id
      FROM artifacts a LEFT JOIN operations o ON o.id=a.operation_id
      WHERE a.storage_key=$1`,
     [storageKey]
   );
   if (!res.rowCount) throw new HttpError(404, 'NOT_FOUND', `artifact ${storageKey} not found`);
   const row = res.rows[0] as {
-    token: string; tenant_id: string; token_mode: string | null;
+    id: string; upload_token: string | null; token: string; tenant_id: string; token_mode: string | null;
     token_expires_at: string | null; business_id: string | null;
   };
   return {
+    id: row.id,
+    uploadToken: row.upload_token,
     token: row.token,
     tenantId: row.tenant_id,
     mode: row.token_mode,
@@ -1051,6 +1179,8 @@ export interface RouteContext {
   credentialWorkflow: CredentialWorkflow | undefined;
   /** ENC-07: delivery encryption service; null when no tenant policy exists. */
   deliveryEncryption: DeliveryEncryptionService | null;
+  /** CR28-01: authenticated read of a sealed artifact; null when not on S3 crypto. */
+  artifactDecryptDeps: ArtifactDecryptDeps | null;
   /** ENC-08: crypto-configuration service options; null when not configured. */
   cryptoConfig: CryptoConfigServiceOptions | null;
   config: ServerConfig;
@@ -1408,6 +1538,25 @@ export async function route(ctx: RouteContext): Promise<{
         return { status: 204, body: undefined };
       }
       if (method === 'GET') {
+        // CR28-01: a sealed artifact must be authenticated and opened BEFORE
+        // a worker sees it. Handing the worker ciphertext would make the task
+        // fail deep inside a parser with no signal that the storage layer was
+        // the cause, so the decrypt happens here, on the serving boundary.
+        if (ctx.artifactDecryptDeps) {
+          const opened = await decryptStoredArtifact(ctx.artifactDecryptDeps, {
+            artifactId: art.id as string,
+            tenantId: art.tenantId as string,
+            storageKey: m[1]!,
+            uploadToken: (art.uploadToken as string | null) ?? null,
+          });
+          if (opened.decrypted) {
+            return {
+              status: 200,
+              raw: Readable.from([opened.bytes]),
+              headers: { 'content-type': 'application/octet-stream' },
+            };
+          }
+        }
         const stream = await ctx.artifacts.getBlob(m[1]!);
         return { status: 200, raw: stream, headers: { 'content-type': 'application/octet-stream' } };
       }
@@ -1732,24 +1881,12 @@ function deliveryEncryptionHttpError(err: DeliveryEncryptionError): HttpError {
  * request fails closed with 413 - a large artifact is a real limit, not a
  * reason to fall back to plaintext.
  */
-async function readStreamBounded(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  try {
-    for await (const chunk of stream) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-      total += buf.length;
-      if (total > maxBytes) {
-        throw new HttpError(413, 'TOO_LARGE', 'artifact exceeds the encrypted delivery size limit');
-      }
-      chunks.push(buf);
-    }
-  } catch (err) {
-    stream.destroy();
-    throw err;
-  }
-  return Buffer.concat(chunks);
-}
+
+
+
+const MAX_DECRYPT_BYTES = 64 * 1024 * 1024;
+const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
+
 
 /**
  * ENC-07: wrap a response payload in the delivery envelope when the tenant
@@ -1874,7 +2011,7 @@ async function encryptedDeliveryBody(
     if (m && method === 'GET') {
       const apiKey = await resolveApiKey(ctx);
       const res = await ctx.db.query(
-        `SELECT a.state, a.mime_type, a.tenant_id, a.storage_key
+        `SELECT a.state, a.mime_type, a.tenant_id, a.storage_key, a.upload_token
          FROM artifacts a
          WHERE a.id = $1 AND a.tenant_id = $2
            AND a.purpose IN ('input', 'output')
@@ -1896,11 +2033,24 @@ async function encryptedDeliveryBody(
       if (!res.rowCount) throw new HttpError(404, 'NOT_FOUND', `artifact ${m[1]} not found`);
       const row = res.rows[0] as {
         state: string; mime_type: string; tenant_id: string; storage_key: string;
+        upload_token: string | null;
       };
       if (row.state !== 'READY') {
         throw new HttpError(409, 'STATE_CONFLICT', `artifact ${m[1]} is ${row.state}, not READY`);
       }
-      const stream = await ctx.artifacts.getBlob(row.storage_key);
+      // CR28-01: the payload may be sealed at rest. Decrypt BEFORE deciding
+      // how to deliver it, so neither branch can hand a caller ciphertext:
+      // the plaintext branch would label ciphertext as the document, and the
+      // encrypted-delivery branch would double-wrap it for the recipient.
+      const stored = ctx.artifactDecryptDeps
+        ? await decryptStoredArtifact(ctx.artifactDecryptDeps, {
+            artifactId: m[1]!,
+            tenantId: apiKey.tenantId,
+            storageKey: row.storage_key,
+            uploadToken: row.upload_token,
+          })
+        : null;
+      const stream = stored ? Readable.from([stored.bytes]) : await ctx.artifacts.getBlob(row.storage_key);
       // ENC-07: the same server-side policy that governs /result governs the
       // bytes here. Wrapping only the metadata and streaming raw bytes
       // underneath it would leave the payload - the part that matters - in
@@ -2677,8 +2827,6 @@ export {
   type AdminPrincipal,
 } from './modules/admin-actions/rbac';
 
-
-
 /**
  * ADM-BASE-03 (RFC7807 error boundary; CX3 W43-R13 High security
  * carry-forward): unexpected exceptions (DB driver errors, service bugs)
@@ -3283,7 +3431,6 @@ async function listOperationsPage(
   }) satisfies OperationsListPage;
 }
 
-
 /* ------------------------------------------------------------------ */
 /* ADM-UX-02 extension (W-ADMUX02-EXT-1): audit + api-keys list pages  */
 /* ------------------------------------------------------------------ */
@@ -3881,6 +4028,7 @@ async function listAuditEventPage(
     limit: query.limit,
   });
 }
+
 
 interface AuditWireRow {
   id: string;

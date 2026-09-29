@@ -234,6 +234,8 @@ export const ArtifactAccessGrantSchema = z.object({
   mimeType: z.string().optional(),
   sizeBytes: z.number().int().min(0).optional(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  /** Immutable object generation (S3 version ID or PostgreSQL content hash). */
+  storageVersionId: z.string().min(1).max(1024).optional(),
   /**
    * W-ENC-04-GRANT-SCHEMA (delta 57 item 1): present only when the object at
    * `downloadUrl` is CIPHERTEXT. Absent means the bytes are plaintext and must
@@ -378,6 +380,11 @@ export const InvocationGrantRequestSchema = LeaseBoundRequestSchema.extend({
   stepKey: z.string().min(1),
   bindingSlot: z.string().min(1),
   inputHash: z.string().min(1),
+  artifactIds: z.array(z.string().uuid()).max(4).default([]),
+}).superRefine((request, context) => {
+  if (new Set(request.artifactIds).size !== request.artifactIds.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifactIds'], message: 'Artifact IDs must be unique.' });
+  }
 });
 export type InvocationGrantRequest = z.infer<typeof InvocationGrantRequestSchema>;
 

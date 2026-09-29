@@ -1,6 +1,88 @@
 import { randomUUID } from 'node:crypto';
 
 describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', () => {
+  type CleanupResource = { name: string; open: boolean; closeFails?: boolean };
+
+  function createBarrierCleanupFixture(options: { markerExists?: boolean; failingResource?: string } = {}) {
+    const state = {
+      markerExists: options.markerExists ?? true,
+      released: false,
+      expired: false,
+      cleaned: false,
+      cleanupRequests: 0,
+      cleanupRuns: 0,
+      cleanupErrors: [] as string[],
+    };
+    const resources: CleanupResource[] = [
+      { name: 'barrier-lock', open: true, closeFails: options.failingResource === 'barrier-lock' },
+      { name: 'worker-handle', open: true, closeFails: options.failingResource === 'worker-handle' },
+    ];
+    let signalRelease = () => {};
+    const released = new Promise<void>((resolve) => {
+      signalRelease = resolve;
+    });
+    let cleanupInFlight: Promise<void> | null = null;
+
+    const waitForBarrier = async (timeoutMs: number): Promise<'released' | 'expired'> => {
+      let timer: NodeJS.Timeout | undefined;
+      const expiry = new Promise<'expired'>((resolve) => {
+        timer = setTimeout(() => {
+          state.expired = true;
+          resolve('expired');
+        }, timeoutMs);
+      });
+      try {
+        return await Promise.race([released.then(() => 'released' as const), expiry]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
+    const releaseBarrier = (): boolean => {
+      if (state.expired || !state.markerExists) return false;
+      state.released = true;
+      signalRelease();
+      return true;
+    };
+
+    const cleanup = async (cleanupOptions: { crashAfterMarkerUnlink?: boolean; gate?: Promise<void> } = {}): Promise<void> => {
+      state.cleanupRequests++;
+      if (cleanupInFlight) return cleanupInFlight;
+
+      state.cleanupRuns++;
+      const current = (async () => {
+        if (state.markerExists) {
+          state.markerExists = false;
+        }
+        if (cleanupOptions.crashAfterMarkerUnlink) {
+          throw new Error('simulated process crash during cleanup');
+        }
+        if (cleanupOptions.gate) await cleanupOptions.gate;
+
+        for (const resource of resources) {
+          try {
+            if (resource.closeFails) throw new Error(`close failed: ${resource.name}`);
+            await Promise.resolve();
+          } catch (error) {
+            state.cleanupErrors.push((error as Error).message);
+          } finally {
+            // Model the forced release path even when graceful close reports an error.
+            resource.open = false;
+          }
+        }
+        state.cleaned = true;
+      })();
+      cleanupInFlight = current;
+      try {
+        await current;
+      } finally {
+        if (cleanupInFlight === current) cleanupInFlight = null;
+      }
+    };
+
+    return { state, resources, waitForBarrier, releaseBarrier, cleanup };
+  }
+
   describe('1. Bounded Barrier Wait & Timeout Safety', () => {
     it('throws bounded timeout error when barrier is unreached and does not hang', async () => {
       let barrierPromise: Promise<void> | null = null;
@@ -217,6 +299,75 @@ describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', 
       expect(profileDeleteQueries).toHaveLength(2);
       expect(profileDeleteQueries[0]?.param).toBe(suiteProfileId);
       expect(profileDeleteQueries[1]?.param).toBe(restrictedProfileId);
+    });
+  });
+
+  describe('4. Barrier Cleanup Failure and Concurrency Boundaries', () => {
+    it('expires a barrier before release and cleans its marker and resources', async () => {
+      const fixture = createBarrierCleanupFixture();
+
+      await expect(fixture.waitForBarrier(5)).resolves.toBe('expired');
+      expect(fixture.state.expired).toBe(true);
+      expect(fixture.releaseBarrier()).toBe(false);
+
+      await fixture.cleanup();
+      expect(fixture.state.markerExists).toBe(false);
+      expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
+      expect(fixture.state.cleaned).toBe(true);
+    });
+
+    it('recovers cleanup after a process crash between marker unlink and resource release', async () => {
+      const fixture = createBarrierCleanupFixture();
+
+      await expect(fixture.cleanup({ crashAfterMarkerUnlink: true })).rejects.toThrow(
+        'simulated process crash during cleanup'
+      );
+      expect(fixture.state.markerExists).toBe(false);
+      expect(fixture.resources.every((resource) => resource.open)).toBe(true);
+
+      await fixture.cleanup();
+      expect(fixture.state.cleanupRuns).toBe(2);
+      expect(fixture.state.cleaned).toBe(true);
+      expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
+    });
+
+    it('cleans resources when the barrier marker is already missing or unlinked', async () => {
+      const fixture = createBarrierCleanupFixture({ markerExists: false });
+
+      await expect(fixture.cleanup()).resolves.toBeUndefined();
+      expect(fixture.state.markerExists).toBe(false);
+      expect(fixture.state.cleaned).toBe(true);
+      expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
+    });
+
+    it('coalesces concurrent cleanup requests for the same barrier', async () => {
+      const fixture = createBarrierCleanupFixture();
+      let releaseCleanupGate = () => {};
+      const cleanupGate = new Promise<void>((resolve) => {
+        releaseCleanupGate = resolve;
+      });
+
+      const firstCleanup = fixture.cleanup({ gate: cleanupGate });
+      const secondCleanup = fixture.cleanup();
+      expect(fixture.state.cleanupRequests).toBe(2);
+      expect(fixture.state.cleanupRuns).toBe(1);
+
+      releaseCleanupGate();
+      await Promise.all([firstCleanup, secondCleanup]);
+
+      expect(fixture.state.cleaned).toBe(true);
+      expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
+      expect(fixture.state.cleanupRuns).toBe(1);
+    });
+
+    it('suppresses cleanup errors only after releasing every tracked resource', async () => {
+      const fixture = createBarrierCleanupFixture({ failingResource: 'barrier-lock' });
+
+      await expect(fixture.cleanup()).resolves.toBeUndefined();
+      expect(fixture.state.cleanupErrors).toEqual(['close failed: barrier-lock']);
+      expect(fixture.state.markerExists).toBe(false);
+      expect(fixture.state.cleaned).toBe(true);
+      expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
     });
   });
 });

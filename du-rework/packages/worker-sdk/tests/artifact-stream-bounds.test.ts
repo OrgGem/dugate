@@ -126,6 +126,7 @@ describe('openArtifactStream explicit stream buffer bounds (DATA-04)', () => {
     [-1, 'negative'],
     [1024 * 1024 + 1, 'past the 1 MiB cap'],
     [1.5, 'fractional'],
+    [0.5, 'fractional below one'],
     [Number.NaN, 'NaN'],
     [Number.MAX_SAFE_INTEGER + 1, 'unsafe integer'],
   ])('refuses a highWaterMarkBytes that is %p (%s) before touching the network', async (hwm) => {
@@ -156,6 +157,18 @@ describe('openArtifactStream explicit stream buffer bounds (DATA-04)', () => {
       openArtifactStream(URL_OK, { maxBytes: maxBytes as number, fetcher })
     ).rejects.toMatchObject({ code: 'TOO_LARGE', status: 0 });
     expect(called).toBe(false);
+  });
+
+  it('allows a zero-byte stream limit but rejects the first byte', async () => {
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 0,
+      fetcher: mockFetcher([new Uint8Array([0x61])], counter, captured),
+    });
+
+    await expect(drain(stream)).rejects.toMatchObject({ code: 'TOO_LARGE', status: 413 });
+    expect(counter.pulled).toBe(1);
   });
 });
 
@@ -214,6 +227,26 @@ describe('openArtifactStream byte-limit watchdog (DATA-04)', () => {
     expect(counter.cancelled).toBe(true);
   });
 
+  it('rejects the first byte past an exact stream-size boundary and cancels the source', async () => {
+    const chunks = [
+      new Uint8Array(512).fill(0x61),
+      new Uint8Array(1).fill(0x62),
+      ...makeChunks(100, 1024, 0x63),
+    ];
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 512,
+      fetcher: mockFetcher(chunks, counter, captured),
+    });
+
+    await expect(async () => drain(stream)).rejects.toMatchObject({ code: 'TOO_LARGE', status: 413 });
+    // The violating byte is in the second chunk; buffered read-ahead may pull
+    // a few more chunks, but the source must stop before its remaining body.
+    expect(counter.pulled).toBeLessThan(chunks.length);
+    expect(counter.cancelled).toBe(true);
+  });
+
   it('fails a body that ends short of expectedSizeBytes as SIZE_MISMATCH at end of stream', async () => {
     const chunks = makeChunks(3, 100);
     const counter: PullCounter = { pulled: 0, cancelled: false };
@@ -228,6 +261,59 @@ describe('openArtifactStream byte-limit watchdog (DATA-04)', () => {
     }).rejects.toMatchObject({ code: 'SIZE_MISMATCH', status: 422 });
   });
 
+  it('rejects a socket hang-up during chunk read after delivering only part of the stream', async () => {
+    let pulls = 0;
+    let receivedBytes = 0;
+    let releaseTruncation: (() => void) | undefined;
+    const firstChunkRead = new Promise<void>((resolve) => { releaseTruncation = resolve; });
+    const socketError = Object.assign(new Error('socket hang up during chunk read'), { code: 'ECONNRESET' });
+    const fetcher: SdkFetcher = async () => {
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (pulls === 0) {
+            pulls += 1;
+            controller.enqueue(new Uint8Array(128).fill(0x61));
+            return;
+          }
+          if (pulls === 1) {
+            pulls += 1;
+            void firstChunkRead.then(() => controller.error(socketError));
+          }
+        },
+      });
+      return new Response(body) as unknown as Response;
+    };
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 1024,
+      expectedSizeBytes: 256,
+      fetcher,
+    });
+
+    await expect(async () => {
+      for await (const chunk of stream) {
+        receivedBytes += (chunk as Buffer).length;
+        releaseTruncation?.();
+      }
+    }).rejects.toMatchObject({ code: 'ECONNRESET' });
+    expect(receivedBytes).toBe(128);
+    expect(pulls).toBe(2);
+  });
+
+  it('fails closed when the socket closes before response headers arrive', async () => {
+    let fetchCalled = false;
+    const socketError = Object.assign(new Error('socket closed before headers'), { code: 'ECONNRESET' });
+    const fetcher: SdkFetcher = async () => {
+      fetchCalled = true;
+      throw socketError;
+    };
+
+    await expect(openArtifactStream(URL_OK, { maxBytes: 1024, fetcher })).rejects.toMatchObject({
+      code: 'TRANSPORT_FAILURE',
+      status: 0,
+    });
+    expect(fetchCalled).toBe(true);
+  });
+
   it('fails digest drift as HASH_MISMATCH before reporting success', async () => {
     const chunks = makeChunks(4, 256);
     const counter: PullCounter = { pulled: 0, cancelled: false };
@@ -240,6 +326,22 @@ describe('openArtifactStream byte-limit watchdog (DATA-04)', () => {
     await expect(async () => {
       await drain(stream);
     }).rejects.toMatchObject({ code: 'HASH_MISMATCH', status: 422 });
+  });
+
+  it('detects chunks delivered out of order with the expected digest', async () => {
+    const ordered = makeChunks(4, 256);
+    const reordered = [...ordered].reverse();
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 1 << 20,
+      expectedSha256: sha256Of(ordered),
+      expectedSizeBytes: totalBytes(ordered),
+      fetcher: mockFetcher(reordered, counter, captured),
+    });
+
+    await expect(async () => drain(stream)).rejects.toMatchObject({ code: 'HASH_MISMATCH', status: 422 });
+    expect(counter.pulled).toBe(ordered.length);
   });
 
   it('streams a fully verified bounded read with every chunk pulled exactly once', async () => {
@@ -285,6 +387,32 @@ describe('openArtifactStream abort propagation (DATA-04)', () => {
     expect(captured.signal?.aborted).toBe(true);
     expect(counter.cancelled).toBe(true);
     expect(counter.pulled).toBeLessThan(50);
+  });
+
+  it('aborts an unread upstream stream when its output is backpressured', async () => {
+    const chunks = makeChunks(256, 4096);
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const outer = new AbortController();
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 2 << 20,
+      highWaterMarkBytes: 1024,
+      signal: outer.signal,
+      fetcher: mockFetcher(chunks, counter, captured),
+    });
+    const streamError = new Promise<Error>((resolve) => stream.once('error', resolve));
+
+    for (let i = 0; i < 4; i += 1) await settle();
+    expect(counter.pulled).toBeGreaterThan(0);
+    expect(counter.pulled).toBeLessThan(chunks.length);
+    outer.abort();
+
+    const error = await streamError;
+    for (let i = 0; i < 4; i += 1) await settle();
+    expect(error).toMatchObject({ code: 'TRANSPORT_FAILURE', status: 0 });
+    expect(captured.signal?.aborted).toBe(true);
+    expect(counter.cancelled).toBe(true);
+    expect(counter.pulled).toBeLessThan(chunks.length);
   });
 
   it('never transfers bytes when the caller signal is already aborted at open', async () => {
@@ -334,5 +462,33 @@ describe('openArtifactStream abort propagation (DATA-04)', () => {
     for (let i = 0; i < 4; i += 1) await settle();
     expect(captured.signal?.aborted).toBe(false);
     expect(counter.pulled).toBe(16);
+  });
+
+  it('preserves every byte exactly once during rapid pause/resume backpressure', async () => {
+    const chunks = makeChunks(64, 256);
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: totalBytes(chunks),
+      expectedSha256: sha256Of(chunks),
+      expectedSizeBytes: totalBytes(chunks),
+      highWaterMarkBytes: 256,
+      fetcher: mockFetcher(chunks, counter, captured),
+    });
+    const observed: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      stream.on('data', (chunk: Buffer) => {
+        observed.push(Buffer.from(chunk));
+        stream.pause();
+        setImmediate(() => stream.resume());
+      });
+      stream.once('end', resolve);
+      stream.once('error', reject);
+      stream.resume();
+    });
+
+    expect(Buffer.concat(observed)).toEqual(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))));
+    expect(counter.pulled).toBe(chunks.length);
+    expect(counter.cancelled).toBe(false);
   });
 });

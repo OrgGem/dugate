@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { ConnectorError } from './errors';
 import type { GrantClaims, LocalInvocationRequest } from './types';
+import { assertArtifactGrantBindings } from './artifact-content';
 
 export interface GrantVerifier {
   verify(token: string): Promise<GrantClaims>;
@@ -32,6 +33,7 @@ export async function validateGrant(
   if (!expected.every(Boolean)) {
     throw new ConnectorError('BINDING_DENIED', 'Invocation grant binding is invalid.');
   }
+  assertArtifactGrantBindings(request.input.artifacts, claims.artifactIds, claims.artifactPins);
   return claims;
 }
 
@@ -53,6 +55,7 @@ export function validateGrantClaims(
   ) {
     throw new ConnectorError('BINDING_DENIED', 'Invocation grant binding is invalid.');
   }
+  assertArtifactGrantBindings(request.input.artifacts, claims.artifactIds, claims.artifactPins);
   return claims;
 }
 

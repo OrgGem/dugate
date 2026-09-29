@@ -10,6 +10,7 @@ import {
   type IngestionReceipt,
 } from '@du/contracts';
 import { normalizeCorrelationId } from '@du/observability';
+import type { MetadataCrypto } from '../runtime/metadata-crypto';
 import { Db } from '../../db/db';
 import { RegistryService } from '../registry/registry';
 import { ProfileService, renderPinnedBindings } from '../profiles/profiles';
@@ -68,6 +69,17 @@ export interface SubmissionServiceOptions {
    * fail-closed: treated as non-s3.
    */
   storageBackend?: 'postgres' | 's3';
+
+  /**
+   * CR28-04: seal `operations.input_ref` / `tasks.payload_ref` before the
+   * writing transaction opens, so tenant content never rests as plaintext.
+   *
+   * Optional, exactly like the runtime seam: absent means the deployment has
+   * control-plane encryption OFF and every statement below is byte-identical to
+   * the historical body. It is a seam, NOT a policy: this module never
+   * decides whether a key is required.
+   */
+  metadataCrypto?: MetadataCrypto;
 }
 
 // W-DATA01-S3-FACADE-1 (Δ14): the receipt shape is no longer a private copy of
@@ -84,6 +96,34 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 const DEFAULT_MAX_BLOB_BYTES = 64 * 1024 * 1024;
 const ARTIFACT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * CR28-04: seal a submit-side control-plane value.
+ *
+ * Mirrors the runtime seam's `sealMetadata` (runtime.ts:206) rather than
+ * importing it, because that helper is module-private and importing across
+ * operations -> runtime would invert the dependency the modules currently
+ * have. The duplication is three lines on purpose: if the two ever diverge,
+ * the cross-check test in runtime-encryption-metadata.test.ts fails, because
+ * an envelope written by one and opened by the other must still agree.
+ */
+export async function sealSubmitMetadata(
+  crypto: MetadataCrypto | undefined,
+  value: string,
+  tenantId: string,
+  slot: 'operations.input_ref' | 'tasks.payload_ref',
+  refId: string
+): Promise<string> {
+  if (!crypto) return value;
+  // The COLUMN VALUE is returned ready to bind, not the envelope object. The
+  // caller passes the result straight through as a query parameter, and these
+  // are jsonb columns: jsonb needs a JSON text, so the envelope is serialised
+  // HERE. Doing it at the call site instead is what produced a double-encoded
+  // value when the seam is off (`JSON.stringify` applied to an already
+  // stringified envelope) - a silent change to the stored payload on exactly
+  // the deployments that never opted in.
+  return JSON.stringify(await crypto.seal(value, { tenantId, slot, refId }));
+}
+
 export function createSubmissionService(
   db: Db,
   registry: RegistryService,
@@ -97,6 +137,8 @@ export function createSubmissionService(
   // W-INGEST-PG-FAILCLOSED-1 fail-closed default: an unwired deployment
   // cannot accept URL work it has no store to materialize into.
   const storageBackend = options.storageBackend ?? 'postgres';
+  // CR28-04: optional seam; absent = plaintext, historical statements.
+  const metadataCrypto = options.metadataCrypto;
 
   return {
     async submit(ctx: SubmitContext): Promise<SubmitResult> {
@@ -191,6 +233,26 @@ export function createSubmissionService(
       const deliveryId = randomUUID();
       const ttlSeconds = ctx.idempotencyTtlSeconds ?? 24 * 3600;
 
+      // CR28-04: seal BEFORE the writing transaction, not inside it. Two
+      // reasons, both load-bearing:
+      //  1. A key-provider failure must abort the submit with nothing written.
+      //     Sealing inside the tx would still roll back, but it would hold a
+      //     write transaction open across a network call to Vault.
+      //  2. The AAD binds each envelope to its OWN row (operationId for
+      //     input_ref, rootTaskId for payload_ref), which is why these cannot
+      //     be one shared value even though both derive from `submission`.
+      // The SEALED value replaces the plaintext string in the column, so the
+      // stored shape is unchanged for a reader that knows the seam is on: the
+      // jsonb column still holds JSON, just an envelope instead of the input.
+      const inputRefJson = JSON.stringify(submission.input);
+      const taskPayloadJson = JSON.stringify(
+        submission.sourceUrl
+          ? { input: submission.input, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' }
+          : submission.input
+      );
+      const sealedInputRef = await sealSubmitMetadata(metadataCrypto, inputRefJson, ctx.tenantId, 'operations.input_ref', operationId);
+      const sealedTaskPayload = await sealSubmitMetadata(metadataCrypto, taskPayloadJson, ctx.tenantId, 'tasks.payload_ref', rootTaskId);
+
       const created = await db.tx(async (client) => {
         // Recheck under row locks inside the write transaction so an artifact
         // cannot expire or leave READY between preflight validation and the
@@ -234,7 +296,7 @@ export function createSubmissionService(
             canonicalAction,
             submission.sourceUrl ? 'PENDING_INGESTION' : 'ACCEPTED',
             rootTaskId,
-            JSON.stringify(submission.input),
+            sealedInputRef,
             correlationId,
             // P2-08: callback destination pinned at submit (docs 06). The
             // webhook scheduler reads this on the terminal transition.
@@ -259,7 +321,7 @@ export function createSubmissionService(
           `INSERT INTO tasks (id, operation_id, task_key, kind, payload_ref, state, attempt, due_at)
            VALUES ($1,$2,'root',$3,$4,$5,0, now())`,
           [rootTaskId, operationId, manifest.runtime.handlerKinds.includes('root') ? 'root' : manifest.runtime.handlerKinds[0],
-            JSON.stringify(submission.sourceUrl ? { input: submission.input, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' } : submission.input),
+            sealedTaskPayload,
             submission.sourceUrl ? 'PENDING_INGESTION' : 'READY']
         );
 
@@ -350,12 +412,14 @@ export async function markIngestionReady(
    * to close. The guard throws its own typed error; markIngestionReady
    * neither invents nor swallows it.
    */
-  commitGuard?: (client: DbClient) => Promise<void>
+  commitGuard?: (client: DbClient) => Promise<void>,
+  /** CR28-04: forwarded verbatim into the gate transaction. */
+  metadataCrypto?: MetadataCrypto
 ): Promise<void> {
   const envelope = JSON.stringify(withIngestionSource(input, receipt));
   await db.tx(async (client) => {
     if (commitGuard) await commitGuard(client);
-    await markIngestionReadyOn(client, operationId, receipt, input, dispatch, envelope);
+    await markIngestionReadyOn(client, operationId, receipt, input, dispatch, envelope, metadataCrypto);
   });
 }
 
@@ -372,19 +436,52 @@ export async function markIngestionReadyOn(
   receipt: IngestionReceipt,
   input: Record<string, unknown>,
   dispatch: { deliveryId: string; kind: string; correlationId: string },
-  envelope: string = JSON.stringify(withIngestionSource(input, receipt))
+  envelope: string = JSON.stringify(withIngestionSource(input, receipt)),
+  /** CR28-04: seal the gate values; absent = plaintext, historical behaviour. */
+  metadataCrypto?: MetadataCrypto
 ): Promise<void> {
+    // CR28-04: the gate writes the SAME logical envelope into two columns, but
+    // the AAD binds an envelope to (tenant, slot, row). One sealed value
+    // therefore CANNOT serve both: a payload_ref blob copied into input_ref is
+    // exactly what the slot binding exists to refuse. So each column is sealed
+    // for its own row, which means the row identities have to be read first.
+    // The read locks both rows in the SAME transaction as the gate writes, so
+    // the id and tenant cannot change under the seal.
+    let sealedOperationInput = envelope;
+    let sealedTaskPayload = envelope;
+    if (metadataCrypto) {
+      const bound = await client.query(
+        `SELECT o.tenant_id AS tenant_id, t.id AS task_id
+           FROM operations o
+           JOIN tasks t ON t.operation_id = o.id AND t.task_key = 'root'
+          WHERE o.id=$1 AND o.state='PENDING_INGESTION' AND t.state='PENDING_INGESTION'
+          FOR UPDATE OF o, t`,
+        [operationId]
+      );
+      const row = bound.rows[0];
+      // No row means the gate is already closed. The UPDATEs below are
+      // rowCount-guarded and will simply not fire; sealing under a guessed
+      // identity would be worse than writing nothing.
+      if (row) {
+        sealedOperationInput = await sealSubmitMetadata(
+          metadataCrypto, envelope, row.tenant_id as string, 'operations.input_ref', operationId
+        );
+        sealedTaskPayload = await sealSubmitMetadata(
+          metadataCrypto, envelope, row.tenant_id as string, 'tasks.payload_ref', row.task_id as string
+        );
+      }
+    }
     await client.query(
       `UPDATE operations
           SET state='QUEUED', state_version=state_version+1, input_ref=$2, updated_at=now()
         WHERE id=$1 AND state='PENDING_INGESTION'`,
-      [operationId, envelope]
+      [operationId, sealedOperationInput]
     );
     await client.query(
       `UPDATE tasks
           SET state='READY', payload_ref=$2, updated_at=now()
         WHERE operation_id=$1 AND task_key='root' AND state='PENDING_INGESTION'`,
-      [operationId, envelope]
+      [operationId, sealedTaskPayload]
     );
     await client.query(
       `INSERT INTO outbox (aggregate_id, type, delivery_id, payload)
@@ -408,14 +505,16 @@ export async function processIngestionTask(
   input: Record<string, unknown>,
   dispatch: { deliveryId: string; kind: string; correlationId: string },
   /** W-INGEST-POST-LEASE-FENCE-1: forwarded verbatim into the gate tx (see markIngestionReady). */
-  commitGuard?: (client: DbClient) => Promise<void>
+  commitGuard?: (client: DbClient) => Promise<void>,
+  /** CR28-04: forwarded verbatim into the gate transaction. */
+  metadataCrypto?: MetadataCrypto
 ): Promise<IngestionReceipt> {
   validateSourceUrl(sourceUrl);
   const receipt = await acquirer.acquire(sourceUrl);
   if (!/^sha256:[0-9a-f]{64}$/i.test(`sha256:${receipt.sha256.replace(/^sha256:/i, '')}`)) {
     throw new Error('ingestion acquirer returned an invalid SHA-256 receipt');
   }
-  await markIngestionReady(db, operationId, receipt, input, dispatch, commitGuard);
+  await markIngestionReady(db, operationId, receipt, input, dispatch, commitGuard, metadataCrypto);
   return receipt;
 }
 

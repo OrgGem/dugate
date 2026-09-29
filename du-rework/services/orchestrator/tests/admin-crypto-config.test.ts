@@ -466,3 +466,407 @@ describe('ENC-08: no secret reaches the pane', () => {
     expect(own[0]?.version).toBe(1);
   });
 });
+
+// CR28-07: admin crypto configuration negatives.
+//
+// Four packet areas: revoked-key pinning races, malformed tenant ids, CSRF
+// forgery, and fingerprint preview truncation.
+//
+// A rule adopted here after reading the existing suite: a `not.toContain` leak
+// assertion is only worth what it proves. The delta-63 and ENC-08 leak tests
+// plant their sentinel in `publicKeyPem` and assert the FULL string is absent -
+// which stays true even if a fingerprint field carried the same secret. So the
+// fingerprint tests below plant the sentinel IN THE FINGERPRINT and assert the
+// exact characters that do reach the output.
+describe('CR28-07 admin crypto config: revoked-key pinning races', () => {
+  /** A lister that returns a DIFFERENT registry snapshot on each call. */
+  function racingKeys(revokedAfterFirstRead: boolean) {
+    const snapshots: RecipientKeyOption[][] = [
+      [
+        { version: 1, fingerprint: 'SHA256:aaa', revokedAt: null, effectiveAt: '2026-01-01T00:00:00.000Z' },
+        { version: 2, fingerprint: 'SHA256:bbb', revokedAt: null, effectiveAt: '2026-02-01T00:00:00.000Z' },
+      ],
+      [
+        { version: 1, fingerprint: 'SHA256:aaa', revokedAt: revokedAfterFirstRead ? '2026-06-01T00:00:00.000Z' : null, effectiveAt: '2026-01-01T00:00:00.000Z' },
+        { version: 2, fingerprint: 'SHA256:bbb', revokedAt: null, effectiveAt: '2026-02-01T00:00:00.000Z' },
+      ],
+    ];
+    let calls = 0;
+    return {
+      calls: () => calls,
+      lister: {
+        async listRecipientKeys(): Promise<RecipientKeyOption[]> {
+          const snapshot = snapshots[Math.min(calls, snapshots.length - 1)]!;
+          calls += 1;
+          return snapshot;
+        },
+      },
+    };
+  }
+
+  function racingService(revokedAfterFirstRead: boolean) {
+    const store = new MemoryStore();
+    const audit = new MemoryAudit();
+    const { lister, calls } = racingKeys(revokedAfterFirstRead);
+    const config: CryptoConfigServiceOptions = {
+      allowedKeyRefs: ALLOWED,
+      store,
+      keys: lister,
+      audit,
+    };
+    return { config, store, audit, calls };
+  }
+
+  it('a pin accepted against a listing that later revokes is reported, not silently honoured', async () => {
+    const s = racingService(true);
+    // The TOCTOU window: the pin is validated against the listing this request
+    // read, and the registry can change before anyone looks again.
+    const applied = await applyCryptoConfig(s.config, {
+      auth: operatorAuth(),
+      tenantId: TENANT_A,
+      mutation: { deliveryEncryption: true, recipientKeyVersion: 1 },
+    });
+    expect(applied.view.state.pinnedRecipientKeyVersion).toBe(1);
+    expect(applied.view.pinInvalid).toBeNull();
+
+    const after = await readCryptoConfig(s.config, { auth: operatorAuth() });
+    // The pin is NOT dropped - that would hide the misconfiguration - and
+    // delivery is reported blocked instead of looking healthy.
+    expect(after.state.pinnedRecipientKeyVersion).toBe(1);
+    expect(after.pinInvalid).toEqual({ reason: 'version_revoked', version: 1 });
+    expect(after.deliveryReady).toBe(false);
+    expect(after.deliveryBlockedReason).toBe('pin_invalid');
+    expect(s.calls()).toBeGreaterThan(1);
+  });
+
+  it('the same request never mixes two registry snapshots', async () => {
+    const s = racingService(true);
+    const applied = await applyCryptoConfig(s.config, {
+      auth: operatorAuth(),
+      tenantId: TENANT_A,
+      mutation: { deliveryEncryption: true, recipientKeyVersion: 1 },
+    });
+
+    // One listing per request: the pin decision and the returned view are
+    // decided by the SAME snapshot, so a response never says "pinned, valid"
+    // using a revocation it had not seen yet.
+    expect(applied.view.pinInvalid).toBeNull();
+    expect(applied.view.deliveryReady).toBe(true);
+    expect(s.calls()).toBe(1);
+  });
+
+  it('a revoke that happens before the request is refused at write time, not at read time', async () => {
+    const store = new MemoryStore();
+    const audit = new MemoryAudit();
+    const revokedOnly: RecipientKeyOption[] = [
+      { version: 1, fingerprint: 'SHA256:aaa', revokedAt: '2026-06-01T00:00:00.000Z', effectiveAt: '2026-01-01T00:00:00.000Z' },
+    ];
+    const config: CryptoConfigServiceOptions = {
+      allowedKeyRefs: ALLOWED,
+      store,
+      keys: { async listRecipientKeys() { return revokedOnly; } },
+      audit,
+    };
+
+    await expect(
+      applyCryptoConfig(config, { auth: operatorAuth(), tenantId: TENANT_A, mutation: { recipientKeyVersion: 1 } }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(store.writes).toBe(0);
+    expect(audit.rows).toHaveLength(0);
+  });
+});
+
+describe('CR28-07 admin crypto config: malformed tenant ids', () => {
+  it.each([
+    ['a NUL byte', 'tenant' + String.fromCharCode(0)],
+    ['a newline', 'tenant' + String.fromCharCode(10)],
+    ['a carriage return', 'tenant' + String.fromCharCode(13)],
+    ['a tab', 'tenant' + String.fromCharCode(9)],
+    ['a DEL character', 'tenant' + String.fromCharCode(127)],
+    ['a C1 control', 'tenant' + String.fromCharCode(133)],
+    ['an uppercase letter', 'Tenant-A'],
+    ['a leading dash', '-tenant-a'],
+    ['a leading dot', '.tenant-a'],
+    ['a leading underscore', '_tenant-a'],
+    ['a space', 'tenant a'],
+    ['a slash', 'tenant/a'],
+    ['an empty string', ''],
+  ])('refuses %s with 422 for a platform caller', async (_label, tenantId) => {
+    const s = service();
+    await expect(readCryptoConfig(s.config, { auth: platformAuth, tenantId }))
+      .rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+  });
+
+  it.each([
+    ['64 characters', 'a'.repeat(64), true],
+    ['65 characters', 'a'.repeat(65), false],
+    ['a 64 character id that starts with a digit', '9' + 'a'.repeat(63), true],
+    ['a 65 character id that starts with a digit', '9' + 'a'.repeat(64), false],
+  ])('accepts exactly %s', async (_label, tenantId, valid) => {
+    const s = service();
+
+    if (valid) {
+      const view = await readCryptoConfig(s.config, { auth: platformAuth, tenantId });
+      expect(view.tenantId).toBe(tenantId);
+    } else {
+      await expect(readCryptoConfig(s.config, { auth: platformAuth, tenantId }))
+        .rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    }
+  });
+
+  it('a tenant operator naming a FOREIGN malformed id is refused with 403, not 422', async () => {
+    const s = service();
+    const foreign = await readCryptoConfig(s.config, {
+      auth: operatorAuth(),
+      tenantId: 'tenant-b' + String.fromCharCode(0),
+    }).catch((e: unknown) => e);
+
+    // resolveTargetTenant runs BEFORE assertTenantId, so scope wins over shape.
+    // The wording is identical to any other foreign id, so the 403 still
+    // cannot be used to probe which tenants exist or which ids are well formed.
+    expect(foreign).toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    const wellFormedForeign = await readCryptoConfig(s.config, {
+      auth: operatorAuth(),
+      tenantId: 'tenant-beta',
+    }).catch((e: unknown) => e);
+    expect((foreign as Error).message).toBe((wellFormedForeign as Error).message);
+  });
+
+  it('FINDING: a control character in a tenant id survives esc() into the markup', () => {
+    // buildCryptoConfigView only requires a non-empty string, so the API-layer
+    // regex is not what protects the pane: escaping is the renderer's job.
+    const withNul = 'tenant' + String.fromCharCode(0) + 'a';
+    const pane = renderCryptoConfig({
+      status: 'ready',
+      view: buildCryptoConfigView({
+        tenantId: withNul,
+        state: EMPTY_CRYPTO_CONFIG,
+        allowedKeyRefs: ALLOWED,
+        recipientKeys: [],
+      }),
+    });
+    // Positive control first, on the RAW value: JSON.stringify escapes a NUL to
+    // \u0000, so asserting the raw byte against a serialised string would fail
+    // for the wrong reason.
+    const view = buildCryptoConfigView({
+      tenantId: withNul,
+      state: EMPTY_CRYPTO_CONFIG,
+      allowedKeyRefs: ALLOWED,
+      recipientKeys: [],
+    });
+    expect(view.tenantId).toBe(withNul);
+    expect(view.tenantId.includes(String.fromCharCode(0))).toBe(true);
+
+    // FINDING: esc() escapes exactly five characters (& < > " ') and passes every
+    // control character through untouched, so the NUL lands in the markup. The
+    // renderer's own header calls these values "untrusted by construction" -
+    // true for the characters that can close a tag, not for control characters.
+    // A NUL cannot break out of the quoted attribute (the quote IS escaped), so
+    // this is a parser-differential / smuggling surface rather than a direct XSS;
+    // the point is that the stated invariant is wider than the code.
+    expect(pane).toContain('name="tenantId" value="tenant' + String.fromCharCode(0) + 'a"');
+
+    const withBreak = 'tenant' + String.fromCharCode(13) + String.fromCharCode(10) + 'a';
+    const breakPane = renderCryptoConfig({
+      status: 'ready',
+      view: buildCryptoConfigView({
+        tenantId: withBreak,
+        state: EMPTY_CRYPTO_CONFIG,
+        allowedKeyRefs: ALLOWED,
+        recipientKeys: [],
+      }),
+    });
+    expect(breakPane).toContain(String.fromCharCode(13) + String.fromCharCode(10));
+
+    // The five escaped characters DO hold - so the gap is control characters
+    // specifically, not escaping in general.
+    const tagPane = renderCryptoConfig({
+      status: 'ready',
+      view: buildCryptoConfigView({
+        tenantId: [String.fromCharCode(34), '><script>&', String.fromCharCode(39)].join(''),
+        state: EMPTY_CRYPTO_CONFIG,
+        allowedKeyRefs: ALLOWED,
+        recipientKeys: [],
+      }),
+    });
+    expect(tagPane).not.toContain('<script>');
+    expect(tagPane).toContain('&lt;script&gt;');
+    expect(tagPane).toContain('&amp;');
+    expect(tagPane).not.toContain(String.fromCharCode(0));
+  });
+});
+
+describe('CR28-07 admin crypto config: CSRF forgery', () => {
+  const valid = deriveCsrfToken(COOKIE_SECRET, SESSION_COOKIE);
+
+  it('a token minted for a DIFFERENT session cookie is refused', async () => {
+    // The real forgery: an attacker who somehow obtained a valid token for
+    // THEIR OWN session replays it against a victim's cookie value.
+    const s = service();
+    const forged = deriveCsrfToken(COOKIE_SECRET, 'someone-elses-session');
+    expect(forged).not.toBe(valid);
+    const req = { auth: operatorAuth({ csrfToken: forged }), tenantId: TENANT_A, mutation: { deliveryEncryption: true } };
+    await expect(applyCryptoConfig(s.config, req)).rejects.toMatchObject({ status: 403 });
+    expect(s.store.writes).toBe(0);
+  });
+
+  it('a token minted with a DIFFERENT secret is refused', async () => {
+    const s = service();
+    const forged = deriveCsrfToken('a-rotated-or-guessed-secret', SESSION_COOKIE);
+    const req = { auth: operatorAuth({ csrfToken: forged }), tenantId: TENANT_A, mutation: { deliveryEncryption: true } };
+    await expect(applyCryptoConfig(s.config, req)).rejects.toMatchObject({ status: 403 });
+    expect(s.store.writes).toBe(0);
+  });
+
+  it.each([
+    ['the first character changed', 'X' + valid.slice(1)],
+    ['the last character changed', valid.slice(0, -1) + (valid.endsWith('a') ? 'b' : 'a')],
+    ['one character removed', valid.slice(1)],
+    ['one character appended', valid + 'a'],
+    ['a different case', valid.toUpperCase()],
+  ])('a token with %s is refused', async (_label, provided) => {
+    const s = service();
+    const req = { auth: operatorAuth({ csrfToken: provided }), tenantId: TENANT_A, mutation: { deliveryEncryption: true } };
+    await expect(applyCryptoConfig(s.config, req)).rejects.toMatchObject({ status: 403 });
+    expect(s.store.writes).toBe(0);
+  });
+
+  it('the token length boundary is the HMAC hex length, not the 128 cap', async () => {
+    const s = service();
+    expect(valid).toHaveLength(64);
+    // 64 is the only accepted length: the helper compares buffer lengths before
+    // timingSafeEqual, so 63 and 65 can never match.
+    for (const length of [63, 65, 128, 129]) {
+      const req = { auth: operatorAuth({ csrfToken: 'a'.repeat(length) }), tenantId: TENANT_A, mutation: { deliveryEncryption: true } };
+      await expect(applyCryptoConfig(s.config, req)).rejects.toMatchObject({ status: 403 });
+    }
+    expect(s.store.writes).toBe(0);
+    const ok = await applyCryptoConfig(s.config, { auth: operatorAuth({ csrfToken: valid }), tenantId: TENANT_A, mutation: { deliveryEncryption: true } });
+    expect(ok.view.state.deliveryEncryption).toBe(true);
+  });
+
+  it('FINDING: a tenant principal with no cookieRole skips the CSRF gate entirely', async () => {
+    const s = service();
+    // requireWriteAuth returns early on `auth.cookieRole === undefined`, so a
+    // tenant_operator principal presented WITHOUT verified cookie claims never
+    // reaches validateCsrfToken. resolveAdminPrincipal DOES return
+    // tenant_operator for a tenant-scoped bearer token, so this is the shape a
+    // bearer-authenticated tenant request takes. Not cross-site exploitable - a
+    // cross-site page cannot send an Authorization header - but the gate keys on
+    // an incidental signal instead of the credential kind.
+    const bearerTenant = { principal: { role: 'tenant_operator', tenantId: TENANT_A } as const };
+    const result = await applyCryptoConfig(s.config, {
+      auth: bearerTenant,
+      tenantId: TENANT_A,
+      mutation: { deliveryEncryption: true },
+    });
+    expect(result.view.state.deliveryEncryption).toBe(true);
+    expect(s.store.writes).toBe(1);
+  });
+
+  it('adding ANY cookie role arms the CSRF gate again', () => {
+    const withRole = operatorAuth({ cookieRole: 'admin', csrfToken: undefined });
+    expect(withRole.cookieRole).toBe('admin');
+    expect(withRole.csrfToken).toBeUndefined();
+  });
+
+  it('a viewer is refused BEFORE the CSRF check, and the two 403 wordings stay distinct', async () => {
+    const s = service();
+    const viewer = operatorAuth({ cookieRole: 'viewer' });
+    const withValidToken = await applyCryptoConfig(s.config, {
+      auth: viewer, tenantId: TENANT_A, mutation: { deliveryEncryption: true },
+    }).catch((e: unknown) => e);
+    const withBadToken = await applyCryptoConfig(s.config, {
+      auth: operatorAuth({ cookieRole: 'viewer', csrfToken: 'nope' }), tenantId: TENANT_A, mutation: { deliveryEncryption: true },
+    }).catch((e: unknown) => e);
+
+    // Both are 403 with the SAME wording, and that is the ordering proof: the
+    // viewer check short-circuits before validateCsrfToken is reached, so a bad
+    // token from a viewer still reports the ROLE, never the CSRF state. I first
+    // asserted the wordings differed; they do not, and the identical answer is
+    // the better behaviour here - it tells a prober nothing about the proof.
+    expect(withValidToken).toMatchObject({ status: 403 });
+    expect(withBadToken).toMatchObject({ status: 403 });
+    expect((withValidToken as Error).message).toBe((withBadToken as Error).message);
+    expect((withValidToken as Error).message).toContain('may read but not change');
+    expect(s.store.writes).toBe(0);
+  });
+});
+
+describe('CR28-07 admin crypto config: fingerprint preview bounds', () => {
+  it.each([
+    ['an empty string', '', '(unknown)'],
+    ['a prefix with no body', 'SHA256:', '...'],
+    ['one character', 'a', 'a...'],
+    ['eleven characters', 'abcdefghijk', 'abcdefghijk...'],
+    ['exactly twelve characters', 'abcdefghijkl', 'abcdefghijkl...'],
+    ['thirteen characters', 'abcdefghijklm', 'abcdefghijkl...'],
+    ['a prefixed short body', 'SHA256:abc', 'abc...'],
+    ['a prefixed body of exactly twelve', 'SHA256:abcdefghijkl', 'abcdefghijkl...'],
+    ['a prefixed body of thirteen', 'SHA256:abcdefghijklm', 'abcdefghijkl...'],
+  ])('previews %s', (_label, fingerprint, expected) => {
+    expect(fingerprintPreview(fingerprint)).toBe(expected);
+  });
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['a number', 42],
+  ])('previews %s as unknown rather than throwing', (_label, value) => {
+    expect(fingerprintPreview(value as unknown as string)).toBe('(unknown)');
+  });
+
+  it('FINDING: the preview renders the FIRST 12 CHARACTERS of whatever the fingerprint holds', () => {
+    // Positive control: the sentinel really is in the field under test. The
+    // existing ENC-08 leak test plants its sentinel in publicKeyPem instead, so
+    // it stays green even when the fingerprint field carries a secret - it
+    // proves a full string is absent, not that nothing leaks.
+    const secretFingerprint = 'SHA256:' + SECRET_SENTINEL;
+    expect(SECRET_SENTINEL.length).toBeGreaterThan(12);
+    const firstTwelve = SECRET_SENTINEL.slice(0, 12);
+
+    const pane = renderCryptoConfig({
+      status: 'ready',
+      view: buildCryptoConfigView({
+        tenantId: TENANT_A,
+        state: EMPTY_CRYPTO_CONFIG,
+        allowedKeyRefs: ALLOWED,
+        recipientKeys: [
+          { version: 1, fingerprint: secretFingerprint, revokedAt: null, effectiveAt: '2026-01-01T00:00:00.000Z' },
+        ],
+      }),
+    });
+
+    // Twelve characters of a private key DO reach the markup. The pane's own
+    // rule 1 says "a preview that has nothing to leak" - that holds only while
+    // the fingerprint field really holds a fingerprint.
+    expect(pane).toContain('data-fingerprint-preview="' + firstTwelve + '..."');
+    expect(pane).toContain(firstTwelve);
+    expect(pane).not.toContain(SECRET_SENTINEL);
+  });
+
+  it('FINDING: the view model carries the FULL fingerprint, so only the renderer protects it', () => {
+    const secretFingerprint = 'SHA256:' + SECRET_SENTINEL;
+    const view = buildCryptoConfigView({
+      tenantId: TENANT_A,
+      state: EMPTY_CRYPTO_CONFIG,
+      allowedKeyRefs: ALLOWED,
+      recipientKeys: [
+        { version: 1, fingerprint: secretFingerprint, revokedAt: null, effectiveAt: '2026-01-01T00:00:00.000Z' },
+      ],
+    });
+
+    // The API response body is `{ schemaVersion, tenantId, crypto: view }`, so
+    // whatever the view model holds is what a caller receives. The claim that
+    // no secret reaches this layer is a property of the FIELD, not of the code.
+    expect(view.recipientKeys[0]!.fingerprint).toBe(secretFingerprint);
+    expect(JSON.stringify(view)).toContain(SECRET_SENTINEL);
+  });
+
+  it('a fingerprint without the SHA256: prefix is previewed verbatim', () => {
+    // Only the known prefix is stripped, so a differently formatted value is
+    // cut in the middle of itself: 'md5:' plus 8 more characters is 12.
+    expect(fingerprintPreview('md5:abcdefghijklmnop')).toBe('md5:abcdefgh...');
+    expect('md5:abcdefgh').toHaveLength(12);
+  });
+});

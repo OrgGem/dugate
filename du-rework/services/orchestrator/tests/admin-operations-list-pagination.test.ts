@@ -353,7 +353,7 @@ describe('W-ADMUX-01: live list fetch (injected fetchImpl, no sockets)', () => {
     if (r.kind !== 'list') throw new Error(`expected list, got ${r.kind}`);
     expect(r.total).toBe(0);
     const out = renderOperationSection({ fetch: r, selectedOperationId: '' });
-    expect(out.html).toContain('data-list-empty="true"');
+    expect(out.html).toContain('data-empty-banner="true"');
     expect(out.html).toContain('data-list-count="exact"');
   });
 });
@@ -403,7 +403,7 @@ describe('W-ADMUX-01: list pane HTML contract', () => {
   it('list table is wrapped by the shell reflow scroller (no page-level horizontal overflow)', async () => {
     const out = await page1();
     const wrapped = wrapTablesForReflow(out.html);
-    expect(wrapped).toContain('<div class="adm-reflow-scroller" role="region" aria-label="Scrollable table" tabindex="0"><table class="operation-section__list-table"');
+    expect(wrapped).toContain('<div class="adm-reflow-scroller" role="region" aria-label="Scrollable data table 1 of 1" tabindex="0"><table class="operation-section__list-table"');
     expect(wrapped).toContain('</table></div>');
   });
 
@@ -763,14 +763,14 @@ describe('W-ADMUX-03: toolbar, chips and filter-carrying deep links', () => {
     });
     if (r.kind !== 'list') throw new Error(`expected list, got ${r.kind}`);
     const out = renderOperationSection({ fetch: r, selectedOperationId: '' });
-    expect(out.html).toContain('data-list-empty="filtered"');
+    expect(out.html).toContain('data-empty-banner="filtered"');
     // Server-side filtering is live (W-ADMUX02-SRV-1), so the copy must NOT
     // promise the ADM-UX-02 contract as future work any more.
     expect(out.html).not.toContain('ADM-UX-02');
     expect(out.html).toContain('filters the whole population');
     expect(out.html).toContain('not a page you need to page through');
     // Still distinct from the unfiltered "platform reported zero rows" state.
-    expect(out.html).not.toContain('data-list-empty="true"');
+    expect(out.html).not.toContain('data-empty-banner="true"');
   });
 
   it('detail back link restores the filtered list page', async () => {
@@ -1924,5 +1924,108 @@ describe('W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort
       const body = await sortRoute().get('limit=2&sort=' + value);
       expect(body['total']).toBe(FIXTURE.length);
     }
+  });
+});
+
+describe('W-ADM-UX-02 pagination negative: limit bounds', () => {
+  it('zero and negative limits clamp UP to 1, never to 0 or a negative page size', () => {
+    // A page size of 0 or negative would make the server ask for an
+    // impossible window; clamping to 1 returns exactly one row instead of
+    // an error or an empty page that looks like data.
+    expect(clampListLimit(0)).toBe(1);
+    expect(clampListLimit(-1)).toBe(1);
+    expect(clampListLimit(-9999)).toBe(1);
+  });
+
+  it('a limit past the 100 ceiling clamps to exactly 100', () => {
+    expect(clampListLimit(101)).toBe(100);
+    expect(clampListLimit(100)).toBe(100);
+    expect(clampListLimit(1000000)).toBe(100);
+  });
+
+  it('NaN and Infinity fall back to the contract default, never leaking through', () => {
+    expect(clampListLimit(Number.NaN)).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+    expect(clampListLimit(Number.POSITIVE_INFINITY)).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+    expect(clampListLimit(Number.NEGATIVE_INFINITY)).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+  });
+
+  it('a fractional limit TRUNCATES rather than rounding', () => {
+    // Math.trunc, so 1.9 becomes 1 and never 2. A page that silently
+    // rounded UP would return more rows than the operator asked for.
+    expect(clampListLimit(1.9)).toBe(1);
+    expect(clampListLimit(99.99)).toBe(99);
+  });
+
+  it('unparseable strings fall back to the default', () => {
+    expect(clampListLimit('abc')).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+    expect(clampListLimit('')).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+    expect(clampListLimit('   ')).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+    expect(clampListLimit(undefined)).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+    expect(clampListLimit(null)).toBe(OPERATION_LIST_DEFAULT_LIMIT);
+  });
+
+  it('a numeric string with trailing garbage takes the numeric prefix', () => {
+    // parseInt semantics: '12abc' reads as 12. This is MEASURED
+    // behaviour, not an aspiration - pinned so a future parser change
+    // is a visible diff rather than a silent contract shift.
+    expect(clampListLimit('12abc')).toBe(12);
+    expect(clampListLimit('25')).toBe(25);
+    expect(clampListLimit('-7')).toBe(1);
+  });
+
+  it('a numeric string over the ceiling still clamps', () => {
+    expect(clampListLimit('101')).toBe(100);
+    expect(clampListLimit('9999')).toBe(100);
+  });
+});
+
+
+describe('W-ADM-UX-02 pagination negative: cursor bounds', () => {
+  const decode = (c: string): string[] => Buffer.from(c, 'base64url').toString('utf8').split('|');
+
+  it('an empty cursor decodes to zero usable fields, never a phantom page', () => {
+    const parts = decode('');
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toBe('');
+  });
+
+  it('a whitespace cursor is not mistaken for a real one', () => {
+    const parts = decode(' ');
+    expect(parts[0]).not.toBe(' ');
+  });
+
+  it('a cursor with no pipe field decodes to a single non-parseable part', () => {
+    const raw = Buffer.from('no-pipe-here', 'utf8').toString('base64url');
+    const parts = decode(raw);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toBe('no-pipe-here');
+  });
+
+  it('a well-formed cursor decodes to the full field set', () => {
+    const raw = Buffer.from('2026-01-01T00:00:00Z|op-1|created_at|asc|next', 'utf8').toString('base64url');
+    const parts = decode(raw);
+    expect(parts).toHaveLength(5);
+    expect(parts[0]).toBe('2026-01-01T00:00:00Z');
+    expect(parts[1]).toBe('op-1');
+  });
+
+  it('a cursor with a non-ASCII id decodes to five fields, not five garbage bytes', () => {
+    const raw = Buffer.from('2026-01-01T00:00:00Z|op-é|created_at|asc|next', 'utf8').toString('base64url');
+    const parts = decode(raw);
+    expect(parts).toHaveLength(5);
+    expect(parts[0]).toBe('2026-01-01T00:00:00Z');
+  });
+
+  it('an over-length cursor exceeds the wire bound it is sliced to', () => {
+    // The route slices a supplied cursor to the max length before using it;
+    // a 500-char token is therefore longer than anything the wire accepts.
+    const long = 'x'.repeat(500);
+    expect(long.length).toBeGreaterThan(OPERATION_LIST_CURSOR_MAX_LEN);
+    expect(long.slice(0, OPERATION_LIST_CURSOR_MAX_LEN).length).toBe(OPERATION_LIST_CURSOR_MAX_LEN);
+  });
+
+  it('garbage base64 never throws, it just decodes to unparseable text', () => {
+    const parts = decode('not-base64!!');
+    expect(parts.length).toBeGreaterThan(0);
   });
 });

@@ -1,5 +1,6 @@
 import { ConnectorError } from '../errors';
 import { assertSafeMapping, writeMapped } from './mapping';
+import { decodeVerifiedArtifact } from '../artifact-content';
 import type {
   AdapterConfig,
   LocalInvocationRequest,
@@ -29,14 +30,24 @@ export const jsonHttpAdapter: ProviderAdapter = {
   asyncPollingMode: 'idempotency-key-replay',
   buildRequest(request: LocalInvocationRequest, config: AdapterConfig): ProviderRequest {
     assertSafeMapping(config.requestMapping ?? {});
+    const artifacts = request.input.artifacts ?? [];
+    for (const artifact of artifacts) decodeVerifiedArtifact(artifact);
     const source = { input: request.input, options: request.options ?? {}, sessionRef: request.sessionRef ?? null };
     const body = writeMapped({}, config.requestMapping ?? {
       prompt: 'input.prompt',
       text: 'input.text',
+      task: 'input.task',
+      language: 'input.language',
+      artifacts: 'input.artifacts',
       outputSchema: 'input.outputSchema',
       options: 'options',
       sessionRef: 'sessionRef',
     }, source);
+    // A custom mapping can rename ordinary prompt fields, but it cannot omit
+    // the authorized document bytes from an OCR/vision request.
+    if (artifacts.length > 0) body.artifacts = artifacts;
+    if (request.input.task !== undefined) body.task = request.input.task;
+    if (request.input.language !== undefined) body.language = request.input.language;
     return {
       url: joinUrl(config.baseUrl, config.path),
       method: 'POST',
@@ -79,8 +90,22 @@ export const multipartHttpAdapter: ProviderAdapter = {
     const form = new FormData();
     if (request.input.prompt) form.set('prompt', request.input.prompt);
     if (request.input.text) form.set('text', request.input.text);
+    if (request.input.task !== undefined) form.set('task', request.input.task);
+    if (request.input.language !== undefined) form.set('language', request.input.language);
     form.set('options', JSON.stringify(request.options ?? {}));
     if (request.sessionRef) form.set('sessionRef', request.sessionRef);
+    const artifacts = request.input.artifacts ?? [];
+    if (artifacts.length > 0) {
+      const metadata = [] as Array<Omit<(typeof artifacts)[number], 'contentBase64'>>;
+      for (const artifact of artifacts) {
+        const bytes = decodeVerifiedArtifact(artifact);
+        const body = new Blob([new Uint8Array(bytes)], { type: artifact.mimeType });
+        form.append('artifacts', body, artifact.fileName);
+        const { contentBase64: _contentBase64, ...descriptor } = artifact;
+        metadata.push(descriptor);
+      }
+      form.set('artifactMetadata', JSON.stringify(metadata));
+    }
     return {
       url: joinUrl(config.baseUrl, config.path),
       method: 'POST',

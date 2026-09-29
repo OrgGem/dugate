@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import {
   InMemoryInvocationLedger,
   InMemoryQuotaStore,
@@ -14,6 +15,7 @@ import {
   type QuotaStore,
   type SqlClient,
 } from '../src';
+import type { InvocationArtifactContent } from '@du/contracts';
 
 const request: LocalInvocationRequest = {
   contractVersion: '1',
@@ -144,6 +146,107 @@ describe('connector local protocol functions', () => {
       timeoutMs: 1000,
     });
     expect(multipart.body).toBeInstanceOf(FormData);
+  });
+
+  test('JSON and multipart OCR requests carry the authorized scan bytes, MIME and pinned identity', async () => {
+    const scan = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const artifact: InvocationArtifactContent = {
+      artifactId: randomUUID(),
+      fileName: 'handwritten-form.png',
+      mimeType: 'image/png',
+      sizeBytes: scan.length,
+      sha256: createHash('sha256').update(scan).digest('hex'),
+      storageVersionId: 's3-version-handwriting-1',
+      contentBase64: scan.toString('base64'),
+    };
+    const ocrRequest: LocalInvocationRequest = {
+      ...request,
+      input: { task: 'digitize_handwriting', language: 'vie', artifacts: [artifact] },
+    };
+
+    const json = jsonHttpAdapter.buildRequest(ocrRequest, {
+      baseUrl: 'https://provider.example/',
+      path: '/v1/vision',
+      timeoutMs: 1000,
+    });
+    const jsonBody = JSON.parse(json.body as string) as { task: string; language: string; artifacts: InvocationArtifactContent[] };
+    expect(jsonBody.task).toBe('digitize_handwriting');
+    expect(jsonBody.language).toBe('vie');
+    expect(jsonBody.artifacts[0]).toEqual(artifact);
+    expect(Buffer.from(jsonBody.artifacts[0]!.contentBase64, 'base64')).toEqual(scan);
+
+    const multipart = multipartHttpAdapter.buildRequest(ocrRequest, {
+      baseUrl: 'https://provider.example/',
+      path: '/v1/vision',
+      timeoutMs: 1000,
+    });
+    const form = multipart.body as FormData;
+    const file = form.get('artifacts') as Blob & { name?: string };
+    expect(form.get('task')).toBe('digitize_handwriting');
+    expect(form.get('language')).toBe('vie');
+    expect(file).toBeInstanceOf(Blob);
+    expect(file.type).toBe('image/png');
+    expect(file.name).toBe('handwritten-form.png');
+    expect(Buffer.from(await file.arrayBuffer())).toEqual(scan);
+    expect(JSON.parse(form.get('artifactMetadata') as string)).toEqual([{
+      artifactId: artifact.artifactId,
+      fileName: artifact.fileName,
+      mimeType: artifact.mimeType,
+      sizeBytes: artifact.sizeBytes,
+      sha256: artifact.sha256,
+      storageVersionId: artifact.storageVersionId,
+    }]);
+  });
+
+  test('grant rejects expired invocations and foreign or unpinned artifact versions', async () => {
+    const bytes = Buffer.from('scan bytes');
+    const artifact: InvocationArtifactContent = {
+      artifactId: randomUUID(),
+      fileName: 'scan.png',
+      mimeType: 'image/png',
+      sizeBytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      storageVersionId: 'pg-sha256-v1',
+      contentBase64: bytes.toString('base64'),
+    };
+    const requestWithArtifact: LocalInvocationRequest = {
+      ...request,
+      input: { artifacts: [artifact] },
+    };
+    const inputHash = hashInvocationInput(requestWithArtifact);
+    const claims: GrantClaims = {
+      audience: 'connector',
+      tenantId: request.tenantId,
+      operationId: request.operationId,
+      taskId: request.taskId,
+      stepKey: request.stepKey,
+      invocationId: request.invocationId,
+      inputHash,
+      connectorRevision: 'rev-1',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      artifactIds: [artifact.artifactId],
+      artifactPins: [{
+        artifactId: artifact.artifactId,
+        fileName: artifact.fileName,
+        mimeType: artifact.mimeType,
+        sizeBytes: artifact.sizeBytes,
+        sha256: artifact.sha256,
+        storageVersionId: artifact.storageVersionId,
+      }],
+    };
+    await expect(validateGrant('token', requestWithArtifact, inputHash, { verify: async () => claims })).resolves.toEqual(claims);
+    await expect(validateGrant('token', requestWithArtifact, inputHash, {
+      verify: async () => ({ ...claims, expiresAt: '2000-01-01T00:00:00.000Z' }),
+    })).rejects.toMatchObject({ code: 'BINDING_DENIED' });
+    await expect(validateGrant('token', requestWithArtifact, inputHash, {
+      verify: async () => ({ ...claims, artifactIds: [randomUUID()] }),
+    })).rejects.toMatchObject({ code: 'BINDING_DENIED' });
+    await expect(validateGrant('token', requestWithArtifact, inputHash, {
+      verify: async () => ({ ...claims, artifactPins: [{ ...claims.artifactPins![0]!, storageVersionId: 'other-version' }] }),
+    })).rejects.toMatchObject({ code: 'BINDING_DENIED' });
   });
 
   test('usage event IDs are deterministic for duplicate delivery', () => {

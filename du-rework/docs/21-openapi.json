@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "DUGate rework API (code-derived, W40-CX)",
-    "version": "1.1.0",
-    "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
+    "version": "1.2.0",
+    "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
   },
   "servers": [
     {
@@ -298,6 +298,408 @@
           }
         },
         "description": "UsageSchema (operations.ts). Not .strict() in the contract, so it is not additionalProperties: false here."
+      },
+      "UsageEventCursor": {
+        "type": "object",
+        "required": [
+          "version",
+          "tenantId",
+          "queryHash",
+          "after",
+          "eventId"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "queryHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "sha256 over the tenant and the eleven-key filter binding. A cursor minted for one query is refused by any other."
+          },
+          "after": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "additionalProperties": false,
+        "description": "UsageEventDrilldownCursorSchema (usage-reconciliation.ts): the decoded payload of the opaque base64url cursor. Published so a client can read the grammar without guessing."
+      },
+      "UsageEventExportPage": {
+        "type": "object",
+        "required": [
+          "tenantId",
+          "events",
+          "limit",
+          "hasMore",
+          "skippedInvalidEvents",
+          "timeSemantics"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "description": "The authorized scope, echoed back. It comes from the principal, never from the query."
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/UsageLedgerEvent"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True exactly when nextCursor is present; the two can never disagree."
+          },
+          "nextCursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "skippedInvalidEvents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Rows dropped because their payload was not a valid ledger event. Counted, never returned raw, so a corrupt row cannot silently shrink a page unnoticed."
+          },
+          "timeSemantics": {
+            "$ref": "#/components/schemas/UsageTimeSemantics"
+          }
+        },
+        "additionalProperties": false,
+        "description": "UsageEventExportPageSchema (usage-reconciliation.ts): one bounded page, usable by both a drill-down UI and a streamed export client. Strict."
+      },
+      "UsageEventQuery": {
+        "type": "object",
+        "required": [
+          "tenantId",
+          "apiKeyId",
+          "businessId",
+          "action",
+          "profileRevision",
+          "provider",
+          "model",
+          "operationId",
+          "from",
+          "to",
+          "timeField",
+          "limit",
+          "cursor"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "apiKeyId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "businessId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "action": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "profileRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeField": {
+            "type": "string",
+            "enum": [
+              "occurredAt",
+              "receivedAt"
+            ],
+            "default": "occurredAt"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "additionalProperties": false,
+        "description": "UsageEventDrilldownQuerySchema (usage-reconciliation.ts) as an object shape. On the wire these thirteen names are query parameters, not a JSON body."
+      },
+      "UsageLedgerEvent": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "idempotencyKey",
+          "kind",
+          "tenantId",
+          "apiKeyId",
+          "operationId",
+          "taskId",
+          "invocationId",
+          "attempt",
+          "stepKey",
+          "businessId",
+          "businessVersion",
+          "action",
+          "profileRevision",
+          "connectorId",
+          "connectorRevision",
+          "provider",
+          "model",
+          "unitType",
+          "units",
+          "costMicrousd",
+          "currency",
+          "costStatus",
+          "durationMs",
+          "occurredAt",
+          "receivedAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The dedup key. A duplicate delivery of one eventId counts exactly once."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "description": "Stable request key reused when delivery of this event is retried."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "initial",
+              "correction",
+              "refund"
+            ],
+            "default": "initial",
+            "description": "initial, correction or refund. A correction or refund is a NEW event linked by correctsEventId; the original row is never rewritten."
+          },
+          "correctsEventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Required for kind correction and refund, forbidden for initial, and never equal to this eventId."
+          },
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "apiKeyId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "description": "Identifier only. Key material has no representation on this route."
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invocationId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "stepKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "businessId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "businessVersion": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "action": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "profileRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "connectorId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+          },
+          "connectorRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "description": "Provider actually used, snapshotted at invocation time and never re-derived from current configuration."
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$",
+            "description": "Model actually used, snapshotted at invocation time."
+          },
+          "unitType": {
+            "type": "string",
+            "enum": [
+              "tokens",
+              "pages",
+              "mixed"
+            ],
+            "description": "tokens, pages or mixed. mixed when the provider reported both families."
+          },
+          "units": {
+            "$ref": "#/components/schemas/UsageLedgerUnits"
+          },
+          "costMicrousd": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Integer micro-USD. Must be 0 when costStatus is pending or unpriced: unsettled usage may not carry an implied cost."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ],
+            "default": "USD"
+          },
+          "costStatus": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimated",
+              "pending",
+              "unpriced"
+            ],
+            "description": "measured differs from estimated differs from pending differs from unpriced; the four are never collapsed."
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 with optional numeric offset; UTC Z always accepted."
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the ledger row landed, as opposed to when the usage occurred."
+          }
+        },
+        "additionalProperties": false,
+        "description": "UsageLedgerEventSchema (usage-metrics.ts), the record this route exports. Strict: prompts, documents, credentials, URLs and upstream error bodies have no representation."
+      },
+      "UsageLedgerUnits": {
+        "type": "object",
+        "required": [
+          "inputTokens",
+          "outputTokens"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cachedInputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "description": "UsageLedgerUnitsSchema (usage-metrics.ts). Strict. cachedInputTokens and pages are optional; the other two default to 0."
+      },
+      "UsageTimeSemantics": {
+        "type": "object",
+        "required": [
+          "field",
+          "order",
+          "timezone"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "occurredAt",
+              "receivedAt"
+            ]
+          },
+          "order": {
+            "type": "string",
+            "enum": [
+              "asc"
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "UTC"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Which ledger clock answered the window, published rather than assumed. The route always sends order asc and timezone UTC (usage-reconciliation.ts UsageEventExportPageSchema)."
       }
     }
   },
@@ -672,6 +1074,168 @@
         "responses": {
           "200": {
             "description": "UsageSummary"
+          }
+        }
+      }
+    },
+    "/api/v1/usage/events": {
+      "get": {
+        "summary": "Bounded keyset page over the usage ledger: drill-down and export. Handler server.ts:1143.",
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "description": "Optional consistency check only. Scope is taken from the principal: an admin bearer may read any tenant it is authorized for and then REQUIRES this parameter (422 when absent), while an API key is pinned to its own tenant and a mismatch here is 403. Hashed into the cursor, so changing it invalidates a cursor.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "apiKeyId",
+            "in": "query",
+            "description": "Attribution dimension filter, hashed into the cursor.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "businessId",
+            "in": "query",
+            "description": "Must be supplied TOGETHER with action; one half of that pair is 422, never a wider result set.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Must be supplied TOGETHER with businessId.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "profileRevision",
+            "in": "query",
+            "description": "Non-negative integer; the route rejects anything that is not a plain digit string before the schema runs.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Must be supplied TOGETHER with model; one half of that pair is 422.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Must be supplied TOGETHER with provider.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$"
+            }
+          },
+          {
+            "name": "operationId",
+            "in": "query",
+            "description": "Exact operation id, uuid.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Half-open window start, inclusive. Paired with to, which must be strictly after from: an empty span is 422 rather than a silent full-table read.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Half-open window end, EXCLUSIVE. Strictly after from.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "timeField",
+            "in": "query",
+            "description": "Which ledger clock orders and windows this query, published rather than assumed. The choice is echoed back in timeSemantics. Hashed into the cursor, so a cursor minted on one clock is refused on the other.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "occurredAt",
+                "receivedAt"
+              ],
+              "default": "occurredAt"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1..100, default 50. The page size; the query fetches at most limit+1 rows and the extra row is only the hasMore signal.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque base64url keyset position over (timeField, event_id). It carries the tenant and a sha256 of the eleven-key filter binding, so re-using it with another tenant, filter, window, clock or page size is 422 INVALID_ARGUMENT, refused before SQL is built. A non-canonical base64url spelling is rejected too, so one cursor has exactly one encoding.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One bounded page of the usage ledger, shared by drill-down UI and export clients, audited on every successful page (action usage.export on resource usage-events:page, severity info) with NO filter value, cursor or credential in the log. The SQL keyset query orders by (timeField, event_id) and keeps the tenant predicate in SQL even for a cursor minted here. A row whose payload is not a valid ledger event is counted in skippedInvalidEvents and dropped rather than returned raw; a row whose eventId, operationId or tenantId contradicts its stored key is 500 USAGE_LEDGER_CONFLICT, not a silent skip.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageEventExportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid credentials"
+          },
+          "403": {
+            "description": "PERMISSION_DENIED when tenantId does not match the API key tenant, or falls outside the admin credential scope"
+          },
+          "422": {
+            "description": "INVALID_SCHEMA for an unsupported or REPEATED parameter (the allow-list has no wildcard, so no arbitrary filter, content or credential can enter this boundary), a non-integer limit or profileRevision, a to that is not strictly after from, half a businessId+action or provider+model pair, or a missing tenantId under an admin bearer. Also INVALID_ARGUMENT when a cursor does not belong to this query. This route never returns 400."
           }
         }
       }

@@ -51,6 +51,9 @@ import {
 import {
   fetchBusinessVersions,
 } from './business-section-data';
+import { fetchAuditEvents, type AuditFetchResult } from './audit-section-data';
+import { renderAuditSection } from './audit-section-renderer';
+import { AUDIT_NAV_PATH } from './shell-render';
 import type {
   BusinessFetchResult,
   BusinessFetcherInput,
@@ -326,6 +329,15 @@ export interface SectionFetchers {
   apiKeys?: ApiKeySectionFetcher;
   operations?: OperationSectionFetcher;
   overview?: OverviewSectionFetcher;
+  /**
+   * W-ADM-UX-03-AUDIT-ROUTE (Delta 130): the audit ledger pane fetcher.
+   *
+   * The default fetcher (fetchAuditEvents from ./audit-section-data)
+   * targets {jsonBaseUrl}/api/v1/admin/audit with the admin bearer.
+   * When absent the pane renders its error state: the shell never
+   * presents a wiring gap as an empty ledger.
+   */
+  audit?: (input: import('./audit-section-data').AuditFetcherInput) => Promise<AuditFetchResult>;
 }
 
 /**
@@ -474,6 +486,11 @@ export function matchShellRoute(
   }
 
   // Crypto configuration (ENC-08-WIRING Delta 97, W-ADM-UX-08-SHELL Delta 106).
+  // Audit ledger (W-ADM-UX-03-AUDIT-ROUTE Delta 130): path-routed like crypto-config
+  // because AdminSection is a closed union in types.ts (outside packet scope).
+  if (m === 'GET' && p === AUDIT_NAV_PATH) {
+    return { id: 'admin-audit', section: null, requiredRole: 'operator' };
+  }
   // section route: `AdminSection` is a closed union in types.ts, and the
   // packet's file scope does not include it, so the pane is reached by its
   // own path rather than by pretending to be a data section. Role 'admin'
@@ -1246,6 +1263,92 @@ function handleCryptoConfigGet(
     },
   };
 }
+/**
+ * W-ADM-UX-03-AUDIT-ROUTE (Delta 130): GET /admin/audit - the audit ledger pane.
+ *
+ * Follows the same shape as handleCryptoConfigGet: role guard first, then
+ * the shell chrome, then a deferred extras hook that calls the audit
+ * fetcher and renders the pane. When no fetcher is wired the pane renders
+ * an honest error state rather than a fake empty ledger.
+ */
+function handleAuditGet(
+  requiredRole: 'admin' | 'operator' | 'viewer',
+  request: AdminShellRequest,
+  claims: AdminCookieClaims | null,
+  config: ShellRuntimeConfig,
+): AdminShellResponse {
+  if (!claims) {
+    return {
+      status: 401,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body: renderErrorPage({
+        status: 401,
+        title: 'Sign-in required',
+        message: 'Sign in to view the Admin shell.',
+      }),
+    };
+  }
+  if (ROLE_ORDER[claims.role] < ROLE_ORDER[requiredRole]) {
+    return {
+      status: 403,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body: renderErrorPage({
+        status: 403,
+        title: 'Access denied',
+        message: 'Role ' + claims.role + ' is not authorized for the audit ledger (requires ' + requiredRole + ').',
+      }),
+    };
+  }
+  const view = buildAdminShellView({
+    role: claims.role,
+    path: request.pathname,
+    navItems: getCanonicalNavItems(),
+    dataAvailable: { kind: 'ready' },
+  });
+  const screen = buildScreenState({
+    role: claims.role,
+    section: null,
+    dataAvailable: { kind: 'ready' },
+  });
+  return {
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+    body: renderShell(view, screen),
+    deferredSectionExtras: async () => {
+      const fetcher = config.sectionFetchers?.audit;
+      if (!fetcher) {
+        return renderAuditSection({
+          fetch: {
+            kind: 'error',
+            message: 'Audit ledger is not wired. No section fetcher is configured.',
+          },
+        }).html;
+      }
+      try {
+        const result = await fetcher({
+          jsonBaseUrl: readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0',
+          adminToken: config.adminToken,
+          listLimit: typeof request.query?.['limit'] === 'string'
+            ? Number.parseInt(request.query['limit']!, 10)
+            : undefined,
+          cursor: typeof request.query?.['cursor'] === 'string' ? request.query['cursor'] : undefined,
+          severityFilter: typeof request.query?.['severity'] === 'string' ? request.query['severity'] : undefined,
+          actorFilter: typeof request.query?.['actor'] === 'string' ? request.query['actor'] : undefined,
+          actionFilter: typeof request.query?.['action'] === 'string' ? request.query['action'] : undefined,
+          resourceFilter: typeof request.query?.['resource'] === 'string' ? request.query['resource'] : undefined,
+          fromFilter: typeof request.query?.['from'] === 'string' ? request.query['from'] : undefined,
+          toFilter: typeof request.query?.['to'] === 'string' ? request.query['to'] : undefined,
+          sortFilter: typeof request.query?.['sort'] === 'string' ? request.query['sort'] : undefined,
+        });
+        return renderAuditSection({ fetch: result }).html;
+      } catch {
+        return renderAuditSection({
+          fetch: { kind: 'error', message: 'Audit ledger could not be loaded.' },
+        }).html;
+      }
+    },
+  };
+}
 
 /**
  * W-ADM-UX-08-SHELL (Delta 106): POST /admin/crypto-config - the pane form's
@@ -1451,6 +1554,8 @@ export function dispatchShellRequest(
     }
     case 'admin-logout':
       return { routeId: matched.id, response: handleLogout(request, config) };
+    case 'admin-audit':
+      return { routeId: matched.id, response: handleAuditGet(matched.requiredRole, request, claims, config) };
     case 'admin-crypto-config':
       if (request.method === 'POST') {
         return { routeId: matched.id, response: handleCryptoConfigPost(matched.requiredRole, request, claims, config, oidcCsrfToken) };

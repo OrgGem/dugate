@@ -29,6 +29,7 @@ worker; `Bearer <usageToken>` = connector usage identity. Problem shape
 | POST /api/v1/operations/:id/cancel | x-api-key | optional reason | 202; 200 replayed | 401; 404; 409 terminal | server.ts 646-652 |
 | POST /api/v1/operations/:id/resume | x-api-key | resume body (CAS expectedStateVersion) | 202; 200 replayed | 401; 404; 409 stale/terminal; 422 invalid | server.ts 656-663 |
 | GET /api/v1/usage/summary?from&to | x-api-key | from/to ISO query (required) | 200 UsageSummary `{tenantId,from,to,rows[],totals}` rows by provider/model, unattributed bucket | 401; 422 missing from/to | server.ts 361-371; usage.ts 62-120 |
+| GET /api/v1/usage/events?... | x-api-key, **or** admin bearer (an admin bearer makes `tenantId` mandatory) | strict allow-list of exactly **13** names: `tenantId`, `apiKeyId`, `businessId`, `action`, `profileRevision`, `provider`, `model`, `operationId`, `from`, `to`, `timeField` (default `occurredAt`), `limit` 1-100 default 50, `cursor`; `.strict()` + `superRefine`: `to` strictly after `from`, `businessId`+`action` together, `provider`+`model` together | 200 `{tenantId, events[], limit, hasMore, nextCursor?, skippedInvalidEvents, timeSemantics{field, order:asc, timezone:UTC}}` | 401; 403 `tenantId` mismatching the key tenant or outside the admin scope; 422 unknown or repeated parameter, non-integer `limit`/`profileRevision`, bad window, half a filter pair, cursor not bound to this query | **symbols**: `server.ts` `GET /api/v1/usage/events`; `contracts/usage-reconciliation.ts` `UsageEventDrilldownQuerySchema`, `UsageEventDrilldownCursorSchema`, `UsageEventExportPageSchema`; `usage.ts` `getUsageEventExportPage`, `encodeUsageEventCursor`, `decodeUsageEventCursor` |
 | GET /api/v1/connectors/:id/test | x-api-key | none; no caller headers forwarded, no upstream body echoed | 200 `{connectorId,ok,latencyMs}` | 401; 404 unknown connector; 502 CONNECTOR_UNHEALTHY/UNAVAILABLE | server.ts 378-385; connectors.ts 49-80 |
 
 Operations-list contract (ADM-UX-02, extended by W-ADMUX02-SORT-ALLOWLIST-1). The five-field envelope, the direction-bearing cursor and the allow-listed query parameters are also documented in docs 06 §GET /operations. Five properties are load-bearing and easy to mis-state.
@@ -136,6 +137,7 @@ Reconciliation vs prose (§1-4 and `docs/06`):
 | `GET /api/v1/operations` sort | 6-value allow-list (`created_at`/`updated_at`/`deadline_at` × `asc`/`desc`), `sort` binding + cursor `field:direction` slot — synced |
 | `GET /api/v1/operations` error `UNSUPPORTED_STORAGE_BACKEND` (422) | Documented at submission layer ([06](06-public-api.md) + [09](09-system-architecture.md) §1) |
 | `POST /api/v1/businesses/{id}/actions/{action}` | Canonical generic path present |
+| `GET /api/v1/usage/events` | **Published** in `docs/21-openapi.json` since spec 1.2.0: 13 allow-listed parameters derived from `packages/contracts/src`, both auth paths, 200 `UsageEventExportPage` - D-DOCS-OPENAPI-EVENTS-SYNC |
 
 Remaining open for P1-03 acceptance: request/response **example validator**
 (pagination / status / auth) and live verification of new sort / cursor
@@ -143,3 +145,46 @@ binding — see `docs/21-openapi.json` description and
 [06b-api-spec-overview.md](06b-api-spec-overview.md) §7 checklist.
 Run `npx @redocly/cli lint docs/21-openapi.json` and `jq '.paths | keys'`
 to cross-check drift.
+
+## 6. Usage drill-down / export and the durable reservation (2026-09-28, D-DOCS-COST-ADM-SYNC)
+
+Two COST surfaces landed in source after sections 1-5 were written. Both are recorded here at their **verified-offline** evidence level. Neither is accepted, and neither closes a gate.
+
+### 6.1 `GET /api/v1/usage/events` - keyset cursor and filter allow-list
+
+| Rule | Behaviour read from source |
+|---|---|
+| Parameter allow-list | Exactly **13** names, closed by an `allowed` set in the route **before** parsing. An unknown **or repeated** parameter is `422 INVALID_SCHEMA`, so no arbitrary filter, content or credential can enter this boundary. |
+| Integers | `limit` 1-100 (default 50) and `profileRevision` non-negative; the route enforces `/^\d+$/` before the schema bounds the range. |
+| Window | Half-open `[from,to)`, and `to` must be **strictly** after `from` (`WINDOW_ORDER`); an empty span is refused rather than silently returning everything. |
+| Paired filters | `businessId`+`action` and `provider`+`model` must arrive together; a half pair is 422, not a wider result set. |
+| Cursor | base64url of `{version, tenantId, queryHash, after, eventId}`, strict-validated on decode; a non-canonical base64url spelling is rejected, so one cursor has exactly one encoding. |
+| Cursor binding | `queryHash = sha256(JSON.stringify({tenantId, binding}))` over the 7 dimension filters plus `from`, `to`, `timeField` and `limit`. Re-using a cursor with another tenant, filter, window, sort clock or page size is **422 `INVALID_ARGUMENT`**, refused **before** SQL is built. The tenant predicate stays mandatory in SQL even for a cursor minted here. |
+| Bounded read | At most `limit + 1` rows; the extra row is the `hasMore` signal, and the next cursor is minted from the last **scanned** row, never from the extra one. |
+| Ordering | `(timeField, event_id)` ascending, where `timeField` is `payload->>'occurredAt'` or the `received_at` column, and the choice is echoed back in `timeSemantics`. |
+| Authorisation | Tenant scope comes from the principal, not the query: an admin bearer goes through `authorizeAuditTenantRead` and then **requires** `tenantId` (422 when absent); `x-api-key` pins the key tenant and a mismatching `tenantId` is 403. |
+| Audit | Every successful page records `usage.export` on `usage-events:page` at severity `info`, with **no** filter values, cursors or credentials in the log. |
+| Bad rows | A payload that fails `projectLedgerEvent` is counted in `skippedInvalidEvents` and dropped; a row whose `eventId`/`operationId`/`tenantId` contradicts its stored key is `500 USAGE_LEDGER_CONFLICT`, never a silent skip. Raw payload content is never returned. |
+
+Evidence - receipt `COST-03-DRILLDOWN` (Tester, 2026-09-28T08:48:45+07:00): contracts build 0; contracts `usage-event-export` + `grant-encryption-envelope` 2 suites / 18 tests 0; orchestrator `usage-drilldown` + `usage-aggregation` 2 suites / 12 tests 0; both package typechecks 0. The receipt states plainly that **no live PostgreSQL, no browser export flow and no independent review** was exercised, and that COST-03 and the `G-ADMIN-OPS` gate remain open.
+
+**Drift closed in D-DOCS-OPENAPI-EVENTS-SYNC (2026-09-28).** When this section was written, the route was **absent from `docs/21-openapi.json`**, which carried `/api/v1/usage/summary` but not `/api/v1/usage/events`. That packet named only the two prose files, so the machine-readable companion was left untouched and the gap was reported as Δ-A43-1 — same class as the download-route gap fixed in D-OPENAPI-ENC-RESULT. The route is now published: the **generator** `tools/openapi/gen_openapi.py` derives the thirteen parameter names, the id pattern, the `timeField` and `costStatus` enums and the `limit` bounds **from `packages/contracts/src`** instead of retyping them, and the artifact carries both auth paths (`ApiKey` and `AdminBearer`) plus `UsageEventExportPage`, `UsageLedgerEvent`, `UsageLedgerUnits`, `UsageTimeSemantics`, `UsageEventCursor` and `UsageEventQuery`. Spec version `1.2.0`; `path-count=44`, `schemas=14`; regeneration is byte-identical.
+
+### 6.2 The durable reservation contract - no HTTP surface
+
+The reservation is a **service**, not a route: `BudgetReservationService` in `services/orchestrator/src/modules/usage/budget-reservations.ts` is invoked in-process, so nothing in it belongs in sections 1-4.
+
+| Rule | Behaviour read from source |
+|---|---|
+| Statuses | `RESERVED`, `RUNNING`, `UNKNOWN`, `RECONCILED`, `RELEASED`, `BLOCKED`. A hold counts while `RESERVED`/`RUNNING`/`UNKNOWN` (`budgetReservationCountsAsHeld`), so a running or unknown provider call stays inside the reservation. |
+| Release needs proof | `RELEASED` is valid **only** with `confirmedNotSent: true` (`BUDGET_RELEASE_REQUIRES_NO_CALL_PROOF`); that flag on any other target is refused (`BUDGET_RELEASE_PROOF_NOT_APPLICABLE`). Only a `RESERVED` hold can be released, and only before the call. |
+| Reconcile needs its event | A reservation in `RECONCILED` must carry `usageEventId` (`BUDGET_RESERVATION_MISSING_RECONCILIATION`). Reconcile stores actual usage and closes the hold **atomically**, and a replay returns the same row with `duplicate: true`. |
+| Upper bound for a hard cap | `confidence` is `upper-bound` or `best-effort`; a hard cap requires the upper bound, because a best-effort estimate cannot protect a quota. |
+| Trust gate | `isBudgetReservationTrusted` needs all four: `durableAtomicStore`, `sharedQuotaScope`, `validatedUsageLedger`, `boundedReservation`. Anything short of four-of-four means no hard cap. |
+| Fail closed | Storage or accounting uncertainty returns `503 BUDGET_RESERVATION_UNAVAILABLE` **before** admission; an alert-only budget may still record a best-effort hold. |
+| Scope and window | `quotaScope` must match the budget scope exactly (`BUDGET_RESERVATION_SCOPE_MISMATCH`); daily and monthly windows resolve in UTC so every replica and every late event lands in the same half-open interval. |
+| Durability | Migration `0022_budget_reservations.sql` adds the table plus **two** unique indexes (`usage_events.budget_reservation_id`, `budget_reservations.usage_event_id`) and a foreign key, so one reservation can be reconciled by at most one usage event and the reverse holds too. The admission transaction takes a PostgreSQL advisory lock on the canonical scope and window. |
+
+Evidence - receipt `COST-04-RESERVATION` (Tester, 2026-09-28T09:12:26+07:00): contracts build 0, contracts tsc 0, contracts 23 suites / 463 tests 0, orchestrator typecheck 0, orchestrator 4 suites / 50 tests 0 covering same-scope concurrency, idempotent admission and reconcile, UTC window rollover, RUNNING/UNKNOWN holds, scope fences, upper-bound trust, fail-closed DB errors and proof-gated release. A second receipt, `T-CODEX-OFFLINE-COST-04-RESERVATION-INDEPENDENT`, self-declares independent read-only verification: 3 suites / 33 tests 0 and orchestrator `tsc --noEmit` 0; that run omits `migrations-ledger-guard.test.ts`, which is why its count is 33 and not 50.
+
+**What is still not proven:** live PostgreSQL migration execution and a live reservation race were **not** performed - the live migration suite is skipped without a DB window - and **no connector call-site wiring was exercised**. The reservation is therefore implemented and offline-verified, not live-verified.

@@ -5,14 +5,60 @@ import { z } from 'zod';
  * Aligned with the error taxonomy and state set the connector lane implements.
  */
 
+export const CONNECTOR_ARTIFACT_MAX_BYTES = 10 * 1024 * 1024;
+export const CONNECTOR_ARTIFACT_MAX_COUNT = 4;
+export const CONNECTOR_INVOCATION_MAX_BODY_BYTES = 15 * 1024 * 1024;
+
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+/** Verified source content carried to OCR/vision providers. The storage
+ * version and digest bind these bytes to the grant that authorized the read. */
+const InvocationArtifactBaseSchema = z.object({
+  artifactId: z.string().uuid(),
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().regex(/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/).max(127),
+  sizeBytes: z.number().int().min(1).max(CONNECTOR_ARTIFACT_MAX_BYTES),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  storageVersionId: z.string().min(1).max(1024),
+  contentBase64: z.string().max(Math.ceil(CONNECTOR_ARTIFACT_MAX_BYTES / 3) * 4).regex(BASE64_PATTERN),
+}).strict();
+
+export const InvocationArtifactContentSchema = InvocationArtifactBaseSchema.superRefine((artifact, context) => {
+  const padding = artifact.contentBase64.endsWith('==') ? 2 : artifact.contentBase64.endsWith('=') ? 1 : 0;
+  const decodedSizeBytes = (artifact.contentBase64.length / 4) * 3 - padding;
+  if (
+    artifact.contentBase64.length !== Math.ceil(artifact.sizeBytes / 3) * 4 ||
+    decodedSizeBytes !== artifact.sizeBytes
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['contentBase64'], message: 'Base64 length does not match sizeBytes.' });
+  }
+});
+export type InvocationArtifactContent = z.infer<typeof InvocationArtifactContentSchema>;
+
+/** Storage identity signed into the short-lived invocation grant. */
+export const InvocationArtifactPinSchema = InvocationArtifactBaseSchema.omit({ contentBase64: true });
+export type InvocationArtifactPin = z.infer<typeof InvocationArtifactPinSchema>;
+
 export const InvocationInputSchema = z
   .object({
     prompt: z.string().optional(),
     text: z.string().optional(),
-    artifacts: z.array(z.object({ artifactId: z.string().uuid() })).optional(),
+    task: z.string().min(1).max(128).optional(),
+    language: z.string().min(1).max(64).optional(),
+    artifacts: z.array(InvocationArtifactContentSchema).max(CONNECTOR_ARTIFACT_MAX_COUNT).optional(),
     outputSchema: z.record(z.string(), z.unknown()).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    const totalBytes = (input.artifacts ?? []).reduce((sum, artifact) => sum + artifact.sizeBytes, 0);
+    if (totalBytes > CONNECTOR_ARTIFACT_MAX_BYTES) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifacts'], message: 'Artifact payload exceeds the total size limit.' });
+    }
+    const ids = (input.artifacts ?? []).map((artifact) => artifact.artifactId);
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifacts'], message: 'Artifact IDs must be unique.' });
+    }
+  });
 export type InvocationInput = z.infer<typeof InvocationInputSchema>;
 
 export const InvocationOptionsSchema = z
@@ -98,10 +144,28 @@ export const InvocationGrantClaimsSchema = z
     allowedModel: z.string().nullable().optional(),
     allowedOptions: z.record(z.string(), z.unknown()).optional(),
     artifactIds: z.array(z.string().uuid()).optional(),
+    artifactPins: z.array(InvocationArtifactPinSchema).max(CONNECTOR_ARTIFACT_MAX_COUNT).optional(),
     exp: z.number().int(), // unix seconds
     iat: z.number().int(),
   })
-  .strict();
+  .strict()
+  .superRefine((claims, context) => {
+    if (claims.artifactIds && new Set(claims.artifactIds).size !== claims.artifactIds.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifactIds'], message: 'Artifact IDs must be unique.' });
+    }
+    if ((claims.artifactIds?.length ?? 0) > 0 && !claims.artifactPins) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifactPins'], message: 'Artifact IDs require signed storage pins.' });
+      return;
+    }
+    if (!claims.artifactPins) return;
+    const pinIds = claims.artifactPins.map((pin) => pin.artifactId);
+    if (new Set(pinIds).size !== pinIds.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifactPins'], message: 'Artifact pins must be unique.' });
+    }
+    if (claims.artifactIds && (claims.artifactIds.length !== pinIds.length || claims.artifactIds.some((id, index) => id !== pinIds[index]))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifactIds'], message: 'Artifact IDs do not match the signed pins.' });
+    }
+  });
 export type InvocationGrantClaims = z.infer<typeof InvocationGrantClaimsSchema>;
 
 /** Connector capability catalog entry (GET /capabilities). */

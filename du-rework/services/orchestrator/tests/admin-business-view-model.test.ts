@@ -567,3 +567,346 @@ describe('P6-02: buildBusinessHealthView', () => {
     expect(health.totalVersions).toBe(1);
   });
 });
+
+// ===========================================================================
+// W-ADM-UX-09-BUSINESS-VIEW-MODEL-NEGATIVE (Turn 344 / Cycle 53)
+//
+// Negative + boundary tests for the pure business view models. Every
+// expectation was MEASURED with a throwaway probe against the real function
+// first. Several pin behaviour that is arguably wrong; those are marked
+// DEFECT and reported, not fixed (production code is out of scope).
+//
+// Pure unit file: no DB, no HTTP, no listener, so no port band applies.
+// ===========================================================================
+
+const WADMUX09_NOW = 1774300000000;
+const WADMUX09_XSS = '<script>alert(1)</script>';
+
+const bvRow = (o: Partial<BusinessVersionRow> = {}): BusinessVersionRow =>
+  ({ businessId: 'acme', version: '1.0.0', status: 'ENABLED', ...o }) as BusinessVersionRow;
+
+// ---------------------------------------------------------------------------
+// 1. Unknown / corrupt BusinessStatus
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-09: a corrupt BusinessStatus degrades in the badge but not in health', () => {
+  // The badge uses a switch with a default, so it degrades. Everything
+  // measured below is the measured behaviour, not the intended behaviour.
+  const corrupt: string[] = ['ARCHIVED', '', 'Enabled', 'ENABLED '];
+
+  test.each(corrupt)('buildBusinessVersionStatusBadge(%p) keeps the raw string as label, badge neutral', (state) => {
+    const badge = buildBusinessVersionStatusBadge(state);
+    expect(badge.label).toBe(state);
+    expect(badge.badge).toBe('neutral');
+    expect(badge.state).toBe(state as BusinessStatus);
+  });
+
+  test('the four real states are not swallowed by the fallback (control)', () => {
+    // Without this control the table above would also pass if every state
+    // fell through to the default.
+    const cases: Array<[BusinessStatus, VersionStatusBadge, string]> = [
+      ['ENABLED', 'success', 'Enabled'],
+      ['DRAINING', 'warning', 'Draining'],
+      ['REGISTERED_DISABLED', 'neutral', 'Registered (Disabled)'],
+      ['RETIRED', 'neutral', 'Retired'],
+    ];
+    for (const [state, badge, label] of cases) {
+      const result = buildBusinessVersionStatusBadge(state);
+      expect(result.badge).toBe(badge);
+      expect(result.label).toBe(label);
+    }
+  });
+
+  // DEFECT, and the sharpest one in this packet: resolveVersionHealth tests
+  // for RETIRED / DRAINING / REGISTERED_DISABLED and then assumes "ENABLED"
+  // for everything else, so a status nobody has ever heard of reads healthy.
+  test('resolveVersionHealth treats a corrupt status as HEALTHY', () => {
+    expect(resolveVersionHealth(bvRow({ status: 'ARCHIVED' as BusinessStatus }), { nowMs: WADMUX09_NOW })).toBe('healthy');
+  });
+
+  test('only an explicit isActive:false pulls a corrupt status back to no-active', () => {
+    expect(resolveVersionHealth(bvRow({ status: 'ARCHIVED' as BusinessStatus, isActive: false }), { nowMs: WADMUX09_NOW })).toBe('no-active');
+  });
+
+  test('the display row inherits that same healthy verdict, with every gate shut', () => {
+    const row = toBusinessVersionDisplayRow(bvRow({ status: 'ARCHIVED' as BusinessStatus }), { nowMs: WADMUX09_NOW });
+    expect(row.health).toBe('healthy');
+    expect(row.statusBadge.badge).toBe('neutral');
+    expect(row.statusBadge.label).toBe('ARCHIVED');
+    // isActive defaults to (status === 'ENABLED'), which a corrupt status fails.
+    expect(row.isActive).toBe(false);
+    expect(row.canEnable).toBe(false);
+    expect(row.canDrain).toBe(false);
+    expect(row.canRetire).toBe(false);
+  });
+
+  test('the transition gates reject a corrupt status (control for the rows above)', () => {
+    // The gate/display asymmetry again: a bad state cannot authorise a
+    // transition, but it does paint the version green.
+    expect(canEnableVersion('ARCHIVED')).toBe(false);
+    expect(canDrainVersion('ARCHIVED')).toBe(false);
+    expect(canRetireVersion('ARCHIVED')).toBe(false);
+  });
+
+  test('health view counters do not reconcile: totalVersions=1 but the four statuses sum to 0', () => {
+    const health = buildBusinessHealthView([bvRow({ status: 'ARCHIVED' as BusinessStatus, version: '9' })], null);
+    expect(health.totalVersions).toBe(1);
+    const sum =
+      health.enabledVersions + health.drainingVersions + health.retiredVersions + health.disabledVersions;
+    expect(sum).toBe(0);
+    expect(health.health).toBe('no-active');
+  });
+
+  test('a corrupt status is counted in no bucket but still in the total', () => {
+    const health = buildBusinessHealthView(
+      [bvRow({ status: 'ENABLED', version: '1' }), bvRow({ status: 'ARCHIVED' as BusinessStatus, version: '2' })],
+      null,
+    );
+    expect(health.totalVersions).toBe(2);
+    expect(health.enabledVersions).toBe(1);
+    expect(health.drainingVersions).toBe(0);
+    expect(health.retiredVersions).toBe(0);
+    expect(health.disabledVersions).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Hostile HTML in businessId / version
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-09: businessId and version are interpolated unescaped', () => {
+  // Same division of labour as the other view models: the renderer escapes,
+  // the mapper does not. These tests pin that the mapper contributes nothing,
+  // so the renderer really is the only layer between a hostile id and the DOM.
+  test('a hostile status string becomes the badge label verbatim', () => {
+    const badge = buildBusinessVersionStatusBadge(WADMUX09_XSS);
+    expect(badge.label).toBe(WADMUX09_XSS);
+    expect(badge.badge).toBe('neutral');
+  });
+
+  test('a hostile businessId and version pass straight into the display row', () => {
+    const row = toBusinessVersionDisplayRow(bvRow({ businessId: WADMUX09_XSS, version: WADMUX09_XSS }), {
+      nowMs: WADMUX09_NOW,
+    });
+    expect(row.businessId).toBe(WADMUX09_XSS);
+    expect(row.version).toBe(WADMUX09_XSS);
+  });
+
+  test('the transition confirm interpolates a hostile version into title and message', () => {
+    const confirm = buildVersionTransitionConfirm(WADMUX09_XSS, 'enable');
+    expect(confirm.title).toBe('Enable version ' + WADMUX09_XSS);
+    expect(confirm.message).toBe('Are you sure you want to enable version ' + WADMUX09_XSS + '?');
+  });
+
+  test('the object form carries a hostile businessId and version too', () => {
+    const confirm = buildVersionTransitionConfirm({ businessId: WADMUX09_XSS, version: WADMUX09_XSS }, 'retire');
+    expect(confirm.businessId).toBe(WADMUX09_XSS);
+    expect(confirm.title).toBe('Retire version ' + WADMUX09_XSS);
+    expect(confirm.destructive).toBe(true);
+  });
+
+  test('the health summary interpolates a hostile version', () => {
+    const health = buildBusinessHealthView([bvRow({ businessId: WADMUX09_XSS, version: WADMUX09_XSS })], null);
+    expect(health.businessId).toBe(WADMUX09_XSS);
+    expect(health.summary).toContain(WADMUX09_XSS);
+  });
+
+  test('a hostile version is interpolated into the queue field as well', () => {
+    const row = toBusinessVersionDisplayRow(bvRow({ queue: WADMUX09_XSS }), { nowMs: WADMUX09_NOW });
+    expect(row.queue).toBe(WADMUX09_XSS);
+  });
+
+  test('the three declared actions build, an undeclared one throws', () => {
+    // The one place this module refuses rather than degrades. The action
+    // union has three members, so this only fires on a cast value.
+    for (const action of ['enable', 'drain', 'retire'] as const) {
+      expect(buildVersionTransitionConfirm('1.0.0', action).action).toBe(action);
+    }
+    expect(() => buildVersionTransitionConfirm('1.0.0', 'destroy' as never)).toThrow(
+      'Unsupported version transition action: destroy',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Heartbeat timestamp boundaries
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-09: heartbeat freshness thresholds and their boundaries', () => {
+  const at = (offsetSeconds: number): string => new Date(WADMUX09_NOW - offsetSeconds * 1000).toISOString();
+  const beat = (lastHeartbeatAt: string, nowMs: number = WADMUX09_NOW) =>
+    resolveWorkerHeartbeat(bvRow({ lastHeartbeatAt }), nowMs);
+
+  test('exactly 60s old is still online, 61s is degraded', () => {
+    expect(beat(at(60)).status).toBe('online');
+    expect(beat(at(61)).status).toBe('degraded');
+  });
+
+  test('exactly 300s old is still degraded, 301s is offline', () => {
+    expect(beat(at(300)).status).toBe('degraded');
+    expect(beat(at(301)).status).toBe('offline');
+  });
+
+  test('a heartbeat from the FUTURE reads as online, not as corrupt', () => {
+    // Math.max(0, ...) clamps the age, so a clock-skewed future timestamp
+    // looks maximally fresh rather than being rejected.
+    const future = new Date(WADMUX09_NOW + 86400000).toISOString();
+    const result = beat(future);
+    expect(result.status).toBe('online');
+    expect(result.lastHeartbeatAt).toBe(future);
+  });
+
+  test('a heartbeat from a day ago is offline', () => {
+    expect(beat(at(86400)).status).toBe('offline');
+  });
+
+  test('a pre-1970 timestamp is offline, not rejected as garbage', () => {
+    const result = beat('1969-12-31T23:59:59.000Z');
+    expect(result.status).toBe('offline');
+    expect(result.lastHeartbeatAt).toBe('1969-12-31T23:59:59.000Z');
+  });
+
+  // DEFECT: an unparseable timestamp is silently dropped, and the display
+  // then reports lastHeartbeatAt: null — the corruption is invisible.
+  test('an unparseable timestamp is dropped and the view reports null', () => {
+    const result = beat('garbage');
+    expect(result.status).toBe('none');
+    expect(result.lastHeartbeatAt).toBeNull();
+    expect(result.workerCount).toBe(0);
+  });
+
+  test('a rolled-over calendar date keeps the ORIGINAL invalid string in the view', () => {
+    // Date.parse rolls 2026-02-30 to 2026-03-02, so the age maths works, but
+    // the view still hands the renderer a string the calendar rejects.
+    const result = beat('2026-02-30T00:00:00.000Z');
+    expect(result.status).toBe('offline');
+    expect(result.lastHeartbeatAt).toBe('2026-02-30T00:00:00.000Z');
+  });
+
+  // DEFECT: a NaN clock makes every comparison false, so the age falls
+  // through to the offline branch - a bad clock declares the fleet down.
+  test('a NaN nowMs declares the worker offline', () => {
+    const result = beat(new Date(WADMUX09_NOW).toISOString(), NaN);
+    expect(result.status).toBe('offline');
+    expect(result.workerCount).toBe(0);
+  });
+
+  test('a null or absent timestamp yields no workers, not an error', () => {
+    expect(resolveWorkerHeartbeat(bvRow({ lastHeartbeatAt: null }), WADMUX09_NOW).status).toBe('none');
+    expect(resolveWorkerHeartbeat(bvRow(), WADMUX09_NOW).status).toBe('none');
+  });
+
+  test.each([-5, 0, NaN])('a workerCount of %p is normalised to zero workers', (workerCount) => {
+    const result = resolveWorkerHeartbeat(bvRow({ workerCount }), WADMUX09_NOW);
+    expect(result.status).toBe('none');
+    expect(result.workerCount).toBe(0);
+  });
+
+  test('a fresh heartbeat is online (control for the boundary rows)', () => {
+    const result = beat(at(0));
+    expect(result.status).toBe('online');
+    expect(result.workerCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Conflicting activeVersion states
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-09: conflicting active-version signals are resolved by array order', () => {
+  // DEFECT: both find() calls take the FIRST match, so an isActive flag on a
+  // retired row outranks a genuinely enabled row further down the list.
+  test('a retired row flagged isActive wins over an enabled row', () => {
+    const view = buildBusinessVersionListView(
+      [bvRow({ version: 'a', isActive: true, status: 'RETIRED' }), bvRow({ version: 'b', status: 'ENABLED' })],
+      { nowMs: WADMUX09_NOW },
+    );
+    expect(view.activeVersion).toBe('a');
+  });
+
+  test('two rows both report isActive=true after that conflict resolves', () => {
+    // b has no explicit isActive, so it defaults to (status === 'ENABLED') —
+    // the list ends up with two "active" rows and one activeVersion.
+    const view = buildBusinessVersionListView(
+      [bvRow({ version: 'a', isActive: true, status: 'RETIRED' }), bvRow({ version: 'b', status: 'ENABLED' })],
+      { nowMs: WADMUX09_NOW },
+    );
+    const active = view.rows.filter((r) => r.isActive).map((r) => r.version);
+    expect(active).toEqual(['a', 'b']);
+  });
+
+  test('when two rows are explicitly active, the first wins', () => {
+    const view = buildBusinessVersionListView(
+      [bvRow({ version: 'x', isActive: true }), bvRow({ version: 'y', isActive: true })],
+      { nowMs: WADMUX09_NOW },
+    );
+    expect(view.activeVersion).toBe('x');
+  });
+
+  test('an activeVersion naming a version that is not in the list is returned verbatim', () => {
+    // The option short-circuits the fallback, so a ghost name is echoed back
+    // with no check that such a version exists.
+    const view = buildBusinessVersionListView([bvRow({ version: 'b' })], {
+      activeVersion: 'ghost',
+      nowMs: WADMUX09_NOW,
+    });
+    expect(view.activeVersion).toBe('ghost');
+    expect(view.total).toBe(1);
+  });
+
+  test('an empty-string activeVersion is echoed as empty string, not normalised to null', () => {
+    const view = buildBusinessVersionListView([bvRow({ version: 'b' })], {
+      activeVersion: '',
+      nowMs: WADMUX09_NOW,
+    });
+    expect(view.activeVersion).toBe('');
+  });
+
+  test('a null activeVersion falls back to the isActive/enabled search', () => {
+    // Contrast with the empty string above: the fallback only runs when the
+    // option is undefined, so null and '' take different paths.
+    const view = buildBusinessVersionListView([bvRow({ version: 'b', status: 'ENABLED' })], {
+      activeVersion: null as never,
+      nowMs: WADMUX09_NOW,
+    });
+    expect(view.activeVersion).toBe('b');
+  });
+
+  test('a disabled row can be both isActive and canEnable at the same time', () => {
+    // The row claims to be the active version while also offering to enable it.
+    const row = toBusinessVersionDisplayRow(
+      bvRow({ isActive: true, status: 'REGISTERED_DISABLED' }),
+      { nowMs: WADMUX09_NOW },
+    );
+    expect(row.isActive).toBe(true);
+    expect(row.canEnable).toBe(true);
+    expect(row.health).toBe('no-active');
+  });
+
+  test('a ghost activeVersion still yields a healthy business view', () => {
+    // The active row cannot be found, so hasActiveWorkers falls back to
+    // (enabledVersions > 0) and the business is reported healthy.
+    const health = buildBusinessHealthView([bvRow({ version: 'b', status: 'ENABLED' })], 'ghost');
+    expect(health.activeVersion).toBe('ghost');
+    expect(health.hasActiveWorkers).toBe(true);
+    expect(health.health).toBe('healthy');
+  });
+
+  test('a null activeVersion with a retired-first list resolves to the retired row', () => {
+    const health = buildBusinessHealthView(
+      [bvRow({ version: 'a', isActive: true, status: 'RETIRED' }), bvRow({ version: 'b', status: 'ENABLED' })],
+      null,
+    );
+    expect(health.activeVersion).toBe('a');
+    expect(health.hasActiveWorkers).toBe(false);
+    expect(health.health).toBe('no-active');
+  });
+
+  test('an empty version list is a clean no-active (control)', () => {
+    const view = buildBusinessVersionListView([], { nowMs: WADMUX09_NOW });
+    expect(view.total).toBe(0);
+    expect(view.activeVersion).toBeNull();
+    expect(view.length).toBe(0);
+  });
+});
+

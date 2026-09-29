@@ -6,7 +6,7 @@ import { requireServiceIdentity } from '../identity';
 import type { ServiceIdentityVerifier } from '../types';
 import { parseContractInvocationRequest, toContractInvocationResponse } from '../contracts';
 import type { DrainableConnectorServer } from '../lifecycle';
-import type { ConnectorRevisionBinding } from '@du/contracts';
+import { CONNECTOR_INVOCATION_MAX_BODY_BYTES, type ConnectorRevisionBinding } from '@du/contracts';
 
 export interface HttpInvocationResult {
   invocationId: string;
@@ -304,7 +304,9 @@ async function route(
     if (dependencies.acceptingInvocations && !dependencies.acceptingInvocations()) {
       throw new ConnectorError('CONNECTOR_DISABLED', 'Connector is draining.');
     }
-    const invocation = parseContractInvocationRequest(await readJson(request, dependencies.maxBodyBytes ?? 1_048_576));
+    const invocation = parseContractInvocationRequest(
+      await readJson(request, dependencies.maxBodyBytes ?? CONNECTOR_INVOCATION_MAX_BODY_BYTES),
+    );
     const result = await dependencies.runtime.invoke(invocation);
     return writeJson(response, result.state === 'pending' ? 202 : 200, toContractInvocationResponse(result.invocationId, result));
   }

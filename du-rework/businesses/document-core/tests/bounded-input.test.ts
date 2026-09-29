@@ -1,8 +1,84 @@
+import { CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContentSchema } from '@du/contracts';
 import { InputNormalizer } from '../src/validation/input-normalizer';
 import { SchemaValidator } from '../src/validation/schema-validator';
 import { ValidationError } from '../src/types/results';
+import { ParserBudgetHelper } from '../src/pipelines/parser-budget';
+import { IngestAction } from '../src/actions/ingest';
+import { MockTaskContext } from './fixtures/mock-context';
+
+const contractArtifact = {
+  artifactId: '00000000-0000-4000-8000-000000000001',
+  fileName: 'scan.png',
+  mimeType: 'image/png',
+  sizeBytes: 1,
+  sha256: 'a'.repeat(64),
+  storageVersionId: 'scan-version-1',
+  contentBase64: 'YQ==',
+};
 
 describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
+  describe('Byte and image payload bounds', () => {
+    test('rejects a zero-byte image payload at the connector contract boundary', () => {
+      const result = InvocationArtifactContentSchema.safeParse({
+        ...contractArtifact,
+        sizeBytes: 0,
+        contentBase64: '',
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain('sizeBytes');
+      }
+    });
+
+    test('accepts a buffer exactly at its configured cap and rejects one byte over', async () => {
+      const ctx = new MockTaskContext();
+      const limit = 8;
+      const exact = Buffer.alloc(limit, 0x61);
+      const over = Buffer.alloc(limit + 1, 0x61);
+
+      const result = await ParserBudgetHelper.safeParseBuffer(ctx, exact, 'bounded.txt', {
+        maxBufferSizeBytes: limit,
+      });
+      expect(result.text).toBe('a'.repeat(limit));
+
+      await expect(
+        ParserBudgetHelper.safeParseBuffer(ctx, over, 'bounded.txt', { maxBufferSizeBytes: limit })
+      ).rejects.toMatchObject({ code: 'DOCUMENT_TOO_LARGE' });
+    });
+
+    test('rejects image file size beyond the connector artifact contract maximum', () => {
+      const result = InvocationArtifactContentSchema.safeParse({
+        ...contractArtifact,
+        sizeBytes: CONNECTOR_ARTIFACT_MAX_BYTES + 1,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain('sizeBytes');
+      }
+    });
+
+    test('rejects content whose sniffed format disagrees with the claimed PDF metadata', async () => {
+      const ctx = new MockTaskContext();
+      const nonPdfBytes = Buffer.from('plain text content without a PDF signature', 'utf8');
+      const ref = await ctx.artifacts.write(nonPdfBytes, 'claimed-document.pdf', 'application/pdf');
+      const storedMetadata = ctx.artifactFormatMetadataStore.get(ref.artifactId);
+      expect(storedMetadata).toBeDefined();
+      ctx.artifactFormatMetadataStore.set(ref.artifactId, {
+        ...storedMetadata!,
+        canonicalFormat: 'pdf',
+        canonicalMimeType: 'application/pdf',
+      });
+      const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [ref.artifactId], language: 'en' });
+
+      await expect(IngestAction.prepareSources(ctx, input)).rejects.toMatchObject({
+        code: 'ARTIFACT_FORMAT_METADATA_MISMATCH',
+      });
+      expect(ctx.connectorInvocations).toHaveLength(0);
+    });
+  });
+
   describe('Artifact Count Bounds', () => {
     test('Ingest allows up to 20 artifacts and rejects 21+ with TOO_MANY_ARTIFACTS', () => {
       const validArtifacts = Array.from({ length: 20 }, (_, i) => `art-${i + 1}`);
@@ -104,6 +180,22 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
         InputNormalizer.normalizeIngest({ mode: 'split', pages: '501' });
       }).toThrow(expect.objectContaining({ code: 'PAGE_LIMIT_EXCEEDED' }));
     });
+
+    test('rejects zero and negative page numbers and range endpoints', () => {
+      for (const pages of ['0', '-1', '1,-2', '0-3', '2-0']) {
+        expect(() => InputNormalizer.normalizeIngest({ mode: 'split', pages })).toThrow(
+          expect.objectContaining({ code: 'INVALID_PAGE_RANGE' })
+        );
+      }
+    });
+
+    test('rejects non-numeric and fractional page range specifications', () => {
+      for (const pages of ['1-two', '1, two', '1.5', '2-3.5']) {
+        expect(() => InputNormalizer.normalizeIngest({ mode: 'split', pages })).toThrow(
+          expect.objectContaining({ code: 'INVALID_PAGE_RANGE' })
+        );
+      }
+    });
   });
 
   describe('Custom Schema Complexity Bounds', () => {
@@ -182,6 +274,15 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
         });
       }).toThrow(expect.objectContaining({ code: 'FORBIDDEN_SCHEMA_REF' }));
     });
+
+    test('rejects a deeply self-referential schema at the configured recursion-depth bound', () => {
+      const circularSchema: Record<string, unknown> = { type: 'object' };
+      circularSchema.properties = { self: circularSchema };
+
+      expect(() => SchemaValidator.validateCustomSchema(circularSchema)).toThrow(
+        expect.objectContaining({ code: 'SCHEMA_DEPTH_EXCEEDED' })
+      );
+    });
   });
 
   describe('QA Question Count Bounds', () => {
@@ -210,6 +311,15 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
         InputNormalizer.normalizeGenerate({
           task: 'qa',
           questions: [],
+        });
+      }).toThrow(expect.objectContaining({ code: 'MISSING_REQUIRED_PARAMETER' }));
+    });
+
+    test('rejects a negative numeric QA question count as a missing bounded question list', () => {
+      expect(() => {
+        InputNormalizer.normalizeGenerate({
+          task: 'qa',
+          questions: -1,
         });
       }).toThrow(expect.objectContaining({ code: 'MISSING_REQUIRED_PARAMETER' }));
     });
@@ -299,6 +409,18 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
           source: { text: 'Source text' },
           target: { text: 'Canonical target' },
           target_file: 'art-conflicting-target',
+        });
+      }).toThrow(expect.objectContaining({ code: 'CONFLICTING_COMPARISON_PARAMETERS' }));
+    });
+
+    test('rejects conflicting object-form legacy aliases rather than letting them override canonical sides', () => {
+      expect(() => {
+        InputNormalizer.normalizeCompare({
+          mode: 'diff',
+          source: { artifactId: 'canonical-source' },
+          source_file: { artifact_id: 'legacy-source' },
+          target: { text: 'Canonical target' },
+          target_file: { artifact_id: 'legacy-target' },
         });
       }).toThrow(expect.objectContaining({ code: 'CONFLICTING_COMPARISON_PARAMETERS' }));
     });

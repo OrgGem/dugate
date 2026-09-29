@@ -9,6 +9,11 @@ import {
   sweepStaleWorkspaces,
 } from '../src';
 
+jest.mock('node:fs/promises', () => {
+  const actual = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises');
+  return { ...actual, rm: jest.fn(actual.rm) };
+});
+
 /**
  * W46-Q2-3 (P4-05 ART-02 clause, Qwen-2 / term_4d79e7d3) — offline guard tests:
  * the stale-workspace sweep must reap ONLY true orphans. A workspace still
@@ -62,6 +67,100 @@ describe('ART-02 sweep live-reference guard (offline, W46-Q2-3)', () => {
     expect(existsSync(referenced)).toBe(true);
     await expect(readdir(referenced).then((f) => f)).resolves.toContain('payload.bin');
     expect(existsSync(other)).toBe(false);
+  });
+
+  it('keeps a stale workspace when its active lease timestamp is invalid or corrupt', async () => {
+    const protectedByUnknownLease = await plantStaleDir(root, 'corrupt-lease-timestamp');
+    let checked = false;
+
+    const result = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: 0,
+      hasActiveReference: async () => {
+        checked = true;
+        const leaseExpiresAt = 'not-a-valid-lease-timestamp';
+        if (!Number.isFinite(Date.parse(leaseExpiresAt))) throw new Error('corrupt lease timestamp');
+        return Date.parse(leaseExpiresAt) > Date.now();
+      },
+    });
+
+    expect(checked).toBe(true);
+    expect(result.kept).toContain(protectedByUnknownLease);
+    expect(result.removed).not.toContain(protectedByUnknownLease);
+    expect(existsSync(protectedByUnknownLease)).toBe(true);
+  });
+
+  it('uses a strict TTL boundary: exactly eligible age is kept, one millisecond older is swept', async () => {
+    const workspace = await plantStaleDir(root, 'ttl-boundary');
+    const modified = (await stat(workspace)).mtimeMs;
+    const ttlMs = 10_000;
+
+    const exactlyAtBoundary = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: ttlMs,
+      now: () => modified + ttlMs,
+    });
+    expect(exactlyAtBoundary.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
+
+    const justPastBoundary = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: ttlMs,
+      now: () => modified + ttlMs + 1,
+    });
+    expect(justPastBoundary.removed).toContain(workspace);
+    expect(existsSync(workspace)).toBe(false);
+  });
+
+  it('keeps a stale artifact while an external lock/reference remains active', async () => {
+    const locked = await plantStaleDir(root, 'externally-locked');
+    const lockMarker = join(locked, '.artifact-lock');
+    await writeFile(lockMarker, 'lease holder active', 'utf8');
+
+    const result = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: 0,
+      hasActiveReference: async (dir) => dir === locked,
+    });
+
+    expect(result.kept).toContain(locked);
+    expect(result.removed).not.toContain(locked);
+    expect(existsSync(lockMarker)).toBe(true);
+    await expect(readdir(locked)).resolves.toContain('.artifact-lock');
+  });
+
+  it('handles concurrent sweeps of the same orphan without errors or lost cleanup', async () => {
+    const orphan = await plantStaleDir(root, 'concurrent-orphan');
+    let referenceChecks = 0;
+    let releaseChecks!: () => void;
+    const bothChecksDone = new Promise<void>((resolve) => { releaseChecks = resolve; });
+    const hasNoActiveReference = async (): Promise<boolean> => {
+      referenceChecks += 1;
+      if (referenceChecks === 2) releaseChecks();
+      await bothChecksDone;
+      return false;
+    };
+
+    const results = await Promise.all([
+      sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0, hasActiveReference: hasNoActiveReference }),
+      sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0, hasActiveReference: hasNoActiveReference }),
+    ]);
+
+    expect(referenceChecks).toBe(2);
+    expect(results.every((result) => result.removed.includes(orphan))).toBe(true);
+    expect(existsSync(orphan)).toBe(false);
+  });
+
+  it('keeps the stale workspace and returns normally when disk removal fails', async () => {
+    const workspace = await plantStaleDir(root, 'disk-removal-fails');
+    const diskError = Object.assign(new Error('volume is temporarily unavailable'), { code: 'EIO' });
+    jest.mocked(rm).mockRejectedValueOnce(diskError);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.removed).not.toContain(workspace);
+    expect(result.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
   });
 
   it('in-process live workspace (created, not disposed) is never swept even when backdated', async () => {

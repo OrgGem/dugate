@@ -17,7 +17,7 @@ In addition, a top-level `root` dispatcher handler routes tasks to the appropria
 
 ## Configuration
 
-Worker configuration is parsed and validated using Zod at startup with fail-closed semantics (`src/config.ts`). Sensitive credentials (such as `RUNTIME_TOKEN`) are never logged or exposed in error messages.
+Worker configuration is parsed and validated using Zod at startup with fail-closed semantics (`src/config.ts`). Sensitive credentials (such as `RUNTIME_TOKEN` and `CONNECTOR_SERVICE_TOKEN`) are never logged or exposed in error messages. Connector requests use a separate short-lived Bearer service identity token; `RUNTIME_TOKEN` is not accepted as Connector authentication.
 
 ### Environment Variables
 
@@ -27,6 +27,7 @@ Worker configuration is parsed and validated using Zod at startup with fail-clos
 | `RUNTIME_TOKEN` | **Yes** | — | Bearer service identity token scoped to this business |
 | `REDIS_URL` | **Yes** | — | Redis connection URL for BullMQ queue consumption (e.g. `redis://localhost:6380`) |
 | `CONNECTOR_URL` | No | `undefined` | Connector internal base URL (e.g. `http://localhost:3100/internal/v1`) |
+| `CONNECTOR_SERVICE_TOKEN` | Required with `CONNECTOR_URL` | — | Short-lived signed Bearer token with audience `connector` and scope `connector:invoke`; issue it through the service identity authority and keep its signing secret in Connector only |
 | `CONCURRENCY` | No | `1` | Max concurrent task deliveries (positive integer) |
 | `HEARTBEAT_INTERVAL_MS` | No | `10000` | Lease heartbeat interval in milliseconds |
 | `WORKER_INSTANCE_ID` | No | Auto-generated UUID | Unique identifier for this worker instance |
@@ -50,6 +51,9 @@ npm run build
 export RUNTIME_URL="http://localhost:3000/api/runtime/v1"
 export RUNTIME_TOKEN="your-service-token"
 export REDIS_URL="redis://localhost:6380"
+# Set both Connector values when worker handlers invoke Connector.
+export CONNECTOR_URL="http://localhost:3100/internal/v1"
+export CONNECTOR_SERVICE_TOKEN="short-lived-connector-service-token"
 npm run start
 ```
 
@@ -63,6 +67,8 @@ docker build -f businesses/document-core/Dockerfile -t du-document-core:latest .
 docker run --rm \
   -e RUNTIME_URL="http://orchestrator:3000/api/runtime/v1" \
   -e RUNTIME_TOKEN="secret-token" \
+  -e CONNECTOR_URL="http://connector:3100/internal/v1" \
+  -e CONNECTOR_SERVICE_TOKEN="short-lived-connector-service-token" \
   -e REDIS_URL="redis://redis:6379" \
   du-document-core:latest
 ```

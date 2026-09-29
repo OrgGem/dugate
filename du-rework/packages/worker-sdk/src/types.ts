@@ -43,6 +43,8 @@ export interface ArtifactReadWithMetadata {
   mimeType?: string;
   sizeBytes: number;
   sha256: string;
+  storageVersionId?: string;
+  grantExpiresAt?: string;
 }
 
 /** Artifact facade — worker-sdk owns runtime artifact access/grants (P4-04/05
@@ -55,11 +57,11 @@ export interface ArtifactFacade {
    */
   read(artifactId: string): Promise<Buffer>;
   /** Read bounded bytes and retain the original declared name/MIME and integrity values. */
-  readWithMetadata(artifactId: string): Promise<ArtifactReadWithMetadata>;
+  readWithMetadata(artifactId: string, options?: { signal?: AbortSignal }): Promise<ArtifactReadWithMetadata>;
   /** Open a bounded, integrity-checkable stream for large artifacts. */
   readStream(
     artifactId: string,
-    options?: { expectedSha256?: string; expectedSizeBytes?: number }
+    options?: { expectedSha256?: string; expectedSizeBytes?: number; expectedVersionId?: string; signal?: AbortSignal }
   ): Promise<import('node:stream').Readable>;
   /**
    * Write a new artifact: obtains an upload grant, streams content, finalizes
@@ -82,7 +84,7 @@ export interface ArtifactFacade {
    * lets a business pre-flight size/integrity and choose disk-backed streaming
    * acquisition. Lease-fenced like every other artifact facade call.
    */
-  stat?(artifactId: string): Promise<ArtifactStat>;
+  stat?(artifactId: string, options?: { signal?: AbortSignal }): Promise<ArtifactStat>;
 }
 
 /** Grant-scoped artifact descriptor used for read-acquisition pre-flight. */
@@ -91,6 +93,8 @@ export interface ArtifactStat {
   mimeType?: string;
   sizeBytes?: number;
   sha256?: string;
+  storageVersionId?: string;
+  grantExpiresAt?: string;
 }
 
 /** Connector facade — grant acquisition + invocation via connector-client. */
@@ -245,7 +249,7 @@ export interface TaskContext {
   /** Existing checkpoints for this task (delivered with the claim). */
   checkpoints(): readonly CheckpointRef[];
   /** Stored invocation grant for a step, if one was already issued. */
-  grantFor(stepKey: string, bindingSlot: string, inputHash: string): Promise<InvocationGrant>;
+  grantFor(stepKey: string, bindingSlot: string, inputHash: string, artifactIds?: readonly string[]): Promise<InvocationGrant>;
 }
 
 /** Worker configuration (P4-02). */
@@ -256,6 +260,8 @@ export interface WorkerConfig {
   runtimeToken: string;
   /** Connector base URL, e.g. http://connector:3100/internal/v1 */
   connectorUrl?: string;
+  /** Short-lived Connector Bearer identity token; distinct from runtimeToken. */
+  connectorServiceToken?: string | (() => string);
   /** Redis connection for BullMQ consumption. */
   redis?: { url: string };
   /** Stable instance identity; generated when omitted. */

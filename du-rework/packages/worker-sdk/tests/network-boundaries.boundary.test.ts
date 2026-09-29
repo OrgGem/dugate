@@ -57,6 +57,11 @@ let testRoot: string;
 let guard: RejectionGuard;
 const listeners: BoundaryListener[] = [];
 const workspaces: TempWorkspace[] = [];
+// Avoid port 0 here: Windows can let an ephemeral loopback port bind successfully but then
+// intermittently filter the outbound client connection. This matches the stable band used by
+// the sibling Worker SDK live-listener suites.
+const QUIET_PORT_BASE = 46_400 + (process.pid % 8) * 16;
+let portOffset = 0;
 
 /** B-race accounting: every deliberately racing promise and whether it was claimed. */
 interface RacingHandle {
@@ -84,7 +89,7 @@ function raceTrack<T>(label: string, p: Promise<T>): { handle: RacingHandle; set
 }
 
 async function startListener(): Promise<BoundaryListener> {
-  const listener = await BoundaryListener.start();
+  const listener = await BoundaryListener.start(QUIET_PORT_BASE + portOffset++);
   listeners.push(listener);
   return listener;
 }
@@ -254,7 +259,9 @@ it('[LOCK:FIX-CR-08 caller-signal-aborts-body]', async () => {
   );
 
   try {
-    await waitFor(() => listener.requests > 0, 500);
+    // The full SDK suite includes a high-RSS streaming test; allow its cleanup and the local
+    // connection scheduler enough time before declaring that the request never reached us.
+    await waitFor(() => listener.requests > 0, 2_000);
     await sleep(150); // past headers, ~3 of 8 chunks into the body
     const abortedAt = Date.now();
     controller.abort();
@@ -266,8 +273,12 @@ it('[LOCK:FIX-CR-08 caller-signal-aborts-body]', async () => {
     expect(existsSync(filePath)).toBe(false); // no partial file after a cancelled lease
     expect(listener.closedWithoutFinish).toBeGreaterThanOrEqual(1); // slot released on the wire
   } finally {
-    await settled; // never leave the racer floating, whatever the assertions did
+    // Abort and close the server before awaiting the racing client promise. If the download
+    // regresses and never settles, waiting first would keep this listener bound until Jest's
+    // timeout and can strand the port for every following suite run.
+    controller.abort();
     await listener.stop();
+    await Promise.race([settled, sleep(1_000)]);
   }
 });
 

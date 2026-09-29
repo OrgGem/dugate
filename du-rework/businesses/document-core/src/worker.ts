@@ -130,9 +130,17 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
   const isInternal = typeof (ctx as { step?: unknown }).step === 'function';
   const artifactFacade = ctx.artifacts as unknown as {
     read(artifactId: string): Promise<Buffer>;
-    readWithMetadata?: (artifactId: string) => Promise<
+    readWithMetadata?: (artifactId: string, options?: { signal?: AbortSignal }) => Promise<
       | ArtifactReadResult
-      | { buffer: Buffer; filename?: string; mimeType?: string; sizeBytes: number; sha256: string }
+      | {
+          buffer: Buffer;
+          filename?: string;
+          mimeType?: string;
+          sizeBytes: number;
+          sha256: string;
+          storageVersionId?: string;
+          grantExpiresAt?: string;
+        }
     >;
     write(content: Buffer | string, fileName: string, mimeType: string): ReturnType<TaskContext['artifacts']['write']>;
     writeStream?(
@@ -143,7 +151,7 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
       purpose?: string,
       expectedSha256?: string
     ): Promise<ArtifactRef>;
-    stat?(artifactId: string): Promise<ArtifactStat>;
+    stat?(artifactId: string, options?: { signal?: AbortSignal }): Promise<ArtifactStat>;
     readStream?(artifactId: string, options?: ArtifactReadStreamOptions): Promise<Readable>;
   };
 
@@ -165,10 +173,10 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
         assertActive(ctx);
         return artifactFacade.read(id);
       },
-      readWithMetadata: async (id) => {
+      readWithMetadata: async (id, options) => {
         assertActive(ctx);
         if (artifactFacade.readWithMetadata) {
-          const readResult = await artifactFacade.readWithMetadata(id);
+          const readResult = await artifactFacade.readWithMetadata(id, options);
           assertActive(ctx);
           if (isInternal) return readResult as ArtifactReadResult;
 
@@ -178,6 +186,8 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
             mimeType?: string;
             sizeBytes: number;
             sha256: string;
+            storageVersionId?: string;
+            grantExpiresAt?: string;
           };
           const detection = DocumentFormatDetector.detect(
             sdkRead.buffer,
@@ -192,6 +202,16 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
               declaredFileName: sdkRead.filename,
               declaredMimeType: sdkRead.mimeType,
             },
+            ...(sdkRead.storageVersionId && sdkRead.grantExpiresAt
+              ? {
+                identity: {
+                  storageVersionId: sdkRead.storageVersionId,
+                  grantExpiresAt: sdkRead.grantExpiresAt,
+                  sizeBytes: sdkRead.sizeBytes,
+                  sha256: sdkRead.sha256,
+                },
+              }
+              : {}),
           };
         }
 
@@ -266,9 +286,9 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
       // facade really implements them (buffer-only facades keep the legacy
       // in-memory path — no synthesized streams).
       stat: artifactFacade.stat
-        ? async (artifactId) => {
+        ? async (artifactId, options) => {
             assertActive(ctx);
-            const descriptor = await artifactFacade.stat!(artifactId);
+            const descriptor = await artifactFacade.stat!(artifactId, options);
             assertActive(ctx);
             return descriptor;
           }
@@ -288,7 +308,14 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
         if (isInternal) {
           return (ctx as TaskContext).connector.invoke(slot, promptOrPayload, options);
         }
-        let input: { prompt?: string; text?: string; artifacts?: { artifactId: string }[]; outputSchema?: Record<string, unknown> };
+        let input: {
+          prompt?: string;
+          text?: string;
+          task?: string;
+          language?: string;
+          artifacts?: import('@du/contracts').InvocationArtifactContent[];
+          outputSchema?: Record<string, unknown>;
+        };
         if (typeof promptOrPayload === 'string') {
           input = { prompt: promptOrPayload };
         } else {
@@ -307,10 +334,14 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
           input = {
             prompt: promptText,
             text: extractedText,
+            task: typeof obj['task'] === 'string' ? obj['task'] : undefined,
+            language: typeof obj['language'] === 'string' ? obj['language'] : undefined,
             outputSchema: rawSchema && typeof rawSchema === 'object'
               ? (rawSchema as Record<string, unknown>)
               : undefined,
-            artifacts: Array.isArray(obj['artifacts']) ? (obj['artifacts'] as { artifactId: string }[]) : undefined,
+            artifacts: Array.isArray(obj['artifacts'])
+              ? (obj['artifacts'] as import('@du/contracts').InvocationArtifactContent[])
+              : undefined,
           };
         }
 

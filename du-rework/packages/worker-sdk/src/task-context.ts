@@ -462,22 +462,30 @@ export class DefaultTaskContext implements TaskContext {
     const self = this;
     const maxBytes = self.deps.maxArtifactBytes ?? 64 * 1024 * 1024;
 
-    const readGrant = async (artifactId: string) => {
+    const readGrant = async (artifactId: string, signal?: AbortSignal) => {
       self.assertLease();
+      if (signal?.aborted) throw signal.reason ?? new Error('artifact grant request aborted');
       return self.wrapLeaseErrors(() =>
         self.deps.runtime.requestAccessGrant(artifactId, {
           taskId: self.taskId,
           leaseEpoch: self.leaseEpoch,
           mode: 'read',
-        })
+        }, { signal })
       );
     };
 
     const openGrantedRead = async (
       grant: Awaited<ReturnType<typeof readGrant>>,
-      options: { expectedSha256?: string; expectedSizeBytes?: number } = {}
+      options: { expectedSha256?: string; expectedSizeBytes?: number; expectedVersionId?: string; signal?: AbortSignal } = {}
     ): Promise<Readable> => {
       if (!grant.downloadUrl) throw new Error('access grant did not include a download URL');
+      const expiresAt = Date.parse(grant.expiresAt);
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        throw new Error('artifact access grant has expired');
+      }
+      if (options.expectedVersionId && grant.storageVersionId !== options.expectedVersionId) {
+        throw new Error('artifact storage version does not match the authorized descriptor');
+      }
       if (grant.sizeBytes !== undefined && grant.sizeBytes > maxBytes) {
         throw new Error('artifact size exceeds the configured worker byte limit');
       }
@@ -491,20 +499,48 @@ export class DefaultTaskContext implements TaskContext {
       ) {
         throw new Error('requested artifact size does not match the authorized artifact descriptor');
       }
-      return openArtifactStream(grant.downloadUrl, {
-        maxBytes,
-        expectedSha256: grant.sha256 ?? options.expectedSha256,
-        expectedSizeBytes: grant.sizeBytes ?? options.expectedSizeBytes,
-        signal: self.signal,
-        fetcher: self.deps.fetchImpl,
-      });
+      const grantExpiryController = new AbortController();
+      const remainingGrantMs = expiresAt - Date.now();
+      let grantExpiryTimer: ReturnType<typeof setTimeout>;
+      const abortWhenGrantExpires = (): void => {
+        const remainingMs = expiresAt - Date.now();
+        if (remainingMs <= 0) {
+          grantExpiryController.abort(new Error('artifact access grant expired during read'));
+          return;
+        }
+        // Node clamps oversized timeouts to 1ms, so re-arm very distant
+        // expirations in bounded chunks rather than aborting early.
+        grantExpiryTimer = setTimeout(abortWhenGrantExpires, Math.min(remainingMs, 2_147_000_000));
+      };
+      grantExpiryTimer = setTimeout(abortWhenGrantExpires, Math.min(remainingGrantMs, 2_147_000_000));
+      const signals: AbortSignal[] = [grantExpiryController.signal];
+      if (self.signal) signals.push(self.signal);
+      if (options.signal) signals.push(options.signal);
+      const signal = AbortSignal.any(signals);
+      try {
+        const stream = await openArtifactStream(grant.downloadUrl, {
+          maxBytes,
+          expectedSha256: grant.sha256 ?? options.expectedSha256,
+          expectedSizeBytes: grant.sizeBytes ?? options.expectedSizeBytes,
+          signal,
+          fetcher: self.deps.fetchImpl,
+        });
+        const clearExpiry = (): void => clearTimeout(grantExpiryTimer);
+        stream.once('close', clearExpiry);
+        stream.once('end', clearExpiry);
+        stream.once('error', clearExpiry);
+        return stream;
+      } catch (error) {
+        clearTimeout(grantExpiryTimer);
+        throw error;
+      }
     };
 
     const readStream = async (
       artifactId: string,
-      options: { expectedSha256?: string; expectedSizeBytes?: number } = {}
+      options: { expectedSha256?: string; expectedSizeBytes?: number; expectedVersionId?: string; signal?: AbortSignal } = {}
     ): Promise<Readable> => {
-      const grant = await readGrant(artifactId);
+      const grant = await readGrant(artifactId, options.signal);
       return openGrantedRead(grant, options);
     };
 
@@ -653,9 +689,9 @@ export class DefaultTaskContext implements TaskContext {
         return Buffer.concat(chunks, totalBytes);
       },
 
-      async readWithMetadata(artifactId: string) {
-        const grant = await readGrant(artifactId);
-        const stream = await openGrantedRead(grant);
+      async readWithMetadata(artifactId: string, options: { signal?: AbortSignal } = {}) {
+        const grant = await readGrant(artifactId, options.signal);
+        const stream = await openGrantedRead(grant, options);
         const chunks: Buffer[] = [];
         let sizeBytes = 0;
         for await (const chunk of stream) {
@@ -672,6 +708,8 @@ export class DefaultTaskContext implements TaskContext {
           mimeType: grant.mimeType,
           sizeBytes,
           sha256,
+          storageVersionId: grant.storageVersionId,
+          grantExpiresAt: grant.expiresAt,
         };
       },
 
@@ -702,13 +740,15 @@ export class DefaultTaskContext implements TaskContext {
         return { downloadUrl: grant.downloadUrl, uploadUrl: grant.uploadUrl, expiresAt: grant.expiresAt };
       },
 
-      async stat(artifactId: string) {
-        const grant = await readGrant(artifactId);
+      async stat(artifactId: string, options: { signal?: AbortSignal } = {}) {
+        const grant = await readGrant(artifactId, options.signal);
         return {
           fileName: grant.fileName,
           mimeType: grant.mimeType,
           sizeBytes: grant.sizeBytes,
           sha256: grant.sha256,
+          storageVersionId: grant.storageVersionId,
+          grantExpiresAt: grant.expiresAt,
         };
       },
     };
@@ -758,7 +798,8 @@ export class DefaultTaskContext implements TaskContext {
         });
         // Runtime issues a stable invocationId for (task, stepKey, slot,
         // inputHash); replays reuse the same ID (no duplicate provider cost).
-        const grant = await self.grantFor(stepKey, slot, inputHash);
+        const artifactIds = input.artifacts?.map((artifact) => artifact.artifactId) ?? [];
+        const grant = await self.grantFor(stepKey, slot, inputHash, artifactIds);
         const payload: ConnectorInvocationPayload = {
           contractVersion: '1',
           invocationId: grant.invocationId,
@@ -778,7 +819,12 @@ export class DefaultTaskContext implements TaskContext {
     };
   }
 
-  async grantFor(stepKey: string, bindingSlot: string, inputHash: string): Promise<InvocationGrant> {
+  async grantFor(
+    stepKey: string,
+    bindingSlot: string,
+    inputHash: string,
+    artifactIds: readonly string[] = [],
+  ): Promise<InvocationGrant> {
     this.assertLease();
     return this.wrapLeaseErrors(() =>
       this.deps.runtime.requestInvocationGrant(this.taskId, {
@@ -786,6 +832,7 @@ export class DefaultTaskContext implements TaskContext {
         stepKey,
         bindingSlot,
         inputHash,
+        artifactIds: [...artifactIds],
       })
     );
   }

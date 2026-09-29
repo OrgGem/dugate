@@ -1,4 +1,6 @@
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { ManagedChildProcessTracker } from './helpers/child-process-manager';
@@ -46,6 +48,34 @@ function createMockChildProcess(options?: {
   });
 
   return emitter;
+}
+
+async function withTemporaryChild<T>(
+  tracker: ManagedChildProcessTracker,
+  script: string,
+  run: (child: ChildProcess) => Promise<T>,
+  execArgv?: string[]
+): Promise<T> {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-core-child-lifecycle-'));
+  const scriptPath = path.join(directory, 'runner.cjs');
+  await fs.writeFile(scriptPath, script, 'utf8');
+  const child = tracker.spawn(scriptPath, [], {
+    execArgv,
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+  });
+
+  try {
+    return await run(child);
+  } finally {
+    if (tracker.hasChild(child)) {
+      try {
+        await tracker.terminate(child, 1500);
+      } catch {
+        // afterEach reports an unconfirmed survivor retained by the tracker.
+      }
+    }
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 }
 
 describe('Child Process Lifecycle & Failure Cleanup Tests (Wave 15 / Wave 16)', () => {
@@ -230,6 +260,126 @@ describe('Child Process Lifecycle & Failure Cleanup Tests (Wave 15 / Wave 16)', 
       expect(child.listenerCount('exit')).toBe(0);
       expect(child.listenerCount('error')).toBe(0);
       expect(child.connected).toBe(false);
+      expect(tracker.trackedCount).toBe(0);
+    });
+  });
+
+  describe('Negative and Boundary Child Failure Scenarios', () => {
+    test('reports a non-zero exit when a child worker crashes during a task', async () => {
+      await withTemporaryChild(
+        tracker,
+        `
+          if (process.send) process.send({ type: 'task_started' });
+          setTimeout(() => process.exit(23), 100);
+          setInterval(() => {}, 60_000);
+        `,
+        async (child) => {
+          await expect(tracker.waitForMessage(child, 'task_started', 2000)).resolves.toMatchObject({
+            type: 'task_started',
+          });
+          await expect(tracker.waitForMessage(child, 'task_complete', 2000)).rejects.toThrow(
+            /exited early with code 23|already terminated \(code: 23/
+          );
+
+          expect(child.exitCode).toBe(23);
+          const termination = await tracker.terminate(child, 1000);
+          expect(termination.code).toBe(23);
+          expect(tracker.trackedCount).toBe(0);
+        }
+      );
+    });
+
+    test('fails closed and reaps a child that exits on an unhandled promise rejection', async () => {
+      await withTemporaryChild(
+        tracker,
+        `
+          Promise.reject(new Error('unhandled child worker rejection'));
+          setInterval(() => {}, 60_000);
+        `,
+        async (child) => {
+          await expect(tracker.waitForMessage(child, 'task_complete', 3000)).rejects.toThrow();
+
+          expect(child.exitCode).not.toBeNull();
+          expect(child.exitCode).not.toBe(0);
+          const termination = await tracker.terminate(child, 1000);
+          expect(termination.code).not.toBe(0);
+          expect(tracker.trackedCount).toBe(0);
+        },
+        ['--unhandled-rejections=strict']
+      );
+    });
+
+    test('times out after the child disconnects its IPC socket mid-task', async () => {
+      await withTemporaryChild(
+        tracker,
+        `
+          if (process.send) process.send({ type: 'task_started' });
+          setTimeout(() => process.disconnect(), 50);
+          setInterval(() => {}, 60_000);
+        `,
+        async (child) => {
+          await tracker.waitForMessage(child, 'task_started', 2000);
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('timed out waiting for IPC disconnect')), 2000);
+            child.once('disconnect', () => {
+              clearTimeout(timer);
+              resolve();
+            });
+          });
+
+          expect(child.connected).toBe(false);
+          await expect(tracker.waitForMessage(child, 'task_complete', 75)).rejects.toThrow(
+            /Timed out after 75ms waiting for message "task_complete"/
+          );
+          expect(child.listenerCount('message')).toBe(0);
+          await tracker.terminate(child, 1000);
+          expect(tracker.trackedCount).toBe(0);
+        }
+      );
+    });
+
+    test('escalates a missing child heartbeat to SIGKILL and confirms exit', async () => {
+      await withTemporaryChild(
+        tracker,
+        `
+          if (process.send) process.send({ type: 'ready' });
+          setInterval(() => {}, 60_000);
+        `,
+        async (child) => {
+          await tracker.waitForMessage(child, 'ready', 2000);
+          const killSpy = jest.spyOn(child, 'kill');
+          await expect(tracker.waitForMessage(child, 'heartbeat', 50)).rejects.toThrow(
+            /Timed out after 50ms waiting for message "heartbeat"/
+          );
+
+          const termination = await tracker.terminate(child, 1000);
+          expect(killSpy).toHaveBeenCalledWith('SIGKILL');
+          expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+          expect(termination.code !== null || termination.signal !== null).toBe(true);
+          expect(tracker.trackedCount).toBe(0);
+        }
+      );
+    });
+
+    test('does not forget a zombie candidate until exit is observed and reaped', async () => {
+      const child = createMockChildProcess({
+        pid: 99908,
+        killed: true,
+        exitCode: null,
+        signalCode: null,
+        onKill: () => true,
+      });
+      tracker.track(child as unknown as ChildProcess);
+
+      expect(tracker.isConfirmedExited(child as unknown as ChildProcess)).toBe(false);
+      const termination = tracker.terminate(child as unknown as ChildProcess, 1000);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(tracker.hasChild(child as unknown as ChildProcess)).toBe(true);
+
+      child.emitExit(0, 'SIGKILL');
+      await expect(termination).resolves.toEqual({ code: 0, signal: 'SIGKILL' });
+      expect(tracker.isConfirmedExited(child as unknown as ChildProcess)).toBe(true);
+      expect(tracker.hasChild(child as unknown as ChildProcess)).toBe(false);
       expect(tracker.trackedCount).toBe(0);
     });
   });

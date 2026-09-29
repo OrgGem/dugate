@@ -2,9 +2,10 @@ import { StepCheckpointManager } from '../src/pipelines/step-checkpoint';
 import { documentCoreHandlers } from '../src/worker';
 import { TaskContext, StepCheckpointRecord } from '../src/types/context';
 import { STEP_KEYS } from '../src/recipes/step-keys';
+import { LeaseLostError } from '@du/worker-sdk';
 
 describe('Checkpoint Replay & Output Integrity (WORKLOAD-REBALANCE-04, P5-04)', () => {
-  function createReplayContext(existingCheckpoints?: Map<string, StepCheckpointRecord>) {
+  function createReplayContext(existingCheckpoints?: Map<string, StepCheckpointRecord>, signal?: AbortSignal) {
     const checkpoints = existingCheckpoints ?? new Map<string, StepCheckpointRecord>();
     const artifacts = new Map<string, Buffer>();
 
@@ -20,7 +21,7 @@ describe('Checkpoint Replay & Output Integrity (WORKLOAD-REBALANCE-04, P5-04)', 
       businessId: 'document-core',
       businessVersion: '1.0.0',
       tenantId: 'tenant-test',
-      signal: new AbortController().signal,
+      signal: signal ?? new AbortController().signal,
       artifacts: {
         read: async (id: string) => {
           const buf = artifacts.get(id);
@@ -170,6 +171,159 @@ describe('Checkpoint Replay & Output Integrity (WORKLOAD-REBALANCE-04, P5-04)', 
 
     expect(counters.stepCallbackExecutions).toBe(2);
     expect(resultV2.data).toBe('v2');
+  });
+
+  test('replays completed steps but executes a missing checkpoint step in the run', async () => {
+    const { ctx, checkpoints } = createReplayContext();
+    const stepAInput = { source: 'document-1' };
+    const stepBInput = { source: 'document-1', mode: 'extract' };
+    let stepAExecutions = 0;
+    let stepBExecutions = 0;
+
+    await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:step-a', stepAInput, async () => {
+      stepAExecutions++;
+      return { parsed: true };
+    });
+    expect(checkpoints.has('replay:step-b')).toBe(false);
+
+    const replayedStepA = await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:step-a', stepAInput, async () => {
+      stepAExecutions++;
+      throw new Error('completed step A must replay from its checkpoint');
+    });
+    const recoveredStepB = await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:step-b', stepBInput, async () => {
+      stepBExecutions++;
+      return { extracted: true };
+    });
+
+    expect(replayedStepA).toEqual({ parsed: true });
+    expect(recoveredStepB).toEqual({ extracted: true });
+    expect(stepAExecutions).toBe(1);
+    expect(stepBExecutions).toBe(1);
+    expect(checkpoints.has('replay:step-b')).toBe(true);
+  });
+
+  test('does not trust a checkpoint whose stored input hash has been corrupted', async () => {
+    const { ctx, checkpoints } = createReplayContext();
+    const input = { documentId: 'doc-9', revision: 4 };
+    await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:hash-check', input, async () => ({ result: 'original' }));
+    const record = checkpoints.get('replay:hash-check');
+    expect(record).toBeDefined();
+    record!.inputHash = 'hash-corrupted-not-a-valid-match';
+    let reexecutionCount = 0;
+
+    const result = await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:hash-check', input, async () => {
+      reexecutionCount++;
+      return { result: 'recomputed' };
+    });
+
+    expect(result).toEqual({ result: 'recomputed' });
+    expect(reexecutionCount).toBe(1);
+    expect(checkpoints.get('replay:hash-check')?.inputHash).toBe(StepCheckpointManager.computeInputHash(input));
+  });
+
+  test('recovers after an abort in the middle of replay without losing completed steps', async () => {
+    const abortController = new AbortController();
+    const firstRun = createReplayContext(undefined, abortController.signal);
+    let completedStepExecutions = 0;
+    let interruptedStepExecutions = 0;
+
+    await StepCheckpointManager.executeWithCheckpoint(firstRun.ctx, 'replay:completed', { stage: 1 }, async () => {
+      completedStepExecutions++;
+      return { value: 'persisted-before-abort' };
+    });
+
+    await expect(
+      StepCheckpointManager.executeWithCheckpoint(firstRun.ctx, 'replay:interrupted', { stage: 2 }, async () => {
+        interruptedStepExecutions++;
+        abortController.abort('lease-lost');
+        return { value: 'must-not-be-checkpointed' };
+      })
+    ).rejects.toThrow(LeaseLostError);
+
+    expect(firstRun.checkpoints.has('replay:completed')).toBe(true);
+    expect(firstRun.checkpoints.has('replay:interrupted')).toBe(false);
+
+    const resumedRun = createReplayContext(firstRun.checkpoints);
+    const completed = await StepCheckpointManager.executeWithCheckpoint(
+      resumedRun.ctx,
+      'replay:completed',
+      { stage: 1 },
+      async () => {
+        completedStepExecutions++;
+        throw new Error('completed step must not execute again after resume');
+      }
+    );
+    const recovered = await StepCheckpointManager.executeWithCheckpoint(
+      resumedRun.ctx,
+      'replay:interrupted',
+      { stage: 2 },
+      async () => {
+        interruptedStepExecutions++;
+        return { value: 'recovered-after-abort' };
+      }
+    );
+
+    expect(completed).toEqual({ value: 'persisted-before-abort' });
+    expect(recovered).toEqual({ value: 'recovered-after-abort' });
+    expect(completedStepExecutions).toBe(1);
+    expect(interruptedStepExecutions).toBe(2);
+  });
+
+  test('parameter drift fences stale output and then replays only the latest parameters', async () => {
+    const { ctx, checkpoints } = createReplayContext();
+    const stepKey = 'replay:parameter-drift';
+    let executions = 0;
+
+    const first = await StepCheckpointManager.executeWithCheckpoint(ctx, stepKey, { language: 'en', revision: 1 }, async () => {
+      executions++;
+      return { translated: 'hello' };
+    });
+    const drifted = await StepCheckpointManager.executeWithCheckpoint(ctx, stepKey, { language: 'fr', revision: 2 }, async () => {
+      executions++;
+      return { translated: 'bonjour' };
+    });
+    const replayedLatest = await StepCheckpointManager.executeWithCheckpoint(
+      ctx,
+      stepKey,
+      { language: 'fr', revision: 2 },
+      async () => {
+        executions++;
+        throw new Error('matching latest parameters must replay without re-execution');
+      }
+    );
+
+    expect(first).toEqual({ translated: 'hello' });
+    expect(drifted).toEqual({ translated: 'bonjour' });
+    expect(replayedLatest).toEqual({ translated: 'bonjour' });
+    expect(executions).toBe(2);
+    expect(checkpoints.get(stepKey)?.inputHash).toBe(
+      StepCheckpointManager.computeInputHash({ language: 'fr', revision: 2 })
+    );
+  });
+
+  test('repeated replays preserve a deduplication barrier around provider side effects', async () => {
+    const { ctx, counters } = createReplayContext();
+    let providerCalls = 0;
+    const input = { requestId: 'request-dedup-1', prompt: 'summarize' };
+
+    const first = await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:provider-call', input, async () => {
+      providerCalls++;
+      return { invocationId: 'invocation-1', answer: 'summary' };
+    });
+    const replays: (typeof first)[] = [];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      replays.push(
+        await StepCheckpointManager.executeWithCheckpoint(ctx, 'replay:provider-call', input, async () => {
+          providerCalls++;
+          throw new Error('provider side effect must be deduplicated on replay');
+        })
+      );
+    }
+
+    expect(first).toEqual({ invocationId: 'invocation-1', answer: 'summary' });
+    expect(replays).toEqual(Array.from({ length: 5 }, () => first));
+    expect(providerCalls).toBe(1);
+    expect(counters.stepCallbackExecutions).toBe(1);
   });
 
   test('P5-04: validateFullOutputIntegrity rejects truncated outputs', () => {

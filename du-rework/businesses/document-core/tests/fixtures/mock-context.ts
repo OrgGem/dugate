@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { DocumentFormatDetector } from '@du/document-kit';
 import {
   TaskContext,
@@ -42,7 +42,14 @@ export class MockTaskContext implements TaskContext {
   public connectorBindings: Record<string, string> = {};
 
   public artifactsStore: Map<string, Buffer> = new Map();
+  public deniedArtifactReadIds = new Set<string>();
   public artifactFormatMetadataStore: Map<string, ArtifactFormatMetadata> = new Map();
+  public artifactReadIdentityStore = new Map<string, {
+    storageVersionId: string;
+    grantExpiresAt: string;
+    sizeBytes: number;
+    sha256: string;
+  }>();
   public checkpointsStore: Map<string, StepCheckpointRecord> = new Map();
   public connectorInvocations: Array<{
     slot: string;
@@ -77,6 +84,9 @@ export class MockTaskContext implements TaskContext {
 
   public artifacts = {
     read: async (artifactId: string): Promise<Buffer> => {
+      if (this.deniedArtifactReadIds.has(artifactId)) {
+        throw new Error('artifact read grant denied');
+      }
       const buf = this.artifactsStore.get(artifactId);
       if (!buf) {
         throw new Error(`Artifact "${artifactId}" not found`);
@@ -86,8 +96,9 @@ export class MockTaskContext implements TaskContext {
     readWithMetadata: async (artifactId: string): Promise<ArtifactReadResult> => {
       const buffer = await this.artifacts.read(artifactId);
       const storedMetadata = this.artifactFormatMetadataStore.get(artifactId);
+      const identity = this.artifactReadIdentityStore.get(artifactId);
       if (storedMetadata) {
-        return { buffer, formatMetadata: { ...storedMetadata } };
+        return { buffer, formatMetadata: { ...storedMetadata }, ...(identity ? { identity: { ...identity } } : {}) };
       }
 
       const detection = DocumentFormatDetector.detect(buffer);
@@ -97,6 +108,7 @@ export class MockTaskContext implements TaskContext {
           canonicalFormat: detection.format,
           canonicalMimeType: detection.mimeType,
         },
+        ...(identity ? { identity: { ...identity } } : {}),
       };
     },
     write: async (content: Buffer | string, fileName: string, mimeType: string): Promise<ArtifactRef> => {
@@ -109,6 +121,13 @@ export class MockTaskContext implements TaskContext {
         canonicalMimeType: detection.mimeType,
         declaredFileName: fileName,
         declaredMimeType: mimeType,
+      });
+      const digest = createHash('sha256').update(buf).digest('hex');
+      this.artifactReadIdentityStore.set(id, {
+        storageVersionId: digest,
+        grantExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        sizeBytes: buf.length,
+        sha256: digest,
       });
       return {
         artifactId: id,
@@ -140,7 +159,15 @@ export class MockTaskContext implements TaskContext {
       declaredMimeType,
     };
     this.artifactFormatMetadataStore.set(artifactId, formatMetadata);
-    return { buffer, formatMetadata: { ...formatMetadata } };
+    const digest = createHash('sha256').update(buffer).digest('hex');
+    const identity = {
+      storageVersionId: digest,
+      grantExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      sizeBytes: buffer.length,
+      sha256: digest,
+    };
+    this.artifactReadIdentityStore.set(artifactId, identity);
+    return { buffer, formatMetadata: { ...formatMetadata }, identity: { ...identity } };
   }
 
   public connector = {

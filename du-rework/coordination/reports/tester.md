@@ -8803,3 +8803,2056 @@ The current full contracts run exits 1 because `usage-budget.test.ts` has COST-0
 - `pnpm --filter @du/orchestrator test` — ExitCode **1** with unrelated existing Admin session log capture, operation-list reflow, safe-error log capture, audit-page fixture type, and audit-list cursor/filter failures. Reservation and related usage tests passed in that run and again in the focused run above.
 
 - Honest result: **COST-04 reservation contracts and the Orchestrator durable pre-call/reconcile service are implemented; focused tests and both package typechecks pass.** Workspace-wide tests are not green because of the unrelated failures listed above, and no live PostgreSQL reservation race/migration or connector call-site wiring was exercised.
+
+# T-CODEX-OFFLINE-COST-04-RESERVATION-INDEPENDENT
+
+- Receipt time: `2026-09-28T11:14:36+07:00`. Task: `task_3157b7fafcec`; dispatch context: `ctx_24a3d382471b`. CWD for all commands: `D:\Git\dugate\du-rework`. Independent read-only verification; no source, migration, or test file was changed and only this receipt was appended.
+
+### Targeted Orchestrator budget/reservation suites
+
+- Command: `pnpm --filter @du/orchestrator test -- tests/budget-reservations.test.ts tests/budget-evaluation-validator.test.ts tests/usage-contracts-integration-offline.test.ts`
+- ExitCode: **0**; Jest **3 passed suites, 33 passed tests, 0 failed, 0 skipped**. The passing set covers durable same-scope admission/idempotency and concurrency, RUNNING/UNKNOWN holds, atomic/idempotent reconciliation, UTC reservation-window rollover, scope fencing, trust/fail-closed decisions, proof-gated release, validator tenant/scope/schema checks, in-flight budget blocking, usage-ledger deduplication/window filtering/conflict detection, and COST-02 pricing behavior. The `test.each` RUNNING/UNKNOWN reservation cases account for both variants in the 33-test total.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **COST-04 reservation/evaluation and usage-contract integration verification is independently green offline: 3/3 suites and 33/33 tests passed, and Orchestrator no-emit typecheck passed.** No live PostgreSQL, migration execution, or provider call-site was exercised by this receipt.
+
+# T-CODEX-OFFLINE-CR28-06-TAXONOMY-INDEPENDENT
+
+- Receipt time: `2026-09-28T12:26:56+07:00`. Task: `task_0ca8f59aa81d`; dispatch context: `ctx_47b68684ff14`. CWD for all commands: `D:\Git\dugate\du-rework`. Independent read-only verification; no source or test file was changed and only this receipt was appended.
+
+### Connector 409 taxonomy and repeated Jest verification
+
+- Read-only source inspection of `packages/worker-sdk/src/connector-invoker.ts` confirms the allowlist preserves exactly `INPUT_HASH_MISMATCH`, `CANCELLED`, `CONNECTOR_DISABLED`, and `INVOCATION_UNKNOWN` for HTTP 409 conflict envelopes. A valid `{ error: { code, message } }` conflict is surfaced as `ConnectorTransportError(409, code)`; malformed, missing-field, or unallowlisted conflict bodies fall back to `ConnectorTransportError(409, 'INVOCATION_UNKNOWN')`. Transport/response failures also remain non-retryable `INVOCATION_UNKNOWN` without exposing the underlying transport message.
+- `packages/worker-sdk/tests/connector-invoker.test.ts` covers all four preserved codes, malformed/missing/unallowlisted 409 payloads, and lost-response redaction/classification; `classifyFailure` is asserted non-retryable for each taxonomy result.
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 10 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 10 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 10 passed tests, 0 failed, 0 skipped**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **CR28-06 error taxonomy is independently green and stable across three consecutive runs: 3/3 runs, 3/3 suites, and 30/30 reported test executions passed; worker-sdk no-emit typecheck is clean.** No live connector endpoint or external transport was exercised.
+
+# W-CR28-06-ERROR-TAXONOMY
+
+- Receipt time: `2026-09-28T11:38:20+07:00`. Task: `task_193a071b0d41`; dispatch context: `ctx_25bc190ded5f`. CWD: `D:\Git\dugate\du-rework`. Environment: Windows PowerShell, Node `v22.16.0`, pnpm `10.18.3`; product source/test changes are under `packages/worker-sdk` (plus this receipt and verification notes). No commit/build digest was produced.
+- `connector-invoker.ts` now validates the Connector `{ error: { code, message } }` envelope against the 409 allowlist and preserves `INPUT_HASH_MISMATCH`, `CANCELLED`, `CONNECTOR_DISABLED`, and `INVOCATION_UNKNOWN`. Malformed, missing, or unrecognized 409 payloads and lost response transport errors become sanitized `INVOCATION_UNKNOWN`; worker runtime classification marks these codes non-retryable so the caller reconciles rather than replaying ambiguous provider work.
+
+### Focused verification
+
+- Command: `pnpm --filter @du/worker-sdk exec jest --runInBand tests/connector-invoker.test.ts tests/worker.test.ts`
+- ExitCode: **0**; **2 suites / 34 tests passed**, no failures or skips. Coverage includes all four 409 codes, malformed JSON/envelopes/fields, unallowlisted codes, one-call behavior, lost-response handling, runtime code preservation, and non-retryable reconciliation.
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit -p tsconfig.json`
+- ExitCode: **0**; no TypeScript diagnostics.
+
+### Broader suite
+
+- Command: `pnpm --filter @du/worker-sdk test`
+- ExitCode: **1**; **19/20 suites passed, 320/322 tests passed**. `tests/network-boundaries.boundary.test.ts` failed in the full run on a hash-mismatch case and its race-harness hygiene assertion; the expected hash error was replaced by `TRANSPORT_FAILURE` status 0, and the hygiene assertion surfaced a transport failure. The isolated command `pnpm --filter @du/worker-sdk exec jest --runInBand tests/network-boundaries.boundary.test.ts` also exited **1** (4/6 passed): its size-cap and hash-mismatch real-listener cases expected HTTP `TOO_LARGE`/`HASH_MISMATCH` but received `TRANSPORT_FAILURE` status 0; the race-harness hygiene assertion passed in isolation. These tests are outside the edited adapter/runtime files; focused CR28-06 suites are green.
+- Raw output: `coordination/reports/tester-output/W-CR28-06-ERROR-TAXONOMY-tests-2026-09-28.log`; `coordination/reports/tester-output/W-CR28-06-ERROR-TAXONOMY-tsc-2026-09-28.log`; `coordination/reports/tester-output/W-CR28-06-ERROR-TAXONOMY-full-tests-2026-09-28.log`; `coordination/reports/tester-output/W-CR28-06-ERROR-TAXONOMY-network-boundaries-2026-09-28.log`.
+- Offline only: no external database, Redis, S3/object store, live Connector, or provider call was made. The broad suite's local HTTP listener cases did not pass. This is implementation-owner verification, not independent review or acceptance; no task row or gate is changed.
+
+# CR28-05-DOCKER-BUILD
+
+- Receipt time: `2026-09-28T12:16:59+07:00`. Task: `task_cf42b52cec76`; dispatch: `ctx_d795462ab9c9`. CWD: `D:\Git\dugate\du-rework`.
+- Both target Dockerfiles now copy the root `.npmrc` and `tsconfig.base.json`, install with pinned pnpm `10.18.3`, and build each workspace dependency before its consumer. Connector's context only includes its source and workspace package sources; omitting unrelated workspace manifests also avoids frozen-lockfile validation against the out-of-sync Orchestrator importer. Root `.dockerignore` excludes `**/node_modules`, `**/dist`, and `**/*.tsbuildinfo`, so generated host artifacts cannot enter either build context; BuildKit caches only the pnpm/Corepack download stores.
+- Dependency closure was checked against workspace `package.json` manifests and build order: Connector includes contracts, observability, egress, then connector (4 workspace packages); document-core includes contracts, observability, egress, document-kit, worker-sdk, then document-core (6 workspace packages). Both Docker builds passed from the clean filtered contexts and all listed TypeScript builds ran inside Docker.
+
+### Image build and smoke results
+
+- `docker build --network=host --progress=plain -f services/connector/Dockerfile -t du-connector:cr28-05 .` - ExitCode **0**; image ID `sha256:5c6d30638584fdf32ca60773bc1c6d78cf0983ddc20100f06641eba57073adbc`.
+- `docker build --network=host --progress=plain -f businesses/document-core/Dockerfile -t du-document-core:cr28-05 .` - ExitCode **0**; image ID `sha256:af02bc3e4cfb7e5c9046f7a50b79b4434ca5f1f365ded0762d9c4ead16b9866b`.
+- `docker run --rm --entrypoint node du-connector:cr28-05 --check /app/services/connector/dist/entrypoint.js` - ExitCode **0**.
+- `docker run --rm --entrypoint node du-document-core:cr28-05 --check /app/businesses/document-core/dist/main.js` - ExitCode **0**.
+- Connector image bundle/migration-file presence check - ExitCode **0**. The service processes were not started against live PostgreSQL/Redis; no external health endpoint was exercised.
+
+- Honest result: **both clean-context images build successfully from source without host `dist` or `node_modules`; manifest closure/order and built entrypoint smoke checks pass.** The pnpm store cache was used to complete network downloads; no source test suite was required or changed for this Docker/build-input task.
+
+# W-CR28-02-WORKER-SERVICE-AUTH
+
+- Receipt time: `2026-09-28T13:00:16+07:00`. Task: `task_048d60321fab`; dispatch: `ctx_0b0193a61d23`. CWD: `D:\Git\dugate\du-rework`. Environment: Windows PowerShell, Node `v22.16.0`, pnpm `10.18.3`.
+- The Worker SDK now sends a separately configured `CONNECTOR_SERVICE_TOKEN` as `Authorization: Bearer …`; it never substitutes `RUNTIME_TOKEN`. Worker startup fails closed if `connectorUrl` is set without the token. Document Core validates/passes the secret and redacts it in startup logs; compose and deployment instructions expose the setting.
+- Connector `HmacServiceIdentityVerifier` now requires a signed, unexpired integer `exp` claim and validates claim shapes. Invalid signed invocation grants are mapped to 401 `GRANT_INVALID`; tenant/revision mismatches and insufficient scope/audience remain 403 `BINDING_DENIED`. The existing Connector entrypoint continues to use this verifier with `SERVICE_IDENTITY_SECRET`.
+
+### Focused tests
+
+- Command: `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts tests/worker-service-auth.test.ts tests/worker.test.ts`
+- ExitCode: **0**; Jest **3 suites / 46 tests passed, 0 failed, 0 skipped**. The offline HTTP composition test uses the actual `HmacServiceIdentityVerifier`, Worker SDK invoker and signed grant verifier: valid Worker identity reaches the fake provider; missing, wrong-signature, expired, wrong-audience and missing-scope service credentials are denied; invalid invocation signature and foreign-tenant revision are denied independently.
+- Command: `pnpm --filter @du/document-core test -- tests/config.test.ts tests/sdk-consumer.test.ts tests/provider-backed-variant.test.ts`
+- ExitCode: **0**; Jest **3 suites / 37 tests passed, 0 failed, 0 skipped**. Includes required-token configuration, secret redaction, process-to-worker pass-through, and existing SDK consumer paths.
+- Command: `pnpm --filter @du/connector test -- tests/security-lifecycle.test.ts tests/invocation-access.test.ts`
+- ExitCode: **0**; Jest **2 suites / 10 tests passed, 0 failed, 0 skipped**.
+
+### TypeScript and builds
+
+- `pnpm --filter @du/document-core exec tsc --noEmit -p tsconfig.test.json` — ExitCode **0**; checks Document Core source, including the updated live E2E test, and tests.
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit` — ExitCode **0**; no diagnostics.
+- `pnpm --filter @du/connector exec tsc --noEmit` — ExitCode **0**; no diagnostics.
+- `pnpm --filter @du/connector build` and `pnpm --filter @du/worker-sdk build` — ExitCode **0**. `pnpm install --offline --ignore-scripts` — ExitCode **0**, workspace lockfile updated for the test-only Connector dependency.
+- Raw output: `coordination/reports/tester-output/W-CR28-02-worker-sdk-test.log`, `W-CR28-02-document-core-test.log`, `W-CR28-02-connector-test.log`, `W-CR28-02-document-core-test-tsc.log`, `W-CR28-02-worker-sdk-tsc.log`, and `W-CR28-02-connector-tsc.log`.
+- Offline verification used a fake provider transport and no live PostgreSQL, Redis, production token issuer or external Connector. The multi-container database/Redis integration test was updated to use the real verifier and signed token but was not run. No acceptance gate or baseline status is marked complete.
+
+- Honest result: Worker-to-Connector HMAC service authentication, token expiry rejection, independent grant/tenant authorization and all three targeted package checks pass offline; production deployment must inject an identity token signed for Connector with `connector:invoke` scope.
+
+# T-CODEX-OFFLINE-CR28-04-INDEPENDENT
+
+- Receipt time: `2026-09-28T13:07:22+07:00`. Task: `task_e2c09d94e4e5` (W-CR28-04); dispatch context: `ctx_a205b493d546`. CWD for all commands: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test file and appended only this receipt.
+
+### Submission metadata encryption inspection
+
+- `services/orchestrator/src/modules/operations/submission.ts` was inspected for CR28-04 submit/gate wiring. `sealSubmitMetadata` leaves the historical value unchanged when the seam is absent; when configured, it serializes a sealed envelope bound to the tenant, column slot, and row ID. New submissions seal `operations.input_ref` with the operation ID and `tasks.payload_ref` with the root-task ID before the transaction; `markIngestionReadyOn` reads the locked tenant/task row and seals each gate column separately, preventing cross-column envelope reuse.
+- `services/orchestrator/tests/runtime-encryption-metadata.test.ts` covers plaintext inventory, tenant/slot/row AAD binding, tamper/wrong-key/Vault-outage fail-closed behavior, legacy backfill gating, stable plaintext hashing, slot inventory, submit sealing, distinct envelopes per column, provider failure, cross-tenant rejection, and gate sealing.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 32 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 32 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 32 passed tests, 0 failed, 0 skipped**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit` (final rerun after the workspace source state settled)
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+- Corroborating command: `pnpm --filter @du/orchestrator run typecheck` — ExitCode **0**.
+- Note: an earlier no-emit invocation briefly saw a malformed concurrent workspace version of `src/modules/encryption/artifact-read-decrypt.ts:73` and exited 1; after that file was valid again, both the package typecheck and the exact no-emit command exited 0. This worker made no source edit.
+
+- Honest result: **CR28-04 submission metadata encryption is independently green offline: 3/3 consecutive runs, 3/3 suites, and 96/96 reported test executions passed; final Orchestrator no-emit typecheck is clean.** No live database, Vault, or production submit path was exercised.
+
+### Post-build shared-contract refresh correction (2026-09-28T13:17:46+07:00)
+
+A later build of the concurrently modified `packages/contracts` source refreshed the generated declarations and changed the current verification state for Document Core. Re-running `pnpm --filter @du/document-core test -- tests/config.test.ts tests/sdk-consumer.test.ts tests/provider-backed-variant.test.ts` now exits **1** before executing tests: `businesses/document-core/src/worker.ts:319` passes artifact IDs only, while the refreshed Connector contract requires file/MIME/size/SHA-256/storage-version/base64 fields. The test run before that refresh passed **37/37**, but it used stale declarations; the current result is the failing rerun in `coordination/reports/tester-output/W-CR28-02-document-core-test.log`.
+
+- The current `pnpm --filter @du/document-core exec tsc --noEmit -p tsconfig.test.json` also exits **1** on the same `src/worker.ts:319` contract mismatch. Raw output: `coordination/reports/tester-output/W-CR28-02-document-core-current-contract-tsc.log`. This code is outside the service-identity change; `packages/contracts/src/connector.ts` was modified concurrently and not edited by this task.
+- After refreshing dependencies, the focused Worker SDK run passes **3 suites / 46 tests**, Connector security/access passes **2 suites / 10 tests**, Worker SDK no-emit and Connector no-emit each pass twice. The one Worker SDK rerun before fixing its 1ms expiry fixture failed that existing checkpoint test; the fixture now expires 60 seconds in the future. The source-import experiment and initial expiry fixture failure are retained in `W-CR28-02-worker-sdk-source-integration.log` and `W-CR28-02-worker-sdk-expiry-fixture-failure.log`.
+- No Document Core artifact payload or concurrent contracts work was changed here. Its clean pre-refresh result does not supersede the current failure, so the overall workspace-wide Document Core check remains blocked by that separate type mismatch.
+### Final verification update (2026-09-28)
+
+- Re-ran Worker SDK focused tests: `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts tests/worker-service-auth.test.ts tests/worker.test.ts` — ExitCode 0, 3 suites / 46 tests passed. Re-ran Connector security/access tests: `pnpm --filter @du/connector test -- tests/security-lifecycle.test.ts tests/invocation-access.test.ts` — ExitCode 0, 2 suites / 10 tests passed.
+- Ran three clean typechecks: `pnpm --filter @du/worker-sdk exec tsc --noEmit`, `pnpm --filter @du/connector exec tsc --noEmit`, and `pnpm --filter @du/contracts exec tsc --noEmit`; each exited 0 with no diagnostics. Raw logs: `W-CR28-02-worker-sdk-tsc-final.log`, `W-CR28-02-connector-tsc-final.log`, and `W-CR28-02-contracts-tsc-final.log` under `coordination/reports/tester-output/`.
+- Refreshed the workspace lockfile offline; the Connector dev dependency is now recorded for Worker SDK test compilation. The earlier correction remains applicable: Document Core currently fails its refreshed-contract test/typecheck at `src/worker.ts:319` due to a concurrent artifact payload contract change outside this auth task.
+- Lifecycle report is pending: this task prompt did not include the live worker preamble's sender handle and dispatch capability, so no `worker_done` command was sent.
+
+# T-CODEX-OFFLINE-ADM-UX-03-TOOLBAR-INDEPENDENT
+
+- Receipt time: `2026-09-28T13:33:27+07:00`. Task: `task_de7c6def1478`; dispatch context: `ctx_ee7cc3ee5de5`. CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test file and appended only this receipt.
+
+### Audit toolbar inspection
+
+- `services/orchestrator/src/app/admin/audit-section-data.ts` was inspected for allow-listed severity/action/actor/resource/time/sort filters, UTC validation, rejected-token naming without value echo, bounded page limits, default/non-default sort handling, cursor/query construction, five-field envelope parsing, and fetcher failure mapping.
+- `services/orchestrator/src/app/admin/audit-section-renderer.ts` was inspected for the plain GET filter form, one removable chip per active filter, rejected-filter chips without raw values, clear-all reset behavior, escaped values, cursor-plus-order pagination links, filtered totals/empty states, and ledger rows.
+- `services/orchestrator/tests/admin-audit-toolbar.test.ts` exercises those data and renderer contracts, including security/escaping and rejected-filter cases.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-audit-toolbar.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 57 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-audit-toolbar.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 57 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-audit-toolbar.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 57 passed tests, 0 failed, 0 skipped**.
+
+### Typecheck result
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit` (final rerun)
+- ExitCode: **1**; TypeScript reported `src/server.ts(184,20)` and `(190,25)` `TS2304: Cannot find name 'readStreamBounded'`, followed by pnpm's `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL` / `Command "tsc" not found` wrapper message.
+- Corroborating command: `pnpm --filter @du/orchestrator run typecheck` — ExitCode **2** with the same missing `readStreamBounded` diagnostics. The shared `server.ts` was changing concurrently during verification; this worker did not edit it.
+
+- Honest result: **The Audit Log toolbar suite is independently green and stable across three consecutive runs (3/3 suites, 171/171 test executions), but the requested Orchestrator no-emit typecheck is not clean in the current checkout because the concurrently modified `server.ts` does not resolve `readStreamBounded`.** No source/test fix was attempted and no live admin HTTP/database path was exercised.
+
+# T-CODEX-OFFLINE-CR28-01-INDEPENDENT
+
+- Receipt time: `2026-09-28T13:57:33+07:00`. Task: `task_a30c25c0d96e` (W-CR28-01); dispatch context: `ctx_8556fe223198`. CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test file and appended only this receipt.
+
+### Artifact read decrypt inspection
+
+- `services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts` was inspected for the CR28-01 read seam. Plain objects pass through without a manifest request; sealed objects require the configured crypto facade, matching artifact/tenant metadata, a pinned upload-token object version, the expected sidecar manifest pointer, a structurally valid manifest, and authenticated decrypt/decryptStream output. Missing objects return 404; sealed read failures fail closed as 503 `STORAGE_FAILURE` and never return ciphertext.
+- `services/orchestrator/tests/artifact-read-decrypt-offline.test.ts` exercises plaintext passthrough, sidecar manifest derivation, successful decrypt, wrong key/version, missing version, manifest pointer/field corruption, foreign artifact/tenant metadata, missing crypto, missing object, and the explicit property that ciphertext is never returned when decryption fails.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/artifact-read-decrypt-offline.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 14 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/artifact-read-decrypt-offline.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 14 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/artifact-read-decrypt-offline.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 14 passed tests, 0 failed, 0 skipped**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **CR28-01 artifact read decryption is independently green and stable across three consecutive runs: 3/3 suites and 42/42 reported test executions passed, and the Orchestrator no-emit typecheck is clean.** No live S3, database, Vault, or production download route was exercised.
+
+# W-CR28-03-OCR-BYTES
+
+- Receipt time: `2026-09-28T14:00:00+07:00`. Task: `task_398f8a7b0021`; dispatch context: unavailable (the task message left it blank). CWD: `D:\Git\dugate\du-rework`.
+- Implemented OCR/digitize source resolution through the worker's tenant/lease-scoped artifact grant. Bounded stream reads now enforce the parser deadline and grant expiry, verify byte size/hash, and require a matching pinned storage version; Orchestrator invocation grants bind the exact same-tenant READY artifact metadata and immutable version, rejecting foreign, undeclared cross-operation, STAGING, oversized, or mutable S3 null-version references.
+- Extended the connector contract with bounded content-bearing artifact descriptors, SHA-256/base64 size validation, task/language fields, and signed artifact pins. JSON forwards verified bytes and metadata; multipart sends verified binary file parts plus metadata. Added an offline handwriting PNG fixture and tests for scan/handwriting bytes, JSON/multipart MIME and digest, grant expiry, version mismatch, foreign references, and storage-pin rejection.
+
+### Focused Jest suites
+
+- `pnpm --filter @du/contracts test -- tests/dto.test.ts` — ExitCode **0**, 21 tests passed.
+- `pnpm --filter @du/connector test -- tests/connector.test.ts` — ExitCode **0**, 21 tests passed.
+- `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts tests/ingest.test.ts` — ExitCode **0**, 18 tests passed.
+- `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts tests/connector-input-contract.test.ts` — ExitCode **0**, 5 tests passed.
+- `pnpm --filter @du/orchestrator test -- tests/grant-artifact-pins.test.ts tests/artifact-read-authorization.test.ts` — ExitCode **0**, 19 tests passed.
+
+### Typecheck rounds
+
+Three consecutive rounds each ran `pnpm --filter @du/<package> exec tsc --noEmit -p tsconfig.json` for `@du/contracts`, `@du/connector`, `@du/orchestrator`, `@du/worker-sdk`, and `@du/document-core`; all **15/15** package checks exited **0** with no diagnostics.
+
+- Honest result: **Focused suites and all three typecheck rounds are clean.** No live provider or production storage was contacted; the fixture and adapter verification are fully offline. `worker_done` could not be sent because this dispatch has no supplied dispatch ID/capability, so no lifecycle authority was available in this task message.
+
+## W-WORKER-DOC-CORE-ALIGN
+
+- Date: 2026-09-28. The Document Core worker adapter now uses the current Connector `InvocationArtifactContent` type for connector artifact payloads, including the required filename, MIME type, byte size, SHA-256, storage version, and base64 content fields. `pnpm --filter @du/document-core exec tsc --noEmit` exited 0 with no diagnostics.
+- Restored the documented bounded inline-read exception for metadata-backed artifacts smaller than 1 MiB; the focused `read-stream-acquisition.test.ts` suite passes 8/8.
+- Full offline Document Core suite was run three times with `REDIS_SMOKE=0`; all runs passed 46/46 suites and 545/545 tests. The optional live Redis smoke check was skipped by that explicit setting.
+- Raw outputs: `coordination/reports/tester-output/W-WORKER-DOC-CORE-ALIGN-tsc.log`, `W-WORKER-DOC-CORE-ALIGN-stream-focused.log`, and `W-WORKER-DOC-CORE-ALIGN-test-{1,2,3}.log`.
+- `worker_done` is pending: this request did not provide a live Dispatch preamble with task ID, dispatch ID, sender handle, and dispatch capability, which Orca requires for an exact-Dispatch completion signal.
+
+### Final revalidation after whole-read timeout propagation
+
+- Receipt time: `2026-09-28T14:20:20+07:00`. The final worker-SDK rerun was `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts tests/connector-input-contract.test.ts` — ExitCode **0**, 2 suites / 6 tests passed, including grant expiry, pinned-version drift and abort-signal propagation.
+- The final document-core rerun was `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts tests/ingest-wire.test.ts tests/ingest.test.ts` — ExitCode **0**, 3 suites / 27 tests passed, including storage-read abort on parser deadline and the scan/handwriting payload checks.
+- The three no-emit typecheck rounds were run after the source timeout-signal wiring; the only subsequent source-tree edit was this document-core test case, compiled by the passing Jest/ts-jest run.
+
+# T-CODEX-OFFLINE-CR28-08-INDEPENDENT
+
+- Receipt time: `2026-09-28T14:29:08+07:00`. Task: `task_44f1c98e05bb` (W-CR28-08); dispatch context: `ctx_e39c5b418841`. CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test file and appended only this receipt.
+
+### metadataCrypto seam inspection
+
+- Requested `services/orchestrator/src/server.ts:423` was checked; in the current checkout that line is the admin/runtime credential-equality boot guard, not the metadata seam. The metadata configuration is declared at current lines 413-416 (`metadataEncryption.keyProvider` and `keyRef`), and the wiring is at current lines 520-532: `createMetadataCrypto(adaptKeyProviderForMetadata(...), keyRef)` is optional and passed to `createRuntimeService(..., metadataCrypto)`.
+- `services/orchestrator/tests/runtime-encryption-metadata.test.ts` covers control-plane plaintext inventory, tenant/slot/row binding, tamper/wrong-key/Vault outage fail-closed behavior, legacy backfill, stable hashing, slot inventory, CR28-04 submission/gate sealing, and D61 KeyProvider-to-metadata adapter mapping/pinned-version/DEK-byte forwarding/round-trip checks.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 37 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 37 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 37 passed tests, 0 failed, 0 skipped**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **CR28-08 metadataCrypto configuration/wiring and runtime metadata encryption are independently green offline: 3/3 consecutive runs, 3/3 suites, and 111/111 reported test executions passed; Orchestrator no-emit typecheck is clean.** No live Vault, database, or production runtime boot was exercised.
+
+## W-INGEST-WIRE-01-OCR
+
+- Date: 2026-09-28. Added an offline OCR wire test in `businesses/document-core/tests/ingest-wire.test.ts` using `tests/fixtures/handwriting-scan.png`. The test streams the fixture in two chunks through the artifact read facade and verifies that OCR receives the exact bytes plus the pinned SHA-256, storage version, filename, MIME type, and size.
+- Focused check: `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts tests/ingest-wire.test.ts` — ExitCode 0, 2 suites / 19 tests passed. Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` — ExitCode 0.
+- Full Document Core offline suite: `REDIS_SMOKE=0 pnpm --filter @du/document-core test` passed three times; each run passed 46/46 suites and 547/547 tests. The explicit setting skips the optional live Redis smoke test.
+- Raw outputs: `coordination/reports/tester-output/W-INGEST-WIRE-01-OCR-focused.log`, `W-INGEST-WIRE-01-OCR-tsc.log`, and `W-INGEST-WIRE-01-OCR-test-{1,2,3}.log`.
+- `worker_done` remains pending because this request did not include a live Dispatch preamble with the active task ID, dispatch ID, sender handle, and dispatch capability required by Orca for exact-Dispatch completion.
+
+### Validation update after inline-read timeout propagation
+
+- Receipt time: `2026-09-28T14:53:53+07:00`. Updated worker SDK read APIs to accept an abort signal for access-grant lookup, metadata reads, and stat; ParserBudget now applies one acquisition timer across stat, inline metadata reads, and streamed transfer while preserving the bounded sub-1 MiB inline path.
+- Focused offline tests were rerun across contracts (1 suite / 21 tests), connector (1 / 21), orchestrator (2 / 19), worker-sdk (2 / 7), and document-core (4 / 37): all 10 suites / 105 tests passed, ExitCode 0. Coverage includes scan and handwriting payload bytes/hash/MIME, pinned versions, foreign/expired grants, and timeout abort propagation.
+- Three consecutive no-emit typecheck rounds ran for `@du/contracts`, `@du/connector`, `@du/orchestrator`, `@du/worker-sdk`, and `@du/document-core`; all 15 / 15 commands exited 0 with no diagnostics. Raw output: `coordination/reports/W-CR28-03-OCR-BYTES-tsc-3rounds.log` and `coordination/reports/tester-output/W-CR28-03-OCR-BYTES-focused-tests.log`.
+- Honest result: the requested focused validation is green and offline; no live provider, database, or production storage was contacted. `worker_done` remains unavailable because the task message provided no active dispatch ID/capability or sender handle, which the Orca worker contract requires for an exact-dispatch completion signal.
+
+## WORKSPACE-TSC-VERIFY
+
+- Date: 2026-09-28. `pnpm -r exec tsc --noEmit` completed successfully with ExitCode 0 and no diagnostics across the workspace.
+- Independently checked the five requested packages with `pnpm --filter <package> exec tsc --noEmit`: `@du/contracts`, `@du/orchestrator`, `@du/connector`, `@du/worker-sdk`, and `@du/document-core`. All five exited 0 without diagnostics.
+- Logs: `coordination/reports/tester-output/WORKSPACE-TSC-VERIFY.log` and one package log for each of the five packages.
+- `worker_done` is pending because this request did not include the live Dispatch preamble values (task ID, dispatch ID, sender handle, and dispatch capability) required to complete an exact Orca Dispatch.
+
+# T-CODEX-OFFLINE-CR28-01-ROUTE-INDEPENDENT
+
+- Receipt time: `2026-09-28T14:58:05+07:00`. Task: `task_bea8db7d598b`; dispatch: `ctx_677530db3f95`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed and only this receipt was appended.
+
+### HTTP artifact download and worker blob route inspection
+
+- `services/orchestrator/tests/artifact-read-download-route.test.ts` exercises both `GET /api/v1/artifacts/:id/download` and worker `GET /api/runtime/v1/artifacts/blob/:storageKey` for sealed artifacts (plaintext returned, ciphertext withheld), wrong-key/broken-seal fail-closed behavior (`503 STORAGE_FAILURE`), and unsealed plaintext pass-through.
+- The targeted file contains 1 Jest suite and 6 tests covering public download and worker blob read paths across sealed, broken-seal, and unsealed cases.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/artifact-read-download-route.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 6 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/artifact-read-download-route.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 6 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/artifact-read-download-route.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 6 passed tests, 0 failed, 0 skipped**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **W-CR28-01-HTTP-ROUTE is independently green offline: 3/3 consecutive runs, 3/3 suites, and 18/18 reported test executions passed; Orchestrator no-emit typecheck is clean.** No live S3, database, Vault, or production HTTP runtime was exercised.
+
+# T-CODEX-OFFLINE-CR28-03-INDEPENDENT
+
+- Receipt time: `2026-09-28T15:36:06+07:00`. Task: `task_5c8c553decfc`; dispatch: `ctx_ad6d61469852`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### OCR bytes/hash/MIME and rejection-path inspection
+
+- `businesses/document-core/tests/ingest-wire.test.ts` verifies OCR and digitize transmit the actual artifact bytes, SHA-256, MIME, filename, size, and pinned storage identity; it also verifies no `hasBuffer` claim is used, missing sources fail visibly without provider calls, foreign references are excluded/denied, and expired artifact grants are rejected before dispatch.
+- `businesses/document-core/tests/read-stream-acquisition.test.ts` verifies stream byte identity and declared metadata, rejects over-budget declared sizes before transfer, aborts when streamed bytes exceed the parser budget, and rejects declared-size/digest mismatches.
+- `packages/worker-sdk/tests/artifact-read-metadata.test.ts` verifies filename/MIME and byte metadata round-trip, digest mismatch rejection, expired grants before blob fetch, and storage-version pin drift rejection.
+- `packages/contracts/tests/dto.test.ts` verifies bounded artifact content identity, pinned versions, correctly sized base64 bytes, and the connector artifact maximum-size boundary; `services/connector/tests/connector.test.ts` verifies JSON/multipart provider payloads carry authorized scan bytes, MIME, hash, and pinned identity, while expired, foreign, and unpinned artifact claims are denied.
+
+### Three consecutive targeted test rounds
+
+Each round ran the following exact commands; every command exited **0**:
+
+- `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts tests/read-stream-acquisition.test.ts` — **2 suites / 20 tests passed**.
+- `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts` — **1 suite / 6 tests passed**.
+- `pnpm --filter @du/contracts test -- tests/dto.test.ts` — **1 suite / 21 tests passed**.
+- `pnpm --filter @du/connector test -- tests/connector.test.ts` — **1 suite / 21 tests passed**.
+
+The same four commands passed in rounds 1, 2, and 3: **15/15 suites and 204/204 test executions passed, with 0 failures and 0 skipped tests**.
+
+### No-emit typechecks
+
+- `pnpm --filter @du/contracts exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/connector exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/orchestrator exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+
+- Honest result: **W-CR28-03-OCR-BYTES is independently green offline: all three targeted rounds passed, provider payloads carry verified bytes/hash/MIME, foreign/expired/oversized references are rejected, and all five package typechecks are clean.** No live OCR/provider, database, or production storage service was contacted.
+
+# W-INGEST-WIRE-02-DEADLINE-ABORT
+
+- Receipt time: `2026-09-28T15:39:46+07:00`. The parser acquisition timer is created once in `ParserBudgetHelper.readArtifact()` before facade access. Its shared abort signal now covers `stat`, bounded inline `readWithMetadata`, stream grant/open, and stream pipeline transfer; timeout errors remain `DOCUMENT_TIMEOUT`, while task cancel/lease aborts retain their existing codes. A post-transfer abort check prevents returning materialized bytes after the timer expires.
+- Added `parser-budget-band.test.ts` cases for a stalled stat grant lookup and a stream that remains open after transfer starts. Existing `read-stream-acquisition.test.ts` covers the inline metadata-read timeout.
+- Ran consecutively three times: `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts tests/read-stream-acquisition.test.ts tests/ingest-wire.test.ts`. Each run exited **0** with **3 suites / 31 tests passed** (93 test executions total).
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` exited **0** with no diagnostics. Raw output: `coordination/reports/tester-output/W-INGEST-WIRE-02-DEADLINE-ABORT-validation.log`. Offline tests only; no live provider, storage, database, or Redis was used.
+- `worker_done` was not sent: this request included no active Task ID, Dispatch ID, worker terminal handle, or dispatch capability. Orca's worker contract requires those exact values from the live dispatch preamble and prohibits reconstructing lifecycle authority from prior dispatches.
+
+## T-CODEX-OFFLINE-CR28-02-INDEPENDENT
+
+- Date: 2026-09-28. Worker SDK Bearer verification: `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts` passed 1 suite / 13 tests, covering the Authorization Bearer header and non-retryable service-auth rejection.
+- Connector verification: added the previously missing offline `tests/service-auth.test.ts`, exercising the real `HmacServiceIdentityVerifier` with signed Bearer tokens, invalid signature, expiry, audience, and scope cases. `pnpm --filter @du/connector test -- tests/service-auth.test.ts tests/connector.test.ts` passed 2 suites / 28 tests; `connector.test.ts` covers rejection of expired and unbound artifact grants.
+- Contracts verification: `pnpm --filter @du/contracts test` passed three consecutive runs, each 23 suites / 464 tests.
+- Typechecks: `pnpm --filter @du/worker-sdk exec tsc --noEmit`, `pnpm --filter @du/connector exec tsc --noEmit`, and `pnpm --filter @du/contracts exec tsc --noEmit` all exited 0 without diagnostics.
+- Raw outputs are under `coordination/reports/tester-output/` with prefix `T-CODEX-OFFLINE-CR28-02-INDEPENDENT-`.
+- `worker_done` is pending because this request did not provide the active Dispatch task/dispatch IDs, sender handle, or capability needed for an exact Orca completion signal.
+
+## W-INGEST-WIRE-02-DEADLINE-ABORT-RECHECK
+
+- Receipt time: `2026-09-28T22:45:08+07:00`; revalidation of the existing `# W-INGEST-WIRE-02-DEADLINE-ABORT` work.
+- Ran `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts tests/read-stream-acquisition.test.ts tests/ingest-wire.test.ts` three consecutive times. Each run exited **0** with **3 suites / 31 tests passed**.
+- `pnpm --filter @du/document-core exec tsc --noEmit` exited **0**. Captured output: `coordination/reports/tester-output/W-INGEST-WIRE-02-DEADLINE-ABORT-recheck.log`.
+- No live provider, storage, database, or Redis was used. No `worker_done` signal was sent because the continuation supplied Task ID `task_8a865d9c1987` but no active Dispatch ID, worker terminal handle, or dispatch capability.
+
+# T-CODEX-OFFLINE-INGEST-WIRE-02-INDEPENDENT
+
+- Receipt time: `2026-09-28T23:09:42+07:00`. Task: `task_5eae150bb688`; dispatch: `ctx_6a225a2f77ff`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Parser acquisition timer and abort-signal inspection
+
+- `tests/parser-budget-band.test.ts` covers the parser RSS/budget band, pre-transfer rejection of declared oversize artifacts, tampered-grant integrity rejection, deadline expiry while storage transfer is in progress, stalled stat/grant lookup under the acquisition timer, and stream abort after transfer starts when the timer expires.
+- `tests/read-stream-acquisition.test.ts` covers large stream-to-disk acquisition, over-budget preflight and mid-stream abort, declared-size/digest checks, slow inline metadata timeout with an aborted signal, lease/cancel mapping, and the legacy buffer path.
+- `tests/ingest-wire.test.ts` covers stream-capable OCR artifact acquisition and propagation of the read signal, exact bytes/hash/MIME/storage identity in the provider payload, and visible failures for missing, foreign, or expired source references.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts tests/read-stream-acquisition.test.ts tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest **3 passed suites, 31 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts tests/read-stream-acquisition.test.ts tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest **3 passed suites, 31 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts tests/read-stream-acquisition.test.ts tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest **3 passed suites, 31 passed tests, 0 failed, 0 skipped**.
+
+The three rounds therefore passed **9/9 suites and 93/93 test executions**. The parser budget test emitted its expected `PARSER-RSS` console diagnostic; it did not indicate a test failure.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **W-INGEST-WIRE-02-DEADLINE-ABORT is independently green offline: the acquisition timer covers stat lookup, inline metadata, and post-transfer stream aborts, and abort signals are asserted across the tested paths.** No live provider, storage, database, or Redis service was contacted.
+
+# T-CODEX-OFFLINE-ADMIN-AUDIT-QUERY-MOUNT-INDEPENDENT
+
+- Receipt time: `2026-09-28T23:14:13+07:00`. Task: `task_1533765f1808`; dispatch: `ctx_12ad8ecf23e5`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Audit query forwarding, 422 remedy, and mount-chain inspection
+
+- `tests/admin-audit-query.test.ts` verifies forwarding of the full audit query (severity, actor, resource, from/to bounds, limit, cursor), omission of unset filters, safe limit clamping, invalid-filter reporting, inverted-window fail-closed behavior, and protection against raw API-key/non-JSON error leakage.
+- The query suite's 422 case confirms the route remedy text (`drop cursor to restart the list`) is surfaced in the rendered pane rather than reduced to a bare status code; 401 and 500 mappings are also asserted.
+- `tests/admin-audit-mount.test.ts` mounts the real `attachAdminShell` over loopback HTTP with the default audit fetcher and confirms signed-in `/admin/audit` returns 200, renders the live ledger event and Audit Log tab, avoids the not-wired/empty error state, sends the bearer token, and forwards toolbar query values to `/api/v1/admin/audit`.
+
+### Targeted Jest runs
+
+- Command (initial run): `pnpm --filter @du/orchestrator test -- tests/admin-audit-query.test.ts tests/admin-audit-mount.test.ts`
+- ExitCode: **1**; query suite passed (16 tests), mount suite had **1 transient failure** (`connect ETIMEDOUT 127.0.0.1:55534`) during the first shell request; total 1 failed suite / 1 passed suite, 16 passed / 1 failed tests.
+- The same command was rerun three consecutive times after the transient loopback failure:
+  - Rerun 1 ExitCode **0**; **2 suites / 17 tests passed**.
+  - Rerun 2 ExitCode **0**; **2 suites / 17 tests passed**.
+  - Rerun 3 ExitCode **0**; **2 suites / 17 tests passed**.
+
+Thus three consecutive clean reruns passed **6/6 suites and 51/51 test executions**, with 0 failures and 0 skipped tests.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **ADM-UX-09 audit query/mount behavior is green across three consecutive clean reruns and Orchestrator typecheck is clean; the first run encountered a transient loopback ETIMEDOUT before the successful stability sequence.** No external service or production database was contacted.
+
+# W-DOC-CORE-INGEST-SCAN-FIXTURES
+
+- Receipt time: `2026-09-28T23:19:26+07:00`. CWD: `D:\Git\dugate\du-rework`. Added only `businesses/document-core/tests/ingest-scan-fixtures.test.ts`.
+- The offline suite verifies OCR sends the `handwriting-scan.png` fixture as exact bytes with `image/png`, and handwriting digitization sends a PDF fixture with `application/pdf`, digest, storage version, filename, and size. Missing artifact references and expired grants fail closed before their Connector slots are invoked.
+- `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts` passed three consecutive runs; each run reported **1 suite / 4 tests**, ExitCode **0**. `pnpm --filter @du/document-core exec tsc --noEmit` exited **0**. Raw output: `coordination/reports/tester-output/W-DOC-CORE-INGEST-SCAN-FIXTURES-validation.log`.
+- Tests were offline; no live provider, storage, database, or Redis was used.
+
+# T-CODEX-OFFLINE-DOC-CORE-INGEST-SCAN-FIXTURES-INDEPENDENT
+
+- Receipt time: `2026-09-28T23:26:57+07:00`. Task: `task_56ea04a93132`; dispatch: `ctx_41887ac5cb8a`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Fixture payload and fail-closed inspection
+
+- `tests/ingest-scan-fixtures.test.ts` verifies OCR receives exact `handwriting-scan.png` bytes with `image/png`, SHA-256, storage version, filename, and size.
+- The handwriting digitization case verifies exact PDF fixture bytes with `application/pdf`, `digitize_handwriting` task, SHA-256, storage version, filename, and size.
+- Missing artifact references fail closed without invoking OCR, and expired artifact grants fail closed before handwriting digitization/Connector dispatch.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 4 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 4 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 4 passed tests, 0 failed, 0 skipped**.
+
+The three runs passed **3/3 suites and 12/12 test executions**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **W-DOC-CORE-INGEST-SCAN-FIXTURES is independently green offline: OCR and handwriting payload identity/MIME/hash assertions plus missing/expired reference fail-closed behavior passed in all three runs, and Document Core typecheck is clean.** No live provider, storage, database, or Redis service was contacted.
+
+# W-DOC-CORE-INGEST-SCAN-TAMPER
+
+- Recorded: 2026-09-28 23:38 Asia/Bangkok
+- Scope: Added only `businesses/document-core/tests/ingest-scan-tamper.test.ts`; no production code changed.
+- Coverage: Four fail-closed negative cases for OCR/handwriting ingest: tampered grant SHA-256, corrupted payload bytes, mismatched pinned storage version, and timeout during stream acquisition.
+- Targeted suite: `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts` passed 3 consecutive runs; each run reported 1 suite and 4 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0.
+- Validation log: `coordination/reports/tester-output/W-DOC-CORE-INGEST-SCAN-TAMPER-validation.log`.
+- Result: **PASS**; no live provider or external storage service was contacted.
+
+# W-WORKER-SDK-BOUNDARIES-FIX
+
+- Recorded: 2026-09-28 23:47:13 +07:00. Task: `task_d0edb5efa2de`; dispatch: `ctx_6c1bd8f1fad5`; CWD: `D:\Git\dugate\du-rework`.
+- The requested `packages/worker-sdk/tests/network-boundaries.test.ts` is absent in this checkout; the existing related suite is `packages/worker-sdk/tests/network-boundaries.boundary.test.ts`. Updated its abort-test cleanup to abort and close the loopback listener before waiting for the tracked download, with a bounded settlement wait; expanded the request-arrival window to 2 seconds.
+
+### Full Worker SDK test runs
+
+- `pnpm --filter @du/worker-sdk test` run 1: ExitCode **1**; **20 passed / 1 failed of 21 suites**, 337 passed / 1 failed of 338 tests. `artifact-stat.test.ts` fails because its expected object omits `grantExpiresAt` and `storageVersionId`.
+- Run 2: ExitCode **1**; **19 passed / 2 failed of 21 suites**, 335 passed / 3 failed of 338 tests. The same out-of-scope artifact-stat assertion failed, and the boundary suite had intermittent loopback transport failures in B3-lock-c and caller-abort request arrival.
+- Run 3: ExitCode **1**; **20 passed / 1 failed of 21 suites**, 337 passed / 1 failed of 338 tests. The boundary suite passed; the same artifact-stat assertion failed.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-BOUNDARIES-FIX-test-1.log`, `W-WORKER-SDK-BOUNDARIES-FIX-test-2.log`, and `W-WORKER-SDK-BOUNDARIES-FIX-test-3.log`.
+
+### Typecheck and result
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit` exited **0** with no diagnostics.
+- The listener cleanup change is in place, and the boundary suite passed in the final full package run. The requested 20/20 package gate was not met: this checkout discovers 21 suites, and the out-of-scope artifact-stat assertion fails in all three full runs; the second run also had intermittent local transport failures. No files outside the stated test target and requested coordination receipt were changed.
+
+# T-CODEX-OFFLINE-DOC-CORE-INGEST-SCAN-TAMPER-INDEPENDENT
+
+- Receipt time: `2026-09-29T00:07:15+07:00`. Task: `task_38acb0abd06d`; dispatch: `ctx_df1bcc448423`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Tamper-defense inspection
+
+- `tests/ingest-scan-tamper.test.ts` verifies an OCR read grant with a tampered SHA-256 is rejected before Connector invocation.
+- A corrupted in-memory handwriting payload is rejected with `ARTIFACT_INTEGRITY_MISMATCH` after the authorized read.
+- An OCR download whose storage version changes after preflight is rejected, while the stream request is checked for the authorized expected version.
+- Handwriting stream acquisition is aborted when the parser timeout expires mid-transfer; the transfer `AbortSignal` is asserted as aborted and the operation reports `DOCUMENT_TIMEOUT`.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 4 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 4 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 4 passed tests, 0 failed, 0 skipped**.
+
+The three runs passed **3/3 suites and 12/12 test executions**.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+
+- Honest result: **W-DOC-CORE-INGEST-SCAN-TAMPER is independently green offline: tampered hash, corrupt buffer, storage-version mismatch, and timeout/abort defenses passed in all three runs, and Document Core typecheck is clean.** No live provider, storage, database, or Redis service was contacted.
+
+# T-CODEX-OFFLINE-ADM-UX-10-INDEPENDENT
+
+- Receipt time: `2026-09-29T00:12:47+07:00`. Task: `task_534bfcc8ffa3`; dispatch: `ctx_a4f9e9dc4b64`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Empty-state banner and error-boundary inspection
+
+- `tests/admin-audit-query.test.ts` covers an unfiltered empty ledger banner, filtered-empty guidance with a way out, non-empty table rendering without the empty banner, a 5xx error pane with a `Try again` control, retry URL/filter preservation, and unauthorized state with fresh sign-in rather than a doomed retry.
+- The same suite also retains audit query forwarding, route 422 remedy text, 401/500 mapping, invalid-filter reporting, inverted-window fail-closed behavior, and safe non-JSON error handling.
+- `tests/admin-audit-mount.test.ts` exercises the real loopback `attachAdminShell` mount chain: signed-in `/admin/audit` 200 response, live ledger rendering, absence of not-wired/empty error state for non-empty data, bearer-token route call, Audit Log navigation, and toolbar query forwarding.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-audit-query.test.ts tests/admin-audit-mount.test.ts`
+- ExitCode: **0**; Jest **2 passed suites, 23 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-audit-query.test.ts tests/admin-audit-mount.test.ts`
+- ExitCode: **0**; Jest **2 passed suites, 23 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-audit-query.test.ts tests/admin-audit-mount.test.ts`
+- ExitCode: **0**; Jest **2 passed suites, 23 passed tests, 0 failed, 0 skipped**.
+
+The three runs passed **6/6 suites and 69/69 test executions**.
+
+### Typecheck and gate posture
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+- G-ADMIN-OPS remains **NO-GO**; this receipt records verification evidence only and does not promote or alter the gate.
+
+- Honest result: **W-ADM-UX-10 empty-state/error-boundary behavior and the audit mount chain are independently green across three consecutive offline runs, with clean Orchestrator typecheck.** No external service or production database was contacted, and G-ADMIN-OPS remains NO-GO as requested.
+
+# W-WORKER-SDK-ARTIFACT-STAT-FIX
+
+- Recorded: 2026-09-29 00:14:11 +07:00. Task: `task_a1805a86bec4`; dispatch: `ctx_02bc2c219839`; CWD: `D:\Git\dugate\du-rework`.
+- Updated `packages/worker-sdk/tests/artifact-stat.test.ts` so its authorized-reader fixture returns a stable `storageVersionId` and its exact stat descriptor assertion includes both `storageVersionId` and `grantExpiresAt`. The omitted-fields case now explicitly verifies the undefined version ID and expiry returned from its mock.
+
+### Three consecutive targeted runs
+
+- Command: `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- Run 1 ExitCode **0**; Jest **1 passed suite, 3 passed tests, 0 failed**.
+- Run 2 ExitCode **0**; Jest **1 passed suite, 3 passed tests, 0 failed**.
+- Run 3 ExitCode **0**; Jest **1 passed suite, 3 passed tests, 0 failed**.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-ARTIFACT-STAT-FIX-target-1.log`, `W-WORKER-SDK-ARTIFACT-STAT-FIX-target-2.log`, and `W-WORKER-SDK-ARTIFACT-STAT-FIX-target-3.log`.
+
+### Full package and typecheck
+
+- `pnpm --filter @du/worker-sdk test` — ExitCode **1**; **20 passed / 1 failed of 21 suites**, 335 passed / 3 failed of 338 tests. The artifact-stat suite passed; `tests/network-boundaries.boundary.test.ts` failed three local-listener cases (`B3-lock-a`, `ADM-BASE-03`, and `B-race`) with `TRANSPORT_FAILURE` instead of the expected HTTP outcomes. That suite is outside this dispatch's stated file limit; the coordinator directed this task to keep scope and report the blocker.
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- Full package output: `coordination/reports/tester-output/W-WORKER-SDK-ARTIFACT-STAT-FIX-full.log`.
+- Honest result: **The targeted artifact-stat fix is green in all three runs and typecheck is clean; the full 21-suite acceptance gate remains blocked by the out-of-scope network-boundaries suite.**
+
+# T-CODEX-OFFLINE-PLAT-CR28-01-RUNTIME-SEAM-INDEPENDENT
+
+- Receipt time: `2026-09-29T00:16:19+07:00`. Task: `task_621e2d63e521`; dispatch: `ctx_b760635438b8`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Runtime `openMetadata` seam and artifact decrypt inspection
+
+- `services/orchestrator/src/server.ts` composes optional `metadataEncryption` through `adaptKeyProviderForMetadata(...)` and passes the resulting `metadataCrypto` into `createRuntimeService`; `runtime.ts`'s `openMetadata` delegates to `readStored(value, context, true)` for the deliberate legacy backfill window.
+- `runtime-encryption-metadata.test.ts` covers metadata inventory, tenant/slot/row binding, tamper/wrong-key/Vault fail-closed behavior, stable hashing, D61 Vault-KeyProvider adapter mapping and round-trip, and the Delta-72 policy distinction: runtime metadata may tolerate legacy plaintext while `decryptStoredArtifact` refuses it; both seams reject wrong context/key.
+- `artifact-read-decrypt-offline.test.ts` covers plaintext pass-through, sealed-object decryption and manifest sidecar lookup, wrong key/version/pointer/tenant/artifact identity, missing/invalid manifest, absent crypto, missing object, ciphertext leakage prevention, and chunked multi-MiB decrypt plus tamper/truncation fail-closed behavior.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts tests/artifact-read-decrypt-offline.test.ts`
+- ExitCode: **0**; Jest **2 passed suites, 65 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts tests/artifact-read-decrypt-offline.test.ts`
+- ExitCode: **0**; Jest **2 passed suites, 65 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/runtime-encryption-metadata.test.ts tests/artifact-read-decrypt-offline.test.ts`
+- ExitCode: **0**; Jest **2 passed suites, 65 passed tests, 0 failed, 0 skipped**.
+
+The three runs passed **6/6 suites and 195/195 test executions**.
+
+### Typecheck and gate posture
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+- G-ENC remains **NO-GO**; this receipt records verification evidence only and does not promote or alter the gate.
+
+- Honest result: **W-PLAT-CR28-01-RUNTIME-SEAM is independently green offline across three consecutive runs, with clean Orchestrator typecheck and fail-closed artifact decrypt/runtime metadata seam behavior.** No live Vault, S3, database, or production runtime was contacted, and G-ENC remains NO-GO as requested.
+
+# W-DOC-CORE-INGEST-TIMEOUT-RECOVERY
+
+- Recorded: 2026-09-29 00:16 Asia/Bangkok
+- Scope: Added `businesses/document-core/tests/ingest-timeout-recovery.test.ts`; production code was unchanged.
+- Coverage: The test observes a partially written temp artifact, forces the acquisition timeout while streaming, verifies stream destruction and temp workspace cleanup, then performs a successful retry under the same task ID to confirm disk workspace recovery.
+- Rejection handling: The stalled source rejects after timeout; the test listens for process-level `unhandledRejection` and observed none.
+- Targeted suite: `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts` passed 3 consecutive runs; each reported 1 suite and 1 test passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0.
+- Result: **PASS**; offline test used local temp files and mocked artifact streams only.
+
+# T-CODEX-OFFLINE-DOC-CORE-INGEST-TIMEOUT-RECOVERY-INDEPENDENT
+
+- Receipt time: `2026-09-29T00:43:39+07:00`. Task: `task_116b4809a6cd`; dispatch: `ctx_19f321addb49`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Timeout recovery inspection
+
+- `tests/ingest-timeout-recovery.test.ts` observes a partial temp artifact file while an acquisition stream is active, then forces the parser timeout and expects `DOCUMENT_TIMEOUT`.
+- The test verifies the stream receives an abort, is destroyed, partial workspace files are removed, and a late storage rejection after caller timeout does not surface as an unhandled rejection.
+- It then retries acquisition with the same task/artifact context and confirms the recovered bytes are returned successfully, proving retry after timeout and disk workspace recovery.
+
+### Three consecutive targeted Jest runs
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 1 passed test, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 1 passed test, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 1 passed test, 0 failed, 0 skipped**.
+
+The three runs passed **3/3 suites and 3/3 test executions**.
+
+### Typecheck and gate posture
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+- G-ENC remains **NO-GO**; this receipt records verification evidence only and does not promote or alter the gate.
+
+- Honest result: **W-DOC-CORE-INGEST-TIMEOUT-RECOVERY is independently green offline: partial-file cleanup, stream abort, retry recovery, and late rejection handling passed in all three runs, and Document Core typecheck is clean.** No live provider, storage, database, or Redis service was contacted, and G-ENC remains NO-GO as requested.
+
+# W-DOC-CORE-PARSER-BUDGET-BAND-NEGATIVE
+
+- Recorded: 2026-09-29 00:47 Asia/Bangkok
+- Scope: Expanded only `businesses/document-core/tests/parser-budget-band.test.ts`; production code was unchanged.
+- Coverage: Explicit parser use rejects a memory budget above the 64 MiB ceiling with `INVALID_PARSER_BUDGET`; 0, negative, and fractional values below the 1-byte minimum are rejected without clamping, while exactly 1 byte is accepted.
+- Targeted suite: `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts` passed 3 consecutive runs; each reported 1 suite and 13 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0.
+- Result: **PASS**; offline validation only.
+- Turn 341 follow-up recorded: 2026-09-29 05:56:25 +07:00; task `task_5f3b92c10a7e`, context `ctx_5f3b92c10a7e`.
+- Follow-up coverage: over-ceiling artifact preflight, NaN/infinite/malformed budgets and zero/negative timeouts, explicit null fallback, negative/zero PDF page selectors, deadline expiry after stat, empty/truncated disk streams, and repeated workspace cleanup after mid-stream budget violation and caller abort.
+- Negative metadata page-count assertion is `test.failing`: current `safeParseBuffer` passes through a parser result with `pageCount: -1`; production was left unchanged per scope. The PDF selector negative/zero rejection assertions pass normally.
+- Follow-up targeted suite: `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts` passed 3 consecutive runs; each reported 1 suite and 22 tests passed, ExitCode 0.
+- Follow-up typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0.
+- Gates: all integration gates remain **NO-GO**; offline test/typecheck only, with no production files modified.
+- Follow-up result: **PASS** for the assigned test-only task; the negative parser metadata page-count gap remains visible above.
+
+# W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE
+
+- Recorded: 2026-09-29 00:49:03 +07:00. Task: `task_5655072e2812`; dispatch: `ctx_7103ce1986a0`; CWD: `D:\Git\dugate\du-rework`.
+- Stabilized `packages/worker-sdk/tests/network-boundaries.boundary.test.ts` by binding its loopback mocks on the Worker SDK's PID-offset quiet port band (`46,400 + (process.pid % 8) * 16`) rather than requesting filtered ephemeral ports. The caller-abort case allows 2 seconds for the local request to arrive and aborts/closes the listener before its bounded wait for the tracked download, so a regression cannot strand the local port until Jest times out.
+
+### Three consecutive boundary-suite runs
+
+- Command: `pnpm --filter @du/worker-sdk test -- tests/network-boundaries.boundary.test.ts`
+- Run 1 ExitCode **0**; Jest **1 passed suite, 6 passed tests, 0 failed**.
+- Run 2 ExitCode **0**; Jest **1 passed suite, 6 passed tests, 0 failed**.
+- Run 3 ExitCode **0**; Jest **1 passed suite, 6 passed tests, 0 failed**.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE-target-1.log`, `W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE-target-2.log`, and `W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE-target-3.log`.
+
+### Full suite and typecheck
+
+- `pnpm --filter @du/worker-sdk test` — ExitCode **0**; Jest **21 passed suites / 21 total, 338 passed tests / 338 total**. This includes the byte-cap, redirect, hash-mismatch, abort, error-redaction, and listener-hygiene cases that previously intermittently produced `TRANSPORT_FAILURE`.
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- Full-suite output: `coordination/reports/tester-output/W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE-full.log`.
+- Honest result: **W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE is green: the boundary suite passed three consecutive runs, the full Worker SDK suite passed all 21 suites and 338 tests, and typecheck is clean.** No production source files were changed.
+
+# T-CODEX-OFFLINE-WORKER-SDK-NETWORK-BOUNDARIES-INDEPENDENT
+
+- Receipt time: `2026-09-29T00:57:01+07:00`. Task: `task_a0490bfb3cd8`; dispatch: `ctx_b893ea49a748`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed by this worker and only this receipt was appended.
+
+### Boundary coverage
+
+- `tests/network-boundaries.boundary.test.ts` passed the real-loopback listener cases for mid-stream byte-cap wire shutdown (`B3-lock-a`), redirect/SSRF refusal (`B3-lock-b`), hash-mismatch file cleanup (`B3-lock-c`), caller signal aborting the response body (`FIX-CR-08`), upstream error-body redaction (`ADM-BASE-03`), and race/listener/socket hygiene (`B-race`).
+
+### Three consecutive boundary runs
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/network-boundaries.boundary.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 6 passed tests, 0 failed, 0 skipped**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/network-boundaries.boundary.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 6 passed tests, 0 failed, 0 skipped**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/network-boundaries.boundary.test.ts`
+- ExitCode: **0**; Jest **1 passed suite, 6 passed tests, 0 failed, 0 skipped**.
+
+The boundary runs passed **3/3 suites and 18/18 test executions**.
+
+### Full package and typecheck
+
+- Command: `pnpm --filter @du/worker-sdk test`
+- ExitCode: **0**; Jest **21/21 suites passed, 338/338 tests passed, 0 failed, 0 skipped**.
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics were emitted.
+- All existing gate statuses remain **NO-GO**; this receipt records verification evidence only and does not promote or alter any gate.
+
+- Honest result: **W-WORKER-SDK-NETWORK-BOUNDARIES-STABILIZE is independently green: the boundary suite is stable across three consecutive runs, the full Worker SDK package is 21/21 suites and 338/338 tests, and typecheck is clean.** Tests used local loopback listeners only; no production service was contacted and all gates remain NO-GO.
+
+# W-DOC-CORE-STREAM-ACQUISITION-NEGATIVE
+
+- Recorded: 2026-09-29 00:57 Asia/Bangkok
+- Scope: Added negative tests only to `businesses/document-core/tests/read-stream-acquisition.test.ts`; production code was unchanged.
+- Coverage: A task abort during transfer verifies `LEASE_LOST`, propagation of the abort signal, destruction of the source stream, and temp workspace cleanup; an abrupt source close verifies `ERR_STREAM_PREMATURE_CLOSE`, source destruction, and workspace cleanup.
+- Targeted suite: `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts` passed 3 consecutive runs; each reported 1 suite and 11 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0.
+- Result: **PASS**; offline validation with mocked artifact streams and local temporary files.
+
+# T-CODEX-OFFLINE-DOC-CORE-PARSER-BUDGET-BAND-INDEPENDENT
+
+- Receipt time: 2026-09-29T01:00:44+07:00. Task: `task_6968f6fb0e14`; dispatch: `ctx_b931861881af`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; no source or test files were changed, and this receipt is the only file append.
+
+### Parser budget band targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 13 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 13 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 13 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 39/39 test executions passed**. The expected `PARSER-RSS budget=10.00MiB` diagnostic was emitted; no failure or skipped test was reported.
+
+### Coverage inspection
+
+- `businesses/document-core/tests/parser-budget-band.test.ts` covers DATA-04 budget-band ceiling derivation, exact ceiling acceptance, over-budget refusal before byte movement, bounded one-time disk materialization, tampered-grant rejection, storage-fetch deadline abort, stalled stat/grant lookup abort, and post-transfer stream abort under the acquisition timer.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics emitted.
+
+- Honest result: **PASS**; parser budget band verification is independently green offline across three consecutive runs, with no source/test modifications and no live service dependencies exercised.
+
+# T-CODEX-OFFLINE-DOC-CORE-STREAM-ACQUISITION-INDEPENDENT
+
+- Receipt time: 2026-09-29T01:03:37+07:00. Task: `task_0370791b2f55`; dispatch: `ctx_7f7827b80c7b`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source/test files and appended only this receipt.
+
+### Read-stream acquisition targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 11 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 11 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 11 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 33/33 test executions passed**; no failure or skipped test was reported.
+
+### Coverage inspection
+
+- `businesses/document-core/tests/read-stream-acquisition.test.ts` covers disk-backed streaming and declared identity, pre-transfer over-budget rejection, mid-stream byte cap abort, declared-size and digest mismatch detection, the sub-1MiB inline path, whole-read timeout abort, lease/cancel mapping, transfer destruction and temporary-workspace cleanup on task abort, premature source close cleanup, and the legacy buffer-only path.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**; no TypeScript diagnostics emitted.
+
+- Honest result: **PASS**; read-stream acquisition verification is independently green offline across three consecutive runs. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-TEMP-WORKSPACE-ISOLATION
+
+- Recorded: 2026-09-29 01:01:26 +07:00. Task: `task_303505a767ee`; dispatch: `ctx_6e902919d7b0`; CWD: `D:\Git\dugate\du-rework`.
+- Added `packages/worker-sdk/tests/temp-workspace.test.ts` with concurrent same-task workspace allocation coverage: eight simultaneous `createTempWorkspace` calls produce distinct prefixed directories and isolated marker bytes, and disposing one directory leaves its sibling intact.
+- The sweep test backdates two active SDK workspaces, a true stale SDK-prefixed orphan, and a stale near-match sibling. It verifies the sweep removes only the orphan, preserves active workspace data, and leaves the neighboring nonmatching prefix directory and its bytes untouched; prefix assertions use `TEMP_WORKSPACE_PREFIX`.
+
+### Three consecutive targeted runs
+
+- Command: `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- Run 1 ExitCode **0**; Jest **1 passed suite, 2 passed tests, 0 failed**.
+- Run 2 ExitCode **0**; Jest **1 passed suite, 2 passed tests, 0 failed**.
+- Run 3 ExitCode **0**; Jest **1 passed suite, 2 passed tests, 0 failed**.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-TEMP-WORKSPACE-ISOLATION-target-1.log`, `W-WORKER-SDK-TEMP-WORKSPACE-ISOLATION-target-2.log`, and `W-WORKER-SDK-TEMP-WORKSPACE-ISOLATION-target-3.log`.
+
+### Typecheck
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit` — ExitCode **0**, no diagnostics.
+- Honest result: **W-WORKER-SDK-TEMP-WORKSPACE-ISOLATION is green across all three targeted runs, and the Worker SDK no-emit typecheck is clean.** Only the requested test file plus this receipt and raw logs were changed; no production source was modified.
+
+# T-CODEX-OFFLINE-ARTIFACT-STAT-AND-INGEST-TAMPER-INDEPENDENT
+
+- Receipt time: 2026-09-29T01:27:42+07:00. Task: `task_77eda516f614`; dispatch: `ctx_96f47c1aef6e`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-stat targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 7 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 7 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 7 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 21/21 test executions passed**; stat returns authorized descriptor fields without blob bytes, preserves omitted fields as undefined, rejects 404/403 grants and malformed/non-JSON responses, and fences stale leases.
+
+### Document Core ingest-scan-tamper targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 6 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 6 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 6 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 18/18 test executions passed**; tamper defenses reject grant hash mismatch, corrupt payload, short stream, same-size digest mismatch, storage-version mismatch, and parser-timeout transfer abort.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE
+
+- Recorded: 2026-09-29 01:07:52 +07:00. Task: `task_ee5b970ba9b4`; dispatch: `ctx_3327087aab87`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/artifact-stat.test.ts`; no production source was changed by this task.
+- Coverage: Added negative access-grant cases for 404 `NOT_FOUND` and 403 `FORBIDDEN`, and rejection checks for a malformed grant descriptor and non-JSON response.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts` passed three consecutive runs; each reported 1 suite and 7 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-ARTIFACT-STAT-NEGATIVE-target-1.log`, `-target-2.log`, and `-target-3.log`.
+- Honest result: **PASS**; all requested negative response cases reject as expected, the targeted suite was green three times, and typecheck is clean.
+
+
+### Turn 337 supplemental receipt (`task_3d79b18f0c2a`, `ctx_3d79b18f0c2a`)
+
+- Recorded: 2026-09-29 04:50:19 +07:00. Scope: added negative and boundary tests in `packages/worker-sdk/tests/artifact-stat.test.ts`; no production source was changed for this turn.
+- Coverage: rejects negative `sizeBytes` (grant content-length metadata) while accepting zero; rejects short, uppercase, and non-hex SHA-256 values; denies stat after a lost lease; and propagates Runtime API denials for tenant and operation mismatches without exposing a descriptor.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts` passed three consecutive runs; each reported 1 suite and 14 tests passed, ExitCode 0 (42 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all gates remain **NO-GO** and unchanged.
+
+### Additional packet receipt (`task_7a2b104c8f8f`, `ctx_7a2b104c8f8f`)
+
+- Recorded: 2026-09-29 07:40:23 +07:00. Scope: extended `packages/worker-sdk/tests/artifact-stat.test.ts`; no production code was edited.
+- Coverage: confirms a missing artifact ID returns 404 without probing blob storage; rejects empty, short, oversized, uppercase, non-hex, and whitespace SHA-256 descriptors; accepts zero and preserves an exact size above 2 GiB; verifies lease-loss fencing with one request and the expected task/epoch; and confirms a timed-out stat request aborts its signal and surfaces `AmbiguousReportError`.
+- Targeted command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts` - ExitCode 0; 1 suite and 20 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts` - ExitCode 0; 1 suite and 20 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts` - ExitCode 0; 1 suite and 20 tests passed.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for this packet; all release gates remain **NO-GO** and unchanged.
+
+# W-WORKER-SDK-ARTIFACT-METADATA-NEGATIVE
+
+- Recorded: 2026-09-29 01:32:35 +07:00. Task: `task_21ff9b1144d6`; dispatch: `ctx_20dd26ae163f`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative tests only to `packages/worker-sdk/tests/artifact-read-metadata.test.ts`; no production source was changed by this task.
+- Coverage: Verifies rejection before byte fetch for a missing download URL and an unparseable download URL, cancellation and `TOO_LARGE` rejection for an oversized `content-length` header, and rejection of an incomplete encryption envelope marker. Existing digest-corruption coverage also remains in the suite.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts` passed three consecutive runs; each reported 1 suite and 10 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-ARTIFACT-METADATA-NEGATIVE-target-1.log`, `-target-2.log`, and `-target-3.log`.
+- Honest result: **PASS**; requested offline negative cases are green in all three runs and the package typecheck is clean.
+# T-CODEX-OFFLINE-METADATA-AND-SOURCE-PIN-INDEPENDENT
+
+- Receipt time: 2026-09-29T02:38:56+07:00. Task: `task_555e5cf64874`; dispatch: `ctx_31b08e28a99d`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-read-metadata targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 30/30 test executions passed**; metadata round-trip, digest/size integrity, expiry and storage-version fencing, abort propagation, descriptor validation, content-length cancellation, and encryption-marker validation all passed.
+
+### Document Core ingest-source-pin targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 54/54 test executions passed**; canonical/legacy source-pin normalization, strict malformed-pin rejection, digest/length binding, expired/foreign-grant fencing, shared-task artifact selection, and visible unresolved-source errors all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE
+
+- Recorded: 2026-09-29 04:35 +07:00. Work item: `W-DOC-CORE-INGEST-SOURCE-PIN-NEGATIVE`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added source-pin negative cases in `businesses/document-core/tests/ingest-source-pin.test.ts`; no production code was changed for this work item.
+- Coverage: Rejects an empty token, empty storage key, and empty pin object; rejects a pin whose artifact read lease is expired; rejects a well-formed but tampered SHA-256 digest; and confirms that a pin naming another operation fails closed when its operation-scoped artifact read grant is denied.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts` passed three consecutive runs; each reported 1 suite and 23 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested test coverage and verification. All existing gates remain **NO-GO** and unchanged.
+- Turn packet follow-up recorded: 2026-09-29 06:48:40 +07:00. Task: `task_7a1b92c40e8b`; context: `ctx_7a1b92c40e8b`.
+- Follow-up coverage: whitespace-only storage key, uppercase digest, a full-length non-hex digest, and an exact-expiration boundary for the pinned artifact read lease; the existing negative-size and expired-grant cases remain in the suite.
+- Expected-failure cases: whitespace-only storage keys and binding a readable tenant-B artifact into a tenant-A operation are explicitly `test.failing`; the contract currently accepts whitespace storage keys, and `prepareSources` binds only by digest and length without checking tenant scope.
+- Follow-up targeted command: `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts` passed three consecutive runs; each reported 1 suite and 28 tests passed, ExitCode 0.
+- Follow-up typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Follow-up result: **PASS** for the test-only packet; no production files changed and all release gates remain **NO-GO**.
+
+# W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE
+
+- Recorded: 2026-09-29 02:41:13 +07:00. Task: `task_4e8240b75181`; dispatch: `ctx_e564c6ce6c2c`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only to `packages/worker-sdk/tests/temp-workspace.test.ts`; no production source was changed.
+- Coverage: A missing root yields `ENOENT` on workspace creation and an empty result from sweep; traversal and path-separator names are rejected; a sweep permission failure retains the stale directory for a later retry; and an unexpected dispose error propagates to the caller.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts` passed three consecutive runs; each reported 1 suite and 6 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-TEMP-WORKSPACE-NEGATIVE-target-1.log`, `-target-2.log`, and `-target-3.log`.
+- Honest result: **PASS**; requested cleanup and path safety cases pass repeatedly, with no source changes.
+
+### Turn 339 — `task_5e3d7a810f2c` (`ctx_5e3d7a810f2c`)
+
+- Recorded: 2026-09-29 05:27:11 +07:00. CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `packages/worker-sdk/tests/temp-workspace.test.ts`; no production code was changed.
+- Coverage: Empty task IDs reject; special characters are sanitized and overlong IDs are bounded to 64 characters; active workspaces remain protected for zero, negative, NaN, and infinite `olderThanMs` TTL values; disposal is idempotent when the directory was externally removed; and 48 simultaneous allocations produce unique sibling directories.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts` passed three consecutive runs; each reported 1 suite and 13 tests passed, ExitCode 0 (39 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all existing gates remain **NO-GO** and unchanged.
+
+
+# W-DOC-CORE-OUTPUT-VALIDATION-NEGATIVE
+
+- Recorded: 2026-09-29 05:38 +07:00. Task: `task_7f4d91c28b30`; context: `ctx_7f4d91c28b30`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary test cases only in `businesses/document-core/tests/output-validation.test.ts`; production code was not changed.
+- Coverage: Existing tests reject negative confidence and score; additional expected-failure probes cover NaN confidence/score, negative invoice total, 100,001 answer items, control characters and U+FFFD replacement characters, unknown fields, and provider-owned `__proto__`; a passing guard confirms `Object.prototype` remains unchanged.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/output-validation.test.ts` passed three consecutive runs; each reported 1 suite and 32 tests passed, ExitCode 0. Eight `test.failing` probes document current validator gaps while keeping the test-only suite green.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Finding: Current production validation accepts the eight inputs marked `test.failing`, including `NaN`, negative totals, oversized arrays, controls/replacement characters, and unknown/prototype fields. All existing gates remain **NO-GO**; this receipt does not promote or change them.
+
+
+# W-DOC-CORE-INGEST-TIMEOUT-NEGATIVE
+
+- Recorded: 2026-09-29 05:27 +07:00. Task: `task_3b8f104d5a7e`; context: `ctx_3b8f104d5a7e`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `businesses/document-core/tests/ingest-timeout-recovery.test.ts`; production code was unchanged.
+- Coverage: Abrupt mid-stream network drop disposes partial workspace; malformed/mismatched recovery lease signal is rejected before stream transfer; zero-byte partial files are removed after timeout; and two successive transfer timeouts reclaim each temporary workspace.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts` passed three consecutive runs; each reported 1 suite and 9 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all existing gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-WORKSPACE-AND-TIMEOUT-INDEPENDENT
+
+- Receipt time: 2026-09-29T03:07:29+07:00. Task: `task_1150021b384f`; dispatch: `ctx_1150021b384f`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK temp-workspace negative suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 6 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 6 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 6 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 18/18 test executions passed**; concurrent isolation/sweep, missing-root handling, traversal/path-separator rejection, permission cleanup behavior, and dispose-error propagation all passed.
+
+### Document Core ingest-timeout-recovery negative suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 5 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 5 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 5 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 15/15 test executions passed**; zero/negative timeout rejection, pre-aborted lease failure, partial-file cleanup, retry recovery, late stream rejection handling, and cross-lease stale-partial isolation all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both negative suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-INGEST-TIMEOUT-RECOVERY-NEGATIVE
+
+- Recorded: 2026-09-29 02:45:33 +07:00. Task: `task_7a5feb1453f7`; dispatch: `ctx_eb965178f713`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `businesses/document-core/tests/ingest-timeout-recovery.test.ts`; production code was unchanged.
+- Coverage: Parser timeout values of zero and negative one are rejected; an already-aborted task signal fails before parsing with `LEASE_LOST`; partial reads time out and are cleaned up; recovery under a different task ID reads fresh, verified bytes without reusing the expired task's partial file.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts` passed three consecutive runs; each reported 1 suite and 5 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all requested timeout and recovery boundaries are covered, the targeted suite passed all three runs, and the package typecheck is clean.
+
+# T-CODEX-OFFLINE-TOOLBAR-AND-FACADE-BOUNDS-INDEPENDENT
+
+- Receipt time: 2026-09-29T03:14:51+07:00. Task: `task_2f40b17e889a`; dispatch: `ctx_2f40b17e889a`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Orchestrator admin-audit-toolbar targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-audit-toolbar.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 67 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-audit-toolbar.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 67 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-audit-toolbar.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 67 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 201/201 test executions passed**; filter normalization, query/chip/form/pagination/table rendering, fetcher fail-closed behavior, and boundary inputs all passed.
+
+### Orchestrator crypto-storage-facade targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/crypto-storage-facade.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/crypto-storage-facade.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/crypto-storage-facade.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 81/81 test executions passed**; context-bound AES-256-GCM, chunk integrity/order/nonce guards, manifest and byte/count ceilings, stream typing, malformed envelope rejection, and key-service/source failure paths all passed.
+
+### Typecheck
+
+- `pnpm --filter @du/orchestrator exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and Orchestrator typecheck is clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-SERVICE-AUTH-NEGATIVE
+
+- Recorded: 2026-09-29 03:14:01 +07:00. Task: `task_e2694b4e9f3b`; dispatch: `ctx_e2694b4e9f3b`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only to `packages/worker-sdk/tests/worker-service-auth.test.ts`; no production source was changed.
+- Coverage: Exercises absent/empty identity tokens, missing Bearer prefix, a validly signed token with malformed base64url JSON payload, invalid signature, expiration at the current second, and an expiry 300 seconds behind. Reusing an invocation request ID with a different validly signed payload is rejected with 409 `INPUT_HASH_MISMATCH`, and provider dispatch remains at one call.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts` passed three consecutive runs; each reported 1 suite and 15 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Raw output: `coordination/reports/tester-output/W-WORKER-SDK-SERVICE-AUTH-NEGATIVE-target-1.log`, `-target-2.log`, and `-target-3.log`.
+- Gate status: All gates remain **NO-GO**; this receipt records test evidence only and does not promote or change any gate.
+- Result: **PASS**; service identity malformed-token, expiry-boundary, and conflicting replay cases reject fail closed.
+
+### Turn 340 — `task_1a89c25f4d10` (`ctx_1a89c25f4d10`)
+
+- Recorded: 2026-09-29 05:37:43 +07:00. CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/worker-service-auth.test.ts`; no production code was changed.
+- Coverage: Tests reject a modified JWT header, a correctly signed token missing `alg`, and identities missing `sub` or `aud`; the existing requestId/invocationId replay case remains asserted with a changed body and fail-closed `409 INPUT_HASH_MISMATCH` response.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts` passed three consecutive runs; each reported 1 suite and 19 tests passed, ExitCode 0 (57 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Limitation: The real verifier in `services/connector/src/identity.ts` does not validate `iss`, `iat`, or `nbf`; correctly signed tokens missing `iss` or carrying future `iat`/`nbf` are not rejected by that implementation. Because this task prohibits production edits, those requested rejection tests could not be added as passing behavioral tests and remain outstanding.
+- Result: **PARTIAL**; added tests and checks pass, but the verifier policy gap is unresolved. All gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-SERVICE-AUTH-AND-SCAN-FIXTURES-INDEPENDENT
+
+- Receipt time: 2026-09-29T03:24:24+07:00. Task: `task_38df693b4a20`; dispatch: `ctx_38df693b4a20`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK worker-service-auth targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 15 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 15 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 15 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 45/45 test executions passed**; signed worker identity, expiry/audience/scope/token rejection, independent tenant grant verification, and conflicting replay fail-closed behavior all passed.
+
+### Document Core ingest-scan-fixtures targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 8 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 8 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 8 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 24/24 test executions passed**; PNG/OCR and PDF/handwriting bytes+MIME forwarding, missing/expired reference fail-closed behavior, zero-length/truncated payload rejection, magic mismatch, and connector-boundary checks all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-INGEST-SCAN-FIXTURES-NEGATIVE
+
+- Recorded: 2026-09-29 03:14:44 +07:00. Task: `task_ca43126f554a`; dispatch: `ctx_ca43126f554a`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `businesses/document-core/tests/ingest-scan-fixtures.test.ts`; production code was unchanged.
+- Coverage: Rejects zero-length scan content and a truncated ZIP header against the full fixture's read-grant identity; rejects PDF canonical metadata when sniffed ZIP magic disagrees; verifies connector contract rejection for oversized fixture filename and MIME headers.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts` passed three consecutive runs; each reported 1 suite and 8 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all requested test cases pass repeatedly and the package typecheck is clean. All existing gates remain **NO-GO**; this receipt does not change any gate status.
+- Turn 344 follow-up recorded: 2026-09-29 06:20:37 +07:00. Task: `task_8f3a91c20b7e`; context: `ctx_8f3a91c20b7e`.
+- Follow-up coverage: PDF/image MIME and ZIP/PDF MIME spoof cases; truncated TIFF IFD and corrupted PNG CRC; denied reference and a deleted backing storage key; streamed zero-byte scan; CRLF filename and MIME headers; timeout during stream transfer with workspace cleanup; cancellation after the first stream chunk.
+- Expected-failure format cases: PDF/image MIME mismatch, ZIP/PDF MIME mismatch, truncated TIFF, corrupted PNG CRC, and CRLF filename injection are explicitly `test.failing`; they document that current ingest metadata/signature validation still accepts these fixture inputs. CRLF MIME is rejected by `InvocationInputSchema` as expected.
+- Follow-up targeted command: `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts` passed three consecutive runs; each reported 1 suite and 19 tests passed, ExitCode 0.
+- Follow-up typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Follow-up result: **PASS** for the test-only task; no production changes and all integration gates remain **NO-GO**.
+
+# W-DOC-CORE-INGEST-SCAN-TAMPER-BOUNDARY
+
+- Recorded: 2026-09-29 03:25:18 +07:00. Task: `task_f6c24388e2d4`; dispatch: `ctx_f6c24388e2d4`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `businesses/document-core/tests/ingest-scan-tamper.test.ts`; production code was unchanged.
+- Coverage: Rejects a checksum changed in a later stream chunk, a stream truncated immediately after the PNG magic bytes, and a declared content length larger than the bytes actually read; all cases confirm no connector invocation occurs.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts` passed three consecutive runs; each reported 1 suite and 9 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all requested stream tamper and boundary cases pass repeatedly, with existing gates remaining **NO-GO** and unchanged.
+
+
+# T-CODEX-OFFLINE-CONNECTOR-INVOKER-AND-SCAN-TAMPER-INDEPENDENT
+
+- Receipt time: 2026-09-29T03:55:39+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK connector-invoker targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 17 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 17 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 17 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 51/51 test executions passed**; worker identity/authentication, 401/403 rejection, 409 taxonomy preservation, malformed response fail-closed handling, payload-size bounds, timeout abort, and corrupt/non-JSON response handling all passed.
+
+### Document Core ingest-scan-tamper targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 27/27 test executions passed**; SHA-256 and payload corruption, short/same-size digest mismatch, storage-version mismatch, parser-timeout abort, cross-chunk checksum corruption, truncated magic bytes, and oversized Content-Length defenses all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-CONNECTOR-INVOKER-NEGATIVE
+
+- Recorded: 2026-09-29 03:31:30 +07:00. Task: `task_5630d71bf460`; dispatch: `ctx_5630d71bf460`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `packages/worker-sdk/tests/connector-invoker.test.ts`; no production source was changed for this task.
+- Coverage: An artifact request carrying more than 64 MiB is rejected before fetch; a pending fetch receives the timeout AbortController signal and observes it abort; non-JSON success bodies and corrupt response streams fail closed as `INVOCATION_UNKNOWN`.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts` passed three consecutive runs; each reported 1 suite and 17 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Note: The oversized payload check asserts rejection before HTTP dispatch rather than a specific validation error class. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+### Turn 343 — `task_4b8e2194c03d` (`ctx_4b8e2194c03d`)
+
+- Recorded: 2026-09-29 06:08:53 +07:00. CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/connector-invoker.test.ts`; no production source was changed.
+- Coverage: HTTP 500/502/503/504 map to `PROVIDER_UNAVAILABLE` with retry classification checked (503 is retryable); malformed/tampered 409 details and an invalid content type fail closed as `INVOCATION_UNKNOWN`; timeout-triggered socket abort resolves once to unknown; empty 200 and truncated JSON stream bodies fail closed; negative artifact byte size and oversized filename, MIME type, and storage version metadata reject before fetch. The existing >64 MiB ingress rejection and pending-fetch AbortController test remain covered.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts` passed three consecutive runs; each reported 1 suite and 26 tests passed, ExitCode 0 (78 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; integration gates remain **NO-GO** and unchanged.
+
+
+# W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE
+
+- Recorded: 2026-09-29 03:59:12 +07:00. Task: W-WORKER-SDK-CONNECTOR-INPUT-CONTRACT-NEGATIVE; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added contract validation tests only in `packages/worker-sdk/tests/connector-input-contract.test.ts`; no production source was edited for this task.
+- Coverage: Missing required invocation envelope fields; artifact byte/count boundaries; malformed and CRLF-injected MIME/header values; unexpected authorization headers; invalid UUID, step/task parameters, options, session reference, and deadline values.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts` passed three consecutive runs; each reported 1 suite and 25 tests passed, ExitCode 0 (75 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested negative and boundary coverage. All existing gates remain **NO-GO**; this receipt records evidence only and does not change gate status.
+- Follow-up Turn 344: Added binding-slot boundary cases, deadline strings, negative/NaN and fractional temperature cases, zero/negative and unbounded positive `maxTokens`, long/control-character session references, and dangerous own-key rejection (`__proto__`, `constructor`, `prototype`). The cases show that the current schema rejects empty slots, invalid numeric bounds, and strict-object unexpected keys, but currently accepts whitespace/hostile non-empty slots, arbitrary deadline strings (including invalid/past/far-future values), unbounded positive integer `maxTokens`, and session references over 256 characters or containing controls; those semantic validation gaps remain unresolved because production code was out of scope.
+- Follow-up verification: `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts` passed three consecutive runs, each 1 suite / 42 tests (126 executions total); `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0. No production source was edited. All existing gates remain **NO-GO**.
+
+# T-CODEX-OFFLINE-INPUT-CONTRACT-AND-INGEST-WIRE-INDEPENDENT
+
+- Receipt time: 2026-09-29T04:04:16+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK connector-input-contract targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 25 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 25 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 25 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 75/75 test executions passed**; canonical input aliasing, required-field rejection, artifact count/size/MIME/header bounds, injection defense, UUID/step/task validation, and parameter type/range checks all passed.
+
+### Document Core ingest-wire targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 15 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 15 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 15 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 45/45 test executions passed**; OCR/digitize artifact references and bytes, foreign/expired access fencing, native boundaries, malformed JSON/multipart rejection, interrupted-stream no-dispatch, and safe filename escaping all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-INGEST-WIRE-NEGATIVE
+
+- Recorded: 2026-09-29 04:00:17 +07:00. Work item: `W-DOC-CORE-INGEST-WIRE-NEGATIVE`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `businesses/document-core/tests/ingest-wire.test.ts`; production code was unchanged. Appended this receipt as requested.
+- Coverage: Rejects malformed artifact bytes in JSON and multipart adapter payloads, rejects an invalid multipart header value before transport, prevents connector dispatch after an interrupted source stream, and verifies CR/LF and quote characters are escaped in multipart Content-Disposition without injecting a header.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts` passed three consecutive runs; each reported 1 suite and 15 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; requested malformed wire, header, interrupted stream, and content-disposition cases pass repeatedly. All existing gates remain **NO-GO** and unchanged.
+- Packet follow-up recorded: 2026-09-29 06:57:52 +07:00. Task: `task_8a1b92c40e9c`; context: `ctx_8a1b92c40e9c`.
+- Follow-up coverage: multipart Content-Type boundary/body consistency, CRLF in the multipart boundary header, quoted filename delimiters in Content-Disposition, and cancellation of a chunked source stream after its first chunk.
+- Expected-failure case: boundary/body mismatch assertion is `test.failing`; the current adapter accepts an overridden multipart boundary that differs from FormData's generated body boundary. CRLF header rejection, filename quoting, and abort/cancellation assertions pass normally.
+- Follow-up targeted command: `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts` passed three consecutive runs; each reported 1 suite and 19 tests passed, ExitCode 0.
+- Follow-up typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Follow-up result: **PASS** for the test-only packet; production code unchanged and all release gates remain **NO-GO**.
+
+# W-DOC-CORE-BOUNDED-INPUT-NEGATIVE
+
+- Recorded: 2026-09-29 04:05:54 +07:00. Work item: `W-DOC-CORE-BOUNDED-INPUT-NEGATIVE`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `businesses/document-core/tests/bounded-input.test.ts`; production code was unchanged. Appended this receipt as requested.
+- Coverage: Connector artifact contract rejects zero-byte image payloads and image size above `CONNECTOR_ARTIFACT_MAX_BYTES`; parser accepts a buffer exactly at its configured cap and rejects one byte over; ingest source preparation rejects content whose sniffed text format disagrees with claimed PDF metadata.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts` passed three consecutive runs; each reported 1 suite and 36 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; requested bounded-input cases pass repeatedly. All existing gates remain **NO-GO** and unchanged.
+
+### Follow-up packet `task_1a1b92c40ebe` / `ctx_1a1b92c40ebe`
+
+- Recorded: 2026-09-29 07:16:57 +07:00. Added tests only in `businesses/document-core/tests/bounded-input.test.ts`; no production code was edited.
+- Coverage: Rejects zero/negative page numbers and endpoints, non-numeric/fractional page specifications, circular schemas at the configured `SCHEMA_DEPTH_EXCEEDED` boundary, a negative numeric QA question count as missing required input, and object-form conflicts between canonical comparison sides and legacy aliases.
+- During an initial exploratory run, the circular-schema assertion expected a JavaScript `RangeError`; the validator instead correctly stopped recursion with `SCHEMA_DEPTH_EXCEEDED`, so the assertion was aligned to that contract before the required runs.
+- Targeted command (run 1): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts` - ExitCode 0; 1 suite and 41 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts` - ExitCode 0; 1 suite and 41 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts` - ExitCode 0; 1 suite and 41 tests passed.
+- Aggregate: 3/3 consecutive runs passed (123 test executions).
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the follow-up test-only packet. All release gates remain **NO-GO** and unchanged.
+
+
+
+
+
+# T-CODEX-OFFLINE-STREAM-BOUNDS-AND-BOUNDED-INPUT-INDEPENDENT
+
+- Receipt time: 2026-09-29T04:33:24+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-stream-bounds targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 31 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 31 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 31 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 93/93 test executions passed**; high-water-mark/maxBytes bounds, preflight and mid-stream watchdogs, exact size/digest/order checks, bounded pulls, and caller/backpressure/consumer abort propagation all passed.
+
+### Document Core bounded-input targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 36 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 36 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 36 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 108/108 test executions passed**; byte/image, artifact-count, document/text, page, schema, QA, generation, comparison-alias, nesting-depth, network-ref, and legacy-parameter bounds all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE
+
+- Recorded: 2026-09-29 04:10:04 +07:00. Task: W-WORKER-SDK-ARTIFACT-STREAM-BOUNDS-NEGATIVE; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/artifact-stream-bounds.test.ts`; production source was not changed.
+- Coverage: One-byte-over stream cap halts further source pulls; abrupt truncation rejects after a partial chunk; reordered chunks fail expected SHA-256; and caller abort cancels an unread upstream stream under output backpressure. Existing cases also cover rejected high-water marks above 1 MiB.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts` passed three consecutive runs; each reported 1 suite and 31 tests passed, ExitCode 0 (93 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Finding: An abrupt source error rejects the stream, but the current implementation surfaces the original upstream `Error` rather than a typed `ArtifactStreamError`/`TRANSPORT_FAILURE`; this test-only task records the rejection without changing that production behavior. All existing gates remain **NO-GO**.
+- Follow-up packet: `task_4f2b104c8f5c`; context: `ctx_4f2b104c8f5c`; recorded 2026-09-29 07:07:29 +07:00. Added zero-byte max limit enforcement, another fractional high-water mark boundary, pre-header `ECONNRESET`, mid-read socket hang-up after partial bytes, and rapid pause/resume backpressure verification for exact-once byte delivery and digest.
+- Follow-up verification: `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts` passed three consecutive runs, each 1 suite / 35 tests (105 executions total), ExitCode 0; `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0. No production code was edited. All release gates remain **NO-GO**.
+
+
+# T-CODEX-OFFLINE-READ-METADATA-AND-SOURCE-PIN-INDEPENDENT
+
+- Receipt time: 2026-09-29T04:46:30+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-read-metadata targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 54/54 test executions passed**; metadata round-trip/integrity, expiry/version fencing, abort propagation, descriptor and required-field validation, digest/length bounds, malformed metadata, content-length cancellation, and encryption-marker rejection all passed.
+
+### Document Core ingest-source-pin targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 23 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 23 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 23 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 69/69 test executions passed**; canonical/legacy and empty-pin handling, strict malformed-pin validation, digest/length binding, expired/foreign/scoped grant fencing, tampered pin rejection, shared-task artifact selection, and visible unresolved-source errors all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE
+
+- Recorded: 2026-09-29 04:36:46 +07:00. Task: W-WORKER-SDK-ARTIFACT-READ-METADATA-NEGATIVE; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary coverage in `packages/worker-sdk/tests/artifact-read-metadata.test.ts`; no production source was changed for this task.
+- Coverage: Rejects access grants missing required `artifactId` or `expiresAt`; SHA-256 values with invalid length or non-hex characters; storage-version metadata at the 1024-character bound and one character over; malformed JSON, non-object payloads, and invalid metadata field types. Rejection occurs before artifact bytes are requested.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts` passed three consecutive runs; each reported 1 suite and 18 tests passed, ExitCode 0 (54 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all existing gates remain **NO-GO**, unchanged by this receipt.
+- Follow-up packet: `task_3e2b104c8f4b`; context: `ctx_3e2b104c8f4b`; recorded 2026-09-29 06:58:42 +07:00. Added uppercase, base64, prefixed, and whitespace-padded digest rejection; verified extreme representable future expiry and oldest supported expired date; checked that a storage `Content-Length` conflicting with grant `sizeBytes` is rejected/cancelled; and covered truncated grant JSON and download bytes.
+- Follow-up verification: `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts` passed three consecutive runs, each 1 suite / 27 tests (81 executions total), ExitCode 0; `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0. No production source was edited. Release gates remain **NO-GO**.
+
+
+# T-CODEX-OFFLINE-STAT-AND-CANCELLATION-FENCING-INDEPENDENT
+
+- Receipt time: 2026-09-29T05:13:45+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-stat targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 42/42 test executions passed**; descriptor metadata/omission, HTTP status and malformed descriptor rejection, size/checksum bounds, lease-loss, tenant mismatch, and operation mismatch fencing all passed.
+
+### Document Core cancellation-fencing targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/cancellation-fencing.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/cancellation-fencing.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/cancellation-fencing.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 42/42 test executions passed**; checkpoint lease/cancel classification, pre-abort and transition fencing, repeated/malformed abort handling, streamed-write prevention, and all six action handlers' side-effect fences passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-CANCELLATION-FENCING-NEGATIVE
+
+- Recorded: 2026-09-29 04:48 +07:00. Task: `task_8a50c18d3b9e`; context: `ctx_8a50c18d3b9e`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `businesses/document-core/tests/cancellation-fencing.test.ts`; production code was unchanged.
+- Coverage: Lease-loss abort during checkpoint completion prevents returning step output; repeated abort calls remain idempotent and fail closed; malformed cancel reason is treated as lease loss; and abort during streamed artifact transfer prevents artifact writes.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/cancellation-fencing.test.ts` passed three consecutive runs; each reported 1 suite and 14 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all existing gates remain **NO-GO** and unchanged.
+
+
+# W-DOC-CORE-CHECKPOINT-NEGATIVE
+
+- Recorded: 2026-09-29 05:17 +07:00. Task: `task_c72b1894d03e`; context: `ctx_c72b1894d03e`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `businesses/document-core/tests/checkpoint.test.ts`; no production code was changed.
+- Coverage: Corrupt sealed checkpoint storage fails authentication before callback replay; an empty step key with a negative `sequenceIndex` does not alias a valid checkpoint; separate task/operation contexts do not replay each other's local checkpoints; 500-character output is preserved exactly; and 1,000,001-character output survives storage and replay without truncation.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/checkpoint.test.ts` passed three consecutive runs; each reported 1 suite and 8 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Note: `StepCheckpointManager` accepts the step key and opaque input payload; this test-only suite checks that malformed boundary values do not alias valid checkpoint identity, without introducing production validation. All existing gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-TEMP-SWEEP-AND-CHECKPOINT-INDEPENDENT
+
+- Receipt time: 2026-09-29T05:24:43+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK temp-sweep targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/temp-sweep.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/temp-sweep.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/temp-sweep.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 14 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 42/42 test executions passed**; startup/periodic sweep, enable/disable and stop behavior, interval/threshold boundaries, regular-file and permission/locked-cleanup preservation, and unrelated-parent isolation all passed. Expected structured sweep-removal logs were emitted.
+
+### Document Core checkpoint targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/checkpoint.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 8 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/checkpoint.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 8 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/checkpoint.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 8 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 24/24 test executions passed**; full/oversized output preservation, duplicate-delivery resume without callback replay, truncation-marker rejection, encrypted-payload authentication failure, checkpoint identity boundaries, and exact 500-character preservation all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-TEMP-WORKSPACE-AND-TIMEOUT-RECOVERY-INDEPENDENT
+
+- Receipt time: 2026-09-29T05:34:41+07:00. CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK temp-workspace targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 13 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 13 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/temp-workspace.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 13 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 39/39 test executions passed**; concurrent path isolation, stale sweep preservation, missing-root handling, traversal/path safety, permission/error cleanup, task-ID sanitization, threshold boundaries, idempotent disposal, and bounded concurrent allocation all passed.
+
+### Document Core ingest-timeout-recovery targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-timeout-recovery.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 27/27 test executions passed**; timeout boundary/pre-aborted lease handling, partial and zero-byte cleanup, retry/late-rejection recovery, unexpected stream disposal, malformed lease fencing, and idempotent repeated timeout reclamation all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-SERVICE-AUTH-AND-OUTPUT-VALIDATION-INDEPENDENT
+
+- Receipt time: 2026-09-29T05:47:34+07:00. Task: `task_2e8a104c91bf`; context: `ctx_2e8a104c91bf`; CWD: `D:\Git\dugate\du-rework`. This was an independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK worker-service-auth targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/worker-service-auth.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 57/57 test executions passed**; signed worker identity claims/headers, expiry/audience/scope checks, Bearer/token parsing, invocation grant signature/tenant/replay fencing, and provider-dispatch fail-closed paths all passed.
+
+### Document Core output-validation targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/output-validation.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 32 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/output-validation.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 32 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/output-validation.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 32 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 96/96 test executions passed**; empty/malformed/provider action output validation, custom schema requirements, NaN/range/array/text checks, unknown-field rejection, and `__proto__` pollution defenses all passed.
+
+### Typechecks
+
+- `pnpm --filter @du/worker-sdk exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+- `pnpm --filter @du/document-core exec tsc --noEmit`: ExitCode **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites are independently green across three consecutive offline runs and both package typechecks are clean. All existing gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-ARTIFACT-AUTH-AND-ADMIN-IDEMPOTENCY-INDEPENDENT
+
+- Recorded: 2026-09-29T05:56:31+07:00. Task: `task_7d2b104c8f1e`; context: `ctx_7d2b104c8f1e`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Independent read-only offline verification; this worker changed no source or test files and appended only this receipt.
+
+### Orchestrator artifact-read-authorization targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/artifact-read-authorization.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 90 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/artifact-read-authorization.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 90 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/artifact-read-authorization.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 90 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 270/270 test executions passed**; parent/child and cross-operation/tenant authorization, declared-reference/public/private boundaries, STAGING/lease/expiry fencing, grant token scoping, request validation, and negative/boundary probes all passed. Tests labelled `FINDING` passed as assertions; no test failure occurred.
+
+### Orchestrator admin-idempotency targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-idempotency.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 45 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-idempotency.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 45 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-idempotency.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 45 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 135/135 test executions passed**; canonical payload hashing, idempotency-key parsing/validation, replay/conflict semantics, route/payload scope, rollback and purge behavior, key boundaries/Unicode, null/empty payload normalization, and corrupted-response handling all passed.
+
+### Typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and the Orchestrator typecheck was clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-MULTIPART-AND-BUDGET-BAND-INDEPENDENT
+
+- Receipt time: `2026-09-29T06:05:34+07:00`. Task: `task_9c1b47e20a3d`; context: `ctx_9c1b47e20a3d`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-multipart targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-multipart.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-multipart.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-multipart.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 81/81 test executions passed**; multipart geometry, digest/size validation, retry and re-grant behavior, SSRF URL rejection, timeout/caller-abort cleanup, concurrent-session isolation, and bounded write-stream branching/fencing all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core parser-budget-band targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 22 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 22 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/parser-budget-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 22 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 66/66 test executions passed**; parser RSS budget-band ceilings, malformed/unsafe budget rejection, page-count boundaries, disk-backed transfer bounds, tamper/expiry/timeout fail-closed behavior, partial-workspace cleanup, repeated violations, caller aborts, and acquisition-timer aborts all passed. The suite reported `PARSER-RSS budget=10.00MiB peakMarginalExternal=8.01MiB residentExternal=8.01MiB` on each run.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-TEMP-SWEEP-NEGATIVE
+
+- Recorded: 2026-09-29 05:18:26 +07:00. Task: `task_4e81561a73bc`; context: `ctx_4e81561a73bc`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary tests only in `packages/worker-sdk/tests/temp-sweep.test.ts`; no production code was changed.
+- Coverage: `intervalMs` 0 and -1 start/stop safely; `olderThanMs` 0 and -1 sweep eligible stale workspaces; prefix-matching regular files are kept; EACCES during stat and EBUSY during cleanup keep the entry without rejecting the sweep; nested prefixed directories under unrelated parents are not traversed.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/temp-sweep.test.ts` passed three consecutive runs; each reported 1 suite and 14 tests passed, ExitCode 0 (42 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; all existing gates remain **NO-GO** and unchanged.
+
+# W-WORKER-SDK-ARTIFACT-MULTIPART-NEGATIVE
+
+- Recorded: 2026-09-29 05:52:44 +07:00. Task: `task_8a7d10b4c29e`; context: `ctx_8a7d10b4c29e`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added offline tests only in `packages/worker-sdk/tests/artifact-multipart.test.ts`; no production code was changed.
+- Coverage: A pending part PUT timeout returns the typed timeout error and aborts the session; corrupted part bytes rejected against the signed digest prevent completion and trigger cleanup; an expired part-grant session and an init response missing `uploadHandle` fail closed; a part size below 5 MiB is rejected by the runtime contract parser, while existing geometry tests cover the SDK part memory cap; and concurrent uploads prove one part failure aborts only its own session while the other completes. Existing stream coverage verifies sequential part numbering despite irregular source chunk boundaries, and existing caller-abort coverage remains in place.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-multipart.test.ts` passed three consecutive runs; each reported 1 suite and 27 tests passed, ExitCode 0 (81 test executions total).
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS**; integration gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-CONNECTOR-INVOKER-AND-SCAN-TAMPER-INDEPENDENT
+
+- Receipt time: `2026-09-29T06:15:20+07:00`. Task: `task_3e1a8b94c01d`; context: `ctx_3e1a8b94c01d`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK connector-invoker targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 26 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 26 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/connector-invoker.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 26 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 78/78 test executions passed**; service identity rejection taxonomy, preserved 409 codes, malformed/unallowlisted envelope fail-closed behavior, lost-response redaction, ingress size bounds, timeout aborts, corrupt/empty/truncated response handling, and HTTP retry classification all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core ingest-scan-tamper targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 48/48 test executions passed**; OCR/handwriting/digitize hash and size tamper checks, storage-version/key fencing, timeout aborts, zero/oversized streams, corrupt/truncated/mismatched MIME signatures, and repeated timeout cleanup were exercised. The suite includes expected-failure format/spoofing probes; Jest still reported each run green with no failing test outcome.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-INPUT-CONTRACT-AND-SCAN-FIXTURES-INDEPENDENT
+
+- Receipt time: `2026-09-29T06:46:53+07:00`. Task: `task_5d1a8e94c02f`; context: `ctx_5d1a8e94c02f`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK connector-input-contract targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 42 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 42 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/connector-input-contract.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 42 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 126/126 test executions passed**; canonical input aliasing, required-field and type validation, temperature/max-token bounds, artifact count/size/MIME and CRLF defenses, UUID/step/parameter validation, and prototype-pollution rejection all passed. The suite's explicitly documented current-schema acceptance probes also passed as assertions.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core ingest-scan-fixtures targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-scan-fixtures.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 57/57 test executions passed**; PNG/PDF bytes and MIME forwarding, unauthorized/expired reference fencing, zero/truncated/mismatched fixture rejection, connector-bound header limits, MIME spoofing defenses, TIFF/CRC checks, CRLF defenses, timeout abort/workspace sweep, and caller cancellation all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-INGEST-SCAN-TAMPER-NEGATIVE
+
+- Recorded: 2026-09-29 06:10:15 +07:00. Task: `task_6d1f92e30a4b`; context: `ctx_6d1f92e30a4b`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `businesses/document-core/tests/ingest-scan-tamper.test.ts`; no production code was changed.
+- Coverage: Added zero-byte and over-budget OCR stream rejection, PDF-as-PNG spoofing, truncated TIFF and corrupted JPEG signature checks, a storage grant key mutation between stat and stream acquisition, and repeated timeout abort cleanup. Existing stream digest, size, version, and timeout cases remain covered.
+- Expected-failure format cases: PDF-as-PNG, truncated TIFF, and corrupted JPEG assertions are explicitly marked `test.failing` because streaming OCR/digitize currently allows those bytes through; the tests document the production gap without changing implementation.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/ingest-scan-tamper.test.ts` passed three consecutive runs; each reported 1 suite and 16 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for the test-only task; integration gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-SESSION-AND-SOURCE-PIN-INDEPENDENT
+
+- Receipt time: `2026-09-29T06:55:12+07:00`. Task: `task_2c1a8e94d03e`; context: `ctx_2c1a8e94d03e`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK connector-session targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/connector-session.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 44 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/connector-session.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 44 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/connector-session.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 44 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 132/132 test executions passed**; invocation outcome classification, pending retry delay bounds, stable deadlines, replay/input-hash fencing, explicit and resumed session references, failure/reconcile/cancel behavior, and injected connector wiring all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core ingest-source-pin targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 28 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 28 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-source-pin.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 28 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 84/84 test executions passed**; canonical/legacy source-pin resolution, malformed envelope rejection, digest/length binding, expiry and tenant/operation grant fencing, tamper rejection, explicit-artifact precedence, and visible unresolved-pin errors all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-READ-METADATA-AND-INGEST-WIRE-INDEPENDENT
+
+- Receipt time: `2026-09-29T07:05:02+07:00`. Task: `task_7e1a8e94e04f`; context: `ctx_7e1a8e94e04f`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-read-metadata targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-read-metadata.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 27 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 81/81 test executions passed**; filename/MIME and byte metadata round-trip, digest/expiry/version fencing, caller timeout/abort propagation, descriptor and grant metadata validation, digest encoding bounds, malformed/truncated metadata fail-closed behavior, content-length conflicts, and encryption-marker checks all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core ingest-wire targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/ingest-wire.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 19 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 57/57 test executions passed**; OCR and digitize artifact-reference wiring, pinned bytes/digest/MIME identity, missing/foreign/expired reference fencing, native parse/split local boundaries, malformed HTTP/multipart payload rejection, CRLF/filename/boundary defenses, interrupted source handling, and caller-abort behavior all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-CONNECTOR-SESSION-NEGATIVE
+
+- Recorded: 2026-09-29 06:50:49 +07:00. Task: `task_9e2b104c8f3a`; context: `ctx_9e2b104c8f3a`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/connector-session.test.ts`; no production code was edited.
+- Coverage: Optional/missing session references normalize to null; malformed non-string session references are rejected by the response schema and do not create step checkpoints; malformed `nextPollAt` values use the default retry delay; non-positive derived delays clamp to `MIN_PENDING_RETRY_MS`; reconciliation errors remain non-retryable and their reported detail is capped at 2048 characters.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/connector-session.test.ts` passed three consecutive runs; each reported 1 suite and 44 tests passed (132 test executions total), ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for the test-only task. All release gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-STREAM-BOUNDS-AND-READ-STREAM-INDEPENDENT
+
+- Receipt time: `2026-09-29T07:14:50+07:00`. Task: `task_8f1a8e94f05a`; context: `ctx_8f1a8e94f05a`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-stream-bounds targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 35 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 35 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stream-bounds.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 35 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 105/105 test executions passed**; explicit high-water-mark and max-byte bounds, preflight/mid-stream size fencing, digest/order/short-read checks, socket-failure handling, caller/request abort propagation, backpressure cleanup, and exact byte-once delivery all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core read-stream-acquisition targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 48/48 test executions passed**; disk-backed bounded acquisition, integrity/size verification, disk-full and lease-loss cleanup, zero-byte handling, cleanup-failure preservation, inline-size exception, timeout/cancel propagation, and partial-stream workspace cleanup all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-READ-STREAM-ACQUISITION-NEGATIVE
+
+- Recorded: 2026-09-29 07:08:24 +07:00. Task: `task_9b1b92c40fad`; context: `ctx_9b1b92c40fad`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative and boundary coverage in `businesses/document-core/tests/read-stream-acquisition.test.ts`; no production code was edited.
+- Coverage: Injected an ENOSPC disk-writer error and verified partial workspace cleanup; tampered bytes against a valid pinned SHA-256; lease loss after a chunk appeared in the temporary file; zero-byte artifact via the streamed disk path; and a disposal error after cleanup was attempted and the workspace removed. Existing authorization-hash mismatch coverage remains in the suite.
+- Targeted command (run 1): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts` - ExitCode 0; 1 suite and 16 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts` - ExitCode 0; 1 suite and 16 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts` - ExitCode 0; 1 suite and 16 tests passed.
+- Aggregate: 3/3 consecutive runs passed (48 test executions).
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested test-only packet. All release gates remain **NO-GO** and unchanged.
+# T-CODEX-OFFLINE-DIRECT-BAND-AND-BOUNDED-INPUT-INDEPENDENT
+
+- Receipt time: `2026-09-29T07:26:21+07:00`. Task: `task_9f1a8e94f06b`; context: `ctx_9f1a8e94f06b`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-direct-band targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-direct-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 20 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-direct-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 20 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-direct-band.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 20 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 60/60 test executions passed**; DATA-00-M band edges, wire-ceiling and declaration fencing, direct PUT failure/timeout handling, socket reset mapping, digest/size fail-closed paths, and 64 MiB RSS streaming bounds all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core bounded-input targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 41 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 41 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/bounded-input.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 41 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 123/123 test executions passed**; byte/image and artifact-count limits, document/text/page bounds, schema complexity/depth and remote-ref defenses, QA/question and generation-word limits, comparison alias normalization/conflict handling, and legacy parameter normalization all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-DIRECT-BAND-NEGATIVE
+
+- Recorded: 2026-09-29 07:20:18 +07:00. Task: `task_5a2b104c8f6d`; context: `ctx_5a2b104c8f6d`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/artifact-direct-band.test.ts`; no production code was edited. This receipt was appended to the requested test report; release gates remain **NO-GO**.
+- Coverage: Explicitly checked routing at 64 MiB - 1 byte, exactly 64 MiB, and 64 MiB + 1 byte; negative and fractional declared sizes are rejected before source reads or network calls; HTTP 500 and 503 are refused; a corrupted digest at exactly 64 MiB fails closed; and a real loopback peer reset after partial request bytes is reported as `TRANSPORT_FAILURE`.
+- Targeted command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-direct-band.test.ts` - ExitCode 0; 1 suite and 20 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-direct-band.test.ts` - ExitCode 0; 1 suite and 20 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-direct-band.test.ts` - ExitCode 0; 1 suite and 20 tests passed.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested negative/boundary coverage. All release gates remain **NO-GO** and unchanged.
+
+# W-DOC-CORE-MANIFEST-NEGATIVE
+
+- Recorded: 2026-09-29 07:29:21 +07:00. Task: `task_2a1b92c40ecf`; context: `ctx_2a1b92c40ecf`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `businesses/document-core/tests/manifest.test.ts`; no production code was edited.
+- Coverage: Invalid JSON text is rejected; unsupported contract and runtime wire versions and missing required top-level sections are rejected; tampering with `imageDigest` and action artifact policy changes the canonical manifest digest; an excessively large `artifactPolicy.maxFiles` boundary is represented by `test.failing` because the current validator accepts it without an upper bound.
+- Targeted command (run 1): `pnpm --filter @du/document-core test -- tests/manifest.test.ts` - ExitCode 0; 1 suite and 10 tests passed, including the expected-failing upper-bound case.
+- Targeted command (run 2): `pnpm --filter @du/document-core test -- tests/manifest.test.ts` - ExitCode 0; 1 suite and 10 tests passed, including the expected-failing upper-bound case.
+- Targeted command (run 3): `pnpm --filter @du/document-core test -- tests/manifest.test.ts` - ExitCode 0; 1 suite and 10 tests passed, including the expected-failing upper-bound case.
+- Aggregate: 3/3 consecutive runs passed (30 test executions).
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the test-only packet; the missing `maxFiles` upper bound remains documented by an expected-failing test. All release gates remain **NO-GO** and unchanged.
+# T-CODEX-OFFLINE-STREAMS-AND-MANIFEST-INDEPENDENT
+
+- Receipt time: `2026-09-29T07:35:33+07:00`. Task: `task_1d1a8e94f08e`; context: `ctx_1d1a8e94f08e`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-streams targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-streams.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 53 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-streams.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 53 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-streams.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 53 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 159/159 test executions passed**; temporary-workspace isolation and traversal defense, bounded download/upload streaming, SHA-256/size checks, partial cleanup, HTTP/redirect/URL policy, grant fencing, abort/backpressure behavior, cross-task isolation, and bounded-memory scale coverage all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Document Core manifest targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/manifest.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/manifest.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/manifest.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 30/30 test executions passed**; strict contracts-v1 manifest validation, business/action declarations, malformed/version rejection, digest tamper sensitivity, required sections/maxFiles bounds, and recipe uniqueness/stable retry-budget checks all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# T-CODEX-OFFLINE-STAT-AND-OVERVIEW-VIEW-MODEL-INDEPENDENT
+
+- Receipt time: `2026-09-29T07:47:21+07:00`. Task: `task_5e1a8e94f09f`; context: `ctx_5e1a8e94f09f`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-stat targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 20 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 20 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 20 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 60/60 test executions passed**; grant descriptor-only stat behavior, missing/malformed metadata, size/checksum validation, large-size preservation, stale lease/timeout fencing, and tenant/operation authorization boundaries all passed without blob reads.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Orchestrator admin-overview-view-model targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-overview-view-model.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 108 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-overview-view-model.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 108 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-overview-view-model.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 108 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 324/324 test executions passed**; usage rollups, attribution badges, audit kind/severity labels, tenant-scoped filtering, health degradation projection, secret exclusion, enum/field hardening probes, counter/window passthrough behavior, and tenant-scoping boundaries all passed.
+
+### Orchestrator typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-STREAMS-NEGATIVE
+
+- Recorded: 2026-09-29 07:33:22 +07:00. Task: `task_6a2b104c8f7e`; context: `ctx_6a2b104c8f7e`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/artifact-streams.test.ts`; no production code was edited. All release gates remain **NO-GO**.
+- Coverage: Mid-flight caller abort removes partial output; an invalid directory write destination fails closed without deleting the directory; exact 1024-byte framing across 1/1022/1-byte chunks succeeds; socket reset during response body becomes `TRANSPORT_FAILURE` and removes partial output; pausing the consumer bounds upstream pulls and resumes with exact bytes/digest; invalid UTF-8 bytes remain opaque binary, while a text-decoded invalid byte stream is rejected for size drift.
+- Targeted command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-streams.test.ts` - ExitCode 0; 1 suite and 53 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-streams.test.ts` - ExitCode 0; 1 suite and 53 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-streams.test.ts` - ExitCode 0; 1 suite and 53 tests passed.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested negative/boundary coverage. Release gates remain **NO-GO** and unchanged.
+# T-CODEX-OFFLINE-SWEEP-GUARD-AND-API-KEY-VIEW-MODEL-INDEPENDENT
+
+- Receipt time: `2026-09-29T07:58:36+07:00`. Task: `task_7e1a8e94f0a0`; context: `ctx_7e1a8e94f0a0`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Worker SDK artifact-sweep-guard targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-sweep-guard.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-sweep-guard.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-sweep-guard.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 27/27 test executions passed**; orphan TTL cleanup, active metadata/checkpoint and external lock/reference retention, corrupt lease fail-closed behavior, exact TTL boundary, concurrent sweep safety, removal-failure handling, in-process workspace retention, and prefix safety all passed.
+
+### Worker SDK typecheck
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Orchestrator admin-api-key-view-model targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-api-key-view-model.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 84 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-api-key-view-model.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 84 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-api-key-view-model.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 84 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 252/252 test executions passed**; API-key masking/copy-once projection, status badges and revoke guards, raw-key omission from list/assignment/confirmation views, metadata preservation, malformed grants, timestamp passthrough, and W-ADM-UX-10 characterization probes all passed as assertions.
+
+### Orchestrator typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-SWEEP-GUARD-NEGATIVE
+
+- Recorded: 2026-09-29 07:53:24 +07:00. Task: `task_8a2b104c8f9a`; context: `ctx_8a2b104c8f9a`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added tests only in `packages/worker-sdk/tests/artifact-sweep-guard.test.ts`; no production code was edited. All release gates remain **NO-GO**.
+- Coverage: Corrupt lease timestamps fail closed by keeping stale workspaces; the exact TTL boundary is retained and the +1 ms boundary is removed; active lock/reference markers prevent sweeping; concurrent sweeps of one stale orphan complete without errors and remove it; and a simulated disk removal failure keeps the workspace and returns normally.
+- Targeted command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-sweep-guard.test.ts` - ExitCode 0; 1 suite and 9 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-sweep-guard.test.ts` - ExitCode 0; 1 suite and 9 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-sweep-guard.test.ts` - ExitCode 0; 1 suite and 9 tests passed.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested negative/boundary coverage. Release gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-PARSER-BUDGETS-AND-CRYPTO-CONFIG-INDEPENDENT
+
+- Receipt time: `2026-09-29T08:06:21+07:00`. Task: `task_1f1a8e94f0b1`; context: `ctx_1f1a8e94f0b1`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Document Core parser-budgets targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/parser-budgets.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 53 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/parser-budgets.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 53 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/parser-budgets.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 53 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 159/159 test executions passed**; conservative parser defaults, finite buffer/timeout/page validation, exact byte ceilings, deadline/cancellation fencing, all six action budgets, oversized-artifact rejection, cumulative multi-artifact waits, compare-side protection, and SDK deadline forwarding all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+### Orchestrator admin-crypto-config targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/orchestrator test -- tests/admin-crypto-config.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 83 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/orchestrator test -- tests/admin-crypto-config.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 83 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/orchestrator test -- tests/admin-crypto-config.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 83 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 249/249 test executions passed**; crypto-key effective/pinned/revoked state, renderer secret-preview behavior, API read/mutation/RBAC/CSRF policy, audit/no-secret projections, revoked-key races, tenant-id hardening, CSRF forgery defenses, fingerprint preview bounds, and ENC-08/CR28-07 characterization probes all passed as assertions.
+
+### Orchestrator typecheck
+
+- Command: `pnpm --filter @du/orchestrator exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and both package typechecks were clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-PARSER-BUDGETS-NEGATIVE
+
+- Recorded: 2026-09-29 07:58:42 +07:00. Task: `task_3a1b92c40ed0`; context: `ctx_3a1b92c40ed0`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added and adjusted tests only in `businesses/document-core/tests/parser-budgets.test.ts`; no production code was edited.
+- Coverage: Rejects zero and negative buffer caps; accepts the exact memory materialization ceiling and rejects one byte above; fences an exact-expiry deadline and caps timeout by remaining task time; rejects decimal page selections; and verifies defaults when no parser budget profile is supplied.
+- Test fixture stabilization: Initial exploratory full-suite runs exposed an unhandled cancellation rejection because the handler-level test aborted synchronously while constructing its metadata-read promise. The test now aborts after the underlying artifact read resolves, preserving the cancellation-fencing assertion while allowing acquisition to register rejection handlers.
+- Targeted command (run 1): `pnpm --filter @du/document-core test -- tests/parser-budgets.test.ts` - ExitCode 0; 1 suite and 53 tests passed.
+- Targeted command (run 2): `pnpm --filter @du/document-core test -- tests/parser-budgets.test.ts` - ExitCode 0; 1 suite and 53 tests passed.
+- Targeted command (run 3): `pnpm --filter @du/document-core test -- tests/parser-budgets.test.ts` - ExitCode 0; 1 suite and 53 tests passed.
+- Aggregate: 3/3 consecutive runs passed (159 test executions).
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the test-only packet. All release gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-CHECKPOINT-REPLAY-AND-READ-STREAM-INDEPENDENT
+
+- Receipt time: `2026-09-29T08:17:19+07:00`. Task: `task_8f1a8e94f0c2`; context: `ctx_8f1a8e94f0c2`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Document Core checkpoint-replay targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/checkpoint-replay.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/checkpoint-replay.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/checkpoint-replay.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 10 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 30/30 test executions passed**; completed-step replay without provider re-execution, input-hash mismatch and checkpoint corruption fencing, abort recovery, parameter drift fencing, deduplication barrier, output integrity/truncation checks, multi-step replay, and large-payload preservation all passed.
+
+### Document Core read-stream-acquisition targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/read-stream-acquisition.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 16 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 48/48 test executions passed**; disk-backed bounded acquisition, digest/size verification, disk-full/lease-loss/partial-stream cleanup, zero-byte behavior, timeout/cancel propagation, cleanup-error preservation, and inline legacy path all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and Document Core typecheck was clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-DOC-CORE-CHECKPOINT-REPLAY-NEGATIVE
+
+- Recorded: 2026-09-29 08:10:34 +07:00. Task: `task_4a1b92c40ed1`; context: `ctx_4a1b92c40ed1`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative/boundary tests only in `businesses/document-core/tests/checkpoint-replay.test.ts`; no production code was changed.
+- Coverage: A missing mid-run step executes while completed steps replay; a corrupted stored input hash is not trusted; replay abort after a completed step preserves that checkpoint and permits recovery; parameter drift recomputes output and fences stale results; and five repeated replays preserve the provider side-effect deduplication barrier.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/checkpoint-replay.test.ts` passed three consecutive runs; each reported 1 suite and 10 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for requested test-only coverage. All release gates remain **NO-GO** and unchanged.
+
+# W-DOC-CORE-BARRIER-CLEANUP-NEGATIVE
+
+- Recorded: 2026-09-29 08:19:28 +07:00. Task: `task_5a1b92c40ed2`; context: `ctx_5a1b92c40ed2`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added failure-injection tests only in `businesses/document-core/tests/barrier-cleanup-lifecycle.test.ts`; no production code was edited.
+- Coverage: Barrier expiry before release rejects late release and cleans resources; retry recovers after a simulated process crash between marker unlink and resource release; cleanup succeeds with a missing marker; concurrent requests coalesce into one cleanup run; and cleanup errors are suppressed only after tracked resources are released.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/barrier-cleanup-lifecycle.test.ts` passed three consecutive runs; each reported 1 suite and 9 tests passed (27 test executions total), ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for requested test-only coverage. All release gates remain **NO-GO** and unchanged.
+
+# T-CODEX-OFFLINE-BARRIER-CLEANUP-AND-CROSS-SERVICE-BOUNDARY-INDEPENDENT
+
+- Receipt time: `2026-09-29T08:25:13+07:00`. Task: `task_9f1a8e94f0d3`; context: `ctx_9f1a8e94f0d3`; CWD: `D:\Git\dugate\du-rework`. Independent read-only verification; this worker changed no source or test files and appended only this receipt.
+
+### Document Core barrier-cleanup-lifecycle targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/barrier-cleanup-lifecycle.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/barrier-cleanup-lifecycle.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/barrier-cleanup-lifecycle.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 9 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 27/27 test executions passed**; bounded barrier timeout/unblock, aggregated teardown failures, dynamic restricted-key/profile tracking, expiry/crash recovery, missing marker cleanup, concurrent cleanup coalescing, and cleanup-error suppression after resource release all passed.
+
+### Document Core cross-service-boundary targeted suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/cross-service-boundary.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 4 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/cross-service-boundary.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 4 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/cross-service-boundary.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 4 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 12/12 test executions passed**; frozen P2-07 contract schemas, missing-route inventory, fail-fast 404 diagnosis, and queue-compatible document-core manifest registration all passed.
+
+### Document Core typecheck
+
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Honest result: **PASS**; both targeted suites were independently green across three consecutive offline runs and Document Core typecheck was clean. All release gates remain **NO-GO**; this receipt records evidence only and does not promote or alter any gate.
+
+# W-WORKER-SDK-ARTIFACT-MULTIPART-RSS-NEGATIVE
+
+- Recorded: 2026-09-29 08:23:44 +07:00. Task: task_9a2b104c8f0b; context: ctx_9a2b104c8f0b; CWD: D:\Git\dugate\du-rework.
+- Scope: Added negative/boundary tests only in `packages/worker-sdk/tests/artifact-multipart-rss.test.ts`; no production source was edited.
+- Coverage: Keeps the real aligned and misaligned 1 GiB multipart RSS checks; verifies exact memory ceilings and one-byte threshold breaches; rejects truncated/corrupted part boundaries, missing part count, out-of-order part arrival, invalid/mismatched checksums, and active-upload cancellation.
+- Targeted command: `pnpm --filter @du/worker-sdk test -- tests/artifact-multipart-rss.test.ts` passed 3 consecutive runs; each reported 1 suite and 13 tests passed, ExitCode 0.
+- Typecheck: `pnpm --filter @du/worker-sdk exec tsc --noEmit` - ExitCode 0, no diagnostics.
+- Result: **PASS** for the requested test-only packet. All release gates remain **NO-GO** and unchanged.
+
+# W-DOC-CORE-CHILD-LIFECYCLE-NEGATIVE
+
+- Recorded: 2026-09-29 08:28:39 +07:00. Task: `task_6a1b92c40ed3`; context: `ctx_6a1b92c40ed3`; CWD: `D:\Git\dugate\du-rework`.
+- Scope: Added negative/boundary tests only in `businesses/document-core/tests/child-lifecycle.test.ts`; production code and checked-in child helpers were unchanged. Child scripts for failure injection run from temporary OS directories and are removed by the test helper.
+- Coverage: A mid-task worker crash exits with code 23; strict unhandled promise rejection exits non-zero and is reaped; IPC disconnect mid-task causes a bounded wait timeout and termination; heartbeat timeout escalates termination via SIGKILL and confirms exit; and a killed-but-unconfirmed child remains tracked until exit is observed and reaped.
+- Targeted command: `pnpm --filter @du/document-core test -- tests/child-lifecycle.test.ts` passed three consecutive runs; each reported 1 suite and 18 tests passed (54 test executions total), ExitCode 0.
+- Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` ExitCode 0, no diagnostics.
+- Result: **PASS** for requested test-only coverage. All release gates remain **NO-GO** and unchanged.

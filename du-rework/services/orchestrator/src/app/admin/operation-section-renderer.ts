@@ -682,8 +682,8 @@ function renderOperationsListPane(f: OperationListOkResult): string {
   const content =
     f.rows.length === 0
       ? filtered
-        ? '<p class="operation-section__list-empty" data-list-empty="filtered">No operations match the active filters. The server filters the whole population, so this is an empty result, not a page you need to page through — clear a filter to widen the search.</p>'
-        : '<p class="operation-section__list-empty" data-list-empty="true">No operations matched this page — the platform reported zero rows. This is data, not an outage.</p>'
+        ? '<p class="operation-section__list-empty" data-empty-banner="filtered">No operations match the active filters. The server filters the whole population, so this is an empty result, not a page you need to page through — clear a filter to widen the search.</p>'
+        : '<p class="operation-section__list-empty" data-empty-banner="true">No operations matched this page — the platform reported zero rows. This is data, not an outage.</p>'
       : renderListTable(f.rows);
   return [
     '<section class="operation-section operation-section--list"',

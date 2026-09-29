@@ -720,3 +720,449 @@ describe('P6-03: diffProfileRevision & diffProfileDraft', () => {
     });
   });
 });
+
+
+// ===========================================================================
+// W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE (Turn 344 / Cycle 56)
+//
+// Negative + boundary tests for the pure profile view models. Every
+// expectation was MEASURED with a throwaway probe against the real function
+// first. Several pin behaviour that is arguably wrong; those are marked
+// DEFECT and reported, not fixed (production code is out of scope).
+//
+// Pure unit file: no DB, no HTTP, no listener, so no port band applies.
+// ===========================================================================
+
+const WADMUX12_XSS = '<script>alert(1)</script>';
+
+const WADMUX12_CAPS = [
+  { connectorId: 'openai', capability: 'chat.completions', label: 'Chat' },
+];
+
+const pSlot = (o: Record<string, unknown> = {}) => ({
+  name: 'apiKey',
+  required: false,
+  description: 'desc',
+  widget: 'text',
+  ...o,
+});
+
+// The manifest action shape carries `name` (types.ts ProfileSchemaInput),
+// while DraftActionSpec carries `actionName`. buildProfileFormModel reads
+// action.name, so the fixture has to set it - a fixture that only set
+// actionName silently produced undefined section names.
+const pAction = (slots: unknown, o: Record<string, unknown> = {}) => ({
+  name: 'review',
+  actionName: 'review',
+  slots,
+  ...o,
+});
+
+const pSchema = (actions: unknown, o: Record<string, unknown> = {}): ProfileSchemaInput =>
+  ({
+    businessId: 'b1',
+    businessVersion: '1.0.0',
+    manifest: { actions },
+    capabilityOptions: WADMUX12_CAPS,
+    ...o,
+  }) as unknown as ProfileSchemaInput;
+
+const pDraft = (entries: unknown[], o: Record<string, unknown> = {}) =>
+  ({
+    businessId: 'b1',
+    businessVersion: '1.0.0',
+    profileName: 'p',
+    formRevision: 1,
+    entries,
+    ...o,
+  }) as never;
+
+const pValidate = (entries: unknown[], slots: unknown, o: Record<string, unknown> = {}) =>
+  validateProfileDraft({
+    draft: pDraft(entries),
+    actions: [{ actionName: 'a', slots }],
+    capabilityOptions: WADMUX12_CAPS,
+    serverProfile: { revision: 1 },
+    ...o,
+  } as never);
+
+// ---------------------------------------------------------------------------
+// 1. Invalid profile versions and revisions
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-12: profile version strings and revision numbers are never validated', () => {
+  test('a hostile businessVersion is carried into the form model verbatim', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot()])], { businessVersion: WADMUX12_XSS }));
+    expect(model.businessVersion).toBe(WADMUX12_XSS);
+  });
+
+  test('an empty businessVersion is accepted', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot()])], { businessVersion: '' }));
+    expect(model.businessVersion).toBe('');
+  });
+
+  // DEFECT: the revision is interpolated straight into the label, so a
+  // corrupt revision produces a nonsense label rather than an error.
+  test('a NaN revision renders the label "rev NaN"', () => {
+    const model = buildProfileFormModel(
+      pSchema([pAction([pSlot()])], { existingProfile: { name: 'p', revision: NaN } }),
+    );
+    expect(model.revisionLabel).toBe('rev NaN');
+  });
+
+  test('a negative revision renders the label "rev -5"', () => {
+    const model = buildProfileFormModel(
+      pSchema([pAction([pSlot()])], { existingProfile: { name: 'p', revision: -5 } }),
+    );
+    expect(model.revisionLabel).toBe('rev -5');
+  });
+
+  test('a NaN form revision is reported as stale and serialises to null', () => {
+    const check = checkProfileRevision(NaN, { revision: 1 });
+    expect(check.kind).toBe('stale');
+    expect(JSON.stringify(check)).toContain('"formRevision":null');
+  });
+
+  test('a negative revision that matches the server is reported as current', () => {
+    expect(checkProfileRevision(-1, { revision: -1 })).toEqual({ kind: 'current' });
+  });
+
+  test('a fractional revision that matches the server is reported as current', () => {
+    expect(checkProfileRevision(1.5, { revision: 1.5 })).toEqual({ kind: 'current' });
+  });
+
+  // The guard is an explicit '=== null', so an absent server profile takes
+  // the dereference path instead of the no-profile path.
+  test('an undefined server profile throws instead of reporting no-profile', () => {
+    expect(() => checkProfileRevision(1, undefined as never)).toThrow(TypeError);
+  });
+
+  test('revision 0 against no server profile is no-profile (control)', () => {
+    expect(checkProfileRevision(0, null)).toEqual({ kind: 'no-profile' });
+  });
+
+  test('a non-zero revision against no server profile is stale with serverRevision 0', () => {
+    expect(checkProfileRevision(3, null)).toEqual({
+      kind: 'stale',
+      formRevision: 3,
+      serverRevision: 0,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Malformed manifest (the plugin-configuration analogue)
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-12: a malformed manifest throws in some places and degrades in others', () => {
+  // The packet asks for "malformed plugin configurations". This module has no
+  // plugin field: the manifest (actions + slots) IS the plug-in-shaped
+  // configuration the form is built from, so that is what these tests drive.
+  test('a null actions array throws', () => {
+    expect(() => buildProfileFormModel(pSchema(null))).toThrow(TypeError);
+  });
+
+  test('missing or null slots degrade to an empty field list', () => {
+    // buildProfileFormModel guards with (action.slots ?? []).
+    for (const slots of [undefined, null]) {
+      const model = buildProfileFormModel(pSchema([pAction(slots)]));
+      expect(model.sections[0]!.fields).toEqual([]);
+    }
+  });
+
+  test('a null action throws', () => {
+    expect(() => buildProfileFormModel(pSchema([null]))).toThrow(TypeError);
+  });
+
+  test('a null slot throws', () => {
+    expect(() => buildProfileFormModel(pSchema([pAction([null])]))).toThrow(TypeError);
+  });
+
+  // DEFECT: a slot with no name produces a field whose slotName and label are
+  // both undefined, so the field has no identity in the serialized model.
+  test('a slot with no name produces a field with no slotName and no label', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot({ name: undefined })])]));
+    const field = model.sections[0]!.fields[0]!;
+    expect(field.widget).toBe('text');
+    expect(JSON.stringify(field)).not.toContain('slotName');
+    expect(JSON.stringify(field)).not.toContain('label');
+  });
+
+  test('an action with no name yields an undefined actionName', () => {
+    // The manifest action's identity field is `name`; with it absent the
+    // section carries no name at all rather than falling back to something.
+    const model = buildProfileFormModel(pSchema([pAction([], { name: undefined })]));
+    expect(model.sections[0]!.actionName).toBeUndefined();
+  });
+
+  test('null capability options throw for a select field', () => {
+    expect(() =>
+      buildProfileFormModel(pSchema([pAction([pSlot({ widget: 'select' })])], { capabilityOptions: null })),
+    ).toThrow(TypeError);
+  });
+
+  test('a null element in capability options throws', () => {
+    expect(() =>
+      buildProfileFormModel(
+        pSchema([pAction([pSlot({ widget: 'select' })])], { capabilityOptions: [null] }),
+      ),
+    ).toThrow(TypeError);
+  });
+
+  test('a well-formed manifest still builds (control)', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot()])]));
+    expect(model.sections).toHaveLength(1);
+    expect(model.sections[0]!.actionName).toBe('review');
+    expect(model.sections[0]!.fields).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Boundary numeric values (there is no timeout anywhere in this module)
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-12: the number widget is validated by regex, not by numeric parsing', () => {
+  // The packet asks for boundary timeout values. profile-view-models.ts
+  // contains no timeout at all - the only timeoutMs in the admin layer lives
+  // in the *-section-data HTTP adapters, a different module doing real I/O.
+  // The real numeric boundary surface here is the number widget, whose rule
+  // is a signed-decimal regex on the trimmed value.
+  test('the form model carries no timeout field, so there is nothing to bound', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot()])]));
+    expect('timeout' in model).toBe(false);
+    expect(Object.keys(model).sort()).toEqual([
+      'businessId',
+      'businessVersion',
+      'profileName',
+      'revisionLabel',
+      'sections',
+    ]);
+  });
+
+  const accepted = ['0', '-1', '1.5', '-0.5', ' 12 '];
+  test.each(accepted)('number value %p is accepted', (value) => {
+    const result = pValidate([{ slotName: 'n', value }], [{ name: 'n', widget: 'number' }]);
+    expect(result.ok).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  const rejected = ['1e3', 'Infinity', 'NaN', '.5', '1.', '+1', '1,000', '0x10'];
+  test.each(rejected)('number value %p is rejected as non-numeric', (value) => {
+    const result = pValidate([{ slotName: 'n', value }], [{ name: 'n', widget: 'number' }]);
+    expect(result.ok).toBe(false);
+    expect(result.issues.map((i) => i.code)).toEqual(['widget-invalid-value']);
+  });
+
+  test('scientific notation is rejected even though it is a valid number', () => {
+    // A regex check, not Number parsing, so 1e3 never passes. Pinned so a
+    // future switch to real parsing shows up as a deliberate diff.
+    const result = pValidate([{ slotName: 'n', value: '1e3' }], [{ name: 'n', widget: 'number' }]);
+    expect(result.issues[0]!.message).toBe('Expected a numeric value');
+  });
+
+  // DEFECT: an integer beyond MAX_SAFE_INTEGER passes the regex, so precision
+  // is already lost by the time the string is parsed as a number.
+  test('an integer beyond MAX_SAFE_INTEGER is accepted', () => {
+    const huge = '9007199254740993';
+    const result = pValidate([{ slotName: 'n', value: huge }], [{ name: 'n', widget: 'number' }]);
+    expect(result.ok).toBe(true);
+    // The value is accepted as-is; parsing it already loses the last digit.
+    expect(Number(huge)).toBe(9007199254740992);
+  });
+
+  test('an empty value is not a number error - the required check owns that', () => {
+    const result = pValidate([{ slotName: 'n', value: '' }], [{ name: 'n', widget: 'number' }]);
+    expect(result.ok).toBe(true);
+  });
+
+  test('a boolean slot still uses its own anchored rule (control)', () => {
+    const bad = pValidate([{ slotName: 'b', value: 'yes' }], [{ name: 'b', widget: 'boolean' }]);
+    expect(bad.ok).toBe(false);
+    const good = pValidate([{ slotName: 'b', value: 'TRUE' }], [{ name: 'b', widget: 'boolean' }]);
+    expect(good.ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The fallback chains
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-12: a select with no options and no capabilities carries no options at all', () => {
+  // The packet says "missing fallback pipelines". There is no pipeline concept
+  // here, but there IS a two-step fallback chain (manifest options, else
+  // capability options), and both steps can be empty.
+  test('a select field with neither options nor capabilities omits the options key', () => {
+    const model = buildProfileFormModel(
+      pSchema([pAction([pSlot({ widget: 'select' })])], { capabilityOptions: [] }),
+    );
+    const field = model.sections[0]!.fields[0]!;
+    expect(field.widget).toBe('select');
+    // The field claims to be a select but carries nothing to select from.
+    expect('options' in field).toBe(false);
+  });
+
+  test('capabilities are projected as connectorId:capability pairs', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot({ widget: 'select' })])]));
+    expect(model.sections[0]!.fields[0]!.options).toEqual([
+      { value: 'openai:chat.completions', label: 'Chat' },
+    ]);
+  });
+
+  // The fallback triggers on length > 0, so an explicitly empty options array
+  // is indistinguishable from an absent one.
+  test('an explicitly empty options array still falls back to capabilities', () => {
+    const field = buildProfileFormField(
+      { name: 'c', widget: 'select', options: [] } as never,
+      WADMUX12_CAPS,
+    );
+    expect(field.options).toEqual([{ value: 'openai:chat.completions', label: 'Chat' }]);
+  });
+
+  test('an unknown widget falls back to text and is flagged', () => {
+    const field = buildProfileFormField({ name: 'w', widget: 'color-picker' } as never, WADMUX12_CAPS);
+    expect(field.widget).toBe('text');
+    expect(field.unknownFallback).toBe(true);
+  });
+
+  // DEFECT: the fallback reason interpolates the raw widget name, so a hostile
+  // name lands in a string the renderer displays as an explanation.
+  test('the fallback reason embeds the raw widget name, unescaped', () => {
+    const result = mapSchemaToWidget(WADMUX12_XSS);
+    expect(result.widget).toBe('text');
+    expect(result.unknown).toBe(true);
+    expect(result.fallbackReason).toBe('Unknown widget "' + WADMUX12_XSS + '" fallen back to "text"');
+  });
+
+  test('a filled value on an unknown widget raises widget-unknown-fallback', () => {
+    const result = pValidate([{ slotName: 'w', value: 'v' }], [{ name: 'w', widget: 'nope' }]);
+    expect(result.ok).toBe(false);
+    expect(result.issues[0]!.code).toBe('widget-unknown-fallback');
+  });
+
+  test('an empty value on an unknown widget is not an issue', () => {
+    const result = pValidate([{ slotName: 'w', value: '' }], [{ name: 'w', widget: 'nope' }]);
+    expect(result.ok).toBe(true);
+  });
+
+  test('a select value outside the capability catalogue is rejected', () => {
+    const result = pValidate([{ slotName: 'c', value: 'ghost:cap' }], [{ name: 'c', widget: 'select' }]);
+    expect(result.ok).toBe(false);
+    expect(result.issues.map((i) => i.code)).toEqual(['capability-mismatch']);
+  });
+
+  test('coerceWidget(undefined) is a defined fallback, not a throw (control)', () => {
+    expect(coerceWidget(undefined)).toEqual({ widget: 'text', unknown: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Hostile HTML / XSS in descriptive text
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-12: descriptive text is passed through unescaped', () => {
+  test('a hostile slot description becomes the field helpText verbatim', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot({ description: WADMUX12_XSS })])]));
+    expect(model.sections[0]!.fields[0]!.helpText).toBe(WADMUX12_XSS);
+  });
+
+  test('the field label is the slot name, not the description', () => {
+    const model = buildProfileFormModel(pSchema([pAction([pSlot({ description: WADMUX12_XSS })])]));
+    expect(model.sections[0]!.fields[0]!.label).toBe('apiKey');
+  });
+
+  test('a hostile action name is carried verbatim', () => {
+    // The section name comes from action.name, not action.actionName.
+    const model = buildProfileFormModel(pSchema([pAction([], { name: WADMUX12_XSS })]));
+    expect(model.sections[0]!.actionName).toBe(WADMUX12_XSS);
+  });
+
+  test('a hostile capability label lands in the select options', () => {
+    const model = buildProfileFormModel(
+      pSchema([pAction([pSlot({ widget: 'select' })])], {
+        capabilityOptions: [{ connectorId: 'c', capability: 'x', label: WADMUX12_XSS }],
+      }),
+    );
+    expect(model.sections[0]!.fields[0]!.options).toEqual([{ value: 'c:x', label: WADMUX12_XSS }]);
+  });
+
+  test('displayValue masks a secret widget but passes text through', () => {
+    expect(displayValue('secret', WADMUX12_XSS)).toBe('••••••••');
+    expect(displayValue('text', WADMUX12_XSS)).toBe(WADMUX12_XSS);
+  });
+
+  test('a hostile non-secret value lands in the diff report', () => {
+    const diff = diffProfileRevision(
+      pDraft([{ slotName: 's', value: WADMUX12_XSS }]),
+      [{ slots: [{ name: 's' }] }],
+      { s: 'old' },
+    );
+    expect(diff.entries).toEqual([
+      { kind: 'changed', slotName: 's', from: 'old', to: WADMUX12_XSS },
+    ]);
+  });
+
+  test('a hostile value on a SECRET slot is still masked in the diff (control)', () => {
+    // The contrast that makes the passthrough above worth reporting: the diff
+    // masks secret slots specifically, so the exposure is limited to slots the
+    // manifest did not mark as secret.
+    const diff = diffProfileRevision(
+      pDraft([{ slotName: 's', value: WADMUX12_XSS }]),
+      [{ slots: [{ name: 's', widget: 'secret' }] }],
+      { s: 'old' },
+    );
+    expect(diff.entries).toEqual([{ kind: 'changed-secret', slotName: 's' }]);
+    expect(JSON.stringify(diff)).not.toContain(WADMUX12_XSS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The "never throws" claim on validateProfileDraft
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-12: validateProfileDraft is documented as total but is not', () => {
+  // The docstring says "Pure and total: never throws". Both of these are
+  // ordinary JSON shapes, and the sibling builder guards the same field.
+  test('an action with no slots array throws', () => {
+    expect(() =>
+      validateProfileDraft({
+        draft: pDraft([]),
+        actions: [{ actionName: 'a' }],
+        capabilityOptions: WADMUX12_CAPS,
+        serverProfile: { revision: 1 },
+      } as never),
+    ).toThrow(TypeError);
+  });
+
+  test('a non-array draft.entries throws', () => {
+    expect(() =>
+      validateProfileDraft({
+        draft: {
+          businessId: 'b',
+          businessVersion: 'v',
+          profileName: 'p',
+          formRevision: 1,
+          entries: 'nope',
+        },
+        actions: [],
+        capabilityOptions: WADMUX12_CAPS,
+        serverProfile: { revision: 1 },
+      } as never),
+    ).toThrow(TypeError);
+  });
+
+  test('the asymmetry: the form builder guards slots, the validator does not', () => {
+    // Same input, two functions, two different answers - which is why the
+    // "total" claim cannot be taken at face value.
+    const model = buildProfileFormModel(pSchema([pAction(undefined)]));
+    expect(model.sections[0]!.fields).toEqual([]);
+    expect(() =>
+      validateProfileDraft({
+        draft: pDraft([]),
+        actions: [{ actionName: 'a' }],
+        capabilityOptions: WADMUX12_CAPS,
+        serverProfile: { revision: 1 },
+      } as never),
+    ).toThrow(TypeError);
+  });
+});
+

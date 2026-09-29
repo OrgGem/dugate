@@ -99,6 +99,8 @@ export function localGrantClaimsFromContract(claims: InvocationGrantClaims): Gra
     connectorRevision: `${claims.connectorId}:${claims.connectorRevision}`,
     expiresAt: new Date(claims.exp * 1000).toISOString(),
     allowedModel: claims.allowedModel ?? undefined,
+    artifactIds: claims.artifactIds,
+    artifactPins: claims.artifactPins,
   };
 }
 

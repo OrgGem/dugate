@@ -190,6 +190,22 @@ describe('defineBusiness', () => {
 });
 
 describe('startWorker delivery lifecycle', () => {
+  it('fails closed when the Connector URL is configured without a service identity', async () => {
+    const def = defineBusiness(MANIFEST, {
+      root: async () => ({ kind: 'completed', resultRef: 'artifact://r-1' }),
+      child: async () => ({ kind: 'completed', resultRef: 'artifact://r-1' }),
+    });
+    const { consumer } = testConsumer();
+
+    await expect(startWorker(def, {
+      runtimeUrl: 'http://runtime',
+      runtimeToken: 'runtime-token-remains-distinct',
+      connectorUrl: 'http://connector',
+      consumer,
+      fetchImpl: stubFetch([], []),
+    })).rejects.toThrow(/connectorServiceToken is required/);
+  });
+
   it('claims, runs handler, reports completion with resultHash', async () => {
     const calls: { path: string; method: string; body?: unknown }[] = [];
     const resultRef = 'artifact://r-1';
@@ -506,7 +522,7 @@ describe('checkpoint replay (RUN-04)', () => {
     const { ctx, calls } = ctxWith([
       { stepKey: 's1', generation: 1, inputHash: 'h1', status: 'SUCCEEDED', outputRef: ref },
     ], {
-      saveStep: { method: 'POST', pattern: new RegExp('^/artifacts/' + artifactId + '/access$'), handler: () => ({ status: 200, json: { artifactId, downloadUrl: `http://dl/${artifactId}`, expiresAt: new Date().toISOString() } }) },
+      saveStep: { method: 'POST', pattern: new RegExp('^/artifacts/' + artifactId + '/access$'), handler: () => ({ status: 200, json: { artifactId, downloadUrl: `http://dl/${artifactId}`, expiresAt: new Date(Date.now() + 60_000).toISOString() } }) },
     });
     let executed = false;
     // stub the download fetch
@@ -565,7 +581,7 @@ describe('classifyFailure', () => {
     const e = Object.assign(new Error('rate limited'), { name: 'ConnectorTransportError', status: 429, code: 'PROVIDER_RATE_LIMITED' });
     expect(classifyFailure(e)).toMatchObject({ errorCode: 'PROVIDER_RATE_LIMITED', retryable: true });
     const unknown = Object.assign(new Error('transport failure'), { name: 'ConnectorTransportError', status: 0, code: 'INVOCATION_UNKNOWN' });
-    expect(classifyFailure(unknown)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true });
+    expect(classifyFailure(unknown)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
   });
 
   it('plain error is permanent HANDLER_ERROR', () => {

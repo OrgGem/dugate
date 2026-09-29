@@ -325,3 +325,335 @@ describe('R2-A executeIdempotent replay matrix', () => {
     expect(world.markers.size).toBe(0);
   });
 });
+
+describe('R2-A negative hardening: envelope and no duplicate effect', () => {
+  const ROUTE = 'POST /api/v1/admin/profile-bindings';
+  const OTHER = 'POST /api/v1/admin/operations/sweep-deadlines';
+  const HASH = canonicalPayloadHash({ apiKey: 'raw', businessId: 'b' });
+  const other = canonicalPayloadHash({ apiKey: 'DIFFERENT' });
+  const mutations = (rows: Committed[]) =>
+    rows.filter((c) => /profile_bindings|admin_audit_events|INSERT INTO admin_idempotency/.test(c.sql));
+
+  it('a malformed key projects a standard 422 ProblemDetails', () => {
+    let err: HttpError | undefined;
+    try {
+      readIdempotencyKey({ 'idempotency-key': 'bad key' });
+    } catch (e) {
+      err = e as HttpError;
+    }
+    expect(err).toBeInstanceOf(HttpError);
+    const p = err!.toProblem('corr-12345678');
+    expect(p.status).toBe(422);
+    expect(p.code).toBe('INVALID_SCHEMA');
+    expect(p.type).toBe('urn:du:error:invalid_schema');
+    expect(p.correlationId).toBe('corr-12345678');
+  });
+
+  it('a replayed key with a different payload projects a standard 409 ProblemDetails', async () => {
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    await routeShapedWork(world, 'envelope-key1', ROUTE, HASH, counters);
+    let err: HttpError | undefined;
+    try {
+      await routeShapedWork(world, 'envelope-key1', ROUTE, other, counters);
+    } catch (e) {
+      err = e as HttpError;
+    }
+    expect(err).toBeInstanceOf(HttpError);
+    const p = err!.toProblem('corr-87654321');
+    expect(p.status).toBe(409);
+    expect(p.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(p.type).toBe('urn:du:error:idempotency_conflict');
+    expect(p.correlationId).toBe('corr-87654321');
+  });
+
+  it('the conflict envelope never echoes the submitted key or payload', async () => {
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    const key = 'leaky-key-0001';
+    await routeShapedWork(world, key, ROUTE, HASH, counters);
+    let p: Record<string, unknown> = {};
+    try {
+      await routeShapedWork(world, key, ROUTE, other, counters);
+    } catch (e) {
+      p = (e as HttpError).toProblem() as unknown as Record<string, unknown>;
+    }
+    const wire = JSON.stringify(p);
+    expect(wire).not.toContain(key);
+    expect(wire).not.toContain('DIFFERENT');
+    expect(wire).not.toContain('raw');
+  });
+});
+
+
+describe('R2-A negative hardening: key boundaries, replay fidelity, expiry', () => {
+  const ROUTE = 'POST /api/v1/admin/profile-bindings';
+  const HASH = canonicalPayloadHash({ apiKey: 'raw', businessId: 'b' });
+  const other = canonicalPayloadHash({ apiKey: 'DIFFERENT' });
+
+  it('a payload conflict runs NO work and commits NOTHING', async () => {
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    await routeShapedWork(world, 'noop-payload1', ROUTE, HASH, counters);
+    const before = world.committed.length;
+    await expect(
+      routeShapedWork(world, 'noop-payload1', ROUTE, other, counters)
+    ).rejects.toMatchObject({ status: 409 });
+    expect(counters.runs).toBe(1);
+    expect(world.committed.length).toBe(before);
+  });
+
+  it('a route conflict runs NO work and commits NOTHING', async () => {
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    await routeShapedWork(world, 'noop-route01', ROUTE, HASH, counters);
+    const before = world.committed.length;
+    await expect(
+      routeShapedWork(world, 'noop-route01', 'POST /api/v1/admin/operations/sweep-deadlines', HASH, counters)
+    ).rejects.toMatchObject({ status: 409 });
+    expect(counters.runs).toBe(1);
+    expect(world.committed.length).toBe(before);
+  });
+
+  it('key length boundary: 8 chars is the shortest accepted, 7 is not', () => {
+    expect(readIdempotencyKey({ 'idempotency-key': 'abcdefgh' })).toBe('abcdefgh');
+    expect(() => readIdempotencyKey({ 'idempotency-key': 'abcdefg' })).toThrow(HttpError);
+  });
+
+  it('key length boundary: 200 chars is the longest accepted, 201 is not', () => {
+    const ok = 'k'.repeat(200);
+    expect(readIdempotencyKey({ 'idempotency-key': ok })).toBe(ok);
+    expect(() => readIdempotencyKey({ 'idempotency-key': 'k'.repeat(201) })).toThrow(HttpError);
+  });
+
+  it('rejects control characters and non-ASCII in the key', () => {
+    for (const bad of [
+      'abcdefg' + String.fromCharCode(9),
+      'abcdefg' + String.fromCharCode(10),
+      'abcdefg' + String.fromCharCode(127),
+      'abcdefghé',
+    ]) {
+      let err: HttpError | undefined;
+      try {
+        readIdempotencyKey({ 'idempotency-key': bad });
+      } catch (e) {
+        err = e as HttpError;
+      }
+      expect(err).toBeInstanceOf(HttpError);
+      expect(err!.status).toBe(422);
+    }
+  });
+
+  it('replay returns a stored non-201 status verbatim, not a fresh 201', async () => {
+    const world = makeWorld();
+    const key = 'status-key-001';
+    world.markers.set(key, {
+      key,
+      route: ROUTE,
+      payload_hash: HASH,
+      response_code: 200,
+      response_body: { accepted: true, note: 'stored as 200' },
+    });
+    const counters = { runs: 0 };
+    const out = await routeShapedWork(world, key, ROUTE, HASH, counters);
+    expect(out.replayed).toBe(true);
+    expect(out.status).toBe(200);
+    expect(out.body).toEqual({ accepted: true, note: 'stored as 200' });
+    expect(counters.runs).toBe(0);
+  });
+
+  it('the purge binds the retention window as a parameter and reports the count', async () => {
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    await routeShapedWork(world, 'purge-window1', ROUTE, HASH, counters);
+    await routeShapedWork(world, 'purge-window2', ROUTE, HASH, counters);
+    const purged = await purgeIdempotencyMarkers(world.db, 86_400_000);
+    expect(purged).toBe(2);
+    const del = world.attempted.find((c) => /DELETE FROM admin_idempotency/.test(c.sql));
+    expect(del).toBeDefined();
+    expect(del!.params).toEqual([86_400_000]);
+  });
+
+  it('after the window expires the key is reusable, not a permanent tombstone', async () => {
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    const key = 'expiry-key-0001';
+    await routeShapedWork(world, key, ROUTE, HASH, counters);
+    await expect(routeShapedWork(world, key, ROUTE, other, counters)).rejects.toMatchObject({
+      status: 409,
+    });
+    await purgeIdempotencyMarkers(world.db, 0);
+    expect(world.markers.size).toBe(0);
+    const after = await routeShapedWork(world, key, ROUTE, other, counters);
+    expect(after.replayed).toBe(false);
+    expect(counters.runs).toBe(2);
+  });
+
+  it('a body with an omitted array slot hashes like an explicit null', () => {
+    expect(canonicalPayloadHash({ a: [undefined] })).toBe(canonicalPayloadHash({ a: [null] }));
+  });
+
+  it('a body differing only by key order is still the same request', () => {
+    expect(canonicalPayloadHash({ a: 1, b: 2 })).toBe(canonicalPayloadHash({ b: 2, a: 1 }));
+  });
+});
+
+describe('W-ADM-UX-02 idempotency: key boundary and Unicode', () => {
+  const code = (k: string): number | null => {
+    try {
+      readIdempotencyKey({ 'idempotency-key': k });
+      return null;
+    } catch (e) {
+      return (e as HttpError).status;
+    }
+  };
+
+  it('rejects a whitespace-only key (spaces) with 422', () => {
+    expect(code('        ')).toBe(422);
+  });
+
+  it('rejects a tab-only key with 422', () => {
+    expect(code(String.fromCharCode(9).repeat(8))).toBe(422);
+  });
+
+  it('rejects a newline-only key with 422', () => {
+    expect(code(String.fromCharCode(10).repeat(8))).toBe(422);
+  });
+
+  it('rejects a boundary-length key of pure spaces', () => {
+    expect(code(' '.repeat(200))).toBe(422);
+  });
+
+  it('a combining-mark key is rejected, never normalized into an accept', () => {
+    // e + COMBINING ACUTE is 2 code units but 1 grapheme. If the boundary
+    // normalized before validating, a key built from combining marks would
+    // collapse to the 8..200 range and be ACCEPTED - which would make the
+    // canonical form of a credential depend on Unicode normalization.
+    const combining = String.fromCharCode(0x301);
+    expect(code('abcdefgh' + combining)).toBe(422);
+    expect(code(combining.repeat(8))).toBe(422);
+  });
+
+  it('a long combining-mark key is rejected even past 200 code units', () => {
+    const combining = String.fromCharCode(0x301);
+    expect(code(combining.repeat(100))).toBe(422); // 200 code units, 100 graphemes
+  });
+
+  it('accepts exactly 8 and exactly 200 printable ASCII, rejects 201', () => {
+    expect(code('k'.repeat(8))).toBeNull();
+    expect(code('k'.repeat(200))).toBeNull();
+    expect(code('k'.repeat(201))).toBe(422);
+  });
+});
+
+
+describe('W-ADM-UX-02 idempotency: null and empty payload hash', () => {
+  it('null, undefined and empty object all hash identically', () => {
+    // These three are the SAME request on the wire: no body, a null body and
+    // {} all mean an empty payload. If they hashed differently a client
+    // retry that sent {} after a 204 would be told its key conflicts.
+    const h = canonicalPayloadHash({});
+    expect(canonicalPayloadHash(null)).toBe(h);
+    expect(canonicalPayloadHash(undefined)).toBe(h);
+  });
+
+  it('empty string is NOT the same as empty object', () => {
+    // JSON distinguishes them and so must the hash, or a key used for an
+    // empty-string body would collide with one used for an empty object.
+    expect(canonicalPayloadHash('')).not.toBe(canonicalPayloadHash({}));
+  });
+
+  it('an empty array is NOT the same as an empty object', () => {
+    expect(canonicalPayloadHash([])).not.toBe(canonicalPayloadHash({}));
+  });
+
+  it('an omitted array slot hashes like an explicit null', () => {
+    // JSON.stringify turns undefined inside an array into null, so a retry
+    // that omitted a slot and one that sent null are the same request.
+    expect(canonicalPayloadHash({ a: [undefined] })).toBe(canonicalPayloadHash({ a: [null] }));
+  });
+
+  it('null and undefined as object VALUES are distinguishable from missing keys', () => {
+    // Unlike arrays, JSON keeps explicit null and DROPS undefined in objects,
+    // so {a: undefined} collapses to {} while {a: null} does not.
+    expect(canonicalPayloadHash({ a: undefined })).toBe(canonicalPayloadHash({}));
+    expect(canonicalPayloadHash({ a: null })).not.toBe(canonicalPayloadHash({}));
+  });
+
+  it('NaN and the string NaN hash differently, and neither throws', () => {
+    expect(canonicalPayloadHash({ n: NaN })).not.toBe(canonicalPayloadHash({ n: 'NaN' }));
+    expect(() => canonicalPayloadHash({ n: NaN })).not.toThrow();
+  });
+
+  it('nested null/undefined normalize at every depth', () => {
+    expect(canonicalPayloadHash({ a: { b: [null] } })).toBe(
+      canonicalPayloadHash({ a: { b: [undefined] } }),
+    );
+  });
+});
+
+
+describe('W-ADM-UX-02 idempotency: corrupted stored response and purge race', () => {
+  const ROUTE = 'POST /api/v1/admin/profile-bindings';
+  const HASH = canonicalPayloadHash({ apiKey: 'raw', businessId: 'b' });
+  const OTHER = canonicalPayloadHash({ apiKey: 'other' });
+
+  it('replays a corrupted stored body verbatim and does NOT re-run the work', async () => {
+    // A stored response the route cannot have produced (a bare string where
+    // an object is expected) is still replayed. The property that matters for
+    // idempotency holds: runs stays 0, so the side effect never repeats. The
+    // caveat is that NO shape validation happens on the replay path.
+    const world = makeWorld();
+    world.markers.set('corrupt-key-1', {
+      key: 'corrupt-key-1',
+      route: ROUTE,
+      payload_hash: HASH,
+      response_code: 201,
+      response_body: 'NOT-AN-OBJECT',
+    });
+    const counters = { runs: 0 };
+    const out = await routeShapedWork(world, 'corrupt-key-1', ROUTE, HASH, counters);
+    expect(out.replayed).toBe(true);
+    expect(out.status).toBe(201);
+    expect(out.body).toBe('NOT-AN-OBJECT');
+    expect(counters.runs).toBe(0);
+  });
+
+  it('replays a null stored body with its stored status, still without re-running', async () => {
+    const world = makeWorld();
+    world.markers.set('corrupt-key-2', {
+      key: 'corrupt-key-2',
+      route: ROUTE,
+      payload_hash: HASH,
+      response_code: 500,
+      response_body: null,
+    });
+    const counters = { runs: 0 };
+    const out = await routeShapedWork(world, 'corrupt-key-2', ROUTE, HASH, counters);
+    expect(out.replayed).toBe(true);
+    expect(out.status).toBe(500);
+    expect(out.body).toBeNull();
+    expect(counters.runs).toBe(0);
+  });
+
+  it('a marker that vanishes before the write leaves no tombstone', async () => {
+    // Purge races the request: the marker is gone, so the same key accepts a
+    // DIFFERENT payload. If purge left a tombstone the key would 409 forever.
+    const world = makeWorld();
+    const counters = { runs: 0 };
+    await routeShapedWork(world, 'purge-race-01', ROUTE, HASH, counters);
+    expect(world.markers.size).toBe(1);
+    await purgeIdempotencyMarkers(world.db, 0);
+    expect(world.markers.size).toBe(0);
+    const after = await routeShapedWork(world, 'purge-race-01', ROUTE, OTHER, counters);
+    expect(after.replayed).toBe(false);
+    expect(counters.runs).toBe(2);
+  });
+
+  it('re-purging an already empty store is a no-op, not an error', async () => {
+    const world = makeWorld();
+    await expect(purgeIdempotencyMarkers(world.db, 0)).resolves.toBe(0);
+    await expect(purgeIdempotencyMarkers(world.db, 0)).resolves.toBe(0);
+  });
+});
+

@@ -43,6 +43,7 @@ export class DocumentCoreProcess {
         runtimeToken: config.runtimeToken,
         redis: { url: config.redisUrl },
         connectorUrl: config.connectorUrl,
+        connectorServiceToken: config.connectorServiceToken,
         concurrency: config.concurrency,
         heartbeatIntervalMs: config.heartbeatIntervalMs,
         workerInstanceId: config.workerInstanceId,

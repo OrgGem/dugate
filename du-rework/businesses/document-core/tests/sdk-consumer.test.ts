@@ -317,6 +317,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
         runtimeUrl: 'http://runtime',
         runtimeToken: 'bearer-token-test',
         connectorUrl: 'http://connector',
+        connectorServiceToken: 'connector-test-service-token',
         consumer,
         fetchImpl: stubFetch(routes, calls) as any,
       });

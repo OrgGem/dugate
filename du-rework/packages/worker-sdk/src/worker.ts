@@ -156,6 +156,15 @@ export async function startWorker(
   definition: BusinessDefinition,
   config: StartWorkerInternalOptions
 ): Promise<WorkerHandle> {
+  if (
+    config.connectorUrl !== undefined
+    && config.invokeConnector === undefined
+    && (typeof config.connectorServiceToken !== 'string'
+      ? config.connectorServiceToken === undefined
+      : config.connectorServiceToken.trim().length === 0)
+  ) {
+    throw new Error('connectorServiceToken is required when connectorUrl is configured');
+  }
   const logger =
     config.logger ??
     createLogger({ component: config.component ?? `worker:${definition.manifest.businessId}` });
@@ -168,7 +177,11 @@ export async function startWorker(
   const invokeConnector =
     config.invokeConnector ??
     (config.connectorUrl !== undefined
-      ? createConnectorInvoker({ baseUrl: config.connectorUrl, fetchImpl })
+      ? createConnectorInvoker({
+          baseUrl: config.connectorUrl,
+          serviceToken: config.connectorServiceToken,
+          fetchImpl,
+        })
       : async () => {
           throw new Error('connectorUrl not configured; connector facade unavailable');
         });
@@ -487,9 +500,16 @@ export function classifyFailure(err: unknown): FailureClassification {
     };
   }
   if (ConnectorTransportErrorLike(err)) {
+    const nonRetryableConnectorCode =
+      err.code === 'INPUT_HASH_MISMATCH'
+      || err.code === 'CANCELLED'
+      || err.code === 'CONNECTOR_DISABLED'
+      || err.code === 'INVOCATION_UNKNOWN';
     return {
       errorCode: err.code,
-      retryable: err.status === 429 || err.status === 503 || err.status === 0,
+      // Ambiguous invocation outcomes must be reconciled against the Connector
+      // ledger; replaying the task could execute provider work twice.
+      retryable: !nonRetryableConnectorCode && (err.status === 429 || err.status === 503),
       detail: err.message.slice(0, 2048),
     };
   }

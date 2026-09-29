@@ -15,18 +15,29 @@ variant and no download route, while x-absent still claimed the download route d
 not exist - server.ts had implemented it since CR-12/MM-02. components.schemas now
 carries the delivery shapes read from packages/contracts/src, and the guards below
 assert the written artifact kept both variants of both routes.
+
+COST-03 (2026-09-28): GET /api/v1/usage/events was the same failure once more. The route had
+existed in server.ts with a settled prose contract in docs/20, and the spec advertised
+neither the path nor one of its schemas. The thirteen parameters are now derived from
+packages/contracts/src instead of retyped, and the guards below assert the written
+artifact kept them.
 """
 import base64, io, json, os, re, sys
 
 ORCH = "du-rework/services/orchestrator/src/server.ts"
 CONN = "du-rework/services/connector/src/http/server.ts"
 CONTRACT = "du-rework/packages/contracts/src/public-api.ts"
+METRICS = "du-rework/packages/contracts/src/usage-metrics.ts"
+RECON = "du-rework/packages/contracts/src/usage-reconciliation.ts"
 OUT = "du-rework/docs/21-openapi.json"
 
 def op(summary, auth, req=None, resps=None, params=None):
     o = {"summary": summary}
     if auth:
-        o["security"] = [auth]
+        # A list means several auth paths on ONE contract (the operations list
+        # and the usage event page both have two); a bare dict keeps the
+        # single-path shape every other route has.
+        o["security"] = auth if isinstance(auth, list) else [auth]
     if params:
         o["parameters"] = params
     if req:
@@ -71,6 +82,37 @@ def ts_regex(src, name):
     assert m, "cannot find regex %s in %s" % (name, CONTRACT)
     return m.group(1)
 
+def ts_enum(src, name):
+    """Quoted strings of a z.enum([...]) or a [... ] as const export."""
+    m = re.search(r"export const " + name + r"(?:\s*:\s*[^=]+)?\s*=\s*(?:z\.enum\(\s*)?\[(.*?)\]", src, re.S)
+    assert m, "cannot find enum %s" % name
+    return re.findall(r"'([^']*)'", m.group(1))
+
+def ts_object_keys(src, name):
+    """Top-level keys of a z.object({ ... }).strict() export."""
+    m = re.search(r"export const " + name + r"\s*=\s*z\.object\(\{", src)
+    assert m, "cannot find z.object %s" % name
+    body = src[m.end():]
+    end = body.find("}).strict()")
+    assert end != -1, "cannot find the .strict() terminator of %s" % name
+    return re.findall(r"^ {2}(\w+):", body[:end], re.M)
+
+def _usage_limit_bounds(src, key):
+    m = re.search(r"^ {2}" + key + r":[^\n]*?\.max\((\d+)\)\.default\((\d+)\)", src, re.M)
+    assert m, "cannot find %s bounds and default" % key
+    return int(m.group(1)), int(m.group(2))
+
+def ts_bound_int(src, name, key):
+    return _usage_limit_bounds(src, key)[0]
+
+def ts_default_int(src, name, key):
+    return _usage_limit_bounds(src, key)[1]
+
+def ts_default_literal(src, name, key):
+    m = re.search(r"^ {2}" + key + r":\s*\w+Schema\.default\('([^']*)'\)", src, re.M)
+    assert m, "cannot find %s default literal" % key
+    return m.group(1)
+
 _c = io.open(CONTRACT, encoding="utf-8").read()
 
 QUERY_PARAMS = ts_list(_c, "OPERATIONS_LIST_QUERY_PARAMS")
@@ -86,6 +128,36 @@ STATE_VALUES = [v for v in ts_list(_c, "OPERATIONS_STATE_FILTER_VALUES") if v !=
 TOKEN_PATTERN = ts_regex(_c, "OPERATIONS_LIST_TOKEN_PATTERN")
 LIMIT_DEFAULT = ts_number(_c, "OPERATIONS_LIST_LIMIT_DEFAULT")
 LIMIT_MAX = ts_number(_c, "OPERATIONS_LIST_LIMIT_MAX")
+# COST-03 contract surface. The allow-list, the id pattern and the enums are read
+# from the package rather than retyped, for the same reason the operations list
+# is: a retyped value is a second source of truth that silently drifts.
+_m = io.open(METRICS, encoding="utf-8").read()
+_r = io.open(RECON, encoding="utf-8").read()
+
+USAGE_ID_PATTERN = ts_regex(_m, "USAGE_ATTRIBUTION_ID_PATTERN")
+USAGE_COST_STATUSES = ts_list(_m, "UsageCostStatus")
+USAGE_UNIT_TYPES = ts_list(_m, "UsageUnitType")
+USAGE_EVENT_KINDS = ["initial", "correction", "refund"]
+TIME_FIELD_VALUES = ts_enum(_r, "UsageAggregateTimeFieldSchema")
+USAGE_EVENT_QUERY_PARAMS = ts_object_keys(_r, "UsageEventDrilldownQuerySchema")
+USAGE_EVENT_LIMIT_MAX, USAGE_EVENT_LIMIT_DEFAULT = _usage_limit_bounds(
+    _r, "limit")
+TIME_FIELD_DEFAULT = ts_default_literal(_r, "UsageEventDrilldownQuerySchema", "timeField")
+
+assert USAGE_EVENT_QUERY_PARAMS == ["tenantId", "apiKeyId", "businessId", "action",
+                                    "profileRevision", "provider", "model",
+                                    "operationId", "from", "to", "timeField",
+                                    "limit", "cursor"], (
+    "UsageEventDrilldownQuerySchema keys changed to %r; add its OpenAPI parameter here"
+    % (USAGE_EVENT_QUERY_PARAMS,))
+assert USAGE_COST_STATUSES == ["measured", "estimated", "pending", "unpriced"], (
+    "UsageCostStatus changed to %r" % (USAGE_COST_STATUSES,))
+assert TIME_FIELD_VALUES == ["occurredAt", "receivedAt"], (
+    "UsageAggregateTimeFieldSchema changed to %r" % (TIME_FIELD_VALUES,))
+assert TIME_FIELD_DEFAULT == "occurredAt", (
+    "timeField default changed to %r" % (TIME_FIELD_DEFAULT,))
+
+
 
 # The example token in the operations page response is minted, not typed.
 # The string A23 inherited decoded to a TRUNCATED payload carrying a
@@ -234,6 +306,138 @@ ARTIFACT_DOWNLOAD_RESPONSE_SCHEMA = {
     "description": "ArtifactDownloadResponseSchema (operations.ts) = plain bytes | EncryptedArtifactDownload. The plain branch is a byte string or an async byte stream, which JSON Schema cannot express, so it is published as format: binary and the response content map names its media type.",
 }
 
+
+# ---- COST-03 usage drill-down / export (docs/20-openapi-descriptions.md §1, §6.1)
+# The prose in docs/20 settled the contract; these shapes are read from
+# packages/contracts/src (usage-reconciliation.ts, usage-metrics.ts) so the
+# machine-readable companion cannot drift from the contract a second time.
+
+USAGE_TIME_SEMANTICS_SCHEMA = obj_schema({
+    "field": {"type": "string", "enum": TIME_FIELD_VALUES},
+    "order": {"type": "string", "enum": ["asc"]},
+    "timezone": {"type": "string", "enum": ["UTC"]},
+}, ["field", "order", "timezone"], strict=True)
+USAGE_TIME_SEMANTICS_SCHEMA["description"] = "Which ledger clock answered the window, published rather than assumed. The route always sends order asc and timezone UTC (usage-reconciliation.ts UsageEventExportPageSchema)."
+
+USAGE_LEDGER_UNITS_SCHEMA = obj_schema({
+    "inputTokens": {"type": "integer", "minimum": 0},
+    "outputTokens": {"type": "integer", "minimum": 0},
+    "cachedInputTokens": {"type": "integer", "minimum": 0},
+    "pages": {"type": "integer", "minimum": 0},
+}, ["inputTokens", "outputTokens"], strict=True)
+USAGE_LEDGER_UNITS_SCHEMA["description"] = "UsageLedgerUnitsSchema (usage-metrics.ts). Strict. cachedInputTokens and pages are optional; the other two default to 0."
+
+USAGE_LEDGER_EVENT_SCHEMA = obj_schema({
+    "eventId": {"type": "string", "minLength": 1, "maxLength": 128,
+                "description": "The dedup key. A duplicate delivery of one eventId counts exactly once."},
+    "idempotencyKey": {"type": "string", "pattern": USAGE_ID_PATTERN,
+                       "description": "Stable request key reused when delivery of this event is retried."},
+    "kind": {"type": "string", "enum": USAGE_EVENT_KINDS, "default": "initial",
+             "description": "initial, correction or refund. A correction or refund is a NEW event linked by correctsEventId; the original row is never rewritten."},
+    "correctsEventId": {"type": "string", "minLength": 1, "maxLength": 128,
+                        "description": "Required for kind correction and refund, forbidden for initial, and never equal to this eventId."},
+    "tenantId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "apiKeyId": {"type": "string", "pattern": USAGE_ID_PATTERN,
+                 "description": "Identifier only. Key material has no representation on this route."},
+    "operationId": {"type": "string", "format": "uuid"},
+    "taskId": {"type": "string", "format": "uuid"},
+    "invocationId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "attempt": {"type": "integer", "minimum": 1},
+    "stepKey": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "businessId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "businessVersion": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "action": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "profileRevision": {"type": "integer", "minimum": 0},
+    "connectorId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "connectorRevision": {"type": "integer", "minimum": 0},
+    "provider": {"type": "string", "pattern": USAGE_ID_PATTERN,
+                 "description": "Provider actually used, snapshotted at invocation time and never re-derived from current configuration."},
+    "model": {"type": "string", "pattern": USAGE_ID_PATTERN,
+              "description": "Model actually used, snapshotted at invocation time."},
+    "unitType": {"type": "string", "enum": USAGE_UNIT_TYPES,
+                 "description": "tokens, pages or mixed. mixed when the provider reported both families."},
+    "units": ref("UsageLedgerUnits"),
+    "costMicrousd": {"type": "integer", "minimum": 0, "default": 0,
+                     "description": "Integer micro-USD. Must be 0 when costStatus is pending or unpriced: unsettled usage may not carry an implied cost."},
+    "currency": {"type": "string", "enum": ["USD"], "default": "USD"},
+    "costStatus": {"type": "string", "enum": USAGE_COST_STATUSES,
+                   "description": "measured differs from estimated differs from pending differs from unpriced; the four are never collapsed."},
+    "durationMs": {"type": "integer", "minimum": 0},
+    "occurredAt": {"type": "string", "format": "date-time",
+                   "description": "RFC 3339 with optional numeric offset; UTC Z always accepted."},
+    "receivedAt": {"type": "string", "format": "date-time",
+                   "description": "When the ledger row landed, as opposed to when the usage occurred."},
+}, ["eventId", "idempotencyKey", "kind", "tenantId", "apiKeyId", "operationId",
+    "taskId", "invocationId", "attempt", "stepKey", "businessId",
+    "businessVersion", "action", "profileRevision", "connectorId",
+    "connectorRevision", "provider", "model", "unitType", "units",
+    "costMicrousd", "currency", "costStatus", "durationMs", "occurredAt",
+    "receivedAt"], strict=True)
+USAGE_LEDGER_EVENT_SCHEMA["description"] = "UsageLedgerEventSchema (usage-metrics.ts), the record this route exports. Strict: prompts, documents, credentials, URLs and upstream error bodies have no representation."
+
+USAGE_EVENT_PAGE_SCHEMA = obj_schema({
+    "tenantId": {"type": "string", "pattern": USAGE_ID_PATTERN,
+                 "description": "The authorized scope, echoed back. It comes from the principal, never from the query."},
+    "events": {"type": "array", "maxItems": 100, "items": ref("UsageLedgerEvent")},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+    "hasMore": {"type": "boolean",
+                "description": "True exactly when nextCursor is present; the two can never disagree."},
+    "nextCursor": {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"},
+    "skippedInvalidEvents": {"type": "integer", "minimum": 0,
+                              "description": "Rows dropped because their payload was not a valid ledger event. Counted, never returned raw, so a corrupt row cannot silently shrink a page unnoticed."},
+    "timeSemantics": ref("UsageTimeSemantics"),
+}, ["tenantId", "events", "limit", "hasMore", "skippedInvalidEvents",
+    "timeSemantics"], strict=True)
+USAGE_EVENT_PAGE_SCHEMA["description"] = "UsageEventExportPageSchema (usage-reconciliation.ts): one bounded page, usable by both a drill-down UI and a streamed export client. Strict."
+
+USAGE_EVENT_CURSOR_SCHEMA = obj_schema({
+    "version": {"type": "integer", "enum": [1]},
+    "tenantId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "queryHash": {"type": "string", "pattern": "^[a-f0-9]{64}$",
+                  "description": "sha256 over the tenant and the eleven-key filter binding. A cursor minted for one query is refused by any other."},
+    "after": {"type": "string", "format": "date-time"},
+    "eventId": {"type": "string", "minLength": 1, "maxLength": 128},
+}, ["version", "tenantId", "queryHash", "after", "eventId"], strict=True)
+USAGE_EVENT_CURSOR_SCHEMA["description"] = "UsageEventDrilldownCursorSchema (usage-reconciliation.ts): the decoded payload of the opaque base64url cursor. Published so a client can read the grammar without guessing."
+
+USAGE_EVENT_QUERY_SCHEMA = obj_schema({
+    "tenantId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "apiKeyId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "businessId": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "action": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "profileRevision": {"type": "integer", "minimum": 0},
+    "provider": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "model": {"type": "string", "pattern": USAGE_ID_PATTERN},
+    "operationId": {"type": "string", "format": "uuid"},
+    "from": {"type": "string", "format": "date-time"},
+    "to": {"type": "string", "format": "date-time"},
+    "timeField": {"type": "string", "enum": TIME_FIELD_VALUES, "default": TIME_FIELD_DEFAULT},
+    "limit": {"type": "integer", "minimum": 1, "maximum": USAGE_EVENT_LIMIT_MAX, "default": USAGE_EVENT_LIMIT_DEFAULT},
+    "cursor": {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"},
+}, USAGE_EVENT_QUERY_PARAMS, strict=True)
+USAGE_EVENT_QUERY_SCHEMA["description"] = "UsageEventDrilldownQuerySchema (usage-reconciliation.ts) as an object shape. On the wire these thirteen names are query parameters, not a JSON body."
+
+_USAGE_ID = {"type": "string", "pattern": USAGE_ID_PATTERN}
+_USAGE_INT = {"type": "integer", "minimum": 0, "pattern": "^\\d+$"}
+_USAGE_TS = {"type": "string", "format": "date-time"}
+
+USAGE_EVENTS_PARAMS = [
+    param("tenantId", "Optional consistency check only. Scope is taken from the principal: an admin bearer may read any tenant it is authorized for and then REQUIRES this parameter (422 when absent), while an API key is pinned to its own tenant and a mismatch here is 403. Hashed into the cursor, so changing it invalidates a cursor.", _USAGE_ID),
+    param("apiKeyId", "Attribution dimension filter, hashed into the cursor.", _USAGE_ID),
+    param("businessId", "Must be supplied TOGETHER with action; one half of that pair is 422, never a wider result set.", _USAGE_ID),
+    param("action", "Must be supplied TOGETHER with businessId.", _USAGE_ID),
+    param("profileRevision", "Non-negative integer; the route rejects anything that is not a plain digit string before the schema runs.", _USAGE_INT),
+    param("provider", "Must be supplied TOGETHER with model; one half of that pair is 422.", _USAGE_ID),
+    param("model", "Must be supplied TOGETHER with provider.", _USAGE_ID),
+    param("operationId", "Exact operation id, uuid.", {"type": "string", "format": "uuid"}),
+    param("from", "Half-open window start, inclusive. Paired with to, which must be strictly after from: an empty span is 422 rather than a silent full-table read.", _USAGE_TS),
+    param("to", "Half-open window end, EXCLUSIVE. Strictly after from.", _USAGE_TS),
+    param("timeField", "Which ledger clock orders and windows this query, published rather than assumed. The choice is echoed back in timeSemantics. Hashed into the cursor, so a cursor minted on one clock is refused on the other.", {"type": "string", "enum": TIME_FIELD_VALUES, "default": TIME_FIELD_DEFAULT}),
+    param("limit", "1..%d, default %d. The page size; the query fetches at most limit+1 rows and the extra row is only the hasMore signal." % (USAGE_EVENT_LIMIT_MAX, USAGE_EVENT_LIMIT_DEFAULT), {"type": "integer", "minimum": 1, "maximum": USAGE_EVENT_LIMIT_MAX, "default": USAGE_EVENT_LIMIT_DEFAULT}),
+    param("cursor", "Opaque base64url keyset position over (timeField, event_id). It carries the tenant and a sha256 of the eleven-key filter binding, so re-using it with another tenant, filter, window, clock or page size is 422 INVALID_ARGUMENT, refused before SQL is built. A non-canonical base64url spelling is rejected too, so one cursor has exactly one encoding.", {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"}),
+]
+
+# Assembled here, after every schema constant above it is defined.
 SCHEMAS = {
     "ArtifactDownloadResponse": ARTIFACT_DOWNLOAD_RESPONSE_SCHEMA,
     "ArtifactRef": ARTIFACT_REF_SCHEMA,
@@ -243,6 +447,12 @@ SCHEMAS = {
     "ResultEnvelope": RESULT_ENVELOPE_SCHEMA,
     "ResultResponse": RESULT_RESPONSE_SCHEMA,
     "Usage": USAGE_SCHEMA,
+    "UsageEventCursor": USAGE_EVENT_CURSOR_SCHEMA,
+    "UsageEventExportPage": USAGE_EVENT_PAGE_SCHEMA,
+    "UsageEventQuery": USAGE_EVENT_QUERY_SCHEMA,
+    "UsageLedgerEvent": USAGE_LEDGER_EVENT_SCHEMA,
+    "UsageLedgerUnits": USAGE_LEDGER_UNITS_SCHEMA,
+    "UsageTimeSemantics": USAGE_TIME_SEMANTICS_SCHEMA,
 }
 
 APIKEY = {"ApiKey": []}
@@ -351,6 +561,20 @@ paths["/api/v1/artifacts/{id}/download"] = {"get": op(
 paths["/api/v1/operations/{id}/cancel"] = {"post": op("Idempotent cancel. server.ts:646.", APIKEY, ex({"reason": "no longer needed"}), {"202": {"description": "cancelling"}, "200": {"description": "replayed"}})}
 paths["/api/v1/operations/{id}/resume"] = {"post": op("Resume with CAS. server.ts:656.", APIKEY, ex({"waitId": "w1", "input": {}, "expectedStateVersion": 3}), {"202": {"description": "resumed"}, "200": {"description": "replayed"}})}
 paths["/api/v1/usage/summary"] = {"get": op("Tenant usage projection. server.ts:361.", APIKEY, None, {"200": {"description": "UsageSummary"}}, [{"name": "from", "in": "query"}, {"name": "to", "in": "query"}])}
+# COST-03. Two auth paths on ONE contract: an API key pinned to its own tenant,
+# or an admin bearer that may read any authorized tenant and must then name it.
+# The principal decides scope before the query is built, never the query string.
+paths["/api/v1/usage/events"] = {"get": op(
+    "Bounded keyset page over the usage ledger: drill-down and export. Handler server.ts:1143.",
+    [APIKEY, ADMIN],
+    None,
+    {"200": {"description": "One bounded page of the usage ledger, shared by drill-down UI and export clients, audited on every successful page (action usage.export on resource usage-events:page, severity info) with NO filter value, cursor or credential in the log. The SQL keyset query orders by (timeField, event_id) and keeps the tenant predicate in SQL even for a cursor minted here. A row whose payload is not a valid ledger event is counted in skippedInvalidEvents and dropped rather than returned raw; a row whose eventId, operationId or tenantId contradicts its stored key is 500 USAGE_LEDGER_CONFLICT, not a silent skip.",
+             "content": {"application/json": {"schema": ref("UsageEventExportPage")}}},
+     "401": {"description": "missing or invalid credentials"},
+     "403": {"description": "PERMISSION_DENIED when tenantId does not match the API key tenant, or falls outside the admin credential scope"},
+     "422": {"description": "INVALID_SCHEMA for an unsupported or REPEATED parameter (the allow-list has no wildcard, so no arbitrary filter, content or credential can enter this boundary), a non-integer limit or profileRevision, a to that is not strictly after from, half a businessId+action or provider+model pair, or a missing tenantId under an admin bearer. Also INVALID_ARGUMENT when a cursor does not belong to this query. This route never returns 400."}},
+    USAGE_EVENTS_PARAMS)}
+
 paths["/api/v1/connectors/{id}/test"] = {"get": op("Connector probe proxy, sanitized. server.ts:378.", APIKEY, None, {"200": {"description": "ConnectorProbeOutcome"}, "502": {"description": "unhealthy/unavailable"}})}
 paths["/api/v1/admin/audit"] = {"get": op(
     "Admin audit ledger page. server.ts GET /api/v1/admin/audit (ADM-BASE-01, "
@@ -379,7 +603,7 @@ for method, pth, summ, auth in rt:
 cp = [("get", "/health/live", "Liveness. http/server.ts:80", None), ("get", "/health/ready", "Readiness. http/server.ts:81", None), ("get", "/capabilities", "Catalog. http/server.ts:85", SVC), ("get", "/connectors", "List redacted. http/server.ts:86", SVC), ("post", "/connectors", "Create revision. http/server.ts:90", SVC), ("post", "/invocations", "Invoke 200|202. http/server.ts:122", SVC), ("get", "/invocations/{id}", "Query. http/server.ts:112", SVC), ("post", "/invocations/{id}/cancel", "Cancel 202. http/server.ts:130", SVC), ("post", "/connectors/{id}/credentials/rotate", "Rotate 204 write-only. http/server.ts:139", SVC), ("post", "/connectors/{id}/disable", "Disable 204. http/server.ts:148", SVC), ("post", "/connectors/{id}/test", "Self-test. http/server.ts:153", SVC)]
 for method, pth, summ, auth in cp:
     paths.setdefault(pth, {})[method] = op(summ, auth, None, {"200": {"description": "ok"}, "201": {"description": "created"}, "202": {"description": "accepted"}, "204": {"description": "no content"}})
-doc = {"openapi": "3.0.3", "info": {"title": "DUGate rework API (code-derived, W40-CX)", "version": "1.1.0", "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."}, "servers": [{"url": "http://localhost:2023"}], "components": {"securitySchemes": {"ApiKey": {"type": "apiKey", "in": "header", "name": "x-api-key"}, "AdminBearer": {"type": "http", "scheme": "bearer"}, "RuntimeBearer": {"type": "http", "scheme": "bearer"}, "UsageBearer": {"type": "http", "scheme": "bearer"}, "Svc": {"type": "http", "scheme": "bearer"}}}, "paths": paths, "x-absent": ["GET /api/v1/businesses", "GET schema", "POST /docs/{action}", "POST /api/v1/artifacts", "GET /api/v1/artifacts/{id} metadata", "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay", "GET /api/runtime/v1/tasks/{id}/context"]}
+doc = {"openapi": "3.0.3", "info": {"title": "DUGate rework API (code-derived, W40-CX)", "version": "1.2.0", "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."}, "servers": [{"url": "http://localhost:2023"}], "components": {"securitySchemes": {"ApiKey": {"type": "apiKey", "in": "header", "name": "x-api-key"}, "AdminBearer": {"type": "http", "scheme": "bearer"}, "RuntimeBearer": {"type": "http", "scheme": "bearer"}, "UsageBearer": {"type": "http", "scheme": "bearer"}, "Svc": {"type": "http", "scheme": "bearer"}}}, "paths": paths, "x-absent": ["GET /api/v1/businesses", "GET schema", "POST /docs/{action}", "POST /api/v1/artifacts", "GET /api/v1/artifacts/{id} metadata", "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay", "GET /api/runtime/v1/tasks/{id}/context"]}
 
 # Attached after the literal so the schemas live under components, where the
 # OpenAPI specification and the RESULT-WIRE-01 guard below both look for them.
@@ -412,7 +636,10 @@ _schemas = written["components"]["schemas"]
 assert sorted(_schemas) == ["ArtifactDownloadResponse", "ArtifactRef",
                             "EncryptedArtifactDownload", "EncryptedResultEnvelope",
                             "RecipientDeliveryEnvelope", "ResultEnvelope",
-                            "ResultResponse", "Usage"], (
+                            "ResultResponse", "Usage", "UsageEventCursor",
+                            "UsageEventExportPage", "UsageEventQuery",
+                            "UsageLedgerEvent", "UsageLedgerUnits",
+                            "UsageTimeSemantics"], (
     "components.schemas drifted to %r" % (sorted(_schemas),))
 _result_200 = written["paths"]["/api/v1/operations/{id}/result"]["get"]["responses"]["200"]
 _result_schema = _result_200["content"]["application/json"]["schema"]
@@ -432,5 +659,20 @@ assert _download_200["content"]["application/json"]["schema"]["$ref"] == (
     "#/components/schemas/EncryptedArtifactDownload"), "download 200 points at the wrong wrapper"
 assert "GET artifact metadata/download" not in written["x-absent"], (
     "x-absent still claims the download route is absent; server.ts:1817 implements it")
-print("OPENAPI-JSON path-count=%d operations-params=%d sort-values=%d dropped-paths=%d schemas=%d"
-      % (len(after), len(QUERY_PARAMS), len(SORT_VALUES), len(dropped), len(_schemas)))
+# COST-03 guard. The thirteen parameters are asserted against the contract key
+# list, so a new filter in the schema cannot be published without documenting it
+# and a removed one cannot keep its parameter.
+_events = written["paths"]["/api/v1/usage/events"]["get"]
+assert [p["name"] for p in _events["parameters"]] == USAGE_EVENT_QUERY_PARAMS, (
+    "usage event parameters drifted from the contract: %r"
+    % ([p["name"] for p in _events["parameters"]],))
+assert len(_events["security"]) == 2, "usage event route must publish both auth paths"
+assert _events["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+    "#/components/schemas/UsageEventExportPage"), "usage event 200 points at the wrong page schema"
+assert _schemas["UsageEventExportPage"]["properties"]["events"]["items"]["$ref"] == (
+    "#/components/schemas/UsageLedgerEvent"), "usage event page lost its record schema"
+assert _schemas["UsageEventExportPage"]["additionalProperties"] is False, (
+    "the export page is strict in the contract; do not publish it as open")
+print("OPENAPI-JSON path-count=%d operations-params=%d sort-values=%d usage-events-params=%d dropped-paths=%d schemas=%d"
+      % (len(after), len(QUERY_PARAMS), len(SORT_VALUES), len(USAGE_EVENT_QUERY_PARAMS),
+         len(dropped), len(_schemas)))

@@ -55,6 +55,9 @@ export interface ParserBudgetOptions {
 }
 
 export class ParserBudgetHelper {
+  /** Bounded inline exception retained for tiny artifacts with metadata reads. */
+  public static readonly INLINE_READ_MAX_BYTES = 1024 * 1024;
+
   /**
    * Conservative default limits applied when no profile or caller override is present.
    */
@@ -73,29 +76,41 @@ export class ParserBudgetHelper {
   public static readonly MAX_BUFFER_SIZE_CEILING_BYTES = MULTIPART_MIN_TOTAL_BYTES - 1;
 
   /**
-   * Quantified in-memory read exception (plan: small inline reads stay buffered).
-   * PROPOSED value — DATA-00 §6 owns the signed budgets.
-   */
-  public static readonly INLINE_READ_BYTES = 1024 * 1024; // 1 MiB
-
-  /**
    * DATA-04 Step B — disk-backed acquisition for streaming-capable facades:
    * size pre-flight from the authorized descriptor (zero bytes moved for
    * over-budget sources), transfer bounded mid-stream, digest re-verified from
    * the bytes actually landed, and the temp file destroyed on every failure
-   * path (workspace always disposed). Returns null when the facade is
-   * buffer-only or the artifact fits the inline exception — legacy path.
+   * path (workspace always disposed). All stream-capable reads use this path
+   * so byte, deadline and pinned-version checks cover OCR inputs of every size.
+   * Returns null for the bounded inline exception and buffer-only compatibility facades.
    */
   private static async readArtifactViaStream(
     ctx: TaskContext,
-    artifactId: string
+    artifactId: string,
+    acquisitionSignal: AbortSignal,
+    acquisitionTimedOut: AbortSignal
   ): Promise<ArtifactReadResult | null> {
     if (!ctx.artifacts.stat || !ctx.artifacts.readStream) return null;
 
     this.assertActiveDeadline(ctx);
     const budget = this.resolveParserBudget(ctx);
-    const descriptor = await ctx.artifacts.stat(artifactId);
+    const descriptor = await this.waitForAbort(
+      ctx.artifacts.stat(artifactId, { signal: acquisitionSignal }),
+      acquisitionSignal
+    );
     this.assertActiveDeadline(ctx);
+    this.assertArtifactGrantActive(descriptor.grantExpiresAt);
+
+    // Small artifacts stay on the metadata-backed memory path. Keeping this
+    // exception below 1 MiB preserves a quantified heap bound while avoiding
+    // the disk/stream setup cost for tiny inputs.
+    if (
+      ctx.artifacts.readWithMetadata &&
+      descriptor.sizeBytes !== undefined &&
+      descriptor.sizeBytes < this.INLINE_READ_MAX_BYTES
+    ) {
+      return null;
+    }
 
     if (descriptor.sizeBytes !== undefined) {
       if (descriptor.sizeBytes > budget.maxBufferSizeBytes) {
@@ -105,7 +120,6 @@ export class ParserBudgetHelper {
           false
         );
       }
-      if (descriptor.sizeBytes <= this.INLINE_READ_BYTES) return null;
     }
 
     const workspace = await createTempWorkspace(ctx.taskId || 'unknown-task');
@@ -114,6 +128,8 @@ export class ParserBudgetHelper {
       const stream = await ctx.artifacts.readStream(artifactId, {
         expectedSha256: descriptor.sha256,
         expectedSizeBytes: descriptor.sizeBytes,
+        expectedVersionId: descriptor.storageVersionId,
+        signal: acquisitionSignal,
       });
       let transferredBytes = 0;
       const cap = new Transform({
@@ -132,9 +148,10 @@ export class ParserBudgetHelper {
           callback(null, chunk);
         },
       });
-      await pipeline(stream, cap, createWriteStream(target), { signal: ctx.signal });
+      await pipeline(stream, cap, createWriteStream(target), { signal: acquisitionSignal });
 
       const { buffer, sha256 } = await this.readBounded(target, budget.maxBufferSizeBytes);
+      acquisitionSignal.throwIfAborted();
       if (descriptor.sizeBytes !== undefined && buffer.length !== descriptor.sizeBytes) {
         throw new BusinessExecutionError(
           `Acquired ${buffer.length} bytes for an artifact declared as ${descriptor.sizeBytes} bytes`,
@@ -150,6 +167,7 @@ export class ParserBudgetHelper {
         );
       }
       this.assertActiveDeadline(ctx);
+      this.assertArtifactGrantActive(descriptor.grantExpiresAt);
       const detection = DocumentFormatDetector.detect(buffer, descriptor.fileName, descriptor.mimeType);
       return {
         buffer,
@@ -159,8 +177,25 @@ export class ParserBudgetHelper {
           declaredFileName: descriptor.fileName,
           declaredMimeType: descriptor.mimeType,
         },
+        ...(descriptor.storageVersionId && descriptor.grantExpiresAt && descriptor.sizeBytes !== undefined && descriptor.sha256
+          ? {
+            identity: {
+              storageVersionId: descriptor.storageVersionId,
+              grantExpiresAt: descriptor.grantExpiresAt,
+              sizeBytes: descriptor.sizeBytes,
+              sha256,
+            },
+          }
+          : {}),
       };
     } catch (err) {
+      if (acquisitionTimedOut.aborted && !ctx.signal?.aborted) {
+        throw new BusinessExecutionError(
+          'Artifact acquisition exceeded its time budget',
+          'DOCUMENT_TIMEOUT',
+          false
+        );
+      }
       if (ctx.signal?.aborted) {
         if (ctx.signal.reason === 'cancel' || ctx.cancelRequested) {
           throw new BusinessExecutionError('Task execution cancelled', 'OPERATION_CANCELLED', false);
@@ -193,6 +228,28 @@ export class ParserBudgetHelper {
     } finally {
       await workspace.dispose();
     }
+  }
+
+  private static waitForAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+    if (signal.aborted) return Promise.reject(signal.reason ?? new Error('artifact acquisition aborted'));
+    return new Promise<T>((resolve, reject) => {
+      const cleanup = (): void => signal.removeEventListener('abort', onAbort);
+      const onAbort = (): void => {
+        cleanup();
+        reject(signal.reason ?? new Error('artifact acquisition aborted'));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      promise.then(
+        (value) => {
+          cleanup();
+          resolve(value);
+        },
+        (error: unknown) => {
+          cleanup();
+          reject(error);
+        }
+      );
+    });
   }
 
   /**
@@ -248,43 +305,94 @@ export class ParserBudgetHelper {
    */
   public static async readArtifact(ctx: TaskContext, artifactId: string): Promise<ArtifactReadResult> {
     this.assertActiveDeadline(ctx);
+    const budget = this.resolveParserBudget(ctx);
+    const timedOut = new AbortController();
+    const timer = setTimeout(() => timedOut.abort(new Error('artifact acquisition timed out')), budget.timeoutMs);
+    const signals = [timedOut.signal];
+    if (ctx.signal) signals.push(ctx.signal);
+    const acquisitionSignal = AbortSignal.any(signals);
+    try {
+      const streamed = await this.readArtifactViaStream(ctx, artifactId, acquisitionSignal, timedOut.signal);
+      if (streamed) return streamed;
 
-    const streamed = await ParserBudgetHelper.readArtifactViaStream(ctx, artifactId);
-    if (streamed) return streamed;
+      let artifact: ArtifactReadResult;
+      if (ctx.artifacts.readWithMetadata) {
+        artifact = await this.waitForAbort(
+          ctx.artifacts.readWithMetadata(artifactId, { signal: acquisitionSignal }),
+          acquisitionSignal
+        );
+      } else {
+        const buffer = await this.waitForAbort(ctx.artifacts.read(artifactId), acquisitionSignal);
+        const detection = DocumentFormatDetector.detect(buffer);
+        artifact = {
+          buffer,
+          formatMetadata: {
+            canonicalFormat: detection.format,
+            canonicalMimeType: detection.mimeType,
+          },
+        };
+      }
 
-    let artifact: ArtifactReadResult;
-    if (ctx.artifacts.readWithMetadata) {
-      artifact = await ctx.artifacts.readWithMetadata(artifactId);
-    } else {
-      const buffer = await ctx.artifacts.read(artifactId);
-      const detection = DocumentFormatDetector.detect(buffer);
-      artifact = {
-        buffer,
-        formatMetadata: {
-          canonicalFormat: detection.format,
-          canonicalMimeType: detection.mimeType,
-        },
-      };
+      this.assertActiveDeadline(ctx);
+      this.assertArtifactGrantActive(artifact.identity?.grantExpiresAt);
+      if (
+        artifact.identity &&
+        (artifact.identity.sizeBytes !== artifact.buffer.length ||
+          artifact.identity.sha256 !== createHash('sha256').update(artifact.buffer).digest('hex'))
+      ) {
+        throw new BusinessExecutionError(
+          'Artifact bytes do not match the authorized read grant',
+          'ARTIFACT_INTEGRITY_MISMATCH',
+          false
+        );
+      }
+      const detected = DocumentFormatDetector.detect(
+        artifact.buffer,
+        artifact.formatMetadata.declaredFileName,
+        artifact.formatMetadata.declaredMimeType
+      );
+      if (
+        detected.format !== artifact.formatMetadata.canonicalFormat ||
+        detected.mimeType !== artifact.formatMetadata.canonicalMimeType
+      ) {
+        throw new BusinessExecutionError(
+          `Artifact format metadata does not match its bytes: declared canonical identity was ${artifact.formatMetadata.canonicalFormat} (${artifact.formatMetadata.canonicalMimeType}), detected ${detected.format} (${detected.mimeType})`,
+          'ARTIFACT_FORMAT_METADATA_MISMATCH',
+          false
+        );
+      }
+
+      return artifact;
+    } catch (err) {
+      if (timedOut.signal.aborted && !ctx.signal?.aborted) {
+        throw new BusinessExecutionError(
+          'Artifact acquisition exceeded its time budget',
+          'DOCUMENT_TIMEOUT',
+          false
+        );
+      }
+      if (ctx.signal?.aborted) {
+        if (ctx.signal.reason === 'cancel' || ctx.cancelRequested) {
+          throw new BusinessExecutionError('Task execution cancelled', 'OPERATION_CANCELLED', false);
+        }
+        throw new BusinessExecutionError('Task execution aborted', 'LEASE_LOST', false);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
     }
+  }
 
-    this.assertActiveDeadline(ctx);
-    const detected = DocumentFormatDetector.detect(
-      artifact.buffer,
-      artifact.formatMetadata.declaredFileName,
-      artifact.formatMetadata.declaredMimeType
-    );
-    if (
-      detected.format !== artifact.formatMetadata.canonicalFormat ||
-      detected.mimeType !== artifact.formatMetadata.canonicalMimeType
-    ) {
+  private static assertArtifactGrantActive(expiresAt?: string): void {
+    if (expiresAt === undefined) return;
+    const expiry = Date.parse(expiresAt);
+    if (!Number.isFinite(expiry) || expiry <= Date.now()) {
       throw new BusinessExecutionError(
-        `Artifact format metadata does not match its bytes: declared canonical identity was ${artifact.formatMetadata.canonicalFormat} (${artifact.formatMetadata.canonicalMimeType}), detected ${detected.format} (${detected.mimeType})`,
-        'ARTIFACT_FORMAT_METADATA_MISMATCH',
+        'Artifact read grant has expired',
+        'ARTIFACT_GRANT_EXPIRED',
         false
       );
     }
-
-    return artifact;
   }
 
   /** Passes the declared filename and canonical MIME through the parser boundary. */

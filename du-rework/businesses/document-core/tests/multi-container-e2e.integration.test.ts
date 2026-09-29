@@ -19,6 +19,7 @@ import {
   PostgresConnectorConfigRepository,
   PgSqlClient,
   AesCredentialCipher,
+  HmacServiceIdentityVerifier,
   hashInvocationInput,
   type GrantVerifier,
   type GrantClaims,
@@ -35,6 +36,14 @@ import { ProfileBindingFixtureClient } from './helpers/profile-binding-fixture';
 const DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgresql://du:du-test-only@localhost:5433/du_orchestrator_test';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6380';
+
+function signedToken(payload: Record<string, unknown>, secret: Uint8Array): string {
+  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const header = encode({ alg: 'HS256', typ: 'JWT' });
+  const body = encode(payload);
+  const signature = createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${signature}`;
+}
 
 /**
  * Cross-Service Process E2E Suite (R08-04 / W09-A1 / W10-A1 / W12-A / W13-A / W14-A Integration)
@@ -110,6 +119,13 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
   const apiKeyHash = createHash('sha256').update(apiKey).digest('hex');
   const invocationGrantSecret = `grant-secret-${randomUUID()}`;
   const grantSecretBytes = Buffer.from(invocationGrantSecret, 'utf8');
+  const serviceIdentitySecret = randomBytes(32);
+  const connectorServiceToken = signedToken({
+    sub: 'document-core-worker',
+    aud: 'connector',
+    scopes: ['connector:invoke'],
+    exp: Math.floor(Date.now() / 1000) + 3_600,
+  }, serviceIdentitySecret);
   const encryptionKey = randomBytes(32);
   // Suite-owned unique connector ID to prevent deleting shared connector revisions
   const connectorId = `doc-core-conn-${randomUUID().slice(0, 8)}`;
@@ -488,13 +504,7 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
       databaseUrl: DATABASE_URL,
       redisUrl: REDIS_URL,
       migrationDirectory,
-      serviceIdentityVerifier: {
-        verify: async () => ({
-          subject: 'document-core-worker',
-          audience: 'connector',
-          scopes: ['connector:invoke', 'connector:manage'],
-        }),
-      },
+      serviceIdentityVerifier: new HmacServiceIdentityVerifier(serviceIdentitySecret),
       grantVerifier,
       credentialCipher: new AesCredentialCipher(encryptionKey),
       providerAllowHosts: ['127.0.0.1'],
@@ -535,6 +545,7 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
       runtimeUrl: `${orchestratorUrl}/api/runtime/v1`,
       runtimeToken,
       connectorUrl,
+      connectorServiceToken,
       redis: { url: REDIS_URL },
       workerInstanceId,
       concurrency: 2,
@@ -976,6 +987,7 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
       runtimeUrl: `${orchestratorUrl}/api/runtime/v1`,
       runtimeToken,
       connectorUrl,
+      connectorServiceToken,
       redis: { url: REDIS_URL },
       workerInstanceId: `worker-idle-${randomUUID()}`,
       concurrency: 1,
@@ -1761,6 +1773,7 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
         RUNTIME_TOKEN: runtimeToken,
         REDIS_URL: REDIS_URL,
         CONNECTOR_URL: connectorUrl,
+        CONNECTOR_SERVICE_TOKEN: connectorServiceToken,
         WORKER_INSTANCE_ID: childWorkerInstanceId,
         HOLD_STEP: 'extract:connector-inference',
       },
@@ -1898,6 +1911,7 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
       runtimeUrl: `${orchestratorUrl}/api/runtime/v1`,
       runtimeToken,
       connectorUrl,
+      connectorServiceToken,
       redis: { url: REDIS_URL },
       workerInstanceId: replacementWorkerInstanceId,
       concurrency: 1,

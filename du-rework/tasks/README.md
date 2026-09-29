@@ -1,5 +1,7 @@
 # Implementation roadmap và task index
 
+> **API compatibility với DUGate cũ — plan mới 2026-09-28:** [COMP-00..11](API-COMPAT-DUGATE-2026-09-28.md) tách contract/wire parity khỏi semantic parity cho sáu core API, operation lifecycle/list/result, services/billing và workflows P9. Đây là backlog chưa dispatch/chưa acceptance; cần chốt path owner, phạm vi workflow, projection output và chính sách mã hóa trước khi sửa route. `G-COMP` là gate cutover đề xuất, chưa tự thêm vào G6 hoặc đổi tick P0/P9/ENC.
+
 > **Code review follow-up 2026-09-28:** [CR28-01..06](CODE-REVIEW-FOLLOWUP-2026-09-28.md) ghi sáu mismatch production: giải mã read path, Worker→Connector auth, OCR/vision bytes, metadata submit plaintext, clean Docker build và 409 taxonomy. Đây là acceptance hold trên ENC/INGEST/P3-P5/DEP/P8, không tự đổi tick hoặc giao trùng owner; các test offline hiện có không đóng G-ENC/G-SEC/G-DATA/G6.
 
 > **Yêu cầu mã hóa app — thêm 2026-09-27, cập nhật 2026-09-28:** [ENC-00..09, ENC-META-01 và ENC-INT-01](APP-ENCRYPTION-2026-09-27.md) là 12 task cho AES-256-GCM trước S3/DB, metadata submit/claim, Admin response policy và public-key delivery. `ENC-00..09` cùng `ENC-META-01` đang `[~]` với các slice code/offline receipt trong từng row; `ENC-INT-01` còn `[ ]`. Không row nào được suy thành full acceptance từ receipt cô lập. S3 production/DB pilot đã được chọn; quyết định wire/policy và live external decrypt còn cần đối chiếu. `G-ENC` vẫn mở trước P8-08/G6; không cộng task mới ngược vào snapshot 52 rows cũ.

@@ -308,3 +308,337 @@ describe('P6-04: write-only contract — raw secret sentinel never appears in an
     expect(serialized).toContain('apiKey');
   });
 });
+
+// ===========================================================================
+// W-ADM-UX-08-CONNECTOR-VIEW-MODEL-NEGATIVE (Turn 344 / Cycle 52)
+//
+// Negative + boundary tests for the pure connector view models. Every
+// expectation was MEASURED with a throwaway probe against the real function
+// first. Several pin behaviour that is arguably wrong; those are marked
+// DEFECT and reported, not fixed (production code is out of scope).
+//
+// Pure unit file: no DB, no HTTP, no listener, so no port band applies.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 1 + 2. Unknown / malformed connectorState and connectorTestResultKind
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-08: an unknown connector state throws instead of degrading', () => {
+  // DEFECT: STATE_META[state].badge is an unguarded lookup, so a state the
+  // server has never seen crashes the projection with a TypeError. Measured.
+  // Contrast with the gates below, which fail closed without throwing.
+  const malformed: string[] = ['BOGUS', '', 'Enabled', 'enabled ', 'ENABLED'];
+
+  test.each(malformed)('connectorStateBadge(%p) throws a TypeError', (state) => {
+    expect(() => connectorStateBadge(state as never)).toThrow(TypeError);
+  });
+
+  test.each(malformed)('connectorStateLabel(%p) throws a TypeError', (state) => {
+    expect(() => connectorStateLabel(state as never)).toThrow(TypeError);
+  });
+
+  test.each(malformed)('connectorTestBadge(%p) throws a TypeError', (kind) => {
+    expect(() => connectorTestBadge(kind as never)).toThrow(TypeError);
+  });
+
+  test.each(malformed)('connectorTestLabel(%p) throws a TypeError', (kind) => {
+    expect(() => connectorTestLabel(kind as never)).toThrow(TypeError);
+  });
+
+  test('the three declared states and six declared kinds still resolve (control)', () => {
+    // The lists below mirror the ConnectorRevisionState / ConnectorTestResultKind
+    // unions. They are type-only unions, so there is no runtime array to derive
+    // them from - this control is what stops the rows above being vacuous.
+    for (const state of ['enabled', 'disabled', 'rotating'] as const) {
+      expect(typeof connectorStateLabel(state)).toBe('string');
+      expect(['success', 'warning', 'neutral']).toContain(connectorStateBadge(state));
+    }
+    for (const kind of [
+      'success', 'provider-unavailable', 'invalid-credential',
+      'quota-exceeded', 'timeout', 'pending',
+    ] as const) {
+      expect(typeof connectorTestLabel(kind)).toBe('string');
+      expect(['success', 'warning', 'error', 'neutral']).toContain(connectorTestBadge(kind));
+    }
+  });
+
+  test('the lookup is case-sensitive and does not trim', () => {
+    expect(() => connectorStateBadge('Enabled' as never)).toThrow(TypeError);
+    expect(() => connectorStateBadge('enabled ' as never)).toThrow(TypeError);
+    expect(connectorStateBadge('enabled')).toBe('success');
+  });
+
+  test('a malformed state crashes the whole revision projection, not just the badge', () => {
+    expect(() =>
+      buildConnectorConfigRevisionView({
+        revision: { ...baseRevision, state: 'BOGUS' as never },
+        secretSlots: [baseSecretSlot()],
+      }),
+    ).toThrow(TypeError);
+  });
+
+  test('a malformed state also crashes the test-result projection', () => {
+    expect(() =>
+      buildConnectorTestResultView('openai-prod', 7, {
+        kind: 'BOGUS' as never,
+        message: 'safe',
+        testedAt: null,
+      }),
+    ).toThrow(TypeError);
+  });
+
+  test('the GUATES fail closed on the same malformed state instead of throwing', () => {
+    // The asymmetry: the display lookups crash, the authorisation-shaped
+    // helpers quietly deny. A corrupt state cannot enable a rotation.
+    expect(canRotateSecret({ state: 'BOGUS' as never }, { hasValue: true })).toBe(false);
+    expect(deriveRotateSecretState('BOGUS' as never)).toBe('idle');
+  });
+
+  test('a malformed state still yields a submitDisabled confirm view (no crash there)', () => {
+    // buildSecretRotationConfirm does not call the badge lookup, so it
+    // survives - and denies, which is the safe direction.
+    const confirm = buildSecretRotationConfirm(
+      { connectorId: 'openai-prod', revision: 7, state: 'BOGUS' as never },
+      baseSecretSlot(),
+    );
+    expect(confirm.submitDisabled).toBe(true);
+    expect(confirm.requireTypeToConfirm).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Secret slot corruption
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-08: corrupted secret slots pass through the projection', () => {
+  test('a null slot name reaches the view, despite the view type saying string', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ name: null as never })] }),
+    );
+    expect(view.secretSlots[0]!.name).toBeNull();
+  });
+
+  test('a null slot label reaches the view', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ label: null as never })] }),
+    );
+    expect(view.secretSlots[0]!.label).toBeNull();
+  });
+
+  test('an undefined rotatedAt reaches the view rather than becoming null', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ rotatedAt: undefined as never })] }),
+    );
+    expect(view.secretSlots[0]!.rotatedAt).toBeUndefined();
+  });
+
+  // DEFECT: secretSlotBadge is a bare truthiness test, so any truthy junk
+  // reads as a configured secret. Measured below.
+  const falsyHasValue: unknown[] = [null, undefined, 0, '', false];
+  test.each(falsyHasValue)('hasValue %p reads as Not configured', (hasValue) => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ hasValue: hasValue as never })] }),
+    );
+    expect(view.secretSlots[0]!.statusLabel).toBe('Not configured');
+    expect(view.secretSlots[0]!.statusBadge).toBe('warning');
+    expect(view.hasAnySecret).toBe(false);
+  });
+
+  const truthyHasValue: unknown[] = [1, 'true', 'yes', {}, []];
+  test.each(truthyHasValue)('hasValue %p reads as Configured', (hasValue) => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ hasValue: hasValue as never })] }),
+    );
+    expect(view.secretSlots[0]!.statusLabel).toBe('Configured');
+    expect(view.hasAnySecret).toBe(true);
+  });
+
+  test("the string 'false' reads as CONFIGURED - the sharpest form of the defect", () => {
+    // A corrupt boolean from a sloppy serializer flips the operator-facing
+    // badge from "Not configured" to "Configured" with no error anywhere.
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ hasValue: 'false' as never })] }),
+    );
+    expect(view.secretSlots[0]!.statusBadge).toBe('success');
+    expect(view.secretSlots[0]!.statusLabel).toBe('Configured');
+    expect(view.hasAnySecret).toBe(true);
+  });
+
+  test('a null element in secretSlots throws a TypeError', () => {
+    expect(() =>
+      buildConnectorConfigRevisionView(baseInput({ secretSlots: [null as never] })),
+    ).toThrow(TypeError);
+  });
+
+  test('a hole in secretSlots is preserved and serialises to null', () => {
+    // Array.prototype.map keeps holes, so the projected array has a hole in
+    // the middle: totalSecretSlots counts it, but the rendered row is null.
+    const sparse = [baseSecretSlot(), , baseSecretSlot({ name: 'webhookSecret' })] as never;
+    const view = buildConnectorConfigRevisionView(baseInput({ secretSlots: sparse }));
+    expect(view.totalSecretSlots).toBe(3);
+    expect(view.secretSlots).toHaveLength(3);
+    expect(view.secretSlots[1]).toBeUndefined();
+    expect(JSON.stringify(view.secretSlots)).toContain('null');
+  });
+
+  test('hasAnySecret ignores a hole but still counts the real slots', () => {
+    const sparse = [baseSecretSlot(), , baseSecretSlot({ hasValue: false })] as never;
+    const view = buildConnectorConfigRevisionView(baseInput({ secretSlots: sparse }));
+    expect(view.hasAnySecret).toBe(true);
+    expect(view.secretSlots.filter(Boolean)).toHaveLength(2);
+  });
+
+  test('duplicate slot names are not de-duplicated', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({
+        secretSlots: [baseSecretSlot({ name: 'apiKey' }), baseSecretSlot({ name: 'apiKey', hasValue: false })],
+      }),
+    );
+    expect(view.totalSecretSlots).toBe(2);
+    expect(view.hasAnySecret).toBe(true);
+  });
+
+  test('null capabilities throw rather than yielding an empty list', () => {
+    expect(() =>
+      buildConnectorConfigRevisionView(
+        baseInput({ revision: { ...baseRevision, capabilities: null as never }, secretSlots: [] }),
+      ),
+    ).toThrow(TypeError);
+  });
+
+  test('a null revision row throws', () => {
+    expect(() =>
+      buildConnectorConfigRevisionView({ revision: null as never, secretSlots: [] }),
+    ).toThrow(TypeError);
+  });
+
+  test('hostile capability tags are passed through unescaped', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({
+        revision: { ...baseRevision, capabilities: ['<script>alert(1)</script>'] },
+        secretSlots: [],
+      }),
+    );
+    expect(view.capabilities).toEqual(['<script>alert(1)</script>']);
+  });
+
+  test('capabilities are copied, so mutating the input cannot reach the view', () => {
+    const capabilities = ['chat.completions'];
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ revision: { ...baseRevision, capabilities }, secretSlots: [] }),
+    );
+    capabilities.push('smuggled');
+    expect(view.capabilities).toEqual(['chat.completions']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Raw secret leakage in error states
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-08: the write-only rule is a CALLER contract, not an enforced one', () => {
+  // The module docstring promises that "no raw secret value ever leaks into
+  // a view model", but every projected string is a verbatim passthrough. The
+  // sanitisation happens (if at all) before the call. These tests pin the
+  // measured passthrough: if someone later adds stripping INSIDE the view
+  // model, these turn red, which is exactly the signal a real fix would make.
+  const leak = (view: unknown): boolean => JSON.stringify(view).includes(RAW_SECRET_SENTINEL);
+
+  test('a raw secret in the error message reaches the test-result view', () => {
+    const view = buildConnectorTestResultView('openai-prod', 7, {
+      kind: 'invalid-credential',
+      message: 'upstream 401 for key ' + RAW_SECRET_SENTINEL,
+      testedAt: '2026-09-23T01:30:00.000Z',
+    });
+    expect(view.message).toContain(RAW_SECRET_SENTINEL);
+    expect(leak(view)).toBe(true);
+  });
+
+  test('a raw secret in the slot label reaches the revision view', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ label: 'key ' + RAW_SECRET_SENTINEL })] }),
+    );
+    expect(view.secretSlots[0]!.label).toContain(RAW_SECRET_SENTINEL);
+    expect(leak(view)).toBe(true);
+  });
+
+  test('a raw secret in connectorId reaches the test-result view', () => {
+    const view = buildConnectorTestResultView(RAW_SECRET_SENTINEL, 7, {
+      kind: 'success',
+      message: 'ok',
+      testedAt: null,
+    });
+    expect(view.connectorId).toBe(RAW_SECRET_SENTINEL);
+    expect(leak(view)).toBe(true);
+  });
+
+  test('a raw secret in rotatedAt reaches the revision view', () => {
+    const view = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ rotatedAt: RAW_SECRET_SENTINEL })] }),
+    );
+    expect(view.secretSlots[0]!.rotatedAt).toBe(RAW_SECRET_SENTINEL);
+    expect(leak(view)).toBe(true);
+  });
+
+  test('a raw secret in the slot name reaches the rotation-confirm view', () => {
+    const confirm = buildSecretRotationConfirm(
+      { connectorId: 'openai-prod', revision: 7, state: 'enabled' },
+      baseSecretSlot({ name: RAW_SECRET_SENTINEL }),
+    );
+    expect(confirm.slotName).toBe(RAW_SECRET_SENTINEL);
+    expect(leak(confirm)).toBe(true);
+  });
+
+  test('hostile HTML in the error message is not escaped', () => {
+    const view = buildConnectorTestResultView('openai-prod', 7, {
+      kind: 'timeout',
+      message: '<img src=x onerror=alert(1)>',
+      testedAt: null,
+    });
+    expect(view.message).toBe('<img src=x onerror=alert(1)>');
+  });
+
+  test('an undefined testedAt passes through rather than becoming null', () => {
+    const view = buildConnectorTestResultView('openai-prod', 7, {
+      kind: 'success',
+      message: 'm',
+      testedAt: undefined as never,
+    });
+    expect(view.testedAt).toBeUndefined();
+  });
+
+  test('the rotation warning is the one field that CANNOT carry a secret', () => {
+    // The contrast that makes the passthrough above worth reporting: the
+    // warning is a module constant, so it is genuinely injection-proof, and
+    // the same model is otherwise fully caller-controlled.
+    const confirm = buildSecretRotationConfirm(
+      { connectorId: RAW_SECRET_SENTINEL, revision: 7, state: 'enabled' },
+      baseSecretSlot({ name: RAW_SECRET_SENTINEL, label: RAW_SECRET_SENTINEL }),
+    );
+    expect(confirm.warning).not.toContain(RAW_SECRET_SENTINEL);
+    expect(confirm.warning.length).toBeGreaterThan(0);
+  });
+
+  test('canRetry is hard-wired false regardless of what the caller passes', () => {
+    for (const kind of ['success', 'timeout', 'invalid-credential'] as const) {
+      const view = buildConnectorTestResultView('c', 1, { kind, message: 'm', testedAt: null });
+      expect(view.canRetry).toBe(false);
+    }
+  });
+
+  test('the four pre-existing sentinel assertions pass only because the sentinel is never injected', () => {
+    // Recorded, not fixed: the P6-04 write-only block asserts the sentinel is
+    // absent from output, but never puts the sentinel into an input, so those
+    // assertions would still pass if the model echoed every field. This test
+    // is the non-vacuous version of the same intent - it injects the sentinel
+    // and shows the current behaviour is a passthrough.
+    const clean = buildConnectorConfigRevisionView(baseInput());
+    expect(JSON.stringify(clean)).not.toContain(RAW_SECRET_SENTINEL);
+
+    const dirty = buildConnectorConfigRevisionView(
+      baseInput({ secretSlots: [baseSecretSlot({ label: RAW_SECRET_SENTINEL })] }),
+    );
+    expect(JSON.stringify(dirty)).toContain(RAW_SECRET_SENTINEL);
+  });
+});

@@ -545,6 +545,7 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
         runtimeUrl: 'http://runtime',
         runtimeToken: 'bearer-test',
         connectorUrl: 'http://connector',
+        connectorServiceToken: 'connector-test-service-token',
         consumer,
         fetchImpl: stubFetch(routes) as any,
       });

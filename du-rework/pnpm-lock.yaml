@@ -219,6 +219,9 @@ importers:
         specifier: ^5.34.0
         version: 5.81.5
     devDependencies:
+      '@du/connector':
+        specifier: workspace:*
+        version: link:../../services/connector
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.14
@@ -292,6 +295,9 @@ importers:
       '@du/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@du/worker-sdk':
+        specifier: workspace:*
+        version: link:../../packages/worker-sdk
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
@@ -305,9 +311,6 @@ importers:
         specifier: ^8.12.0
         version: 8.23.0
     devDependencies:
-      '@du/worker-sdk':
-        specifier: workspace:*
-        version: link:../../packages/worker-sdk
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.14

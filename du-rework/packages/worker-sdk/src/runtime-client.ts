@@ -120,7 +120,7 @@ export class RuntimeClient {
     path: string,
     body: unknown,
     parser: (raw: unknown) => T,
-    opts: { ambiguousSafe?: boolean } = {}
+    opts: { ambiguousSafe?: boolean; signal?: AbortSignal } = {}
   ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -133,7 +133,7 @@ export class RuntimeClient {
           authorization: `Bearer ${this.opts.token}`,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: controller.signal,
+        signal: opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal,
       });
     } catch (err) {
       // Network failure: for writes this is ambiguous (server may have applied it).
@@ -239,9 +239,14 @@ export class RuntimeClient {
     await this.request('POST', `/artifacts/${encodeURIComponent(artifactId)}/finalize`, req, () => undefined);
   }
 
-  async requestAccessGrant(artifactId: string, req: ArtifactAccessRequest): Promise<ArtifactAccessGrant> {
+  async requestAccessGrant(
+    artifactId: string,
+    req: ArtifactAccessRequest,
+    opts: { signal?: AbortSignal } = {}
+  ): Promise<ArtifactAccessGrant> {
     return this.request('POST', `/artifacts/${encodeURIComponent(artifactId)}/access`, req, (raw) =>
-      ArtifactAccessGrantSchema.parse(raw)
+      ArtifactAccessGrantSchema.parse(raw),
+      { signal: opts.signal }
     );
   }
 

@@ -17,7 +17,7 @@ Trong một ca trực, tôi cần trả lời nhanh:
 | Có trên code/spec | Giới hạn hiện tại |
 |---|---|
 | Usage event có `operationId`, `taskId`, `invocationId`, input/output tokens, `costMicrousd`, USD và `measured/estimated`; Orchestrator ingest idempotent theo `eventId`, có project theo operation và summary theo tenant. | Contract không có provider/model, API key, connector revision, giá áp dụng hoặc trạng thái điều chỉnh. Summary hiện gom provider/model thiếu thành `(unattributed)`; không đủ để phân loại chi phí đáng tin cậy. |
-| Admin Overview render usage rollup và operation detail có usage; API `/api/v1/usage` trả aggregate theo tenant và thời gian. | Chưa có màn Usage/Cost chuyên dụng, bảng giá, ngân sách hay drill-down từ tổng xuống usage event. `pending/estimated` chưa giải thích được số tiền còn chưa chốt. |
+| Admin Overview render usage rollup và operation detail có usage; API `/api/v1/usage` trả aggregate theo tenant và thời gian; **`GET /api/v1/usage/events`** đã hiện thực drill-down/export có phân trang (keyset cursor + filter allow-list), và hợp đồng **durable reservation** cho hard cap đã có ở tầng service. | **Màn hình** Usage & Cost chuyên dụng, bảng giá và ngân sách vẫn chưa có; drill-down mới chỉ có **API**, chưa có màn hình và chưa có luồng export CSV trong browser. `pending/estimated` chưa giải thích được số tiền còn chưa chốt. Chi tiết ở mục *Phần đã hiện thực ở tầng contract/service* bên dưới. |
 | Admin Operations có list/detail và trạng thái. | Route list đã có **cursor keyset + filter + sort chạy ở server**: token cursor 4-slot `base64url("<ISO>\|<uuid>\|<field>:<direction>[\|p]")` mang cả hướng đi lẫn thứ tự, nên gửi cursor lệch sort trả **422 `INVALID_SCHEMA`** thay vì đọc sai lát cắt — đây là hành vi đã đọc thẳng từ source, chưa phải nghiệm thu. `sort` có đúng 6 giá trị (`created_at`/`updated_at`/`deadline_at` × `asc`/`desc`), `limit` clamp 1–100 và không 422, `total` là `COUNT(*)` của tập đã lọc chứ không phải số dòng trả về. Tuy vậy Admin **shell** chưa có sort control, chưa có receipt live six-sort/cross-sort, và các chức năng tìm kiếm cùng operator journey vẫn là acceptance mở ở ADM-UX-02..05. |
 | Spec `docs/11-admin-ux.md` nêu Usage, filter/export; `docs/12-operations.md` nêu usage lag metric/alert. | Đây là yêu cầu, chưa chứng minh một luồng quản trị cost và giám sát hoàn chỉnh trên build thật. |
 
@@ -55,6 +55,49 @@ Các yêu cầu MON-01..03 được nghiệm thu cùng `ADM-UX-02..05/07`; MON-0
 | COST-02 — bảng giá version | [ ] | COST-01 | G-ADMIN-OPS |
 | COST-03 — đối soát, query/export, UI | [ ] | COST-01/02; ADM-UX-02/03 | G-ADMIN-OPS |
 | COST-04 — ngân sách, cảnh báo và reservation | [ ] | COST-03; Connector quota contract | G-ADMIN-OPS |
+
+## Phần đã hiện thực ở tầng contract/service (chưa nghiệm thu)
+
+Mục này **không** đổi trạng thái `[ ]` của COST-01..04 trong bảng trên và **không** đóng `G-ADMIN-OPS`. Nó chỉ ghi lại hai bề mặt đã có trong source, kèm mức bằng chứng đo được, để người đọc không phải suy từ phần yêu cầu.
+
+### 1. `GET /api/v1/usage/events` — drill-down/export có phân trang (COST-03)
+
+| Quy tắc | Hành vi đọc từ source |
+|---|---|
+| Allow-list tham số | Đúng **13** tên, đóng bằng `Set` ngay trong route **trước** khi parse. Tham số lạ **hoặc lặp** là `422 INVALID_SCHEMA`. |
+| Số nguyên | `limit` 1–100 (mặc định 50), `profileRevision` không âm; route ép `/^\d+$/` trước, schema ép khoảng sau. |
+| Cửa sổ thời gian | `[from,to)` nửa mở, `to` phải **sau nghiêm** `from`; span rỗng bị từ chối thay vì âm thầm trả về tất cả. |
+| Cặp filter | `businessId`+`action` và `provider`+`model` phải đi **cặp**; thiếu một nửa là 422, không phải kết quả rộng hơn. |
+| Cursor | base64url của `{version, tenantId, queryHash, after, eventId}`, strict khi decode; base64url không canonical bị từ chối, nên một cursor chỉ có một cách viết. |
+| Ràng buộc cursor | `queryHash = sha256(JSON.stringify({tenantId, binding}))`, `binding` gồm 7 filter chiều + `from` + `to` + `timeField` + `limit`. Dùng lại cursor với tenant, filter, cửa sổ, đồng hồ sort hoặc kích thước trang khác là **422 `INVALID_ARGUMENT`**, chặn **trước** khi dựng SQL; predicate tenant vẫn bắt buộc trong SQL. |
+| Đọc có giới hạn | Tối đa `limit + 1` dòng; dòng thừa chính là tín hiệu `hasMore`, và cursor mới lấy từ dòng **đã quét** cuối cùng, không phải từ dòng thừa. |
+| Thứ tự | `(timeField, event_id)` tăng dần, với `timeField` là `payload->>'occurredAt'` hoặc cột `received_at`; lựa chọn được trả lại trong `timeSemantics`. |
+| Phân quyền | Tenant lấy từ principal chứ không từ query: admin bearer đi qua `authorizeAuditTenantRead` rồi **bắt buộc** có `tenantId`; `x-api-key` ghim tenant của key, `tenantId` lệch là 403. |
+| Audit | Mỗi trang thành công ghi `usage.export` trên `usage-events:page`, severity `info`, **không** có giá trị filter, cursor hay credential trong log. |
+| Dòng hỏng | Payload không khớp ledger bị đếm vào `skippedInvalidEvents` rồi bỏ; dòng mà `eventId`/`operationId`/`tenantId` trái với key đã lưu là `500 USAGE_LEDGER_CONFLICT`, không bỏ âm thầm. |
+
+**Bằng chứng:** receipt `COST-03-DRILLDOWN` (Tester, 2026-09-28T08:48:45+07:00) — contracts build 0; contracts `usage-event-export` + `grant-encryption-envelope` **2 suite / 18 test** 0; orchestrator `usage-drilldown` + `usage-aggregation` **2 suite / 12 test** 0; lint 0; typecheck 0. Chính receipt ghi rõ **không** có PostgreSQL live, **không** có luồng export trên trình duyệt, **không** có review độc lập, và `COST-03` cùng `G-ADMIN-OPS` vẫn mở.
+
+### 2. Hợp đồng durable reservation cho hard cap (COST-04)
+
+Đây là **service**, không phải route: `BudgetReservationService` trong `services/orchestrator/src/modules/usage/budget-reservations.ts` được gọi nội bộ, nên không sinh dòng nào trong bảng route nào của tài liệu này.
+
+| Quy tắc | Hành vi đọc từ source |
+|---|---|
+| Vòng đời | `RESERVED`, `RUNNING`, `UNKNOWN`, `RECONCILED`, `RELEASED`, `BLOCKED`. Giữ chỗ tính cả lúc `RESERVED`/`RUNNING`/`UNKNOWN` — lần gọi provider đang chạy hoặc chưa biết vẫn nằm trong reservation. |
+| Nhả chỗ phải có bằng chứng | `RELEASED` chỉ hợp lệ kèm `confirmedNotSent: true`; cắm cờ đó vào trạng thái khác là 422. Chỉ hold `RESERVED` mới nhả được, và phải trước lúc gọi. |
+| Reconcile phải trỏ event | Reservation ở `RECONCILED` bắt buộc có `usageEventId`. Reconcile ghi usage thực và đóng hold **nguyên tử**; replay trả lại đúng dòng cũ kèm `duplicate: true`. |
+| Hard cap cần upper bound | `confidence` là `upper-bound` hoặc `best-effort`; hard cap chỉ dùng `upper-bound`, vì ước tính best-effort không bảo vệ được quota. |
+| Cổng tin cậy | `isBudgetReservationTrusted` cần đủ **bốn** cờ: `durableAtomicStore`, `sharedQuotaScope`, `validatedUsageLedger`, `boundedReservation`. Thiếu một là không bật hard cap. |
+| Fail closed | Lỗi lưu trữ hoặc lỗi quyết toán trả `503 BUDGET_RESERVATION_UNAVAILABLE` **trước** khi admit; ngân sách alert-only vẫn ghi được hold best-effort. |
+| Scope và cửa sổ | `quotaScope` phải khớp **chính xác** scope của budget; cửa sổ ngày/tháng tính trong UTC để mọi replica và event đến muộn rơi vào cùng khoảng nửa mở. |
+| Bền vững | Migration `0022_budget_reservations.sql` tạo bảng cộng **hai** unique index (`usage_events.budget_reservation_id`, `budget_reservations.usage_event_id`) và một FK, nên một reservation chỉ được reconcile bởi tối đa một usage event và chiều ngược lại cũng vậy. Giao dịch admit khoá advisory theo scope và cửa sổ chuẩn trên PostgreSQL. |
+
+**Bằng chứng:** receipt `COST-04-RESERVATION` (Tester, 2026-09-28T09:12:26+07:00) — contracts build/tsc 0, contracts test **23 suite / 463 test** 0, orchestrator typecheck 0, orchestrator **4 suite / 50 test** 0 (cùng scope đồng thời, admit và reconcile idempotent, rollover UTC, giữ RUNNING/UNKNOWN, chặn scope, tin cậy upper-bound, lỗi DB fail-closed, release có bằng chứng). Receipt thứ hai, `T-CODEX-OFFLINE-COST-04-RESERVATION-INDEPENDENT`, tự nói là read-only độc lập: **3 suite / 33 test** 0 và orchestrator `tsc --noEmit` 0 — lần đó không chạy `migrations-ledger-guard.test.ts`, nên con số là 33 chứ không phải 50.
+
+**Còn thiếu, không được coi là đã xong:** chưa chạy migration trên PostgreSQL live và chưa có race reservation live (suite migration live bị bỏ qua khi không có DB window), và **chưa** có call-site connector nào được chạy. Tức là **đã hiện thực + verified offline**, chưa live-verified. Màn hình Ngân sách & cảnh báo trong mục *Điều hướng* vẫn chưa có, nên `hard cap` hiện chưa có đường tới người trực.
+
+> **Cần coordinator xác minh:** cột "Gate" trong bảng trên ghi `G-ADMIN-OPS`, nhưng trong `coordination/gates/` hiện **không có** file mang tên đó (chỉ có `contracts-v1`, `integration-e2e-ready`, `integration-usage-ready`, `runtime-ready`, `sdk-ready`, `workspace-ready`). Tên gate ở đây là điều receipt và tài liệu này dùng, không phải điều tôi kiểm chứng được từ một file gate.
 
 ## Quy tắc số liệu và bảo mật
 
