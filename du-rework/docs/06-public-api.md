@@ -4,20 +4,32 @@ Base `/api/v1`. JSON UTF-8; authentication `x-api-key`; operation/artifact luôn
 
 ## Endpoint catalog
 
-| Method/path | Input | Success | Errors chính |
-|---|---|---|---|
-| GET /businesses | cursor, limit | 200 enabled actions đã được profile cấp | 401 |
-| GET /businesses/{id}/actions/{action}/schema | none | 200 schema theo version profile pin | 404 nếu không được cấp |
-| POST /businesses/{id}/actions/{action} | Submission | 202 Operation | 400,401,403,409,413,415,422,429,503 |
-| POST /docs/{action} | JSON hoặc multipart facade | 202 Operation | Như generic |
-| POST /artifacts | multipart file | 201 ArtifactRef | 413,415,422 |
-| GET /artifacts/{id} | none | 200 metadata | 404 không có quyền |
-| GET /artifacts/{id}/download | none | 200 raw bytes + artifact MIME (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery, artifactId, mimeType} (encrypted) | 404,410 |
-| GET /operations | cursor, limit, state, tenant, id, sort | 200 `{items,nextCursor,prevCursor,total,limit}` | 401,403,422 |
-| GET /operations/{id} | none | 200 Operation | 404 |
-| GET /operations/{id}/result | none | 200 ResultEnvelope strict v1 (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery} (encrypted) | 409 chưa succeeded; 410 expired |
-| POST /operations/{id}/cancel | optional reason | 202 hoặc 200 replay | 409 terminal không cancellable |
-| POST /operations/{id}/resume | waitId, input, expectedStateVersion | 202 hoặc 200 replay | 409 stale/terminal,422 invalid input |
+Trạng thái theo **code hiện tại** (`services/orchestrator/src/server.ts`), đối chiếu `x-absent` của `docs/21-openapi.json`. "Chưa implement" nghĩa là client legacy chưa gọi được — plan [COMP-00..11](../tasks/API-COMPAT-DUGATE-2026-09-28.md) lo phần này; **không** tự tick hay dispatch từ tài liệu này.
+
+| Method/path | Trạng thái | Input | Success | Errors chính |
+|---|---|---|---|---|
+| GET /health, GET /api/v1/health | Implement | none | 200 | — |
+| GET /businesses | **Chưa implement** (`x-absent`) | cursor, limit | 200 enabled actions đã được profile cấp | 401 |
+| GET /businesses/{id}/actions/{action}/schema | **Chưa implement** (`x-absent`) | none | 200 schema theo version profile pin | 404 nếu không được cấp |
+| POST /businesses/{id}/actions/{action} | Implement | Submission | 202 Operation; 200 nếu idempotent replay | 400,401,403,409,413,415,422,429,503 |
+| POST /docs/{action} | **Chưa implement** — `x-absent` liệt kê `POST /docs/{action}`; legacy thật là `POST /api/v1/docs/{service}` (xem docs/14) | JSON hoặc multipart facade | 202 Operation | Như generic |
+| POST /artifacts (upload standalone) | **Chưa implement** (`x-absent`) | multipart file | 201 ArtifactRef | 413,415,422 |
+| GET /artifacts/{id} | **Chưa implement** (`x-absent`) | none | 200 metadata | 404 không có quyền |
+| GET /artifacts/{id}/download | Implement | none | 200 raw bytes + artifact MIME (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery, artifactId, mimeType} (encrypted) | 404,410 |
+| GET /operations | Implement | cursor, limit, state, tenant, id, sort | 200 `{items,nextCursor,prevCursor,total,limit}` | 401,403,422 |
+| GET /operations/{id} | Implement | none (`?wait=` long-poll) | 200 Operation | 404 |
+| GET /operations/{id}/result | Implement | none | 200 ResultEnvelope strict v1 (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery} (encrypted) | 409 chưa succeeded; 410 expired |
+| POST /operations/{id}/cancel | Implement | optional reason | 202 hoặc 200 replay | 409 terminal không cancellable |
+| POST /operations/{id}/resume | Implement | waitId, input, expectedStateVersion | 202 hoặc 200 replay | 409 stale/terminal,422 invalid input |
+| GET /usage/summary, GET /usage/events, GET /usage | Implement (admin-bearer và public-key path trong `route(ctx)`) | filter allow-list | 200 | 401,403,422 |
+| GET /connectors/{id}/test | Implement | none | 200 test result | 401,403,404 |
+| POST /uploads, POST /uploads/{id}/{part,complete,abort} | Implement (multipart upload gateway) | multipart | 200/201 | 413,415,422 |
+| GET/POST /api/v1/admin/audit, /api/v1/admin/crypto-config, /api/v1/admin/businesses*, /api/v1/admin/profiles*, /api/v1/admin/connectors*, /api/v1/admin/api-keys* | Implement (surface admin — không phải public client API) | admin bearer | 200 | 401,403,404,422 |
+| Surface runtime `/api/runtime/v1/**` (tasks claim/heartbeat/steps/complete, artifacts finalize/access/multipart, invocation-grants, workspace-reference) | Implement (internal worker; worker credentials bị chặn khỏi surface public tại `route(ctx)`) | runtime auth | 200 | 401,403,404 |
+| GET /api/v1/services, GET /api/v1/billing/balance, GET /api/v1/billing/usage | **Chưa implement** — projection legacy theo API key thuộc COMP-08 (không bịa balance từ tenant usage) | legacy query | 200 | 401 |
+| POST /api/v1/docs/workflows, POST /api/v1/docs/workflows/schema | **Chưa implement** — thuộc COMP-09/P9 (legacy path thật, xem docs/14) | multipart + process/schemaSlug | 202 | 400,401,403,422 |
+
+**Known gap của generator OpenAPI:** `tools/openapi/gen_openapi.py` sinh `docs/21` từ router + contracts nhưng chưa cover đủ các route admin/uploads/runtime liệt kê trên; khi chạy generator, path mới hơn `x-absent` cũ có thể chưa vào spec. Không sửa tay `docs/21` (serialize-point) — mở task cho docs/COMP-11 owner mở rộng generator thay vì patch JSON.
 
 V1 không expose arbitrary public route registration. `/docs/workflows` là facade tương lai ánh xạ process → registered business; xem compatibility scope.
 
@@ -167,9 +179,11 @@ Facade chuẩn hóa `file`, `files[]`, `source_file`, `target_file`; JSON-string
 
 At-least-once delivery; `{deliveryId,eventType,operationId,state,stateVersion,occurredAt}`; signed HMAC header + timestamp, secret do Admin cấp; client dedup deliveryId. Payload không chứa file/raw prompt. SSRF policy ở registration và lúc gửi, timeout/backoff/max attempts, manual redelivery có audit. Webhook failure không đổi operation success thành failure.
 
-## Result delivery encryption (ADR-18 baseline — CHƯA triển khai)
+**Delivery encryption cho webhook (W-ENC-08-WEBHOOK, receipt qwen-admin Mục 29):** payload webhook khi tenant bật recipient encryption được mã hóa trước khi gửi — **Δ120:** HMAC signature giờ phủ trên **ciphertext**, nên receiver phải verify chữ ký trên encrypted body rồi mới decrypt (đây là thay đổi hợp đồng nhận, lane sở hữu receiver và tài liệu tích hợp phải được thông báo); **Δ121:** cột `webhook_deliveries.payload` trong DB vẫn lưu plaintext (thuộc ENC-META-01, chưa đóng). `G-ENC`/`G6` vẫn NO-GO.
 
-> **Trang thai (cap nhat D-EVID-A27):** `RESULT-WIRE-01` **DA DONG** o contract freeze: xem muc *Frozen result/download response contract* ben duoi. `ENC-00` van `[~]`; phan delivery encryption duoi day van la baseline ADR-18, chua co runtime wire hoan chinh.
+## Result delivery encryption (ADR-18 baseline — wire đã đóng, runtime còn mở)
+
+> **Trạng thái (cập nhật mới):** `RESULT-WIRE-01` **ĐÃ ĐÓNG** ở contract freeze: xem mục *Frozen result/download response contract* bên dưới — result/download không còn 302. **Runtime delivery encryption đã có code path**: `delivery-encryption.ts` + `artifact-read-decrypt` + `metadata-key-adapter` (read path), `public-upload-encryption-gateway`, `runtime-encryption-metadata`, `webhook-delivery-encryption` — phủ bằng test offline (`delivery-encryption.test.ts` 50/50×3, `webhook-delivery-encryption.test.ts`, `artifact-read-decrypt-offline.test.ts`). Tuy nhiên `ENC-00` vẫn `[~]`, **ENC-04 NO-GO** (qwen-platform Δ114–Δ116 cần sửa production), `ENC-08` chưa ACCEPTED — nên section dưới đây là baseline ADR-18 **đã được code thừa hành một phần**, chưa phải runtime wire hoàn chỉnh để bật cho tenant. **Chính sách legacy:** theo COMP plan quyết định #5, tenant/client legacy giữ plaintext cho tới khi admin **và** external consumer chủ động opt-in/migrate; không tự đổi mặc định khi cutover; không có param/header bypass.
 
 Khi tenant bật `deliveryEncryptionEnabled` (Admin per-tenant toggle, mặc định `disabled`):
 

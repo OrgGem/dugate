@@ -1,13 +1,13 @@
 # Project structures và ownership
 
-Các thư mục dưới đây là cấu trúc mục tiêu. Workspace/package chính đã materialize và build; Admin chưa có, artifact bytea và example-review có implementation partial. Dùng pnpm workspace độc lập trong `du-rework`; không sửa root package.json/lockfile của DUGate. Xem [review cấu trúc/code](../coordination/STRUCTURE-CODE-REVIEW-2026-09-21.md) cho các khác biệt cần xử lý.
+Các thư mục dưới đây là cấu trúc mục tiêu. Workspace/package chính đã materialize và build; Admin shell đã mount trong orchestrator (`src/app/admin/`); artifact bytea và example-review có implementation partial. Dùng pnpm workspace độc lập trong `du-rework`; không sửa root package.json/lockfile của DUGate. Xem [review cấu trúc/code](../coordination/STRUCTURE-CODE-REVIEW-2026-09-21.md) cho các khác biệt cần xử lý.
 
 ## Cấu trúc thực tế sau FIX-07
 
 | Mục tiêu | Hiện trạng | Quyết định/task còn mở |
 |---|---|---|
 | Hai services, business độc lập, năm shared packages | Đã đúng ở cấp workspace | Giữ dependency ownership; thêm automated boundary checks |
-| Orchestrator Next routes/Admin + server lifecycle | node:http trong src/server.ts; chưa có src/app; start script chưa listen | ADR HTTP/UI framework và P2-09/P6/P8-06 |
+| Orchestrator Next routes/Admin + server lifecycle | node:http trong `src/server.ts` (file lớn, `route(ctx)` + `createApp`); Admin shell **đã có** tại `src/app/admin/` (~30 file: api-key/audit/business/connector/crypto-config/operation/overview renderers, OIDC boot/flow, `shell-router.ts`) mount qua `attachAdminShell` trong `createApp` (`server.ts:714`, remount `:877`); `server.listen` chạy tại `server.ts:860`, start script `node dist/main.js` | Local/OIDC auth mode còn mở ở LOCAL-00..06; `LOCAL-R03` ghi `main.ts:105-129` chưa truyền `adminShellCookieSecret` |
 | PostgreSQL + Drizzle, one-shot migrations | raw pg; migrations chạy trong createApp; SQL ở migrations/ | ADR DB approach; mở lại P2-01 |
 | S3 artifact storage | PostgreSQL bytea tạm thời theo wave-05 | P2-03 hardening và P8 storage/deployment |
 | Connector src/modules | Domain files ở src root, có http/adapters/db | Khác tên thư mục không phải lỗi nếu giữ layering |
@@ -19,13 +19,16 @@ Các khác biệt framework/DB cần quyết định kiến trúc rõ ràng; b�
 du-rework/
   docs/                         # normative specifications
   tasks/                        # phase packets, dependencies, DoD
+  tools/
+    openapi/                    # gen_openapi.py (code-derived docs/21 + path-loss guards), validate_openapi.py, probe_cases.js
   services/
     orchestrator/
-      src/server/               # long-running server, background lifecycle
-      src/app/                  # Next routes + Admin pages
+      src/server.ts             # long-running node:http server, route(ctx), createApp, background lifecycle
+      src/app/admin/            # Admin shell (renderers, view-models, shell-router, OIDC flow) via attachAdminShell
       src/modules/
         auth/ registry/ profiles/ operations/ runtime/
         artifacts/ outbox/ usage/ webhooks/ audit/
+        admin-actions/          # Admin action dispatcher
       src/db/                   # platform schema and migrations
       tests/
     connector/
@@ -47,10 +50,13 @@ du-rework/
     worker-sdk/                 # queue/runtime lifecycle, task/step facade
     connector-client/           # typed invocation + replay/poll client
     document-kit/               # parse, conversion, archive, file helpers
+    egress/                     # DNS-rebinding-safe pinned fetch (PR-Q3-03/09): one resolution feeds policy and socket
     observability/              # logger, trace IDs, metrics interfaces
   infra/                        # compose, deployment, environment/runbooks
   tests/                        # black-box contract/e2e/fault/load suites
 ```
+
+`pnpm-workspace.yaml` discover qua glob `packages/*`, `services/*`, `businesses/*`, `tests/*` — package thêm mới vào đúng một thư mục trong glob sẽ tự được workspace nhận, không cần sửa manifest root.
 
 ## Dependency rules
 
@@ -63,6 +69,7 @@ du-rework/
 | worker-sdk | contracts, observability, BullMQ, HTTP client | Orchestrator source/DB |
 | connector-client | contracts, HTTP client | Connector source/DB |
 | document-kit | contracts artifact types, parser libraries | Next, platform DB, connector config |
+| egress | contracts | Business/service internals; chỉ là pinned fetch dùng chung, mọi egress HTTP của orchestrator/worker đi qua nó để policy và socket dùng chung một resolution |
 | business | Shared packages | Other business internals, service internals |
 
 Package exports public interfaces rõ ràng. Alias `@/` chỉ nội bộ một subproject; shared imports dùng `@du/contracts`, `@du/worker-sdk`... Runtime packages có version; deployed service không yêu cầu mọi business nâng SDK cùng lúc nếu wire contract còn tương thích.

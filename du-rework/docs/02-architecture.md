@@ -77,7 +77,7 @@ Document worker riêng chỉ có lợi khi parse CPU/RAM thành bottleneck dùng
 
 
 
-## Trạng thái kiến trúc đã hiện thực (ARCH-DOC-01, snapshot 2026-09-28)
+## Trạng thái kiến trúc đã hiện thực (ARCH-DOC-01, snapshot 2026-09-28, cập nhật 2026-10-01)
 
 > **Phần trên là `kiến trúc mục tiêu` — dung ở mức độ, KHÔNG phải mô tả thứ đã chạy.** Phần này ghi phần **đã materialize trên cây**, tách bạch bằng chứng offline và receipt đọc trực tiếp. **Mọi hàng `verified` dưới đây đều là OFFLINE; không hàng nào có live S3 / PostgreSQL thật / Redis thật / Vault thật / browser thật.**
 
@@ -103,10 +103,23 @@ Document worker riêng chỉ có lợi khi parse CPU/RAM thành bottleneck dùng
 | Public upload gateway | Đã có: mã hóa trước khi ghi S3 | [ENC-05](../coordination/reports/tester.md#L8102) 41/41 tsc 0 |
 | Delivery encryption (recipient) | Đã có: policy server-side, fail-closed | [ENC-07](../coordination/reports/tester.md#L7938) 22/22 tsc 0 |
 | Worker-sdk crypto seam | Đã có: port trung thực của facade | [INGEST-WIRE-01](../coordination/reports/qwen-platform.md#L2018) 14/14; [DATA-04 independent](../coordination/reports/tester.md#L8438) 311/542 tsc 0 |
+| Webhook delivery encryption | Đã có: mã hóa payload webhook trước khi gửi | [W-ENC-08-WEBHOOK qwen-admin Mục 29](../coordination/reports/qwen-admin.md) — `webhooks.ts` + `server.ts` + 334 dòng test. **Δ120:** HMAC giờ phủ **ciphertext** ⇒ receiver contract đổi (verify trên encrypted body). **Δ121:** `webhook_deliveries.payload` trong DB **vẫn plaintext** → thuộc ENC-META-01, chưa đóng. `ENC-08` chưa ACCEPTED |
+| Recipient key registry (delta) | Đã có, đang mở rộng negative coverage | qwen-platform Cycle 51 `W-PLAT-CR28-11-RECIPIENT-KEY-REGISTRY-NEGATIVE` (dispatch 01:10) |
 
 **Response wire đã freeze:** `GET /operations/{id}/result` = 200 JSON (plain = strict v1 ResultEnvelope, encrypted = strict v1 wrapper); `GET /artifacts/{id}/download` = **200 raw bytes** (plain) hoặc 200 JSON wrapper (encrypted) — **302 đã bị loại khỏi contract**. Xem [RESULT-WIRE-01](../coordination/reports/tester.md#L8245).
 
 **Phần chưa có bằng chứng offline:** metadata/control-plane encryption ([ENC-META-01](../coordination/reports/tester.md#L7955) 23/23), tiêu đạt **byte-scan** thật, và **migration** legacy plaintext sang ciphertext ([ENC-09](../coordination/reports/tester.md#L8139) 9/9 offline).
+
+### 2b. Các mảng kiến trúc mới materialize (snapshot 2026-10-01)
+
+| Mảng | Hiện trạng trên cây | Bằng chứng / giới hạn |
+|---|---|---|
+| **Admin shell** | `services/orchestrator/src/app/admin/` (~30 file: `shell-router.ts`, `shell-server.ts`, per-section data/renderer/view-models, `crypto-config-api/store`, `oidc-boot/oidc-flow`), mount bằng `attachAdminShell` trong `createApp` (`server.ts:714`, remount `:877`); `server.listen` tại `server.ts:860` | Đã mount nhưng auth còn **token/OIDC**, chưa có local user — `LOCAL-R02/R03`; shell chỉ mount khi có `adminToken` (`server.ts:869`, `shell-server.ts:501`) |
+| **Shared egress** | `packages/egress/` — pinned DNS-rebinding-safe fetch: **một** resolution cấp cho cả policy lẫn socket | PR-Q3-03/09; mọi egress HTTP của orchestrator/worker đi qua package này, không tự `fetch` |
+| **OpenAPI generator** | `tools/openapi/gen_openapi.py` sinh `docs/21-openapi.json` **từ router + `@du/contracts`** (operations-list params, usage-events params, delivery schemas đều derive), kèm guard "không được mất path/schema đã có" (`validate_openapi.py`, `probe_cases.js`) | Generator chưa phủ đủ route admin/uploads/runtime ⇒ xem known gap ghi ở [docs/06](06-public-api.md); **không patch tay `docs/21`** (serialize-point) |
+| **Audit surface** | `GET /api/v1/admin/audit` với audit page + sortable allow-list riêng (vì `admin_audit_events` không có `updated_at`), chuyển sang executor keyset dùng chung | **Δ124:** cursor dialect đổi 3-slot `decodeListCursor` → **4-slot có mã sort** ⇒ client giữ token cũ **422** (Δ126 allow-list sort chưa đồng nhất giữa 4 list). Đây chính là lớp rủi ro mà COMP-06 phải xử lý cho cursor legacy |
+| **Audit read path đúng fence** | `shell-server.ts` đọc dữ liệu audit qua **HTTP API**, không lấy DB handle trực tiếp | Δ142 — giữ được tenant fence cho compat/admin read path |
+| **Open work: Admin local auth** | `DU_ADMIN_AUTH_MODE=local\|oidc\|both` chưa triển khai | [LOCAL-00..06](../tasks/ADMIN-LOCAL-AUTH-2026-09-30.md) — tất cả `[ ]`, chưa dispatch |
 
 ### 3. Ranh giới S3 durable artifact so với PostgreSQL metadata
 
@@ -129,7 +142,7 @@ Document worker riêng chỉ có lợi khi parse CPU/RAM thành bottleneck dùng
 | Ingest artifact ref | Worker gửi reference thật; task chưa READY không claim được | Có (pin gate + **claim gate**) | [INGEST-WIRE-01 Muc 21](../coordination/reports/qwen-platform.md#L2018) 542/542; [Mục 23](../coordination/reports/qwen-platform.md#L2184) | **Δ48** connector fetch, **Δ53** live |
 | Result delivery | 200 JSON, không 302 | Có | [RESULT-WIRE-01](../coordination/reports/tester.md#L8245) 22/22 + contract freeze | External decrypt thật |
 | Metadata encryption | Control plane mã hóa | Có | [ENC-META-01](../coordination/reports/tester.md#L7955) 23/23 | Live byte-scan |
-| Admin crypto config | UI + API + CSRF | Có, Δ112 đóng | [ENC-08 CSRF](../coordination/reports/qwen-admin.md#L3280) 47/47 + 79/79 | **Δ110**, **Δ113** OIDC |
+| Admin crypto config | UI + API + CSRF | Có, Δ112 đóng | [ENC-08 CSRF](../coordination/reports/qwen-admin.md#L3280) 47/47 + 79/79 | **Δ110 đã đóng** (W-ENC-08-WEBHOOK receipt); còn **Δ120** receiver contract + **Δ121** `webhook_deliveries.payload` plaintext, và **Δ113** OIDC wiring |
 | Log schema | Shared JSON + redaction | Có | [LOG-01](../coordination/reports/tester.md#L8265) 23/23 + 21/21 | Live collector |
 
 **Không hàng nào ở trên là ACCEPTED.** Gate G-DATA, G-ENC, G6 đều NO-GO; task row vẫn là [~].
