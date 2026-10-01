@@ -427,7 +427,7 @@ describe('ArtifactFacade.readWithMetadata', () => {
     expect(downloadRequests).toBe(0);
   });
 
-  it.each(['artifactId', 'expiresAt'])(
+  it.each(['artifactId', 'expiresAt', 'downloadUrl'])(
     'rejects an access grant missing required metadata field %s before fetching bytes',
     async (field) => {
       let downloadRequests = 0;
@@ -444,6 +444,26 @@ describe('ArtifactFacade.readWithMetadata', () => {
       expect(downloadRequests).toBe(0);
     }
   );
+
+  it.each([
+    ['negative', -1],
+    ['fractional', 1.5],
+    ['string encoded', '1'],
+    ['null', null],
+  ])('rejects an unreadable %s grant size before fetching bytes', async (_caseName, sizeBytes) => {
+    let downloadRequests = 0;
+    const fetchImpl = (async (input: string | URL | Request) => {
+      if (String(input).endsWith(`/artifacts/${ARTIFACT_ID}/access`)) {
+        return jsonResponse(accessGrant({ sizeBytes }));
+      }
+      downloadRequests += 1;
+      return new Response(new Uint8Array([0]), { status: 200 });
+    }) as typeof fetch;
+    const ctx = makeContext(fetchImpl);
+
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    expect(downloadRequests).toBe(0);
+  });
 
   it.each([
     ['short digest', 'a'.repeat(63)],
@@ -558,6 +578,57 @@ describe('ArtifactFacade.readWithMetadata', () => {
       status: 422,
     });
     expect(bodyCancelled).toBe(true);
+  });
+
+  it.each(['not-a-size', '1.5', '-1'])(
+    'does not let a corrupt content-length header bypass checksum verification (%s)',
+    async (contentLength) => {
+      const authorizedBytes = Buffer.from('artifact bytes');
+      const corruptedBytes = Buffer.from('artifact byteS');
+      const sha256 = createHash('sha256').update(authorizedBytes).digest('hex');
+      const fetchImpl = (async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith(`/artifacts/${ARTIFACT_ID}/access`)) {
+          return jsonResponse(accessGrant({ sizeBytes: authorizedBytes.length, sha256 }));
+        }
+        if (url === `https://blob.test/${ARTIFACT_ID}/download`) {
+          return new Response(corruptedBytes, { status: 200, headers: { 'content-length': contentLength } });
+        }
+        return new Response('unexpected request', { status: 404 });
+      }) as typeof fetch;
+      const ctx = makeContext(fetchImpl);
+
+      await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ status: 422 });
+    }
+  );
+
+  it.each([
+    ['single-byte mutation', 'artifact bytes', 'artifact byteS'],
+    ['same-length replacement', 'checksum fixture', 'checksum fixturE'],
+  ])('rejects a same-size %s when the authorized checksum differs', async (_caseName, authorizedText, deliveredText) => {
+    const authorizedBytes = Buffer.from(authorizedText);
+    const deliveredBytes = Buffer.from(deliveredText);
+    expect(deliveredBytes.length).toBe(authorizedBytes.length);
+    const sha256 = createHash('sha256').update(authorizedBytes).digest('hex');
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith(`/artifacts/${ARTIFACT_ID}/access`)) {
+        return jsonResponse(accessGrant({ sizeBytes: authorizedBytes.length, sha256 }));
+      }
+      if (url === `https://blob.test/${ARTIFACT_ID}/download`) {
+        return new Response(deliveredBytes, {
+          status: 200,
+          headers: { 'content-length': String(deliveredBytes.length) },
+        });
+      }
+      return new Response('unexpected request', { status: 404 });
+    }) as typeof fetch;
+    const ctx = makeContext(fetchImpl);
+
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({
+      code: 'HASH_MISMATCH',
+      status: 422,
+    });
   });
 
   it('rejects a truncated download whose bytes do not satisfy the authorized descriptor', async () => {

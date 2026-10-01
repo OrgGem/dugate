@@ -247,6 +247,21 @@ describe('openArtifactStream byte-limit watchdog (DATA-04)', () => {
     expect(counter.cancelled).toBe(true);
   });
 
+  it('rejects one oversized buffer chunk and cancels before draining the remaining body', async () => {
+    const chunks = [new Uint8Array(16 * 1024).fill(0x61), ...makeChunks(8, 1024, 0x62)];
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 1024,
+      highWaterMarkBytes: 512,
+      fetcher: mockFetcher(chunks, counter, captured),
+    });
+
+    await expect(async () => drain(stream)).rejects.toMatchObject({ code: 'TOO_LARGE', status: 413 });
+    expect(counter.pulled).toBeLessThan(chunks.length);
+    expect(counter.cancelled).toBe(true);
+  });
+
   it('fails a body that ends short of expectedSizeBytes as SIZE_MISMATCH at end of stream', async () => {
     const chunks = makeChunks(3, 100);
     const counter: PullCounter = { pulled: 0, cancelled: false };
@@ -314,6 +329,37 @@ describe('openArtifactStream byte-limit watchdog (DATA-04)', () => {
     expect(fetchCalled).toBe(true);
   });
 
+  it('documents string chunk coercion to UTF-8 bytes in the current runtime stream adapter', async () => {
+    const invalidChunk = 'not-binary-data';
+    const fetcher = (async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(invalidChunk as unknown as Uint8Array);
+          controller.close();
+        },
+      });
+      return new Response(body) as unknown as Response;
+    }) as SdkFetcher;
+    const stream = await openArtifactStream(URL_OK, { maxBytes: 1024, fetcher });
+
+    expect(await drain(stream)).toBe(Buffer.byteLength(invalidChunk));
+  });
+
+  it('rejects a response body carrying a non-byte object chunk', async () => {
+    const fetcher = (async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue({ bytes: [0x61] } as unknown as Uint8Array);
+          controller.close();
+        },
+      });
+      return new Response(body) as unknown as Response;
+    }) as SdkFetcher;
+    const stream = await openArtifactStream(URL_OK, { maxBytes: 1024, fetcher });
+
+    await expect(async () => drain(stream)).rejects.toMatchObject({ name: 'TypeError' });
+  });
+
   it('fails digest drift as HASH_MISMATCH before reporting success', async () => {
     const chunks = makeChunks(4, 256);
     const counter: PullCounter = { pulled: 0, cancelled: false };
@@ -364,6 +410,26 @@ describe('openArtifactStream byte-limit watchdog (DATA-04)', () => {
 /* ------------------------------------------------------------------ */
 
 describe('openArtifactStream abort propagation (DATA-04)', () => {
+  it('times out and cancels a backpressured unread body at the request deadline', async () => {
+    const chunks = makeChunks(256, 4096);
+    const counter: PullCounter = { pulled: 0, cancelled: false };
+    const captured: { signal?: AbortSignal } = {};
+    const stream = await openArtifactStream(URL_OK, {
+      maxBytes: 2 << 20,
+      highWaterMarkBytes: 1024,
+      timeoutMs: 75,
+      fetcher: mockFetcher(chunks, counter, captured),
+    });
+    const errorPromise = new Promise<Error>((resolve) => stream.once('error', resolve));
+
+    const error = await errorPromise;
+    expect(error).toMatchObject({ code: 'TIMEOUT', status: 408 });
+    expect(captured.signal?.aborted).toBe(true);
+    expect(counter.cancelled).toBe(true);
+    expect(counter.pulled).toBeGreaterThan(0);
+    expect(counter.pulled).toBeLessThan(chunks.length);
+  });
+
   it('aborts the fetch signal the moment the caller aborts mid-body', async () => {
     const chunks = makeChunks(50, 1024);
     const counter: PullCounter = { pulled: 0, cancelled: false };

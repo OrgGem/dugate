@@ -183,4 +183,63 @@ describe('Action: Transform (DOC-04) — 5 Variants', () => {
       TransformAction.executeRecipe(ctx, recipe, input, sources)
     ).rejects.toThrow(/exceeds maximum supported size for transform/);
   });
+
+  test.failing('rejects malformed JSON data supplied to the template transform', async () => {
+    const input = TransformAction.validateInput({
+      variant: 'template',
+      text: '{"name":',
+      template: 'Hello {{name}}',
+    });
+    const recipe = TransformAction.selectRecipe(input);
+    const sources = await TransformAction.prepareSources(ctx, input);
+
+    await expect(TransformAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'INVALID_TEMPLATE_DATA',
+    });
+  });
+
+  it('rejects transform results missing required target fields or containing blank output text', () => {
+    const missingText = { outputFormat: 'text' } as Parameters<typeof TransformAction.validateResult>[0];
+    const blankText = {
+      transformedText: '   ',
+      outputFormat: 'text',
+    } as Parameters<typeof TransformAction.validateResult>[0];
+
+    expect(() => TransformAction.validateResult(missingText, 'translate')).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+    expect(() => TransformAction.validateResult(blankText, 'translate')).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  it('rejects an unsupported convert target format instead of defaulting to markdown', async () => {
+    const input = TransformAction.validateInput({
+      variant: 'convert',
+      text: '# Format boundary',
+      outputFormat: 'pdf',
+    });
+    const recipe = TransformAction.selectRecipe(input);
+    const sources = await TransformAction.prepareSources(ctx, input);
+
+    await expect(TransformAction.executeRecipe(ctx, recipe, input, sources)).rejects.toThrow(/Unsupported conversion/);
+  });
+
+  it('propagates a provider timeout without retrying or producing fallback transform text', async () => {
+    const timeout = Object.assign(new Error('transform provider timed out'), { code: 'PROVIDER_TIMEOUT' });
+    const invoke = jest.spyOn(ctx.connector, 'invoke').mockRejectedValue(timeout);
+    const input = TransformAction.validateInput({
+      variant: 'translate',
+      text: 'Timeout boundary source.',
+      targetLanguage: 'fr',
+    });
+    const recipe = TransformAction.selectRecipe(input);
+    const sources = await TransformAction.prepareSources(ctx, input);
+
+    await expect(TransformAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'PROVIDER_TIMEOUT',
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(ctx.checkpointsStore.size).toBe(0);
+  });
 });

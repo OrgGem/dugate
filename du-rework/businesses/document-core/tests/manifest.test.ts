@@ -1,6 +1,6 @@
 import { documentCoreManifest } from '../src/manifest/document-core.manifest';
 import { RecipeRegistry } from '../src/recipes/recipe-definitions';
-import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION } from '@du/contracts';
+import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from '@du/contracts';
 
 describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
   it('validates documentCoreManifest strictly against @du/contracts v1 validator', () => {
@@ -44,6 +44,14 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     if (!result.ok) expect(result.problems.some((problem) => problem.pointer === '$')).toBe(true);
   });
 
+  it.each([
+    ['null root', null],
+    ['array root', []],
+    ['invalid action entry', { ...documentCoreManifest, actions: [null] }],
+  ])('fails closed for corrupt manifest input: %s', (_description, corruptManifest) => {
+    expect(validateManifest(corruptManifest).ok).toBe(false);
+  });
+
   it('rejects unsupported contract and runtime wire schema versions', () => {
     const unsupportedContract = validateManifest({
       ...documentCoreManifest,
@@ -61,6 +69,15 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     expect(unsupportedWire.ok).toBe(false);
     if (!unsupportedWire.ok) {
       expect(unsupportedWire.problems.some((problem) => problem.pointer.includes('runtime.wireVersion'))).toBe(true);
+    }
+
+    const malformedBusinessVersion = validateManifest({
+      ...documentCoreManifest,
+      version: 'release-latest',
+    });
+    expect(malformedBusinessVersion.ok).toBe(false);
+    if (!malformedBusinessVersion.ok) {
+      expect(malformedBusinessVersion.problems.some((problem) => problem.pointer === '$.version')).toBe(true);
     }
   });
 
@@ -86,13 +103,54 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
       return manifest;
     };
 
-    for (const section of ['runtime', 'capabilities', 'actions']) {
+    for (const section of [
+      'contractVersion',
+      'businessId',
+      'version',
+      'displayName',
+      'imageDigest',
+      'runtime',
+      'capabilities',
+      'actions',
+    ]) {
       const result = validateManifest(omit(section));
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.problems.some((problem) => problem.pointer.includes(section))).toBe(true);
       }
     }
+  });
+
+  it('enforces the action schema size boundary at and above the configured limit', () => {
+    const schemaAtLimit: Record<string, unknown> = { type: 'object', description: '' };
+    const serializedLength = JSON.stringify(schemaAtLimit).length;
+    schemaAtLimit.description = 'x'.repeat(SCHEMA_LIMITS.maxSchemaBytes - serializedLength);
+    expect(JSON.stringify(schemaAtLimit).length).toBe(SCHEMA_LIMITS.maxSchemaBytes);
+
+    const atLimit = JSON.parse(JSON.stringify(documentCoreManifest)) as typeof documentCoreManifest;
+    atLimit.actions[0]!.inputSchema = schemaAtLimit;
+    expect(validateManifest(atLimit).ok).toBe(true);
+
+    const overLimit = JSON.parse(JSON.stringify(atLimit)) as typeof documentCoreManifest;
+    overLimit.actions[0]!.inputSchema = {
+      type: 'object',
+      description: 'x'.repeat(SCHEMA_LIMITS.maxSchemaBytes),
+    };
+    const rejected = validateManifest(overLimit);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) {
+      expect(rejected.problems.some((problem) => problem.pointer === '$.actions[0].inputSchema')).toBe(true);
+    }
+  });
+
+  test.failing('rejects action definitions that have no registered handler implementation', () => {
+    const manifest = JSON.parse(JSON.stringify(documentCoreManifest)) as typeof documentCoreManifest;
+    manifest.runtime.handlerKinds = manifest.runtime.handlerKinds.filter((kind) => kind !== 'root');
+    const unregisteredAction = { ...manifest.actions[0]!, name: 'unregistered-action' };
+    manifest.actions.push(unregisteredAction);
+    manifest.runtime.handlerKinds.push(unregisteredAction.name);
+
+    expect(validateManifest(manifest).ok).toBe(false);
   });
 
   test.failing('rejects an excessive maxFiles artifact count rather than accepting an unbounded policy', () => {

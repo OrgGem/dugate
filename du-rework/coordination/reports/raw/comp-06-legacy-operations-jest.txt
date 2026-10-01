@@ -1,0 +1,132 @@
+COMP-06 legacy operations Jest output
+Started: 2026-10-01T03:03:45.4957104+07:00
+Configuration: jest.unit.config.cjs
+
+===== RUN 1 =====
+Command: node .\node_modules\jest\bin\jest.js --runInBand --no-watchman --cacheDirectory .cache/jest-legacy-operations --config jest.unit.config.cjs --runTestsByPath tests/legacy-operations.test.ts --verbose
+PASS tests/legacy-operations.test.ts
+  legacy operations compatibility mapper
+    state projection
+      √ PENDING_INGESTION maps to legacy PENDING (3 ms)
+      √ ACCEPTED maps to legacy PENDING (1 ms)
+      √ QUEUED maps to legacy PENDING (1 ms)
+      √ RUNNING maps to legacy RUNNING (1 ms)
+      √ WAITING_CHILDREN maps to legacy RUNNING (1 ms)
+      √ WAITING_INPUT maps to legacy RUNNING (1 ms)
+      √ RETRY_PENDING maps to legacy RUNNING (1 ms)
+      √ CANCEL_REQUESTED maps to legacy RUNNING
+      √ SUCCEEDED maps to legacy SUCCEEDED (1 ms)
+      √ FAILED maps to legacy FAILED
+      √ CANCELLED maps to legacy FAILED
+      √ TIMED_OUT maps to legacy FAILED
+    detail projection
+      √ projects canonical fields and a supplied result into the legacy response shape (1 ms)
+      √ keeps WAITING_INPUT pending instead of inventing a terminal response (1 ms)
+      √ keeps CANCEL_REQUESTED pending instead of inventing a terminal response
+      √ maps TIMED_OUT to a completed legacy failure with an explicit timeout error (1 ms)
+      √ maps canonical errors without losing their code or detail
+      √ does not attach a success response to non-success states
+    legacy query translation
+      √ maps page_size, operation-ID page_token, state groups, and processor filters
+      √ uses canonical page bounds and defaults while leaving absent filters empty (1 ms)
+      √ maps legacy state filter PENDING to canonical states
+      √ maps legacy state filter SUCCEEDED to canonical states
+      √ maps legacy state filter FAILED to canonical states
+      √ rejects unknown legacy state filters so the adapter can return HTTP 400 (14 ms)
+    list projection
+      √ returns the last operation ID as next_page_token and hides the canonical cursor (1 ms)
+      √ returns a null page token at the end of the list (1 ms)
+      √ fails closed if a canonical next cursor has no operation ID to encode (1 ms)
+System.Management.Automation.RemoteException
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        4.312 s, estimated 5 s
+Ran all test suites within paths "tests/legacy-operations.test.ts".
+JEST_EXIT_CODE=0
+
+===== RUN 2 =====
+Command: node .\node_modules\jest\bin\jest.js --runInBand --no-watchman --cacheDirectory .cache/jest-legacy-operations --config jest.unit.config.cjs --runTestsByPath tests/legacy-operations.test.ts --verbose
+PASS tests/legacy-operations.test.ts
+  legacy operations compatibility mapper
+    state projection
+      √ PENDING_INGESTION maps to legacy PENDING (2 ms)
+      √ ACCEPTED maps to legacy PENDING (1 ms)
+      √ QUEUED maps to legacy PENDING
+      √ RUNNING maps to legacy RUNNING
+      √ WAITING_CHILDREN maps to legacy RUNNING
+      √ WAITING_INPUT maps to legacy RUNNING
+      √ RETRY_PENDING maps to legacy RUNNING
+      √ CANCEL_REQUESTED maps to legacy RUNNING
+      √ SUCCEEDED maps to legacy SUCCEEDED (1 ms)
+      √ FAILED maps to legacy FAILED (1 ms)
+      √ CANCELLED maps to legacy FAILED (1 ms)
+      √ TIMED_OUT maps to legacy FAILED
+    detail projection
+      √ projects canonical fields and a supplied result into the legacy response shape (1 ms)
+      √ keeps WAITING_INPUT pending instead of inventing a terminal response
+      √ keeps CANCEL_REQUESTED pending instead of inventing a terminal response
+      √ maps TIMED_OUT to a completed legacy failure with an explicit timeout error
+      √ maps canonical errors without losing their code or detail
+      √ does not attach a success response to non-success states
+    legacy query translation
+      √ maps page_size, operation-ID page_token, state groups, and processor filters (4 ms)
+      √ uses canonical page bounds and defaults while leaving absent filters empty
+      √ maps legacy state filter PENDING to canonical states (1 ms)
+      √ maps legacy state filter SUCCEEDED to canonical states
+      √ maps legacy state filter FAILED to canonical states
+      √ rejects unknown legacy state filters so the adapter can return HTTP 400 (9 ms)
+    list projection
+      √ returns the last operation ID as next_page_token and hides the canonical cursor (1 ms)
+      √ returns a null page token at the end of the list (1 ms)
+      √ fails closed if a canonical next cursor has no operation ID to encode (1 ms)
+System.Management.Automation.RemoteException
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        3.706 s, estimated 4 s
+Ran all test suites within paths "tests/legacy-operations.test.ts".
+JEST_EXIT_CODE=0
+
+===== RUN 3 =====
+Command: node .\node_modules\jest\bin\jest.js --runInBand --no-watchman --cacheDirectory .cache/jest-legacy-operations --config jest.unit.config.cjs --runTestsByPath tests/legacy-operations.test.ts --verbose
+PASS tests/legacy-operations.test.ts
+  legacy operations compatibility mapper
+    state projection
+      √ PENDING_INGESTION maps to legacy PENDING (3 ms)
+      √ ACCEPTED maps to legacy PENDING (1 ms)
+      √ QUEUED maps to legacy PENDING
+      √ RUNNING maps to legacy RUNNING (1 ms)
+      √ WAITING_CHILDREN maps to legacy RUNNING
+      √ WAITING_INPUT maps to legacy RUNNING
+      √ RETRY_PENDING maps to legacy RUNNING
+      √ CANCEL_REQUESTED maps to legacy RUNNING
+      √ SUCCEEDED maps to legacy SUCCEEDED
+      √ FAILED maps to legacy FAILED (1 ms)
+      √ CANCELLED maps to legacy FAILED
+      √ TIMED_OUT maps to legacy FAILED
+    detail projection
+      √ projects canonical fields and a supplied result into the legacy response shape (1 ms)
+      √ keeps WAITING_INPUT pending instead of inventing a terminal response
+      √ keeps CANCEL_REQUESTED pending instead of inventing a terminal response (6 ms)
+      √ maps TIMED_OUT to a completed legacy failure with an explicit timeout error
+      √ maps canonical errors without losing their code or detail
+      √ does not attach a success response to non-success states
+    legacy query translation
+      √ maps page_size, operation-ID page_token, state groups, and processor filters (1 ms)
+      √ uses canonical page bounds and defaults while leaving absent filters empty (1 ms)
+      √ maps legacy state filter PENDING to canonical states
+      √ maps legacy state filter SUCCEEDED to canonical states (1 ms)
+      √ maps legacy state filter FAILED to canonical states
+      √ rejects unknown legacy state filters so the adapter can return HTTP 400 (19 ms)
+    list projection
+      √ returns the last operation ID as next_page_token and hides the canonical cursor (3 ms)
+      √ returns a null page token at the end of the list (1 ms)
+      √ fails closed if a canonical next cursor has no operation ID to encode (1 ms)
+System.Management.Automation.RemoteException
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        3.662 s, estimated 4 s
+Ran all test suites within paths "tests/legacy-operations.test.ts".
+JEST_EXIT_CODE=0

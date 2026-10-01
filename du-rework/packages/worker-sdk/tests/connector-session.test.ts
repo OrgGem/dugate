@@ -663,6 +663,81 @@ describe('runConnectorStep — session refs', () => {
     ).rejects.toMatchObject({ name: 'ZodError' });
     expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(0);
   });
+
+  it.each([42, false, {}, []])('fails closed on a malformed continuation token (%p)', async (sessionRef) => {
+    const invId = stableInvocationId(TASK_ID, STEP_KEY, SLOT);
+    const malformedResponse = {
+      invocationId: invId,
+      state: 'SUCCEEDED',
+      result: { content: 'provider output', sessionRef },
+    } as unknown as InvocationResponse;
+    const h = makeHarness({ responses: [malformedResponse] });
+
+    await expect(
+      runConnectorStep(h.ctx, { stepKey: STEP_KEY, slot: SLOT, input: { prompt: 'resume' }, sessionRef: 'sess-valid' }),
+    ).rejects.toMatchObject({ name: 'ZodError' });
+    expect(h.invokeCount()).toBe(1);
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(0);
+  });
+
+  it('propagates the operation deadline with the continuation and yields the exact provider expiry hint', async () => {
+    const deadlineAt = '2026-10-01T12:00:00.000Z';
+    const nextPollAt = '2026-10-01T11:59:30.000Z';
+    const invId = stableInvocationId(TASK_ID, STEP_KEY, SLOT);
+    const h = makeHarness({ deadlineAt, responses: [pending(invId, nextPollAt)] });
+
+    await expect(
+      runConnectorStep(h.ctx, {
+        stepKey: STEP_KEY,
+        slot: SLOT,
+        input: { prompt: 'continue before expiry' },
+        sessionRef: 'sess-expiring',
+      }),
+    ).rejects.toMatchObject({
+      name: 'PendingInvocationError',
+      invocationId: invId,
+      nextPollAt,
+    });
+
+    expect(h.payloads[0]).toMatchObject({ sessionRef: 'sess-expiring', deadlineAt });
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(0);
+  });
+
+  it('handles concurrent replay/close callers after a session step has committed without reinvoking the connector', async () => {
+    const invId = stableInvocationId(TASK_ID, STEP_KEY, SLOT);
+    const h = makeHarness({ responses: [succeeded(invId, 'sess-closed')] });
+    const params = {
+      stepKey: STEP_KEY,
+      slot: SLOT,
+      input: { prompt: 'finish session' },
+      sessionRef: 'sess-open',
+    };
+    const completed = await runConnectorStep(h.ctx, params);
+
+    const [firstReplay, secondReplay] = await Promise.all([
+      runConnectorStep(h.ctx, params),
+      runConnectorStep(h.ctx, params),
+    ]);
+
+    expect(firstReplay).toEqual(completed);
+    expect(secondReplay).toEqual(completed);
+    expect(firstReplay.sessionRef).toBe('sess-closed');
+    expect(h.invokeCount()).toBe(1);
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(1);
+  });
+
+  it.each([
+    { invocationId: '', state: 'SUCCEEDED', result: { content: 'bad id' } },
+    { invocationId: 'valid-id', state: 'HANDSHAKE', result: { content: 'unknown state' } },
+    { invocationId: 'valid-id', state: 'FAILED', error: { code: 'BROKEN', message: 'bad retry', retryable: true, retryAfterMs: -1 } },
+  ])('rejects malformed connector handshake response before checkpointing (%o)', async (response) => {
+    const h = makeHarness({ responses: [response as unknown as InvocationResponse] });
+
+    await expect(
+      runConnectorStep(h.ctx, { stepKey: STEP_KEY, slot: SLOT, input: { prompt: 'handshake' } }),
+    ).rejects.toMatchObject({ name: 'ZodError' });
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(0);
+  });
 });
 
 describe('runConnectorStep — failure classification + replay', () => {

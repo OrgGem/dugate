@@ -7,6 +7,8 @@ describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', 
     const state = {
       markerExists: options.markerExists ?? true,
       released: false,
+      releaseAttempts: 0,
+      releaseSignals: 0,
       expired: false,
       cleaned: false,
       cleanupRequests: 0,
@@ -39,8 +41,10 @@ describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', 
     };
 
     const releaseBarrier = (): boolean => {
-      if (state.expired || !state.markerExists) return false;
+      state.releaseAttempts++;
+      if (state.expired || !state.markerExists || state.released) return false;
       state.released = true;
+      state.releaseSignals++;
       signalRelease();
       return true;
     };
@@ -310,10 +314,11 @@ describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', 
       expect(fixture.state.expired).toBe(true);
       expect(fixture.releaseBarrier()).toBe(false);
 
-      await fixture.cleanup();
+      await Promise.all([fixture.cleanup(), fixture.cleanup()]);
       expect(fixture.state.markerExists).toBe(false);
       expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
       expect(fixture.state.cleaned).toBe(true);
+      expect(fixture.state.cleanupRuns).toBe(1);
     });
 
     it('recovers cleanup after a process crash between marker unlink and resource release', async () => {
@@ -347,17 +352,32 @@ describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', 
         releaseCleanupGate = resolve;
       });
 
-      const firstCleanup = fixture.cleanup({ gate: cleanupGate });
-      const secondCleanup = fixture.cleanup();
-      expect(fixture.state.cleanupRequests).toBe(2);
+      const cleanupRequests = Array.from({ length: 8 }, (_, index) =>
+        index === 0 ? fixture.cleanup({ gate: cleanupGate }) : fixture.cleanup()
+      );
+      expect(fixture.state.cleanupRequests).toBe(8);
       expect(fixture.state.cleanupRuns).toBe(1);
 
       releaseCleanupGate();
-      await Promise.all([firstCleanup, secondCleanup]);
+      await Promise.all(cleanupRequests);
 
       expect(fixture.state.cleaned).toBe(true);
       expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
       expect(fixture.state.cleanupRuns).toBe(1);
+    });
+
+    it('isolates partial cleanup failures so another barrier still releases all resources', async () => {
+      const failingBarrier = createBarrierCleanupFixture({ failingResource: 'barrier-lock' });
+      const healthyBarrier = createBarrierCleanupFixture();
+
+      await Promise.all([failingBarrier.cleanup(), healthyBarrier.cleanup()]);
+
+      expect(failingBarrier.state.cleanupErrors).toEqual(['close failed: barrier-lock']);
+      expect(failingBarrier.state.cleaned).toBe(true);
+      expect(failingBarrier.resources.every((resource) => !resource.open)).toBe(true);
+      expect(healthyBarrier.state.cleanupErrors).toEqual([]);
+      expect(healthyBarrier.state.cleaned).toBe(true);
+      expect(healthyBarrier.resources.every((resource) => !resource.open)).toBe(true);
     });
 
     it('suppresses cleanup errors only after releasing every tracked resource', async () => {
@@ -368,6 +388,19 @@ describe('Barrier & Cleanup Lifecycle (Offline Failure-Injection Regressions)', 
       expect(fixture.state.markerExists).toBe(false);
       expect(fixture.state.cleaned).toBe(true);
       expect(fixture.resources.every((resource) => !resource.open)).toBe(true);
+    });
+
+    it('makes repeated barrier release idempotent and signals waiters only once', async () => {
+      const fixture = createBarrierCleanupFixture();
+      const barrierWait = fixture.waitForBarrier(100);
+
+      expect(fixture.releaseBarrier()).toBe(true);
+      expect(fixture.releaseBarrier()).toBe(false);
+      await expect(barrierWait).resolves.toBe('released');
+
+      expect(fixture.state.released).toBe(true);
+      expect(fixture.state.releaseAttempts).toBe(2);
+      expect(fixture.state.releaseSignals).toBe(1);
     });
   });
 });

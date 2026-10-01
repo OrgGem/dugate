@@ -1,6 +1,6 @@
-# P9 — Backlog business production sau platform
+# P9 — Workflow businesses bắt buộc cho external compatibility
 
-Status: TODO / **không thuộc release đầu**. Depends: P8 G6 và lựa chọn business ưu tiên. Mỗi business có subproject/image/queue/manifest riêng khi được yêu cầu implement. Không tự copy toàn bộ source workflow cũ.
+Status 2026-09-30: TODO / **thuộc scope trước cutover DUGate cũ** theo yêu cầu giữ nguyên workflow API. Phụ thuộc contract P1–P7 và `COMP-00/01/02`, **không phụ thuộc G6** vì P9-01..05 là một đầu vào của `G-COMP`/G6. Ba process `disbursement`, `lc-checker`, `doc-compare` cùng schema workflow đều bắt buộc; mỗi business có subproject/image/queue/manifest riêng. Không tự copy toàn bộ source workflow cũ. Xem [plan API compatibility](API-COMPAT-DUGATE-2026-09-28.md).
 
 > **Scope decision 2026-09-23 03:33 — REVERSED cùng ngày 08:06 (user, qua orchestrator):** P9 được
 > **mở lại và giao cho Command Code**, bắt đầu bằng `W39-CC3 = P9-01 disbursement`. Lý do đảo
@@ -19,7 +19,7 @@ Status: TODO / **không thuộc release đầu**. Depends: P8 G6 và lựa chọ
 | P9-02 | [ ] lc-checker | lib/pipelines/workflows/lc-checker.ts | BRD tiêu chí/rule versions được domain owner xác nhận; evidence và review, không dùng prompt như legal guarantee |
 | P9-03 | [ ] doc-compare advanced | lib/pipelines/workflows/doc-compare.ts | BRD khác compare core, structure/semantic references, large-doc checkpoints |
 | P9-04 | [ ] schema-workflow | lib/workflow-builder/* | DSL version/security/node capabilities, persisted DAG, no interpreter trong Orchestrator |
-| P9-05 | [ ] legacy workflow/billing facade | Existing public routes | Request/response fixtures, mappings config, documented unsupported behavior |
+| P9-05 | [ ] legacy workflow facade; billing theo consumer inventory | Existing public routes | Giữ `POST /api/v1/docs/workflows` (`process`) và `/docs/workflows/schema` (`schemaSlug`), poll/result/HITL/lifecycle theo golden fixtures; billing/services nếu external consumer đang dùng phải có parity trước cutover, không chỉ ghi unsupported. |
 
 ## Quy trình chung từng business packet
 

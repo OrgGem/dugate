@@ -1,4 +1,5 @@
 import { AnalyzeAction } from '../src/actions/analyze';
+import type { ProfileSnapshot } from '../src/types/results';
 import { MockTaskContext } from './fixtures/mock-context';
 
 describe('Action: Analyze (DOC-03) — 5 Variants', () => {
@@ -238,5 +239,62 @@ describe('Action: Analyze (DOC-03) — 5 Variants', () => {
     await expect(
       AnalyzeAction.executeRecipe(ctx, recipe, input, sources)
     ).rejects.toThrow(/exceeds maximum supported size for analysis/);
+  });
+
+  test.failing('rejects an unsupported reasoning connector in the profile binding', () => {
+    const input = AnalyzeAction.validateInput({ task: 'sentiment', text: 'A profile binding probe.' });
+    const unsupportedProfile: ProfileSnapshot = {
+      profileId: 'profile-with-unsupported-binding',
+      revision: 1,
+      parameters: {},
+      slots: {
+        reasoning: { connectorId: 'connector-not-registered', revision: 1 },
+      },
+    };
+
+    expect(() => AnalyzeAction.selectRecipe(input, unsupportedProfile)).toThrow(/unsupported.*binding/i);
+  });
+
+  it('rejects malformed provider JSON as a corrupt analyze payload', async () => {
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-analyze-corrupt-json',
+      status: 'SUCCESS',
+      rawText: '{"sentiment":"positive","score":',
+    };
+    const input = AnalyzeAction.validateInput({ task: 'sentiment', text: 'A response parsing probe.' });
+    const recipe = AnalyzeAction.selectRecipe(input);
+    const sources = await AnalyzeAction.prepareSources(ctx, input);
+
+    await expect(AnalyzeAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'PROVIDER_INVALID_RESPONSE',
+    });
+    expect(ctx.connectorInvocations).toHaveLength(1);
+  });
+
+  it.each([
+    ['classify', { category: 'invoice' }],
+    ['classify', { confidence: 0.9 }],
+    ['sentiment', { score: 0.8 }],
+    ['compliance', { score: 0.8 }],
+    ['quality', { overallScore: 90 }],
+    ['risk', { riskScore: 50 }],
+  ])('rejects %s findings missing required schema tokens', (task, findings) => {
+    expect(() => AnalyzeAction.validateResult(findings, task)).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  it('does not synthesize a fallback result when analyze inference times out', async () => {
+    const timeout = Object.assign(new Error('analyze inference timed out'), { code: 'PROVIDER_TIMEOUT' });
+    const invoke = jest.spyOn(ctx.connector, 'invoke').mockRejectedValue(timeout);
+    const input = AnalyzeAction.validateInput({ task: 'sentiment', text: 'An execution timeout probe.' });
+    const recipe = AnalyzeAction.selectRecipe(input);
+    const sources = await AnalyzeAction.prepareSources(ctx, input);
+
+    await expect(AnalyzeAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'PROVIDER_TIMEOUT',
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(ctx.checkpointsStore.size).toBe(1);
   });
 });

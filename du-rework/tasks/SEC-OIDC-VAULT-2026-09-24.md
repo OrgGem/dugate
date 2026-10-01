@@ -2,6 +2,8 @@
 
 Trạng thái: **đã chia task, chưa triển khai**. Đây là phạm vi bổ sung trước G6; không đổi trạng thái các task P2/P3/P6/P8 đã tick và không tính task con bên dưới hai lần với các nhóm yêu cầu SEC-01..07. [Review code tích hợp và Admin UI](../coordination/REVIEW-SEC-SERVICE-UI-2026-09-24.md) là căn cứ cho ba task nền mới.
 
+**Scope bổ sung 2026-09-30:** OIDC không thay thế hoàn toàn local users. [LOCAL-00..06](ADMIN-LOCAL-AUTH-2026-09-30.md) là backlog riêng cho `DU_ADMIN_AUTH_MODE=local|oidc|both`, database local user và shared session/RBAC; không tính vào 16 task SEC ở file này. `G-SEC`/P8-08 cho release có Admin local phải chờ `G-LOCAL-ADMIN`; OIDC-04 browser pass không chứng minh local login. Giữ SEC-00/SEC-02 làm ranh giới bảo mật chung và serial hóa thay đổi `main.ts`/`server.ts`/Admin shell với lane OIDC.
+
 Review refresh: [toàn bộ code/plan](../coordination/FULL-REWORK-REVIEW-2026-09-24.md) và [follow-up](FULL-REWORK-REVIEW-FOLLOWUP-2026-09-24.md) bổ sung current acceptance holds, evidence rules và thứ tự dưới đây. Vẫn đúng **16 task**, không tạo backlog trùng từ các detail sections SEC-01..07.
 
 ## Backlog có thể giao việc

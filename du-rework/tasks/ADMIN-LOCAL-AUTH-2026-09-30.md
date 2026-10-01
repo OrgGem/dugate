@@ -1,0 +1,35 @@
+# Admin local users và lựa chọn OIDC bằng env
+
+**Trạng thái 2026-09-30:** plan mới, **chưa implement/verify/accept**. Yêu cầu đã chốt: Admin trên Orchestrator phải hỗ trợ user/password local và có thể bật/tắt local login bằng env; OIDC không phải lựa chọn bắt buộc. Không giao task hoặc đổi tick `OIDC-*`/`ADM-*`/`G-SEC` từ plan này. Điều phối theo `AGENTS.md`, không sửa đồng thời các mount point `server.ts`, `main.ts`, `src/app/admin/*` khi owner khác đang giữ.
+
+## Review code và ranh giới
+
+| ID | Source / actual | Khoảng trống và acceptance cần kiểm |
+|---|---|---|
+| `LOCAL-R01` | DUGate cũ `lib/auth.ts:10` dùng NextAuth Credentials, đọc `User` và so password hash; `lib/db/schema.ts:170` có bảng user. | Rework không có DB local-user/password identity. Không copy bảng/hash hoặc import DB cũ; cần migration/CLI riêng. |
+| `LOCAL-R02` | Rework `src/app/admin/shell-router.ts:1030` xác thực trường `token` bằng `adminToken` rồi ký cookie `du_admin` chỉ chứa role; `src/app/admin/shell-router.ts:1691` chuyển login sang OIDC khi flow có mặt. | Static token **không phải local user**; thiếu username, password, trạng thái account, revoke và actor audit. Mode OIDC hiện chiếm `/admin/login`. |
+| `LOCAL-R03` | `src/main.ts:95` tự bật OIDC theo nhóm `DU_ADMIN_OIDC_*`, nhưng `src/main.ts:105-129` chưa truyền `adminShellCookieSecret`; `src/server.ts:869` và `src/app/admin/shell-server.ts:501` chỉ mount shell nếu có `adminToken`. | Cần wiring shell standalone qua env mode tường minh và local-only boot không cần OIDC/static admin token; cấu hình sai phải fail closed. |
+| `LOCAL-R04` | `src/modules/auth/session-store.ts` đã có opaque session `(issuer,sub,tenant,role)` + CSRF/TTL/revoke; `src/modules/admin-actions/rbac.ts` có principal/RBAC nhưng nhiều path còn bearer token. `shell-router.ts:1743` còn chấp nhận `du_admin` khi OIDC session vắng. | Reuse session store/RBAC; local user không được đi qua signed-role cookie hoặc lộ `ADMIN_TOKEN` ra browser. Không để cookie cũ bypass mode mới. |
+
+## Contract cấu hình đề xuất (`LOCAL-00` cần security sign-off)
+
+- Một biến **server-side** `DU_ADMIN_AUTH_MODE=local|oidc|both`; production phải đặt rõ, không dùng `NEXT_PUBLIC_*` để quyết định auth. `local` không đòi IdP; `oidc` không mở password login; `both` hiển thị lựa chọn đăng nhập nhưng hai nguồn identity vẫn phân biệt bằng `issuer+sub`. Không cho phép cả hai cơ chế tắt khi Admin shell public đang bật. Giá trị lạ hoặc cấu hình thiếu dependency (`local` không có DB/session store, `oidc` thiếu issuer/client/secret/callback) từ chối boot Admin, không âm thầm fallback.
+- `ADMIN_TOKEN` là machine/break-glass credential **riêng**, không phải mật khẩu local hay session browser. Quyết định tại `LOCAL-00` có cho phép bearer này ở production hay không, route/scope/audit/rotation cụ thể; dù giữ lại cũng không được dùng để mint local user session hoặc bypass user RBAC. Chế độ token-login `du_admin` hiện hữu phải có kế hoạch tắt/migrate rõ ràng.
+- Cùng một session store server-side cho OIDC/local; local session có `issuer='du-local'`, `sub=<immutable user id>` và principal role/tenant đọc từ nguồn tin cậy. Khi đổi mode hoặc disable/reset user, revoke session tương ứng; mode `oidc` từ chối local session, mode `local` từ chối OIDC session. Cookie `HttpOnly`, `Secure` trên HTTPS, `SameSite`/CSRF theo flow; không có fallback `du_admin` trong mode mới.
+- Local password trên deployment public chỉ nhập qua HTTPS (loopback dev/test phải được giới hạn rõ); lưu hash password có salt bằng thuật toán password hashing phù hợp (ưu tiên Argon2id), không lưu plaintext/reversible key, không đặt password trong `.env`/Compose/log. Bootstrap tài khoản đầu tiên bằng CLI one-time nhận secret an toàn qua stdin/secret file, không có default admin credential. Không import password hash từ DUGate cũ nếu chưa có quyết định migration riêng.
+
+## Backlog theo phụ thuộc
+
+| ID / trạng thái | Owner; phụ thuộc | Deliverable / điều kiện đóng |
+|---|---|---|
+| `LOCAL-00` `[ ]` | Product + security + Admin/API architect; — | Ký mode env, default/migration của token login, machine bearer policy, role×action×tenant matrix, bootstrap/reset/lockout, session invalidation. Ghi ADR và threat model; đây là quyết định, chưa phải code. |
+| `LOCAL-01` `[ ]` | Platform DB/auth; `LOCAL-00` | Migration `admin_local_users` (ID bất biến, username chuẩn hóa duy nhất, hash, role, tenant scope, enabled/locked, timestamps/version), repository có tenant fence và audit; CLI tạo admin đầu tiên, disable/reset/rotation không in secret. Test duplicate/casefold/disabled/foreign tenant và migration rollback. |
+| `LOCAL-02` `[ ]` | Platform auth; `LOCAL-00/01`, session/RBAC seam từ `OIDC-02/03` | Verify password constant-time, bounded rate limit/lockout, generic 401 không lộ user enumeration; mint/rotate opaque session `issuer=du-local` với role/tenant server-side, CSRF, TTL/idle/logout/revoke. Reset/disable/role change thu hồi session trên hai replicas; không tạo `du_admin` signed-role cookie. |
+| `LOCAL-03` `[ ]` | Orchestrator boot + Admin shell; `LOCAL-00/02`, `ADM-BASE-01` | Parse `DU_ADMIN_AUTH_MODE` trong `main.ts`; mount shell local-only không cần `ADMIN_TOKEN`/OIDC; GET/POST login UI theo mode, OIDC callback chỉ ở mode tương ứng, cả hai nguồn trong `both`. Không chấp nhận `du_admin` legacy cookie trong mode mới; đổi env mode/restart không hồi sinh session nguồn vừa tắt. |
+| `LOCAL-04` `[ ]` | Admin API/BFF + RBAC owner; `LOCAL-02/03`, `ADM-BASE-02` | Các Admin read/mutation dùng một trusted principal từ local/OIDC, role×action×tenant và CSRF giống nhau; không đưa static bearer xuống browser, không nhận actor từ header/form tự khai. Admin UI quản lý create/disable/reset local user theo quyền đã chốt; audit actor là user ID/issuer, không mật khẩu/token. |
+| `LOCAL-05` `[ ]` | Tester offline + live/browser; `LOCAL-01..04` | Matrix `local`/`oidc`/`both`/invalid config: boot, login success/fail, brute-force/lockout, CSRF, logout, reset/disable, stale cookie, role/tenant, restart/two replicas và OIDC regression. Test trực tiếp Admin API + browser action có side effect thật; raw receipt/exit 0 trên build hiện tại, CLAIM/RELEASE DB window cho live. |
+| `LOCAL-06` `[ ]` | Docs/deploy + Claude Code reviewer; `LOCAL-05` | `.env.example`, Docker/K8s env mapping, Admin user bootstrap/reset/recovery runbook, mode-switch/rollback, no-secret logs, security review `APPROVED`. `G-LOCAL-ADMIN` chỉ đóng khi local-only và cả hai mode được verify, không dùng token-login test làm bằng chứng local user. |
+
+## Đường găng và gate
+
+`LOCAL-00 → LOCAL-01/02 → LOCAL-03/04 → LOCAL-05 → LOCAL-06`. `LOCAL-01` có thể đi song song với OIDC IdP integration sau khi session/principal contract đã chốt, **không** buộc local-only deployment phải có IdP. `LOCAL-03` và các task `COMP-03/05/06/07` cùng chạm `server.ts`, nên coordinator serialize owner/mount point trước dispatch. `LOCAL-05` mở rộng `SEC-INT-01/02` và `G-ADMIN-OPS`; `G-LOCAL-ADMIN` là điều kiện của `G-SEC` và P8-08/G6 cho release có Admin UI local. Không tick parent task từ unit/mock hoặc claim của owner; cần Codex test độc lập và Claude Code verdict `APPROVED` theo `AGENTS.md`.

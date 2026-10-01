@@ -183,6 +183,17 @@ describe('Worker Connector service identity over real Connector HTTP', () => {
     ['missing aud claim', signToken({
       sub: 'document-core-worker', scopes: ['connector:invoke'], exp: Math.floor(Date.now() / 1000) + 300,
     }, identitySecret), 401, 'GRANT_INVALID'],
+    ['missing expiry claim', signToken({
+      sub: 'document-core-worker', aud: 'connector', scopes: ['connector:invoke'],
+    }, identitySecret), 401, 'GRANT_INVALID'],
+    ['fractional expiry claim', signToken({
+      sub: 'document-core-worker', aud: 'connector', scopes: ['connector:invoke'],
+      exp: Math.floor(Date.now() / 1000) + 300.5,
+    }, identitySecret), 401, 'GRANT_INVALID'],
+    ['malformed scope claim', signToken({
+      sub: 'document-core-worker', aud: 'connector', scopes: 'connector:invoke',
+      exp: Math.floor(Date.now() / 1000) + 300,
+    }, identitySecret), 401, 'GRANT_INVALID'],
     ['wrong-audience', signToken({
       sub: 'document-core-worker', aud: 'runtime', scopes: ['connector:invoke'],
       exp: Math.floor(Date.now() / 1000) + 300,
@@ -237,6 +248,24 @@ describe('Worker Connector service identity over real Connector HTTP', () => {
 
     await expect(
       new HmacServiceIdentityVerifier(identitySecret).verify({ authorization: `Bearer ${token}` })
+    ).rejects.toThrow();
+  });
+
+  it.each([
+    ['missing JWT segments', 'not-a-jwt'],
+    ['an extra JWT segment', `${serviceToken}.unexpected`],
+    ['a malformed signature segment', `${serviceToken.split('.').slice(0, 2).join('.')}.%%%`],
+  ])('rejects %s directly at the HMAC service identity verifier', async (_caseName, token) => {
+    await expect(
+      new HmacServiceIdentityVerifier(identitySecret).verify({ authorization: `Bearer ${token}` })
+    ).rejects.toThrow();
+  });
+
+  it('rejects a formerly valid credential after the service signing key is rotated', async () => {
+    const rotatedVerifier = new HmacServiceIdentityVerifier(randomBytes(32));
+
+    await expect(
+      rotatedVerifier.verify({ authorization: `Bearer ${serviceToken}` })
     ).rejects.toThrow();
   });
 

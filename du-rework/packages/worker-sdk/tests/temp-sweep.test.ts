@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -289,6 +289,110 @@ describe('startWorker temp sweep (W39-CC2b)', () => {
 
     expect(result.removed).toContain(stale);
     expect(existsSync(stale)).toBe(false);
+  });
+
+  it('uses a strict TTL boundary: equality is kept and one millisecond beyond is swept', async () => {
+    const workspace = await plantStaleWorkspace(root, 'exact-ttl-boundary');
+    const workspaceMtime = (await stat(workspace)).mtimeMs;
+    const ttlMs = 1000;
+
+    const exactBoundary = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: ttlMs,
+      now: () => workspaceMtime + ttlMs,
+    });
+
+    expect(exactBoundary.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
+
+    const oneMillisecondPast = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: ttlMs,
+      now: () => workspaceMtime + ttlMs + 1,
+    });
+
+    expect(oneMillisecondPast.removed).toContain(workspace);
+    expect(existsSync(workspace)).toBe(false);
+  });
+
+  it('keeps malformed prefix files while removing a genuine orphan in the same pass', async () => {
+    const malformedFile = join(root, TEMP_WORKSPACE_PREFIX);
+    const orphan = join(root, `${TEMP_WORKSPACE_PREFIX}orphan-without-metadata`);
+    const old = new Date(Date.now() - DEFAULT_STALE_WORKSPACE_MS - 60_000);
+    await writeFile(malformedFile, 'not a workspace directory', 'utf8');
+    await mkdir(orphan);
+    await utimes(malformedFile, old, old);
+    await utimes(orphan, old, old);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.kept).toContain(malformedFile);
+    expect(result.removed).toContain(orphan);
+    expect(existsSync(malformedFile)).toBe(true);
+    expect(existsSync(orphan)).toBe(false);
+  });
+
+  it('does not follow a stale workspace junction into a target outside the temp root', async () => {
+    const outsideRoot = await mkdtemp(join(tmpdir(), 'du-sweep-outside-'));
+    const outsideMarker = join(outsideRoot, 'must-survive.txt');
+    const nestedWorkspace = join(outsideRoot, `${TEMP_WORKSPACE_PREFIX}nested-stale`);
+    const link = join(root, `${TEMP_WORKSPACE_PREFIX}outside-link`);
+    try {
+      await writeFile(outsideMarker, 'outside root data', 'utf8');
+      await mkdir(nestedWorkspace);
+      const old = new Date(Date.now() - DEFAULT_STALE_WORKSPACE_MS - 60_000);
+      await utimes(outsideRoot, old, old);
+      await utimes(nestedWorkspace, old, old);
+      await symlink(outsideRoot, link, process.platform === 'win32' ? 'junction' : 'dir');
+
+      const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+      expect([...result.removed, ...result.kept]).toContain(link);
+      expect(existsSync(outsideMarker)).toBe(true);
+      expect(existsSync(nestedWorkspace)).toBe(true);
+    } finally {
+      await rm(outsideRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not include a workspace written during the active directory snapshot', async () => {
+    const initial = await plantStaleWorkspace(root, 'snapshot-initial');
+    let writtenDuringSweep: string | undefined;
+
+    const firstPass = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: 0,
+      hasActiveReference: async (dir) => {
+        if (dir === initial) writtenDuringSweep = await plantStaleWorkspace(root, 'snapshot-written');
+        return false;
+      },
+    });
+
+    expect(firstPass.removed).toEqual([initial]);
+    expect(writtenDuringSweep).toBeDefined();
+    expect(existsSync(writtenDuringSweep!)).toBe(true);
+
+    const nextPass = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+    expect(nextPass.removed).toContain(writtenDuringSweep);
+    expect(existsSync(writtenDuringSweep!)).toBe(false);
+  });
+
+  it('keeps a workspace intact when an inaccessible nested directory blocks cleanup', async () => {
+    const workspace = join(root, `${TEMP_WORKSPACE_PREFIX}inaccessible-child`);
+    const nested = join(workspace, 'locked-subdirectory');
+    const marker = join(nested, 'protected.txt');
+    await mkdir(nested, { recursive: true });
+    await writeFile(marker, 'must survive cleanup failure', 'utf8');
+    const old = new Date(Date.now() - DEFAULT_STALE_WORKSPACE_MS - 60_000);
+    await utimes(workspace, old, old);
+    const permissionError = Object.assign(new Error('nested workspace directory is inaccessible'), { code: 'EACCES' });
+    jest.mocked(rm).mockRejectedValueOnce(permissionError);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.removed).not.toContain(workspace);
+    expect(result.kept).toContain(workspace);
+    expect(existsSync(marker)).toBe(true);
   });
 
   it('keeps a regular file whose name matches the workspace prefix', async () => {

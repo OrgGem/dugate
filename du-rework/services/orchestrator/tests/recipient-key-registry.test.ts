@@ -470,3 +470,281 @@ describe('recipient public key registry', () => {
     });
   });
 });
+
+// CR28-11: recipient-key-registry negatives and boundaries.
+//
+// The baseline's 16 tests already cover algorithm rejection, malformed PEM,
+// weak RSA, private-key material, expired challenges and unknown tenants. The
+// gaps closed here are the guards the BASELINE NEVER EXERCISED:
+//
+//   - version drift: a repository that answers a version query with a
+//     DIFFERENT version, or with an impossible one;
+//   - tenant isolation at the repository boundary: a repo that hands back
+//     another tenant's record must be caught, not served;
+//   - an invalid injected clock;
+//   - version-number and challenge-id boundaries;
+//   - base64url canonicality on the proof.
+//
+// Every case uses a repository that deliberately misbehaves, because the real
+// failure these guards exist for is exactly a repository that lies.
+describe('CR28-11 registry: version drift', () => {
+  interface DriftOptions {
+    readonly answerVersion?: number;
+    readonly currentVersion?: number;
+  }
+
+  /** A repository whose getKeyVersion answers with the wrong version. */
+  function driftingRepo(options: DriftOptions = {}) {
+    const repo = new MemoryRecipientKeyRepository();
+    const base = repo.getKeyVersion.bind(repo);
+    repo.getKeyVersion = async (tenantId: string, version: number) => {
+      const record = await base(tenantId, version);
+      if (!record) return null;
+      return { ...record, version: options.answerVersion ?? version + 1 };
+    };
+    const baseCurrent = repo.getCurrentKey.bind(repo);
+    repo.getCurrentKey = async (tenantId: string) => {
+      const record = await baseCurrent(tenantId);
+      if (!record || options.currentVersion === undefined) return record;
+      return { ...record, version: options.currentVersion };
+    };
+    return repo;
+  }
+
+  it('a version query answered with a DIFFERENT version fails closed', async () => {
+    const repo = driftingRepo({ answerVersion: 5 });
+    const clock = testClock();
+    const registry = createRecipientKeyRegistry({ repository: repo, now: clock.now });
+    await registerRsa(registry, 'tenant-drift');
+
+    // Asked for v1, the repository answered v2. Serving it would let a caller
+    // believe it holds the key version it pinned.
+    await expect(registry.getKeyVersion('tenant-drift', 1)).rejects.toMatchObject({
+      name: 'RecipientKeyRegistryError',
+      code: 'REGISTRY_UNAVAILABLE',
+    });
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -1],
+    ['past the ceiling', 2_147_483_648],
+    ['fractional', 1.5],
+    ['NaN', Number.NaN],
+  ])('a current key whose version is %s fails closed on both lookup paths', async (_label, version) => {
+    const repo = driftingRepo({ currentVersion: version as number });
+    const clock = testClock();
+    const registry = createRecipientKeyRegistry({ repository: repo, now: clock.now });
+    await registerRsa(registry, 'tenant-badversion');
+
+    await expect(registry.getCurrentKey('tenant-badversion')).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    });
+  });
+
+  it('the version ceiling itself is addressable', async () => {
+    const repo = new MemoryRecipientKeyRepository();
+    const clock = testClock();
+    const registry = createRecipientKeyRegistry({ repository: repo, now: clock.now });
+    await registerRsa(registry, 'tenant-ceiling');
+
+    // MAX_KEY_VERSION is accepted as an argument; it simply does not exist.
+    // That the ARGUMENT validates and the RECORD does not are separate rules.
+    await expect(registry.getKeyVersion('tenant-ceiling', 2_147_483_647)).rejects.toMatchObject({
+      code: 'KEY_NOT_FOUND',
+    });
+    await expect(registry.getKeyVersion('tenant-ceiling', 2_147_483_648)).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    });
+  });
+});
+
+describe('CR28-11 registry: tenant isolation at the repository boundary', () => {
+  const FOREIGN_PEM = rsaPair().publicPem;
+
+  function foreignRecord(
+    tenantId: string,
+    over: Partial<RecipientPublicKeyRecord> = {},
+  ): RecipientPublicKeyRecord {
+    return {
+      id: 'key-foreign', tenantId, version: 1, algorithm: 'rsa-oaep-sha256',
+      publicKeyPem: FOREIGN_PEM, fingerprint: 'SHA256:foreign',
+      effectiveAt: '2026-09-27T00:00:00.000Z', revokedAt: null,
+      ...over,
+    };
+  }
+
+  /** A repository whose every read answers with ANOTHER tenant's record. */
+  function crossTenantRepo(tenantId: string) {
+    const repo = new MemoryRecipientKeyRepository();
+    repo.getCurrentKey = async () => foreignRecord(tenantId);
+    repo.getKeyVersion = async () => foreignRecord(tenantId);
+    repo.listKeys = async () => [foreignRecord(tenantId)];
+    repo.revokeKey = async () => foreignRecord(tenantId, { revokedAt: '2026-09-28T00:00:00.000Z' });
+    return repo;
+  }
+
+  it.each([
+    ['getCurrentKey', 'getCurrentKey'],
+    ['getKeyVersion', 'getKeyVersion'],
+    ['listKeys', 'listKeys'],
+    ['revokeKey', 'revokeKey'],
+  ])('a repository answering %s with another tenant FAILS the scope check', async (_label, method) => {
+    const registry = createRecipientKeyRegistry({
+      repository: crossTenantRepo('tenant-somebody-else'),
+      now: testClock().now,
+    });
+    const call = registry[method as 'getCurrentKey'] as (t: string, v?: number) => Promise<unknown>;
+    const arg = method === 'listKeys' || method === 'getCurrentKey' ? undefined : 1;
+
+    // Serving another tenant's key is the worst bug this module could have, so
+    // a repository that violates scope is an ERROR, never a result.
+    await expect(call('tenant-mine', arg)).rejects.toMatchObject({
+      name: 'RecipientKeyRegistryError',
+      code: 'REGISTRY_UNAVAILABLE',
+    });
+  });
+
+  it('the scope check wins over the revoked check, even on revokeKey', async () => {
+    const registry = createRecipientKeyRegistry({
+      repository: crossTenantRepo('tenant-somebody-else'),
+      now: testClock().now,
+    });
+
+    // The scope check must come FIRST; a revoked record must not become a softer
+    // path answering KEY_REVOKED with a foreign key's metadata attached.
+    await expect(registry.revokeKey('tenant-mine', 1)).rejects.toMatchObject({
+      code: 'REGISTRY_UNAVAILABLE',
+    });
+  });
+});
+
+describe('CR28-11 registry: clock, version and challenge boundaries', () => {
+  it.each([
+    ['NaN', Number.NaN],
+    ['negative', -1],
+    ['fractional', 1.5],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])('an injected clock returning %s is REGISTRY_UNAVAILABLE, not a wrong timestamp', async (_label, value) => {
+    const registry = createRecipientKeyRegistry({
+      repository: new MemoryRecipientKeyRepository(),
+      now: () => value as number,
+    });
+
+    await expect(registerRsa(registry, 'tenant-clock')).rejects.toMatchObject({
+      name: 'RecipientKeyRegistryError',
+      code: 'REGISTRY_UNAVAILABLE',
+    });
+  });
+
+  it.each([
+    ['zero', 0],
+    ['999 milliseconds', 999],
+    ['above the 15 minute ceiling', 900_001],
+    ['fractional', 1500.5],
+  ])('a challenge lifetime of %s milliseconds is refused at construction', async (_label, ttl) => {
+    expect(() => createRecipientKeyRegistry({
+      repository: new MemoryRecipientKeyRepository(),
+      challengeTtlMs: ttl as number,
+      now: testClock().now,
+    })).toThrow(RecipientKeyRegistryError);
+  });
+
+  it.each([
+    ['the 1000 ms floor', 1000],
+    ['the 900000 ms ceiling', 900_000],
+    ['the default 5 minute window', 300_000],
+  ])('a challenge lifetime at %s produces exactly that expiry', async (_label, ttl) => {
+    const clock = testClock();
+    const registry = createRecipientKeyRegistry({
+      repository: new MemoryRecipientKeyRepository(),
+      challengeTtlMs: ttl as number,
+      now: clock.now,
+    });
+
+    const challenge = await registry.createProofChallenge({
+      tenantId: 'tenant-ttl', algorithm: 'rsa-oaep-sha256', publicKeyPem: rsaPair().publicPem,
+    });
+
+    // The clock is frozen, so the expiry must be exactly now + ttl. Asserting
+    // the arithmetic is what pins the boundary; asserting "it exists" would not.
+    expect(Date.parse(challenge.expiresAt) - clock.now()).toBe(ttl as number);
+  });
+});
+
+describe('CR28-11 registry: proof and challenge input boundaries', () => {
+  it.each([
+    ['empty', ''],
+    ['129 characters', 'c'.repeat(129)],
+    ['non-string', 7],
+  ])('a challengeId that is %s is INVALID_INPUT', async (_label, challengeId) => {
+    const registry = createRecipientKeyRegistry({
+      repository: new MemoryRecipientKeyRepository(), now: testClock().now,
+    });
+
+    await expect(registry.completeRegistration({
+      tenantId: 'tenant-mine', challengeId: challengeId as string, proof: 'x',
+    })).rejects.toMatchObject({ name: 'RecipientKeyRegistryError', code: 'INVALID_INPUT' });
+  });
+
+  it.each([
+    ['empty', ''],
+    ['standard base64 with + and /', 'a+b/c=='],
+    ['length of one mod four', 'A'],
+    ['padding characters', 'AAAA='],
+    ['over 16 KiB', 'A'.repeat(16 * 1024 + 1)],
+  ])('a proof that is %s is INVALID_INPUT, not a crypto error', async (_label, proof) => {
+    const registry = createRecipientKeyRegistry({
+      repository: new MemoryRecipientKeyRepository(), now: testClock().now,
+    });
+    const pair = rsaPair();
+    const challenge = await registry.createProofChallenge({
+      tenantId: 'tenant-mine', algorithm: 'rsa-oaep-sha256', publicKeyPem: pair.publicPem,
+    });
+
+    await expect(registry.completeRegistration({
+      tenantId: 'tenant-mine', challengeId: challenge.challengeId, proof: proof as string,
+    })).rejects.toMatchObject({ name: 'RecipientKeyRegistryError', code: 'INVALID_INPUT' });
+  });
+
+  it('a valid-length proof over the wrong challenge is PROOF_INVALID, not a registration', async () => {
+    const registry = createRecipientKeyRegistry({
+      repository: new MemoryRecipientKeyRepository(), now: testClock().now,
+    });
+    const pair = rsaPair();
+    const first = await registry.createProofChallenge({
+      tenantId: 'tenant-mine', algorithm: 'rsa-oaep-sha256', publicKeyPem: pair.publicPem,
+    });
+    const second = await registry.createProofChallenge({
+      tenantId: 'tenant-mine', algorithm: 'rsa-oaep-sha256', publicKeyPem: pair.publicPem,
+    });
+
+    // A proof made for challenge A submitted against challenge B: both are
+    // well-formed and the key is genuine, so only the PoP check can refuse.
+    await expect(registry.completeRegistration({
+      tenantId: 'tenant-mine',
+      challengeId: second.challengeId,
+      proof: rsaProof(first.challenge, pair.privateKey),
+    })).rejects.toMatchObject({ name: 'RecipientKeyRegistryError', code: 'PROOF_INVALID' });
+  });
+
+  it('a challenge whose fingerprint disagrees with its key material is CHALLENGE_INVALID', async () => {
+    const repo = new MemoryRecipientKeyRepository();
+    const clock = testClock();
+    const registry = createRecipientKeyRegistry({ repository: repo, now: clock.now });
+    const pair = rsaPair();
+    const challenge = await registry.createProofChallenge({
+      tenantId: 'tenant-mine', algorithm: 'rsa-oaep-sha256', publicKeyPem: pair.publicPem,
+    });
+
+    // Rewrite the stored challenge with a fingerprint from a different key.
+    repo.challenges.set(challenge.challengeId, {
+      ...repo.challenges.get(challenge.challengeId)!,
+      fingerprint: 'SHA256:not-the-key-that-was-challenged',
+    });
+
+    await expect(registry.completeRegistration({
+      tenantId: 'tenant-mine', challengeId: challenge.challengeId, proof: rsaProof(challenge.challenge, pair.privateKey),
+    })).rejects.toMatchObject({ name: 'RecipientKeyRegistryError', code: 'CHALLENGE_INVALID' });
+  });
+});

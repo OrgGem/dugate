@@ -227,6 +227,17 @@ describe('uploadArtifactMultipart (engine, offline)', () => {
     expect(fake.calls.aborts).toHaveLength(0);
   });
 
+  it('does not create an empty trailing part when the source ends on a part boundary', async () => {
+    const fake = makeFake({ sizeBytes: 2048, partSizeBytes: 1024 });
+    const result = await uploadArtifactMultipart(patternSource(2048, 333), engineOpts(fake));
+
+    expect(result.partCount).toBe(2);
+    expect(fake.calls.grants.map((grant) => grant.partNumber)).toEqual([1, 2]);
+    expect(fake.calls.puts.map((put) => put.body.length)).toEqual([1024, 1024]);
+    expect(fake.calls.complete?.parts.map((part) => part.partNumber)).toEqual([1, 2]);
+    expect(fake.calls.aborts).toHaveLength(0);
+  });
+
   it('refuses a digest mismatch before complete and aborts the session', async () => {
     const fake = makeFake({ sizeBytes: 2500 });
     await expect(
@@ -254,6 +265,21 @@ describe('uploadArtifactMultipart (engine, offline)', () => {
     expect(fake.calls.grants.map((g) => g.partNumber)).toEqual([1, 2]);
     expect(fake.calls.complete).toBeNull();
     expect(fake.calls.aborts).toHaveLength(1);
+  });
+
+  it('aborts without completing when the source stream terminates abruptly after a partial upload', async () => {
+    const fake = makeFake({ sizeBytes: 2500, partSizeBytes: 1024 });
+    const truncatedSource = (async function* () {
+      yield patternSlice(0, 1024);
+      throw new Error('source body truncated during multipart upload');
+    })();
+
+    await expect(uploadArtifactMultipart(truncatedSource, engineOpts(fake)))
+      .rejects.toThrow('source body truncated');
+    expect(fake.calls.grants.map((grant) => grant.partNumber)).toEqual([1]);
+    expect(fake.calls.puts.map((put) => put.body.length)).toEqual([1024]);
+    expect(fake.calls.complete).toBeNull();
+    expect(fake.calls.aborts).toEqual([{ reason: 'failed' }]);
   });
 
   it('retries a failed part PUT via re-grant (grants are idempotent per part)', async () => {
@@ -315,12 +341,39 @@ describe('uploadArtifactMultipart (engine, offline)', () => {
   });
 
   it('refuses an init geometry the SDK cannot buffer safely', async () => {
-    const fake = makeFake({ sizeBytes: 2500, partSizeBytes: 2048, partCountOverride: 2 });
+    const fake = makeFake({ sizeBytes: 1024, partSizeBytes: 2048, partCountOverride: 1 });
     await expect(
-      uploadArtifactMultipart(patternSource(2500, 777), engineOpts(fake, { maxPartBytes: 1024 }))
+      uploadArtifactMultipart(patternSource(1024, 777), engineOpts(fake, { maxPartBytes: 1024 }))
     ).rejects.toMatchObject({ code: 'TOO_LARGE' });
     expect(fake.calls.grants).toHaveLength(0);
     expect(fake.calls.aborts).toHaveLength(1);
+  });
+
+  it('fails closed on malformed required part headers before any part is accepted', async () => {
+    const fake = makeFake({ sizeBytes: 1024 });
+    const partGrant = fake.transport.partGrant.bind(fake.transport);
+    fake.transport.partGrant = async (artifactId, request) => {
+      const grant = await partGrant(artifactId, request);
+      return {
+        ...grant,
+        requiredHeaders: {
+          ...grant.requiredHeaders,
+          'x-test\r\ncontent-type': 'application/octet-stream',
+        },
+      };
+    };
+    const validatingFetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      new Headers(init?.headers);
+      return new Response(null, { status: 200, headers: { etag: 'should-not-be-reached' } });
+    }) as typeof fetch;
+
+    await expect(uploadArtifactMultipart(
+      patternSource(1024, 1024),
+      engineOpts(fake, { fetcher: validatingFetcher, partPutAttempts: 1 }),
+    )).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE' });
+    expect(fake.calls.puts).toHaveLength(0);
+    expect(fake.calls.complete).toBeNull();
+    expect(fake.calls.aborts).toEqual([{ reason: 'failed' }]);
   });
 
   it('aborts when storage rejects a part whose bytes no longer match the signed digest', async () => {

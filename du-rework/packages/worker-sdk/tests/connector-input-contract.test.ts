@@ -198,4 +198,68 @@ describe('connector invocation input contract rejection', () => {
   ])('rejects %s', (_caseName, malformedRequest) => {
     expect(InvocationRequestSchema.safeParse(malformedRequest).success).toBe(false);
   });
+
+  it.each([
+    ['null input', { ...request, input: null }],
+    ['array input', { ...request, input: [] }],
+    ['non-array artifacts', { ...request, input: { ...wireInput, artifacts: {} } }],
+    ['malformed artifact digest', {
+      ...request,
+      input: { ...wireInput, artifacts: [{ ...artifact, sha256: 'not-a-sha256' }] },
+    }],
+    ['array output schema', { ...request, input: { ...wireInput, outputSchema: [] } }],
+  ])('rejects malformed connector payloads with %s', (_caseName, malformedRequest) => {
+    expect(InvocationRequestSchema.safeParse(malformedRequest).success).toBe(false);
+  });
+
+  it.each(['run', 'delete-all'])(
+    'rejects unsupported action type %s from the strict input contract',
+    (action) => {
+      expect(InvocationInputSchema.safeParse({ ...wireInput, action }).success).toBe(false);
+      expect(InvocationRequestSchema.safeParse({ ...request, action }).success).toBe(false);
+    },
+  );
+
+  it('accepts an omitted options object because the wire contract makes it optional', () => {
+    const requestWithoutOptions = withoutKey(request, 'options');
+
+    expect(InvocationRequestSchema.safeParse(requestWithoutOptions).success).toBe(true);
+  });
+
+  it.each([null, 'not-an-options-object', []])('rejects malformed options value %p', (options) => {
+    expect(InvocationRequestSchema.safeParse({ ...request, options }).success).toBe(false);
+  });
+
+  it.each([
+    ['task over its maximum length', { ...request, input: { ...wireInput, task: 't'.repeat(129) } }],
+    ['BigInt maxTokens', { ...request, options: { maxTokens: BigInt(Number.MAX_SAFE_INTEGER) } }],
+    ['infinite maxTokens', { ...request, options: { maxTokens: Number.POSITIVE_INFINITY } }],
+    ['infinite temperature', { ...request, options: { temperature: Number.POSITIVE_INFINITY } }],
+  ])('rejects oversized or non-finite parameter: %s', (_caseName, malformedRequest) => {
+    expect(InvocationRequestSchema.safeParse(malformedRequest).success).toBe(false);
+  });
+
+  it('documents that the current schema accepts integer maxTokens above the safe-integer range', () => {
+    expect(InvocationRequestSchema.safeParse({
+      ...request,
+      options: { maxTokens: Number.MAX_SAFE_INTEGER + 1 },
+    }).success).toBe(true);
+  });
+
+  it('characterizes JSON serialization failure for a schema-valid BigInt outputSchema value', () => {
+    const requestWithBigInt = {
+      ...request,
+      input: { ...wireInput, outputSchema: { maximum: BigInt(Number.MAX_SAFE_INTEGER) } },
+    };
+
+    expect(InvocationRequestSchema.safeParse(requestWithBigInt).success).toBe(true);
+    expect(() => JSON.stringify(requestWithBigInt)).toThrow(TypeError);
+  });
+
+  it('keeps a valid boundary request JSON serializable and contract-valid after round trip', () => {
+    const encoded = JSON.stringify(request);
+    const decoded: unknown = JSON.parse(encoded);
+
+    expect(InvocationRequestSchema.safeParse(decoded).success).toBe(true);
+  });
 });

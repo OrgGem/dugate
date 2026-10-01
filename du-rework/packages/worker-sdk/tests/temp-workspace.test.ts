@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import {
@@ -14,7 +14,13 @@ import type { TempWorkspace } from '../src/artifact-streams';
 
 jest.mock('node:fs/promises', () => {
   const actual = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises');
-  return { ...actual, rm: jest.fn(actual.rm) };
+  return {
+    ...actual,
+    mkdtemp: jest.fn(actual.mkdtemp),
+    readdir: jest.fn(actual.readdir),
+    rm: jest.fn(actual.rm),
+    stat: jest.fn(actual.stat),
+  };
 });
 
 describe('createTempWorkspace concurrent isolation and sweep', () => {
@@ -121,7 +127,19 @@ describe('createTempWorkspace concurrent isolation and sweep', () => {
 
   it('rejects traversal and path-separator names before returning a filesystem path', async () => {
     const workspace = await makeWorkspace('path-boundary');
-    const invalidNames = ['../outside.txt', '..\\outside.txt', 'nested/file.txt', 'C:\\outside.txt', '..'];
+    const invalidNames = [
+      '../outside.txt',
+      '..\\outside.txt',
+      'nested/file.txt',
+      'C:\\outside.txt',
+      'NUL.txt',
+      '\\\\server\\share.txt',
+      '..',
+      '.',
+      '\0',
+      'line\nfeed.txt',
+      'x'.repeat(256),
+    ];
 
     for (const name of invalidNames) {
       expect(() => workspace.filePath(name)).toThrow(ArtifactStreamError);
@@ -141,6 +159,54 @@ describe('createTempWorkspace concurrent isolation and sweep', () => {
     expect(result!.removed).not.toContain(orphan);
     expect(result!.kept).toContain(orphan);
     expect(existsSync(orphan)).toBe(true);
+  });
+
+  it('keeps a stale prefixed directory when its metadata is unreadable', async () => {
+    const orphan = join(root, `${TEMP_WORKSPACE_PREFIX}unreadable-${randomUUID()}`);
+    await mkdir(orphan);
+    await markStale(orphan);
+    const permissionError = Object.assign(new Error('workspace metadata is unreadable'), { code: 'EACCES' });
+    jest.mocked(stat).mockRejectedValueOnce(permissionError);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root });
+
+    expect(result.kept).toContain(orphan);
+    expect(result.removed).not.toContain(orphan);
+    expect(existsSync(orphan)).toBe(true);
+  });
+
+  it('treats an unreadable temporary root as an empty sweep without throwing', async () => {
+    const permissionError = Object.assign(new Error('temporary root is unreadable'), { code: 'EACCES' });
+    jest.mocked(readdir).mockRejectedValueOnce(permissionError);
+
+    await expect(sweepStaleWorkspaces({ rootDir: root })).resolves.toEqual({ removed: [], kept: [] });
+  });
+
+  it('does not provision a partial workspace when the root denies creation', async () => {
+    const permissionError = Object.assign(new Error('workspace root is not writable'), { code: 'EACCES' });
+    jest.mocked(mkdtemp).mockRejectedValueOnce(permissionError);
+
+    await expect(createTempWorkspace('denied-root', { rootDir: root })).rejects.toBe(permissionError);
+    await expect(readdir(root)).resolves.toEqual([]);
+  });
+
+  it('does not follow a workspace symlink into an external target during dispose', async () => {
+    const workspace = await makeWorkspace('symlink-cleanup-boundary');
+    const outsideRoot = await mkdtemp(join(tmpdir(), 'du-temp-workspace-outside-'));
+    const outsideMarker = join(outsideRoot, 'must-survive.txt');
+    const linkPath = workspace.filePath('outside-target');
+    try {
+      await writeFile(outsideMarker, 'external data', 'utf8');
+      await symlink(outsideRoot, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+
+      await workspace.dispose();
+
+      expect(existsSync(workspace.dir)).toBe(false);
+      expect(existsSync(outsideMarker)).toBe(true);
+      expect(await readFile(outsideMarker, 'utf8')).toBe('external data');
+    } finally {
+      await rm(outsideRoot, { recursive: true, force: true });
+    }
   });
 
   it('propagates unexpected dispose errors instead of swallowing them', async () => {
@@ -193,6 +259,68 @@ describe('createTempWorkspace concurrent isolation and sweep', () => {
     await expect(workspace.dispose()).resolves.toBeUndefined();
     await expect(workspace.dispose()).resolves.toBeUndefined();
     expect(existsSync(workspace.dir)).toBe(false);
+  });
+
+  it('makes concurrent dispose calls idempotent while cleanup is in flight', async () => {
+    const workspace = await makeWorkspace('dispose-race');
+    const actualRm = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises').rm;
+    const rmMock = jest.mocked(rm);
+    const callsBefore = rmMock.mock.calls.length;
+    let markRemovalStarted!: () => void;
+    const removalStarted = new Promise<void>((resolve) => { markRemovalStarted = resolve; });
+    let releaseRemoval!: () => void;
+    const removalGate = new Promise<void>((resolve) => { releaseRemoval = resolve; });
+
+    rmMock.mockImplementationOnce(async (path, options) => {
+      markRemovalStarted();
+      await removalGate;
+      return actualRm(path, options);
+    });
+
+    const firstDispose = workspace.dispose();
+    await removalStarted;
+    try {
+      await expect(workspace.dispose()).resolves.toBeUndefined();
+      expect(rmMock.mock.calls.length - callsBefore).toBe(1);
+      expect(existsSync(workspace.dir)).toBe(true);
+    } finally {
+      releaseRemoval();
+    }
+
+    await expect(firstDispose).resolves.toBeUndefined();
+    expect(existsSync(workspace.dir)).toBe(false);
+  });
+
+  it('tolerates concurrent stale sweeps racing to remove the same orphan', async () => {
+    const orphan = join(root, `${TEMP_WORKSPACE_PREFIX}parallel-sweep-${randomUUID()}`);
+    await mkdir(orphan);
+    await markStale(orphan);
+    const actualRm = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises').rm;
+    const rmMock = jest.mocked(rm);
+    const originalImplementation = rmMock.getMockImplementation() ?? actualRm;
+    let removalsStarted = 0;
+    let releaseRemovals!: () => void;
+    const bothRemovalsStarted = new Promise<void>((resolve) => { releaseRemovals = resolve; });
+    rmMock.mockImplementation(async (path, options) => {
+      removalsStarted += 1;
+      if (removalsStarted === 2) releaseRemovals();
+      await bothRemovalsStarted;
+      return actualRm(path, options);
+    });
+
+    try {
+      const [first, second] = await Promise.all([
+        sweepStaleWorkspaces({ rootDir: root }),
+        sweepStaleWorkspaces({ rootDir: root }),
+      ]);
+
+      expect(removalsStarted).toBe(2);
+      expect(first.removed).toContain(orphan);
+      expect(second.removed).toContain(orphan);
+      expect(existsSync(orphan)).toBe(false);
+    } finally {
+      rmMock.mockImplementation(originalImplementation);
+    }
   });
 
   it('allocates distinct directories under bounded concurrent load without racing', async () => {

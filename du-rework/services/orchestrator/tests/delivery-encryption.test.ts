@@ -522,3 +522,342 @@ describe('ENC-07: public delivery surfaces follow the server-side policy', () =>
     expect(JSON.stringify(out.problem)).not.toContain(ARTIFACT_BYTES.toString('utf8'));
   });
 });
+
+// CR28-10: delivery encryption negatives and boundaries.
+//
+// The baseline suite pins the cryptography and the fail-closed 503s. The gaps
+// filled here are the ones that decide WHO can read a delivery, which the
+// baseline never exercised:
+//
+//   - the PINNED recipient key version path (getKeyVersion), including the
+//     guarantee that a dead pin refuses rather than falling back to the
+//     current key;
+//   - a malformed recipient PEM and an algorithm string the suite does not gate;
+//   - the missing / wrong x-api-key on both public surfaces;
+//   - a registry record that belongs to another tenant;
+//   - corrupt envelopes on the receiving side.
+describe('CR28-10 delivery: pinned recipient key version', () => {
+  /**
+   * getCurrentKey throws on purpose: if the service ever fell back to the
+   * current key when a pin was unusable, the test would fail loudly instead of
+   * quietly passing on a working key.
+   */
+  function pinnedRegistry(
+    keys: Record<number, RecipientPublicKeyRecord>,
+    failVersion?: RecipientKeyRegistryError,
+  ) {
+    const consulted: string[] = [];
+    const registry = {
+      async getKeyVersion(tenantId: string, version: number): Promise<RecipientPublicKeyRecord> {
+        consulted.push('getKeyVersion:' + version);
+        if (failVersion) throw failVersion;
+        const record = keys[version];
+        if (!record || record.tenantId !== tenantId) {
+          throw new RecipientKeyRegistryError('KEY_NOT_FOUND', 'no such version for tenant');
+        }
+        if (record.revokedAt !== null) {
+          throw new RecipientKeyRegistryError('KEY_REVOKED', 'key revoked');
+        }
+        return record;
+      },
+      async getCurrentKey(): Promise<RecipientPublicKeyRecord> {
+        consulted.push('getCurrentKey');
+        throw new Error('getCurrentKey must not be consulted when a version is pinned');
+      },
+    } as never;
+    return { registry, consulted };
+  }
+
+  it('uses the PINNED version, not the current one', async () => {
+    const pinned = keyRecord({ id: 'key-pinned', version: 4 });
+    const current = keyRecord({ id: 'key-current', version: 9 });
+    const { registry, consulted } = pinnedRegistry({ 4: pinned, 9: current });
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true, pinnedRecipientKeyVersion: 4 } },
+      registry,
+    )!;
+
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('pinned', 'utf8'));
+    expect(envelope.recipientKeyId).toBe('key-pinned');
+    expect(envelope.recipientKeyVersion).toBe(4);
+    expect(consulted).toEqual(['getKeyVersion:4']);
+    expect(externalDecrypt(envelope)).toEqual(Buffer.from('pinned', 'utf8'));
+  });
+
+  it('a pin that names nothing REFUSES; it never falls back to the current key', async () => {
+    const current = keyRecord({ id: 'key-current', version: 9 });
+    const { registry } = pinnedRegistry({ 9: current });
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true, pinnedRecipientKeyVersion: 7 } },
+      registry,
+    )!;
+
+    // The exact reason a pin exists: a rotation must not silently change WHO can
+    // decrypt. Falling back here would hand every delivery to the new key.
+    await expect(svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'))).rejects.toMatchObject({
+      code: 'RECIPIENT_KEY_NOT_FOUND',
+    });
+  });
+
+  it('a pin onto a REVOKED version refuses rather than falling back', async () => {
+    const revoked = keyRecord({ id: 'key-old', version: 2, revokedAt: '2026-02-01T00:00:00.000Z' });
+    const current = keyRecord({ id: 'key-current', version: 9 });
+    const { registry } = pinnedRegistry({ 2: revoked, 9: current });
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true, pinnedRecipientKeyVersion: 2 } },
+      registry,
+    )!;
+
+    await expect(svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'))).rejects.toMatchObject({
+      code: 'RECIPIENT_KEY_REVOKED',
+    });
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -1],
+    ['fractional', 1.5],
+    ['null', null],
+    ['undefined', undefined],
+  ])('treats a pin of %s as NO pin and follows the current key', async (_label, pinned) => {
+    // registryStub implements getCurrentKey, which is the correct path here:
+    // a pin that is not a positive safe integer is treated as ABSENT. The
+    // pinnedRegistry helper above is for the opposite assertion - it throws on
+    // getCurrentKey precisely to prove a real pin never falls back.
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true, pinnedRecipientKeyVersion: pinned as number | null } },
+      registryStub(keyRecord({ id: 'key-current', version: 9 })),
+    )!;
+
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'));
+    expect(envelope.recipientKeyId).toBe('key-current');
+    expect(envelope.recipientKeyVersion).toBe(9);
+    expect(externalDecrypt(envelope)).toEqual(Buffer.from('x', 'utf8'));
+  });
+
+  it('the registry is never consulted at all when the tenant policy is disabled', async () => {
+    let consulted = 0;
+    const registry = {
+      async getCurrentKey(): Promise<RecipientPublicKeyRecord> {
+        consulted += 1;
+        return keyRecord();
+      },
+      async getKeyVersion(): Promise<RecipientPublicKeyRecord> {
+        consulted += 1;
+        return keyRecord();
+      },
+    } as never;
+    const svc = service({ [TENANT_PLAIN]: { enabled: false } }, registry)!;
+
+    await expect(svc.encryptForDelivery(TENANT_PLAIN, Buffer.from('x', 'utf8'))).rejects.toMatchObject({
+      code: 'DELIVERY_ENCRYPTION_DISABLED',
+    });
+    expect(consulted).toBe(0);
+  });
+});
+
+describe('CR28-10 delivery: malformed key material and algorithm', () => {
+  it.each([
+    ['an empty PEM', ''],
+    ['prose that is not a key', 'this is not a public key'],
+    ['a PEM with a corrupted body', RECIPIENT_PUBLIC_PEM.replace('MIIBIjAN', 'MIIBIjAX')],
+    ['a truncated PEM header', RECIPIENT_PUBLIC_PEM.slice(0, 40)],
+  ])('fails closed with DELIVERY_CRYPTO_FAILURE when the recipient PEM is %s', async (_label, pem) => {
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true } },
+      registryStub(keyRecord({ publicKeyPem: pem })),
+    )!;
+
+    // createPublicKey throws inside the encrypt try-block, so the failure is
+    // reported as a crypto failure and never as a plaintext fallback.
+    await expect(svc.encryptForDelivery(TENANT_ENC, Buffer.from('secret', 'utf8'))).rejects.toMatchObject({
+      code: 'DELIVERY_CRYPTO_FAILURE',
+    });
+  });
+
+  it('FINDING: a PRIVATE key pasted into publicKeyPem is accepted, not refused', async () => {
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true } },
+      registryStub(keyRecord({ publicKeyPem: RECIPIENT_PRIVATE_PEM })),
+    )!;
+
+    // createPublicKey() accepts a private-key PEM and derives the public half,
+    // so encryption SUCCEEDS against a field that is supposed to hold public key
+    // material only. Nothing leaks on the wire - `enc` is the wrapped DEK - but the
+    // registry does not enforce the PUBLIC-ness of the field, so a private key
+    // misfiled at registration would sit undetected and keep working.
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('secret', 'utf8'));
+    expect(RecipientDeliveryEnvelopeSchema.safeParse(envelope).success).toBe(true);
+    expect(externalDecrypt(envelope)).toEqual(Buffer.from('secret', 'utf8'));
+    expect(JSON.stringify(envelope)).not.toContain('PRIVATE KEY');
+  });
+
+  it('FINDING: an algorithm the suite does not recognise is still wrapped as RSA-OAEP', async () => {
+    // The declared union has no PSS member, so this is a cast: the POINT is
+    // that the registry row is only shape-validated at registration and
+    // resolveSuite() re-reads it at delivery time without checking the union.
+    const odd = 'rsa-pss-sha512' as unknown as RecipientPublicKeyRecord['algorithm'];
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true } },
+      registryStub(keyRecord({ algorithm: odd })),
+    )!;
+
+    // resolveSuite() gates ONLY on hpke-x25519; every other value, including a
+    // declared PSS suite or a typo, resolves to rsa-oaep-sha256 and the PEM is
+    // used as an RSA key. The envelope reports what was DONE (rsa-oaep-sha256),
+    // so it is not mislabelled - but the registry's algorithm field is never
+    // checked against the material, and an operator reading the record would be
+    // misled about how the DEK was wrapped.
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'));
+    expect(envelope.suite).toBe('rsa-oaep-sha256');
+    expect(externalDecrypt(envelope)).toEqual(Buffer.from('x', 'utf8'));
+  });
+
+  it.each([
+    ['an empty algorithm string', ''],
+    ['a completely unknown suite name', 'quantum-otp'],
+  ])('still wraps as RSA-OAEP when the algorithm is %s', async (_label, raw) => {
+    const algorithm = raw as unknown as RecipientPublicKeyRecord['algorithm'];
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true } },
+      registryStub(keyRecord({ algorithm })),
+    )!;
+
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'));
+    expect(envelope.suite).toBe('rsa-oaep-sha256');
+  });
+
+  it('a policy suite preference is ignored when the key disagrees', async () => {
+    const svc = service(
+      { [TENANT_ENC]: { enabled: true, suite: 'hpke-rfc9180' } },
+      registryStub(keyRecord({ algorithm: 'rsa-oaep-sha256' })),
+    )!;
+
+    // The policy asked for HPKE but the registered key is RSA. The key wins,
+    // so the delivery still succeeds rather than failing on a mismatch.
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'));
+    expect(envelope.suite).toBe('rsa-oaep-sha256');
+    expect(externalDecrypt(envelope)).toEqual(Buffer.from('x', 'utf8'));
+  });
+});
+
+describe('CR28-10 delivery: missing and wrong credentials on the wire', () => {
+  /** Drive the route with a hand-set header map, so a header can be ABSENT. */
+  async function callWithHeaders(
+    ctx: RouteContext,
+    pathname: string,
+    headers: Record<string, string>,
+  ): Promise<Outcome> {
+    (ctx as unknown as { pathname: string }).pathname = pathname;
+    (ctx as unknown as { searchParams: URLSearchParams }).searchParams = new URLSearchParams('');
+    (ctx as unknown as { headers: Record<string, string> }).headers = headers;
+    try {
+      const res = await route(ctx);
+      return { kind: 'body', status: res.status, body: (res.body ?? {}) as Record<string, unknown> };
+    } catch (err) {
+      if (!isHttpError(err)) throw err;
+      return {
+        kind: 'problem',
+        status: err.status,
+        problem: err.toProblem('enc07-test') as unknown as Record<string, unknown>,
+      };
+    }
+  }
+
+  it('a request with NO api key header is 401 on both surfaces, with no payload', async () => {
+    for (const path of [RESULT_PATH, DOWNLOAD_PATH]) {
+      const out = await callWithHeaders(harness(), path, {});
+      expect(out.kind).toBe('problem');
+      if (out.kind !== 'problem') throw new Error('unreachable');
+      expect(out.status).toBe(401);
+      expect(JSON.stringify(out.problem)).not.toContain(RESULT_REF);
+    }
+  });
+
+  it.each([
+    ['an empty value', ''],
+    ['a wrong value', 'wrong-key'],
+    ['the key with a trailing space', API_KEY + ' '],
+  ])('an api key that is %s is 401', async (_label, value) => {
+    const out = await callWithHeaders(harness(), RESULT_PATH, { 'x-api-key': value });
+    expect(out.kind).toBe('problem');
+    if (out.kind !== 'problem') throw new Error('unreachable');
+    expect(out.status).toBe(401);
+  });
+
+  it('a cross-tenant fetch is 404 and never returns key material', async () => {
+    const ctx = harness({ ownerTenant: FOREIGN_TENANT });
+    for (const path of [RESULT_PATH, DOWNLOAD_PATH]) {
+      const out = await call(ctx, path);
+      if (out.kind !== 'problem') throw new Error('unreachable');
+      expect(out.status).toBe(404);
+      const wire = JSON.stringify(out.problem);
+      expect(wire).not.toContain(RECIPIENT_PUBLIC_PEM);
+      expect(wire).not.toContain(RESULT_REF);
+    }
+  });
+
+  it('an envelope with a corrupt ciphertext is rejected by the ENC-01 contract', async () => {
+    const svc = service({ [TENANT_ENC]: { enabled: true } }, registryStub(keyRecord()))!;
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('payload', 'utf8'));
+
+    // Only NON-base64 text is refused here. 'AAAA' IS valid base64, and the
+    // schema deliberately checks ENCODING SHAPE, not decryptability - the GCM tag
+    // is what rejects a wrong ciphertext, which the tamper test below proves.
+    for (const field of ['enc', 'nonce', 'tag', 'ciphertext'] as const) {
+      for (const bad of ['not base64 !!', '', 'has spaces', 'a===']) {
+        const corrupted = { ...envelope, [field]: bad };
+        expect(RecipientDeliveryEnvelopeSchema.safeParse(corrupted).success).toBe(false);
+      }
+    }
+    expect(RecipientDeliveryEnvelopeSchema.safeParse({ ...envelope, ciphertext: 'AAAA' }).success).toBe(true);
+  });
+
+  it('an envelope with an unknown field is rejected (the schema is strict)', async () => {
+    const svc = service({ [TENANT_ENC]: { enabled: true } }, registryStub(keyRecord()))!;
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('payload', 'utf8'));
+
+    expect(RecipientDeliveryEnvelopeSchema.safeParse({ ...envelope, extra: 'x' }).success).toBe(false);
+    expect(RecipientDeliveryEnvelopeSchema.safeParse({ ...envelope, version: 2 }).success).toBe(false);
+    expect(RecipientDeliveryEnvelopeSchema.safeParse({ ...envelope, recipientKeyVersion: 0 }).success).toBe(false);
+  });
+
+  it('a tampered ciphertext fails authentication at the recipient, never silently', async () => {
+    const svc = service({ [TENANT_ENC]: { enabled: true } }, registryStub(keyRecord()))!;
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('payload', 'utf8'));
+    const raw = Buffer.from(envelope.ciphertext, 'base64');
+    raw[0] = raw[0]! ^ 0xff;
+
+    // The recipient side: the GCM tag must reject a flipped byte rather than
+    // returning corrupted plaintext to the caller.
+    const tampered = { ...envelope, ciphertext: raw.toString('base64') };
+    expect(() => externalDecrypt(tampered)).toThrow();
+  });
+
+  it('a nonce replayed against a different envelope does not decrypt it', async () => {
+    const svc = service({ [TENANT_ENC]: { enabled: true } }, registryStub(keyRecord()))!;
+    const first = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('one', 'utf8'));
+    const second = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('two', 'utf8'));
+
+    const mixed = { ...second, nonce: first.nonce };
+    expect(() => externalDecrypt(mixed)).toThrow();
+  });
+
+  it('FINDING: a ZERO-LENGTH payload cannot be delivered at all', async () => {
+    const svc = service({ [TENANT_ENC]: { enabled: true } }, registryStub(keyRecord()))!;
+
+    // BASE64_RE is /^[A-Za-z0-9+/]+={0,2}$/ - at least ONE character. An empty
+    // payload encrypts to a zero-length ciphertext, whose base64 is the empty
+    // string, so the ENC-01 self-check inside encryptForDelivery FAILS and the
+    // service throws DELIVERY_CRYPTO_FAILURE rather than returning an envelope.
+    // On the wire that is a 503. An operation whose result is legitimately empty
+    // therefore cannot be delivered to an encrypted tenant - fail-closed, and no
+    // plaintext leaks, but an availability edge worth a decision.
+    await expect(svc.encryptForDelivery(TENANT_ENC, Buffer.alloc(0))).rejects.toMatchObject({
+      code: 'DELIVERY_CRYPTO_FAILURE',
+    });
+    // One byte is enough to cross the boundary.
+    const envelope = await svc.encryptForDelivery(TENANT_ENC, Buffer.from('x', 'utf8'));
+    expect(RecipientDeliveryEnvelopeSchema.safeParse(envelope).success).toBe(true);
+  });
+});

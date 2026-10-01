@@ -239,15 +239,77 @@ describe('Action: Extract (DOC-02) — 5 Variants', () => {
     const recipe = ExtractAction.selectRecipe(input);
     const sources = await ExtractAction.prepareSources(ctx, input);
 
-    await expect(
-      ExtractAction.executeRecipe(ctx, recipe, input, sources)
-    ).rejects.toThrow(/Provider returned malformed JSON/);
+    await expect(ExtractAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'PROVIDER_INVALID_RESPONSE',
+    });
+    expect(ctx.connectorInvocations).toHaveLength(1);
   });
 
   it('fails if extracted invoice data is missing mandatory properties', () => {
     expect(() => {
       ExtractAction.validateExtractedStructure('invoice', { randomField: 'nothing relevant' });
     }).toThrow(/Extracted invoice missing essential properties/);
+  });
+
+  it.each([
+    ['invoice', { randomField: 'no invoice target fields' }],
+    ['contract', { randomField: 'no contract target fields' }],
+    ['receipt', { randomField: 'no receipt target fields' }],
+    ['table', { randomField: 'no table target fields' }],
+  ])('rejects %s output with no required target fields', (type, payload) => {
+    expect(() => ExtractAction.validateResult(payload, type)).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  it('rejects a custom extraction result missing a required schema token', () => {
+    const schema = {
+      type: 'object',
+      properties: { invoiceNumber: { type: 'string' } },
+      required: ['invoiceNumber'],
+    };
+
+    expect(() => ExtractAction.validateResult({ total: 250 }, 'custom', schema)).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  it('rejects malformed table-format boundaries instead of accepting non-array row data', () => {
+    expect(() => ExtractAction.validateResult({ rows: 'row one, row two' }, 'table')).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  test.failing('rejects invoice totals whose format is not numeric', () => {
+    expect(() => ExtractAction.validateResult({ invoiceNumber: 'INV-1', total: 'not-a-number' }, 'invoice')).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  test.failing('enforces custom extraction schema property types at the output boundary', () => {
+    const schema = {
+      type: 'object',
+      properties: { amount: { type: 'number' } },
+      required: ['amount'],
+    };
+
+    expect(() => ExtractAction.validateResult({ amount: 'NaN' }, 'custom', schema)).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  it('propagates an inference timeout without retrying or synthesizing extracted data', async () => {
+    const timeout = Object.assign(new Error('extract inference timed out'), { code: 'PROVIDER_TIMEOUT' });
+    const invoke = jest.spyOn(ctx.connector, 'invoke').mockRejectedValue(timeout);
+    const input = ExtractAction.validateInput({ type: 'invoice', text: 'Timeout boundary invoice.' });
+    const recipe = ExtractAction.selectRecipe(input);
+    const sources = await ExtractAction.prepareSources(ctx, input);
+
+    await expect(ExtractAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'PROVIDER_TIMEOUT',
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(ctx.checkpointsStore.size).toBe(1);
   });
 
   // Tail preservation test

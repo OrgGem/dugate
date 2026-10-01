@@ -35,6 +35,68 @@ describe('Document-Core Package & Source Boundary (R08-08)', () => {
     return files;
   }
 
+  function isBoundaryViolation(importer: string, importTarget: string): boolean {
+    if (FORBIDDEN_SERVICE_PATTERNS.some((pattern) => importTarget.includes(pattern))) return true;
+
+    if (importTarget.startsWith('.')) {
+      const resolved = path.resolve(path.dirname(importer), importTarget);
+      return path.relative(srcDir, resolved).startsWith('..');
+    }
+
+    const isNodeBuiltin = importTarget.startsWith('node:') || [
+      'fs', 'path', 'crypto', 'http', 'https', 'stream', 'util', 'os', 'events', 'buffer'
+    ].includes(importTarget);
+    return !isNodeBuiltin && !ALLOWED_EXTERNAL_PACKAGES.has(importTarget);
+  }
+
+  function buildSourceImportGraph(files: string[]): Map<string, string[]> {
+    const fileSet = new Set(files);
+    const graph = new Map<string, string[]>();
+    const importRegex = /(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+
+    for (const file of files) {
+      const content = fs.readFileSync(file, 'utf8');
+      const dependencies: string[] = [];
+      for (const match of content.matchAll(importRegex)) {
+        const importTarget = match[1];
+        if (!importTarget?.startsWith('.')) continue;
+
+        const base = path.resolve(path.dirname(file), importTarget);
+        const target = [base, `${base}.ts`, path.join(base, 'index.ts')].find((candidate) => fileSet.has(candidate));
+        if (target) dependencies.push(target);
+      }
+      graph.set(file, dependencies);
+    }
+
+    return graph;
+  }
+
+  function findImportCycles(graph: Map<string, string[]>): string[][] {
+    const visited = new Set<string>();
+    const active = new Set<string>();
+    const stack: string[] = [];
+    const cycles: string[][] = [];
+
+    function visit(file: string): void {
+      if (active.has(file)) {
+        const cycleStart = stack.indexOf(file);
+        cycles.push([...stack.slice(cycleStart), file]);
+        return;
+      }
+      if (visited.has(file)) return;
+
+      active.add(file);
+      stack.push(file);
+      for (const dependency of graph.get(file) ?? []) visit(dependency);
+      stack.pop();
+      active.delete(file);
+      visited.add(file);
+    }
+
+    for (const file of graph.keys()) visit(file);
+    return cycles;
+  }
+
   it('declares only approved shared public packages in dependencies', () => {
     const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
     const deps = Object.keys(pkgJson.dependencies || {});
@@ -124,5 +186,60 @@ describe('Document-Core Package & Source Boundary (R08-08)', () => {
     }
 
     expect(anyMatches).toEqual([]);
+  });
+
+  it('classifies cross-package, deep-import, and source-root escape fixtures as boundary violations', () => {
+    const importer = path.join(srcDir, 'actions', 'ingest', 'index.ts');
+    const violatingTargets = [
+      '@du/orchestrator/internal/admin',
+      '@du/contracts/private/internal',
+      '@du/document-core/src/pipelines/parser-budget',
+      '../../../../../services/connector/src/internal',
+    ];
+
+    for (const target of violatingTargets) {
+      expect(isBoundaryViolation(importer, target)).toBe(true);
+    }
+
+    for (const target of ALLOWED_EXTERNAL_PACKAGES) {
+      expect(isBoundaryViolation(importer, target)).toBe(false);
+    }
+  });
+
+  it('detects a synthetic circular import instead of silently treating it as acyclic', () => {
+    const graph = new Map([
+      ['actions/ingest.ts', ['pipelines/parse.ts']],
+      ['pipelines/parse.ts', ['actions/ingest.ts']],
+    ]);
+
+    expect(findImportCycles(graph)).toEqual([
+      ['actions/ingest.ts', 'pipelines/parse.ts', 'actions/ingest.ts'],
+    ]);
+  });
+
+  it('keeps the production source import graph free of circular dependencies', () => {
+    const graph = buildSourceImportGraph(getTsFiles(srcDir));
+    expect(findImportCycles(graph)).toEqual([]);
+  });
+
+  test.failing('does not expose implementation-only symbols through the package entry point', () => {
+    const sourceEntry = fs.readFileSync(path.join(srcDir, 'index.ts'), 'utf8');
+    const internalModules = [
+      "./validation/output-validators",
+      "./pipelines/step-checkpoint",
+      "./pipelines/parser-budget",
+      "./config",
+      "./main",
+    ];
+    const leakedModules = internalModules.filter((modulePath) =>
+      new RegExp(`export\\s+\\*\\s+from\\s+['"]${modulePath.replaceAll('/', '\\/')}['"]`).test(sourceEntry)
+    );
+
+    expect(leakedModules).toEqual([]);
+  });
+
+  test.failing('restricts package exports to the approved public entry point', () => {
+    const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')) as { exports?: Record<string, unknown> };
+    expect(pkgJson.exports).toEqual({ '.': expect.anything() });
   });
 });

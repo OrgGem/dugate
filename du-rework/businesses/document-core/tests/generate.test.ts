@@ -202,6 +202,100 @@ describe('Action: Generate (DOC-05) — 6 Variants', () => {
     }).toThrow(/"maxWords" must be a positive integer/);
   });
 
+  it('rejects malformed QA JSON payloads before returning a valid answer envelope', async () => {
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-gen-malformed-qa',
+      status: 'SUCCESS',
+      rawText: '{"answers":[',
+    };
+    const input = GenerateAction.validateInput({
+      task: 'qa',
+      text: 'A source for the malformed QA response.',
+      questions: ['What is stated?'],
+    });
+    const recipe = GenerateAction.selectRecipe(input);
+    const sources = await GenerateAction.prepareSources(ctx, input);
+    const result = await GenerateAction.executeRecipe(ctx, recipe, input, sources);
+
+    expect(() => GenerateAction.validateResult(result, input.task)).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+    expect(ctx.connectorInvocations).toHaveLength(1);
+  });
+
+  test.failing('rejects malformed JSON for minutes instead of accepting the raw text fallback', async () => {
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-gen-malformed-minutes',
+      status: 'SUCCESS',
+      rawText: '{"meetingTopic":',
+    };
+    const input = GenerateAction.validateInput({ task: 'minutes', text: 'Meeting transcript.' });
+    const recipe = GenerateAction.selectRecipe(input);
+    const sources = await GenerateAction.prepareSources(ctx, input);
+
+    await expect((async () => {
+      const result = await GenerateAction.executeRecipe(ctx, recipe, input, sources);
+      return GenerateAction.validateResult(result, input.task);
+    })()).rejects.toMatchObject({ code: 'PROVIDER_INVALID_RESPONSE' });
+  });
+
+  it('rejects generated output missing required content or QA answers', () => {
+    expect(() => GenerateAction.validateResult({ extra: 'no content' }, 'summary')).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+    expect(() => GenerateAction.validateResult({ answers: [] }, 'qa')).toThrow(
+      expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' })
+    );
+  });
+
+  test.failing('rejects an unsupported generation format before placing it in the prompt', async () => {
+    const input = GenerateAction.validateInput({ task: 'outline', text: 'Outline source.', format: 'xml' });
+    const recipe = GenerateAction.selectRecipe(input);
+    const sources = await GenerateAction.prepareSources(ctx, input);
+
+    await expect(GenerateAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'INVALID_FORMAT',
+    });
+  });
+
+  test.failing('rejects a fractional maxWords value at the prompt budget boundary', () => {
+    expect(() => GenerateAction.validateInput({
+      task: 'summary',
+      text: 'Prompt budget boundary.',
+      maxWords: 1.5,
+    })).toThrow(expect.objectContaining({ code: 'INVALID_ARGUMENT' }));
+  });
+
+  it('preserves a prompt at the exact 50,000 character generation boundary', async () => {
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-gen-exact-prompt-boundary',
+      status: 'SUCCESS',
+      rawText: 'Boundary summary.',
+    };
+    const text = 'B'.repeat(50_000);
+    const input = GenerateAction.validateInput({ task: 'summary', text });
+    const recipe = GenerateAction.selectRecipe(input);
+    const sources = await GenerateAction.prepareSources(ctx, input);
+    await GenerateAction.executeRecipe(ctx, recipe, input, sources);
+
+    const payload = ctx.connectorInvocations[0]?.payload as { payload?: { documentSnippet?: string } };
+    expect(payload.payload?.documentSnippet).toHaveLength(50_000);
+  });
+
+  it('propagates provider timeouts without retrying or synthesizing a fallback result', async () => {
+    const timeout = Object.assign(new Error('generation provider timed out'), { code: 'PROVIDER_TIMEOUT' });
+    const invoke = jest.spyOn(ctx.connector, 'invoke').mockRejectedValue(timeout);
+    const input = GenerateAction.validateInput({ task: 'summary', text: 'Timeout boundary source.' });
+    const recipe = GenerateAction.selectRecipe(input);
+    const sources = await GenerateAction.prepareSources(ctx, input);
+
+    await expect(GenerateAction.executeRecipe(ctx, recipe, input, sources)).rejects.toMatchObject({
+      code: 'PROVIDER_TIMEOUT',
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(ctx.checkpointsStore.size).toBe(1);
+  });
+
   // Tail preservation test
   it('preserves complete text beyond 4,000 chars ensuring tail content is not silently truncated', async () => {
     ctx.defaultConnectorResponse = {

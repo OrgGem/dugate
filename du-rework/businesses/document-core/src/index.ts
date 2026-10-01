@@ -14,6 +14,7 @@ export * from './recipes/recipe-definitions';
 export * from './recipes/step-keys';
 export * from './pipelines/step-checkpoint';
 export * from './pipelines/parser-budget';
+export * from './pipelines/legacy-workflow-mapping';
 
 export * from './actions/ingest';
 export * from './actions/extract';

@@ -158,6 +158,63 @@ describe('ArtifactFacade.stat', () => {
     ]);
   });
 
+  it.each(['not-a-uuid', '../foreign/artifact', 'artifact/id'])(
+    'keeps malformed artifact ID %s in one encoded runtime path segment', async (malformedArtifactId) => {
+      const requestedUrls: string[] = [];
+      const fetchImpl = (async (input: string | URL | Request) => {
+        requestedUrls.push(String(input));
+        return new Response(JSON.stringify({
+          type: 'urn:du:error:not_found',
+          title: 'Not found',
+          status: 404,
+          code: 'NOT_FOUND',
+        }), { status: 404, headers: { 'content-type': 'application/problem+json' } });
+      }) as typeof fetch;
+      const ctx = makeContext(fetchImpl);
+
+      await expect(ctx.artifacts.stat!(malformedArtifactId)).rejects.toMatchObject({
+        name: 'RuntimeError',
+        status: 404,
+        code: 'NOT_FOUND',
+      });
+      expect(requestedUrls).toEqual([
+        `http://runtime.test/api/runtime/v1/artifacts/${encodeURIComponent(malformedArtifactId)}/access`,
+      ]);
+    },
+  );
+
+  it.each(['artifactId', 'expiresAt'])('rejects a grant missing required stat metadata %s', async (field) => {
+    const grant: Record<string, unknown> = {
+      artifactId: ARTIFACT_ID,
+      downloadUrl: `https://blob.test/${ARTIFACT_ID}/download`,
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      sizeBytes: 1,
+    };
+    delete grant[field];
+    const ctx = makeContext((async () => jsonResponse(grant)) as typeof fetch);
+
+    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+  });
+
+  it('accepts the maximum storage-version descriptor length and rejects one character over', async () => {
+    const maxStorageVersionId = 'v'.repeat(1024);
+    const atLimit = makeContext((async () => jsonResponse({
+      artifactId: ARTIFACT_ID,
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      storageVersionId: maxStorageVersionId,
+    })) as typeof fetch);
+    const oversized = makeContext((async () => jsonResponse({
+      artifactId: ARTIFACT_ID,
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      storageVersionId: `${maxStorageVersionId}v`,
+    })) as typeof fetch);
+
+    await expect(atLimit.artifacts.stat!(ARTIFACT_ID)).resolves.toMatchObject({
+      storageVersionId: maxStorageVersionId,
+    });
+    await expect(oversized.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+  });
+
   it('rejects a successful response with a malformed grant descriptor', async () => {
     const fetchImpl = (async () => jsonResponse({
       artifactId: ARTIFACT_ID,
@@ -306,8 +363,10 @@ describe('ArtifactFacade.stat', () => {
     ['tenant mismatch', 'TENANT_MISMATCH'],
     ['operation mismatch', 'OPERATION_MISMATCH'],
   ])('does not expose a descriptor when the runtime denies %s', async (_caseName, code) => {
+    const requestedUrls: string[] = [];
     let requestBody: Record<string, unknown> | undefined;
-    const fetchImpl = (async (_input: string | URL | Request, init?: RequestInit) => {
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      requestedUrls.push(String(input));
       requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return new Response(JSON.stringify({
         type: `urn:du:error:${code.toLowerCase()}`,
@@ -324,5 +383,9 @@ describe('ArtifactFacade.stat', () => {
       code,
     });
     expect(requestBody).toMatchObject({ taskId: TASK_ID, leaseEpoch: 1, mode: 'read' });
+    expect(requestBody).not.toHaveProperty('tenantId');
+    expect(requestedUrls).toEqual([
+      `http://runtime.test/api/runtime/v1/artifacts/${ARTIFACT_ID}/access`,
+    ]);
   });
 });

@@ -98,6 +98,12 @@ export const ADMIN_ACTIONS: Record<string, ActionDef> = {
   'business.drain': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'operations.sweep-deadlines': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'apikey.bind-profile': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  // ORCH-PAR-01: real API-key issuance and revocation. Admin-only for the
+  // same reason as bind-profile (OIDC-03 line 19): a key write is a
+  // credential write. The raw value reaches the store ONLY as the injected
+  // hashApiKey digest — the raw never touches a column.
+  'apikey.issue': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'apikey.revoke': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   // CYCLE-108/113 REVIEW: 'operator' joins the cookie side of the
   // operation-control pair — the OIDC-02 session carries its tenant
   // server-side (AdminActionCookieAuth.tenantId), so an operator session
@@ -528,6 +534,143 @@ export async function dispatchAdminAction(
             : undefined
         );
         return { status: 201, body: result as unknown as Record<string, unknown> };
+      });
+      return { status: outcome.status, body: outcome.body as Record<string, unknown> };
+    }
+    case 'apikey.issue': {
+      // ORCH-PAR-01. The RAW value is accepted on the wire and reaches the
+      // store ONLY as the injected digest (deps.hashApiKey) — mirroring
+      // apikey.bind-profile, which hashes the caller's key the same way.
+      // It comes back ONCE in the 201 body and is never persisted, which is
+      // the copy-once contract the admin create view already renders.
+      const p = requireParams(call, ['tenantId', 'apiKey']);
+      if (p.tenantId.length === 0 || p.tenantId.length > 64) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.tenantId is invalid');
+      }
+      if (p.apiKey.length < 8) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.apiKey is too short to be a key');
+      }
+      // Tenant fence BEFORE the write, on the same gate the other key
+      // actions use. A tenant-scoped caller naming another tenant is 403
+      // with zero side effects.
+      const issueFence = assertRoleActionTenant(auth, 'apikey.issue', p.tenantId);
+      if (!issueFence.ok) {
+        throw new HttpError(issueFence.status, issueFence.code, issueFence.message);
+      }
+      const keyHash = deps.hashApiKey(p.apiKey);
+      // Display prefix only (the column is documented as such); defaults to
+      // the same four-character window the admin view model masks to.
+      const prefix =
+        typeof call.params.prefix === 'string' && call.params.prefix.length > 0
+          ? call.params.prefix
+          : p.apiKey.slice(0, 4);
+      const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
+        const result = await auditedMutation(
+          deps.db,
+          deps.audit,
+          async (client) => {
+            const inserted = await client.query<{ id: string; status: string; created_at: Date }>(
+              'INSERT INTO api_keys (tenant_id, hash, prefix) VALUES ($1, $2, $3) RETURNING id, status, created_at',
+              [p.tenantId, keyHash, prefix]
+            );
+            if (!inserted.rowCount) {
+              throw new HttpError(500, 'INTERNAL', 'api key insert returned no row');
+            }
+            return inserted.rows[0]!;
+          },
+          (r) => ({
+            tenantId: p.tenantId,
+            actor,
+            action: 'apikey.create',
+            resource: `apikey:${r.id}`,
+            severity: 'success',
+            correlationId: deps.correlationId,
+          }),
+          call.idempotencyKey
+            ? (client, r) =>
+                withMarker(client, {
+                  status: 201,
+                  body: {
+                    id: r.id,
+                    tenantId: p.tenantId,
+                    prefix,
+                    status: r.status,
+                    createdAt: r.created_at,
+                    rawKey: p.apiKey,
+                  },
+                })
+            : undefined
+        );
+        return {
+          status: 201,
+          body: {
+            id: result.id,
+            tenantId: p.tenantId,
+            prefix,
+            status: result.status,
+            createdAt: result.created_at,
+            // copy-once: the ONLY time the raw value leaves this handler
+            rawKey: p.apiKey,
+          },
+        };
+      });
+      return { status: outcome.status, body: outcome.body as Record<string, unknown> };
+    }
+    case 'apikey.revoke': {
+      // ORCH-PAR-01. Revocation flips the SAME status column the request
+      // path filters on (server.ts resolveApiKey only resolves status=
+      // 'ACTIVE'), so a revoked key stops authenticating immediately with
+      // no second store to keep in step.
+      const p = requireParams(call, ['apiKeyId']);
+      const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
+        const result = await auditedMutation(
+          deps.db,
+          deps.audit,
+          async (client) => {
+            // Server-side tenant ONLY: the caller's claim never selects the
+            // row, so an unknown and a foreign id are indistinguishable.
+            const found = await client.query<{ id: string; tenant_id: string; status: string }>(
+              'SELECT id, tenant_id, status FROM api_keys WHERE id=$1',
+              [p.apiKeyId]
+            );
+            if (!found.rowCount) {
+              throw new HttpError(404, 'NOT_FOUND', 'api key not found');
+            }
+            const row = found.rows[0]!;
+            const revokeFence = assertRoleActionTenant(auth, 'apikey.revoke', row.tenant_id);
+            if (!revokeFence.ok) {
+              throw new HttpError(revokeFence.status, revokeFence.code, revokeFence.message);
+            }
+            if (row.status !== 'ACTIVE') {
+              // Already revoked / mid-revocation: the state is fine, the
+              // REQUEST is not — a conflict, not a schema error.
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            const updated = await client.query<{ id: string; tenant_id: string }>(
+              "UPDATE api_keys SET status='REVOKED' WHERE id=$1 AND status='ACTIVE' RETURNING id, tenant_id",
+              [row.id]
+            );
+            if (!updated.rowCount) {
+              // The ACTIVE guard lost a race between the SELECT and here.
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            return updated.rows[0]!;
+          },
+          // Tenant comes from the UPDATED row, never from the caller's claim -
+          // the same attribution bind-profile uses.
+          (r) => ({
+            tenantId: r.tenant_id,
+            actor,
+            action: 'apikey.revoke',
+            resource: `apikey:${r.id}`,
+            severity: 'warning',
+            correlationId: deps.correlationId,
+          }),
+          call.idempotencyKey
+            ? (client) => withMarker(client, { status: 200, body: { id: p.apiKeyId, status: 'REVOKED' } })
+            : undefined
+        );
+        return { status: 200, body: { id: result.id, status: 'REVOKED' } };
       });
       return { status: outcome.status, body: outcome.body as Record<string, unknown> };
     }

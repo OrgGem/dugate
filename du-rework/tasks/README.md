@@ -1,6 +1,10 @@
 # Implementation roadmap và task index
 
-> **API compatibility với DUGate cũ — plan mới 2026-09-28:** [COMP-00..11](API-COMPAT-DUGATE-2026-09-28.md) tách contract/wire parity khỏi semantic parity cho sáu core API, operation lifecycle/list/result, services/billing và workflows P9. Đây là backlog chưa dispatch/chưa acceptance; cần chốt path owner, phạm vi workflow, projection output và chính sách mã hóa trước khi sửa route. `G-COMP` là gate cutover đề xuất, chưa tự thêm vào G6 hoặc đổi tick P0/P9/ENC.
+> **Orchestrator parity review 2026-10-01:** [ORCH-PAR-00..10](ORCHESTRATOR-LEGACY-FEATURE-PARITY-2026-10-01.md) đối chiếu Admin/control-plane/vận hành của DUGate cũ với rework: API key mutation, profile policy/locks, Connector lifecycle, workflow schema builder, local-user assignment, settings replacement, analytics, safe ops và API docs. Đây là backlog bổ sung, không lặp `COMP-00..11` public wire, LOCAL-00..06 hay P9 worker; tất cả còn `[ ]`, chưa dispatch/chưa acceptance. PAR-00 quyết định item nào bắt buộc trước cutover; các item bắt buộc đi qua test độc lập và review trước G-COMP/G-ADMIN-OPS/P8-08/G6.
+
+> **Scope chốt 2026-09-30 — backward-compatible external API:** [COMP-00..11](API-COMPAT-DUGATE-2026-09-28.md) yêu cầu sáu core API **và workflow API** cũ chạy không sửa client; legacy wire là mặc định trên method/path cũ trùng với rework, generic DTO trùng path chuyển sang surface/version mới hoặc opt-in. P9-01..05 trên đường găng cutover; `G-COMP` phải đạt trước P8-08/G6 cho scope release này. Còn quyết định URL generic, result/lifecycle/security bounds và consumer inventory; không tự tick COMP/P9/ENC từ việc sửa plan.
+
+> **Admin local login 2026-09-30:** [LOCAL-00..06](ADMIN-LOCAL-AUTH-2026-09-30.md) bổ sung user/password local, `DU_ADMIN_AUTH_MODE=local|oidc|both`, shared session/RBAC và mode-switch security. `G-LOCAL-ADMIN` là điều kiện của G-SEC/G-ADMIN-OPS/P8-08 khi Admin local thuộc release; token login hiện hữu không phải local user. Các packet này chưa dispatch/chưa acceptance và không cộng vào 16 SEC task cũ.
 
 > **Code review follow-up 2026-09-28:** [CR28-01..06](CODE-REVIEW-FOLLOWUP-2026-09-28.md) ghi sáu mismatch production: giải mã read path, Worker→Connector auth, OCR/vision bytes, metadata submit plaintext, clean Docker build và 409 taxonomy. Đây là acceptance hold trên ENC/INGEST/P3-P5/DEP/P8, không tự đổi tick hoặc giao trùng owner; các test offline hiện có không đóng G-ENC/G-SEC/G-DATA/G6.
 
@@ -35,7 +39,7 @@
 > **DATA packet ledger — 2026-09-26:** `W-DOC-ISOLATE-1` is **ACCEPTED** at its offline isolation scope, per Reviewer Turn 60 Independent Audit and Tester [T-CODEX-TEST-17](../coordination/reports/tester.md): command `pnpm --filter @du/document-core test` at cwd `du-rework`, HEAD `7811298`, literal ExitCode `0`, suites **42 passed / 0 failed / 0 skipped**, tests **506 passed / 0 failed / 0 skipped**; integration discovery returns exactly `tests/multi-container-e2e.integration.test.ts` without executing it; raw log `coordination/reports/T-CODEX-TEST-17-document-core-offline-green.log`. Owner receipt: [Qwen-DATA Mục 4](../coordination/reports/qwen-data.md). This packet decision does not tick any DATA row, does not close `G-DATA` or `G6`, and the excluded multi-container suite stays a separate live/integration gate — the Document-Core package is not end-to-end green.
 
 
-**Trạng thái: implementation đang tiến hành, chưa release-ready.** Các mô tả phase cũ trong [implementation status](../coordination/IMPLEMENTATION-STATUS.md) là checkpoint lịch sử; dùng dòng task, current acceptance holds, evidence mới nhất và gate G6/G-SEC/G-DATA/G-ADMIN-OPS khi đánh giá hoàn thành. Admin UI là công cụ vận hành trong scope release hiện tại, nên G-ADMIN-OPS là điều kiện G6; nếu chọn công cụ vận hành khác, cần quyết định scope và acceptance thay thế trước khi bỏ gate này. P9 ngoài initial release.
+**Trạng thái: implementation đang tiến hành, chưa release-ready.** Các mô tả phase cũ trong [implementation status](../coordination/IMPLEMENTATION-STATUS.md) là checkpoint lịch sử; dùng dòng task, current acceptance holds, evidence mới nhất và gate G6/G-SEC/G-DATA/G-ADMIN-OPS/G-COMP/G-LOCAL-ADMIN khi đánh giá hoàn thành. Admin UI là công cụ vận hành trong scope release hiện tại, nên G-ADMIN-OPS là điều kiện G6. Quyết định 2026-09-30 đưa **P9-01..05 cần cho workflow compatibility** vào phạm vi trước cutover; các câu cũ nói P9 ngoài release là lịch sử.
 
 ## Phase graph
 
@@ -83,13 +87,14 @@ flowchart LR
 | P4 | Worker SDK/document-kit/artifact client | P1; P2/P3 stubs | SDK part G3 | [P4](P4-worker-sdk.md) |
 | P5 | Six actions in document-core | P2/P3/P4 | G4 business | [P5](P5-document-core.md) |
 | P6 | Dynamic Admin UI | P2/P3 | G4 UI | [P6](P6-admin.md) |
+| ORCH-PAR | DUGate cũ → rework Admin/control-plane/ops parity; PAR-00 phân loại scope, PAR-01..10 phát triển/verify | P2/P3/P6 + COMP/LOCAL/P9 contracts | Các item cutover-required đóng trong G-COMP/G-ADMIN-OPS/G-SEC và P8-08/G6; không tạo gate thay thế | [Orchestrator parity](ORCHESTRATOR-LEGACY-FEATURE-PARITY-2026-10-01.md) |
 | P7 | New worker registration, parallel/HITL/version proof | P5/P6 | G5 | [P7](P7-extension-proof.md) |
-| SEC | OIDC Admin login + Vault provider credential write/read/rotation | P2/P3/P6 boundaries; SEC-00 ADR | G-SEC before G6 | [SEC task plan](SEC-OIDC-VAULT-2026-09-24.md) |
+| SEC | OIDC Admin login + Vault provider credential write/read/rotation; local Admin users là nhánh bổ sung | P2/P3/P6 boundaries; SEC-00 ADR; LOCAL-00 | G-SEC + G-LOCAL-ADMIN before G6 | [SEC task plan](SEC-OIDC-VAULT-2026-09-24.md), [local auth](ADMIN-LOCAL-AUTH-2026-09-30.md) |
 | DATA | S3 bytes, URL acquisition, Elasticsearch logs và topology options | DATA-00 contracts; P2/P4/P5 integration | G-DATA before G6 | [DATA task plan](DEPLOY-STORAGE-LOGGING-2026-09-24.md) |
 | ENC | App-layer AES-256-GCM for S3/DB + metadata, Vault keys, Admin policy, external public-key results | ENC-00 freeze; RESULT-WIRE-01; DATA/SEC boundaries | G-ENC before G6 | [Encryption task plan](APP-ENCRYPTION-2026-09-27.md) |
 | ADMIN | Live operator journeys, responsive UI, scoped search và action evidence | P6; ADM-BASE/OIDC service boundaries | G-ADMIN-OPS before G6 | [Admin UX task plan](ADMIN-OPS-UX-2026-09-24.md) |
-| P8 | Fault/security/load/deploy/runbooks | P7 + G-SEC + G-DATA + G-ENC + G-ADMIN-OPS + INGEST-WIRE-01/RESULT-WIRE-01/ARCH-DOC-01 cho scope release hiện tại | G6 | [P8](P8-release-readiness.md) |
-| P9 | Port business ngành/schema workflow theo ưu tiên | P8 + scope selection | Per-business gate | [P9](P9-business-backlog.md) |
+| P8 | Fault/security/load/deploy/runbooks | P7 + G-SEC + G-LOCAL-ADMIN + G-DATA + G-ENC + G-ADMIN-OPS + G-COMP + INGEST-WIRE-01/RESULT-WIRE-01/ARCH-DOC-01 cho scope release hiện tại | G6 | [P8](P8-release-readiness.md) |
+| P9 | Ba workflow cũ + schema workflow + facade phục vụ external compatibility | P1–P7 contracts/business; COMP-00/01/02, không chờ G6 | Per-business gate + G-COMP before cutover/G6 | [P9](P9-business-backlog.md) |
 
 SEC là phạm vi release bổ sung và chưa tính vào 71 dòng task P0–P8. `SEC-00` phải chốt provider API key so với tenant `x-api-key` trước khi giao implementation; `G-SEC` phải đạt trước khi P8-08/G6 có thể tuyên bố sẵn sàng phát hành với hai tính năng này.
 

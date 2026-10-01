@@ -1,5 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { validateManifest } from '@du/contracts';
+import { documentCoreManifest } from '../src/manifest/document-core.manifest';
+import { validateTestDatabaseTarget, validateTestRedisTarget } from './helpers/test-target-guard';
 
 /**
  * Offline contract fences for the multi-container integration suite (R24-02 / P5-10 lane).
@@ -108,5 +111,109 @@ describe('Document-Core Multi-Container Suite Bootstrap Contract (R24-02)', () =
     expect(countMatches(suiteSource, /^\s*x(?:it|describe|test)\b/m)).toBe(0);
     // 13 cases are declared; the acceptance bar is 13 executed, not a filtered subset.
     expect(countMatches(suiteSource, /^ {2}(?:it|test)\(/m)).toBe(13);
+  });
+
+  it('rejects malformed harness connection configuration before any infrastructure starts', () => {
+    expect(() => validateTestDatabaseTarget('not-a-database-url')).toThrow(/DATABASE_URL is malformed/);
+    expect(() => validateTestDatabaseTarget('http://localhost:5433/du_test')).toThrow(/unsupported database protocol/);
+    expect(() => validateTestRedisTarget('redis://localhost:6381')).toThrow(/not an authorized test port/);
+
+    const beforeAllStart = suiteSource.indexOf('beforeAll(async () => {');
+    const databaseGuard = suiteSource.indexOf('validateTestDatabaseTarget(DATABASE_URL)', beforeAllStart);
+    const redisGuard = suiteSource.indexOf('validateTestRedisTarget(REDIS_URL)', beforeAllStart);
+    const firstProvider = suiteSource.indexOf('createServer(async', beforeAllStart);
+    const appCreation = suiteSource.indexOf('createApp({', beforeAllStart);
+    expect(beforeAllStart).toBeGreaterThanOrEqual(0);
+    expect(databaseGuard).toBeGreaterThan(beforeAllStart);
+    expect(redisGuard).toBeGreaterThan(beforeAllStart);
+    expect(databaseGuard).toBeLessThan(firstProvider);
+    expect(redisGuard).toBeLessThan(firstProvider);
+    expect(databaseGuard).toBeLessThan(appCreation);
+    expect(redisGuard).toBeLessThan(appCreation);
+  });
+
+  it('rejects missing environment invariants instead of relying on fallback targets', () => {
+    expect(() => validateTestDatabaseTarget(undefined)).toThrow(/DATABASE_URL is missing or empty/);
+    expect(() => validateTestRedisTarget(undefined)).toThrow(/REDIS_URL is missing or empty/);
+    expect(suiteSource).toMatch(/process\.env\.DATABASE_URL\s*\?\?/);
+    expect(suiteSource).toMatch(/process\.env\.REDIS_URL\s*\?\?/);
+    expect(suiteSource).toMatch(/validateTestDatabaseTarget\(DATABASE_URL\)/);
+    expect(suiteSource).toMatch(/validateTestRedisTarget\(REDIS_URL\)/);
+  });
+
+  it('rejects empty and structurally corrupt manifests at the registration boundary', () => {
+    const emptyObject = validateManifest({});
+    const emptyActions = validateManifest({ ...documentCoreManifest, actions: [] });
+    const malformedVersion = validateManifest({ ...documentCoreManifest, version: 'not-semver' });
+
+    expect(emptyObject.ok).toBe(false);
+    expect(emptyActions.ok).toBe(false);
+    expect(malformedVersion.ok).toBe(false);
+    expect(validateManifest(documentCoreManifest).ok).toBe(true);
+  });
+
+  it('strictly rejects invalid profile contract definitions and unsupported recipe schemas', () => {
+    const invalidProfileManifest = {
+      ...documentCoreManifest,
+      actions: documentCoreManifest.actions.map((action, index) =>
+        index === 0 ? { ...action, profileSchema: { type: 'object', $ref: 'https://schemas.invalid/profile.json' } } : action
+      ),
+    };
+    const unsupportedRecipeManifest = {
+      ...documentCoreManifest,
+      actions: documentCoreManifest.actions.map((action, index) =>
+        index === 0 ? { ...action, inputSchema: { type: 'object', $ref: 'urn:unsupported-recipe-schema' } } : action
+      ),
+    };
+
+    const profileResult = validateManifest(invalidProfileManifest);
+    const recipeResult = validateManifest(unsupportedRecipeManifest);
+    expect(profileResult.ok).toBe(false);
+    expect(recipeResult.ok).toBe(false);
+    if (!profileResult.ok) {
+      expect(profileResult.problems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ pointer: '$.actions[0].profileSchema' })])
+      );
+    }
+    if (!recipeResult.ok) {
+      expect(recipeResult.problems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ pointer: '$.actions[0].inputSchema' })])
+      );
+    }
+  });
+
+  it('rejects duplicate action definitions rather than registering an ambiguous manifest', () => {
+    const duplicateActions = validateManifest({
+      ...documentCoreManifest,
+      actions: [...documentCoreManifest.actions, documentCoreManifest.actions[0]!],
+    });
+
+    expect(duplicateActions.ok).toBe(false);
+    if (!duplicateActions.ok) {
+      expect(duplicateActions.problems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining('duplicate action') })])
+      );
+    }
+  });
+
+  it('keeps partial teardown retry-safe after bootstrap fails before setup completes', () => {
+    const beforeAllStart = suiteSource.indexOf('beforeAll(async () => {');
+    const afterAllStart = suiteSource.indexOf('afterAll(async () => {');
+    const afterAllSource = suiteSource.slice(afterAllStart);
+    const appCreate = suiteSource.indexOf('orchestratorApp = await createApp({', beforeAllStart);
+    const appTrack = suiteSource.indexOf('partiallyCreatedResources.apps.push(orchestratorApp)', appCreate);
+
+    expect(appTrack).toBeGreaterThan(appCreate);
+    expect(appTrack).toBeLessThan(afterAllStart);
+    expect(afterAllSource).toMatch(/const cleanupErrors: Error\[\] = \[\]/);
+    expect(afterAllSource).toMatch(/await childTracker\.terminateAll\(5000\)/);
+    expect(afterAllSource).toMatch(/for \(const .* of partiallyCreatedResources\.workers\)/);
+    expect(afterAllSource).toMatch(/for \(const .* of partiallyCreatedResources\.compositions\)/);
+    expect(afterAllSource).toMatch(/for \(const .* of partiallyCreatedResources\.servers\)/);
+    expect(afterAllSource).toMatch(/if \(orchestratorApp\)/);
+    expect(afterAllSource).toMatch(/cleanupErrors\.push\(err as Error\)/);
+    // The client close guard suppresses an already-closed resource on repeated teardown.
+    expect(afterAllSource).toMatch(/if \(!String\(err\)\.includes\('more than once'\)\)/);
+    expect(afterAllSource).toMatch(/if \(cleanupErrors\.length > 0\)/);
   });
 });

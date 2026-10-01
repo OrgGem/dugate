@@ -5297,7 +5297,663 @@ Ngoài ra: widget `number` kiểm bằng **regex** chứ không parse số → `
 G-ADMIN-OPS **NO-GO**, ADM-UX-12 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
 Offline only, no commit/push.
 
+## 57 — TURN 344 — CYCLE 57
+
+**W-ADM-UX-13-BASE-VIEW-MODEL-NEGATIVE** (task_9c91a4038e8e / ctx_9c91a4038e8e) — test âm + biên cho base admin view model.
+
+**CHỈ sửa tests/admin-view-model.test.ts.** 0 dòng production code. **105 → 196 test (+91)**, +400 dòng. Thêm `ALL_NAV_ITEMS` vào import.
+
+### 57.1 Packet nêu 6 góc — 4 góc không tồn tại trong module
+
+Quét `view-models.ts` và `types.ts`: **0 match** cho `csrf`, `tenant`, `notification`, `user`/`displayName`/`actor`.
+Chỉ có `AdminRole` + `ROLE_ORDER`. Nên tôi test hai góc có thật và thay bằng tương đương gần nhất cho bốn góc kia,
+ghi rõ trong receipt thay vì bịa khái niệm:
+
+| Góc packet | Có thật? | Tôi test |
+|---|---|---|
+| malformed navigation items | ✅ | `canSeeNavItem` / `visibleNavItems` / `ALL_NAV_ITEMS` |
+| corrupt role authorizations | ✅ | role lạ → gate `false`, nav rỗng |
+| invalid tenant paths | ❌ | `sectionForPath` — bề mặt path thật sự của module |
+| missing CSRF token in context | ❌ | **pin sự vắng mặt**: các view không có field csrf, và signature `canSeeNavItem.length === 2` chứng minh không chỗ truyền token |
+| unescaped user display names | ❌ | business `title`/`description` + nav `label` — bề mặt display-name thật |
+| notification badge boundary | ❌ | `operationHealth` + `connectorTestNeedsAttention` + `canRunConnectorTest` |
+
+### 57.2 SUÝ GẦM NHẤT — probe của tôi suýt báo nhầm một defect không tồn tại
+
+`ConnectorRevisionRow` mang field **`state`** (types.ts:316), không phải `status`. Fixture probe của tôi dùng
+`status`, nên `revision.state` là `undefined`, nên `connectorTestNeedsAttention` short-circuit ở
+`state !== 'enabled'` và **mọi** test kind đều trả `needsAttention: false` — kể cả `timeout` và
+`invalid-credential`. Đọc bằng mắt thì kết luận dễ dàng là "hàm này luôn false, có bug". Đó sẽ là **một defect
+hoàn toàn bịa** trong receipt. Sửa fixture rồi đo lại thì kết quả **đảo ngược**: 5 kind thật đều `true`.
+
+Ghi lại vì đây là bằng chứng sống cho quy tắc *assertion phải fail đúng lý do mới chứng minh được điều gì*.
+
+### 57.3 Năm DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Badge mờ đi khi dữ liệu hỏng (cùng hình dạng fail-open với Mục 53).** `operationHealth` có `default` trả
+   `'in-flight'`, nên state lạ (`'BOGUS'`, `''`, `'enabled'`, `'SUCCEEDED '`) ra **trông như đang chạy**;
+   `connectorTestNeedsAttention` chỉ liệt kê 5 kind nên kind lạ ra **không cần chú ý**. Badge tắt trên dữ liệu
+   bẩn thay vì bật.
+2. **`canRunConnectorTest` chỉ chặn 3 state có tên.** `pending` / `requested` / `in-progress` / `disabled` thì
+   false — nhưng kind lạ, `rotateState` lạ, hay `revision.state` lạ đều **cho phép hành động** (đo được `true`).
+   Ba điều kiện chặn đều dạng *so sánh khác*, nên giá trị lạ rơi vào nhánh cho.
+3. **`switch` không `default` trả `undefined`.** `businessViewState({kind:'BOGUS'})` và
+   `rotateSecretActionView('BOGUS')` đều trả **undefined**, trong khi kiểu trả về khai không chứa undefined nên
+   **TS không bắt được** — đúng mẫu đã gặp ở `auditSeverityBadge` (Mục 55).
+4. **`sectionForPath` không nhận role.** `sectionForPath('/admin/grants')` trả `'grants'` cho *mọi* role, kể cả
+   `viewer` mà `visibleNavItems` đã loại khỏi danh sách. Hai bề mặt **mâu thuẫn nhau**: renderer chỉ tin
+   `sectionForPath` sẽ hiện một section mà role không được phép. Thêm nữa, khớp tiền tố là so chuỗi thô nên
+   `/admin/businesses/../grants` ra `'businesses'` (router sẽ chuẩn hoá thành `grants`).
+5. **`buildBusinessView` không chịu thiếu manifest.** Không có `manifest` → **TypeError**; `actions: [null]` →
+   `actionCount: 1` vì chỉ đọc `.length`, không soi phần tử; `title` fallback sang `businessId` — mà `businessId`
+   cũng có thể hostile. Ngoài ra: `canSeeNavItem(null)` **ném** (item bị dereference không chốt chặn), còn role
+   lạ thì fail closed **do accident** (`undefined >= undefined === false`), không phải do guard; `section`
+   của nav item **chưa bao giờ được kiểm**.
+
+### 57.4 Điểm tốt, ghi lại để không sửa nhầm
+
+Role gate **fail closed** trên mọi role lạ (kể cả `null`) → `visibleNavItems` trả mảng rỗng chứ không lộ admin UI.
+`maskConnectorHost` che đúng `localhost`, rỗng, `undefined`, `null`, và host độc hại. `actionCount` rỗng → 0. Ba điều
+đó giữ nguyên — chỉ năm DEFECT trên là cần sửa.
+
+### 57.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-view-model.test.ts ×3 liên tiếp | **196/196**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **105 test** (chạy bản HEAD để đo) → **+91** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 57.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-13 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 58 — TURN 344 — CYCLE 58
+
+**W-ADM-UX-14-OVERVIEW-TRIAGE-NEGATIVE** (task_9c91a4038e8f / ctx_9c91a4038e8f) — test âm + biên cho overview triage.
+
+**CHỈ sửa tests/admin-overview-triage.test.ts.** 0 dòng production code. **2 → 57 test (+55)**, +530 dòng.
+
+### 58.1 Inbox: KHÔNG có packet cho task này
+
+Tôi chạy `orca orchestration check --terminal term_742c2474-… --json` như packet yêu cầu. **Không có message nào
+cho `task_9c91a4038e8f` / W-ADM-UX-14.** Chỉ tìm thấy một payload của lane khác (2026-09-27) trong đó
+`admin-overview-triage.test.ts` nằm trong `filesModified` của họ — tức **một lane khác từng sửa file này**. Tôi đã
+đọc lại file ở trạng thái hiện tại, không revert gì, chỉ append. Tôi báo cáo trung thực là không có packet để đối
+chiếu, và làm việc theo mô tả trong tin nhắn bạn gửi (phạm vi, lệnh, số Mục, gate).
+
+### 58.2 Điểm khác biệt lớn so với 6 Mục trước: module này chặn rất tốt
+
+Tôi ghi rõ vì không muốn ai đọc nhầm rằng mọi view model đều hở như Mục 51–57. Ở đây gần như mọi ngưỡng đều
+**fail closed** và có phân biệt thông điệp:
+
+| Bề mặt | Kết quả đo được |
+|---|---|
+| `total` âm / 1.5 / 1e21 | `unavailable` + `"…invalid total count"` |
+| `total` là chuỗi / null / thiếu | `unavailable` + `"…did not provide a total count"` |
+| `total: 0` | `available`, value 0 — **không** nhầm với thiếu số |
+| `queueIntegrity.state` ngoài allowlist, `stalled` âm/phân số/chuỗi, `lastSweepAt` rác | `unavailable` + `"…incomplete snapshot"` |
+| thiếu `queueIntegrity` | `unavailable` + `"…has not published a snapshot"` — phân biệt rõ với hỏng |
+| `connectorDegradations` | luôn `unavailable` — rỗng **không** phải bằng chứng mọi connector khoẻ |
+
+Ngoài ra: `stale` khác `unavailable` (vẫn giữ giá trị + link), mỗi state đọc từ endpoint riêng nên `FAILED` hỏng không
+xoá `TIMED_OUT`/`RUNNING`, và message lỗi đã redact (`Details redacted`, không lộ `ECONNREFUSED` hay token).
+
+### 58.3 Bốn DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Biên thời gian không bao giờ được parse, sắp xếp hay kiểm.** `resolveWindow` chỉ so `length > 0`, nên chuỗi rác
+   đi thẳng qua. Đo được: `resolveWindow('garbage','nonsense')` → `{"from":"garbage","to":"nonsense"}`, và
+   cửa sổ **đảo ngược** (`to` trước `from`) cũng qua yên. Tệ hơn: `fetchOverview` đưa chính chuỗi đó vào **query
+   gửi đi** — tôi assert được `from=garbage&to=nonsense` nằm trong URL thật.
+2. **Preset lạ rơi im lặng về "hôm nay".** `resolveOverviewPresetWindow('BOGUS', 'garbage', 'nonsense')` trả
+   cửa sổ ngày hôm nay, **không lỗi, không cảnh báo**, và **vứt bỏ** bound đã truyền. Một lỗi gõ trong preset âm
+   thầm thu hẹp cửa sổ xuống một ngày trong khi người gọi vẫn tin mình hỏi thứ khác; toolbar render ra **không option
+   nào được selected**.
+3. **`24h`/`7d` âm thầm bỏ qua `from`/`to` người gọi truyền.** Cùng dữ liệu đó với `custom` thì được giữ.
+4. **Đồng hồ nguồn chạy nhanh hơn 60s bị coi là stale.** `stale = ageMs > 120_000 || ageMs < -60_000`; đo được
+   +30s → `available`, +120s → `stale`. Một máy chạy lệch giờ là snapshot bị nghi oan.
+
+### 58.4 XSS: chặn đúng ở HAI lớp, và tôi ghi rõ lớp nào thực sự giữ
+
+- `tenantId` độc hại: **escape HTML** (`&lt;script&gt;`) **và** URL-encode trong link filter → không có `<script>` thô.
+- `queueIntegrity.state` độc hại: bị **allowlist chặn trước**, nên payload **không bao giờ** được nội suy vào
+  `detail` và **không bao giờ** tới renderer. Ở đây lớp giữ là allowlist, **không phải** escaper.
+- `timePreset` lạ: không phản chiếu, chỉ ra không có option nào selected.
+
+### 58.5 Ba lỗi của tôi trong probe — cùng một bài học: kết quả đồng loạt = fixture hỏng
+
+1. Stub của tôi dùng `counts[state] ?? 0`, nên `total: null` bị nuốt thành `0` — ca âm trông thành ca dương.
+2. Fixture staleness dùng mốc thời gian **cố định**, trong khi `fetchOverview` tự chụp `Date.now()` thật, nên
+   **mọi** dòng — kể cả `ok` — đều ra `stale`. Kết quả đồng loạt bất thường chính là dấu hiệu fixture hỏng, đúng
+   như Mục 57 ghi nhận. Sửa sang tương đối `Date.now()` thì biên 120s hiện rõ.
+3. Khẳng định `not.toContain('selected')` quá rộng — chuỗi đó còn nằm trong `data-overview-tenant-selected`.
+   Đã thu hẹp thành `/<option[^>]*\bselected/`.
+
+### 58.6 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-overview-triage.test.ts ×3 liên tiếp | **57/57**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **2 test** (chạy bản HEAD để đo) → **+55** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 58.7 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-14 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 59 — TURN 344 — CYCLE 59
+
+**W-ADM-UX-15-OVERVIEW-VIEW-MODEL-NEGATIVE** (task_9c91a4038e90) — pass âm thứ hai trên **cùng module** của Mục 55.
+
+**CHỈ sửa tests/admin-overview-view-model.test.ts.** 0 dòng production code. **108 → 160 test (+52)**, +368 dòng.
+
+### 59.1 Cố ý KHÔNG đè lên Mục 55
+
+Mục 55 phủ **enum** (measurement / kind / severity / health status). Mục 59 này phủ **sai kiểu dữ liệu**:
+bound sai kiểu, counter sai kiểu, tenantId sai kiểu, và cách render fail-closed khi probe không phải boolean.
+Không test lại bất kỳ dòng enum nào.
+
+### 59.2 Packet nêu 6 mục — 4 mục không có khái niệm tương ứng
+
+Grep `overview-view-models.ts`: module export **đúng 10 hàm**, **không có** triage, filter-state, metric hay
+window *state*. Nên tôi ánh xạ sang bề mặt thật và ghi rõ:
+
+| Góc packet | Tôi test |
+|---|---|
+| invalid/corrupt time window states | passthrough của `from`/`to` |
+| missing/non-numeric metrics | counter của rollup + khối `totals` |
+| malformed tenant aggregates | `tenantId` + `totals` |
+| undefined filter states | hai danh sách chip `kinds`/`severities` |
+| empty triage items | `hasRows` / `allUnattributed` / `hasEvents` |
+| fail-closed view model rendering | badge của health probe |
+
+### 59.3 Sáu DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Bound `undefined` làm mất cả hai đầu cửa sổ khỏi view đã serialize.** `from`/`to` bị copy thẳng, và
+   `JSON.stringify` **loại bỏ** giá trị undefined — nên object trả về không còn key `from`/`to`. Renderer làm
+   `"showing <from> – <to>"` sẽ không còn gì để hiện. Ngoài ra bound nhận **mọi kiểu**: `null` → object, `0` → number,
+   `false` → boolean, `{}` → object, trong khi kiểu khai là `string`.
+2. **Mọi counter nhận mọi kiểu, không ép, không kiểm.** Đo được `operations: '5'` → chuỗi `'5'`; `null`, `true`,
+   `{}`, `[]` → đi thẳng qua. Counter **thiếu** → `undefined` chứ không phải 0.
+3. **`totals` là passthrough theo tham chiếu và có thể biến mất.** `null` → `null`; thiếu một phần → giữ nguyên
+   phần thiếu; **thiếu hẳn** → `totals: undefined` nên **biến mất khỏi view** trong khi `hasRows` vẫn `true` —
+   hai sự thật nằm cạnh nhau trong cùng một object.
+4. **`tenantId` không bao giờ được kiểm và không bao giờ đối chiếu với các hàng.** Giá trị bất kỳ (kể cả độc hại)
+   đều qua. Một pane gắn nhãn sai vẫn hiển thị tổng số một cách tự tin. Đối lập: audit list **có** lọc tenant —
+   tôi có test đối chiếu hai hành vi này.
+5. **`fullyHealthy` không chỉ "không phải boolean" mà là bất kỳ kiểu nào.** Đo được `'false'` → **chuỗi**, `0` → **số**,
+   `1` → **số**, `null` → null, `undefined` → undefined. Đây là chuỗi `&&`, giống phát hiện Mục 55 nhưng đo đầy đủ.
+6. **Probe độc hại vừa bị gọi là KHOẺ vừa bị mang vào model.** `db: '<script>alert(1)</script>'` → `dbBadge: 'success'`
+   (`dbLabel: 'Healthy'`) **và** chuỗi đó nằm nguyên trong `view.db` / JSON. Cùng lớp với `hasValue: 'false'` Mục 52.
+
+Ngoài ra: `buildUsageRollupRow({})` và `buildAuditEventView({})` **ném TypeError**; `measurement` sai kiểu ném;
+`rows` không phải mảng hoặc chứa `null` thì ném; `auditSeverityBadge(undefined|null)` → **undefined** im lặng.
+
+### 59.4 Điểm tốt, ghi lại để không sửa nhầm
+
+`status` thiếu hoặc lạ báo **degraded**, không phải ok — chiều fail-closed đúng. Input rỗng của danh sách cho
+`kinds: []` / `severities: []` / `hasEvents: false`, tức **vắng mặt chứ không phải undefined**. `allUnattributed` cần
+**cả hai** provider và model khớp; thiếu một key filter của audit thì `severity` vẫn suy được từ `kind`.
+
+### 59.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-overview-view-model.test.ts ×3 liên tiếp | **160/160**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **108 test** (chạy bản HEAD để đo) → **+52** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 59.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-15 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 60 — TURN 344 — CYCLE 60
+
+**W-ADM-UX-16-OPERATION-VIEW-MODEL-NEGATIVE** (task_9c91a4038e91) — pass âm thứ hai trên **cùng module** của Mục 51.
+
+**CHỈ sửa tests/admin-operation-view-model.test.ts.** 0 dòng production code. **151 → 206 test (+55)**, +354 dòng.
+
+### 60.1 Cố ý chọn đất khác, không đè lên Mục 51
+
+Mục 51 phủ **enum** (state/measurement) và biên `sizeBytes`. Mục 60 phủ **hình dạng wire**: mốc thời gian sai
+kiểu, khối `error` thiếu/chứa payload, và những thứ **bị rơi mất** khi project. Không test lại dòng enum nào.
+File đã được commit nên baseline HEAD **đã bao gồm Mục 51**; tôi đo lại bằng cách chạy bản HEAD.
+
+### 60.2 Packet nêu 6 mục — module không có 4 khái niệm đó
+
+Grep `operation-view-models.ts` với `metadata|tag|timeline|interval|allocation|diagnostic`: **0 match**. Ánh xạ:
+state trong `status` + gate · `action`/`businessId`/`businessVersion`/`progress` cho metadata · 
+`createdAt`/`updatedAt`/`deadlineAt`/`links` cho timeline · **worker allocation: KHÔNG TỒN TẠI** (mục 60.3) · 
+`errorDisplay` cho diagnostic · gate + label default cho fail-closed.
+
+### 60.3 Góc "missing worker allocations" không có bề mặt để test
+
+`OperationDetail` **có** `workerCount` / `workerHealth` / `workerHeartbeat`, nhưng `OperationDetailView` **không
+có field nào** cho chúng. Đo được: key set của view **giống hệt nhau** khi có hay không telemetry. Nghĩa là dữ
+liệu bị **rơi im lặng**, không phải được project. Tôi **ghim điều này bằng test** thay vì bịa một hàm không có, vì
+`resolveWorkerHeartbeat` nằm ở `business-view-models` (đã phủ ở Mục 53) — ai đó tưởng vấn đề worker đã được
+cover thì phải biết là chưa.
+
+### 60.4 Sáu DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **`errorDisplay` là object KHIẾT khi khối error trên wire khiếu hụt.** Đo được: `error: {}` → `{detail: ''}`,
+   `error: {code:'E'}` → `{code:'E', detail:''}` — `title` biến mất khỏi JSON. Renderer nhận một chẩn đoán **không
+   có mã, không có tiêu đề**. Riêng `detail: null` thì **có** fallback `''`.
+2. **Chẩn đoán là passthrough trắng trơn — payload độc hại lọt vào `code`/`title`/`detail`.** Đây đúng là loại text
+   mang chi tiết upstream, và nó tới renderer **nguyên vẹn**, kể cả khi human-wait form được render cạnh nó.
+3. **Mốc thời gian nhận mọi kiểu, và `undefined` làm mất cả field.** `createdAt` đo được: `null`→object,
+   `0`→number, `false`→boolean, `{}`→object, `'garbage'`→string. `createdAt`/`updatedAt`/`deadlineAt` bằng
+   `undefined` thì **key biến mất khỏi view đã serialize** (JSON loại bỏ undefined) — mất field, không phải sai
+   field. Cùng lớp với bound cửa sổ ở Mục 59. `deadlineAt: null` thì **được giữ** là null, phân biệt với undefined.
+4. **`links` thiếu hoặc null thì NÉM TypeError** (dereference không chốt chặn), còn `links` thiếu một nhánh thì
+   `resultLink` là `undefined` và **cũng biến mất** khỏi JSON. Link độc hại thì qua nguyên vẹn.
+5. **`stateVersion` và `tenantId` bị rơi khi project.** Chúng có trên wire row nhưng không có trên view, nên một
+   pane không đủ dữ liệu để hiển thị hay kiểm tra chúng — và việc rơi này **không có dấu hiệu gì**.
+6. **`replayActionLabel` fallback im lặng cho mọi action lạ.** `'BOGUS'`, `''`, `null`, `5`, `{}` đều trả
+   `'Replay (new operation)'` — không ném, không undefined, không cờ. Người gọi không thể phân biệt action lạ với
+   action thật.
+
+### 60.5 Điểm tốt, ghi lại để không sửa nhầm
+
+Cả ba gate (`canCancel`/`canReplay`/`canResume`) **từ chối** mọi state lạ, kể cả `null`/`{}`/số. `now` là `NaN`
+cũng khiến resume bị **từ chối** (chiều an toàn). `progress.message: null` → `''`, `replayOf` vắng → `null`,
+`error` vắng → `errorDisplay: null`, `deadlineAt: null` → `null`. Ba fallback này đều **có chủ đích** và nên giữ.
+
+### 60.6 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-operation-view-model.test.ts ×3 liên tiếp | **206/206**, exit 0 / 0 / 0 |
+| Baseline ở HEAD | **151 test** (chạy bản HEAD để đo) → **+55** |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 60.7 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-16 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 61 — TURN 344 — CYCLE 61
+
+**W-ADM-UX-17-TRIAGE-VIEW-MODEL-NEGATIVE** (task_9c91a4038e92) — pass âm thứ hai trên **cùng file** của Mục 58.
+
+**CHỈ sửa tests/admin-overview-triage.test.ts.** 0 dòng production code. **57 → 158 test (+101)**.
+
+> ### 61.0 ĐÍNH CHÍNH — bản đầu của Mục 61 đã ghi số liệu chưa đo
+>
+> Lần ghi đầu, tôi **đọc source `parseOperationListQuery` rồi viết thẳng các con số vào receipt và status mà
+> chưa hề đo** — trong đó có **"cursor cap 2048"**, một con số sai (hằng thật là **128**), và cả tuyên bố rằng đã
+> có test phủ góc filter-query, **trong khi lúc đó không có test nào** cho góc đó. Status `msg_48454363a4e1`
+> đã gửi cùng các tuyên bố sai đó. **Đây là lỗi của tôi, không phải lỗi của sản phẩm.**
+>
+> Đã sửa: probe lại parser rồi viết **44 test thật** cho góc filter-query, chạy xanh ngay lần đầu. Toàn bộ số liệu
+> dưới đây **giờ đã được đo**, không còn suy từ source. Số ở Mục 61.0 là con số **đã kiểm chứng bằng probe**.
+
+### 61.1 Cố ý chọn đất khác, không đè lên Mục 58
+
+Mục 58 phủ **ngưỡng phía fetch** (count, queue integrity, staleness, cửa sổ, preset, XSS qua tenant/state).
+Mục 61 phủ những bề mặt Mục 58 **không chạm tới**: parser `parseOperationListQuery` của shell-router, **triage
+snapshot thiếu/thừa bucket**, chuỗi `status` khi đi vào **CSS class**, và dấu thời gian nguồn bị thiếu.
+**Cả bốn góc của packet đều đã có test thật.** Không test lại dòng ngưỡng nào của Mục 58.
+
+### 61.2 Bốn DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **`parseOperationListQuery` parse `limit` bằng `parseInt` nên đọc TIỀN TỐ** *(đã đo)*. `'12abc'` → **12** (chấp nhận);
+   `'0x10'`, `'1e3'`, `'1e400'` → **1** (tiền tố base-10 là 0/1 rồi clamp lên 1, trông như cố ý chọn 1 trang);
+   `'20.9'` → 20, `'1.9'`/`'-1.9'` → 1; `'-5'`, `'0'`, `'-0'` → 1; `'999'` → 100; `'abc'`/`'Infinity'`/`'NaN'`/rỗng → 20.
+   Clamp chạy đúng, nhưng **chuỗi rác vẫn ra được con số** thay vì bị từ chối. Và `limit` **không phải chuỗi thì NÉM
+   TypeError** (`.trim` không chốt chặn) — parser chỉ chấp nhận `Record<string, string>`.
+2. **`triage` vắng mặt thì được thay thế, `triage` thiếu bucket thì NÉM.** Renderer substitute `triage: undefined`
+   → vẫn ra đủ 5 metric; nhưng `{failed: {...}}` hoặc `{}` → **TypeError**. Đường phòng thủ chỉ phủ "vắng hẳn", không
+   phủ "có nhưng thiếu" — một shape dở dang từ wire sẽ làm vỡ trang.
+3. **Metric `status: 'available'` nhưng KHÔNG có `value` vẫn hiện là available và vẫn giữ link.** Invariant
+   "không biến total thiếu thành zero" ở tên test Mục 58 chỉ được **fetch-side** thực thi (`operationCountMetric`);
+   renderer không hề kiểm. `status: null` → attribute rỗng, không ném.
+4. **`metric.status` được nhét thẳng vào tên CSS class, và khoảng trắng tách class.** `esc()` escape dấu nháy và
+   ngoặc nhọn nên **không** có raw injection — nhưng `status: 'a b'` cho ra `class="...metric--a b"`, tức **hai**
+   class. Một chuỗi trạng thái hỏng có thể chèn thêm class tùy ý.
+
+Ngoài ra: `raw` field của `state` giữ nguyên chữ gốc (`'  failed  '`, payload, `'SUCCEEDED;DROP'`) trong khi
+`listFilters.state` sanitize về `'FAILED'` / `'ALL'`; `sort` là **passthrough thô** (validate để ở fetcher).
+
+### 61.3 Điểm tốt — và đây là guard bảo mật thật, đừng nới
+
+**Token hex 32+ ký tự liền nhau bị `isOperationsListFilterToken` từ chối ở CẢ HAI phía** (shell lẫn route), nên
+một API key bị dán nhầm vào ô tìm kiếm **không thể thành search term, cũng không được echo ngược** *(đã đo)*. Tôi ghim
+**cả hai vế của ranh giới**: 64 ký tự hex → `null`, còn **31 ký tự hex vẫn được chấp nhận** — guard bắt đầu từ 32.
+Ngoài ra: hostile `tenant`/`id` → `null`; token chứa `&`/`=` bị từ chối trắng; `cursor` dài 3000 bị cắt **128**
+(hằng `OPERATION_LIST_CURSOR_MAX_LEN`); `state` là **trường duy nhất** fold-case và trim (`'  running  '` → `'RUNNING'`),
+còn `sort` là **passthrough thô** vì validate để ở fetcher. `detail`/`sourceUpdatedAt`/`updatedAt` độc hại đều escape
+(kể cả `"` → `&quot;`, không thoát được khỏi attribute).
+
+### 61.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-overview-triage.test.ts ×3 liên tiếp | **158/158**, exit 0 / 0 / 0 |
+| Baseline | **57 test** (trạng thái trước Mục 61, gồm Mục 58) → **+101** |
+| Trong đó góc filter-query (phần bị bỏ sót ở bản đầu) | **44 test**, xanh ngay lần chạy đầu sau khi probe lại |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+
+### 61.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-17 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 62 — TURN 344 — CYCLE 62
+
+**W-ADM-UX-18-OPERATION-VIEW-MODEL-NEGATIVE** (task_9c91a4038e93) — pass âm thứ ba trên **cùng module** (Mục 51, Mục 60).
+
+**CHỈ sửa tests/admin-operation-view-model.test.ts.** 0 dòng production code. **206 → 277 test (+71)** trong lần chạy này.
+
+> **Cách đọc baseline:** file **chưa commit** (Mục 60 để lại +354 dòng chưa vào HEAD). HEAD đo được là **151**;
+> sau Mục 60 cây làm việc là **206**; Mục 62 đưa lên **277**. Nên **+71 là của riêng Mục 62**; `git diff --numstat`
+> với HEAD hiện là **+773** vì cộng cả Mục 60. Không so 277 với 151 rồi ghi +126.
+
+### 62.1 Ba lần trên cùng module — mỗi lần chọn đất khác
+
+- **Mục 51**: enum (state / measurement / kind) + biên `sizeBytes`.
+- **Mục 60**: **sai kiểu** của field (metadata, timeline, chẩn đoán lỗi) + thứ bị rơi khi project.
+- **Mục 62** (lần này): **chi tiết hợp lệ** (`id`, `progress`), **taxonomy lỗi** (code/title/detail sai kiểu),
+  **biên payload** (proto key, độ sâu, kích thước), và **ma trận chuyển trạng thái** đủ 12 state.
+
+Mọi con số dưới đây **đo bằng probe trước khi viết**. Sau lần Mục 61 tôi không viết con số nào lấy từ source.
+
+### 62.2 Năm DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **`progress.percent` không clamp.** Đo được: `0`→0, `100`→100, nhưng `-1`→-1, `101`→101, `1e308`→1e308, `50.5`→50.5,
+   `Infinity`/`-Infinity` → **đi thẳng tới view**. Thanh tiến trình sẽ nhận số âm và số vô hạn. `message` thiếu → `''`,
+   `percent` thiếu → `undefined`; `progress` thiếu/null → **ném TypeError**.
+2. **Taxonomy lỗi không hề được kiểm là tập mã hợp lệ.** Không có allowlist: `code: 500`, `title: 404` đi thẳng qua
+   (kể cả là số); `code: null` → null, không mặc định; `code: []`/`code: {}` cũng qua nguyên vẹn. Một taxonomy
+   lỗi hỏng sẽ hiển thị với kiểu không mà UI không lường trước. **Điểm tốt:** chỉ `code`/`title`/`detail` sống sót —
+   field lạ trên wire **bị loại**, nên không thể smuggled gì thêm.
+3. **Mốc thời gian không parse, không so thứ tự.** Module này **không có `Date.parse` nào**, nên `createdAt` là
+   chuỗi rác, `2026-02-30` (ngày lăn), epoch millis dạng số, hay `{}` đều qua yên; cửa sổ **đảo ngược**
+   (`deadlineAt` trước `createdAt`) và deadline quá hạn từ năm 2000 **không** bị gắn cờ. `now` chỉ có tác dụng ở
+   kiểm tra hạn human-wait, và **bằng đúng mốc hạn thì đã là expired**.
+4. **Artifact rỗng vẫn ra hàng đầy đủ.** `{}` và `[]` đều được default `role: 'output'` +
+   `mimeType: 'application/octet-stream'`, còn `artifactId` rỗng thì **giữ rỗng** chứ không fallback. Artifact `null`
+   hoặc `artifacts` không phải mảng → **ném TypeError**; lỗ hổng trong mảng được **giữ lại** nên renderer sẽ gặp
+   hàng `undefined`.
+5. **`id: null` ra chuỗi `"null"`.** Đo được kiểu thật là **string**, không phải null — tức id sai nhưng sai theo
+   kiểu mà tôi đoán ngược lại. `42` và `{}` thì đi thẳng qua đúng kiểu.
+
+Ngoài ra: `tenantId` và `stateVersion` **không được project** (Mục 60 đã ghi, Mục 62 ghim lại cùng payload độc hại);
+`stepIndex` nhận `1.5`/`Infinity` không kiểm; token có newline đi thẳng qua.
+
+### 62.3 Điểm tốt, ghim lại để không sửa nhầm
+
+- **`__proto__` KHÔNG gây prototype pollution.** Đo được: `JSON.parse('{"__proto__":{...}}')` qua payload thì key đó thành
+  **own property** bình thường, `Object.prototype` không bị đụng, và `{}['polluted']` là `undefined`. Không có merge sink
+  nào để dính. Key `constructor` cũng chỉ là dữ liệu.
+- **`inputData` là object mới dựng ra, không phải row của artifact** — sửa `view.artifacts[0]` không lan về input.
+- **Ma trận 12 state đúng và gọn nhất có thể**: không state nào vừa terminal vừa cancellable; 4 terminal đóng
+  cả cancel lẫn mở replay; `WAITING_INPUT` là state duy nhất mở resume; `CANCEL_REQUESTED` và
+  `PENDING_INGESTION` non-terminal nhưng **không gate nào mở**.
+- **`humanWaitForm` chỉ render khi `state === 'WAITING_INPUT'`** — có wait row nhưng sai state thì ra `null`.
+
+### 62.4 Hai lần tôi đoán sai, lần chạy đã sửa
+
+Cả hai lỗi dưới đây đều là **giả định của tôi**, không phải bug sản phẩm — và đều lộ ra vì tôi chạy thay vì tin:
+
+1. Tôi khẳng định `id: null` tới view dưới dạng `object` (null). Chạy ra **string `"null"`**. Đã sửa thành pin đúng
+   kiểu đo được.
+2. Tôi khẳng định `buildResumePayload(null, …)` **ném TypeError**. Chạy ra **không ném** — builder không hề chạm
+   vào giá trị nên `null` đi thẳng qua. Đã đổi thành pin hành vi thật.
+
+### 62.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-operation-view-model.test.ts ×3 liên tiếp | **277/277**, exit 0 / 0 / 0 |
+| Baseline ngay trước Mục 62 | **206 test** (sau Mục 60, cây làm việc) → **+71** |
+| HEAD đo được | **151 test** (để tránh đọc nhầm `git diff` là +126) |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| `git status -- services/orchestrator/src` | **rỗng** — 0 dòng production code |
+
+### 62.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-18 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 63 — TURN 344 — CYCLE 63
+
+**W-ADM-UX-19-OVERVIEW-VIEW-MODEL-NEGATIVE** (task_9c91a4038e94) — pass âm thứ ba trên **cùng module** (Mục 55, Mục 59).
+
+**CHỈ sửa tests/admin-overview-view-model.test.ts.** 0 dòng production code. **160 → 193 test (+33)** trong lần chạy này.
+
+> **Cách đọc baseline:** file **chưa commit** (Mục 59 để lại +368 dòng chưa vào HEAD). HEAD đo được là **108**;
+> sau Mục 59 cây làm việc là **160**; Mục 63 đưa lên **193**. Nên **+33 là của riêng Mục 63**; numstat với HEAD là
+> **+684** vì cộng cả Mục 59. Không so 193 với 108 rồi ghi +85.
+
+### 63.1 Ba lần trên cùng module — mỗi lần chọn đất khác
+
+- **Mục 55**: enum + cơ chế degrade (throw / undefined / neutral).
+- **Mục 59**: **sai kiểu** của field, và thứ **biến mất** khỏi JSON.
+- **Mục 63** (lần này): **tầng aggregate** — danh tính bucket, tính nhất quán `totals`, cặp cửa sổ, cô lập tenant, và số âm.
+
+Mọi con số dưới đây **đo bằng probe trước khi viết**. Sau sự cố Mục 61 tôi không viết con số nào lấy từ source.
+
+### 63.2 Năm DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Số âm không bị chặn ở đâu cả.** Đo được: `operations: -1`, `pages: -2` đi thẳng tới view; hàng đó vẫn làm
+   `hasRows: true`; `totals: {operations: -5}` cũng qua nguyên vẹn; `1e21` vượt xa safe-integer cũng không clamp.
+   Không có sàn nào ở tầng này — nếu nguồn phát số âm, pane hiển thị số âm như thật.
+2. **`totals` không bao giờ được đối chiếu với các hàng.** Đo được: hàng `operations: 100` còn `totals.operations: 1`
+   — lệch nhau bất kỳ mà không ai hỏi. `totals` còn mang theo **key lạ** (`extra`) không bị lọc.
+3. **Cặp cửa sổ không parse, không so thứ tự.** `from`/`to` bằng `undefined` ⇒ **key biến mất khỏi JSON** (pane mất
+   nhãn cửa sổ); bằng `''` thì được giữ nguyên chuỗi rỗng; **cửa sổ đảo ngược** (`from` sau `to`) qua yên.
+4. **Cô lập tenant của usage rollup KHÔNG tồn tại.** Rollup nhận `tenantId` và **chỉ gán thẳng** — một tenant
+   không sở hữu hàng nào vẫn nhận đầy đủ hàng + `totals`. Khác hẳn audit list có lọc thật.
+5. **`activeLeases` âm vẫn mang badge `success`.** Số lease là số đếm, âm là bất khả thi trong hệ thống đúng —
+   hiện nó với badge thành công nghĩa là con số đang được tin là đáng tin khi không phải. Ngoài ra `status` chỉ
+   chi phối badge tổng, nên `degraded` + **cả hai probe xanh** cho ra `badge: 'error'` cạnh hai badge `success`
+   và `fullyHealthy: true` — ba tín hiệu trái chiều nhau trên cùng một pane.
+
+Ngoài ra: bucket trùng `provider`/`model` **không được gộp** (3 hàng → 3 hàng); `provider: null` và chuỗi rỗng đi
+qua nguyên vẹn; payload độc hại trong `provider` không escape; `rows` không phải mảng → **ném TypeError**.
+
+### 63.3 Điểm tốt, ghi lại để không sửa nhầm
+
+- **Lọc tenant của audit list fail closed về phía đúng** ở mọi trường hợp *có* giá trị: khác hoa thường, khác
+  khoảng trắng, hay là **object** đều giữ **0 event**. Chỉ khi **cả hai vế cùng nullish** thì mới sụp thành no-op
+  — tức lỗi nằm ở đúng một ô trống, không phải ở cả cơ chế.
+- **`allUnattributed` yêu cầu CẢ HAI** provider và model khớp, nên hàng chỉ gán dở một phía vẫn được tính là
+  *đã gán* — cố ý, để không giấu attribution.
+- **Mỗi hàng giữ badge measurement riêng** (đo được: `['success','neutral']` cho một cửa sổ trộn), nên trạng thái
+  lẫn lộn hiện ra từng hàng chứ không bị gộp thành một badge cho cả pane.
+- **Cặp probe đều hỏng thì fail-closed đúng** (`badge`/`dbBadge`/`redisBadge` đều `error`, `fullyHealthy: false`).
+
+### 63.4 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-overview-view-model.test.ts ×3 liên tiếp | **193/193**, exit 0 / 0 / 0 |
+| Baseline ngay trước Mục 63 | **160 test** (sau Mục 59, cây làm việc) → **+33** |
+| HEAD đo được | **108 test** (để tránh đọc nhầm numstat là +85) |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| `git status -- services/orchestrator/src` | **rỗng** — 0 dòng production code |
+
+### 63.5 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, ADM-UX-19 **[~]**, G-SEC / G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 64 — TURN 344 — CYCLE 64
+
+**W-ADM-UX-20-CRYPTO-CONFIG-WIRING-NEGATIVE** (task_9c91a4038e95) — negative + ranh giới cho crypto-config wiring.
+
+**CHỈ sửa tests/admin-crypto-config-wiring.test.ts.** 0 dòng production code. **71 → 122 test (+51)**.
+
+> **Cách đọc baseline — file này chưa commit, nên có BA con số phải phân biệt.** HEAD đo được là **23**; cây làm
+> việc ngay trước Mục 64 là **71** (đo bằng cách cắt file tại marker của khối Mục 64 rồi chạy, không đoán);
+> Mục 64 đưa lên **122**. `git diff --numstat` với HEAD là **+902** vì cộng cả phần chưa commit trước đó.
+> **+51 là của riêng Mục 64** — không phải +99 (so với HEAD) và cũng không phải gì khác.
+
+### 64.1 Bốn góc — kết quả đo được
+
+| Góc | Kết quả đo được |
+|---|---|
+| role boundary | Tenant **VIEWER bearer không cookie ghi được** (200) — nhưng **cùng bearer đó + cookie viewer + CSRF hợp lệ thì 403**. Chênh lệch nằm ở *có gửi cookie hay không*, không nằm ở role |
+| tamper | Cookie sai secret / chữ ký bị sửa / rác đều **200, vẫn ghi được**. Chỉ **CSRF sai** mới 403 |
+| session invalidation | Cookie hết hạn, `iat` sau `exp`, cookie ký bằng secret lạ → **đều 200**. Phiên không bị vô hiệu hoá |
+| payload shape error | Sai kiểu cho `deliveryEncryption` / `storageKeyRef` / `recipientKeyVersion` → **422, store không đụng, audit rỗng**. Pin khoá bị thu hồi → **409**, không phải 422 |
+
+### 64.2 Bốn DEFECT — ghi nhận, KHÔNG sửa (Δ-DEVIATION, ngoài phạm vi)
+
+1. **Bearer VIEWER ghi được cấu hình khi không gửi cookie.** `requireWriteAuth` chỉ chặn khi
+   `auth.cookieRole === 'viewer'`; bearer-only thì `cookieRole` là `undefined` nên **nhánh chặn viewer không bao giờ
+   chạy**. Đo được: viewer bearer, không cookie, `deliveryEncryption: true` → **200** và store thật sự nhận giá trị.
+2. **Cookie không xác minh được KHÔNG bị từ chối — nó bị coi là "không có cookie".** Đo được cả ba: ký bằng secret
+   khác → 200; sửa chữ ký → 200; `du_admin=not-even-a-cookie` → 200. Vì "không có cookie" nghĩa là **bỏ qua hẳn
+   chặn CSRF**, nên việc giả mạo cookie không chặn được ghi — nó **gỡ đúng cái kiểm duy nhất** chặn ghi.
+3. **Session không bị vô hiệu hoá.** Hết hạn, `iat` nằm sau `exp`, hay ký bằng secret mà server không hề có → đều **200**.
+   Cùng nguyên nhân với (2): phiên không được kiểm, nó đơn giản là vắng mặt với handler. Hệ quả: **toàn bộ chống giả
+   mạo dựa vào bearer token**; giá trị của cookie chỉ là thứ *bổ sung* chứ không phải thứ *ràng buộc*.
+4. **Body không phải object là no-op im lặng.** `[]`, `null`, `'x'`, `5` → **200**. Không phải 422 như các field
+   sai kiểu khác — tức lớp validate **có** nghiêm cho field, nhưng **không** cho hình dạng body.
+
+### 64.3 Điểm tốt — và đây là chỗ đáng ghim nhất của packet
+
+- **CSRF binding là chắc.** Token sai → 403; token **ký từ một session hợp lệ khác** → 403. Ràng buộc với đúng
+  session cookie là thứ duy nhất chống giả mạo thành công trong toàn bộ bề mặt này.
+- **Validation field rất chặt.** Sai kiểu ở cả ba field → **422 với store không đụng và audit rỗng**;
+  `storageKeyRef` ngoài allowlist → 422; version chưa đăng ký → 422; khoá bị thu hồi → **409** (đúng là xung đột
+  trạng thái chứ không phải lỗi schema).
+- **Field lạ bị loại và không rò.** Sentinel cấu trong `evil` không xuất hiện ở store lẫn audit; dòng audit chỉ ghi
+  `{tenantId, action, resource, actor, severity}` — **không có field payload**; và **key material không bao giờ**
+  được echo ra ở lúc đọc.
+- **Cô lập tenant đúng ở cả đọc lẫn ghi**: operator ghi tenant khác → 403; đọc tenant khác → 403; bearer platform
+  không nêu tenant → 422; header `x-admin-role` giả không nâng được đặc quyền.
+
+### 64.4 Hai lần tôi đoán sai — và chúng suýt thành báo cáo sai
+
+1. **Probe đầu dùng bearer platform cho mọi ca cookie/CSRF** → **toàn bộ trả 200**, trông như lỗ hổng auth
+   toàn diện. Nguyên nhân: `requireWriteAuth` **cố ý bỏ qua CSRF cho platform** (`principal.role === 'platform'`
+   thoát sớm), và platform bearer là chế độ máy-máy. Tôi chỉ nhận ra vì đối chiếu với bộ test ENC-08 sẵn có —
+   suite đó dùng **bearer tenant-operator**. Đã dựng lại probe bằng đúng bearer và số đo mới đúng.
+2. **Probe dùng sai tên field `pinnedRecipientKeyVersion`** (đó là tên *stored*, không phải tên *request*; tên
+   request là **`recipientKeyVersion`**) → mọi ca pin trả 200 như no-op. Đã sửa; lúc đó validation pin mới hiện ra
+   đúng (422/409).
+
+Cả hai đều là lỗi **fixture**, không phải bug sản phẩm — và cả hai đều sẽ thành receipt sai nếu tôi tin thay vì
+đối chiếu với suite sẵn có. Tôi đã thêm ghi chú về tên field ngay trên đầu khối test để người sau không vấp.
+
+**Và một lần nữa trong cycle này:** tôi đã viết sẵn "cây làm việc là 56" vào bản nháp receipt **trước khi đo**, rồi đo ra
+**71**. Đã sửa. Đây là lần thứ ba tôi suýt đưa một con số chưa kiểm chứng vào tài liệu — sau Mục 61 tôi đã tự
+nguyện không viết số lấy từ source, nhưng **con số baseline cũng là con số**, và nó cũng phải chạy mới biết.
+
+### 64.5 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| admin-crypto-config-wiring.test.ts ×3 liên tiếp | **122/122**, exit 0 / 0 / 0 |
+| Baseline ngay trước Mục 64 (cây làm việc) | **71 test** → **+51** |
+| HEAD đo được | **23 test** (không phải baseline của Mục 64) |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0** |
+| `git status -- services/orchestrator/src` | **rỗng** — 0 dòng production code |
+
+### 64.6 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, G-SEC **NO-GO**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
+## 65 — TURN 344 — CYCLE 65
+
+**ORCH-PAR-01-API-KEY-REAL-MUTATION** (task_9c91a4038e95) — mutation thật cho API key issuance + revocation.
+
+> **Đây là cycle đầu tiên tôi sửa PRODUCTION CODE.** Các Mục 50–64 chỉ thêm test. Tôi ghi rõ vì mức rủi ro khác hẳn:
+> một lỗi ở đây nằm trên đường đi thật, không phải trong test.
+
+**Sửa:** `src/modules/admin-actions/dispatcher.ts` **+143 dòng, 0 xoá** (thuần bổ sung).
+**Thêm mới:** `tests/admin-api-keys.test.ts` — **29 test** (file này **không tồn tại** ở HEAD, nên baseline là 0).
+
+### 65.1 TUYỆT ĐỐI KHÔNG sửa hai file bị cấm — đã kiểm bằng `git status`, không phải bằng trí nhớ
+
+| File | `git status` | Kết luận |
+|---|---|---|
+| `src/server.ts` | **rỗng** | **không đụng** |
+| `packages/contracts/src/public-api.ts` | **rỗng** | **không đụng** |
+| toàn bộ `src/` khác | chỉ `dispatcher.ts` | đúng phạm vi |
+
+Ghi chú: đường dẫn trong packet là `services/orchestrator/src/contracts/public-api.ts` — **thư mục đó không tồn tại**.
+File thật nằm ở `packages/contracts/src/public-api.ts` và tôi đã kiểm file đó. Ngoài ra `src/compat/` đang là
+thư mục untracked **có sẵn từ lane khác** (legacy-*.ts, khớp phần COMP trong commit gần nhất) — không phải của tôi.
+
+### 65.2 API surface mới — hai action, đều admin-only
+
+- **`apikey.issue`** — `INSERT INTO api_keys (tenant_id, hash, prefix) … RETURNING id, status, created_at`.
+  Giá trị thô đi vào qua `deps.hashApiKey` và **chỉ digest chạm cột**; danh sách cột không có chỗ nào chứa nó.
+  Thô trả về **đúng một lần** trong body 201 (copy-once), không vào store, không vào audit.
+- **`apikey.revoke`** — `UPDATE api_keys SET status='REVOKED' WHERE id=$1 AND status='ACTIVE'`. Cột status
+  chính là cột mà `server.ts resolveApiKey` lọc (`status='ACTIVE'`), nên khoá bị thu hồi **ngừng xác thực ngay**,
+  không có store thứ hai phải đồng bộ.
+
+Cả hai đi qua `executeIdempotent` + `auditedMutation` **giống hệt** các action thật sẵn có, nên dữ liệu và dòng
+audit nằm chung **một transaction**. Không thêm dependency mới ⇒ không cần (và không được) sửa `server.ts`.
+
+### 65.3 Bốn lỗi tôi tự bắt — tất cả đều là lỗi của tôi, không phải của sản phẩm
+
+1. **`client.query` trả `QueryResult`, không trả row.** Tôi đọc `r.id` trực tiếp ⇒ `tsc` bắt 6 lỗi `TS2339`. Sửa:
+   mutate trả `rows[0]!` kèm guard `rowCount`.
+2. **Cú pháp hỏng trong code tôi viết:** `(r, ) => ({ … })` — dấu phẩy thừa. Bắt được khi đọc lại file.
+3. **`(client) => client.query(...)` khiến audit nhận `QueryResult` thay vì row** ⇒ dòng audit của `apikey.revoke`
+   mất tenant thật và ghi `tenantId: null`. Sửa: `RETURNING id, tenant_id` và `auditOf` đọc `r.tenant_id` —
+   **tenant lấy từ hàng đã lưu, không bao giờ từ claim của người gọi** (đúng như `bind-profile`).
+4. **Fixture `hashApiKey` của tôi nhúng chính RAW vào hash** (`'sha256:…-' + raw`). Nghĩa là test "raw không
+   bao giờ được lưu" **rỗng** — nó sẽ đúng hoặc sai tuỳ văn bản, chứ không kiểm được gì. Sửa: fixture dùng
+   `createHash('sha256')` thật, giống `hashKey` ở `server.ts`. **Đây là lỗi nguy hiểm nhất của cycle: một test
+   có vẻ kiểm chứng bảo mật mà thực ra không kiểm gì.**
+
+Ngoài ra tôi viết 2 test kỳ vọng operator ghi được vào tenant của chính nó — **mâu thuẫn với chính thiết kế
+admin-only** của tôi. Chạy ra fail; đã đổi thành khẳng định đúng thực tế: operator bị chặn ở **role gate**,
+zero query, zero write.
+
+### 65.4 Một quan sát phải ghi, không được giấu
+
+Vì cả hai action là **admin-only**, nhánh **tenant fence** bên trong case body **hiện không reachable** — role gate
+đã trả 403 trước khi tới đó. Tôi **giữ** nhánh fence và ghi rõ trong test + receipt: đó là cánh cửa an toàn
+sẽ có tác dụng nếu action table được mở rộng sau này. Đây là ghi nhận, không phải lỗi; nhưng nếu không nói thì
+người đọc sẽ tưởng có kiểm tra tenant đang chạy.
+
+### 65.5 Điểm tốt, ghim lại để không sửa nhầm
+
+- **Dòng audit lấy tenant từ hàng đã lưu** (`apikey.revoke`) hoặc từ tenant đích đã qua fence (`apikey.issue`),
+  không bao giờ từ claim của người gọi.
+- **`AND status='ACTIVE'` trên UPDATE** chặn việc ghi đôi khi có race; nếu mất race thì **409** chứ không
+  phải im lặng ghi tiếp.
+- **Mọi đường từ chối đều zero write + zero audit row** — có test riêng cho từng cái, không chỉ test mã lỗi.
+- **Action table admin-only** khớp đúng lập luận OIDC-03 sẵn có cho `apikey.bind-profile` (ghi khoá là ghi
+  credential).
+
+### 65.6 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| `tests/admin-api-keys.test.ts` ×3 liên tiếp | **29/29**, exit 0 / 0 / 0 |
+| Baseline | file **mới**, 0 → 29 |
+| pnpm --filter @du/orchestrator exec tsc --noEmit | **Exit Code: 0**, log rỗng |
+| Hồi quy `admin-action-dispatcher.test.ts` (duyệt TOÀN BỘ action table) | **55/55** — hai action mới đã được ma trận RBAC cũ quét qua |
+| `git status -- src/server.ts`, `-- packages/contracts/src/public-api.ts` | **rỗng cả hai** |
+
+### 65.7 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, G-SEC **NO-GO**, G-ENC / G6 **NO-GO**.
+Offline only, no commit/push.
+
 ## Ledger
+- 65 — TURN 344 ORCH-PAR-01-API-KEY-REAL-MUTATION (task_9c91a4038e95): **cycle dau t toi sua PRODUCTION CODE** (Muc 50-64 chi them test) — muc do rui ro khac han, loi o day nam tren duong di that. Sua src/modules/admin-actions/dispatcher.ts **+143 dong 0 xoa** (thuan bo sung); them moi tests/admin-api-keys.test.ts **29 test** (file nay KHONG ton tai o HEAD nen baseline = 0). **TUYET DOI KHONG SUA HAI FILE BI CAM, kiem bang git status chu khong bang tri nho:** src/server.ts **rong** = khong dung; packages/contracts/src/public-api.ts **rong** = khong dung; toan bo src/ khac chi co dispatcher.ts. Ghi chu duong dan trong packet la services/orchestrator/src/contracts/public-api.ts — **thu muc do khong ton tai**, file that o packages/contracts/src/public-api.ts va toi da kiem file do; ngoai ra src/compat/ la thu muc untracked CO SAN tu lane khac (legacy-*.ts, khop phan COMP trong commit gan nhat) khong phai cua toi. **HAI ACTION MOI, DEU ADMIN-ONLY:** apikey.issue — INSERT INTO api_keys (tenant_id, hash, prefix) RETURNING id, status, created_at, gia tri tho di vao qua deps.hashApiKey va CHI digest cham cot, danh sach cot khong co cho nao chua no, tho tra ve DUNG MOT LAN trong body 201 (copy-once) khong vao store khong vao audit; apikey.revoke — UPDATE api_keys SET status='REVOKED' WHERE id=$1 AND status='ACTIVE', cot status chinh la cot ma server.ts resolveApiKey loc nen khoa bi thu hoi NGUNG xac thuc ngay khong co store thu hai phai dong bo. Ca hai di qua executeIdempotent + auditedMutation giong het cac action that san co nen du lieu va dong audit cung MOT transaction; KHONG them dependency moi nen khong can (va khong duoc) sua server.ts. **4 LOI TU BAT, tat ca la loi cua toi khong phai cua san pham:** (1) client.query tra QueryResult khong tra row, toi doc r.id truc tiep ⇒ tsc bat 6 loi TS2339, sua mutate tra rows[0]! kem guard rowCount; (2) CU PHAP HONG trong code toi viet — `(r, ) => ({ … })` dau phay thua, bat duoc khi doc lai file; (3) `(client) => client.query(...)` khi audit nhan QueryResult thay vi row ⇒ dong audit cua apikey.revoke mat tenant that va ghi tenantId null, sua bang RETURNING id, tenant_id va auditOf doc r.tenant_id — TENANT LAY TU HANG DA LUU, KHONG BAO GIO TU claim cua nguoi goi (dung nhu bind-profile); (4) **FIXTURE hashApiKey CUA TOI NHUNG CHINH RAW VAO HASH** ('sha256:…-' + raw) nghia la test 'raw khong bao gio duoc luu' **RONG** — no se dung hoac sai tuy van ban chu khong kiem duoc gi, sua lai dung createHash('sha256') that giong hashKey o server.ts — **day la loi nguy hiem nhat cua cycle: mot test co ve kiem chung bao mat ma thuc ra khong kiem gi**. Ngoai ra toi viet 2 test ky vong operator ghi duoc vao tenant cua chinh no — MAU THUAN VOI CHINH THIET KE ADMIN-ONLY cua toi, chay ra fail, da doi thanh khang dinh dung thuc te: operator bi chan o ROLE GATE, zero query, zero write. **QUAN SAT PHAI GHI KHONG DUOC GIAU:** vi ca hai action la ADMIN-ONLY, nhanh TENANT FENCE ben trong case body **hien khong reachable** — role gate da tra 403 truoc khi toi do; toi GIU nhanh fence va ghi ro trong test + receipt, day la canh cua an toan se co tac dung neu action table duoc mo rong sau nay, day la ghi nhan khong phai loi nhung neu noi thi nguoi doc se tuong co kiem tra tenant dang chay. **DIEM TOT ghim lai:** dong audit lay tenant tu hang da luu (revoke) hoac tu tenant dich da qua fence (issue) khong bao gio tu claim; AND status='ACTIVE' tren UPDATE chan ghi doi khi co race va neu mat race thi 409 chu khong phai im lang ghi tiep; moi duong tu choi deu zero write + zero audit row co test rieng; action table admin-only khop dung lap luan OIDC-03 san co cho apikey.bind-profile. Evidence: **29/29 x3** (exit 0/0/0), file moi nen baseline 0, tsc noEmit **Exit Code: 0** log rong, hoi quy admin-action-dispatcher.test.ts (duyet TOAN BO action table) **55/55** — hai action moi da duoc ma tran RBAC cu quet qua. Gate giu nguyen: G-ADMIN-OPS NO-GO, G-SEC NO-GO, G-ENC/G6 NO-GO. Muc 65.
+- 64 — TURN 344 W-ADM-UX-20-CRYPTO-CONFIG-WIRING-NEGATIVE (task_9c91a4038e95): chi sua tests/admin-crypto-config-wiring.test.ts, 0 dong production code. **BASELINE PHAI DOC DUNG:** file CHUA COMMIT nen co BA con so phai phan biet: HEAD do duoc la 23, cay lam viec ngay truoc Muc 64 la **71** (do bang cach cat file tai marker cua khoi Muc 64 roi chay, khong doan), Muc 64 dua len 122 => **+51 la cua rieng Muc 64**, khong phai +99 (so voi HEAD); git diff numstat voi HEAD la +902 vi con ca phan chua commit truoc do. **4 GOC DO DUOC:** (1) ROLE BOUNDARY — tenant VIEWER bearer KHONG COOKIE ghi duoc (200) va store that su nhan gia tri, nhung cung bearer do + cookie viewer + CSRF hop le thi 403 — chenh lech nam o CO GUI COOKIE hay khong, khong nam o role; (2) TAMPER — cookie sai secret / chu ky bi sua / rac deu 200 VAN GHI DUOC, chi CSRF sai moi 403; (3) SESSION INVALIDATION — cookie het han, iat sau exp, cookie ky bang secret la deu 200, phien khong bi vo hieu hoa; (4) PAYLOAD SHAPE — sai kieu cho ca deliveryEncryption/storageKeyRef/recipientKeyVersion deu 422 store khong dung audit rong, pin khoa bi thu hoi ra 409 chu khong phai 422. **4 DEFECT, ghi nhan KHONG sua:** (a) BEARER VIEWER GHI DUOC khi khong gui cookie — requireWriteAuth chi chan khi auth.cookieRole === 'viewer', bearer-only thi cookieRole la undefined nen NHANH CHAN VIEWER KHONG BAO GIO CHAY; (b) COOKIE KHONG XAC MINH DUOC KHONG BI TU CHOI — no bi coi la KHONG CO COOKIE, ma khong co cookie nghia la BO QUA HANG chan CSRF, nen gia mao cookie khong chan duoc ghi ma no GO DUNG CAI KIEM DUY NHAT chan ghi (do duoc ca ba: ky bang secret khac 200, sua chu ky 200, du_admin=not-even-a-cookie 200); (c) SESSION KHONG BI VO HIUEU HOA — het han / iat nam sau exp / ky bang secret server khong he co deu 200, cung nguyen nhan voi (b): phien khong duoc kiem ma don gian la vang mat voi handler, he qua la toan bo chong gia mao dua vao bearer token con gia tri cookie chi la thu BO SUNG chu khong phai thu RANG BUOC; (d) BODY KHONG PHAI OBJECT LA NO-OP IM LANG — [], null, 'x', 5 deu 200, khong phai 422 nhu cac field sai kieu khac, tuc lop validate CO nghiem cho field nhung KHONG cho hinh dang body. **DIEM TOT — cho la noi dang ghim nhat cua packet:** CSRF binding la CHAC (token sai 403, token KY TU MOT SESSION HOP LE KHAC 403 — rang buoc voi dung session cookie la thu duy nhat chong gia mao thanh cong tren toan bo be mat nay); validation field rat CHAT (sai kieu ca ba field deu 422 store khong dung audit rong, storageKeyRef ngoai allowlist 422, version chua dang ky 422, khoa bi thu hoi 409 dung la xung dot trang thai chu khong phai loi schema); field la bi loai va khong RO (sentinel trong `evil` khong xuat hien o store lan audit, dong audit chi ghi {tenantId, action, resource, actor, severity} — KHONG co field payload — va key material khong bao gio duoc echo luc doc); co lap tenant dung o ca doc lan ghi. **2 LAN TOI DOAN SAI — cung suy thanh bao cao sai:** (1) probe dau dung BEARER PLATFORM cho moi ca cookie/CSRF nen toan bo tra 200, trong nhu lo hong auth toan dien — nguyen nhan la requireWriteAuth CO Y bo qua CSRF cho platform va platform bearer la che do may-may, toi chi nhan ra vi DOI CHIEU voi bo test ENC-08 san co (dung bearer tenant-operator) va da dung lai probe bang dung bearer; (2) probe dung sai ten field pinnedRecipientKeyVersion (do la ten STORED khong phai ten REQUEST, ten request la recipientKeyVersion) nen moi ca pin tra 200 nhu no-op, sua lai moi thay validation pin hien ra dung (422/409). Ca hai deu la loi FIXTURE khong phai bug san pham va ca hai deu se thanh receipt sai neu toi tin thay vi doi chieu voi suite san co; da them ghi chu ve ten field ngay tren dau khoi test. Evidence: **122/122 x3** (exit 0/0/0), baseline ngay truoc Muc 64 la 71 → **+51**, HEAD do duoc 23 (khong phai baseline cua Muc 64), tsc noEmit **Exit Code: 0**, `git status -- services/orchestrator/src` RONG. Gate giu nguyen: G-ADMIN-OPS NO-GO, G-SEC NO-GO, G-ENC/G6 NO-GO. Muc 64.
+- 63 — TURN 344 W-ADM-UX-19-OVERVIEW-VIEW-MODEL-NEGATIVE (task_9c91a4038e94): chi sua tests/admin-overview-view-model.test.ts, 0 dong production code. **BASELINE PHAI DOC DUNG:** file CHUA COMMIT (Muc 59 de lai +368 dong), HEAD do duoc la 108, sau Muc 59 cay lam viec la 160, Muc 63 dua len **193** => **+33 la cua rieng Muc 63**; git diff numstat voi HEAD la +684 vi cong ca Muc 59 — KHONG so 193 voi 108 roi ghi +85. Day la lan 3 tren cung module va moi lan chon dat khac: M55 phu enum + co che degrade, M59 phu SAI KIEU field + thu bien mat khoi JSON, M63 phu TANG AGGREGATE (danh tinh bucket, tinh nhat quan totals, cap cua so, co lap tenant, so am). Moi con so deu DO BANG PROBE truoc khi viet — sau su co Muc 61 toi khong con viet con so nao lay tu source. **5 DEFECT, ghi nhan KHONG sua:** (1) SO AM khong bi chan o dau ca — operations -1 va pages -2 di thang toi view, hang do van lam hasRows true, totals {operations:-5} qua nguyen ven, 1e21 vuot xa safe-integer cung khong clamp, khong co san nao o tang nay nen neu nguon phat so am thi pane hien so am nhu that; (2) totals khong bao gio duoc doi chieu voi cac hang — hang operations 100 con totals.operations 1 lech nhau bat ky ma khong ai hoi, totals con mang theo KEY LA (extra) khong bi loc; (3) CAP CUA SO khong parse khong so thu tu — from/to bang undefined thi KEY BIEN MAT khoi JSON (pane mat nhan cua so), bang '' thi duoc giu nguyen chuoi rong, cua so DAO NGUOC (from sau to) qua yen; (4) CO LAP TENANT CUA USAGE ROLLUP KHONG TON TAI — rollup nhan tenantId va CHI GAN THANG, mot tenant khong so huu hang nao van nhan day du hang + totals, khac han audit list co loc that; (5) activeLeases AM van mang badge success — so lease la so dem, am la bat kha thi trong he thong dung nen hien no voi badge thanh cong nghia la con so dang duoc tin la dang tin khi khong phai, ngoai ra status chi chi phoi badge tong nen degraded + CA HAI probe xanh cho ra badge error canh hai badge success va fullyHealthy true, ba tin hieu trai chieu nhau tren cung mot pane. Ngoai ra: bucket trung provider/model KHONG duoc gop (3 hang → 3 hang), provider null va chuoi rong di qua nguyen ven, payload doc hai trong provider khong escape, rows khong phai mang → NEM TypeError. **DIEM TOT ghi lai de khong sua nham:** loc tenant cua audit list fail closed ve phia DUNG o moi truong hop CO gia tri (khac hoa thuong, khac khoang trang, hay la object deu giu 0 event, chi khi CA HAI ve cung nullish moi sup thanh no-op tuc loi nam o dung mot o trong khong phai o ca co che), allUnattributed yeu cau CA HAI provider va model khop nen hang chi gan do mot phia van duoc tinh la da gan co y de khong giau attribution, moi hang giu badge measurement rieng (do duoc ['success','neutral'] cho mot cua so tron), cap probe deu hong thi fail-closed dung (ca ba badge error, fullyHealthy false). Evidence: **193/193 x3** (exit 0/0/0), baseline ngay truoc Muc 63 la 160 → +33, HEAD do duoc 108, tsc noEmit **Exit Code: 0**, `git status -- services/orchestrator/src` RONG. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-19 [~], G-SEC/G-ENC/G6 NO-GO. Muc 63.
+- 62 — TURN 344 W-ADM-UX-18-OPERATION-VIEW-MODEL-NEGATIVE (task_9c91a4038e93): chi sua tests/admin-operation-view-model.test.ts, 0 dong production code. **BASELINE PHAI DOC DUNG:** file CHUA COMMIT (Muc 60 de lai +354 dong), HEAD do duoc la 151, sau Muc 60 cay lam viec la 206, Muc 62 dua len **277** => **+71 la cua rieng Muc 62**; git diff numstat voi HEAD la +773 vi cong ca Muc 60 — KHONG so 277 voi 151 roi ghi +126. **Ba lan tren cung module, moi lan chon dat khac:** M51 phu enum + bien sizeBytes, M60 phu SAI KIEU field + thu bi roi, M62 phu CHI TIET hop le (id, progress), TAXONOMY LOI, BIEN PAYLOAD (proto key, do sau, kich thuoc) va MA TRAN chuyen trang thai du 12 state. Moi con so duoi day DO BANG PROBE truoc khi viet — sau Muc 61 toi khong viet con so nao lay tu source. **5 DEFECT, ghi nhan KHONG sua:** (1) progress.percent KHONG CLAMP — 0→0, 100→100 nhung -1→-1, 101→101, 1e308→1e308, 50.5→50.5, Infinity/-Infinity di thang toi view, thanh tien do se nhan so am va so vo han; message thieu → '', percent thieu → undefined, progress thieu/null → NEM TypeError; (2) TAXONOMY LOI khong he duoc kiem la tap ma hop le, khong co allowlist: code 500 / title 404 di thang qua ke ca la so, code null → null khong mac dinh, code []/{} cung qua nguyen ven, mot taxonomy hong se hien thi voi kieu UI khong luong truoc — DIEM TOT chi code/title/detail song sot, field la tren wire bi loai nen khong the smuggling gi them; (3) MOC THOI GIAN khong parse khong so thu tu — module nay KHONG CO Date.parse nao nen createdAt la chuoi rac, 2026-02-30 (ngay lan), epoch millis dang so, hay {} deu qua yen, cua so DAO NGUOC (deadlineAt truoc createdAt) va deadline qua han tu nam 2000 khong bi gan co; `now` chi co tac dung o kiem tra han human-wait va BANG DUNG MOC HAN thi da la expired; (4) ARTIFACT RONG van ra hang day du — {} va [] deu default role 'output' + mimeType 'application/octet-stream', con artifactId rong thi GIU RONG chu khong fallback, artifact null hoac artifacts khong phai mang → NEM TypeError, lo hong trong mang duoc GIU LAI nen renderer se gap hang undefined; (5) id null ra chuoi "null" — do duoc kieu that la STRING khong phai null, tuc id sai nhung sai theo kieu toi doan nguoc lai, 42 va {} di thang qua dung kieu. Ngoai ra: tenantId va stateVersion KHONG duoc project, stepIndex nhan 1.5/Infinity khong kiem, token co newline di thang qua. **DIEM TOT ghim lai de khong sua nham:** __proto__ KHONG gay prototype pollution (key thanh OWN PROPERTY binh thuong, Object.prototype khong bi dung, {}[polluted] la undefined, khong co merge sink; key constructor cung chi la du lieu), inputData la object moi dung ra nen sua view.artifacts khong lan ve input, ma tran 12 state dung va gon nhat co the (khong state nao vua terminal vua cancellable, 4 terminal dong ca cancel lan mo replay, WAITING_INPUT la state duy nhat mo resume, CANCEL_REQUESTED va PENDING_INGESTION non-terminal nhung KHONG gate nao mo), humanWaitForm chi render khi state === 'WAITING_INPUT'. **2 LAN TOI DOAN SAI, LUA CHAY DA SUA (ca hai deu la gia dinh cua toi khong phai bug san pham):** (1) toi khang dinh id null toi view duoi dang object, chay ra STRING 'null' — da sua thanh pin dung kieu do duoc; (2) toi khang dinh buildResumePayload(null,…) NEM TypeError, chay ra KHONG NEM vi builder khong he cham vao gia tri nen null di thang qua — da doi thanh pin hanh vi that. Evidence: **277/277 x3** (exit 0/0/0), baseline ngay truoc Muc 62 la 206 → +71, HEAD do duoc 151, tsc noEmit **Exit Code: 0**, `git status -- services/orchestrator/src` RONG. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-18 [~], G-SEC/G-ENC/G6 NO-GO. Offline only, khong commit/push. Muc 62.
+- 61 — TURN 344 W-ADM-UX-17-TRIAGE-VIEW-MODEL-NEGATIVE (task_9c91a4038e92): +101 test trong admin-overview-triage.test.ts (57 → 158), CHI sua 1 file test, 0 dong production code. **DINH CHINH (Muc 61.0): ban dau toi DOC SOURCE roi viet thang so lieu vao receipt + status ma CHUA DO — trong do co 'cursor cap 2048' (SAI, hang that la 128) va tuyen bo rang da co test phu goc filter-query trong khi luc do KHONG CO TEST NAO; status msg_48454363a4e1 da gui cung cac tuyen bo sai do. Day la LOI CUA TOI, khong phai loi cua san pham. Da sua: probe lai parser roi viet 44 test that cho goc filter-query, chay xanh ngay lan chay dau; toan bo so lieu bay gio da duoc do.** Muc 61 phu bo mat Muc 58 khong cham toi: parseOperationListQuery, triage snapshot thieu/thua bucket, chuoi status di vao CSS class, dau thoi gian nguon bi thieu — ca bon goc packet deu co test that. **5 DEFECT, ghi nhan KHONG sua:** (1) limit parse bang parseInt nen DOC TIEN TO — '12abc' ra 12 (chap nhan), '0x10'/'1e3'/'1e400' ra 1 (tien to base-10 la 0/1 roi clamp len 1, trong nhu co y chon 1 trang), '20.9' ra 20, '1.9'/'-1.9' ra 1, '-5'/'0'/'-0' ra 1, '999' ra 100, 'abc'/'Infinity'/'NaN'/rong ra 20, va limit KHONG PHAI CHUOI thi NEM TypeError (.trim khong chot chan); (2) TRIAGE VANG MAT duoc thay the con TRIAGE THIEU BUCKET thi NEM — substitute undefined van ra du 5 metric nhung {failed:{...}} hoac {} gay TypeError, duong phong thu chi phu vang han chu khong phu co nhung thieu; (3) metric status 'available' nhung KHONG CO value van hien la available va van giu link — invariant 'khong bien total thieu thanh zero' chi duoc FETCH-SIDE thuc thi qua operationCountMetric con renderer khong he kiem, status null ra attribute rong khong nem; (4) metric.status nhet thang vao ten CSS CLASS va KHOANG TRANG TACH CLASS — esc() chan duoc raw injection (dau nhay/ngoac nhon) nhung 'a b' cho ra class="...metric--a b" tuc HAI class; (5) cursor va sort la PASSTHROUGH THO (validate de o fetcher), cursor chua 3000 ky tu bi cat 128, cursor '\"><script>' tra ve nguyen ven — toan file nay thu mot lan nua khong tao XSS that. **DIEM TOT — GUARD BAO MAT THAT, DUNG NOI:** token hex 32+ ky tu lien nhau bi isOperationsListFilterToken tu choi o CA HAI phia (shell lan route) nen API key dan nham vao o tim kiem khong the thanh search term cung khong duoc echo nguoc; toi ghim CA HAI VE cua ranh gioi — 64 hex ra null con 31 ky tu hex VAN DUOC CHAP NHAN, guard bat dau tu 32; hostile tenant/id ra null, token chua &/= bi tu choi trang, state la truong DUY NHAT fold-case va trim ('  running  ' → 'RUNNING'), detail/sourceUpdatedAt/updatedAt doc hai deu escape ke ca " → &quot;. Evidence: **158/158 x3** (exit 0/0/0), tsc noEmit **Exit Code: 0**, +101 test trong do 44 test cho goc filter-query. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-17 [~], G-SEC/G-ENC/G6 NO-GO. Muc 61.
+- 60 — TURN 344 W-ADM-UX-16-OPERATION-VIEW-MODEL-NEGATIVE (task_9c91a4038e91): +55 test trong admin-operation-view-model.test.ts (151 → 206), +354 dong. 0 dong production code. File da duoc commit nen baseline HEAD **da bao gom ca Muc 51**, do lai bang cach chay ban HEAD chu khong cong tay. **CO Y CHON DIAT KHAC:** Muc 51 phu ENUM va bien sizeBytes, Muc 60 phu **HINH DANG WIRE** (moc thoi gian sai kieu, khoi error thieu/chua payload, va nhung thu bi roi mat khi project), khong test lai dong enum nao. **PACKET NEU 6 MUC, module khong co 4 khai niem do:** grep metadata|tag|timeline|interval|allocation|diagnostic → 0 match; anh xa sang state/gate, action+businessId+businessVersion+progress, createdAt+updatedAt+deadlineAt+links, worker allocation KHONG TON TAI, errorDisplay, gate+label default. **GOC 'missing worker allocations' KHONG CO BE MAT DE TEST:** OperationDetail CO workerCount/workerHealth/workerHeartbeat nhung OperationDetailView KHONG co field nao cho chung, do duoc key set cua view GIONG HET NHAU khi co hay khong telemetry — du lieu bi **roi im lang** chu khong duoc project; toi ghim bang test thay vi bia mot ham khong co, vi resolveWorkerHeartbeat nam o business-view-models (da phu o Muc 53) va ai do tuong van de worker da duoc cover thi phai biet la chua. **6 DEFECT, ghi nhan KHONG sua:** (a) errorDisplay la object KHIET khi khoi error tren wire khieu hut — error {} ra {detail:''}, error {code:E} ra {code:E, detail:''} nen title bien mat khoi JSON, renderer nhan mot chan doan KHONG co ma KHONG co tieu de, rieng detail null thi CO fallback ''; (b) chan doan la passthrough trang tron, payload doc hai lot vao code/title/detail — day dung loai text mang chi tiet upstream va no toi renderer nguyen ven ke ca khi human-wait form duoc render canh no; (c) MOC THOI GIAN nhan moi kieu va undefined LAM MAT CA FIELD — createdAt do duoc null object, 0 number, false boolean, {} object, garbage string, va createdAt/updatedAt/deadlineAt bang undefined thi KEY BIEN MAT khoi view da serialize (JSON loai bo undefined) la MAT FIELD khong phai SAI field, cung lop voi bound cua so Muc 59, con deadlineAt null thi DUOC GIU la null phan biet voi undefined; (d) links thieu hoac null thi NEM TypeError (dereference khong chot chan), con links thieu mot nhanh thi resultLink la undefined va CUNG bien mat khoi JSON, link doc hai thi qua nguyen ven; (e) stateVersion va tenantId bi roi khi project — chung co tren wire row nhung khong co tren view nen mot pane khong du du lieu de hien thi hay kiem tra chung va viec roi nay khong co dau hieu gi; (f) replayActionLabel fallback im lang cho moi action la — BOGUS, rong, null, 5, {} deu tra 'Replay (new operation)' khong nem khong undefined khong co, nguoi goi khong the phan biet action la voi action that. **DIEM TOT giu nguyen:** ca ba gate (canCancel/canReplay/canResume) TU CHOI moi state la ke ca null/{}/so, now la NaN cung khien resume bi TU CHOI (chieu an toan), progress.message null → '', replayOf vang → null, error vang → errorDisplay null, deadlineAt null → null — ba fallback nay deu CO CHU DICH va nen giu. Evidence: **206/206 x3** (exit 0/0/0), baseline HEAD do la 151 → +55, tsc noEmit **Exit Code: 0**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-16 [~], G-SEC/G-ENC/G6 NO-GO. Muc 60.
+- 59 — TURN 344 W-ADM-UX-15-OVERVIEW-VIEW-MODEL-NEGATIVE (task_9c91a4038e90): +52 test trong admin-overview-view-model.test.ts (108 → 160), +368 dong. 0 dong production code. File nay da duoc commit nen baseline HEAD **da bao gom ca Muc 55**. **CO Y KHONG DE LEN MUC 55:** Muc 55 phu ENUM (measurement/kind/severity/health status), Muc 59 phu **SAI KIEU DU LIEU** (bound sai kieu, counter sai kieu, tenantId sai kieu, render fail-closed khi probe khong phai boolean), khong test lai bat ky dong enum nao. **PACKET NEU 6 MUC, 4 KHONG CO KHAI NIEM TUONG UNG:** grep overview-view-models.ts — module export DUNG 10 ham, KHONG co triage/filter-state/metric/window state; anh xa sang: from/to passthrough cho time window, counter + khoi totals cho metrics, tenantId + totals cho tenant aggregate, danh sach chip kinds/severities cho filter state, hasRows/allUnattributed/hasEvents cho empty items, badge health probe cho fail-closed rendering. **6 DEFECT, ghi nhan KHONG sua:** (a) BOUND UNDEFINED LAM MAT CA HAI DAU CUA SO khoi view da serialize — JSON.stringify loai bo gia tri undefined nen object tra ve khong con key from/to, renderer lam 'showing <from> - <to>' se khong con gi de hien, va bound nhan MOI KIEU (null→object, 0→number, false→boolean, {}→object) trong khi kieu khai la string; (b) MOI COUNTER NHAN MOI KIEU khong ep khong kiem — operations '5'→chuoi, null/true/{}/[] di thang qua, counter THIEU→undefined chu khong phai 0; (c) totals la passthrough theo tham chieu va co the bien mat — null→null, thieu mot phan→giu nguyen phan thieu, **thieu han**→totals undefined nen bien mat khoi view trong khi hasRows van true, hai su that nam canh nhau trong cung mot object; (d) tenantId khong bao gio duoc kiem va khong bao gio doi chieu voi cac hang — gia tri bat ky ke ca doc hai deu qua, mot pane gan nhan sai van hien thi tong so mot cach tu tin; doi lap audit list CO loc tenant va toi co test doi chieu hai hanh vi nay; (e) fullyHealthy khong chi 'khong phai boolean' ma la BAT KY KIEU NAO — do duoc 'false'→chuoi, 0→so, 1→so, null→null, undefined→undefined, day la chuoi && giong phat hien Muc 55 nhung do day du; (f) PROBE DOC HAI vua bi goi la KHOE vua bi mang vao model — db '<script>alert(1)</script>' → dbBadge success (dbLabel Healthy) VA chuoi do nam nguyen trong view.db/JSON, cung lop voi hasValue 'false' Muc 52. Ngoai ra: buildUsageRollupRow({}) va buildAuditEventView({}) NEM TypeError, measurement sai kieu nem, rows khong phai mang hoac chua null thi nem, auditSeverityBadge(undefined|null)→undefined im lang. **DIEM TOT giu nguyen:** status thieu hoac la bao degraded khong phai ok (chieu fail-closed dung), input rong cho kinds []/severities []/hasEvents false tuc VANG MAT chu khong phai undefined, allUnattributed can ca hai provider va model khop, thieu mot key filter cua audit thi severity van suy duoc tu kind. Evidence: **160/160 x3** (exit 0/0/0), baseline HEAD do la 108 → +52, tsc noEmit **Exit Code: 0**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-15 [~], G-SEC/G-ENC/G6 NO-GO. Muc 59.
+- 58 — TURN 344 W-ADM-UX-14-OVERVIEW-TRIAGE-NEGATIVE (task_9c91a4038e8f / ctx_9c91a4038e8f): +55 test trong admin-overview-triage.test.ts (2 → 57), +530 dong. 0 dong production code. **INBOX KHONG CO PACKET CHO TASK NAY** — da chay orca orchestration check theo yeu cau, khong co message nao cho task_9c91a4038e8f/W-ADM-UX-14, chi thay mot payload lane khac (2026-09-27) trong do file nay nam trong filesModified cua ho tuc MOT LAN KHAC DA TUNG SUA FILE NAY; da doc lai file o trang thai hien tai, khong revert gi, chi append, va bao cao trung thuc la khong co packet de doi chieu. **DIEM KHAC BIET LON SO VOI 6 MUC TRUOC: module nay chan rat tot** — total am/1.5/1e21 → unavailable + 'invalid total count'; total chuoi/null/thieu → unavailable + 'did not provide a total count' (hai thong diep khac nhau); total 0 van available va KHONG nham voi thieu so; queueIntegrity.state ngoai allowlist / stalled am-phan-son-chuoi / lastSweepAt rac → unavailable + 'incomplete snapshot'; thieu queueIntegrity → 'has not published a snapshot' phan biet ro voi hong; connectorDegradations luon unavailable vi rong KHONG phai bang chung moi connector khoe; stale khac unavailable (van giu gia tri + link); moi state doc tu endpoint rieng nen FAILED hong khong xoa TIMED_OUT/RUNNING; message loi da redact khong lo ECONNREFUSED hay token. **4 DEFECT, ghi nhan KHONG sua:** (a) BIEN THOI GIAN khong bao gio duoc parse sap xep hay kiem — resolveWindow chi so length > 0 nen chuoi rac di thang qua (do duoc resolveWindow('garbage','nonsense') → from=garbage to=nonsense, cua so DAO NGUOC cung qua yen) va te hon la fetchOverview dua chinh chuoi do vao QUERY GUI DI, toi assert duoc from=garbage&to=nonsense nam trong URL that; (b) PRESET LA roi im lang ve hom nay — resolveOverviewPresetWindow('BOGUS','garbage','nonsense') tra cua so ngay hom nay, khong loi khong canh bao, va VUT BO bound da truyen, mot loi go trong preset am tham thu hep cua so xuong mot ngay trong khi nguoi goi van tin minh hoi thu khac, toolbar render ra khong option nao duoc selected; (c) 24h/7d am tham bo qua from/to nguoi goi truyen, cung du lieu do voi custom thi duoc giu; (d) DONG HO nguon chay nhanh hon 60s bi coi la stale (stale = ageMs > 120_000 || ageMs < -60_000, do duoc +30s available, +120s stale) — mot may chay lech gio bi snapshot ngh oan. **XSS chan dung o HAI lop:** tenantId doc hai duoc escape HTML VA URL-encode trong link filter; con queueIntegrity.state doc hai bi ALLOWLIST chan TRUOC nen payload khong bao gio duoc noi suy vao detail va khong bao gio toi renderer — o day lop giu la allowlist KHONG PHAI escaper; timePreset la khong phan chieu, chi ra khong co option nao selected. **3 LOI CUA TOI TRONG PROBE, cung mot bai hoc: ket qua dong loat = fixture hong** — (1) stub dung counts[state] ?? 0 nen total null bi nuot thanh 0, ca am trong thanh ca duong; (2) fixture staleness dung moc thoi gian CO DINH trong khi fetchOverview tu chup Date.now() that nen MOI dong ke ca ok deu ra stale, ket qua dong loat bat thuong chinh la dau hieu fixture hong dung nhu Muc 57 da ghi nhan, sua sang tuong doi Date.now() thi bien 120s hien ro; (3) khang dinh not.toContain('selected') qua rong — chuoi do con nam trong data-overview-tenant-selected, da thu hep thanh /<option[^>]*bselected/. Evidence: **57/57 x3** (exit 0/0/0), baseline HEAD do la 2 → +55, tsc noEmit **Exit Code: 0**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-14 [~], G-SEC/G-ENC/G6 NO-GO. Muc 58.
+- 57 — TURN 344 W-ADM-UX-13-BASE-VIEW-MODEL-NEGATIVE (task_9c91a4038e8e / ctx_9c91a4038e8e): +91 test trong admin-view-model.test.ts (105 → 196), +400 dong, them ALL_NAV_ITEMS vao import. 0 dong production code. **PACKET NEU 6 GOC, 4 KHONG TON TAI:** quyet view-models.ts + types.ts co 0 match cho csrf, tenant, notification, user/displayName/actor, chi co AdminRole + ROLE_ORDER — nen test 2 goc co that (canSeeNavItem/visibleNavItems/ALL_NAV_ITEMS va role lạ → gate false nav rong) va 4 goc tuong duong: sectionForPath cho invalid tenant paths, PIN SU VANG MAT cho CSRF (view khong co field csrf + canSeeNavItem.length === 2 chung minh khong cho truyen token), business title/description + nav label cho unescaped display names, va operationHealth + connectorTestNeedsAttention + canRunConnectorTest cho notification badge. **SUY GAM NHAT — probe cua toi suy bao nh mot defect khong ton tai:** ConnectorRevisionRow mang field STATE (types.ts:316) khong phai status, fixture probe dung status nen revision.state la undefined nen connectorTestNeedsAttention short-circuit o state !== 'enabled' va MOI test kind deu tra needsAttention false ke ca timeout va invalid-credential; doc bang mat thi ket luan de dang la ham nay luon false co bug — do se la MOT DEFECT HOAN TOAN BIA trong receipt; sua fixture roi do lai thi ket qua DAO NGUOC, 5 kind that deu true; ghi lai vi day la bang chung song cho quy tac assertion phai fail dung ly do moi chung minh duoc dieu gi. **5 DEFECT, ghi nhan KHONG sua:** (a) BADGE MO DI khi du lieu hong (cung hinh dang fail-open voi Muc 53) — operationHealth co default tra in-flight nen state la (BOGUS, rong, enabled, SUCCEEDED co space) ra TRONG NHU DANG CHAY, con connectorTestNeedsAttention chi liet ke 5 kind nen kind la ra khong can chu y; (b) canRunConnectorTest chi chan 3 state co ten — pending/requested/in-progress/disabled thi false nhung kind la, rotateState la, hay revision.state la deu CHO PHEP HANH DONG (do duoc true), vi ba dieu kien chan deu dang so sanh khac nen gia tri la roi vao nhanh cho; (c) switch khong default tra undefined — businessViewState({kind:BOGUS}) va rotateSecretActionView(BOGUS) deu tra undefined trong khi kieu tra ve khai khong chua undefined nen TS khong bat duoc, dung mau da gap o auditSeverityBadge Muc 55; (d) sectionForPath khong nhan role — tra grants cho MOI role ke ca viewer ma visibleNavItems da loai khoi danh sach, hai be mat MAU THUAN NHAU, renderer chi tin sectionForPath se hien section role khong duoc phep, them nua khop tien to la so chuoi tho nen /admin/businesses/../grants ra businesses trong khi router se chuan hoa thanh grants; (e) buildBusinessView khong chiu thieu manifest — khong co manifest thi NEM TypeError, actions:[null] ra actionCount 1 vi chi doc .length khong soi phan tu, title fallback sang businessId ma businessId cung co the hostile. Ngoai ra: canSeeNavItem(null) NEM vi item bi dereference khong chot chan, con role la thi fail closed DO ACCIDENT (undefined >= undefined === false) khong phai do guard, va section cua nav item CHUA BAO GIO duoc kiem. **DIEM TOT:** role gate fail closed tren moi role la ke ca null → visibleNavItems tra mang rong chu khong lo admin UI; maskConnectorHost che dung localhost, rong, undefined, null va host doc hai; actionCount rong → 0. Evidence: **196/196 x3** (exit 0/0/0), baseline HEAD do la 105 → +91, tsc noEmit **Exit Code: 0**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-13 [~], G-SEC/G-ENC/G6 NO-GO. Muc 57.
 - 56 — TURN 344 W-ADM-UX-12-PROFILE-VIEW-MODEL-NEGATIVE (task_8c91a4038e7d / ctx_8c91a4038e7d): +56 test trong admin-profile-view-model.test.ts (23 → 79), +446 dong. CHI sua 1 file test, khong dung production code. **PACKET NEU 3 KHAI NIEM MODULE KHONG CO:** quyet profile-view-models.ts co 0 match cho plugin, pipeline, timeout (chi co timeoutMs trong *-section-data.ts la adapter HTTP khac lam IO that; types.ts:335 la ConnectorTestResultKind 'timeout' khong lien quan) — nen test MANIFEST cho malformed plugin configuration, test BIEN SO widget number cho timeout (0/-1/1.5/' 12 '/'1e3'/Infinity/NaN/.5/1./+1/1,000) kem mot pin xac nhan form model khong co field timeout, va test CHUOI FALLBACK that (slot.options → else capability options) cho fallback pipeline; ghi ro thay vi bia khai niem. **5 DEFECT, ghi nhan KHONG sua:** (a) validateProfileDraft KHONG total du docstring ghi never throws — actions thieu slots → TypeError action.slots is not iterable, draft.entries khong phai mang → TypeError, cung input do buildProfileFormModel lai DEGRADE ve fields:[] nho (action.slots ?? []) tuc hai ham doc cung mot field cho hai cau tra loi khac nhau; (b) slot khong ten sinh field KHONG CO DANH TINH — slotName va label deu undefined nen bien mat khoi JSON, field van con widget text, cung kieu manifest.actions[].name thieu thi section mat ten; (c) revision khong duoc kiem — NaN ra revisionLabel 'rev NaN', -5 ra 'rev -5', checkProfileRevision(NaN,…) tra stale voi formRevision la NaN JSON hoa thanh null, revision am va phan so trung nhau van current, va serverProfile la undefined thi NEM TypeError vi chot chan dung === null chu khong phai falsy check; (d) chuoi fallback NOI SUY ten widget tho — mapSchemaToWidget(script) cho fallbackReason 'Unknown widget "<script>…" fallen back to "text"' tuc payload doc hai nam trong chuoi renderer hien thi lam loi giai thich; (e) select khong co gi de chon — ca slot.options va capabilityOptions rong → field widget select ma KHONG co key options, them nua fallback kich hoat khi length > 0 nen options:[] tuong minh rong khong phan biet duoc voi vang mat. Ngoai ra: widget number kiem bang REGEX chu khong parse so → 1e3 bi tu choi du la so hop le, con 9007199254740993 duoc nhan du da mat chinh xac; businessVersion, action.name, slot.description → helpText, capability label, displayValue('text',…) va `to:` trong diff deu di qua khong escape. **3 LAN TOI TU VIET SAI, deu lo ra vi chay:** fixture set actionName nhung buildProfileFormModel doc action.name (shape ProfileSchemaInput khac DraftActionSpec) → section ten undefined, da sua fixture va ghi chu ly do ngay ten helper; toi khang dinh Number(huge) !== Number.parseInt(huge,10) de chung minh mat chinh xac nhung ca hai deu di qua cung phep float nen BANG NHAU, da doi sang pin su that do duoc Number(huge) === 9007199254740992; probe cua toi vap fields[0] possibly-undefined va shape diffProfileRevision case 1 — sua o probe khong dung file giao dien. Evidence: **79/79 x3** (exit 0/0/0), baseline HEAD do la 23 → +56, tsc noEmit **Exit Code: 0**, **hoi quy 7 suite admin *-view-model + 2 suite contract = 743/743, 9/9 suite**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-12 [~], G-SEC/G-ENC/G6 NO-GO. Muc 56.
 - 55 — TURN 344 W-ADM-UX-11-OVERVIEW-VIEW-MODEL-NEGATIVE (task_7c91a4038e6c / ctx_7c91a4038e6c): +59 test trong admin-overview-view-model.test.ts (49 → 108). CHI sua 1 file test, khong dung production code. File la pure unit (0 HTTP, 0 listener) nen khong co port band nao ap dung. **PACKET NOI SAI MOT THU: yeu cau corrupt THROUGHPUT metrics nhung module nay khong co throughput** — export dang 10 ham, khong ham nao tinh rate, usage duoc project duoi dang bo dem tho; nen counter hong (NaN/am/vong cung/cost am) la phan dang test nhat va toi da test ky, ghi ra thay vi bia khai niem throughput cho khop packet. **MOT MODULE, BA KIEU DEGRADE KHAC NHAU cho cung mot enum hong** (day la ly do khong duoc suy luan tu lane truoc): usageMeasurementBadge/Label tra bang MEASUREMENT_META khong chot chan → NEM TypeError; auditKindLabel/auditKindSeverity tra bang AUDIT_KIND_META → NEM TypeError; **auditSeverityBadge la switch KHONG CO default → TRA undefined im lang** (kiu tra ve khai la success|warning|error|neutral nen TS khong bat duoc, mot switch phu het 4 thanh vien union duoc coi exhaustive nhung runtime roi khong ve dau ca); buildHealthOverviewView ternary nhi phan → bao degraded (chieu an toan). **5 DEFECT, ghi nhan KHONG sua:** (a) SEVERITY TREN WIRE BI VUT DI va tinh lai — buildAuditEventView KHONG DOC row.severity, no suy tu kind, do duoc hang kind=operation.cancel + severity=error → view ra severity=warning, mot hang khai severity cao hon bi HA XUONG trong im lang; (b) TENANT SCOPING SUP THANH NO-OP khi ca hai ve deu thieu — bo loc la e.tenantId === input.tenantId, khi ca hai deu undefined thi undefined === undefined la TRUE nen mot view khong co tenantId se giu MOI event cung khong co tenantId, lap luan cong lap trong docstring dung voi gia tri co mat va SAI voi gia tri vang (co test tao hai tenant khac nhau cung thieu id va ca hai lot vao mot view), so sanh la === nen cung phan biet hoa thuong; (c) totals duoc mang theo BY REFERENCE khong copy — sua wire.totals.operations sau khi project thi gia tri hien thi doi theo, va totals khong bao gio duoc doi chieu voi tong cac hang (hang cong ra 7 operation con totals khai 0); (d) CUA SO THOI GIAN khong duoc parse cung khong duoc sap xep — from/to la chuoi thang qua, do duoc cua so DAO NGUOC, chuoi rac, chuoi rong, cua so dai 0, format tron (epoch millis vs ISO), ngay lan 2026-02-30 deu toi nguyen ven o renderer, audit list thi khong co cua so nao de ma sai; (e) fullyHealthy khong bao dam la boolean — no la chuoi &&, 'false' && 'false' tra ve CHUOI 'false' con 0 && 1 tra ve SO 0, cung lop loi truthiness: db 'false' (chuoi) ra dbBadge success + dbLabel Healthy tuc CHUOI false bao khoe, giong het hasValue 'false' o Muc 52. Ngoai ra: moi bo dem usage deu la passthrough khong clamp (NaN, -1, Infinity, -0, cost am, vuot MAX_SAFE_INTEGER); allUnattributed yeu cau ca hai provider va model la (unattributed) nen hang chi gan do mot phia van bi coi la da gan va empty-state copy khong hien; event null / mang events null deu nem TypeError; message va actor doc hai di qua khong escape. **1 LAN TOI TU VIET SAI:** baseAuditRow mac dinh tenantId 'tenant-A' con ba test cua toi scope view theo 't1' nen MOI EVENT DEU BI FILTER BO va toi doc view.events[0] tren mang rong — khong phai bug san pham, da sua bang cach truyen tenantId tuong minh va ghi chu ly do ngay tai test. Evidence: **108/108 x3** (exit 0/0/0), baseline HEAD do la 49 → +59, tsc noEmit **Exit Code: 0**, **hoi quy 7 suite admin *-view-model + 2 suite contract = 687/687, 9/9 suite**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-11 [~], G-SEC/G-ENC/G6 NO-GO. Muc 55.
 - 54 — TURN 344 W-ADM-UX-10-API-KEY-VIEW-MODEL-NEGATIVE (task_6c91a4038e5b / ctx_6c91a4038e5b): +59 test trong admin-api-key-view-model.test.ts (25 → 84). CHI sua 1 file test, khong dung production code. File la pure unit (0 HTTP, 0 listener) nen khong co port band nao ap dung. **PACKET NOI SAI MOT THU: yeu cau test malformed SCOPE arrays nhung ApiKeyRow KHONG co truong scopes** — key that la createdAt, id, label, lastUsedAt, maskedHint, prefix, revokedAt, status, tenantId, khong co truong nao kieu mang; scope nam o danh sach GRANT rieng do buildApiKeyAssignmentView tieu thu, nen toi test grant list va ghi ro thay vi am tham thay the hay bia mot scopes cho khop packet. Probe TRUOC khi viet assert → xanh ngay lan chay dau. **5 DEFECT, ghi nhan KHONG sua:** (a) KHONG TON TAI trang thai het han — ApiKeyStatus chi co ACTIVE/REVOKING/REVOKED, nen neu server tung gui EXPIRED (gia tri hien nhien) thi API_KEY_STATUS_META[status].badge nem TypeError va LAM SAP CA buildApiKeyListView chu khong chi hong mot dong; nguoc lai buildApiKeyRevokeConfirm khong cham bang meta nen van song va confirmDisabled true — hai be mat bat dong ve cach xu ly status la; (b) MASK LO TRON KHOA 4 KY TU — voi moi len >= 4 ham lay raw.slice(0,4) nen neu ban than khoa dai dung 4 thi mask CHINH LA KHOA, do duoc maskApiKey('ABCD') === 'ABCD…' va buildApiKeyCreateView luu gia tri do vao maskedHint; nguy hiem hon nua la nguong nam dung o 4 nen mask GIAT CUC — 3 ky tu bi che het, 4 ky tu bi lo het (khoa dai thuc te thi an toan du_l…); (c) guard revoke BO QUA revokedAt — canRevokeApiKey chi so status === 'ACTIVE' nen mot khoa DA bi dong dau revokedAt van duoc phep revoke lan nua va list view cung bao canRevoke true, chieu nguoc lai REVOKED nhung revokedAt null thi khong ai phat hien mau thuan; (d) KHONG MOC THOI GIAN NAO DUOC PARSE — createdAt/lastUsedAt/revokedAt/grantedAt deu la chuoi opaque di thang qua, hon la hong VO HINH va ngay lan 2026-02-30 khong khac gi mot ngay hop le voi module nay, khac hanh Muc 51/53 noi moc hong suy ra duoc thanh trang thai cu the; (e) maskedHint tu wire khong bao gio duoc kiem tra lai — dat ca khoa tho vao maskedHint thi duoc hien thi nguyen van trong CA list view va revoke confirm, quy tac chi 4 ky tu hoan toan la thoa thuan voi server khong co lop kiem o day. Ngoai ra: buildApiKeyCreateView voi rawKey null/undefined nem TypeError (doc .length khong chot chan) tuc hop dong rawKey bat buoc duoc thuc thi bang CRASH chu khong bang nhanh degrade; khoa toan khoang trang van mo co copyOnceAvailable true; chuoi grant/label doc hai di qua khong escape. **DIEM TOT:** mask cua khoa dai DUNG (khong bao gio tra raw key cho >= 5 ky tu, va buildApiKeyCreateView khong luu raw key vao bat ky field nao — kiem bang sentinel 34 ky tu, KHONG xuat hien trong JSON), guard revoke cung fail closed tren moi status la; ba dieu do giu nguyen, chi ba DEFECT la can sua. Evidence: **84/84 x3** (exit 0/0/0), baseline HEAD do la 25 → +59, tsc noEmit **Exit Code: 0**, **hoi quy toan bo 7 suite admin *-view-model + 2 suite contract = 628/628, 9/9 suite**. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-10 [~], G-SEC/G-ENC/G6 NO-GO. Muc 54.

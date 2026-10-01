@@ -195,4 +195,111 @@ describe('FT-03 Execution Pin & Recipe Determinism (functional, P2-02 [ ] PRF sl
     expect(() => RecipeRegistry.getRecipe('extract', 'ocr')).toThrow(/Unknown recipe/);
     expect(() => RecipeRegistry.getRecipe('compare', 'merge')).toThrow(/Unknown recipe/);
   });
+
+  it('keeps the submitted recipe pin stable when execution profile fields have invalid formats', () => {
+    const input = ExtractAction.validateInput({ type: 'invoice', text: 'INV-INVALID-PROFILE' });
+    const invalidProfiles: unknown[] = [
+      { profileId: '', revision: -1, parameters: [], slots: null, promptOverrides: 'not-a-map' },
+      { profileId: 'profile-bad-revision', revision: Number.NaN, parameters: {}, slots: { reasoning: 'not-a-slot' } },
+      { profileId: 'profile-overflow', revision: Number.MAX_SAFE_INTEGER + 1, parameters: {}, slots: {}, limits: [] },
+    ];
+
+    for (const profile of invalidProfiles) {
+      const selected = ExtractAction.selectRecipe(input, profile as ProfileSnapshot);
+      expect(selected.recipeId).toBe('recipe-extract-invoice-v1');
+      expect(selected.variant).toBe('invoice');
+    }
+  });
+
+  it('does not drift a pinned recipe when the presented business tool version changes mid-run', async () => {
+    const ctx = new MockTaskContext();
+    ctx.businessVersion = '1.2.3';
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-version-drift-pin',
+      status: 'SUCCESS',
+      data: { invoiceNumber: 'INV-DRIFT', supplier: { name: 'ACME' }, total: 250 },
+    };
+    const payload = { type: 'invoice', text: 'Invoice pinned before tool version drift' };
+    const input = ExtractAction.validateInput(payload);
+    const pinnedRecipe = ExtractAction.selectRecipe(input).recipeId;
+
+    const first = await documentCoreHandlers.extract!(ctx, payload);
+    ctx.businessVersion = '999.0.0';
+    const replay = await documentCoreHandlers.extract!(ctx, payload);
+
+    expect(first.kind).toBe('completed');
+    expect(replay.kind).toBe('completed');
+    expect(ExtractAction.selectRecipe(input).recipeId).toBe(pinnedRecipe);
+    expect(pinnedRecipe).toBe('recipe-extract-invoice-v1');
+    expect(ctx.connectorInvocations).toHaveLength(1);
+    expect(ctx.connectorInvocations[0]?.slot).toBe('reasoning');
+  });
+
+  it('refuses connector execution when a source artifact has no version pin', async () => {
+    const ctx = new MockTaskContext();
+    const artifactId = 'artifact-without-version-pin';
+    ctx.storeArtifact(artifactId, Buffer.from('pinned OCR source bytes'), 'scan.png', 'image/png');
+    ctx.artifactReadIdentityStore.delete(artifactId);
+
+    await expect(
+      documentCoreHandlers.ingest!(ctx, { mode: 'ocr', artifactIds: [artifactId] })
+    ).rejects.toMatchObject({ code: 'ARTIFACT_GRANT_INVALID' });
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  it('does not allow profile or payload overrides to change the pinned variant or connector slot', async () => {
+    const input = ExtractAction.validateInput({
+      type: 'invoice',
+      text: 'Invoice protected from caller overrides',
+      recipeId: 'recipe-extract-contract-v1',
+      variant: 'contract',
+      requiredSlot: 'vision',
+      promptOverrides: { extract_invoice: 'caller supplied prompt' },
+    });
+    const unauthorizedProfile = {
+      profileId: 'profile-attacker',
+      revision: 999,
+      parameters: { recipeId: 'recipe-extract-contract-v1' },
+      slots: { reasoning: { connectorId: 'attacker-connector', revision: 999, model: 'attacker-model' } },
+      promptOverrides: { extract_invoice: 'attacker prompt' },
+    } as ProfileSnapshot;
+    const selected = ExtractAction.selectRecipe(input, unauthorizedProfile);
+    const ctx = new MockTaskContext();
+    ctx.connectorBindings = { reasoning: 'attacker-connector', vision: 'attacker-vision' };
+    ctx.defaultConnectorResponse = {
+      invocationId: 'inv-authorized-pin',
+      status: 'SUCCESS',
+      data: { invoiceNumber: 'INV-AUTH', supplier: { name: 'ACME' }, total: 500 },
+    };
+
+    const disposition = await documentCoreHandlers.extract!(ctx, {
+      type: 'invoice',
+      text: 'Invoice protected from caller overrides',
+      recipeId: 'recipe-extract-contract-v1',
+      variant: 'contract',
+      requiredSlot: 'vision',
+      promptOverrides: { extract_invoice: 'caller supplied prompt' },
+    });
+
+    expect(selected.recipeId).toBe('recipe-extract-invoice-v1');
+    expect(selected.steps.find((step) => step.requiredSlot)?.requiredSlot).toBe('reasoning');
+    expect(disposition.kind).toBe('completed');
+    expect(ctx.connectorInvocations).toHaveLength(1);
+    expect(ctx.connectorInvocations[0]?.slot).toBe('reasoning');
+    expect((ctx.connectorInvocations[0]?.payload as { task?: string }).task).toBe('extract_invoice');
+  });
+
+  it('fails closed when pinned artifact digest metadata is corrupted', async () => {
+    const ctx = new MockTaskContext();
+    const artifactId = 'artifact-corrupt-pin-digest';
+    ctx.storeArtifact(artifactId, Buffer.from('source bytes whose digest must stay pinned'), 'scan.png', 'image/png');
+    const identity = ctx.artifactReadIdentityStore.get(artifactId);
+    expect(identity).toBeDefined();
+    identity!.sha256 = 'f'.repeat(64);
+
+    await expect(
+      documentCoreHandlers.ingest!(ctx, { mode: 'ocr', artifactIds: [artifactId] })
+    ).rejects.toMatchObject({ code: 'ARTIFACT_INTEGRITY_MISMATCH' });
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
 });

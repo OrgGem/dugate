@@ -1,26 +1,26 @@
 {
-  "coordinator": "antigravity",
-  "coordinator_handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
-  "coordinator_model": "gemini-3.8-flash",
-  "turn": 356,
+  "coordinator": "openclaude",
+  "coordinator_handle": "term_1b615444-8014-4eaf-adb7-4991c9eafcc2",
+  "coordinator_model": "claude-opus-4-8",
+  "turn": 372,
   "interval_minutes": 10,
-  "last_tick": "2026-09-29T08:37:00+07:00",
+  "last_tick": "2026-10-01T02:41:00+07:00",
   "previous_coordinator": "antigravity",
-  "previous_coordinator_handle": "term_28e988ef-2530-4f1a-80d4-f71ac48ddade",
-  "handover_at": "2026-09-28T22:39:00+07:00",
-  "handover_reason": "User requested the newly added Antigravity agent as primary coordinator; the previous terminal did not complete its scheduled cycle. The 30-minute cadence and worker watch history are preserved.",
+  "previous_coordinator_handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
+  "handover_at": "2026-10-01T02:43:00+07:00",
+  "handover_reason": "User requested handover from Antigravity to OpenClaude due to Antigravity quota depletion. Watch state, 10-minute cadence and active dispatches preserved.",
   "roster": {
     "coordinator": {
-      "handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
-      "identity": "antigravity",
-      "model": "gemini-3.8-flash",
-      "role": "Primary coordinator: plan, reports, Orca status, task assignment and 10-minute worker monitoring; no source-code reading"
-    },
-    "backup_coordinator": {
       "handle": "term_1b615444-8014-4eaf-adb7-4991c9eafcc2",
       "identity": "openclaude",
       "model": "claude-opus-4-8",
-      "role": "Standby coordinator after explicit ownership handover; plan and Orca status only"
+      "role": "Primary coordinator: plan, reports, Orca status, task assignment and 10-minute worker monitoring; no source-code reading"
+    },
+    "backup_coordinator": {
+      "handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
+      "identity": "antigravity",
+      "model": "gemini-3.8-flash",
+      "role": "Standby coordinator; deactivated/parked due to quota exhaustion"
     },
     "reviewer": {
       "handle": "term_b103836b-98e7-4fa2-900d-98db145d3d01",
@@ -74,6 +74,18 @@
       "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
       "identity": "codex",
       "model": "gpt-6-luna",
+      "role": "Implementation and bug fixes; scoped packet ownership"
+    },
+    "codex_worker_3": {
+      "handle": "term_f1ed751c-4c2a-4563-9687-0a5b30c5900a",
+      "identity": "codex",
+      "model": "gpt-6-luna",
+      "role": "Implementation and bug fixes; scoped packet ownership"
+    },
+    "qwen_4": {
+      "handle": "term_63bf0dbc-d90e-406d-8089-37dfc45ed4bb",
+      "identity": "qwen-code",
+      "model": "qwen3.8-max",
       "role": "Implementation and bug fixes; scoped packet ownership"
     }
   },
@@ -136,16 +148,16 @@
     }
   },
   "reviewer_mode": "mandatory-post-module-and-on-demand",
-  "schedule_active": true,
-  "schedule_type": "windows-task-orca-terminal-send-10m",
-  "schedule_task_id": "DU-Rework-Orca-Coordinator-30m",
+  "schedule_active": false,
+  "schedule_type": "none",
+  "schedule_task_id": null,
   "previous_schedule": {
     "schedule_active": false,
     "schedule_type": "orca-automation-cron-10m",
     "schedule_task_id": "1ec1f0c5-49b8-49b5-b87c-768164423bb6",
-    "reason": "Disabled because the installed Orca automation opened another Antigravity terminal on each run"
+    "reason": "Removed on 2026-10-01 because the installed Orca automation opened another Antigravity terminal on each run"
   },
   "consolidation_note": "The user reassigned coordination to Antigravity on 2026-09-27; prior Claude/Qwen/OpenClaude lane assignments are historical.",
-  "coordination_mode": "Windows 10-minute tick uses Orca terminal send for one persistent Antigravity coordinator; active task dispatch to Qwen and Codex workers to avoid idle; independent Codex testing, Claude review, OpenClaude backup",
-  "roster_note": "Current Orca roster: 5 Codex (technical lead, 2 testers, 2 workers), 3 Qwen, 1 Claude reviewer, 1 OpenClaude backup, and 1 scheduled Antigravity coordinator. Verify terminal handles and live status each cycle."
+  "coordination_mode": "No active automatic coordination schedule; manual coordinator ownership remains separate from worker dispatch and Claude Code review. Only Claude Code may receive a new coordinator schedule on explicit user request.",
+  "roster_note": "Historical roster: 5 Codex (technical lead, 2 testers, 2 workers), 3 Qwen, 1 Claude reviewer, 1 OpenClaude backup, and 1 Antigravity coordinator. Verify live terminal handles and ownership before any manual cycle."
 }

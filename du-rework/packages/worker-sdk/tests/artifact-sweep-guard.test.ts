@@ -11,7 +11,7 @@ import {
 
 jest.mock('node:fs/promises', () => {
   const actual = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises');
-  return { ...actual, rm: jest.fn(actual.rm) };
+  return { ...actual, rm: jest.fn(actual.rm), stat: jest.fn(actual.stat) };
 });
 
 /**
@@ -67,6 +67,40 @@ describe('ART-02 sweep live-reference guard (offline, W46-Q2-3)', () => {
     expect(existsSync(referenced)).toBe(true);
     await expect(readdir(referenced).then((f) => f)).resolves.toContain('payload.bin');
     expect(existsSync(other)).toBe(false);
+  });
+
+  it('fails closed and keeps the artifact if checking active references is denied', async () => {
+    const active = await plantStaleDir(root, 'active-reference-denied');
+    const denied = Object.assign(new Error('active reference query denied'), { code: 'EACCES' });
+
+    const result = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs: 0,
+      hasActiveReference: async () => { throw denied; },
+    });
+
+    expect(result.kept).toContain(active);
+    expect(result.removed).not.toContain(active);
+    expect(existsSync(active)).toBe(true);
+  });
+
+  it.each([
+    ['NaN threshold', Number.NaN, () => Date.now(), false],
+    ['positive infinite threshold', Number.POSITIVE_INFINITY, () => Date.now(), false],
+    ['unreadable age clock', 0, () => Number.NaN, false],
+    ['negative threshold with an active holder', -1, () => Date.now(), true],
+  ])('keeps the workspace for an invalid threshold/age case: %s', async (_label, olderThanMs, now, active) => {
+    const workspace = await plantStaleDir(root, 'invalid-age');
+    const result = await sweepStaleWorkspaces({
+      rootDir: root,
+      olderThanMs,
+      now,
+      hasActiveReference: async () => active,
+    });
+
+    expect(result.kept).toContain(workspace);
+    expect(result.removed).not.toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
   });
 
   it('keeps a stale workspace when its active lease timestamp is invalid or corrupt', async () => {
@@ -147,14 +181,65 @@ describe('ART-02 sweep live-reference guard (offline, W46-Q2-3)', () => {
     ]);
 
     expect(referenceChecks).toBe(2);
-    expect(results.every((result) => result.removed.includes(orphan))).toBe(true);
+    // Whichever sweep reaches rm after the other is allowed to report the
+    // path as kept after observing the concurrent removal race; one sweep
+    // must report removal and the directory must be gone after both settle.
+    expect(results.some((result) => result.removed.includes(orphan))).toBe(true);
+    expect(results.every((result) => result.removed.includes(orphan) || result.kept.includes(orphan))).toBe(true);
     expect(existsSync(orphan)).toBe(false);
+  });
+
+  it('preserves an active artifact when concurrent sweepers check the same reference', async () => {
+    const active = await plantStaleDir(root, 'concurrent-active');
+    let referenceChecks = 0;
+    let releaseChecks!: () => void;
+    const bothChecksDone = new Promise<void>((resolve) => { releaseChecks = resolve; });
+    const hasActiveReference = async (): Promise<boolean> => {
+      referenceChecks += 1;
+      if (referenceChecks === 2) releaseChecks();
+      await bothChecksDone;
+      return true;
+    };
+
+    const results = await Promise.all([
+      sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0, hasActiveReference }),
+      sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0, hasActiveReference }),
+    ]);
+
+    expect(referenceChecks).toBe(2);
+    expect(results.every((result) => result.kept.includes(active))).toBe(true);
+    expect(results.every((result) => !result.removed.includes(active))).toBe(true);
+    expect(existsSync(active)).toBe(true);
   });
 
   it('keeps the stale workspace and returns normally when disk removal fails', async () => {
     const workspace = await plantStaleDir(root, 'disk-removal-fails');
     const diskError = Object.assign(new Error('volume is temporarily unavailable'), { code: 'EIO' });
     jest.mocked(rm).mockRejectedValueOnce(diskError);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.removed).not.toContain(workspace);
+    expect(result.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
+  });
+
+  it('keeps the stale workspace and returns normally when stat is permission-denied', async () => {
+    const workspace = await plantStaleDir(root, 'stat-permission-denied');
+    const denied = Object.assign(new Error('permission denied while stating entry'), { code: 'EACCES' });
+    jest.mocked(stat).mockRejectedValueOnce(denied);
+
+    const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
+
+    expect(result.removed).not.toContain(workspace);
+    expect(result.kept).toContain(workspace);
+    expect(existsSync(workspace)).toBe(true);
+  });
+
+  it('keeps the stale workspace and returns normally when recursive removal is permission-denied', async () => {
+    const workspace = await plantStaleDir(root, 'remove-permission-denied');
+    const denied = Object.assign(new Error('permission denied while removing entry'), { code: 'EACCES' });
+    jest.mocked(rm).mockRejectedValueOnce(denied);
 
     const result = await sweepStaleWorkspaces({ rootDir: root, olderThanMs: 0 });
 

@@ -44,6 +44,21 @@ describe('createConnectorInvoker error contract', () => {
   });
 
   it.each([
+    ['empty invocation ID', { ...payload, invocationId: '' }],
+    ['malformed task ID', { ...payload, taskId: '../not-a-uuid' }],
+    ['unexpected request field', { ...payload, authorization: 'attacker-controlled' }],
+  ])('rejects a malformed invocation request (%s) before HTTP dispatch', async (_caseName, malformedPayload) => {
+    const fetchImpl = jest.fn(async () => response(200, JSON.stringify({
+      invocationId: payload.invocationId,
+      state: 'SUCCEEDED',
+    }))) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
+
+    await expect(invoke(grant, malformedPayload as never)).rejects.toThrow();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
     [401, 'GRANT_INVALID'],
     [403, 'BINDING_DENIED'],
   ] as const)('preserves service identity rejection %s %s without retry', async (status, code) => {
@@ -55,6 +70,44 @@ describe('createConnectorInvoker error contract', () => {
 
     expect(error).toMatchObject({ status, code });
     expect(classifyFailure(error)).toMatchObject({ errorCode: code, retryable: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the 401 fallback for a corrupt authorization error payload without retry', async () => {
+    const fetchImpl = jest.fn(async () => response(401, '{corrupt-auth-error')) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(error).toMatchObject({ status: 401, code: 'GRANT_INVALID' });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'GRANT_INVALID', retryable: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails before HTTP when the worker service-token provider throws', async () => {
+    const fetchImpl = jest.fn(async () => response(200, '{}')) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({
+      baseUrl: 'http://connector',
+      serviceToken: () => { throw new Error('expired private credential'); },
+      fetchImpl,
+    });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(error).toMatchObject({ status: 401, code: 'GRANT_INVALID' });
+    expect((error as Error).message).not.toContain('expired private credential');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('omits a whitespace-only authorization token and fails closed on the 401 response', async () => {
+    let requestInit: RequestInit | undefined;
+    const fetchImpl = jest.fn(async (_input: unknown, init?: RequestInit) => {
+      requestInit = init;
+      return response(401, JSON.stringify({ error: { code: 'NOT_AN_AUTH_CODE', message: 'bad token' } }));
+    }) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', serviceToken: '   ', fetchImpl });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(new Headers(requestInit?.headers).get('authorization')).toBeNull();
+    expect(error).toMatchObject({ status: 401, code: 'GRANT_INVALID' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -118,6 +171,19 @@ describe('createConnectorInvoker error contract', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('maps an unresolvable Connector endpoint to unknown without retrying or exposing DNS details', async () => {
+    const fetchImpl = jest.fn(async () => {
+      throw Object.assign(new Error('getaddrinfo ENOTFOUND private-connector-host'), { code: 'ENOTFOUND' });
+    }) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector.invalid', fetchImpl });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+    expect((error as Error).message).not.toContain('private-connector-host');
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects an artifact ingress payload over 64 MiB before sending an HTTP request', async () => {
     // Keep the base64 character count aligned so schema validation rejects on
     // the contract's size bounds without triggering pathological regex backtracking.
@@ -160,6 +226,7 @@ describe('createConnectorInvoker error contract', () => {
     expect(requestSignal).toBeInstanceOf(AbortSignal);
     expect(requestSignal?.aborted).toBe(true);
     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
   });
 
   it('fails closed for a non-JSON successful Connector response', async () => {
@@ -193,6 +260,40 @@ describe('createConnectorInvoker error contract', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('fails closed when a socket hangs up while the response body is being read', async () => {
+    const socketReset = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+    const fetchImpl = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => { throw socketReset; },
+    } as unknown as Response)) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+    expect((error as Error).message).not.toContain('ECONNRESET');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when streamed JSON chunks have invalid trailing frame bytes', async () => {
+    const encoder = new TextEncoder();
+    const fetchImpl = jest.fn(async () => new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('{"invocationId":"invocation-1","state":"SUCCEEDED"}'));
+          controller.enqueue(encoder.encode('\u0000corrupt-frame'));
+          controller.close();
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    )) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     [500, false],
     [502, false],
@@ -207,6 +308,18 @@ describe('createConnectorInvoker error contract', () => {
 
     expect(error).toMatchObject({ status, code: 'PROVIDER_UNAVAILABLE' });
     expect(classifyFailure(error)).toMatchObject({ errorCode: 'PROVIDER_UNAVAILABLE', retryable });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves retries to the caller when a retryable response exhausts the adapter attempt budget', async () => {
+    const fetchImpl = jest.fn(async () => response(503, JSON.stringify({
+      error: { code: 'PROVIDER_UNAVAILABLE', message: 'temporary outage' },
+    }))) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
+    const error = await rejectedValue(invoke(grant, payload));
+
+    expect(error).toMatchObject({ status: 503, code: 'PROVIDER_UNAVAILABLE' });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'PROVIDER_UNAVAILABLE', retryable: true });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 

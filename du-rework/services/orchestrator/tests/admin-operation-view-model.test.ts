@@ -1132,3 +1132,776 @@ describe('W-ADM-UX-07: progress percent is unclamped and progress is not optiona
   });
 });
 
+
+// ===========================================================================
+// W-ADM-UX-16-OPERATION-VIEW-MODEL-NEGATIVE (Turn 344 / Cycle 60)
+//
+// Second negative pass over the same module as W-ADM-UX-09 (Mục 51). That pass
+// covered the ENUM degradations and the size boundary; this one deliberately
+// stays off that ground and covers the WIRE SHAPE instead: wrong-typed timeline
+// fields, partial/hostile error diagnostics, and what the projection silently
+// drops. Every expectation was MEASURED with a throwaway probe first.
+//
+// Packet coverage map: this module has no metadata-tag, timeline-interval,
+// worker-allocation or diagnostic concept by those names (grep for
+// metadata|tag|timeline|interval|allocation|diagnostic returns nothing). So:
+//   - "invalid operation states"    -> the state carried through status + gates
+//   - "corrupted metadata tags"     -> action / businessId / version / progress
+//   - "undefined timeline intervals"-> createdAt / updatedAt / deadlineAt / links
+//   - "missing worker allocations"  -> pinned as ABSENT (see 60.3)
+//   - "unescaped error diagnostics" -> the errorDisplay block
+//   - "fail-closed view model rendering" -> the gate helpers and label default
+//
+// Pure unit file: no DB, no HTTP, no listener, so no port band applies.
+// ===========================================================================
+
+const T60_XSS = '<script>alert(1)</script>';
+const T60_NOW = '2026-03-19T00:00:00.000Z';
+
+function t60Op(o: Record<string, unknown> = {}): OperationDetail {
+  return {
+    id: 'aaaaaaaa-0000-0000-0000-000000000001',
+    tenantId: 'tenant-1',
+    businessId: 'biz',
+    businessVersion: '1.0.0',
+    action: 'review',
+    state: 'RUNNING',
+    stateVersion: 2,
+    createdAt: '2026-03-01T00:00:00.000Z',
+    updatedAt: '2026-03-02T00:00:00.000Z',
+    deadlineAt: '2026-03-03T00:00:00.000Z',
+    progress: { percent: 50, message: 'working' },
+    links: { self: '/api/v1/operations/x', result: '/api/v1/operations/x/result' },
+    ...o,
+  } as unknown as OperationDetail;
+}
+
+function t60View(o: Record<string, unknown> = {}) {
+  return formatOperationDetailView(t60Op(o), [], T60_NOW);
+}
+
+// ---------------------------------------------------------------------------
+// 1. Invalid operation states
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-16: a corrupt state keeps its own type and loses its label', () => {
+  // Mục 51 pinned the label/badge as undefined. What is new here is the TYPE:
+  // status.state carries the corrupt value verbatim, so a number or an object
+  // ends up in a field declared as BusinessStatus.
+  test.each([
+    ['BOGUS', 'string'],
+    ['', 'string'],
+    ['running', 'string'],
+    [0, 'number'],
+    [null, 'object'],
+    [{}, 'object'],
+  ])('state %p survives into status.state as a %s', (state, type) => {
+    const view = t60View({ state });
+    expect(view.status.state).toBe(state);
+    expect(typeof view.status.state).toBe(type);
+  });
+
+  // The badge and label are undefined, so JSON drops them: the renderer
+  // receives a status object with no label and no badge at all.
+  test('a corrupt state produces a status with no label and no badge in the JSON', () => {
+    const view = t60View({ state: 'BOGUS' });
+    expect(view.status.label).toBeUndefined();
+    expect(view.status.badge).toBeUndefined();
+    expect(JSON.stringify(view.status)).toBe('{"state":"BOGUS","terminal":false}');
+  });
+
+  test('a corrupt state is not treated as terminal, so it stays mutable-looking', () => {
+    expect(t60View({ state: 'BOGUS' }).status.terminal).toBe(false);
+    expect(t60View({ state: 'SUCCEEDED' }).status.terminal).toBe(true);
+  });
+
+  test('buildOperationStatusBadge on a non-string degrades the same way', () => {
+    const badge = buildOperationStatusDisplay(null as never);
+    expect(badge.label).toBeUndefined();
+    expect(badge.badge).toBeUndefined();
+  });
+
+  test('every action gate refuses a corrupt state (control for the rows above)', () => {
+    for (const state of ['BOGUS', '', 'running', 0, null, {}] as never[]) {
+      expect(canCancelOperation(state)).toBe(false);
+      expect(canReplayOperation(state)).toBe(false);
+      expect(canResumeOperation(state, null, T60_NOW)).toBe(false);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Corrupted metadata tags
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-16: descriptive metadata is passed through unescaped', () => {
+  test.each(['action', 'businessId', 'businessVersion'] as const)(
+    'a hostile %s reaches the view verbatim',
+    (field) => {
+      const view = t60View({ [field]: T60_XSS });
+      expect((view as unknown as Record<string, unknown>)[field]).toBe(T60_XSS);
+    },
+  );
+
+  test('a hostile progress message reaches the view verbatim', () => {
+    expect(t60View({ progress: { percent: 1, message: T60_XSS } }).progressMessage).toBe(T60_XSS);
+  });
+
+  test('a null progress message degrades to an empty string, not to null', () => {
+    expect(t60View({ progress: { percent: 1, message: null } }).progressMessage).toBe('');
+  });
+
+  test('a hostile replayOf reaches the view verbatim', () => {
+    expect(t60View({ replayOf: T60_XSS }).replayOf).toBe(T60_XSS);
+  });
+
+  test('an absent replayOf becomes null', () => {
+    expect(t60View().replayOf).toBeNull();
+  });
+
+  test('well-formed metadata survives untouched (control)', () => {
+    const view = t60View();
+    expect(view.action).toBe('review');
+    expect(view.businessId).toBe('biz');
+    expect(view.businessVersion).toBe('1.0.0');
+    expect(view.progressMessage).toBe('working');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Undefined timeline intervals
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-16: timeline fields accept any type, and undefined makes them vanish', () => {
+  test.each([
+    ['garbage', 'string'],
+    [null, 'object'],
+    [0, 'number'],
+    [false, 'boolean'],
+    [{}, 'object'],
+    [[], 'object'],
+  ])('a createdAt of %p arrives as a %s', (value, type) => {
+    const view = t60View({ createdAt: value });
+    expect(typeof view.createdAt).toBe(type);
+    expect(view.createdAt).toEqual(value);
+  });
+
+  // The sharpest one: JSON.stringify drops undefined, so the timeline loses
+  // whole fields rather than showing a wrong one.
+  test.each(['createdAt', 'updatedAt', 'deadlineAt'])(
+    'an undefined %s disappears from the serialized view',
+    (field) => {
+      const view = t60View({ [field]: undefined });
+      expect((view as unknown as Record<string, unknown>)[field]).toBeUndefined();
+      expect(JSON.stringify(view)).not.toContain(field);
+    },
+  );
+
+  test('a null deadline is preserved as null - distinct from undefined', () => {
+    const view = t60View({ deadlineAt: null });
+    expect(view.deadlineAt).toBeNull();
+    expect(JSON.stringify(view)).toContain('"deadlineAt":null');
+  });
+
+  // links is dereferenced unguarded, so a missing block is a hard crash.
+  test.each([undefined, null])('a %p links block throws', (links) => {
+    expect(() => t60View({ links })).toThrow(TypeError);
+  });
+
+  test('a partial links block yields an undefined resultLink', () => {
+    const view = t60View({ links: { self: '/s' } });
+    expect(view.selfLink).toBe('/s');
+    expect(view.resultLink).toBeUndefined();
+  });
+
+  test('a hostile link is passed through unescaped', () => {
+    const view = t60View({ links: { self: T60_XSS, result: T60_XSS } });
+    expect(view.selfLink).toBe(T60_XSS);
+    expect(view.resultLink).toBe(T60_XSS);
+  });
+
+  test('well-formed links survive untouched (control)', () => {
+    const view = t60View();
+    expect(view.selfLink).toBe('/api/v1/operations/x');
+    expect(view.resultLink).toBe('/api/v1/operations/x/result');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Missing worker allocations - pinned as absent
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-16: the operation detail view carries no worker telemetry at all', () => {
+  // The wire row (OperationDetail) carries workerCount / workerHealth /
+  // workerHeartbeat, but this projection has no field for any of them, so the
+  // data is silently dropped rather than rendered. Pinned so nobody assumes a
+  // worker allocation problem is covered here when it is a different module
+  // (resolveWorkerHeartbeat lives in business-view-models - see Mục 53).
+  test('the projected key set is the same whether or not worker telemetry is supplied', () => {
+    const bare = Object.keys(t60View()).sort();
+    const loaded = Object.keys(
+      t60View({ workerCount: 5, workerHealth: 'HEALTHY', workerHeartbeat: 'online' }),
+    ).sort();
+    expect(loaded).toEqual(bare);
+  });
+
+  test('no worker key exists on the view model', () => {
+    const keys = Object.keys(t60View({ workerCount: 5, workerHealth: 'HEALTHY' }));
+    for (const key of ['workerCount', 'workerHealth', 'workerHeartbeat', 'workerHealth']) {
+      expect(keys).not.toContain(key);
+    }
+  });
+
+  test('the wire fields that DO survive are pinned by name', () => {
+    expect(Object.keys(t60View()).sort()).toEqual([
+      'action',
+      'artifacts',
+      'businessId',
+      'businessVersion',
+      'createdAt',
+      'deadlineAt',
+      'errorDisplay',
+      'humanWaitForm',
+      'id',
+      'progressMessage',
+      'progressPercent',
+      'replayOf',
+      'resultLink',
+      'selfLink',
+      'status',
+      'updatedAt',
+    ]);
+  });
+
+  // stateVersion and tenantId are on the wire row and are NOT projected.
+  test('stateVersion and tenantId are dropped by the projection', () => {
+    const view = t60View({ stateVersion: 99, tenantId: 'tenant-x' });
+    expect(JSON.stringify(view)).not.toContain('stateVersion');
+    expect(JSON.stringify(view)).not.toContain('tenant-x');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Unescaped error diagnostics
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-16: a partial error block yields a diagnostic with its keys missing', () => {
+  // DEFECT: errorDisplay is built from the wire block field by field, so a
+  // partial block produces an object that is missing code and/or title - JSON
+  // drops them and the renderer receives a diagnostic with no identity.
+  test('an empty error block yields a display with only detail', () => {
+    expect(t60View({ error: {} }).errorDisplay).toEqual({ detail: '' });
+  });
+
+  test('an error block with only a code drops the title', () => {
+    expect(t60View({ error: { code: 'E' } }).errorDisplay).toEqual({ code: 'E', detail: '' });
+  });
+
+  test('a null detail degrades to an empty string', () => {
+    expect(t60View({ error: { code: 'E', title: 'T', detail: null } }).errorDisplay).toEqual({
+      code: 'E',
+      title: 'T',
+      detail: '',
+    });
+  });
+
+  // DEFECT: the diagnostic is a verbatim passthrough, so hostile error text -
+  // exactly the kind that carries upstream detail - reaches the view intact.
+  test('hostile code, title and detail all reach the view verbatim', () => {
+    const view = t60View({ error: { code: T60_XSS, title: T60_XSS, detail: T60_XSS } });
+    expect(view.errorDisplay!.code).toBe(T60_XSS);
+    expect(view.errorDisplay!.title).toBe(T60_XSS);
+    expect(view.errorDisplay!.detail).toBe(T60_XSS);
+    expect(JSON.stringify(view)).toContain(T60_XSS);
+  });
+
+  test('the leak persists even when a human-wait form is rendered alongside', () => {
+    const view = t60View({
+      state: 'WAITING_INPUT',
+      wait: { waitId: 'w', inputSchema: { properties: {} }, expiresAt: '2099-01-01T00:00:00.000Z' },
+      error: { code: T60_XSS, title: T60_XSS, detail: T60_XSS },
+    });
+    expect(view.humanWaitForm).not.toBeNull();
+    expect(JSON.stringify(view)).toContain(T60_XSS);
+  });
+
+  test.each([null, undefined])('an %p error block yields a null diagnostic', (error) => {
+    expect(t60View({ error }).errorDisplay).toBeNull();
+  });
+
+  test('a complete error block survives untouched (control)', () => {
+    expect(
+      t60View({ error: { code: 'OP_FAILED', title: 'Operation failed', detail: 'worker exited 1' } })
+        .errorDisplay,
+    ).toEqual({ code: 'OP_FAILED', title: 'Operation failed', detail: 'worker exited 1' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Fail-closed view model rendering
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-16: the gates refuse, the labels fall back silently', () => {
+  const waitRow = {
+    waitId: 'wait-abc-123',
+    inputSchema: { properties: {} },
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  } as never;
+
+  test('canResumeOperation refuses a corrupt state and a missing wait row', () => {
+    expect(canResumeOperation('BOGUS' as never, waitRow, T60_NOW)).toBe(false);
+    expect(canResumeOperation('WAITING_INPUT', null, T60_NOW)).toBe(false);
+    expect(canResumeOperation('WAITING_INPUT', undefined as never, T60_NOW)).toBe(false);
+  });
+
+  // A NaN clock makes the expiry comparison false, so resume is refused -
+  // the safe direction, and worth pinning so nobody "fixes" it the other way.
+  test('a NaN now refuses the resume rather than allowing it', () => {
+    expect(canResumeOperation('WAITING_INPUT', waitRow, NaN as never)).toBe(false);
+  });
+
+  // A switch with a default: an unknown action is neither rejected nor flagged,
+  // it silently gets the generic label.
+  test.each(['BOGUS', '', null, 5, {}])('replayActionLabel(%p) silently returns the generic label', (action) => {
+    expect(replayActionLabel(action as never)).toBe('Replay (new operation)');
+  });
+
+  test('a NaN stepIndex is carried into the resume payload', () => {
+    expect(buildResumePayload({}, NaN, 'wait-abc-123').stepIndex).toBeNaN();
+  });
+
+  test('a terminal state is frozen: no cancel, replay offered', () => {
+    expect(canCancelOperation('SUCCEEDED')).toBe(false);
+    expect(canCancelOperation('FAILED')).toBe(false);
+    expect(canReplayOperation('SUCCEEDED')).toBe(true);
+    expect(t60View({ state: 'SUCCEEDED' }).status.label).toBe('Succeeded');
+  });
+
+  test('a live wait row past its expiry still renders a form flagged expired', () => {
+    const form = renderHumanWaitForm(
+      { waitId: 'w', inputSchema: { properties: {} }, expiresAt: '2099-01-01T00:00:00.000Z' } as never,
+      T60_NOW,
+    );
+    expect(form.isExpired).toBe(false);
+    expect(form.waitId).toBe('w');
+  });
+});
+
+
+// ===========================================================================
+// W-ADM-UX-18-OPERATION-VIEW-MODEL-NEGATIVE (Turn 344 / Cycle 62)
+//
+// THIRD negative pass over the same module (Mục 51 = enums, Mục 60 = wire
+// shape). Mục 51 phu enum; Mục 60 phu sai kieu cua field. Mục 62 phu:
+// malformed details, thieu timestamp, error taxonomy, payload bien, va
+// chuyen trang thai.
+//
+// Every number below was MEASURED with a throwaway probe against the real
+// function before being written down. Nothing here is inferred from source.
+//
+// Pure unit file: no DB, no HTTP, no listener, so no port band applies.
+// ===========================================================================
+
+const T62_XSS = '<script>alert(1)</script>';
+
+function t62Op(o: Record<string, unknown> = {}): OperationDetail {
+  return {
+    id: 'op-1',
+    tenantId: 'tenant-1',
+    businessId: 'biz',
+    businessVersion: '1.0.0',
+    action: 'review',
+    state: 'RUNNING',
+    stateVersion: 2,
+    createdAt: '2026-03-01T00:00:00.000Z',
+    updatedAt: '2026-03-02T00:00:00.000Z',
+    deadlineAt: '2026-03-03T00:00:00.000Z',
+    progress: { percent: 50, message: 'working' },
+    links: { self: '/s', result: '/r' },
+    ...o,
+  } as unknown as OperationDetail;
+}
+
+const T62_NOW = '2026-03-19T00:00:00.000Z';
+
+function t62View(o: Record<string, unknown> = {}, artifacts: ArtifactRef[] = []) {
+  return formatOperationDetailView(t62Op(o), artifacts, T62_NOW);
+}
+
+const T62_WAIT = {
+  waitId: 'wait-1',
+  inputSchema: { properties: {} },
+  expiresAt: '2099-01-01T00:00:00.000Z',
+} as never;
+
+// ---------------------------------------------------------------------------
+// 1. Malformed operation details
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-18: the identity and progress fields accept every type', () => {
+  // Measured: a null id arrives as the STRING null, not as a null - the value
+  // is wrong either way, but not with the type I first assumed.
+  test.each([
+    ['null', 'string'],
+    [42, 'number'],
+    [{}, 'object'],
+  ])('an id of %p arrives as a %s', (value, type) => {
+    const view = t62View({ id: value });
+    expect(typeof view.id).toBe(type);
+  });
+
+  // The percent is the number the progress bar is drawn from, and it is
+  // copied through with no clamp. Measured: 0 and 100 pass, everything
+  // outside and every non-finite value is handed to the renderer as-is.
+  const percents: Array<[number, number]> = [
+    [0, 0],
+    [100, 100],
+    [-1, -1],
+    [101, 101],
+    [1e308, 1e308],
+    [50.5, 50.5],
+  ];
+  test.each(percents)('a percent of %p is projected as %p, unclamped', (percent, expected) => {
+    expect(t62View({ progress: { percent, message: 'm' } }).progressPercent).toBe(expected);
+  });
+
+  test.each([Infinity, -Infinity])('a percent of %p survives to the view', (percent) => {
+    expect(t62View({ progress: { percent, message: 'm' } }).progressPercent).toBe(percent);
+  });
+
+  test('a missing message degrades to an empty string', () => {
+    expect(t62View({ progress: { percent: 10 } }).progressMessage).toBe('');
+  });
+
+  test('a missing percent is undefined, not zero', () => {
+    expect(t62View({ progress: { message: 'm' } }).progressPercent).toBeUndefined();
+  });
+
+  test.each([undefined, null])('a %p progress block throws', (progress) => {
+    expect(() => t62View({ progress })).toThrow(TypeError);
+  });
+
+  // Measured: neither field is projected, so they are silently dropped
+  // rather than rendered. Pinned so nobody assumes a stale-state banner or a
+  // tenant label is available on this view.
+  test('tenantId and stateVersion are not projected at all', () => {
+    const json = JSON.stringify(t62View({ tenantId: T62_XSS, stateVersion: 99 }));
+    expect(json).not.toContain('tenantId');
+    expect(json).not.toContain('stateVersion');
+    expect(json).not.toContain(T62_XSS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Missing required timestamp fields
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-18: timestamps are never parsed, so corruption is invisible', () => {
+  // No Date.parse anywhere in this projection: a bound that is not a date at
+  // all is indistinguishable from a valid one by the time it reaches the UI.
+  test.each(['garbage', 'not-a-date', ''])('a createdAt of %p passes through verbatim', (createdAt) => {
+    expect(t62View({ createdAt }).createdAt).toBe(createdAt);
+  });
+
+  test('a rolled-over calendar date is not detected', () => {
+    expect(t62View({ createdAt: '2026-02-30T00:00:00.000Z' }).createdAt).toBe('2026-02-30T00:00:00.000Z');
+  });
+
+  test.each([
+    [0, 'number'],
+    [1774300000000, 'number'],
+    [{}, 'object'],
+  ])('a createdAt of %p arrives as a %s', (value, type) => {
+    expect(typeof t62View({ createdAt: value }).createdAt).toBe(type);
+  });
+
+  // An inverted window is meaningless, and nothing here checks the ordering.
+  test('a deadline before createdAt passes through unflagged', () => {
+    const view = t62View({
+      createdAt: '2026-03-10T00:00:00.000Z',
+      deadlineAt: '2026-03-01T00:00:00.000Z',
+    });
+    expect(view.deadlineAt).toBe('2026-03-01T00:00:00.000Z');
+  });
+
+  test('a long-expired deadline is not marked as overdue', () => {
+    expect(t62View({ deadlineAt: '2000-01-01T00:00:00.000Z' }).deadlineAt).toBe('2000-01-01T00:00:00.000Z');
+  });
+
+  test('createdAt equal to updatedAt is not treated as an anomaly', () => {
+    const same = '2026-03-02T00:00:00.000Z';
+    expect(t62View({ createdAt: same }).createdAt).toBe(same);
+  });
+
+  // The now parameter is the only thing that makes a timestamp mean anything
+  // in this module, and it only reaches the human-wait expiry check.
+  test('the now parameter is what decides wait expiry, and equality counts as expired', () => {
+    const atExpiry = formatOperationDetailView(
+      t62Op({
+        state: 'WAITING_INPUT',
+        wait: { waitId: 'w', inputSchema: { properties: {} }, expiresAt: T62_NOW } as never,
+      }),
+      [],
+      T62_NOW,
+    );
+    const before = formatOperationDetailView(
+      t62Op({
+        state: 'WAITING_INPUT',
+        wait: { waitId: 'w', inputSchema: { properties: {} }, expiresAt: T62_NOW } as never,
+      }),
+      [],
+      '2026-03-18T00:00:00.000Z',
+    );
+    expect((atExpiry.humanWaitForm as { isExpired: boolean }).isExpired).toBe(true);
+    expect((before.humanWaitForm as { isExpired: boolean }).isExpired).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Invalid error taxonomy formatting
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-18: the error block is copied field by field with no type check', () => {
+  // The taxonomy is not validated as a set of known codes: whatever the wire
+  // carries is forwarded. Measured with numbers, arrays and objects.
+  test('numeric code and title are forwarded as numbers, not coerced', () => {
+    expect(t62View({ error: { code: 500, title: 404, detail: {} } }).errorDisplay).toEqual({
+      code: 500,
+      title: 404,
+      detail: {},
+    });
+  });
+
+  test('null code and title are forwarded as null, not defaulted', () => {
+    expect(t62View({ error: { code: null, title: null, detail: null } }).errorDisplay).toEqual({
+      code: null,
+      title: null,
+      detail: '',
+    });
+  });
+
+  test('array-valued code and title are forwarded as arrays', () => {
+    expect(t62View({ error: { code: [], title: [], detail: [] } }).errorDisplay).toEqual({
+      code: [],
+      title: [],
+      detail: [],
+    });
+  });
+
+  test('an object-valued code and a numeric detail are forwarded as-is', () => {
+    const display = t62View({ error: { code: { a: 1 }, title: T62_XSS, detail: 0 } }).errorDisplay!;
+    expect(display.code).toEqual({ a: 1 });
+    expect(display.title).toBe(T62_XSS);
+    expect(display.detail).toBe(0);
+  });
+
+  test('empty strings are kept as empty strings', () => {
+    expect(t62View({ error: { code: '', title: '', detail: '' } }).errorDisplay).toEqual({
+      code: '',
+      title: '',
+      detail: '',
+    });
+  });
+
+  // The positive: only code/title/detail survive, so an unexpected field on
+  // the wire cannot smuggle anything extra into the diagnostic.
+  test('an extra field on the error block is dropped', () => {
+    const json = JSON.stringify(t62View({ error: { code: 'E', title: 'T', detail: 'D', extra: 'LEAKME' } }));
+    expect(json).not.toContain('LEAKME');
+    expect(t62View({ error: { code: 'E', title: 'T', detail: 'D', extra: 'LEAKME' } }).errorDisplay).toEqual({
+      code: 'E',
+      title: 'T',
+      detail: 'D',
+    });
+  });
+
+  test.each([false, 0])('an error block of %p yields a null diagnostic', (error) => {
+    expect(t62View({ error }).errorDisplay).toBeNull();
+  });
+
+  test('a hostile code, title and detail all survive the round trip', () => {
+    const display = t62View({ error: { code: T62_XSS, title: T62_XSS, detail: T62_XSS } }).errorDisplay!;
+    expect(display.code).toBe(T62_XSS);
+    expect(display.title).toBe(T62_XSS);
+    expect(display.detail).toBe(T62_XSS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Payload boundary handling
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-18: the resume payload passes inputData through by reference', () => {
+  // GOOD, worth pinning: a __proto__ key from JSON.parse does NOT pollute the
+  // prototype, and survives as a plain own property. The payload builder
+  // copies the reference rather than merging, so there is no merge sink.
+  test('a __proto__ key stays an own property and does not pollute anything', () => {
+    const payload = buildResumePayload(JSON.parse('{"__proto__":{"polluted":true},"a":"b"}'), 0, 'tok');
+    expect(Object.keys(payload.inputData).sort()).toEqual(['__proto__', 'a']);
+    expect(Object.prototype.hasOwnProperty.call(payload.inputData, '__proto__')).toBe(true);
+    expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
+  });
+
+  test('a constructor key is forwarded as data, not invoked', () => {
+    const payload = buildResumePayload(JSON.parse('{"constructor":{"prototype":{}}}'), 0, 'tok');
+    expect(Object.keys(payload.inputData)).toEqual(['constructor']);
+    expect(payload.inputData['constructor']).toEqual({ prototype: {} });
+  });
+
+  // The reference is shared, not copied: a later mutation of the caller's
+  // object is visible in the payload. Pinned so the change would be a diff.
+  test('inputData is shared by reference, not copied', () => {
+    const data: Record<string, unknown> = { a: 'b' };
+    const payload = buildResumePayload(data, 0, 'tok');
+    data['a'] = 'mutated';
+    expect(payload.inputData['a']).toBe('mutated');
+  });
+
+  test('a 200-level deep object survives without a stack overflow', () => {
+    const deep: Record<string, unknown> = {};
+    let cursor = deep;
+    for (let i = 0; i < 200; i += 1) {
+      cursor['n'] = {};
+      cursor = cursor['n'] as Record<string, unknown>;
+    }
+    expect(() => buildResumePayload(deep, 0, 'tok')).not.toThrow();
+  });
+
+  test('a 200k-character value is forwarded with no length guard', () => {
+    const payload = buildResumePayload({ a: 'x'.repeat(200_000) }, 0, 'tok');
+    expect((payload.inputData['a'] as string)).toHaveLength(200_000);
+  });
+
+  // Measured: a null inputData does NOT throw - the builder never touches the
+  // value, so null is carried straight through. I had assumed a crash.
+  test('a null inputData is carried through as null rather than throwing', () => {
+    expect(buildResumePayload(null as never, 0, 'tok').inputData).toBeNull();
+  });
+
+  test.each([1.5, Infinity])('a stepIndex of %p is forwarded unvalidated', (stepIndex) => {
+    expect(buildResumePayload({}, stepIndex, 'tok').stepIndex).toBe(stepIndex);
+  });
+
+  test('a token containing a newline is forwarded verbatim', () => {
+    expect(buildResumePayload({}, 0, 'a\nb').casToken).toBe('a\nb');
+  });
+});
+
+describe('W-ADM-UX-18: a malformed artifact entry throws, a sparse one leaves a hole', () => {
+  test('a null artifact throws', () => {
+    expect(() => t62View({}, [null as never])).toThrow(TypeError);
+  });
+
+  test('a non-array artifacts value throws', () => {
+    expect(() => formatOperationDetailView(t62Op(), { a: 1 } as never, T62_NOW)).toThrow(TypeError);
+  });
+
+  // The defaults are applied to an entry that has NO fields at all, so an
+  // empty object still produces a full row rather than an empty one.
+  test('an empty artifact still gets role and mime defaults', () => {
+    expect(t62View({}, [{} as never]).artifacts[0]).toEqual({
+      role: 'output',
+      mimeType: 'application/octet-stream',
+      sizeDisplay: '',
+      downloadUrl: null,
+    });
+  });
+
+  test('an array artifact is treated as an object and gets defaults', () => {
+    expect(t62View({}, [[] as never]).artifacts[0]).toEqual({
+      role: 'output',
+      mimeType: 'application/octet-stream',
+      sizeDisplay: '',
+      downloadUrl: null,
+    });
+  });
+
+  test('an empty artifactId stays empty rather than falling back', () => {
+    expect(t62View({}, [{ artifactId: '' } as never]).artifacts[0]!.artifactId).toBe('');
+  });
+
+  // Array.prototype.map keeps holes, so the projected array has a hole that
+  // the renderer will walk into as a missing row.
+  test('a hole in the artifact list is preserved and counted', () => {
+    const view = t62View({}, [{ artifactId: 'a' }, , { artifactId: 'b' }] as never);
+    expect(view.artifacts).toHaveLength(3);
+    expect(view.artifacts[1]).toBeUndefined();
+  });
+
+  test('500 artifacts all project', () => {
+    const many = Array.from({ length: 500 }, (_, i) => ({ artifactId: 'a' + i })) as never;
+    expect(t62View({}, many).artifacts).toHaveLength(500);
+  });
+
+  // GOOD: the projection builds fresh objects, so mutating the view does not
+  // reach back into the caller's artifact row.
+  test('the projected row is a copy, not the caller object', () => {
+    const source = { artifactId: 'a' } as ArtifactRef;
+    const view = t62View({}, [source]);
+    view.artifacts[0]!.artifactId = 'MUTATED';
+    expect((source as unknown as Record<string, unknown>)['artifactId']).toBe('a');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Status transition anomalies
+// ---------------------------------------------------------------------------
+
+describe('W-ADM-UX-18: the transition gates are correct for all twelve states', () => {
+  // Measured matrix. Terminal states freeze (no cancel, replay allowed);
+  // CANCEL_REQUESTED is non-terminal but already cancelling; PENDING_INGESTION
+  // is non-terminal with no gate open.
+  const matrix: Array<[OperationState, boolean, boolean, boolean, boolean]> = [
+    ['ACCEPTED', true, false, false, false],
+    ['QUEUED', true, false, false, false],
+    ['RUNNING', true, false, false, false],
+    ['WAITING_CHILDREN', true, false, false, false],
+    ['WAITING_INPUT', true, false, true, false],
+    ['RETRY_PENDING', true, false, false, false],
+    ['CANCEL_REQUESTED', false, false, false, false],
+    ['SUCCEEDED', false, true, false, true],
+    ['FAILED', false, true, false, true],
+    ['CANCELLED', false, true, false, true],
+    ['TIMED_OUT', false, true, false, true],
+    ['PENDING_INGESTION', false, false, false, false],
+  ];
+  test.each(matrix)(
+    '%s: cancel=%p replay=%p resume=%p terminal=%p',
+    (state, cancel, replay, resume, terminal) => {
+      expect(canCancelOperation(state)).toBe(cancel);
+      expect(canReplayOperation(state)).toBe(replay);
+      expect(canResumeOperation(state, T62_WAIT, T62_NOW)).toBe(resume);
+      expect(buildOperationStatusDisplay(state).terminal).toBe(terminal);
+    },
+  );
+
+  // The terminal and cancellable sets are disjoint by measurement, which is
+  // the invariant the module's own docstring asserts.
+  test('no state is both terminal and cancellable', () => {
+    for (const [state] of matrix) {
+      if (buildOperationStatusDisplay(state).terminal) {
+        expect(canCancelOperation(state)).toBe(false);
+      }
+    }
+  });
+
+  test('resume requires a live wait row, not just the state', () => {
+    expect(canResumeOperation('WAITING_INPUT', T62_WAIT, T62_NOW)).toBe(true);
+    expect(canResumeOperation('WAITING_INPUT', null, T62_NOW)).toBe(false);
+    expect(canResumeOperation('WAITING_INPUT', undefined, T62_NOW)).toBe(false);
+  });
+});
+
+describe('W-ADM-UX-18: the human-wait form is gated on the state, not on the wait row', () => {
+  test('a wait row on a non-WAITING_INPUT state renders no form', () => {
+    expect(t62View({ state: 'RUNNING', wait: T62_WAIT }).humanWaitForm).toBeNull();
+  });
+
+  test('WAITING_INPUT with a wait row renders the form', () => {
+    expect(t62View({ state: 'WAITING_INPUT', wait: T62_WAIT }).humanWaitForm).not.toBeNull();
+  });
+
+  test.each([{}, { wait: null }])('%p yields no form even in WAITING_INPUT', (o) => {
+    expect(t62View({ state: 'WAITING_INPUT', ...o }).humanWaitForm).toBeNull();
+  });
+});

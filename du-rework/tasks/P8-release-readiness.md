@@ -1,5 +1,7 @@
 # P8 — Reliability, security, performance và vận hành
 
+> **Scope chốt 2026-09-30:** external cutover cần [G-COMP](API-COMPAT-DUGATE-2026-09-28.md) cho sáu core API + workflow/P9 không sửa client, và Admin local user cần [G-LOCAL-ADMIN](ADMIN-LOCAL-AUTH-2026-09-30.md). Hai gate mới là điều kiện P8-08/G6 cho scope release hiện tại; các rule 2026-09-27 bên dưới là snapshot lịch sử chưa tính hai yêu cầu này. Không tự đánh dấu P8 hoặc G6 đạt từ plan.
+
 > **Code review hold 2026-09-28:** [CR28-01..06](CODE-REVIEW-FOLLOWUP-2026-09-28.md) phải có owner fix, Tester independent receipt và Claude Code `APPROVED` theo đúng parent acceptance trước P8-08/G6. Đặc biệt clean image và live encrypted upload→worker→result với real Connector auth/provider bytes chưa được chứng minh bằng unit/typecheck hiện có; không nâng gate từ các receipt cô lập.
 
 > **Bổ sung 2026-09-27, cập nhật 2026-09-28:** [App encryption và external public-key result](APP-ENCRYPTION-2026-09-27.md) thêm `G-ENC` trước P8-08/G6. Các slice ENC đã có code/offline receipt nhưng chưa có full acceptance; `ENC-INT-01` còn mở. S3 production/DB pilot đã chọn, nhưng đường mã hóa/giải mã xuyên upload→worker→result, metadata submit và external decrypt chưa được live VERIFIED. [INGEST-WIRE-01 và RESULT-WIRE-01](ARCHITECTURE-REVIEW-FOLLOWUP-2026-09-27.md) là hold bổ sung cho business/API E2E. Các tick P8 cũ không chứng nhận các luồng này và không thay G-SEC/G-DATA/G-ADMIN-OPS.
@@ -12,7 +14,7 @@
 
 > **Whole-rework review refresh 2026-09-24:** [findings](../coordination/FULL-REWORK-REVIEW-2026-09-24.md) tái xác nhận artifact/runtime fencing, Connector SSRF/body/replay, parser và live Admin gaps; browser current-build/a11y/evidence còn thiếu. [Current acceptance holds và fix sequence](FULL-REWORK-REVIEW-FOLLOWUP-2026-09-24.md) áp dụng cho parent rows liên quan, kể cả P8-04 tick lịch sử. **G6 phụ thuộc cả G-SEC và G-DATA** theo [S3/log/deploy plan](DEPLOY-STORAGE-LOGGING-2026-09-24.md); 114 offline tests + bốn package typechecks pass trong review không thay live security/deploy gates. RDS/ElastiCache vẫn optional; S3 và Elasticsearch là scope bắt buộc.
 
-Owner: QA/infra integration agent. Depends: G5; G-SEC, G-DATA, G-ENC, G-ADMIN-OPS và các follow-up wire để đóng G6 trong scope hiện tại. Write: `tests/`, `infra/`, evidence/runbooks; fixes trong service qua owner tương ứng. Không deploy production/cutover trong phase này.
+Owner: QA/infra integration agent. Depends: G5; G-SEC, G-LOCAL-ADMIN, G-DATA, G-ENC, G-ADMIN-OPS, G-COMP và các follow-up wire để đóng G6 trong scope hiện tại. Write: `tests/`, `infra/`, evidence/runbooks; fixes trong service qua owner tương ứng. Không deploy production/cutover trong phase này.
 
 | ID | Task/deliverable | Dependencies | Acceptance |
 |---|---|---|---|
@@ -23,7 +25,7 @@ Owner: QA/infra integration agent. Depends: G5; G-SEC, G-DATA, G-ENC, G-ADMIN-OP
 | P8-05 | [ ] Load/burst/soak/fairness benchmark 1→2→4 replicas | P8-02..04 | Targets P0 đo được, bottlenecks/report rõ |
 | P8-06 | [ ] Compose/prod packaging, health/shutdown/migrations/backup restore | P8-02..04 | OPS-08 và clean deployment evidence |
 | P8-07 | [ ] Dashboards/alerts/runbooks cho queue, outbox, UNKNOWN, storage, credentials | P8-05/06 | Operator có steps xác định và rollback recovery |
-| P8-08 | [ ] Release readiness report, remaining risks và consumer compatibility | P8-07 | G6; chưa cutover hệ thống cũ |
+| P8-08 | [ ] Release readiness report, remaining risks và consumer compatibility | P8-07 + G-COMP + G-LOCAL-ADMIN | G6; sáu core + workflow parity và local Admin đã được independent verify/review; chưa cutover hệ thống cũ |
 
 Historical Wave 34-A2 report (superseded by the 2026-09-23 acceptance review below the title): phase **PARTIAL (P8-01, P8-04, P8-07, P8-08 COMPLETE; P8-02, P8-03, P8-05, P8-06 OPEN)**:
 - **P8-04 [x] (COMPLETE — Verified 26/26 PASS in Wave 41-A6)**:
@@ -91,4 +93,4 @@ Stop API, stop Connector, kill worker trước/sau provider call, drop HTTP comp
 
 ## Gate G6
 
-P8-01..07 đạt full-task acceptance trên current build; P8-08 tổng hợp bằng chứng và remaining risks có owner; G-SEC/G-DATA/G-ENC/G-ADMIN-OPS pass; INGEST-WIRE-01, RESULT-WIRE-01 và ARCH-DOC-01 được independent VERIFIED + Reviewer APPROVED; không còn unresolved critical correctness/security defect. Có limits và capacity report đo được, docs/runbooks khớp implementation, root DUGate không thay đổi. Production launch vẫn là yêu cầu riêng, kèm deployment target và approval theo phạm vi user lúc đó.
+P8-01..07 đạt full-task acceptance trên current build; P8-08 tổng hợp bằng chứng và remaining risks có owner; G-SEC/G-LOCAL-ADMIN/G-DATA/G-ENC/G-ADMIN-OPS/G-COMP pass (gồm P9 workflow parity trên path cũ); INGEST-WIRE-01, RESULT-WIRE-01 và ARCH-DOC-01 được independent VERIFIED + Reviewer APPROVED; không còn unresolved critical correctness/security defect. Có limits và capacity report đo được, docs/runbooks khớp implementation, root DUGate không thay đổi. Production launch vẫn là yêu cầu riêng, kèm deployment target và approval theo phạm vi user lúc đó.

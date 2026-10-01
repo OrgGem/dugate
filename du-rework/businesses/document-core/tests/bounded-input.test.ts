@@ -1,10 +1,16 @@
+import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContentSchema } from '@du/contracts';
+import type { InvocationArtifactContent } from '@du/contracts';
 import { InputNormalizer } from '../src/validation/input-normalizer';
 import { SchemaValidator } from '../src/validation/schema-validator';
 import { ValidationError } from '../src/types/results';
 import { ParserBudgetHelper } from '../src/pipelines/parser-budget';
 import { IngestAction } from '../src/actions/ingest';
 import { MockTaskContext } from './fixtures/mock-context';
+import type { TaskContext } from '../src/types/context';
+import { multipartHttpAdapter } from '../../../services/connector/src/adapters/http';
+import type { LocalInvocationRequest } from '../../../services/connector/src/types';
 
 const contractArtifact = {
   artifactId: '00000000-0000-4000-8000-000000000001',
@@ -15,6 +21,54 @@ const contractArtifact = {
   storageVersionId: 'scan-version-1',
   contentBase64: 'YQ==',
 };
+
+function sha256(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function streamEnabledContext(ctx: MockTaskContext): TaskContext['artifacts'] {
+  const artifacts = ctx.artifacts as TaskContext['artifacts'];
+  delete artifacts.readWithMetadata;
+  return artifacts;
+}
+
+async function serializedMultipartFixture(): Promise<{ url: string; contentType: string; wireBody: string }> {
+  const bytes = Buffer.from('bounded multipart fixture');
+  const artifact: InvocationArtifactContent = {
+    artifactId: '00000000-0000-4000-8000-000000000002',
+    fileName: 'bounded.txt',
+    mimeType: 'text/plain',
+    sizeBytes: bytes.length,
+    sha256: sha256(bytes),
+    storageVersionId: 'bounded-version-1',
+    contentBase64: bytes.toString('base64'),
+  };
+  const request: LocalInvocationRequest = {
+    contractVersion: '1',
+    invocationId: 'inv-bounded-input',
+    tenantId: 'tenant-bounded-input',
+    operationId: 'op-bounded-input',
+    taskId: 'task-bounded-input',
+    stepKey: 'ingest.ocr',
+    bindingSlot: 'ocr',
+    input: { artifacts: [artifact] },
+    deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  const built = multipartHttpAdapter.buildRequest(request, {
+    baseUrl: 'https://provider.example/',
+    path: '/v1/ocr',
+    timeoutMs: 1_000,
+  });
+  if (!(built.body instanceof FormData)) throw new Error('multipart adapter did not return FormData');
+  const outgoing = new Request(built.url, {
+    method: built.method,
+    headers: built.headers,
+    body: built.body,
+  });
+  const contentType = outgoing.headers.get('content-type');
+  if (!contentType) throw new Error('multipart request did not declare a content type');
+  return { url: built.url, contentType, wireBody: await outgoing.text() };
+}
 
 describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
   describe('Byte and image payload bounds', () => {
@@ -76,6 +130,114 @@ describe('Bounded Input Enforcement (WORKLOAD-REBALANCE-04, P5-05)', () => {
         code: 'ARTIFACT_FORMAT_METADATA_MISMATCH',
       });
       expect(ctx.connectorInvocations).toHaveLength(0);
+    });
+
+    test('rejects an over-limit streamed descriptor before opening the source stream', async () => {
+      const ctx = new MockTaskContext({ taskId: 'bounded-over-limit-stream' });
+      const stat = jest.fn(async () => ({
+        fileName: 'too-large.txt',
+        mimeType: 'text/plain',
+        sizeBytes: ParserBudgetHelper.DEFAULT_MAX_BUFFER_SIZE_BYTES + 1,
+        sha256: '0'.repeat(64),
+        storageVersionId: 'too-large-version',
+        grantExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }));
+      const readStream = jest.fn(async () => Readable.from([]));
+      Object.assign(streamEnabledContext(ctx), { stat, readStream });
+
+      await expect(ParserBudgetHelper.readArtifact(ctx, 'too-large-artifact')).rejects.toMatchObject({
+        code: 'DOCUMENT_TOO_LARGE',
+      });
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(readStream).not.toHaveBeenCalled();
+    });
+
+    test('rejects a zero-byte stream when the authorized descriptor declares payload bytes', async () => {
+      const ctx = new MockTaskContext({ taskId: 'bounded-zero-byte-stream' });
+      const expected = Buffer.from('x');
+      const stat = jest.fn(async () => ({
+        fileName: 'scan.png',
+        mimeType: 'image/png',
+        sizeBytes: expected.length,
+        sha256: sha256(expected),
+        storageVersionId: 'scan-version',
+        grantExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }));
+      const readStream = jest.fn(async () => Readable.from([]));
+      Object.assign(streamEnabledContext(ctx), { stat, readStream });
+
+      await expect(ParserBudgetHelper.readArtifact(ctx, 'empty-stream-artifact')).rejects.toMatchObject({
+        code: 'ARTIFACT_SIZE_MISMATCH',
+      });
+      expect(readStream).toHaveBeenCalledTimes(1);
+    });
+
+    test('rejects a truncated artifact transfer before incomplete multipart-band bytes can be consumed', async () => {
+      const ctx = new MockTaskContext({ taskId: 'bounded-truncated-transfer' });
+      const completePayload = Buffer.from('multipart-band-payload');
+      const stat = jest.fn(async () => ({
+        fileName: 'large-input.bin',
+        mimeType: 'application/octet-stream',
+        sizeBytes: completePayload.length,
+        sha256: sha256(completePayload),
+        storageVersionId: 'large-input-version',
+        grantExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }));
+      const readStream = jest.fn(async () => Readable.from([completePayload.subarray(0, 7)]));
+      Object.assign(streamEnabledContext(ctx), { stat, readStream });
+
+      await expect(ParserBudgetHelper.readArtifact(ctx, 'truncated-artifact')).rejects.toMatchObject({
+        code: 'ARTIFACT_SIZE_MISMATCH',
+      });
+    });
+
+    test('rejects truncated multipart bodies before accepting them as complete form data', async () => {
+      const { url, contentType, wireBody } = await serializedMultipartFixture();
+      const declaredBoundary = /boundary=(?:"([^"]+)"|([^;]+))/.exec(contentType)?.slice(1).find(Boolean);
+      expect(declaredBoundary).toBeDefined();
+      const closingBoundary = `--${declaredBoundary}--`;
+      const closingBoundaryOffset = wireBody.lastIndexOf(closingBoundary);
+      expect(closingBoundaryOffset).toBeGreaterThanOrEqual(0);
+
+      const truncatedRequest = new Request(url, {
+        method: 'POST',
+        headers: { 'content-type': contentType },
+        body: wireBody.slice(0, closingBoundaryOffset),
+      });
+      await expect(truncatedRequest.formData()).rejects.toThrow();
+    });
+
+    test('rejects multipart framing when the declared boundary does not match its body', async () => {
+      const { url, wireBody } = await serializedMultipartFixture();
+      const malformedRequest = new Request(url, {
+        method: 'POST',
+        headers: { 'content-type': 'multipart/form-data; boundary=wrong-boundary' },
+        body: wireBody,
+      });
+
+      await expect(malformedRequest.formData()).rejects.toThrow();
+    });
+
+    test('fails closed when a non-seekable source cannot provide a bounded stream', async () => {
+      const ctx = new MockTaskContext({ taskId: 'bounded-non-seekable-source' });
+      const stat = jest.fn(async () => ({
+        fileName: 'source.bin',
+        mimeType: 'application/octet-stream',
+        sizeBytes: 16,
+        sha256: '0'.repeat(64),
+        storageVersionId: 'source-version',
+        grantExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }));
+      const readStream = jest.fn(async () => {
+        throw new Error('non-seekable source cannot provide a bounded stream');
+      });
+      const readFallback = jest.spyOn(ctx.artifacts, 'read');
+      Object.assign(streamEnabledContext(ctx), { stat, readStream });
+
+      await expect(ParserBudgetHelper.readArtifact(ctx, 'non-seekable-artifact')).rejects.toThrow(
+        'non-seekable source cannot provide a bounded stream'
+      );
+      expect(readFallback).not.toHaveBeenCalled();
     });
   });
 

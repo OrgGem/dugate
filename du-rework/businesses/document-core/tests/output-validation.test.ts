@@ -276,5 +276,51 @@ describe('Strict Provider Output Validation (WORKLOAD-REBALANCE-04, P5-05/P5-06/
       expect(() => OutputValidator.validateProviderOutput('ingest', 'ocr', output)).not.toThrow();
       expect(Object.prototype.hasOwnProperty.call(Object.prototype, 'polluted')).toBe(false);
     });
+
+    test('rejects a success envelope whose validated result is nested under an unexpected field', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'parse', {
+        status: 'success',
+        result: { text: 'nested content must not bypass the output contract' },
+        metadata: { mimeType: 'text/plain' },
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects a malformed payload checksum', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'parse', {
+        text: 'valid parsed text',
+        payload: { sha256: 'sha256:not-hex' },
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects a payload checksum that does not match its content', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'parse', {
+        text: 'valid parsed text',
+        payload: { sha256: '0'.repeat(64) },
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects unexpected MIME types in provider output envelopes', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'ocr', {
+        text: 'recognized text',
+        mimeType: 'application/x-msdownload',
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects oversized payload descriptors before accepting split output', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'split', {
+        splitArtifacts: [{
+          artifactId: 'artifact-too-large',
+          sizeBytes: Number.MAX_SAFE_INTEGER,
+          mimeType: 'application/pdf',
+          sha256: 'a'.repeat(64),
+        }],
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
+
+    test.failing('rejects provider content carrying a truncated-content marker', () => {
+      expect(() => OutputValidator.validateProviderOutput('ingest', 'parse', {
+        text: 'partial extraction result... [truncated]',
+      })).toThrow(expect.objectContaining({ code: 'SCHEMA_VALIDATION_ERROR' }));
+    });
   });
 });

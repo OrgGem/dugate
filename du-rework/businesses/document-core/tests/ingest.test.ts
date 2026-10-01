@@ -3,6 +3,11 @@ import { MockTaskContext } from './fixtures/mock-context';
 import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
 import { PdfSplitter } from '../../../packages/document-kit/src/formats/pdf-splitter';
 import { createHash } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { Readable } from 'node:stream';
+import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk';
+import type { ArtifactReadStreamOptions, ArtifactStat, TaskContext } from '../src/types/context';
 
 /**
  * INGEST-WIRE-01: REAL PNG bytes for the OCR/digitize variants.
@@ -31,6 +36,38 @@ function createHandwritingScanPngBytes(): Buffer {
 }
 
 export const SCAN_PNG_SHA256 = createHash('sha256').update(createScanPngBytes()).digest('hex');
+
+function installStreamingRead(
+  ctx: MockTaskContext,
+  artifactId: string,
+  streamFactory: (signal?: AbortSignal) => Readable
+): { stat: jest.Mock; readStream: jest.Mock } {
+  const identity = ctx.artifactReadIdentityStore.get(artifactId);
+  const format = ctx.artifactFormatMetadataStore.get(artifactId);
+  if (!identity || !format) throw new Error('ingest fixture is missing its authorized descriptor');
+
+  const artifacts = ctx.artifacts as unknown as TaskContext['artifacts'];
+  delete artifacts.readWithMetadata;
+  const stat = jest.fn(async (): Promise<ArtifactStat> => ({
+    fileName: format.declaredFileName,
+    mimeType: format.declaredMimeType,
+    sizeBytes: identity.sizeBytes,
+    sha256: identity.sha256,
+    storageVersionId: identity.storageVersionId,
+    grantExpiresAt: identity.grantExpiresAt,
+  }));
+  const readStream = jest.fn(async (_id: string, options?: ArtifactReadStreamOptions) =>
+    streamFactory(options?.signal)
+  );
+  Object.assign(artifacts, { stat, readStream });
+  return { stat, readStream };
+}
+
+async function expectIngestTempWorkspaceSwept(taskId: string): Promise<void> {
+  const safeTaskId = taskId.replace(/[^A-Za-z0-9-]/g, '-');
+  const entries = await readdir(tmpdir());
+  expect(entries.filter((entry) => entry.startsWith(`${TEMP_WORKSPACE_PREFIX}${safeTaskId}-`))).toEqual([]);
+}
 
 describe('Action: Ingest (DOC-01) — 4 Variants', () => {
   let ctx: MockTaskContext;
@@ -253,5 +290,139 @@ describe('Action: Ingest (DOC-01) — 4 Variants', () => {
     await expect(
       IngestAction.executeRecipe(ctx, recipe, input, sources)
     ).rejects.toThrow(/Range start cannot be greater than end/);
+  });
+
+  it('rejects malformed ingestion source pins instead of treating them as an unpinned request', () => {
+    expect(() => IngestAction.validateInput({
+      mode: 'parse',
+      source: {
+        storageKey: 'source-1',
+        versionId: 'version-1',
+        sha256: 'not-a-sha256-digest',
+        sizeBytes: 12,
+      },
+    })).toThrow(/Ingestion source pin in the task payload failed contract validation/);
+  });
+
+  test.failing('rejects a PNG source declared with an unsupported MIME type before OCR', async () => {
+    const png = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(png, 'scan.png', 'application/x-unsupported');
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+
+    await expect(IngestAction.prepareSources(ctx, input)).rejects.toMatchObject({
+      code: 'ARTIFACT_FORMAT_METADATA_MISMATCH',
+    });
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  test.failing('rejects a PNG source with an unsupported filename extension before OCR', async () => {
+    const png = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(png, 'scan.unsupported', 'image/png');
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+
+    await expect(IngestAction.prepareSources(ctx, input)).rejects.toMatchObject({
+      code: 'ARTIFACT_FORMAT_METADATA_MISMATCH',
+    });
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  it('rejects an empty artifact buffer before sending it to OCR', async () => {
+    const artRef = await ctx.artifacts.write(Buffer.alloc(0), 'empty.png', 'image/png');
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+    const sources = await IngestAction.prepareSources(ctx, input);
+
+    await expect(
+      IngestAction.executeRecipe(ctx, IngestAction.selectRecipe(input), input, sources)
+    ).rejects.toMatchObject({ code: 'DOCUMENT_TOO_LARGE' });
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  it('rejects a source whose PNG header was corrupted after its read grant was issued', async () => {
+    const png = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(png, 'corrupt-header.png', 'image/png');
+    const corrupted = Buffer.from(png);
+    corrupted[0] = 0;
+    ctx.artifactsStore.set(artRef.artifactId, corrupted);
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+
+    await expect(IngestAction.prepareSources(ctx, input)).rejects.toMatchObject({
+      code: 'ARTIFACT_INTEGRITY_MISMATCH',
+    });
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  it('fails closed for a malformed or unresolved artifact ID', async () => {
+    const invalidArtifactId = '../outside/secret.pdf';
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [invalidArtifactId] });
+
+    await expect(IngestAction.prepareSources(ctx, input)).rejects.toThrow(/not found/);
+    expect(ctx.connectorInvocations).toHaveLength(0);
+  });
+
+  it('aborts a streamed ingest after a partial read and removes its temporary workspace', async () => {
+    const controller = new AbortController();
+    ctx.signal = controller.signal;
+    const png = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(png, 'aborted.png', 'image/png');
+    let markTransferStarted!: () => void;
+    const transferStarted = new Promise<void>((resolve) => {
+      markTransferStarted = resolve;
+    });
+    let sourceStream: Readable | undefined;
+    const { readStream } = installStreamingRead(ctx, artRef.artifactId, () => {
+      let sent = false;
+      sourceStream = new Readable({
+        read() {
+          if (sent) return;
+          sent = true;
+          this.push(png.subarray(0, 8));
+          markTransferStarted();
+        },
+      });
+      return sourceStream;
+    });
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+    const pending = IngestAction.prepareSources(ctx, input);
+    await transferStarted;
+    controller.abort('cancel');
+
+    await expect(pending).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' });
+    expect(readStream).toHaveBeenCalledTimes(1);
+    expect(sourceStream?.destroyed).toBe(true);
+    expect(ctx.connectorInvocations).toHaveLength(0);
+    await expectIngestTempWorkspaceSwept(ctx.taskId);
+  });
+
+  it('propagates a mid-stream source error and sweeps the partial temporary file', async () => {
+    const png = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(png, 'interrupted.png', 'image/png');
+    const { readStream } = installStreamingRead(ctx, artRef.artifactId, () => Readable.from((async function* () {
+      yield png.subarray(0, 8);
+      throw new Error('source stream failed during ingestion');
+    })()));
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+
+    await expect(IngestAction.prepareSources(ctx, input)).rejects.toThrow('source stream failed during ingestion');
+    expect(readStream).toHaveBeenCalledTimes(1);
+    expect(ctx.connectorInvocations).toHaveLength(0);
+    await expectIngestTempWorkspaceSwept(ctx.taskId);
+  });
+
+  it('times out during streamed ingestion and removes its temporary workspace', async () => {
+    const png = createScanPngBytes();
+    const artRef = await ctx.artifacts.write(png, 'timeout.png', 'image/png');
+    ctx.deadlineAt = new Date(Date.now() + 120).toISOString();
+    let transferSignal: AbortSignal | undefined;
+    const { readStream } = installStreamingRead(ctx, artRef.artifactId, (signal) => {
+      transferSignal = signal;
+      return new Readable({ read() {} });
+    });
+    const input = IngestAction.validateInput({ mode: 'ocr', artifactIds: [artRef.artifactId] });
+
+    await expect(IngestAction.prepareSources(ctx, input)).rejects.toMatchObject({ code: 'DOCUMENT_TIMEOUT' });
+    expect(readStream).toHaveBeenCalledTimes(1);
+    expect(transferSignal?.aborted).toBe(true);
+    expect(ctx.connectorInvocations).toHaveLength(0);
+    await expectIngestTempWorkspaceSwept(ctx.taskId);
   });
 });

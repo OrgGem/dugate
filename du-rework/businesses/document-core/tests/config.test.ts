@@ -1,5 +1,8 @@
 import { parseWorkerConfig, getRedactedConfig, WorkerEnvSchema } from '../src/config';
 import { DocumentCoreProcess } from '../src/main';
+import { DocumentParserFactory, type DocumentParser } from '@du/document-kit';
+import { ParserBudgetHelper } from '../src/pipelines/parser-budget';
+import type { TaskContext } from '../src/types/context';
 
 describe('Document Core Worker Configuration & Process Lifecycle', () => {
   const validEnv: Record<string, string> = {
@@ -218,6 +221,81 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
       // Second signal is idempotent no-op
       await sigtermHandler!();
       expect(mockStop).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('5. Malformed and Boundary Configuration Rejection', () => {
+    const parserContext = () => ({ taskId: 'config-negative-test' }) as unknown as TaskContext;
+
+    it.each([
+      ['RUNTIME_URL', 'not-a-url', /RUNTIME_URL/],
+      ['CONNECTOR_URL', 'http://[invalid', /CONNECTOR_URL/],
+      ['CONCURRENCY', 'not-a-number', /CONCURRENCY/],
+      ['HEARTBEAT_INTERVAL_MS', '99', /HEARTBEAT_INTERVAL_MS/],
+    ])('fails closed for malformed %s configuration', (key, value, expectedError) => {
+      expect(() => parseWorkerConfig({ ...validEnv, [key]: value })).toThrow(expectedError);
+    });
+
+    it('rejects non-object and schema-invalid configuration input instead of applying defaults', () => {
+      expect(() => parseWorkerConfig(null as unknown as Record<string, string | undefined>)).toThrow(
+        /Invalid worker configuration/
+      );
+      expect(WorkerEnvSchema.safeParse({ ...validEnv, CONCURRENCY: 'NaN' }).success).toBe(false);
+      expect(() => parseWorkerConfig({ ...validEnv, CONCURRENCY: 'NaN' })).toThrow(/CONCURRENCY/);
+    });
+
+    it('rejects zero and negative parser timeouts without clamping them', () => {
+      const context = parserContext();
+      for (const timeoutMs of [0, -1, -0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        expect(() => ParserBudgetHelper.resolveParserBudget(context, { timeoutMs })).toThrow(
+          expect.objectContaining({ code: 'INVALID_PARSER_BUDGET' })
+        );
+      }
+      expect(ParserBudgetHelper.resolveParserBudget(context, { timeoutMs: 1 }).timeoutMs).toBe(1);
+    });
+
+    it('rejects parser memory budgets outside the materialized artifact bounds', () => {
+      const context = parserContext();
+      const ceiling = ParserBudgetHelper.MAX_BUFFER_SIZE_CEILING_BYTES;
+
+      for (const maxBufferSizeBytes of [0, -1, 1.5, Number.POSITIVE_INFINITY, ceiling + 1]) {
+        expect(() => ParserBudgetHelper.resolveParserBudget(context, { maxBufferSizeBytes })).toThrow(
+          expect.objectContaining({ code: 'INVALID_PARSER_BUDGET' })
+        );
+      }
+      expect(
+        ParserBudgetHelper.resolveParserBudget(context, { maxBufferSizeBytes: ceiling }).maxBufferSizeBytes
+      ).toBe(ceiling);
+    });
+
+    it('rejects conflicting file and MIME parser claims before dispatching to a parser', async () => {
+      const parser = {
+        name: 'test-parser',
+        canHandle: jest.fn(() => true),
+        parse: jest.fn(async () => ({
+          text: 'should not run',
+          markdown: 'should not run',
+          metadata: { wordCount: 0, characterCount: 0, detectedFormat: 'txt' as const, parser: 'test', provenance: 'native_parse' as const },
+          warnings: [],
+        })),
+      } satisfies DocumentParser;
+      const parserFactory = new DocumentParserFactory();
+      parserFactory.registerParser(parser);
+
+      await expect(
+        ParserBudgetHelper.safeParseBuffer(parserContext(), Buffer.from('plain text'), 'claim.docx', {
+          mimeHint: 'text/plain',
+          parserFactory,
+        })
+      ).rejects.toMatchObject({ code: 'DOC_PARSING_FAILED' });
+      expect(parser.parse).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the format has no registered parser', async () => {
+      const parserFactory = new DocumentParserFactory();
+      await expect(
+        parserFactory.parseBufferCore(Buffer.from([0x00, 0x01, 0x02, 0x03]), 'opaque.bin', 'application/x-unsupported')
+      ).rejects.toThrow(/No suitable native parser found for format "unknown"/);
     });
   });
 });

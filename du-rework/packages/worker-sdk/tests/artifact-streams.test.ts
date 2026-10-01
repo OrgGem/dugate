@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import {
   ArtifactStreamError,
   DEFAULT_STALE_WORKSPACE_MS,
@@ -248,6 +249,37 @@ describe('downloadArtifact (bounded-memory streaming download)', () => {
     expect(counter.pulled).toBe(3);
   });
 
+  it('rejects a chunk stream one byte over maxBytes and removes the partial destination', async () => {
+    const ws = await makeWorkspace();
+    const target = ws.filePath('one-byte-over.bin');
+    const chunks = [new Uint8Array([0x01]), new Uint8Array([0x02]), new Uint8Array([0x03])];
+    const fetcher: SdkFetcher = async () => chunkedResponse(chunks, { pulled: 0, cancelled: false });
+
+    await expect(downloadArtifact(ws, 'one-byte-over.bin', 'https://storage.example/over-by-one', {
+      maxBytes: 2,
+      expectedSizeBytes: 3,
+      fetcher,
+    })).rejects.toMatchObject({ code: 'TOO_LARGE', status: 413 });
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('rejects reordered corrupt chunks even when their combined size is unchanged', async () => {
+    const ws = await makeWorkspace();
+    const expectedChunks = [new Uint8Array([0x10, 0x20]), new Uint8Array([0x30, 0x40])];
+    const corruptedChunks = [...expectedChunks].reverse();
+    const expectedBytes = Buffer.concat(expectedChunks.map((chunk) => Buffer.from(chunk)));
+    const target = ws.filePath('reordered.bin');
+    const fetcher: SdkFetcher = async () => chunkedResponse(corruptedChunks, { pulled: 0, cancelled: false });
+
+    await expect(downloadArtifact(ws, 'reordered.bin', 'https://storage.example/reordered', {
+      maxBytes: expectedBytes.length,
+      expectedSizeBytes: expectedBytes.length,
+      expectedSha256: createHash('sha256').update(expectedBytes).digest('hex'),
+      fetcher,
+    })).rejects.toMatchObject({ code: 'HASH_MISMATCH', status: 422 });
+    expect(existsSync(target)).toBe(false);
+  });
+
   it('preserves malformed UTF-8 sequences as opaque binary bytes', async () => {
     const ws = await makeWorkspace();
     const bytes = new Uint8Array([0xff, 0xc3, 0x28, 0x00, 0x80]);
@@ -385,6 +417,31 @@ describe('downloadArtifact (bounded-memory streaming download)', () => {
       downloadArtifact(ws, 'reset.bin', 'https://storage.example/reset', { maxBytes: 1 << 20, fetcher })
     ).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE', status: 0 });
     expect(pulls).toBe(2);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('treats an error after the exact declared byte boundary as a truncated transport failure', async () => {
+    const ws = await makeWorkspace();
+    const target = ws.filePath('exact-boundary-truncated.bin');
+    const bytes = new Uint8Array([0x21, 0x22, 0x23]);
+    const sourceError = Object.assign(new Error('stream ended before a clean close'), { code: 'ERR_STREAM_PREMATURE_CLOSE' });
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulls++ === 0) {
+          controller.enqueue(bytes);
+          return;
+        }
+        controller.error(sourceError);
+      },
+    });
+    const fetcher: SdkFetcher = async () => new Response(body) as unknown as Response;
+
+    await expect(downloadArtifact(ws, 'exact-boundary-truncated.bin', 'https://storage.example/truncated-at-boundary', {
+      maxBytes: bytes.length,
+      expectedSizeBytes: bytes.length,
+      fetcher,
+    })).rejects.toMatchObject({ code: 'TRANSPORT_FAILURE', status: 0 });
     expect(existsSync(target)).toBe(false);
   });
 
@@ -717,6 +774,55 @@ describe('artifact stream consumer backpressure boundary', () => {
     expect(await drain(stream)).toBe(totalBytes(chunks));
     expect(counter.pulled).toBe(chunks.length);
     expect(captured.signal?.aborted).toBe(false);
+  });
+
+  it('aborts a failing downstream pipe under backpressure and recovers on a fresh stream', async () => {
+    const failedChunks = makeChunks(64, 4096);
+    const failedCounter: PullCounter = { pulled: 0, cancelled: false };
+    const failedCapture: { signal?: AbortSignal } = {};
+    const failedStream = await openArtifactStream('https://storage.example/pipe-failure', {
+      maxBytes: totalBytes(failedChunks),
+      highWaterMarkBytes: 1024,
+      fetcher: (async (_input: string | URL | Request, init?: RequestInit) => {
+        failedCapture.signal = init?.signal ?? undefined;
+        return chunkedResponse(failedChunks, failedCounter);
+      }) as SdkFetcher,
+    });
+    let notifyWriteStarted!: () => void;
+    const writeStarted = new Promise<void>((resolve) => { notifyWriteStarted = resolve; });
+    let failWrite!: () => void;
+    const failingDestination = new Writable({
+      highWaterMark: 1,
+      write(_chunk, _encoding, callback) {
+        notifyWriteStarted();
+        failWrite = () => callback(new Error('downstream pipe failed'));
+      },
+    });
+    const transfer = pipeline(failedStream, failingDestination);
+
+    await writeStarted;
+    for (let i = 0; i < 8; i += 1) await settle();
+    expect(failedCounter.pulled).toBeGreaterThan(0);
+    expect(failedCounter.pulled).toBeLessThan(failedChunks.length);
+    failWrite();
+    await expect(transfer).rejects.toThrow('downstream pipe failed');
+    for (let i = 0; i < 4; i += 1) await settle();
+    expect(failedCapture.signal?.aborted).toBe(true);
+    expect(failedCounter.cancelled).toBe(true);
+    expect(failedCounter.pulled).toBeLessThan(failedChunks.length);
+
+    const retryChunks = makeChunks(5, 32, 0x40);
+    const retryCounter: PullCounter = { pulled: 0, cancelled: false };
+    const retryStream = await openArtifactStream('https://storage.example/pipe-retry', {
+      maxBytes: totalBytes(retryChunks),
+      expectedSizeBytes: totalBytes(retryChunks),
+      expectedSha256: sha256Of(retryChunks),
+      fetcher: async () => chunkedResponse(retryChunks, retryCounter),
+    });
+
+    expect(await drain(retryStream)).toBe(totalBytes(retryChunks));
+    expect(retryCounter.pulled).toBe(retryChunks.length);
+    expect(retryCounter.cancelled).toBe(false);
   });
 });
 

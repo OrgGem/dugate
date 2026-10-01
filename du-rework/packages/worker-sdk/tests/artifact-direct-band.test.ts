@@ -222,19 +222,34 @@ describe('upload size band policy (T20-D1, zero sockets)', () => {
     expect(resolveArtifactUploadBand(sizeBytes)).toBe(band);
   });
 
-  it('fails closed on a size past the wire ceiling', () => {
-    let caught: ArtifactStreamError | null = null;
-    try {
-      resolveArtifactUploadBand(MULTIPART_MAX_TOTAL_BYTES + 1);
-    } catch (err) {
-      caught = err as ArtifactStreamError;
+  it.each([MULTIPART_MAX_TOTAL_BYTES + 1, Number.MAX_SAFE_INTEGER])(
+    'fails closed on a safe-integer size past the wire ceiling (%i)',
+    (sizeBytes) => {
+      let caught: ArtifactStreamError | null = null;
+      try {
+        resolveArtifactUploadBand(sizeBytes);
+      } catch (err) {
+        caught = err as ArtifactStreamError;
+      }
+      expect(caught).toBeInstanceOf(ArtifactStreamError);
+      expect([caught?.status, caught?.code]).toEqual([413, 'TOO_LARGE']);
+    },
+  );
+
+  it('rejects infinite declarations as malformed upload-band boundaries', () => {
+    for (const sizeBytes of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      let caught: ArtifactStreamError | null = null;
+      try {
+        resolveArtifactUploadBand(sizeBytes);
+      } catch (err) {
+        caught = err as ArtifactStreamError;
+      }
+      expect([caught?.status, caught?.code]).toEqual([422, 'SIZE_MISMATCH']);
     }
-    expect(caught).toBeInstanceOf(ArtifactStreamError);
-    expect([caught?.status, caught?.code]).toEqual([413, 'TOO_LARGE']);
   });
 
   it('fails closed on an unusable declaration', () => {
-    for (const bad of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 2]) {
+    for (const bad of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 2, Number.POSITIVE_INFINITY]) {
       let caught: ArtifactStreamError | null = null;
       try {
         resolveArtifactUploadBand(bad);
@@ -259,6 +274,39 @@ describe('upload size band policy (T20-D1, zero sockets)', () => {
     );
     expect(calls).toEqual([]);
   });
+
+  it.each([0, -1, 1.5, MiB + 1])(
+    'rejects invalid stream chunk/buffer sizing %p before reading or connecting',
+    async (highWaterMarkBytes) => {
+      let sourceRead = false;
+      let fetchCalled = false;
+      const source = new Readable({
+        read() {
+          sourceRead = true;
+          this.push(null);
+        },
+      });
+      const fetcher: SdkFetcher = async () => {
+        fetchCalled = true;
+        return new Response(null, { status: 200 });
+      };
+
+      await expectStreamError(
+        uploadArtifactStream(source, {
+          uploadUrl: 'https://storage.invalid/grant',
+          mimeType: 'application/octet-stream',
+          sizeBytes: INLINE_ARTIFACT_MAX_BYTES + 1,
+          maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
+          highWaterMarkBytes,
+          fetcher,
+        }),
+        0,
+        'TOO_LARGE',
+      );
+      expect(sourceRead).toBe(false);
+      expect(fetchCalled).toBe(false);
+    },
+  );
 });
 
 describe('direct band on the wire (real loopback, quiet band)', () => {
@@ -283,6 +331,8 @@ describe('direct band on the wire (real loopback, quiet band)', () => {
     expect(record?.bodyBytes).toBe(sizeBytes);
     expect(record?.headers['content-length']).toBe(String(sizeBytes));
     expect(record?.headers['content-type']).toBe('application/pdf');
+    expect(record?.headers['content-range']).toBeUndefined();
+    expect(record?.headers.range).toBeUndefined();
   });
 
   it.each([500, 503])('never reports storage HTTP %i as a committed artifact', async (status) => {
@@ -414,6 +464,27 @@ describe('direct band fail-closed on a lying or tampered source (zero sockets)',
     expect(consumed()).toBeLessThan(sizeBytes);
   });
 
+  it('rejects an out-of-bounds byte view as a truncated direct-band object', async () => {
+    const sizeBytes = INLINE_ARTIFACT_MAX_BYTES + 1;
+    const backing = Buffer.from('small source');
+    const outOfBoundsView = backing.subarray(backing.byteLength + 1, backing.byteLength + sizeBytes + 1);
+    const { fetcher, consumed } = drainingFetcher();
+
+    expect(outOfBoundsView.byteLength).toBe(0);
+    await expectStreamError(
+      uploadArtifactStream(Readable.from([outOfBoundsView]), {
+        uploadUrl: 'https://storage.invalid/grant',
+        mimeType: 'application/octet-stream',
+        sizeBytes,
+        maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
+        fetcher,
+      }),
+      422,
+      'SIZE_MISMATCH',
+    );
+    expect(consumed()).toBe(0);
+  });
+
   it('refuses a stream whose digest disagrees with the grant', async () => {
     const sizeBytes = INLINE_ARTIFACT_MAX_BYTES + 1;
     const { fetcher } = drainingFetcher();
@@ -451,6 +522,31 @@ describe('direct band fail-closed on a lying or tampered source (zero sockets)',
       'HASH_MISMATCH'
     );
     expect(consumed()).toBeLessThan(sizeBytes);
+  });
+
+  it('detects corrupted bytes in a non-zero-offset view during digest calculation', async () => {
+    const sizeBytes = INLINE_ARTIFACT_MAX_BYTES + 1;
+    const byteOffset = 17;
+    const backing = new Uint8Array(sizeBytes + byteOffset + 11);
+    for (let i = 0; i < sizeBytes; i += 1) backing[byteOffset + i] = patternByte(i);
+    const corruptedByteOffset = byteOffset + Math.floor(sizeBytes / 2);
+    backing[corruptedByteOffset] = (backing[corruptedByteOffset] ?? 0) ^ 0xff;
+    const sourceView = backing.subarray(byteOffset, byteOffset + sizeBytes);
+    const { fetcher, consumed } = drainingFetcher();
+
+    await expectStreamError(
+      uploadArtifactStream(Readable.from([sourceView]), {
+        uploadUrl: 'https://storage.invalid/grant',
+        mimeType: 'application/octet-stream',
+        sizeBytes,
+        maxBytes: DIRECT_ARTIFACT_MAX_BYTES,
+        expectedSha256: patternDigest(0, sizeBytes),
+        fetcher,
+      }),
+      422,
+      'HASH_MISMATCH',
+    );
+    expect(consumed()).toBe(sizeBytes);
   });
 });
 

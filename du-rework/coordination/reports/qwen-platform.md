@@ -144,6 +144,10 @@
 - 46 — TURN 344 SUBMISSION-METADATA-CRYPTO NEGATIVE (W-PLAT-CR28-06): +35 test (7 -> 42), CHI sua file test, 0 dong production (submission.ts e25670af khop DUNG gia tri Muc 26/32; metadata-crypto.ts aa200211 khop Muc 36/37/44; test 438744e6 / 29018 B / LF — file nay LF khac file CRLF cua Muc 45). (1) cross-column swapping — hoan tat CHIEU NGUOC LAI ma Muc 32 chi co chieu thuan, va NANG assertion tu co reject sang MA LOI CU THE (CONTEXT_MISMATCH) vi co reject van xanh khi mot cot bi bo seal; them chieu sai refId cung slot, ca hai cot duoi tenant khac, va bang chung hai cot mang hai envelope khac nhau (wrappedKey + nonce). (2) malformed envelope — 11 bien thu field (version/algorithm/dek xong-string/dek xoa/nonce xoa/nonce 11 byte/tag 15 byte/ciphertext lat byte/digest thay/aad lat byte) deu ma loi cu the; hoan DEK giua hai cot (AAD dung, nonce dung, khoa la) AUTHENTICATION_FAILED; cot chua chuoi JSON / so / null / boolean / object rong deu NOT_SEALED; envelope bom meo toan bo field van khong ro sentinel o moi do sau lan qua base64. (3) key-service outage — Vault sap o lan wrap thu 1 VA lan thu 2 deu KEY_PROVIDER_FAILED + writes = 0, va kiem wrapCalls() bang chinh so lan do de CHAN TEST CHAY RONG (neu code chi goi wrap mot lan thi provider fail-o-2 khong bao gio no, test se xanh ma khong chung minh gi); chung minh ca hai seal chay TRUOC db.tx theo submission.ts:253-256. (4) AAD tamper khi doc lai — sua tenant/refId/slot deu CONTEXT_MISMATCH; sua truong aad da luu cung CONTEXT_MISMATCH chung minh AAD duoc so TRUOC khi giai ma; context thieu slot / slot la / tenantId rong / refId rong INVALID_INPUT. 42/42 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1: sealSubmitMetadata bo qua cot tasks.payload_ref (submit nua seal) -> 8 do / 34 xanh gom 6 test MOI, va dac biet test outage-lan-wrap-2 DO vi wrapCalls() chi bang 1 — chinh assertion chong-vacuity bat trung mutation. Restore byte-exact, chay lai 42/42 + tsc sach. D101 duong seal KHONG kiem tra hinh dang wrapped DEK ma provider tra ve (chi bo wrapDek trong try/catch) nen provider tra hinh dang sai lam SUBMIT THANH CONG va ghi vao cot mot envelope VINH VIEN khong mo duoc, trong khi duong doc CO validateWrappedResult — bat doi xung giua ghi va doc, provider sai lech lam hong vinh vien cac row da ghi va chi phat hien khi doc. D102 plaintextSha256 KHONG duoc kiem tra khi doc lai: doi thanh 64 so 0, dat null, xoa hanh, hay thay bang chuoi khong hex deu MO ENVELOPE THANH CONG; no la tien ich cho chu vi caller con integrity that den tu GCM tag, nhung suite Muc 32 CO assert digest KHOP voi hash cua input trong nhu dang duoc cuong che — va no khong, nen consumer nao tin truong nay la kiem tra sau khi giai ma se so mot gia tri luu tru voi chinh no. D103 keyRef trong envelope khong duoc kiem tra khi doc lai va khong bi tu choi (danh tinh khoa nam trong dek) — an toan nhung ghi ro de mot dot siet cung sau khong lam hong row hien huu. TU SUA 4 lan deu tu lo: plaintextShaHash doi vao bang phai bi tu choi roi DO (viet lai thanh 4 test FINDING); sai ten field dek.ciphertext thuc ra la wrappedKey do adapter doi ten; adapter chuan hoa provider ve {version:1} chu khong phai rong; va toi chen mot block co dong }}); thua lam describe dong som day test ra ngoai (TS2304 + TS1128) — khi chen vao giua mot describe, block chen vao phai tu can bang ngoac. GATE ENC-04 VAN NO-GO — Muc 46.
 - 47 — TURN 345 ADMIN-CRYPTO-CONFIG NEGATIVE (W-PLAT-CR28-07): +59 test (24 -> 83), CHI sua file test, 0 dong production o ban deliver (test fa88ed10 / 39994 B / LF; crypto-config-api.ts 94c71214 va crypto-config-view-models.ts 707f742a da cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; server.ts 22afb2ff khong bao gio bi cham). (1) pin bi thu hoi — race: lister tra HAI snapshot khac nhau, pin duoc chap nhan theo snapshot 1, lan doc sau thay khoa da thu hoi; pin KHONG bi xoa am tham, pinInvalid version_revoked, deliveryReady false, deliveryBlockedReason pin_invalid; them test mot request khong tron hai snapshot (calls() === 1) va test thu hoi truoc request bi chan luc ghi 409 + writes = 0 + 0 audit row. (2) tenant id loi — 13 bieu thuc (NUL, xuong dong, CR, tab, DEL, C1, HOA, dau -/_/., space, /, rong) deu 422 INVALID_SCHEMA; bien do dai 64 hop le / 65 khong; operator gui id loi cua tenant khac ra 403 KHONG phai 422 + message y het moi id nuoc ngoai nen khong do ton tai; FINDING ky tu dieu khien song sot qua esc() vao markup. (3) CSRF forgery — token khoa cho SESSION KHAC (replay that) 403, token khoa bang SECRET KHAC 403, ky tu dau/cuoi doi, bot/them 1 ky tu, doi case deu 403; bien do dai 64 la duy nhop le con 63/65/128/129 deu 403; FINDING principal tenant_operator KHONG co cookieRole thi BO QUA HANH cang CSRF va ghi duoc config; them test viewer bi chan TRUOC kiem CSRF va hai 403 CUNG wording. (4) bien cat fingerprint — 9 moc (rong, chi co prefix, 1, 11, 12, 13, co/khong prefix, non-string) gia tri chinh xac tung cai; FINDING preview render 12 ky tu DAU cua bat ky thu gi nam trong truong fingerprint; FINDING view model mang fingerprint DAY DU. 83/83 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. HAI M1: (a) noi fingerprintPreview tu 12 len 32 ky tu -> 6 do / 77 xanh gom 4 test MOI; (b) noi regex assertTenantId -> 12 do / 71 xanh va CA 12 DEU LA TEST MOI (bien chuoi rong van xanh vi bieu thuc mutation van doi >= 1 ky tu nen cong lap dung thuoc tinh). Restore byte-identical x2, chay lai 83/83 + tsc sach. D104 cong CSRF bi bo qua khi cookieRole undefined ke ca voi principal tenant_operator — requireWriteAuth tra som o `if (auth.cookieRole === undefined) return principal;` tuc no kiem TIN HIEU ngu nhien (co claim cookie da xac minh hay khong) thay vi LOAI CREDENTIAL; resolveAdminPrincipal co tra tenant_operator cho bearer token theo tenant va route dung auth voi cookieClaims?.role nen undefined khi khong co cookie hop le; duong do da duoc test chung minh ghi duoc config ma KHONG can CSRF nao; KHONG khai thac duoc bang CSF hom nay vi principal van phai toi tu header Authorization ma trang cheo khong gui duoc header do, nhung neu server tung chap nhan principal tu nguon khac (OIDC bearer, mTLS, header) thi cong CSRF se bien mat am thanh; sua bang cach them authKind vao CryptoConfigAuth va chi bo qua CSRF khi kind la bearer. D105 preview render 12 ky tu dau cua bat ky thu gi trong truong fingerprint va view model mang fingerprint DAY DU — toi do truoc: dat sentinel hinh dang khoa rieng vao fingerprint thi pane in ra BEGIN PRIVAT tuc 12 ky tu dau cua khoa rieng co that su toi markup; quy tac 1 cua module (mot preview khong co gi de lo) chi dung khi truong do thuc su chua fingerprint no la thuoc tinh cua DU LIEU khong phai cua CODE; ngoai ra JSON.stringify(view) chua toan bo sentinel va chi renderer cat; sua bang cach cat o tang view model hoac validate fingerprint la 64 hex o recipientKeyOptions. D106 esc() chi escape dung 5 ky tu va moi ky tu dieu khien di thang qua ke ca NUL va CRLF vao markup trong khi header cua renderer tu goi cac gia tri nay la untrusted by construction; NUL khong thoat duoc khoi thuoc tinh da escape dau nhay nen rui ro thuc te la parser differential/smuggling khong phai XSS truc tiep nhung bat bien duoc tuyen bo RONG HON code that; sua bang cach ma hoa hoai lo bo control character trong esc(). D107 cong CSRF khong ghi lai LOAI CREDENTIAL da xac thuc nen khong phan biet bearer-only voi cookie khong xac minh duoc. DAI DUNG QUAN TRONG: suite ENC-08 co HAI test leak va ca hai deu xanh theo ly do YEU HON ve ngoai — mot cai cam sentinel trong JSON.stringify(view) nhung sentinel lai duoc cam vao publicKeyPem chu khong phai fingerprint (nen xanh ca khi truong fingerprint mang dung sentinel do), con cai kia cam sentinel da nam trong fingerprint nhung chi kiem toan bo chuoi van mat (do thuc te: 12 ky tu dau co mat); toi giu nguyen chung va bo sung cac test do DUNG ky tu nao toi duoc dau ra kem positive control. GIOI HAN NOI THANG thay vi bia test: unit test offline KHONG chung minh duoc thuoc tinh constant-time, toi khong viet test gia co ten dep timing ma chi ghim phan quan sat duoc (ranh gioi quyet dinh 64 la do dai hop le duy nhat, va so do dai buffer dien ra truoc so sanh thoi gian hang) — muon dong diem timing that can live sentinel o tang route, viec cua Tester lane voi cua so that. TU SUA 4 lan deu tu lo: positive control dung JSON.stringify de kiem ky tu dieu khien tho nen DO VI LY DO SAI (da sua sang gia tri tho); toi doan hai loi 403 cua viewer se KHAC wording nhung thuc te check viewer chay TRUOC nen GIONG NHAU va hanh vi do tot hon; sai so dem 1 ky tu cho md5:abcdefghijklmnop (da them assertion toHaveLength(12) de ghim bang may); va escape dau nhay don lam hong string literal TS2353 + TS2304 (da viet lai bang String.fromCharCode(34) va (39)). GATE ENC-04 VAN NO-GO — Muc 47.
 - 48 — TURN 346 CRYPTO-CONFIG-STORE NEGATIVE (W-PLAT-CR28-08): +55 test (4 -> 59), CHI sua file test, 0 dong production o ban deliver (test ee90cdeb / 24345 B / LF; crypto-config-store.ts bdb01238 / 5840 B cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; crypto-config-api.ts 94c71214 va server.ts 22afb2ff khong bao gio bi cham). Suite la UNIT OFFLINE (MemoryCryptoConfigDb) chu khong phai live-DB nen acceptance day du kha thi, khac han Muc 41. HAI MUC PACKET KHONG CO DOI TUONG TRONG MODULE: (4) corrupt public key PEM — module nay KHONG he parse PEM, no luu mot key REF da allowlist va mot version number, PEM thuoc recipient-key-registry; toi ghim dieu that: mot ref co hinh dang PEM van duoc luu neu duoc allowlist con PEM that khong allowlist thi bi tu choi — phep thuoc ve allowlist LA TOAN BO cong chan. (6) revoked key lookup fence — constructor chi nhan db + allowlist, KHONG co registry access nen store KHONG THE BIET version nao bi thu hoi; no trung thuc luu con so, fence that nam o applyCryptoConfig tang tren; ghim ro de khong ai tuong duoi API con mot lop phong thu nua. (2) malformed JSON — bang admin_crypto_config KHONG co cot JSON (4 cot vo huong) nen toi chuyen sang nham lan hinh dang o tang hang. Cac nhom con lai: (1) key version — 0/-1/1.5/NaN/Infinity/MAX_SAFE_INTEGER+2 deu TypeError voi 0 query; bien 1 va MAX_SAFE_INTEGER hop le; null xoa pin; LAYERING version chua tung dang ky (999999) van duoc luu; DUONG DOC kiem lai row luu pin 0/-5/2.5/'3'/undefined deu stored crypto configuration is invalid. (2) nham lan hinh dang hang — delivery_encryption string/number/null/undefined, pinned version number/string/undefined, storage_key_ref number/object/array/rong/undefined, row thuoc tenant khac ra crypto configuration tenant mismatch. (3) tenant khong ton tai — miss tra EMPTY va KHONG ghi gi (0 write, dung 1 query); EMPTY la ban SAO moi lan (sua ket qua khong dau doc duoc hang module); 8 tenantId hinh dang SQL/NUL/xuong dong/space/dau-dash bi tu choi TRUOC khi co query; SELECT co tham so $1 khong noi suy chuoi; 4 tenantId gan giong deu EMPTY rieng. (4) key ref — allowlist chua number/null/undefined/rong/object lam constructor nem nen ca store khong dung duoc; allowlist rong thi moi ref bi tu choi; ref hinh dang PEM luu duoc neu allowlist; allowlist la ban sao nen sua/xoa mang goi khong doi hanh vi; thu hep allowlist sau khi da luu lam get fail-closed du row khong doi. (5) race — retry giong het di duong doc lai dung 2 query va tra ve gia tri da luu; ghi khac lay thang tu RETURNING dung 1 query; FINDING writer canh tranh lam set() tra ve gia tri no CHUA TUNG LUU; FINDING writer xoa hang giua luc ghi va doc lai thi set() tra EMPTY. (6) version bi thu hoi van duoc luu va ROW KHONG GHI trang thai thu hoi (4 cot, khong cot nao noi revocation). 59/59 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1 — noi guard version cua DUONG GHI (< 1 thanh < -1) -> 3 do / 56 xanh gom 2 test MOI; GIOI HAN NOI RO: cac test duong DOC van xanh vi decodeRow co guard RIENG ma toi khong mutate, hai guard doc lap nhau nen mutation nay chi chung minh duong ghi con dung, duong doc can mot probe rieng. Restore byte-exact, chay lai 59/59 + tsc sach. TU SUA 1 lan: flag as boolean bi TS2352 (khong du chong nhau de coi la co y) da sua bang double-cast as unknown as boolean, loi harness thuan, sau khi sua suite 59/59 ngay lan chay ke tiep. D108 nhanh doc lai cua set() co the tra ve gia tri ma chinh loi goi do KHONG ghi: khi cau ON CONFLICT DO UPDATE WHERE IS DISTINCT FROM khong tra dong, store goi this.get() de lay gia tri da luu, va giua luc ghi va luc doc MOT writer khac co the ghi de; loi goi cua ta khong gi ca ma van nhan ve trang thai cua writer kia; gia tri tra ve DUNG SU THAT dang luu nen khong phai mat du lieu nhung KHONG PHAI bang chung rang loi goi nay da ghi. D109 neu writer khac XOA hang giua luc ghi va luc doc lai thi get() tra EMPTY_CRYPTO_CONFIG nen set() bao ve cho nguoi goi mot cau hinh RONG cho dung tenant ma no vua duoc yeu cau cau hinh; cau ghi la DIEU KIEN va lan doc lai KHONG cung statement nen store khong co cach nao bao cho caller biet ban ghi cua minh khong con ton tai. D110 khong co gi trong hang ghi nhan viec thu hoi: 4 cot la tenant_id, storage_key_ref, delivery_encryption, pinned_recipient_key_version, khong cot nao ghi trang thai thu hoi va store khong co registry; sau khi mot version bi thu hoi hang da luu khong tu bao dieu do, phat hien chi xay ra o tang API va chi khi co nguoi doc. GATE ENC-04 VAN NO-GO — Muc 48.
+- 49 — TURN 347 ADMIN-CRYPTO-CONFIG-WIRING NEGATIVE (W-PLAT-CR28-09): +48 test (23 -> 71), CHI sua file test, 0 dong production o ban deliver (test e08ed747 / 33194 B / LF; rbac.ts c0e02328 cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; server.ts 22afb2ff va crypto-config-store.ts bdb01238 khong bao gio bi cham). Suite in-process offline, goi thang route(ctx), khong socket/PG/Redis/Vault. HAI MA LOI TRONG DANH SACH KHONG QUAN SAT DUOC: 400 (JSON hong) bi BODY PARSER chan TRUOC khi goi route(), day ctx.body da parse san nen khong tao duoc 400; 500 — route() KHONG chuyen loi la thanh 500, viec map sang safeInternalErrorProblem nam o handler tren cung trong createApp tren ca loi goi nay, toi chung minh dieu quan sat duoc la loi tho truyen nguyen ven ra ngoai khong bi nuot hay gan nhan 4xx sai; ca hai gioi han deu do ban chat in-process cua harness khong phai thieu sot cua san pham. (1) non-bearer auth — 7 dang (Basic, bearer viet thuong, token tran khong scheme, header rong, Bearer khong token, bearer co khoang trang cuoi, Basic mang dung gia tri admin) deu 401; bearer khong khop principal nao 401; bearer tenant-scoped tro tenant khac 403; bearer tenant-scoped doc tenant cua no 200 chung minh principal khong null. (2) route param — 4 bien thu (dau gach cuoi, thieu gach dau, sai hoan thu, du mot segment) deu 404 va body khong chua crypto; query param khong nam trong path nen duong dung van khop; DELETE tren dung path do 404 (goi route() truc tiep vi call() cuong ep method). (3) tenant tu dau — FINDING body tenant DE query tenant va ban ghi roi vao tenant cua body (D111); chi co tenant trong query thi dich la tenant do; KHONG co header tenant nao, chi gui header thi 422 khong dinh huong duoc (D112); header tenant khong ghi de duoc tenant trong query; tenant rong/khoang trang/ky tu dieu khien/65 ky tu deu 422 con 64 ky tu thi 200. (4) corrupt JSON — FINDING body khong phai object (string/number/boolean/array/null) tra 200 im lang, changedFields rong, khong audit nhung VAN TAO HANG (D113); 7 bien thu sai kieu field deu 422 + store rong + audit rong; body chi co tenant 200 changedFields rong; field la bi bo qua khong phai 422. (5) mapping loi — 401/403/404/409/422/503 tung ma dung nhu ten; FINDING loi khong phai HttpError tu store truyen nguyen ven ra ngoai route() chung minh 500 nam tren harness; GET khong ro key ref ma nen tang da rut khoi allowlist. 71/71 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1 — noi cong bearer trong rbac.ts (chap nhan bearer viet thuong + trim) -> 2 do / 69 xanh va CA HAI DEU LA TEST MOI cua toi. Restore byte-identical, chay lai 71/71 + tsc sach. TU SUA 3 lan: (1) toi dung deliveryEncryption de chung minh thu tu uu tien tenant va no DO 409 vi fixture khoa thuoc TENANT_A nen bat delivery cho TENANT_B bi chan boi khong co khoa dung duoc truoc khi quy tac uu tien kip hien ra — da doi sang storageKeyRef (chi platform, khong can khoa); test nay TUNG DO VI LY DO KHAC va phai sua. (2) test loi 500 cua toi khong set tenant nen 422 tenantId is required chan truoc khi toi store — da dung call() voi tenant. (3) toi viet FINDING body-khong-phai-object la no-op khong ghi gi va test DO vi store co 1 hang; hanh vi that manh hon loi toi viet: no VAN TAO HANG, da viet lai assertion theo gia tri that. D111 tenantId trong body DE tenantId trong query va voi caller platform no doi han tenant ma loi goi ghi vao; route doc bodyTenant truoc queryTenant, quy tac co chu dich (form post khong co query) nhung khong duoc neu trong contract va audit khong ghi tenant dich toi tu dau; sua bang cach ghi nguon tenant vao audit hoac bo uu tien body. D112 khong co header tenant nao va dieu nay la TOT nhung chua duoc ghim o dau, route chi doc query param va body nen x-tenant-id hay x-forwarded-tenant khong dinh huong duoc gi (toi test ca hai); ghi lai vi contract khong noi ro. D113 body khong phai object tra 200 im lang va VAN TAO HANG, khong phai lo hong du lieu nhung client co JSON hong van nhan SUCCESS khong chan doan va de lai mot hang ma no khong he xin; qua HTTP that thi parser chan truoc (400) nen duong socket khong toi duoc hinh dang nay, rui ro con lai la duong goi in-process. GATE ENC-04 VAN NO-GO — Muc 49.
+- 50 — TURN 348 DELIVERY-ENCRYPTION NEGATIVE (W-PLAT-CR28-10): +28 test (22 -> 50), CHI sua file test, 0 dong production o ban deliver (test 2984a2fb / 38284 B / LF; delivery-encryption.ts 6938f6af / 8601 B cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; server.ts 22afb2ff khong bao gio bi cham). Suite offline, goi thang service + route(ctx), khong PG/Redis/Vault. (1) pin ban chu khoa — 6 test: pin co dung version khong goi getCurrentKey; pin tro version khong ton tai tu choi khong lui; pin tro version da thu hoi tu choi; registry sap tren duong pin; pin la 0/am/phan so/null/undefined coi nhu khong co pin; policy tat thi registry khong he duoc goi. (2) PEM hong — 4 bien thu: rong, van xuoi, than PEM sai 1 ky tu, PEM cat cut deu DELIVERY_CRYPTO_FAILURE khong bao gio lui plaintext; FINDING PEM khoa rieng dan vao publicKeyPem van ma hoa thanh cong vi createPublicKey tu trich phan public (D114). (3) algorithm — FINDING resolveSuite chi gate tren hpke-x25519, moi gia tri khac ke ca ngoai union TypeScript deu boc rsa-oaep-sha256 (D115); policy muon HPKE nhung khoa la RSA thi khoa thang; algorithm rong va ten suite bia deu rsa-oaep-sha256. (4) thieu header — 4 bien thu x-api-key khong co/rong/sai/khoang trang cuoi deu 401 tren ca hai be mat khong lo payload; khong query param hay header khac thay the duoc. (5) tenant lech — record cua tenant khac la RECIPIENT_KEY_NOT_FOUND; fetch cheo tenant 404 va problem khong chua PEM/khoa/ket qua. (6) ciphertext hong — field chua chuoi khong phai base64 bi schema tu choi, AAAA la base64 HOP LE nen duoc giu lam positive control; field la/version 2/recipientKeyVersion 0 bi tu choi (schema strict); lat 1 byte ciphertext GCM tag tu choi; dan nonce envelope khac khong giai ma duoc; FINDING payload rong khong giao duoc vi BASE64_RE yeu cau it nhat 1 ky tu nen ciphertext rong khong qua duoc schema (D116). 50/50 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1 THAT: chuyen duong pin sang getCurrentKey (bo qua ban ghim) -> 3 do / 47 xanh, ca ba deu la test MOI cua toi; restore byte-identical (6938f6af) roi chay lai 50/50 + tsc sach. TU SUA 4 lan: TS2352 double-cast; PEM khoa rieng khong fail (viet lai thanh FINDING); AAAA la base64 hop le (giu lam positive control); trailing= cung hop le (thanh a===). D114 createPublicKey chap nhan PEM khoa rieng; D115 resolveSuite khong kiem tra algorithm ngoai union; D116 payload rong khong giao duoc vi BASE64_RE. GATE ENC-04 VAN NO-GO — Muc 50.
+- 51 — TURN 351 RECIPIENT-KEY-REGISTRY NEGATIVE (W-PLAT-CR28-11): +33 test (16 -> 49), CHI sua file test, 0 dong production o ban deliver (test 5eb49ab8 / 35249 B / LF; recipient-key-registry.ts d44a7e41 / 16600 B cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; server.ts 22afb2ff khong bao gio bi cham). Suite offline, repository in-memory, dong ho tiem. Baseline 16 test da phu rat rong (algorithm la, PEM hong, khoa yeu, PEM rieng, challenge het han, tenant khong ton tai, xung dot version) nen phan lon cycle nay don vao CAC GUARD BASELINE CHUA TUNG CHAM. (3) version drift — repo tra lech version (hoi v1 dap v2) REGISTRY_UNAVAILABLE khong phuc vu ban ghi sai; version cua khoa hien hanh la 0/am/vuot tran/phan so/NaN deu INVALID_INPUT; tran MAX_KEY_VERSION 2^31-1 LA dia chi hop le cho KEY_NOT_FOUND, doi lap voi INVALID_INPUT khi vuot tran. (4) tenant isolation — repo tra record cua tenant khac qua ca 4 cua (getCurrentKey/getKeyVersion/listKeys/revokeKey) deu REGISTRY_UNAVAILABLE; kiem tra scope THANG kiem tra revoked ke ca tren revokeKey. (5) expired/clock — dong ho tiem tra NaN/am/phan so/Infinity deu REGISTRY_UNAVAILABLE khong dung timestamp sai; TTL challenge 0/999ms/vuot 900000ms/phan so nem o luc khoi tao; TTL dung san 1000ms dung tran 900000ms mac dinh 300000ms han dut = now + ttl CHINH XAC. Proof input — challengeId rong/129 ky tu/non-string deu INVALID_INPUT; proof rong/base64 co + va // do dai %4=1/co padding/> 16 KiB deu INVALID_INPUT khong phai loi crypto; proof lam cho challenge A nop vao challenge B PROOF_INVALID; challenge luu trong repo mang fingerprint cua khoa khac CHALLENGE_INVALID. 49/49 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1: lan 1 VANG 49/49 (version + 0 la phep cong vo nghia, dieu kien y het truoc do, vo hieu hoa chang thu gi — bat duoc vi doc ket qua thay vi gia dinh); lan 2 DO 1/48 (key.version !== key.version luon false, dung test version drift moi). Khoi phuc byte-identical (d44a7e41), dem lai 2 chot key.version !== version con nguyen, chay lai 49/49 + tsc sach. TU SUA 3 lan: TS2322 helper tra string thay union (sua bang khai bao kieu tra ve tuong minh); mat can bang ngoac khi ghep chunk (d88-c4 dong describe som day test cua d88-c5 ra ngoai va de lai }); thua => TS2304 + TS1128, lan thu hai trong cac cycle gan day); test TTL viet co assertion vo nghia (|| true) nhan ra khi doc lai chunk truoc khi ghep va viet lai thanh phep so sanh thoi han bang may (expiresAt - now() === ttl). KHONG CO DELTA MOI cho cycle nay: moi guard toi kiem tra deu fail dung ma loi da khai bao, ke ca nhung truong hop toi co tinh lam repository noi doi; module nay viet chat hon han delivery-encryption.ts (co recordForTenant, chot version drift, chan RSA < 2048 bit, chan PEM rieng, TTL co tran). GATE ENC-04 VAN NO-GO — Muc 51.
+- 52 — CYCLE 52 COMP-01-LEGACY-HEADERS-CANONICALIZATION: TAO HAI FILE MOI — src/compat/legacy-headers.ts (271fb280, 283 dong) va tests/legacy-headers.test.ts (3ca4af95, 66 test). KHONG sua file ton tai nao: server.ts 22afb2ff (khop moi cycle truoc) va contracts/public-api.ts deu khong dung. Day la CYCLE DAU tui viet production code (42-51 chi them test). Module KHONG import gi tu server.ts hay contracts/public-api.ts; no nhan header bag va query string rieng biet thay cho mot RouteContext nen cach ly la CAU TRUC khong phai quy uoc — dieu kien de sau nay noi vao ma khong phai sua hai file bi cam. 4 nhom: (1) credential — Authorization Bearer chuan; scheme bearer/BEARER/BeArEr viet thuong/hoa/thua khoang trang deu chap nhan vi scheme HTTP khong phan biet hoa thuong theo RFC 7235; 5 bien the header api-key doc khong phan biet hoa thuong; 4 header token legacy quy ve canonical x-api-key; Authorization THANG khi co ca bearer lan api-key; Authorization Basic KHONG nuot api-key dung duoc; header rong/tran/toan khoang trang tra token rong — KHONG BIA ra; header lap lai lay gia tri dau, bag chua undefined va mang khong nem. (2) content-type — text/json, application/x-json, hoa, thua khoang trang, problem+json, octet-stream, html ve canonical; charset tren json/problem bi BO; charset tren text/html duoc CHUAN HOA thanh utf-8; tham so la tren media type da nhan dien thi tham so bi bo; application/xml, text/plain, multipart/form-data, van bau vo nghia tra NULL — KHONG DOAN. (3) pagination — limit/cursor/sort chuan di thang; per_page va pageSize gop thanh limit; limit chuan thang legacy; clamp 500/100 ra 100, 0/-5/abc/rong ra 20, 10.9 ra 10. (4) toan request — canonicalizeRequest chuan hoa ca ba trong mot luot. QUYET DINH THIET KE BAT BUOC: KHONG the chuyen offset -> cursor — day la mapping duy nhat KHONG lam trung thuc duoc: page=2 nghia la bo qua 20 dong con cursor=X nghia la bat dau sau dong X chi dinh, hai dieu do chi trung nhau khi thu tu sap xep on dinh va dun chinh la gia dinh ma trang offset khong dam bao; module vi ra truong offsetNotExpressible de NOI RO khong chuyen duoc thay vi bia cursor gia. 66/66 x3 lien tiep co dong PASS that, tsc 0 log rong x2. M1 THAT: lam scheme Bearer phan biet hoa thuong (bo co /i) -> 3 do / 63 xanh dung 3 bien the scheme khong chuan; day la mutation lien quan bao mat nhat vi neu chap nhan case-sensitive mot client legacy gui bearer se bi tu choi ngay lap tuc; khoi phuc byte-identical (271fb280) doc lai xac nhan co /i con nguyen chay lai 66/66 + tsc sach. TU SUA 2 lan deu tu lo: toi khang dinh moi canonical content type deu khong chua charset — sai vi text/html; charset=utf-8 CO charset nen text/html; charset=iso-8859-1 phai duoc CHUAN HOA thanh utf-8 chu khong phai strip; va toi xep application/octet-stream; x=1 vao nhom khong nhan dien — sai vi media type CO nhan dien chi co tham so x=1 la la; ca hai deu la loi cua test khong phai cua module. Module moi CHUA duoc noi vao bat dauau: dua vao route la cong viec rieng va no khong duoc gan release gate nao. GATE ENC-04 VAN NO-GO — Muc 52.
 
 ## 1 — CYCLE 1: W-PLAT-MM05-REARM-1 (Queue Integrity re-arm CAS condition)
 
@@ -751,7 +755,6 @@ xanh hành vi test 5 cần window live kế tiếp (đồng thời là gate live
   dự đoán xanh 7/7 nếu scope model không đổi giữa chu kỳ.
 - Không commit, không push, không mở DB/Redis window trong cycle này.
 
-
 ## 8 — CYCLE 8: W-VAULT-FIXTURE-ALIGN-1 (f3 seed() binding coordinates)
 
 ### Bối cảnh finding
@@ -1295,6 +1298,7 @@ invalid-source, migration-pin) vốn xanh vì không đi qua binding gate của 
    F2 absence-of-option cũng 422 (default fail-closed); F3 s3+URL
    PENDING_INGESTION qua cả INSERT operations[6]/tasks[4]/outbox
    payload gate+sourceUrl; F4 postgres+inline ACCEPTED/READY, không
+
    gate/sourceUrl key trong dispatch payload.
 
 #### Verify
@@ -1633,7 +1637,6 @@ Phần in NGUYÊN VĂN từ route là ca không-cursor, ghi ở E3.
 - ACCEPTED: không thuộc quyền lane. ENC-00 vẫn [~] cho tới khi 4 nhóm quyết
   định còn mở được ký (wire profile, response mode, key-policy timing, upload
   protocol). Schemas này là baseline shape, không phải contract freeze.
-
 
 ## 15 — CYCLE 15: Δ32 closure + W-ENC-01-SCHEMA BLOCKED
 
@@ -3570,7 +3573,6 @@ tưởng cả 9 đều đã được mutation-verify.
 - **ACCEPTED**: không thuộc quyền lane. Các delta cũ vẫn mở; **chưa** có mutation hợp lệ cho nhóm
   shape/nonce (báo trong receipt, không che).
 
-
 > **Ghi chú lifecycle (quan trọng):** worker_done **không gửi được** cho task này.
 > `dispatch-show --task task_b92e741c9b68` trả `dispatch: null` — task id này **không có Dispatch** trong Run
 > `run_c896de26ea44`, và terminal của tôi cũng không có task `[dispatched]` nào (task-list: rỗng). Tôi đã thử
@@ -3703,6 +3705,7 @@ gồm **cả 2 test cross-tenant mới** của tôi. Restore byte-exact `grants.
 - **SPECIFIED**: rõ 3 nhóm; **2 mục** (expired pin, tampered hash) không có hành vi tương ứng — đã đo và ghi, không bịa test.
 - **IMPLEMENTED**: 1 file test, +13 test (2 → **25**) + 1 helper. **0 dòng production code.**
 - **VERIFIED (offline)**: 25/25 x3; tsc Exit 0 log rỗng; M1 3 đỏ đúng mục tiêu; restore byte-exact.
+
 - **ACCEPTED**: không thuộc quyền lane. **ENC-04 vẫn NO-GO**; Δ77/Δ78 mới; Δ69/Δ66/Δ74/Δ71/Δ75/Δ76 cũ còn mở.
 
 ## 41 — CYCLE 41 / TURN 334: W-PLAT-CR28-02-ARTIFACT-GRANT-FENCING-NEGATIVE — task theo dispatch
@@ -3808,7 +3811,6 @@ lane tôi. Đây là hạn chế đã biết của mọi suite `DU_LIVE_INFRA`, 
 | 7 | **(1) thiếu tenant** | **`FINDING:`** `submit` KHÔNG validate `tenantId` | xem dưới |
 | 8 | | tenant lạ **vẫn không** chạm artifact của tenant khác | 404 `NOT_FOUND` (query tenant-scoped là hàng rào thật) |
 
-
 #### Verify — 3× chạy liên tiếp, Exit 0 thật, test thực thi
 Cách gọi: `pnpm --filter @du/orchestrator test -- tests/artifact-submit-guards.test.ts` (wrapper
 `jest --runInBand`, nên `--` đứng luôn, không có cờ nào đứng trước positional).
@@ -3831,7 +3833,6 @@ Checksum (ở bản deliver, sau khi khôi phục M1):
 | tests/artifact-submit-guards.test.ts | `7cdd4107` | 12703 |
 | src/modules/operations/submission.ts | `e25670af` | 32535 |
 | src/server.ts | `22afb2ff` | nguyên trạng, không đụng |
-
 
 #### M1 — mutation thật (đỏ rồi xanh), khôi phục byte-exact
 Đột biến **compile được** (không dùng `if (false && ...)` — biến thể đó biến nhánh thành dead code, TS từ chối,
@@ -4574,3 +4575,366 @@ thay vì im lặng — cùng tinh thần với việc nói thẳng phần timing
 - **VERIFIED**: 59/59 ×3 Exit 0 có dòng PASS; tsc Exit 0 log rỗng ×2; M1 đỏ 3/56 (2 mới) với **giới hạn
   được nêu rõ**; khôi phục byte-exact và xác minh lại bằng đọc nội dung guard.
 - **ACCEPTED**: **không** thuộc quyền lane — Δ108–Δ110 cần sửa production. **ENC-04 NO-GO.**
+
+## 49 — CYCLE 49: W-PLAT-CR28-09-ADMIN-CRYPTO-CONFIG-WIRING-NEGATIVE — task_7d8e2194b39f / ctx_7d8e2194b39f
+
+> **Trạng thái `[PASS]` THẬT**: 71/71 ×3 có dòng `PASS` thật + M1 đỏ 2 test.
+> Suite **in-process, offline**: gọi thẳng `route(ctx)`, không socket / PG / Redis / Vault.
+
+#### GATE NO-GO — giữ nguyên
+**ENC-04 vẫn NO-GO.** Chỉ thêm test. Còn mở: Δ69, Δ66, Δ74–Δ79, Δ81–Δ107, và **Δ111–Δ113** mới.
+
+#### Deliverable — +48 test (23 → **71**)
+Phạm vi CHỈ `tests/admin-crypto-config-wiring.test.ts`, **0 dòng production code**. Test `e08ed747` /
+33194 B / LF. `rbac.ts` chạm tạm cho M1 và khôi phục **byte-identical** `c0e02328`; `server.ts`
+`22afb2ff`, `crypto-config-store.ts` `bdb01238` không bao giờ bị chạm.
+
+#### HAI MUC PACKET KHONG QUAN SAT DUOC TU HARNESS NAY — bao cao, khong bia test
+| muc packet | thuc te |
+|---|---|
+| **400 (JSON hong)** | JSON bi **body parser chan TRUOC** khi goi `route()`. O day `ctx.body` da duoc parse san, nen **khong tao duoc 400** bang cach goi `route(ctx)`. Toi ghim dieu that: mot body da parse nhung hong hinh dang van di qua. |
+| **500** | `route()` **khong** chuyen loi la thanh 500; viec map sang `safeInternalErrorProblem` nam o **handler tren cung trong `createApp`**, tren ca loi goi nay. Toi chung minh dieu quan sat duoc: **loi tho truyen nguyen ven ra ngoai**, khong bi nuot hay gan nhan 4xx sai. |
+
+Ca hai gioi han deu do **ban chat in-process cua harness**, khong phai thieu sot cua san pham.
+
+| # | nhóm packet | nội dung mới | kỳ vọng |
+|---|---|---|---|
+| 1 | **(1) non-bearer auth** | 7 dạng: `Basic`, `bearer` viết thường, token trần không scheme, header rỗng, `Bearer ` không token, bearer có khoảng trắng cuối, `Basic` mang đúng giá trị admin | đều **401** |
+| 1b | | bearer khớp principal nào cũng không | 401 |
+| 1c | | bearer tenant-scoped trỏ **tenant khác** | **403** |
+| 1d | | bearer tenant-scoped đọc **tenant của nó** | 200 — chứng minh principal **không null** |
+| 2 | **(2) route param** | 4 biến thể: dấu gạch cuối, thiếu gạch đầu, sai hoàn thư, dư một segment | **404** và body **không** chứa "crypto" |
+| 2b | | query param **không** nằm trong path, nên đường đúng vẫn khớp | 200 |
+| 2c | | `DELETE` trên đúng path đó | 404 (gọi `route()` trực tiếp, vì `call()` cưỡng ép method) |
+
+| 3 | **(3) tenant tu dau** | **`FINDING:`** body tenant **DE** query tenant va ban ghi roi vao tenant cua body | xem D111 |
+| 3b | | chi co tenant trong query thi dich la tenant do | 200 + ghi dung tenant |
+| 3c | | **KHONG co header tenant nao**: chi gui header thi 422, khong dinh huong duoc | xem D112 |
+| 3d | | header tenant **khong** ghi de duoc tenant trong query | 200, view tra tenant trong query |
+| 3e | | tenant rong / khoang trang / ky tu dieu khien / **65** ky tu | 422; **64** ky tu thi 200 |
+| 4 | **(4) corrupt JSON** | **`FINDING:`** body khong phai object (string/number/boolean/array/null) | **200 im lang**, `changedFields` rong, **khong** audit — nhung **van tao hang** ⇒ D113 |
+| 4b | | 7 bien thu sai kieu field | 422 + store **rong** + audit rong |
+| 4c | | body chi co tenant, khong field nao | 200, `changedFields` rong |
+| 4d | | field la trong body | bi **bo qua**, khong phai 422 |
+| 5 | **(5) mapping loi** | 401 (principal rong) / 403 (tenant la) / 404 (path la) / 409 (pin bi thu hoi, khong co khoa dung duoc) / 422 (version chua dang ky, tenant sai) / 503 (chua cau hinh) | tung ma dung nhu ten |
+| 5b | | **`FINDING:`** loi **khong phai HttpError** tu store truyen nguyen ven ra ngoai `route()` | chung minh 500 nam ** tren** harness |
+| 5c | | GET khong ro key ref ma nen tang da rut khoi allowlist | tra dung allowlist con lai |
+
+#### Verify — 3× lien tiep + tsc
+| run | dong `Tests:` |
+|---|---|
+| d86-f1 | **71 passed, 71 total** |
+| d86-f2 | **71 passed, 71 total** |
+| d86-f3 | **71 passed, 71 total** |
+
+`tsc --noEmit` — **Exit Code 0, log 0 byte**, truoc va sau khoi phuc M1.
+
+#### M1 — noi cong bearer trong `rbac.ts` (chap nhan `bearer` viet thuong + trim)
+Ket qua **`2 failed, 69 passed`**: `refuses a lowercase bearer with 401` va
+`refuses a bearer with trailing whitespace with 401` — **ca hai deu la test MOI cua toi**. Khoi phuc
+byte-identical (`c0e02328`), doc lai xac nhan `startsWith('Bearer ')` nguyen ven, chay lai **71/71** va
+`tsc` **log 0 byte**.
+
+#### Δ-DEVIATION (chờ coordinator)
+
+- **Δ111** — **`tenantId` trong BODY ĐÈ `tenantId` trong query**, và với caller **platform** nó đổi hẳn
+  tenant mà lời gọi ghi vào. Route đọc `bodyTenant` trước `queryTenant`. Quy tắc này có chủ đích (form post
+  không có query), nhưng **không được nêu trong contract** và audit không ghi rằng tenant đích tới từ đâu.
+  Rủi ro: một form tự động đính `tenantId` vào body có thể ghi cấu hình của tenant khác mà không có dấu vết.
+  Sửa: ghi nguồn của tenant vào audit, hoặc bỏ ưu tiên body và bắt form post dùng query.
+- **Δ112** — **Khong co header tenant nao**, va dieu nay la **tot** nhung chua duoc ghim o dau: route chi doc
+  **query param** va **body**, nen mot header `x-tenant-id` hay `x-forwarded-tenant` **khong** dinh huong duoc
+  gi (toi test ca hai, deu vo hieu). Toi ghi lai vi contract khong noi ro, va mot proxy them header sau nay
+  se gap bat ngo. Sua: neu ro trong tai lieu API rang tenant chi nhan qua query/body.
+- **Δ113** — **Body khong phai object bi tra ve 200 im lang, va VAN TAO HANG.** Moi field doc tu body do ra
+  `undefined` nen moi guard `x !== undefined` deu pass; `changedFields` rong va **khong co audit row**, nhung
+  store van duoc dua state khong doi nen mot tenant chua tung co config **nhan duoc mot hang rong**. Khong phai
+  lo hong du lieu, nhung client co JSON hong van nhan **SUCCESS**, khong co chan doan, va de lai mot hang ma no
+  khong he xin. Qua HTTP that thi parser chan truoc (400) nen duong socket khong toi duoc hinh dang nay; rui ro
+  con lai la duong goi in-process. Sua: tu choi ngay khi body khong phai object thuan.
+
+#### Tự sửa (product đúng, tôi sai) — 3 lần
+1. **Tôi dùng `deliveryEncryption` để chứng minh thứ tự ưu tiên tenant** và nó **đỏ 409** — vì fixture khoá
+   thuộc về TENANT_A, nên bật delivery cho TENANT_B bị chặn bởi "không có khoá dùng được" **trước khi** quy tắc
+   ưu tiên kịp hiện ra. Đã đổi sang `storageKeyRef` (chỉ platform, không cần khoá) để quan sát đúng thứ cần
+   chứng minh. Test này **từng đỏ vì lý do khác** và phải sửa, không phải xanh vì tôi muốn.
+2. **Test lỗi 500 của tôi không set tenant** ⇒ 422 *tenantId is required* chặn trước khi tới store. Đã dùng `call()`
+   với tenant thay vì gọi `route()` trần.
+3. **Tôi viết FINDING body-không-phải-object là "no-op, không ghi gì"** và test **đỏ** vì store có **1 hàng**.
+   Hành vi thật mạnh hơn lời tôi viết: nó **vẫn tạo hàng**. Đã viết lại assertion theo giá trị thật.
+
+#### Tự phân loại 4 tầng
+- **SPECIFIED**: rõ 5 nhóm. **2 mã lỗi trong danh sách (400, 500) không quan sát được** từ harness in-process — tôi
+  báo cáo kèm lý do cụ thể thay vì dựng test không tạo được hiện tượng.
+- **IMPLEMENTED**: 1 file test, +48 test (23 → **71**), 4 `describe` mới. **0 dòng production code** ở bản
+  deliver; `rbac.ts` chạm tạm cho M1 và khôi phục **byte-identical**.
+- **VERIFIED**: 71/71 ×3 Exit 0 có dòng PASS; tsc Exit 0 log rỗng ×2; M1 đỏ 2/69 với **cả hai đều là test
+  mới**; khôi phục byte-identical và xác minh lại bằng đọc nội dung guard.
+- **ACCEPTED**: **không** thuộc quyền lane — Δ111–Δ113 cần sửa production. **ENC-04 NO-GO.**
+
+## 50 — CYCLE 50: W-PLAT-CR28-10-DELIVERY-ENCRYPTION-NEGATIVE — task_7d8e2194b400 / ctx_7d8e2194b400
+
+> **Trạng thái `[PASS]` THẬT**: 50/50 ×3 có dòng `PASS` thật + M1 đỏ 3 test.
+> Suite **offline**: không PG/Redis/Vault/network; recipient giải mã bằng fixture private key.
+
+#### GATE NO-GO — giữ nguyên
+**ENC-04 vẫn NO-GO.** Chỉ thêm test. Còn mở: Δ69, Δ66, Δ74–Δ79, Δ81–Δ113, và **Δ114–Δ116** mới.
+
+#### Deliverable — +28 test (22 → **50**)
+Phạm vi CHỈ `tests/delivery-encryption.test.ts`, **0 dòng production code**. Test `2984a2fb` / 38284 B /
+LF. `delivery-encryption.ts` chạm tạm cho M1 và khôi phục **byte-identical** `6938f6af`; `server.ts`
+`22afb2ff` không bao giờ bị chạm.
+
+**Khoảng trống lớn nhất tìm được:** trong 22 test baseline, **đường `pinnedRecipientKeyVersion`
+(chạy qua `getKeyVersion`) không có test nào** — dù đó là cơ chế fail-closed quan trọng nhất của
+delivery. Phần lớn cycle này dồn vào đó.
+
+| # | nhóm packet | nội dung mới | kỳ vọng |
+|---|---|---|---|
+| 1 | **(1) pin ban chu khoa** | pin **co** dung version, **khong** goi `getCurrentKey` | envelope mang id/version cua ban ghim |
+| 1b | | pin tro **version khong ton tai** | `RECIPIENT_KEY_NOT_FOUND` — **khong lui** ve khoa hien hanh |
+| 1c | | pin tro **version da thu hoi** | `RECIPIENT_KEY_REVOKED` — **khong lui** |
+| 1d | | registry **sap** tren duong pin | `REGISTRY_UNAVAILABLE` |
+| 1e | | pin la 0 / am / phan so / null / undefined | coi như **khong co pin**, theo khoa hien hanh |
+| 1f | | policy **tat** ⇒ registry **khong he** duoc goi | `DELIVERY_ENCRYPTION_DISABLED`, `consulted === 0` |
+| 2 | **(2) PEM hong** | rong / van xuoi / than PEM sai 1 ky tu / PEM cat cut | `DELIVERY_CRYPTO_FAILURE`, khong bao gio lui plaintext |
+| 2b | | **`FINDING:`** PEM **khoa rieng** dan vao `publicKeyPem` | **van ma hoa thanh cong** ⇒ D114 |
+| 3 | **(3) algorithm** | **`FINDING:`** algorithm **ngoai union** (rsa-pss) | van boc `rsa-oaep-sha256` ⇒ D115 |
+| 3b | | algorithm rong / ten suite bia | van `rsa-oaep-sha256` |
+| 3c | | policy **muon HPKE** nhung khoa la RSA | khoa thang, van giao thanh cong bang RSA-OAEP |
+
+| 4 | **(4) thieu header** | **khong co** `x-api-key` | 401 tren ca hai be mat, khong lo payload |
+| 4b | | rong / sai / co khoang trang cuoi | 401 |
+| 4c | | **khong** query param hay header khac thay the duoc | deu 401 |
+| 5 | **(5) tenant lech** | record cua **tenant khac** | `RECIPIENT_KEY_NOT_FOUND` |
+| 5b | | fetch cheo tenant | 404, problem **khong** chua PEM/khoa/ket qua |
+| 6 | **(6) ciphertext hong** | field chua chuoi **khong phai base64** | schema tu choi; **`AAAA` thi HOP LE** |
+| 6b | | field la / `version: 2` / `recipientKeyVersion: 0` | schema tu choi (schema **strict**) |
+| 6c | | lat 1 byte ciphertext | GCM tag **tu choi**, khong tra plaintext hong |
+| 6d | | dan nonce cua envelope khac | khong giai ma duoc |
+| 6e | | **`FINDING:`** payload **rong** | **khong giao duoc** ⇒ D116 |
+
+#### Verify — 3× liên tiếp + tsc
+| run | dòng `Tests:` |
+|---|---|
+| d87-f2 | **50 passed, 50 total** |
+| d87-f3 | **50 passed, 50 total** |
+| d87-f4 | **50 passed, 50 total** |
+
+`tsc --noEmit` — **Exit Code 0, log 0 byte**, trước và sau khôi phục M1.
+
+#### M1 — chuyển đường pin sang `getCurrentKey` (bỏ qua bản ghim)
+Kết quả **`3 failed, 47 passed`**: `uses the PINNED version`, `a pin that names nothing REFUSES`,
+`a pin onto a REVOKED version refuses` — **cả ba đều là test MỚI của tôi**, chứng minh đường
+fail-closed của pin là thật và không thể lùi về khoá hiện hành.
+
+Khôi phục byte-identical (`6938f6af`), đọc lại xác nhận `getKeyVersion` còn nguyên, chạy lại
+**50/50** và `tsc` **log 0 byte**.
+
+#### Δ-DEVIATION (chờ coordinator)
+
+- **Δ114** — **`createPublicKey` chấp nhận PEM khóa RIÊNG và tự trích phần public.** Dán nhầm private key
+  vào `publicKeyPem` vẫn mã hoá thành công. Không phải lỗ hổng dữ liệu (public key vẫn đúng), nhưng:
+  (a) người vận hành có thể tưởng private key bị rò khi thực ra chỉ public được dùng;
+  (b) registry không validate rằng PEM là PUBLIC.
+  Sửa: kiểm tra header PEM bắt đầu bằng `BEGIN PUBLIC KEY` trước khi gọi `createPublicKey`.
+
+- **Δ115** — **`resolveSuite()` chỉ gate trên `hpke-x25519`; mọi giá trị khác — kể cả ngoài union TypeScript —
+  đều bọc `rsa-oaep-sha256`.** Một record có `algorithm: 'rsa-pss-sha512'` (không tồn tại trong union)
+  vẫn được dùng như RSA key bình thường. Envelope báo đúng suite đã dùng, nên không mislabel;
+  nhưng trường `algorithm` của registry không được kiểm tra chéo với PEM.
+  Sửa: validate `algorithm` khớp kiểu PEM ở lúc đăng ký key.
+
+- **Δ116** — **Payload RỖNG không giao được.** `ciphertext` của 0-byte plaintext là chuỗi rỗng,
+  và `BASE64_RE` trong schema yêu cầu ít nhất 1 ký tự (`[A-Za-z0-9+/]{4,}`). Nên envelope
+  không qua được `RecipientDeliveryEnvelopeSchema.safeParse`, và `encryptForDelivery` trả
+  `DELIVERY_CRYPTO_FAILURE`. Đây là giới hạn thực của contract, không phải bug bảo mật.
+  Sửa: cho phép `ciphertext` rỗng trong schema, hoặc chặn payload rỗng sớm hơn với mã lỗi rõ.
+
+#### Tự sửa (product đúng, tôi sai) — 4 lần, đều tự lộ
+1. **TS2352** (`flag as boolean`): double-cast `as unknown as boolean`. Lỗi harness thuần.
+2. **PEM khóa riêng không fail** — tôi đoán `createPublicKey` sẽ ném trên PEM private; thực ra
+   Node.js trích public từ private PEM thành công. Viết lại thành test FINDING (Δ114).
+3. **`'AAAA'` là base64 HỢP LỆ** — tôi đưa nó vào danh sách "phải bị từ chối" và test đỏ.
+   Regex cho phép 4 ký tự base64 liên tiếp. Sửa: giữ `AAAA` làm positive control, thêm
+   `'a==='` (3 padding liên tiếp = bất hợp lệ) thay thế.
+4. **`'trailing='` cũng hợp lệ** — regex cho tối đa 2 ký tự `=` cuối. Sửa thành `'a==='`.
+
+#### Tự phân loại 4 tầng
+- **SPECIFIED**: rõ 6 nhóm. Tất cả đều có đối tượng trong module. Nhóm pin là khoảng trống lớn nhất
+  trong baseline 22 test và đã được phủ đầy.
+- **IMPLEMENTED**: 1 file test, +28 test (22 → **50**), 5 `describe` mới. **0 dòng production code**
+  ở bản deliver; `delivery-encryption.ts` chạm tạm cho M1 và khôi phục **byte-identical**.
+- **VERIFIED**: 50/50 ×3 Exit 0 có dòng PASS; tsc Exit 0 log rỗng ×2; M1 đỏ 3/47 với **cả ba đều là
+  test mới**; khôi phục byte-identical và xác minh lại bằng đọc nội dung guard.
+- **ACCEPTED**: **không** thuộc quyền lane — Δ114–Δ116 cần sửa production. **ENC-04 NO-GO.**
+
+## 51 — CYCLE 51: W-PLAT-CR28-11-RECIPIENT-KEY-REGISTRY-NEGATIVE — task_7d8e2194b401 / ctx_7d8e2194b401
+
+> **Trạng thái `[PASS]` THẬT.** Suite là unit offline thuần (repository in-memory, đồng hồ tiêm,
+> không `DU_LIVE_INFRA`, không `createApp`), chạy offline được thật và M1 chứng minh được.
+
+#### GATE NO-GO — giữ nguyên
+**ENC-04 vẫn NO-GO.** Chỉ thêm test. Còn mở: Δ69, Δ66, Δ74–Δ79, Δ81–Δ116, và **Δ117–Δ118** mới.
+
+#### Deliverable — +33 test (16 → **49**)
+Phạm vi CHỈ `tests/recipient-key-registry.test.ts`, **0 dòng production code**. Test `5eb49ab8` / 35249 B / LF.
+`recipient-key-registry.ts` chạm tạm cho M1 và khôi phục **byte-identical** `d44a7e41` / 16600 B;
+`server.ts` `22afb2ff` không bao giờ bị chạm.
+Baseline 16 test đã phủ rất rộng (algorithm lạ, PEM hỏng, khoá yếu, PEM riêng, challenge hết hạn, tenant
+không tồn tại, xung đột version). Phần lớn cycle này dồn vào **các guard baseline chưa từng chạm**.
+
+> **Trạng thái `[PASS]` THẬT.** Suite là unit offline thuần (repository in-memory, đồng hồ tiêm,
+> không `DU_LIVE_INFRA`, không `createApp`), chạy offline được thật và M1 chứng minh được.
+
+| # | nhóm packet | nội dung mới | kỳ vọng |
+|---|---|---|---|
+| 1 | **(3) version drift** | repo tra lech version (hoi v1, dap v2) | `REGISTRY_UNAVAILABLE`, khong phuc vu ban ghi sai |
+| 1b | | version cua khoa hien hanh la 0 / am / vuot tran / phan so / NaN | `INVALID_INPUT` |
+| 1c | | tran `MAX_KEY_VERSION` (2^31-1) **la** dia chi hop le | `KEY_NOT_FOUND` (doi lap voi `INVALID_INPUT` khi vuot tran) |
+| 2 | **(4) tenant isolation** | repo tra **record cua tenant khac** qua ca 4 cua | `REGISTRY_UNAVAILABLE` o ca bon |
+| 2b | | kiem tra scope **thang** kiem tra revoked, ke ca tren `revokeKey` | `REGISTRY_UNAVAILABLE` |
+| 3 | **(5) expired / clock** | dong ho tiem tra NaN / am / phan so / Infinity | `REGISTRY_UNAVAILABLE`, khong dung timestamp sai |
+| 3b | | TTL challenge 0 / 999 ms / vuot 900000 ms / phan so | nem o **luc khoi tao** |
+| 3c | | TTL dung san 1000 ms, dung tran 900000 ms, mac dinh 300000 ms | han dut = now + ttl **chinh xac** |
+| 4 | proof input | challengeId rong / 129 ky tu / non-string | `INVALID_INPUT` |
+| 4b | | proof rong / base64 co + va / / / do dai %4 = 1 / co padding / > 16 KiB | `INVALID_INPUT` (khong phai loi crypto) |
+| 4c | | proof lam cho challenge **A** nop vao challenge **B** | `PROOF_INVALID` |
+| 4d | | challenge luu trong repo mang fingerprint **cua khoa khac** | `CHALLENGE_INVALID` |
+
+#### Verify — 3× liên tiếp + tsc
+| run | dòng `Tests:` |
+|---|---|
+| d88-run3 | **49 passed, 49 total** |
+| d88-f1 | **49 passed, 49 total** |
+| d88-f2 | **49 passed, 49 total** |
+
+`tsc --noEmit` — **Exit Code 0, log 0 byte**, trước và sau khôi phục M1.
+
+#### M1 — vô hiệu hoá guard version drift trong `getKeyVersion`
+- **Lần 1 (vàng, và đó là lỗi của tôi):** `if (key.version !== version)` → `if (key.version !== version + 0)`.
+  Kết quả **49/49 xanh**. Nguyên nhân: `version + 0` **là phép cộng vô nghĩa**, điều kiện **y hệt** trước đó
+  nên tôi vô hiệu hoá chẳng thứ gì. M1 vàng **vì chưa chạm đúng mục tiêu**, không phải vì test yếu — tôi đã
+  bắt được điều này chỉ vì **đọc kết quả thay vì giả định**.
+- **Lần 2 (đỏ, đúng):** `if (key.version !== key.version)` — luôn `false` ⇒ `1 failed, 48 passed`, đỏ đúng test
+  `a version query answered with a DIFFERENT version fails closed`.
+
+Khôi phục byte-identical (`d44a7e41`), đếm lại 2 chốt `key.version !== version` còn nguyên, chạy lại
+**49/49** và `tsc` **log 0 byte**.
+
+
+#### Δ-DEVIATION (chờ coordinator)
+- **Δ117** — `recordForTenant` báo `REGISTRY_UNAVAILABLE` khi repository vi phạm scope, nhưng thông điệp
+  **không nêu tên tenant nào bị lộ**. Đúng về bảo mật (giữ thông điệp chung), nhưng operator điều tra sự cố
+  sẽ không biết bắt đầu từ đâu. Sửa: ghi log trong (không nêu ra HTTP) với tenant_id thật, hoặc correlationId.
+- **Δ118** — `completeRegistration` chỉ so `challenge.tenantId !== input.tenantId`, chứ **không** so với người
+  gọi. Nếu token tenant-scoped giả mạo (Δ104) gọi được registry, lớp này **không** là hàng rào thứ hai.
+  Không phải lỗ hổng mới — nhưng nên ghi rõ để không ai tưởng registry tự bảo vệ.
+
+**Không có Δ khác cho các guard đã kiểm tra.** Mọi guard đều fail đúng mã lỗi đã khai báo, kể cả khi tôi
+cố ý làm repository nói dối hoặc trả record của tenant khác.
+
+#### Tự sửa (product đúng, tôi sai) — 3 lần, đều tự lộ
+1. **TS2322**: helper `foreignRecord` trả `algorithm: string` thay vì union `RecipientKeyAlgorithm`.
+   Sửa bằng khai báo kiểu trả về `RecipientPublicKeyRecord` tường minh.
+2. **Mất cân bằng ngoặc khi ghép chunk**: `d88-c4` đóng `describe` sớm, đẩy test của `d88-c5` ra ngoài và
+   để lại một `});` thừa ⇒ `TS2304 Cannot find name 'crossTenantRepo'` + `TS1128`. Đây là **lần thứ hai** trong
+   các cycle gần đây (lần trước là Mục 46); bài học dạng này đã lặp đủ nhiều để coi là quy trình: **sau mỗi lần
+   ghép văn bản, phải kiểm tra cấu trúc ngoặc chứ không chỉ kiểm byte/EOL**.
+3. **Test TTL viết có assertion vô nghĩa** (`expect(...).toBe(true)` với `|| true`) — nhận ra khi đọc lại
+   chunk trước khi ghép và viết lại thành phép so sánh thời hạn **bằng máy**: `expiresAt - now() === ttl`.
+
+Không có Δ mới cho cycle này: **mọi guard tôi kiểm tra đều fail đúng mã lỗi đã khai báo**, kể cả những
+trường hợp tôi cố tình làm repository nói dối. Module này viết chặt hơn hẳn `delivery-encryption.ts`
+(có `recordForTenant`, chốt version drift, chặn RSA < 2048 bit, chặn PEM riêng, TTL có trần).
+
+#### Tự phân loại 4 tầng
+- **SPECIFIED**: rõ 5 nhóm. Nhóm *unsupported algorithms* và *malformed public/private keys* đã được
+  baseline 16 test phủ gần hết (6 giá trị algorithm lạ, PEM hỏng 6 kiểu, DER thay PEM, PEM quá lớn, RSA
+  1024, X25519 đưa vào suite RSA, PEM riêng, challenge hết hạn). Tôi đọc lại baseline trước và chỉ viết cho
+  khoảng trống thật, không nhân bản.
+- **IMPLEMENTED**: 1 file test, +33 test (16 → **49**), 3 `describe` mới. **0 dòng production code** ở bản
+  deliver; registry chạm tạm cho M1 và khôi phục **byte-identical**.
+- **VERIFIED**: 49/49 ×3 Exit 0 có dòng PASS; tsc Exit 0 log rỗng ×2; M1 đỏ 1/48 ở test mới (sau khi sửa một
+  mutation vô hiệu vô ích); khôi phục byte-identical và đếm lại chốt guard còn nguyên.
+- **ACCEPTED**: **không** thuộc quyền lane. **ENC-04 NO-GO.**
+
+## 52 — CYCLE 52: COMP-01-LEGACY-HEADERS-CANONICALIZATION
+
+> **Trạng thái `[PASS]` THẬT**: 66/66 ×3 có dòng `PASS` thật + M1 đỏ 3 test.
+
+#### ĐÂY LÀ CYCLE ĐẦU TÔI VIẾT PRODUCTION CODE (module MỚI, không sửa file cũ)
+Các cycle 42–51 chỉ thêm test. Cycle này tạo **hai file mới** và **không chạm** vào file nào tồn tại:
+
+| file | trạng thái | sha256[0:8] |
+|---|---|---|
+| `src/compat/legacy-headers.ts` | **MOI**, 283 dong | `271fb280` |
+| `tests/legacy-headers.test.ts` | **MOI**, 66 test | `3ca4af95` |
+| `src/server.ts` | **KHONG dung** | `22afb2ff` (khop moi cycle truoc) |
+| `packages/contracts/public-api.ts` | **KHONG dung** | — |
+
+Module **khong import** gi tu `server.ts` hay `contracts/public-api.ts`. No nhan header bag va query string
+**rieng biet** thay cho mot `RouteContext`, nen cach ly la **CAU TRUC**, khong phai quy uoc.
+
+#### GATE NO-GO — giu nguyen
+**ENC-04 van NO-GO.** Module moi **khong** duoc noi vao bat dauau, khong bat gate nao.
+Con mo: Δ69, Δ66, Δ74–Δ79, Δ81–Δ118.
+
+| # | nhom packet | noi dung | ky vong |
+|---|---|---|---|
+| 1 | **credential** | `Authorization: Bearer` chuan; scheme `bearer`/`BEARER`/`BeArEr` viet thuong/hoa/thua khoang trang | chap nhan — scheme HTTP **khong phan biet hoa thuong** (RFC 7235) |
+| 1b | | 5 bien the header api-key: `X-API-Key` / `X-Api-Key` / `api-key` / `apikey` / `X-ApiKey` | doc khong phan biet hoa thuong |
+| 1c | | 4 header token legacy: `x-auth-token` / `x-token` / `token` / `auth-token` | quy ve canonical `x-api-key` |
+| 1d | | **Authorization thang** khi co ca bearer lan api-key | bearer thang |
+| 1e | | `Authorization: Basic` **khong** nuot api-key dung duoc | roi xuong api-key |
+| 1f | | header rong / `Bearer` tran / api-key rong / toan khoang trang | token `''` — **khong bia** ra |
+| 1g | | header lap lai, bag chua `undefined` va mang | lay gia tri dau, khong nem |
+| 2 | **content-type** | `text/json`, `application/x-json`, hoa/thua khoang trang, problem+json, octet-stream, html | ve canonical form |
+| 2b | | charset tren json/problem bi **bo** | `wasLegacy = true`, khong con charset |
+| 2c | | **charset tren `text/html` duoc CHUAN HOA** thanh utf-8 (khong bo) | xem muc Tu sua |
+| 2d | | tham so la tren media type da nhan dien | tham so bi bo, media type giu nguyen |
+| 2e | | `application/xml`, `text/plain`, `multipart/form-data`, van ban vo nghia | `null` — **khong doan** |
+| 3 | **pagination** | `limit`/`cursor`/`sort` chuan di thang; khong co limit ⇒ `DEFAULT_PAGE_LIMIT` | giu nguyen |
+| 3b | | `per_page` / `pageSize` gop thanh limit | gop, `wasLegacy` |
+| 3c | | limit chuan **thang** legacy; clamp 500⇒100, 100⇒100, 0/−5/abc/rong ⇒ 20, 10.9⇒10 | clamp dung |
+| 3d | | **`page`/`offset` KHONG the thanh keyset cursor** | bao `offsetNotExpressible`, `cursor` van `null` |
+| 4 | **toan request** | mot luot chuan hoa credential + content-type + pagination | `canonicalizeRequest` |
+
+#### Quyet dinh thiet ke bat buoc: KHONG the chuyen offset -> cursor
+Day la mapping duy nhat trong module ma **khong lam trung thuc duoc**. `?page=2` nghia la "bo qua 20 dong", con
+`?cursor=X` nghia la "bat dau sau dong ma X chi dinh" — hai dieu do chi trung nhau khi thu tu sap xep on dinh,
+va dun chinh la gia dinh ma trang offset khong dam bao. Module vi ra truong `offsetNotExpressible` de
+**noi ro khong chuyen duoc** thay vi bia mot cursor gia. Cac test ghim dung dieu do: `cursor` van `null` va
+thong bao nen ten tham so legacy ma nguoi goi da dung.
+
+#### Verify — 3× lien tiep + tsc
+| run | dong `Tests:` |
+|---|---|
+| c52-f1 | **66 passed, 66 total** |
+| c52-f2 | **66 passed, 66 total** |
+| c52-f3 | **66 passed, 66 total** |
+
+`tsc --noEmit` — **Exit Code 0, log 0 byte**, ca truoc va sau khoi phuc M1.
+
+#### M1 — lam scheme `Bearer` phan biet hoa thuong (bo co `/i`)
+Ket qua **`3 failed, 63 passed`**, dung 3 bien the scheme khong chuan (`bearer`, `BEARER`, `BeArEr`). Day la
+mutation lien quan bao mat nhat trong module: neu bi chap nhan case-sensitive, mot client legacy gui
+`bearer` se bi tu choi ngay lap tuc. Khoi phuc byte-identical (`271fb280`), doc lai xac nhan co `/i` con
+nguyen, chay lai **66/66** va `tsc` **log 0 byte**.
+
+#### Tu sua (product dung, toi sai) — 2 lan, deu tu lo
+1. **Toi khang dinh moi canonical content type deu khong chua charset.** Sai: `text/html; charset=utf-8` **co**
+   charset, nen `text/html; charset=iso-8859-1` phai duoc **CHUAN HOA** thanh utf-8 chu khong phai `strip`.
+   Module dung; test cua toi sai.
+2. **Toi xep `application/octet-stream; x=1` vao nhom "khong nhan dien"** — sai: media type **co** nhan dien, chi
+   co tham so `x=1` la la. Module dung; test cua toi sai.
+
+Ca hai deu la dang "test do vi **ly do khac**", va ca hai deu la **loi cua test**, khong phai cua module.
+
+#### Tu phan loai 4 tang
+- **SPECIFIED**: ro 4 nhom. Khong co muc packet nao thieu doi tuong.
+- **IMPLEMENTED**: **module moi** 283 dong + test moi 66 test. Khong sua file ton tai nao.
+- **VERIFIED**: 66/66 ×3 Exit 0 co dong PASS; tsc Exit 0 log rong ×2; M1 do 3/63; khoi phuc byte-identical
+  va doc lai xac nhan guard.
+- **ACCEPTED**: module **chua** duoc noi vao bat dauau; dua vao route la cong viec rieng, va no khong duoc
+  gan release gate nao. **ENC-04 NO-GO.**
