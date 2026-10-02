@@ -1,7 +1,7 @@
 {
  "schemaVersion": 1,
  "intervalMinutes": 10,
- "lastCheckedAt": "2026-10-02T10:13:05+07:00",
+ "lastCheckedAt": "2026-10-02T10:33:31+07:00",
  "dispatches": {
   "ctx_f57469bd76f4": {
    "taskId": "task_370713dea9d2",
@@ -5815,13 +5815,14 @@
    "settledAt": "2026-10-02 04:03 +07"
   },
   "ctx_task_comp01_g7b": {
-   "status": "running",
+   "status": "settled",
    "terminalHandle": "term_63bf0dbc-d90e-406d-8089-37dfc45ed4bb",
    "taskRef": "task_3976e85b794c",
    "dispatchedAt": "2026-10-02 04:00 +07",
    "lastObservedAt": "2026-10-02T10:13:05+07:00",
    "consecutiveUnfinishedChecks": 0,
-   "summary": "COMP01-G7b HITL resume trace | C1 10:2x: terminal idle ~51m; user steered to README/docs fixes (packages + docs/03 + root); flagged contracts/src/index.ts duplicate ./encryption exports; pre-existing contracts test reds; no code fix attempted"
+   "summary": "COMP01-G7b HITL resume trace | C1 10:2x: terminal idle ~51m; user steered to README/docs fixes (packages + docs/03 + root); flagged contracts/src/index.ts duplicate ./encryption exports; pre-existing contracts test reds; no code fix attempted | REASSIGNED: lane 63bf user-steered sang docs, không receipt; G7b re-dispatch sang qwen_2 (ctx_task_comp01_g7b_redo).",
+   "settledAt": "2026-10-02T10:24:23+07:00"
   },
   "ctx_task_p9_02_lc_checker": {
    "status": "settled",
@@ -5880,9 +5881,88 @@
    "lastNudgeAt": null,
    "note": "P9-01 independent verify. Spec 2026-10-02-0955. | VERIFIED=No: P9-01 49/49 + manifest 15/15 + tsc exit0; worker.ts registers disbursement handler + continuation; 2 claimed manifest reds not reproduced; not live deployment; no gate ticked",
    "settledAt": "2026-10-02T10:13:05+07:00"
+  },
+  "ctx_task_opt_perf_01b": {
+   "status": "settled",
+   "terminalHandle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
+   "taskId": "task_6f4d0d20a86f",
+   "dispatchedAt": "2026-10-02T10:19:23+07:00",
+   "lastObservedAt": "2026-10-02T10:22:25+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "PERF-01B granted+dispatched by cmd cycle 103x: ingress.ts Buffer.concat(chunks,total) micro-diff + offline bench; lease ingress.ts -> F8; spec dispatch-specs/2026-10-02-1030-PERF-01B-ingress-concat.md | C1 10:2x: F8 WORKING - read ingress.ts + package.json + tests/ingress-bounded.test.ts; plan stated: 1-line diff + CJS bench + run suite manually (deny-list noted) + tsc. | DONE 10:27 (F8): diff 1 dong ingress.ts:88 Buffer.concat(chunks,total) + ly luan edge cases; bench 4 shapes gain lan lon (-10.45%..+4.68%) => KHONG chung minh gain on dinh (honest); ingress-bounded suite skipped (deny-list, can DU_LIVE_INFRA=1) exit 0; tsc exit 0; no commit",
+   "lastNudgeAt": null,
+   "receipt": "coordination/reports/codex-opt-perf-01b-ingress-concat-2026-10-02.md",
+   "settledAt": "2026-10-02T10:33:31+07:00"
+  },
+  "ctx_task_comp01_g7b_redo": {
+   "status": "settled",
+   "terminalHandle": "term_27eb3380-f9c3-466a-8b4e-0b7fa0ad23fc",
+   "taskId": "task_bf59011fef77",
+   "dispatchedAt": "2026-10-02T10:24:23+07:00",
+   "lastObservedAt": "2026-10-02T10:24:23+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "G7b HITL resume trace redo -> qwen_2 (user 2026-10-02 hỏi vì sao chưa dùng qwen; lane 63bf bị steer đi). Read-only per dispatch-specs/2026-10-02-0400-COMP01-G7b-hitl-resume.md; receipt qwen-comp01-g7b-hitl-resume-2026-10-02.md. | DONE 10:31 (qwen_2): 9-hop pause->resume->persist->download file:line; F1 routing gap endpointSlug nullable (schema.ts:19 -> unknown); F2 resume merge stepsResult=[] -> extracted_data bi drop nhung route tra 200 success; F3 correlationId sinh moi khong noi log chain; read-only, 0 file sua",
+   "lastNudgeAt": null,
+   "receipt": "coordination/reports/qwen-comp01-g7b-hitl-resume-2026-10-02.md",
+   "settledAt": "2026-10-02T10:33:31+07:00"
+  },
+  "ctx_task_d5_doc_compare_reg": {
+   "status": "running",
+   "terminalHandle": "term_63bf0dbc-d90e-406d-8089-37dfc45ed4bb",
+   "taskId": "task_145900b285d0",
+   "dispatchedAt": "2026-10-02T10:30:49+07:00",
+   "lastObservedAt": "2026-10-02T10:30:49+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "D5 doc-compare registration | dispatched by cmd user-wave (dùng hết qwen+codex trừ review); spec dispatch-specs/2026-10-02-1028-D5-doc-compare-registration.md",
+   "lastNudgeAt": null,
+   "receipt": null
+  },
+  "ctx_task_p9_wf_integration_spec": {
+   "status": "running",
+   "terminalHandle": "term_949d489b-0ce8-4242-a8c2-988362192922",
+   "taskId": "task_f4fd20b076ee",
+   "dispatchedAt": "2026-10-02T10:30:49+07:00",
+   "lastObservedAt": "2026-10-02T10:30:49+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "P9 workflow-route integration spec (read-only) | dispatched by cmd user-wave (dùng hết qwen+codex trừ review); spec dispatch-specs/2026-10-02-1028-P9-workflow-route-integration-spec.md",
+   "lastNudgeAt": null,
+   "receipt": null
+  },
+  "ctx_task_rv01_loopback_http": {
+   "status": "running",
+   "terminalHandle": "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
+   "taskId": "task_ac88b48ea1e1",
+   "dispatchedAt": "2026-10-02T10:30:49+07:00",
+   "lastObservedAt": "2026-10-02T10:30:49+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "RV01 loopback HTTP offline test | dispatched by cmd user-wave (dùng hết qwen+codex trừ review); spec dispatch-specs/2026-10-02-1028-RV01-loopback-http-test.md",
+   "lastNudgeAt": null,
+   "receipt": null
+  },
+  "ctx_task_secret_sweep": {
+   "status": "running",
+   "terminalHandle": "term_b2d08e87-4435-4323-8e14-b58fa1a6729b",
+   "taskId": "task_fd257e518758",
+   "dispatchedAt": "2026-10-02T10:30:49+07:00",
+   "lastObservedAt": "2026-10-02T10:30:49+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "Secret-hygiene sweep (read-only) | dispatched by cmd user-wave (dùng hết qwen+codex trừ review); spec dispatch-specs/2026-10-02-1028-secret-hygiene-sweep.md",
+   "lastNudgeAt": null,
+   "receipt": null
+  },
+  "ctx_task_postcommit_offline_reg": {
+   "status": "running",
+   "terminalHandle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
+   "taskId": "task_343da541f231",
+   "dispatchedAt": "2026-10-02T10:30:49+07:00",
+   "lastObservedAt": "2026-10-02T10:30:49+07:00",
+   "consecutiveUnfinishedChecks": 0,
+   "summary": "Post-commit offline regression baseline | dispatched by cmd user-wave (dùng hết qwen+codex trừ review); spec dispatch-specs/2026-10-02-1028-postcommit-offline-regression.md",
+   "lastNudgeAt": null,
+   "receipt": null
   }
  },
  "orchestrationRunId": "run_2e083dbaeaee",
- "updated": "2026-10-02T10:13:05+07:00",
- "summary": "Cycle 10:2x (cmd first cycle): C1 read 9 lanes; C2 settle x4 (D2 PERF-02, P903-verify, P901-verify, Q15-close); C3 no dispatch (no unblocked item; COMP-00 [ ], D3 lease/D5 serialize hold); user-steered lanes (row8/RV01/D4) observed idle, no overwrite."
+ "updated": "2026-10-02T10:33:31+07:00",
+ "summary": "Cycle 10:33: claude PUSHED df2fb2c (secret removed, verified). Settle x2: PERF-01B (F8), G7b (qwen_2). Dang chay: D5 (63bf), P9-WF-SPEC (949d), RV01-LOOPBACK (742c), SEC-SWEEP (b2d08e87), POSTCOMMIT-REG (c448). qwen_1 cho user xac nhan AskUserQuestion; qwen_2+2b05 vua free (cho dispatch ke tiep)."
 }

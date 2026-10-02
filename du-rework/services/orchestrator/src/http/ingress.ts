@@ -85,7 +85,7 @@ export function readBoundedBody(
     req.on('end', () => {
       if (settled) return;
       settled = true;
-      const rawBuffer = Buffer.concat(chunks);
+      const rawBuffer = Buffer.concat(chunks, total);
       if (opts.binary) {
         resolve({ body: undefined, rawBody: rawBuffer });
         return;
