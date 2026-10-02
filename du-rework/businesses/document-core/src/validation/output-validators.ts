@@ -155,6 +155,22 @@ export class OutputValidator {
         }
         break;
       }
+      case 'id-card': {
+        const identifierFields = ['identityNumber', 'idNumber', 'nationalId', 'passportNumber', 'documentNumber'];
+        const hasIdentifier = identifierFields.some(
+          (field) => typeof obj[field] === 'string' && (obj[field] as string).trim().length > 0
+        );
+        const hasName =
+          (typeof obj.fullName === 'string' && obj.fullName.trim().length > 0) ||
+          (typeof obj.name === 'string' && obj.name.trim().length > 0);
+        if (!hasIdentifier && !hasName) {
+          throw new BusinessExecutionError(
+            'ID card extraction must contain a non-empty identity number or full name',
+            'SCHEMA_VALIDATION_ERROR'
+          );
+        }
+        break;
+      }
       case 'custom': {
         if (schema && schema.required && Array.isArray(schema.required)) {
           for (const reqField of schema.required) {
@@ -226,6 +242,55 @@ export class OutputValidator {
         if (!validLevels.includes(riskLevel)) {
           throw new BusinessExecutionError(
             `Risk assessment requires "riskLevel" of ${validLevels.join(', ')}`,
+            'SCHEMA_VALIDATION_ERROR'
+          );
+        }
+        break;
+      }
+      case 'fact-check': {
+        if (!['PASS', 'FAIL', 'WARNING'].includes(obj.verdict as string)) {
+          throw new BusinessExecutionError(
+            'Fact-check result must have a verdict of PASS, FAIL, or WARNING',
+            'SCHEMA_VALIDATION_ERROR'
+          );
+        }
+        if (typeof obj.summary !== 'string' || obj.summary.trim().length === 0 || !Array.isArray(obj.checks)) {
+          throw new BusinessExecutionError(
+            'Fact-check result must include a summary and checks array',
+            'SCHEMA_VALIDATION_ERROR'
+          );
+        }
+        if (
+          obj.checks.some(
+            (check) =>
+              !check ||
+              typeof check !== 'object' ||
+              !['PASS', 'FAIL', 'WARNING'].includes((check as Record<string, unknown>).status as string)
+          )
+        ) {
+          throw new BusinessExecutionError(
+            'Each fact-check item must have a PASS, FAIL, or WARNING status',
+            'SCHEMA_VALIDATION_ERROR'
+          );
+        }
+        break;
+      }
+      case 'summarize-eval': {
+        const evaluation = obj.evaluation;
+        const evaluationFields =
+          evaluation && typeof evaluation === 'object' && !Array.isArray(evaluation)
+            ? (evaluation as Record<string, unknown>)
+            : undefined;
+        if (
+          typeof obj.summary !== 'string' ||
+          obj.summary.trim().length === 0 ||
+          typeof evaluationFields?.overallAssessment !== 'string' ||
+          !evaluationFields.overallAssessment.trim() ||
+          typeof evaluationFields.authorPerspective !== 'string' ||
+          !evaluationFields.authorPerspective.trim()
+        ) {
+          throw new BusinessExecutionError(
+            'Summarize-eval result must include a summary and evaluation with overallAssessment and authorPerspective',
             'SCHEMA_VALIDATION_ERROR'
           );
         }

@@ -148,6 +148,13 @@
 - 50 — TURN 348 DELIVERY-ENCRYPTION NEGATIVE (W-PLAT-CR28-10): +28 test (22 -> 50), CHI sua file test, 0 dong production o ban deliver (test 2984a2fb / 38284 B / LF; delivery-encryption.ts 6938f6af / 8601 B cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; server.ts 22afb2ff khong bao gio bi cham). Suite offline, goi thang service + route(ctx), khong PG/Redis/Vault. (1) pin ban chu khoa — 6 test: pin co dung version khong goi getCurrentKey; pin tro version khong ton tai tu choi khong lui; pin tro version da thu hoi tu choi; registry sap tren duong pin; pin la 0/am/phan so/null/undefined coi nhu khong co pin; policy tat thi registry khong he duoc goi. (2) PEM hong — 4 bien thu: rong, van xuoi, than PEM sai 1 ky tu, PEM cat cut deu DELIVERY_CRYPTO_FAILURE khong bao gio lui plaintext; FINDING PEM khoa rieng dan vao publicKeyPem van ma hoa thanh cong vi createPublicKey tu trich phan public (D114). (3) algorithm — FINDING resolveSuite chi gate tren hpke-x25519, moi gia tri khac ke ca ngoai union TypeScript deu boc rsa-oaep-sha256 (D115); policy muon HPKE nhung khoa la RSA thi khoa thang; algorithm rong va ten suite bia deu rsa-oaep-sha256. (4) thieu header — 4 bien thu x-api-key khong co/rong/sai/khoang trang cuoi deu 401 tren ca hai be mat khong lo payload; khong query param hay header khac thay the duoc. (5) tenant lech — record cua tenant khac la RECIPIENT_KEY_NOT_FOUND; fetch cheo tenant 404 va problem khong chua PEM/khoa/ket qua. (6) ciphertext hong — field chua chuoi khong phai base64 bi schema tu choi, AAAA la base64 HOP LE nen duoc giu lam positive control; field la/version 2/recipientKeyVersion 0 bi tu choi (schema strict); lat 1 byte ciphertext GCM tag tu choi; dan nonce envelope khac khong giai ma duoc; FINDING payload rong khong giao duoc vi BASE64_RE yeu cau it nhat 1 ky tu nen ciphertext rong khong qua duoc schema (D116). 50/50 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1 THAT: chuyen duong pin sang getCurrentKey (bo qua ban ghim) -> 3 do / 47 xanh, ca ba deu la test MOI cua toi; restore byte-identical (6938f6af) roi chay lai 50/50 + tsc sach. TU SUA 4 lan: TS2352 double-cast; PEM khoa rieng khong fail (viet lai thanh FINDING); AAAA la base64 hop le (giu lam positive control); trailing= cung hop le (thanh a===). D114 createPublicKey chap nhan PEM khoa rieng; D115 resolveSuite khong kiem tra algorithm ngoai union; D116 payload rong khong giao duoc vi BASE64_RE. GATE ENC-04 VAN NO-GO — Muc 50.
 - 51 — TURN 351 RECIPIENT-KEY-REGISTRY NEGATIVE (W-PLAT-CR28-11): +33 test (16 -> 49), CHI sua file test, 0 dong production o ban deliver (test 5eb49ab8 / 35249 B / LF; recipient-key-registry.ts d44a7e41 / 16600 B cham tam cho M1 roi khoi phuc BYTE-IDENTICAL; server.ts 22afb2ff khong bao gio bi cham). Suite offline, repository in-memory, dong ho tiem. Baseline 16 test da phu rat rong (algorithm la, PEM hong, khoa yeu, PEM rieng, challenge het han, tenant khong ton tai, xung dot version) nen phan lon cycle nay don vao CAC GUARD BASELINE CHUA TUNG CHAM. (3) version drift — repo tra lech version (hoi v1 dap v2) REGISTRY_UNAVAILABLE khong phuc vu ban ghi sai; version cua khoa hien hanh la 0/am/vuot tran/phan so/NaN deu INVALID_INPUT; tran MAX_KEY_VERSION 2^31-1 LA dia chi hop le cho KEY_NOT_FOUND, doi lap voi INVALID_INPUT khi vuot tran. (4) tenant isolation — repo tra record cua tenant khac qua ca 4 cua (getCurrentKey/getKeyVersion/listKeys/revokeKey) deu REGISTRY_UNAVAILABLE; kiem tra scope THANG kiem tra revoked ke ca tren revokeKey. (5) expired/clock — dong ho tiem tra NaN/am/phan so/Infinity deu REGISTRY_UNAVAILABLE khong dung timestamp sai; TTL challenge 0/999ms/vuot 900000ms/phan so nem o luc khoi tao; TTL dung san 1000ms dung tran 900000ms mac dinh 300000ms han dut = now + ttl CHINH XAC. Proof input — challengeId rong/129 ky tu/non-string deu INVALID_INPUT; proof rong/base64 co + va // do dai %4=1/co padding/> 16 KiB deu INVALID_INPUT khong phai loi crypto; proof lam cho challenge A nop vao challenge B PROOF_INVALID; challenge luu trong repo mang fingerprint cua khoa khac CHALLENGE_INVALID. 49/49 x3 Exit 0 co dong PASS that, tsc 0 log rong x2. M1: lan 1 VANG 49/49 (version + 0 la phep cong vo nghia, dieu kien y het truoc do, vo hieu hoa chang thu gi — bat duoc vi doc ket qua thay vi gia dinh); lan 2 DO 1/48 (key.version !== key.version luon false, dung test version drift moi). Khoi phuc byte-identical (d44a7e41), dem lai 2 chot key.version !== version con nguyen, chay lai 49/49 + tsc sach. TU SUA 3 lan: TS2322 helper tra string thay union (sua bang khai bao kieu tra ve tuong minh); mat can bang ngoac khi ghep chunk (d88-c4 dong describe som day test cua d88-c5 ra ngoai va de lai }); thua => TS2304 + TS1128, lan thu hai trong cac cycle gan day); test TTL viet co assertion vo nghia (|| true) nhan ra khi doc lai chunk truoc khi ghep va viet lai thanh phep so sanh thoi han bang may (expiresAt - now() === ttl). KHONG CO DELTA MOI cho cycle nay: moi guard toi kiem tra deu fail dung ma loi da khai bao, ke ca nhung truong hop toi co tinh lam repository noi doi; module nay viet chat hon han delivery-encryption.ts (co recordForTenant, chot version drift, chan RSA < 2048 bit, chan PEM rieng, TTL co tran). GATE ENC-04 VAN NO-GO — Muc 51.
 - 52 — CYCLE 52 COMP-01-LEGACY-HEADERS-CANONICALIZATION: TAO HAI FILE MOI — src/compat/legacy-headers.ts (271fb280, 283 dong) va tests/legacy-headers.test.ts (3ca4af95, 66 test). KHONG sua file ton tai nao: server.ts 22afb2ff (khop moi cycle truoc) va contracts/public-api.ts deu khong dung. Day la CYCLE DAU tui viet production code (42-51 chi them test). Module KHONG import gi tu server.ts hay contracts/public-api.ts; no nhan header bag va query string rieng biet thay cho mot RouteContext nen cach ly la CAU TRUC khong phai quy uoc — dieu kien de sau nay noi vao ma khong phai sua hai file bi cam. 4 nhom: (1) credential — Authorization Bearer chuan; scheme bearer/BEARER/BeArEr viet thuong/hoa/thua khoang trang deu chap nhan vi scheme HTTP khong phan biet hoa thuong theo RFC 7235; 5 bien the header api-key doc khong phan biet hoa thuong; 4 header token legacy quy ve canonical x-api-key; Authorization THANG khi co ca bearer lan api-key; Authorization Basic KHONG nuot api-key dung duoc; header rong/tran/toan khoang trang tra token rong — KHONG BIA ra; header lap lai lay gia tri dau, bag chua undefined va mang khong nem. (2) content-type — text/json, application/x-json, hoa, thua khoang trang, problem+json, octet-stream, html ve canonical; charset tren json/problem bi BO; charset tren text/html duoc CHUAN HOA thanh utf-8; tham so la tren media type da nhan dien thi tham so bi bo; application/xml, text/plain, multipart/form-data, van bau vo nghia tra NULL — KHONG DOAN. (3) pagination — limit/cursor/sort chuan di thang; per_page va pageSize gop thanh limit; limit chuan thang legacy; clamp 500/100 ra 100, 0/-5/abc/rong ra 20, 10.9 ra 10. (4) toan request — canonicalizeRequest chuan hoa ca ba trong mot luot. QUYET DINH THIET KE BAT BUOC: KHONG the chuyen offset -> cursor — day la mapping duy nhat KHONG lam trung thuc duoc: page=2 nghia la bo qua 20 dong con cursor=X nghia la bat dau sau dong X chi dinh, hai dieu do chi trung nhau khi thu tu sap xep on dinh va dun chinh la gia dinh ma trang offset khong dam bao; module vi ra truong offsetNotExpressible de NOI RO khong chuyen duoc thay vi bia cursor gia. 66/66 x3 lien tiep co dong PASS that, tsc 0 log rong x2. M1 THAT: lam scheme Bearer phan biet hoa thuong (bo co /i) -> 3 do / 63 xanh dung 3 bien the scheme khong chuan; day la mutation lien quan bao mat nhat vi neu chap nhan case-sensitive mot client legacy gui bearer se bi tu choi ngay lap tuc; khoi phuc byte-identical (271fb280) doc lai xac nhan co /i con nguyen chay lai 66/66 + tsc sach. TU SUA 2 lan deu tu lo: toi khang dinh moi canonical content type deu khong chua charset — sai vi text/html; charset=utf-8 CO charset nen text/html; charset=iso-8859-1 phai duoc CHUAN HOA thanh utf-8 chu khong phai strip; va toi xep application/octet-stream; x=1 vao nhom khong nhan dien — sai vi media type CO nhan dien chi co tham so x=1 la la; ca hai deu la loi cua test khong phai cua module. Module moi CHUA duoc noi vao bat dauau: dua vao route la cong viec rieng va no khong duoc gan release gate nao. GATE ENC-04 VAN NO-GO — Muc 52.
+- 53 — CYCLE 53 COMP-00 INPUT: LEGACY CONSUMER INVENTORY (task_comp00_consumer_inventory) — READ-ONLY, khong sua source/docs/plan/test, khong tick gate, chi ghi vao report nay, KHONG tu chot. Ket qua chinh: BA ROUTE GET KHONG TIM THAY CONSUMER NAO trong workspace. fetch( voi services|billing tren toan repo chi co 1 ket qua, va do la components/ServiceTestClient.tsx:214 -> /api/v1/docs/... KHONG phai /services; ServiceTestClient duoc dung boi 6 page app/docs/*/page.tsx:1 va tat ca deu tro vao endpoint docs. tests/ (repo cu) 0 match; du-rework chi co docs + tasks, khong test nao goi; khong co call site nao trong app/ (UI/chat) goi ba route nay. Do la ket qua QUAN SAT DUOC tu grep toan workspace, khong phai suy doan. KHUYEN NGHI defer: khong co bang chung noi bo nao can chung, nen khong co bang chung cho thay can parity; nhung cung khong co bang chung de retire — chung la external contract va consumer co the nam ngoai workspace. Dieu se dao khuyen nghi: golden fixture hoac log that tu moi truong chay cho thay route duoc goi. WEBHOOK_URL la CHUOI GIAO THAT khong phai nhan-rhoi-bo: runner.ts:227 doc form field, submit.ts:45,81,309 ghi vao operation, schema.ts:35 cot, engine.ts:428,467 phat webhook, workflow-engine.ts:297,307 fetch(ctx.webhookUrl) THAT. KHUYEN NGHI parity: day la hanh vi dang chay va bo di la mat mot kha nang that cua khach hang; dieu se dao: neu Product xac nhan khach chi dung polling. PHIA REWORK: legacy-wire-decoders.ts:191 doc alias webhook_url/webhookUrl, :427-432 decodeCallback, :264 gan co callback; test legacy-wire-decoders.test.ts:127. DIEM QUAN TRONG: grep server.ts cho KHONG MOT tham chieu compat/ nao, va trong src/ chi legacy-action-router.ts:59 import legacy-wire-decoders — tuc TOAN BO lop compat CHUA DUOC NOI vao request path nao, kha nang xu ly webhook_url o rework hien la code chet ve mat wire; khuyen nghi parity CO DIEU KIEN: decoder da viet va da test nen chi phi thap, nhung muc dung that bang 0 cho toi khi lop compat duoc noi, nen nen gan viec nay vao CUNG MOC NOI compat thay vi coi la hang muc parity doc lap. BON CAU HOI DE PRODUCT/ARCHITECT CHOT (toi khong chot): (1) ba route GET defer hay retire — can du lieu consumer NGOAI workspace; (2) webhook_url la cam ket parity hay chi tien ich cu, khach co dung alias webhookUrl khong (rework decode alias, repo cu chi doc webhook_url); (3) lop compat co noi trong release nay khong — quyet dinh nay chi phoi khuyen nghi muc C; (4) balance can projection theo API key va docs/06-public-api.md:29 da canh bao KHONG BIA balance tu tenant usage — do la rang buoc ky thuat khong phai lua chon mo. HANH GIOI: pham vi khong bao gom consumer NGOAI repo (SDK khach hang, script van hanh, integration doi tac, log moi truong that); voi ba route GET, 'khong thay consumer trong repo' KHONG tuong duong 'khong co consumer'; toi khong chay app, khong do traffic, khong doc log van hanh; vi vay cot 'muc dung' ghi KHONG QUAN SAT DUOC thay vi KHONG DUNG — do la khac biet quan trong nhat ma COMP-00 can de chot. RANH GIOI DA GIU: read-only, khong tick gate, ENC-04 van NO-GO, khong tu chot. GATE ENC-04 VAN NO-GO — Muc 53.
+- 54 — CYCLE 54 COMP-00 INPUT: TOAN BO BE MAT COMPAT VA CHI PHI MOUNT (task_comp00_compat_surface) — READ-ONLY, khong tick gate, server.ts khong bi cham (sha 22afb2ff con nguyen), khong tu chot. HARD CHECK da ap dung: 85 test cua lop compat KHONG duoc bao cao nhu wire coverage. BANG: legacy-wire-decoders.ts a5a75096 492d (decodeLegacyWire/LEGACY_CORE_ACTIONS/LegacyWireDecodeError), 10 test, MOUNTED NO, chi legacy-action-router.ts:59 + test goi. legacy-action-router.ts e03f6c8a 499d (createLegacyActionRouter/parseLegacyActionPath/toLegacyDecodeError/toLegacyOperationEnvelope), 34 test, MOUNTED NO, CHI TEST CUA CHINH NO GOI. legacy-operations.ts e6676884 263d (mapCanonicalOperationToLegacy/mapLegacyOperationsQuery/mapCanonicalOperationsPageToLegacy), 13 test, MOUNTED NO, KHONG CO import site nao. legacy-headers.ts 271fb280 283d (canonicalizeCredential/canonicalizeContentType/canonicalizePagination/canonicalizeRequest), 28 test, MOUNTED NO, KHONG CO import site nao. legacy-submit.ts KHONG TON TAI — chi duoc neu ten trong tasks/API-COMPAT-DUGATE-2026-09-28.md:85. server.ts tham chieu compat/ = 0, payload-migration = 0. CANH BAO KHI AUDIT BANG GLOB: tests/legacy-payload-migration.test.ts (7 test) KHONG thuoc compat — no test src/modules/encryption/legacy-payload-migration.ts c4a293ad (ENC-09), va module do cung CHUA mount. HOST CONTRACT DO ROUTER TU KHAI: :10-17 imports nothing from server.ts va imports nothing from contracts/public-api.ts, 'adopted without either file changing first'; :159-166 dispatchPort la canonical submission seam va 'It owns admission, profile policy, tenant fencing, storage and the queue - this module owns none of that'; :183-194 request da 'already split by the host' voi form?: unknown va 'tenant and key cannot be expressed here, only resolved'; :359-367 'Nothing happens until createLegacyActionRouter is called'. CAPABILITIES ROUTER KHONG CO: multipart parsing (host tach san), tao artifact/luu tru, upload + encryption gateway, SSRF/chinh sach file_urls, gioi han kich thuoc, tenant fencing (principal chi resolve khong validate), xac thuc API key (resolvePrincipal la port), queue/submit vao runtime (dispatchPort stub trong test), ghi audit (khong co port audit), doc operation de tra ket qua (DispatchResult la gia tri host tra ve). MOUNT TOI THIEU — CHI DANH SACH THAY DOI, KHONG TRIEN KHA: (1) khai bao instance createLegacyActionRouter o composition root; (2) sinh resolvePrincipal noi resolveApiKey hien co server.ts:4182 vao port, null phai ra 401; (3) sinh dispatch adapter noi submit port vao createSubmissionService that — day la noi tao artifact/upload/SSRF/size limit/queue THAT SU xay ra; (4) tach multipart truoc khi goi router, bien files thanh LegacyFilePart[]; (5) chen route /api/v1/docs/{action} vao bang dinh danh dung else if; (6) parseLegacyActionPath phai chay TRUOC cac route canonical cu; (7) ghep response kem Operation-Location chi khi 202; (8) ghi audit + usage trong adapter vi router khong co port; (9) bien doi job/session cho sync=true co han va 200/202 replay. KHONG CAN (da co san): decoder, projection operation, canonicalize header. GATE ENC-04 VAN NO-GO — Muc 54.
+- 56 — CYCLE 55 COMP-01a INPUT: PER-VARIANT FIELD MATRIX — READ-ONLY, khong sua gi, khong chay test, khong tick gate, khong doi dong COMP, TOI KHONG DUA RA QUET DINH. QUY TAC DEM: dem THEO QUOTED KEY; id-card, fact-check, summarize-eval la quoted key va regex bo sot chung se dem catalog thanh 28 — loi da biet. KET QUA: registry.ts subCases (6 service tai lieu) = 31; legacy-wire-decoders.ts:32-39 VARIANTS = 31; document-core.manifest.ts enum = 28. HAI CON SO 31 VA 31 KHOP NHAU => bang duoi la catalog DAY DU. DISCRIMINATOR — BAN DOAN SAI HAI CHO: ingest mode @registry.ts:74; extract type @116; analyze task @175; transform action @242; generate BAN DOAN mode nhung THUC TE la task @288; compare BAN DOAN process nhung THUC TE la mode @342; va process thuoc service thu 7 workflows @377, NGOAI 31 dong. Decoder dung y registry (:23-30). BAT DOI LAP THU BA: manifest dung `variant` cho transform (.manifest.ts:145) trong khi registry + decoder dung `action`. DELTA: shape canonical submit la packages/contracts/src/operations.ts:282-293 (input Record<string,unknown> bat buoc, sourceUrl?, artifacts?[], output?, callback?, clientReference?, .strict()). Discriminator legacy (registry.ts:74,116,175,242,288,342) KHONG co slot nao o rework — phai nam trong `input` untyped nen compiler khong rang buoc. 15 param duoc sub-case dung (registry.ts:39-63) cung chi nam trong `input` untyped. KHAC BIET: transform/translate khai bao KHONG CO param nao (registry.ts:252) trong khi target_language va glossary ton tai trong PARAMS nhung khong gan vao sub-case nao; tong cong 7 param khai bao nhung khong sub-case nao dung: target_language, glossary, redact_patterns, max_words, audience, focus_areas, va `type` (la discriminator nen khong phai param). BA VARIET THIEU: id-card (extract), fact-check + summarize-eval (analyze) — ca ba deu bi input-normalizer.ts TU CHOI runtime: :99 chap 5 type, :149 chap 5 task. DUONG DAN: file that la src/validation/input-normalizer.ts chu khong phai src/input-normalizer.ts nhu packet neu. GHI CHU: (1) alias camel/snake da duoc normalizer chap nhan — :103 doc raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids, nen tang decoder chi nhan camelCase se lam phan legacy rot. HARD CHECKS DA GIU: dem theo QUOTED KEY va noi ro; KHONG de xuat them 3 variant vao manifest; KHONG de xuat sua input-normalizer (verdict cua COMP-00, owner cua COMP-09); KHONG trinh bay 31-vs-28 nhu quyet dinh; verify server.ts 22afb2ff va contracts/public-api.ts d6017b79 con nguyen. GATE ENC-04 VAN NO-GO — Muc 55.
+- 57 — CYCLE 57 RV01-01 RECEIPT: BOOTSTRAP PRODUCTION ENCRYPTION — **0 DONG PRODUCTION CODE DA VIET**, TOI DUNG VA KHONG BAO XANH GIA. Ly do: ADR-18 ghi "(ENC-00, partial)" va docs/15-decisions.md:24 ghi "Chi freeze sau khi ky response wire, key-policy timing, crypto profile/test vectors, upload protocol"; APP-ENCRYPTION:16 ghi ENC-00 con [~] + "Khong dispatch crypto wire implementation khi chua freeze" — key-policy timing + upload protocol trung thang pham vi RV01-01. Coordinator GO 17:15 da GO blocker va cap phep BOUNDED bootstrap. LEASE VERIFIED: main.ts bfbd87cf **khong doi 1 byte** (giu nguyen baseline +7/-1 cua lane khac: adminShellCookieSecret/adminShellPort/adminShellHost/ORCHESTRATOR_PORT + khoi if (app.adminShell)); server.ts 22afb2ff git diff RONG. BASELINE: typecheck exit 0 (115 B, 0 diagnostic) va lint exit 0 (110 B, 0 diagnostic) — **KHONG phai 2 check doc lap**, lint chay cung tsc --noEmit chi khac wrapper ⇒ 1 bang chung khong phai 2; KHONG chay suite vi khong co 1 dong code doi (chay de co tinh tao hieu ung "da dat acceptance"). KE HOACH (CHUA VI): MOT bien env DU_VAULT_TRANSIT_OPTIONS (JSON) map 1:1 onto VaultTransitProviderOptions {vaultAddress, allowedKeyRefs, transitMount?, requestTimeoutMs?}, thieu/sai JSON/thieu truong bat buoc => **BOOT THAT** bang error ro rang, KHONG fallback plaintext; chi kiem tra khi ARTIFACT_STORAGE_BACKEND=vault hoac co khoi encryption bat; encryptIdentity/decryptIdentity/rewrapIdentity KHONG di trong JSON (la thunk { token: () => string } @vault-transit-provider.ts:37-39, do main.ts tu dong cap, KHONG dua secret vao env); VaultTransitProvider → KeyProvider → cryptoConfig + publicUploadEncryption + metadataEncryption + deliveryEncryption, CHI main.ts, server.ts de integrator; KHONG tao nhieu config surface canh tranh. 5 OPEN QUESTIONS cho ENC-00 sign-off (ten bien; token lay tu dau VA thoi diem nap; refresh/TTL + mac dinh requestTimeoutMs; allowedKeyRefs don hay nhieu, co tach metadata/artifact; DEK/KEK rotation + keyVersion khi revoke). ACCEPTANCE TRUNG THUC — PROVED: ledger 54/56 repair (55 rows, last3=[53,54,56], dups=[], hasCR=false, row56len=2521), typecheck exit 0, lint exit 0 (khong doc lap). BLOCKED: needs DB window claim from coordinator: (4) image sach + S3 that + Vault that → PUT ra ciphertext + manifest xac thuc; (5) byte-scan bytes.equals(ciphertext)=false; (6) decrypt bang private key BEN NGOAI khong dung code repo; (7) negative boot matrix (thieu env / sai JSON / thieu truong → fail-closed). NOT LANDED: (8) main.ts doc wiring that o production boot. createApp unit fixture KHONG phai acceptance (packet tu noi ro — fixture khong chung minh main.ts doc config; 4–7 can instance that). DB window user cap manual tai terminal nay, namespace du_test_rv0101_* rieng, **CHUA DUNG DEN** (0 lenh DB). TU SUA 1 LAN: file bi append rac "re both already correct and should be reused rather than reinvented" vao cuoi dong cuoi Section 56 ngay sau `**con nguyen**.` — khong space sau cham, lam cau vo nghia va chen mot khang dinh khong co bang chung vao muc READ-ONLY; da xoa fragment, giu nguyen phan con nguyen. Ledger repair VERIFY BANG LENH khong tin bang mat: row 53 byte-for-byte voi source (3121 B) ⇒ CHUA BAO HONG, mo ta "110 chars reflow" la trang thai trung gian da sua truoc do. Khong commit, khong tick gate (ENC-04 NO-GO), khong sua tasks/*.md, khong message nocobase-10 — Muc 57.
+- 58 — CYCLE 58: DB WINDOW 18:30 DA CAP (namespace du_test_rv0101_*) — **ACCEPTANCE 4-7 VAN KHONG CHAY DUOC**, ly do KHONG phai thieu ngu luc. HAI BLOCKER DOC LAP, CA HAI BANG CHUNG MAY. (A) **CO CODE DUOI TEST KHONG TON TAI**: 4-7 do chinh item #8 (main.ts doc wiring that o production boot) va #8 da de lai cho RV01-02; bang chung: grep vault|crypto|CRYPTO|ENCRYPTION|DU_VAULT trong src/main.ts = **0 match**; grep DU_VAULT_TRANSIT_OPTIONS toan repo = 5 match **tat ca trong coordination/*.md + report cua toi, 0 trong source**; grep new VaultTransitProvider|createVaultTransit trong src/ = **0 construction site** (chi vault-transit-provider.ts:191 khai bao constructor) => VaultTransitProvider la DEAD CODE, co class + typed options nhung khong ai bao gio construct; chay 4-7 bay gio = do loi cua code khong ton tai va ghi PASS. (B) **S3 + VAULT KHONG TON TAI**: docker ps du-rework chi co postgres :5433 + redis :6380; TCP probe 127.0.0.1 9000/8200/8201/9001 = **ECONNREFUSED ca 4**; grep minio|s3|vault|hashicorp trong infra/docker-compose.yml = **0 match** (compose chi postgres:16-alpine + redis:7-alpine). PHAN NAMESPACE DA DUNG: CREATE DATABASE du_test_rv0101_enc → CREATE DATABASE; xac minh pg_database LIKE du% = du_orchestrator, du_orchestrator_test, du_test_rv0101_enc (cua toi), du_test_rv0103_enc (lane khac — KHONG cham); 0 lenh destructive, khong FLUSHDB/DROP/TRUNCATE, khong dung PG :5433 default. PHAT HIEN FAIL-OPEN CHUA DONG — server.ts:521-527 comment ghi ro "Optional on purpose: with no metadataEncryption config this is undefined and **every control-plane column keeps its pre-delta plaintext behaviour**"; main.ts hien goi createApp **khong truyen metadataEncryption** ⇒ metadataCrypto === undefined ⇒ **moi control-plane column van luu PLAINTEXT im lang**; tuong tu publicUploadEncryption (server.ts:557-558) chi khoi CryptoStorageFacade khi co config. VERDICT VERBATIM: #4/#5/#6 **BLOCKED** — window DA cap nhan duoc nhung van BLOCKED vi thieu ca code (A) va thieu S3/Vault (B); #7 **BLOCKED** — (A) la dung: khong co parser env→options nen khong co gi de fail-closed. TU SUA 1 BUG TRONG CHINH KE HOACH MUC 57: da viet "chi kiem tra khi ARTIFACT_STORAGE_BACKEND=vault" — **SAI**, main.ts:81 `if (backend !== 's3') throw new Error('ARTIFACT_STORAGE_BACKEND must be postgres or s3')` chi nhan postgres|s3, `vault` khong bao gio hop le ⇒ dieu kien khong the bao gio chay va se bao loi SAI nguyên nhan (storage thay vi encryption); trigger dung la ARTIFACT_STORAGE_BACKEND=s3 HOAC bat ky khoi encryption bat; da doc lai main.ts de sua chu khong sua tu trong nho. DE XIN: (1) sua thu tu — #8 phai LAND truoc, 4-7 moi co nghia, de xin #8 ve cung lane nay ngay (DB namespace da san); (2) ha tang de 4-7 chay that = 1 container MinIO + bucket + creds :9000 + 1 Vault dev server :8200, toi KHONG tu them vi ha tang dung chung thuoc coordinator; (3) row 7 la dong DUY NHAT trong 4-7 co the chay OFFLINE ngay khi #8 co parser (assert main.ts throw thong diep ro rang khi thieu env / sai JSON / thieu truong + assert KHONG co fallback plaintext). GIOI HAN: 0 dong production code, main.ts bfbd87cf + server.ts 22afb2ff **khong doi 1 byte**, khong commit, khong tick gate (ENC-04 NO-GO), khong sua tasks/*.md, khong message nocobase-10 — Muc 58.
+- 59 — CYCLE 59 RV01-02 #8: WIRING main.ts TRUYEN ENCRYPTION VAO createApp (FAIL-CLOSED) — **ROW 7 XANH OFFLINE, #8 DA LAND**; cycle dau tien tinh ra production code cho lane nay ke tu Muc 52. FILE: boot-options.ts (MOI) 09a14e2a parser thuan 0 I/O; encryption-boot-options.test.ts (MOI) 9cfdc08b 29 test; main.ts 65d9d36b **+22/-1 = +7/-1 cua lane khac nguyen ven + +15 cua toi**; server.ts **22afb2ff INVARIANT GIU NGUYEN 0 dong sua**. `git diff -U0` tach biet: 7 dong adminShell* + ORCHESTRATOR_PORT van y nguyen, phan toi chi la import + binding encryptionBoot + 1 logger.info + `...encryptionBoot`; KHONG revert/format/don phan lane khac. FAIL-OPEN DA DONG: server.ts:521-527 ghi "with no metadataEncryption config this is undefined and every control-plane column keeps its pre-delta plaintext behaviour" — truoc RV01-02 main.ts goi createApp khong truyen block nao; sau nay khi s3 hoac flag bat thi truyen ca metadataEncryption + publicUploadEncryption + cryptoConfig. THIET KE: MOT bien JSON DU_VAULT_TRANSIT_OPTIONS map 1:1 onto VaultTransitProviderOptions (vaultAddress + allowedKeyRefs bat buoc; transitMount?/requestTimeoutMs?/metadataKeyRef?/publicUploadKeyRef?/publicUploadKeyVersion?/publicUploadMaxBytes?); **token KHONG nam trong JSON** — DU_VAULT_TRANSIT_ENC_TOKEN / _DEC_TOKEN, vi VaultTransitIdentity.token la thunk (vault-transit-provider.ts:37-39) nen doc lai MOI REQUEST; hai identity phai khac nhau vi constructor (:195-200) tu reject khi token trung nhau (co test rieng); flag DU_ENCRYPTION_METADATA_ENABLED / _PUBLIC_UPLOAD_ENABLED strict boolean (gia tri khac ⇒ fail, khong if(raw)=true im lang); `vault` reject rieng va chi ra DU_VAULT_TRANSIT_OPTIONS; `null` chi duoc tra khi postgres + tat ca flag off. ROW 7: `npx jest --config jest.unit.config.cjs tests/encryption-boot-options.test.ts` => **Test Suites: 1 passed / Tests: 29 passed** exit 0, **khong S3 khong Vault khong mo socket**; 5 POSITIVE + **24 NEGATIVE**: (a) thieu surface het; (b) JSON hong; (c) thieu/sai field gom keyRef ngoai allowlist + token enc==dec; (d) `vault` khong phai backend (tu choi `vault`, tu choi `vault` KE CA khi surface hop le, backend la `gcs`); (e) client Vault tu choi (http non-loopback, URL hong, transitMount khong an toan). MUTATION 3 LAN **CA 3 BIT**: M1 `s3 = backend==='s3' && false` => **22/29 FAIL**; M2 thay throw bang `return {config:null}` khi thieu surface (fail-OPEN) => **3/29 FAIL**; M3 `vault && false` => **2/29 FAIL**; ca 3 revert, 29/29 xanh lai x3; KHONG dung `x + 0` lam mutation gia. REGRESSION PROVEN PRE-EXISTING BANG A/B: full unit 16 failed / 29 skipped / 3963 passed / 4008 total, 16 fail deu admin-shell+OIDC+SEC khong suite nao cham encryption; stash chi main.ts ⇒ `Tests: 6 failed, 10 skipped, 486 passed, 502 total`; pop ⇒ **BANG Y HET** ⇒ pre-existing; stash pop khoi phuc main.ts byte-identical va giu nguyen +7/-1 lane khac. TYPECHECK `npx tsc --noEmit` exit 0 log rong; **BAI DANG DAU**: `?? {}` widen type thanh `{}` ⇒ 4 loi TS2339, sua bang `Partial<EncryptionBootOptions>`; **canh bao** pnpm --filter in EXIT=0 trong khi log NOI `Exit status 2` ⇒ phai doc LOG, lay exit that bang `npx tsc` truc tiep. MUTATION-TEST DISCOVERY: test "keyRef ngoai allowlist" fail o LAN DAU (Expected metadata / Received undefined) khong phai typo ma do **2 ban sao phep tinh `s3` da lech nhau** — validator tinh `flag || s3` nhung build van tinh `flag` ⇒ validator doi metadataKeyRef nhung block KHONG duoc sinh ra; da gop ve MOT `resolveEncryptionBoot()`; 1 test do = bug THAT cua code, 22 test do = bug cua TINH HIEU cua mutation; mot test nua cung fail SAI LY DO (thieu metadataKeyRef ⇒ chet truoc) ⇒ da them metadataKeyRef de no kiem dung loi allowlist. CONG LAI: row 7 XANH PROVED; rows 4-6 van OPEN vi thieu MinIO :9000 + Vault dev :8200 (ECONNREFUSED ca 4, khong define trong infra compose), CHUA dung ha tang, khong gian port lane khac; 4/5 cau OPEN QUESTIONS con lai (cau token da duoc tra loi bang code — thunk doc lai moi request). Khong tick gate (ENC-04 NO-GO), khong commit, khong sua tasks/*.md, khong sua AGENTS.md, khong message nocobase-10 — Muc 59.
+- 60 — CYCLE 60 RV01-04: HANG TANG THAT MINIO + VAULT, **ACCEPTANCE ROWS 4-6 PASS** — gioi han Muc 58 (B) da duoc go sau khi row 7 xanh. HANG TANG (literal): kiem port truoc 9000/9001/8200/8201 = **ca 4 FREE (ECONNREFUSED)**, khong gian port lane khac; `docker run -d --name du-rv0104-minio -p 127.0.0.1:9000:9000 -p 127.0.0.1:9001:9001 -e MINIO_ROOT_USER=du_rv0104 -e MINIO_ROOT_PASSWORD=du-rv0104-test-only minio/minio:latest server /data --console-address ":9001"` id f5dab2b3bd2 **Up**; `docker run -d --name du-rv0104-vault -p 127.0.0.1:8200:8200 -e VAULT_DEV_ROOT_TOKEN_ID=du-rv0104-root-token -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 hashicorp/vault:latest` **Up** (pull layer 72133771747d tre ~15 phut); bucket `du-rv0104-enc` OK; **versioning Enabled** (bat buoc); Vault mount rieng `transit-rv0104` (KHONG dung `transit` chung) + keys du-metadata/du-artifact aes256-gcm96 + policy HCL `du_test_rv0101_enc` 6 path + **2 token rieng KHAC NHAU**; Docker Server 28.5.1; **khong them gi vao infra/docker-compose.yml** (ha tang dung chung). ISOLATION: bucket rieng, mount rieng, key rieng, 2 token rieng, DB du_test_rv0101_enc; khong FLUSHDB/DROP/TRUNCATE, khong cham du_test_rv0103_enc. ROW 4/5/6 LITERAL: `npx jest --runInBand --config jest.unit.config.cjs tests/rv0104-live-encryption.test.ts` ⇒ **Test Suites: 1 passed, 1 total / Tests: 3 passed, 3 total** exit 0. ROW 4 PASS (du-encrypted=aes-256-gcm-v1, sidecar ton tai, manifest version=1 kind=single, AAD binding tenantId/artifactId/objectVersion/purpose khop, `encryption.dek.ciphertext` khop /^vault:v[1-9][0-9]*:/ ⇒ DEK that tu Vault khong phai stub); ROW 5 PASS (byte-scan 5 cach: equals=false, includes=false, khong sentinel ASCII, sha256 khac); ROW 6 PASS dong manh nhat (doc manifest tu bucket, goi `POST /v1/transit-rv0104/decrypt/du-artifact` bang **raw fetch** khong dung provider/facade/gateway, DEK 32 byte, AES-256-GCM decrypt bang nonce+tag+AAD lay chinh tu manifest ⇒ **plaintext khoi lap byte-for-byte**, khong code giai ma repo nao trong duong nay). BA DEFECT CUA TOI: (1) **versioning bat buoc** — MinIO tra VersionId undefined neu chua enable, gateway :521 tu reject !versionId ⇒ thieu cau hinh ha tang khong phai code bug; (2) **policy Vault thieu `encrypt/...`** — HCL chi cap keys+decrypt ⇒ 403 permission denied ⇒ KEY_PROVIDER_FAILED; **mapCryptoError bien MOI loi thanh 503 TEMPORARY_UNAVAILABLE ⇒ ton tai that bi guu, phai probe truc tiep**; (3) manifest luu `dek` NESTED trong `encryption` khong phai top-level (doc source :611-626 moi biet) ⇒ **khong sua code de chay cho de, sua test cho dung**; (4) hai lan Tests: 0 total (TS18046 unknown + dek[0] under noUncheckedIndexedAccess) khong tinh la bang chung. MUTATION 2 LAN CA 2 BIT: M5 row5 stored.equals(plain)=>true ⇒ **chi ROW 5 FAIL**; M6 row6 flip 1 byte DEK ⇒ **chi ROW 6 FAIL**; khong lan nhau ⇒ 3 row doc lap; revert + 3/3 xanh. CONG LAI: **4/6 dong acceptance RV01-01 da dat bang bang chung may** (4/5/6 day + 7 Muc 59); con **row 8** = production main.ts boot doc wiring (wiring #8 da LAND nhung chua co boot that, can PG+Redis+process that); **ha tang khong persistent** ⇒ chay lai o may/CI khac can UPSTREAM PULL (MinIO ~2 phut, Vault ~15 phut) ⇒ OPEN khong phai blocker. server.ts 22afb2ff git diff RONG; main.ts 65d9d36b + boot-options.ts 09a14e2a khong doi 1 byte. Khong tick gate (ENC-04 NO-GO), khong commit, khong sua tasks/*.md/AGENTS.md/overlay, khong message nocobase-10 — Muc 60.
 
 ## 1 — CYCLE 1: W-PLAT-MM05-REARM-1 (Queue Integrity re-arm CAS condition)
 
@@ -4938,3 +4945,829 @@ Ca hai deu la dang "test do vi **ly do khac**", va ca hai deu la **loi cua test*
   va doc lai xac nhan guard.
 - **ACCEPTED**: module **chua** duoc noi vao bat dauau; dua vao route la cong viec rieng, va no khong duoc
   gan release gate nao. **ENC-04 NO-GO.**
+
+## LEGACY OPERATIONS PAGINATION CHARACTERIZATION — READ ONLY
+
+**Scope:** compared the DUGate `GET /api/v1/operations` implementation with the current rework route and its compatibility helper. This is source/test characterization only; no source code changed and no release gate was evaluated or changed.
+
+### Legacy route behavior
+
+Evidence: `../app/api/v1/operations/route.ts:29-38,40-64,91-98,127-130`.
+
+- `page_size` defaults to 20 when absent and is capped at 100. The route has no explicit lower-bound or malformed-value handling (`parseInt` followed by `Math.min` only).
+- `page_token` is a raw operation ID. The route looks up that ID's `createdAt`; an unknown but syntactically valid ID is ignored, so listing restarts at the first page. A malformed ID has no route-level validation or error mapping; the exact result depends on the database error path and was not exercised here.
+- A found token adds `createdAt < token.createdAt`; result ordering is only `createdAt DESC`, with no ID tie-break. Rows sharing a timestamp therefore do not have a fully ordered keyset boundary and may be skipped across pages.
+- `filter` is a comma-separated list. `state` accepts only `RUNNING`, `SUCCEEDED`, `FAILED`, `PENDING`; an invalid value, including `state=`, returns 400. Each valid repeated `state` clause adds another equality predicate (AND semantics). `processor` adds a pipeline substring match; other clauses are ignored. Missing or empty `filter` means no filter.
+- The response envelope is `{ operations, next_page_token }`; `operations` contains the legacy lightweight projection, and the continuation token is the last returned operation ID or `null`.
+- The route only adds `apiKeyId = x-api-key-id` when that header is truthy (`:35-38`). With `apiKeyId === null`, its predicate is only `deletedAt IS NULL`, so the route query is not tenant/key-scoped. The legacy middleware strips caller-provided `x-api-key-id` and does not set it in this `/api/v1/` branch (`../middleware.ts:33-52`); absent a later trusted injection, this is a cross-tenant list risk. This is a source-level finding, not a live database reproduction.
+
+### MISMATCH: legacy contract vs current rework route
+
+| Surface | DUGate legacy route | Rework route / contract | Characterization |
+|---|---|---|---|
+| Query names | `page_size`, `page_token`, `filter` | Six allow-listed names: `limit`, `cursor`, `state`, `tenant`, `id`, `sort` (`packages/contracts/src/public-api.ts:58-65`) | **MISMATCH.** Legacy parameter names do not drive rework pagination; the route reads only the six canonical names (`server.ts:3049-3052,3062-3115`). |
+| Page size | `page_size`, default 20, upper cap 100 | `limit`, default 20, clamped to 1..100; malformed integer falls back to default (`server.ts:3064-3068`) | **MISMATCH.** `page_size` is not the direct rework parameter; rework also has explicit lower-bound/malformed handling. |
+| Cursor | Raw operation ID in `page_token`; ID lookup yields a timestamp boundary | Opaque base64url cursor carries canonical timestamp, UUID, sort binding, and optional backward marker; malformed cursor or sort mismatch is rejected with 422 (`server.ts:2996-3031,3088-3112`) | **MISMATCH.** An old `page_token` is not decoded as the rework cursor. A valid unknown legacy ID is ignored, whereas a supplied invalid rework `cursor` fails closed. |
+| Ordering | `createdAt DESC` only; no ID tie-break (`route.ts:91-94`) | Stable `(sort key, id)` keyset predicate and matching two-column order (`server.ts:3300-3313,3366-3375`) | **MISMATCH.** Rework establishes a deterministic tuple boundary; legacy timestamp ties are ambiguous. |
+| State/filter | `filter=state=...` with four exact machine states; invalid state is 400; repeated states are ANDed | Separate `state`; accepted values `ALL`, `RUNNING`, `COMPLETED`, `FAILED`, `TIMED_OUT`; empty/whitespace maps to `ALL`, invalid value is 422 (`public-api.ts:74-80`; `server.ts:3070-3082`) | **MISMATCH.** Different parameter shape, values, empty-state behavior, and status code. The legacy `processor` filter has no matching key in the six-value contract. |
+| Scope | A truthy `x-api-key-id` scopes; null leaves all non-deleted operations in the query (`route.ts:35-38`) | Public requests must resolve an active API key and are SQL-fenced to its tenant; admin requests use principal authorization (`server.ts:1776-1803,4182-4193`) | **MISMATCH.** Rework rejects missing/invalid public credentials and enforces tenant scope; legacy route's null-header branch has no tenant predicate. |
+| Response | `{ operations, next_page_token }`, token is raw operation ID | `{ items, nextCursor, prevCursor, total, limit }` (`public-api.ts:237-245`; `server.ts:3425-3431`) | **MISMATCH.** Both shape and continuation-token dialect differ. |
+| Empty result | `operations: []`, `next_page_token: null` | `items: []`, both cursors null, `total: 0`, with effective `limit` | **MISMATCH.** Empty-list semantics are equivalent, but the response envelope is not. |
+
+### Compatibility-helper boundary and verification
+
+`services/orchestrator/src/compat/legacy-operations.ts:185-215,222-242` contains a mapping helper and `tests/legacy-operations.test.ts` covers it, but the current `server.ts` route does not import/call that helper. The helper preserves an operation-ID token as `afterOperationId`, maps legacy states, and projects the old response envelope; it is not evidence that the live route currently accepts the legacy query dialect. It also clamps page size to 1..100 and uses last-state-clause-wins, which differ from the observed legacy route's unguarded lower bound and repeated-state AND predicates.
+
+The focused helper suite was run as `pnpm --filter @du/orchestrator test -- tests/legacy-operations.test.ts`: **27/27 tests passed**. This validates the helper only; no HTTP/database characterization of the old route was run. **No release gate was ticked or changed.**
+
+## LEGACY WEBHOOK CALLBACK CHARACTERIZATION — READ ONLY
+
+**Scope:** source-only comparison of DUGate operation callbacks and the rework webhook dispatcher. No source, docs, or plan files were changed; no policy decision or release-gate change is made here.
+
+Legacy wiring note: `lib/endpoints/runner.ts:227-248` is the observed parser/pass-through for form field `webhook_url`; `lib/pipelines/submit.ts:300-315` persists it on the operation, and `workflow-engine.ts:404` carries that operation value into workflow context. The workflow schema route's `submitPipelineJob` call (`app/api/v1/docs/workflows/schema/route.ts:81-91`) does not pass `webhookUrl`, so that route itself does not set a callback through this call path.
+
+### Comparison
+
+| Surface | DUGate legacy (`app/`, `lib/`) | Rework (`services/orchestrator/`) | MISMATCH / evidence |
+|---|---|---|---|
+| Payload fields | Standard pipeline success POST: `{ operation_id, state: 'SUCCEEDED', done: true }`; failure POST: `{ operation_id, state: 'FAILED', error }` (failure shape omits `done`). Workflow callback builds `{ operation_id, state, done }`, with optional `error`; it also sends `state: 'PAUSED', done: false`. Sources: `lib/pipelines/engine.ts:427-432,467-471`; `lib/pipelines/workflow-engine.ts:270-304`. | Canonical plaintext `WebhookPayload`: `{ deliveryId, eventType, operationId, state, stateVersion, occurredAt }`; event types are succeeded/failed/cancelled/timed-out. Source: `services/orchestrator/src/modules/webhooks/webhooks.ts:36-46,76-83`; schema: `packages/contracts/src/public-api.ts:646-664`. | **MISMATCH.** Field names and event model differ; the rework payload has no legacy `done` or `error` field, and the legacy callback does not carry `deliveryId`, event type, or state version. The rework payload also contains no result body. |
+| HTTP/authentication | Both legacy senders POST JSON with only `Content-Type: application/json`; no signature/HMAC or delivery-ID header is set. Sources: `lib/pipelines/engine.ts:75-80`; `lib/pipelines/workflow-engine.ts:306-311`. | POST sets `content-type`, `x-du-signature`, `x-du-timestamp`, and `x-du-delivery-id`. Signature is `sha256=` + HMAC-SHA256(secret, `${timestamp}.${body}`); comparison helper is constant-time. Sources: `webhooks.ts:106-121,446-459`; header constants/signing input: `packages/contracts/src/public-api.ts:666-672`. Dispatcher only runs when a webhook secret is configured (`server.ts:691-695,905-923`). | **MISMATCH.** Rework requires a receiver-side HMAC/timestamp/dedup contract that legacy callbacks never had. |
+| Retry count/backoff | Standard pipeline: up to 3 HTTP attempts; waits 1s then 2s between attempts. Workflow callback: one fetch attempt, no retry. Sources: `lib/pipelines/engine.ts:68-90`; `lib/pipelines/workflow-engine.ts:306-318`. | Durable row defaults to `max_attempts = 5` (`migrations/0007_webhook_deliveries.sql:9-23`). A failed attempt increments `attempts`; before exhaustion it returns to `PENDING` with exponential delay `base * 2^oldAttempts`; default base 1s gives 1/2/4/8s delays across five total attempts. Sources: `webhooks.ts:343-347,521-537`. Server sweeps due rows on a default 5s cadence when auto-dispatch and secret are enabled (`server.ts:691-695,905-929`). | **MISMATCH.** Rework retries are durable and shared by terminal event types; legacy pipeline retries are in-process only and workflow callbacks have no retries. |
+| Timeout | Standard pipeline fetch uses a 10s `AbortSignal.timeout` per attempt (`engine.ts:75-80`). Workflow callback passes no timeout or abort signal (`workflow-engine.ts:306-311`). | Production dispatcher uses a 10s per-delivery wire timeout for headers and body, overrideable by `dispatchTimeoutMs` (`webhooks.ts:168-169,313-342`). | **MISMATCH.** Workflow callbacks can wait without an application timeout; rework has a bounded production fetch. |
+| Failure state | The operation is marked `SUCCEEDED`/`FAILED` before the standard callback attempt (`engine.ts:398-414,454-465`). Exhausted delivery only logs; it does not change operation state, and `webhookSentAt` is set only after a successful 2xx (`engine.ts:427-440,467-479`). Workflow likewise persists terminal/paused state first (`workflow-engine.ts:216-243,274-293`); rejected fetch logs and leaves `webhookSentAt` unset, but any resolved HTTP response, including 4xx/5xx, is treated as sent and stamps `webhookSentAt` (`workflow-engine.ts:306-318`). | Operation outcome stays terminal regardless of callback delivery. Delivery row becomes `PENDING` for retry or `FAILED` after its budget is exhausted; successful 2xx becomes `DELIVERED`. Sources: `webhooks.ts:20-25,515-537`. | **MISMATCH.** Both systems keep callback failure separate from operation outcome, but legacy workflow `webhookSentAt` can indicate a resolved non-2xx response, while rework records HTTP non-2xx as a failed attempt. Rework exposes durable delivery state separately. |
+| Encryption / persistence | Legacy callback body is plaintext JSON; no encryption or signing is performed in either sender. The callback URL comes from `webhook_url` at submit and is stored on the operation (`lib/endpoints/runner.ts:225-248`; `lib/pipelines/submit.ts:37-47,73-88,300-315`). | If delivery encryption is absent or the tenant policy is disabled, the canonical payload is plaintext. When enabled, rework encrypts the JSON payload and POSTs `{ schemaVersion: '1', encrypted: true, delivery: envelope }`; encryption errors fail closed and post nothing. Sources: `webhooks.ts:173-179,197-223,435-444`. However, the transactional outbox row stores `payload` as JSONB plaintext before wire-time encryption (`webhooks.ts:76-99`; `migrations/0007_webhook_deliveries.sql:9-23`). | **MISMATCH.** Rework can encrypt in transit by tenant policy, but this does not encrypt the persisted `webhook_deliveries.payload` (**DELTA-121**). Legacy has neither wire nor at-rest webhook encryption. |
+| Delivery execution | Async submit queues work and returns 202 (`submit.ts:387-392`; `runner.ts:256-277`). Inside the worker, `await runPipeline(...)` waits for the pipeline, and its callback helper is awaited; workflow completion/pause/failure also awaits its callback (`worker.ts:54`; `engine.ts:427-433,467-472`; `workflow-engine.ts:242-243,270-272,291-292`). Thus it is asynchronous relative to the original submit response, but not fire-and-forget within worker execution. Delivery is best-effort after bounded retry; failure is swallowed as a boolean/log. | Terminal transition transactionally schedules the durable delivery row; a separate background dispatcher claims and sends it, at-least-once, with client dedup by deliveryId (`webhooks.ts:18-25,49-58,59-99,313-388`; `server.ts:905-929`). | **MISMATCH.** Rework decouples callback I/O from operation execution and persists retry state; legacy awaits the callback in its worker path and has no durable delivery queue. |
+
+### Encryption receiver compatibility — explicit answer
+
+**Yes: an unmodified legacy receiver breaks when rework delivery encryption is enabled.** It receives the encrypted wrapper rather than the legacy plaintext fields (`operation_id`, `state`, `done`, optional `error`), and must implement envelope decryption before it can interpret the event. Separately, **DELTA-120** means rework computes HMAC after encryption over the exact ciphertext wrapper bytes (`webhooks.ts:435-459`); a receiver that verifies a reconstructed/decrypted plaintext body will fail signature verification. A legacy receiver that ignores signature headers is not broken by the header alone, but it still cannot read the encrypted payload. With encryption disabled, the HMAC still authenticates the canonical rework body, whose schema also differs from legacy.
+
+### MISMATCH list for COMP-05 / COMP-08 encryption rollout
+
+1. **COMP-05 — callback projection:** legacy status callback fields and rework canonical event fields differ; legacy callback contains no result, while rework's optional delivery envelope only encrypts the canonical event payload. The legacy receiver needs the rework event/envelope contract to consume the encrypted body. No policy choice is made here.
+2. **COMP-05 — ciphertext HMAC (DELTA-120):** signature covers the post-encryption wire body. Receiver verification must use the exact body bytes received before decrypting; this is an explicit receiver-contract mismatch with legacy callbacks, which have no signature.
+3. **Encryption rollout — persisted outbox plaintext (DELTA-121):** only the outbound body is encrypted; the source `webhook_deliveries.payload` column remains plaintext JSONB. Wire encryption alone is not at-rest protection for queued deliveries.
+4. **COMP-08 boundary:** the observed legacy and rework webhook payloads carry operation status metadata, not `/services` or `/billing/*` balance/usage projections. This webhook comparison provides no evidence of COMP-08 billing parity or API-key scoping; that surface remains distinct.
+
+**Read-only boundary:** only `coordination/reports/qwen-platform.md` was written for this characterization. No source, docs, plan, or gate was changed.
+
+## 53 — CYCLE 53: COMP-00 INPUT — LEGACY CONSUMER INVENTORY (task_comp00_consumer_inventory)
+
+> **READ-ONLY.** Tôi **không** sửa source, docs, plan hay test nào; **không** tick gate nào. Chỉ đọc và ghi vào
+> receipt của tôi. Đây là **INPUT cho COMP-00** (Product/architect chốt) — tôi **không tự chốt**.
+
+#### Phạm vi quét
+`app/` (UI, ServiceTestClient, chat), `components/`, `lib/`, `tests/` (cả hai repo), `docs/`, và
+`du-rework/` — tìm nơi thực sự **GỌI** các route, không phải nơi **ĐỊNH NGHĨA** hay **NHẮC**.
+
+#### BẢNG INVENTORY
+
+| route / field | consumer file:line | mức dùng | khuyến nghị (INPUT, không phải quyết định) |
+|---|---|---|---|
+| `GET /api/v1/services` | **KHÔNG có caller trong workspace** | không quan sát được | **defer** — xem ghi chú A |
+| `GET /api/v1/billing/balance` | **KHÔNG có caller trong workspace** | không quan sát được | **defer** — xem ghi chú A |
+| `GET /api/v1/billing/usage` | **KHÔNG có caller trong workspace** | không quan sát được | **defer** — xem ghi chú A |
+| `webhook_url` (form field) | `lib/endpoints/runner.ts:227` → `lib/pipelines/submit.ts:45,81,309` → `lib/db/schema.ts:35` | **submit + giao thật** | **parity** — xem ghi chú B |
+| `webhook_url` (alias decode, rework) | `services/orchestrator/src/compat/legacy-wire-decoders.ts:191,193,264,427-432` | decode, **chưa nối** | **parity, có điều kiện** — xem ghi chú C |
+
+**Tất cả các mục khác chỉ là ĐỊNH NGHĨA hoặc NHẮC, không phải consumer:**
+`app/api/v1/services/route.ts:8`, `app/api/v1/billing/balance/route.ts:17`,
+`app/api/v1/billing/usage/route.ts:24` (route cũ), `app/api/swagger/route.ts:103` (chuỗi mô tả),
+`CLAUDE.md:158-160`, `docs/DU_INTEGRATION_GUIDE.md` (**không** có bất kỳ route nào trong bốn mục),
+`du-rework/docs/06-public-api.md:29`, `du-rework/docs/14-reference-compatibility.md:40-42,71`,
+`drizzle_migration_plan.md:83-84`, `du-rework/tasks/*`.
+
+#### Ghi chú A — ba route GET: **không tìm thấy consumer nào**
+Đây là kết quả **quan sát được từ grep toàn workspace**, không phải suy đoán:
+
+- `fetch(` với `services|billing` trong toàn repo: **1 kết quả duy nhất**, và nó là
+  `components/ServiceTestClient.tsx:214` → `/api/v1/docs/${serviceSlug}?sync=true`. **KHÔNG phải** `/services`.
+  `ServiceTestClient` được dùng bởi 6 page `app/docs/{ingest,extract,analyze,transform,generate,compare}/page.tsx:1`,
+  và tất cả đều trỏ vào endpoint `docs`, không phải endpoint `services`.
+- `tests/` (repo cũ): **0 match**. `du-rework/`: chỉ docs + tasks, **không** có test nào gọi.
+- Không có call site nào trong `app/` (UI/chat) gọi ba route này.
+
+**Khuyến nghị: `defer`.** Lý do: không có bằng chứng nội bộ nào cần chúng, nên **không có bằng chứng cho thấy
+cần parity**; nhưng cũng **không có bằng chứng để retire** — chúng là external contract và consumer có thể
+nằm ngoài workspace. Đây đúng là loại câu hỏi mà Product/architect phải chốt với dữ liệu ngoài repo.
+**Điều gì sẽ đảo khuyến nghị:** một golden fixture hoặc log thật từ môi trường chạy cho thấy route được gọi.
+
+#### Ghi chú B — `webhook_url`: chuỗi giao **thật**, không phải nhận-rồi-bỏ
+Tôi đã truy vết hết chuỗi thay vì dừng ở `runner.ts:227` (nơi form field được đọc):
+
+```
+lib/endpoints/runner.ts:227      form.get('webhook_url')
+  → lib/pipelines/submit.ts:309  ghi webhookUrl vào operation
+  → lib/db/schema.ts:35         cột webhookUrl
+  → lib/pipelines/engine.ts:428,467   phát webhook khi operation xong
+  → lib/pipelines/workflow-engine.ts:297,307   fetch(ctx.webhookUrl) THẬT
+```
+
+**Khuyến nghị: `parity`.** Lý do: đây là **hành vi quan sát được đang chạy** (có `fetch` tới URL
+người dùng cung cấp), không phải chỉ là field trên wire. Bỏ nó là mất một khả năng thật của khách hàng.
+**Điều gì sẽ đảo khuyến nghị:** nếu Product xác nhận khách hàng chỉ dùng polling và webhook là dư thừa.
+
+#### Ghi chú C — phía rework: decoder **đã có**, nhưng lớp compat **chưa nối vào gì**
+- `legacy-wire-decoders.ts:191` đọc alias `['webhook_url','webhookUrl']` với canonical key `webhook_url`;
+  `:427-432` (`decodeCallback`) trả `{url}`; `:264` gắn cờ `callback`.
+- Test: `tests/legacy-wire-decoders.test.ts:127`.
+- **Điểm quan trọng cho COMP-00:** tôi grep `server.ts` — **không có một tham chiếu `compat/` nào**, và
+  trong `src/` chỉ `legacy-action-router.ts:59` import `legacy-wire-decoders`. Tức **toàn bộ lớp compat chưa
+  được nối vào request path nào**. Khả năng xử lý `webhook_url` ở rework hiện là **code chết** về mặt wire.
+
+**Khuyến nghị: `parity, có điều kiện`.** Lý do: decoder đã viết và đã test nên chi phí thấp; nhưng
+**mức dùng thật bằng 0 cho tới khi lớp compat được nối**, nên nên gắn việc này vào **cùng mốc nối compat**
+thay vì coi là hạng mục parity độc lập.
+
+#### Điểm cần Product/architect chốt (tôi KHÔNG chốt)
+1. Ba route GET: `defer` hay `retire`? Cần dữ liệu consumer **ngoài workspace**; repo không đủ bằng chứng.
+2. `webhook_url`: đây là cam kết parity hay chỉ tiện ích cũ? Khách có dùng alias `webhookUrl` không — rework đã
+   decode alias, repo cũ chỉ đọc `webhook_url`?
+3. Lớp compat có nối trong release này không — quyết định này chi phối khuyến nghị mục C.
+4. `balance` cần **projection theo API key**; `du-rework/docs/06-public-api.md:29` đã cảnh báo **không bịa
+   balance từ tenant usage**. Đó là ràng buộc kỹ thuật, không phải lựa chọn mở.
+
+#### Giới hạn của inventory này (nói rõ thay vì để ngỏ)
+- Tôi quét **toàn workspace** bằng grep theo đường dẫn và theo mẫu lời gọi. Phạm vi này **không** bao gồm
+  consumer **ngoài repo**: SDK khách hàng, script vận hành, integration đối tác, log môi trường thật. Với ba
+  route GET, “không thấy consumer trong repo” **không** tương đương “không có consumer”.
+- Tôi **không** chạy app, **không** đo traffic, **không** đọc log vận hành — READ-ONLY theo nghĩa đen.
+- Vì vậy cột “mức dùng” ghi **không quan sát được** thay vì **không dùng**: đó là khác biệt quan trọng nhất
+  mà COMP-00 cần để chốt.
+
+#### Ranh giới đã giữ
+- **READ-ONLY:** khong sua source, docs, plan hay test. Moi lenh toi chay trong cycle nay la `grep` / `glob` /
+  `read_file`. File ghi duy nhat la `coordination/reports/qwen-platform.md` nay.
+- **Khong tick gate:** khong thay doi trang thai gate nao. **ENC-04 van NO-GO**, va `G-ADMIN-OPS`/`G-DATA`
+  khong duoc dung toi.
+- **Khong tu chot:** khuyen nghi o tren la **dau vao**, kem dieu kien dao nguoc; quyet dinh thuoc
+  Product/architect trong COMP-00.
+
+#### Tu phan loai 4 tang
+- **SPECIFIED:** ro 4 route/field va 3 khoan (app/, tests/, docs/). Khong co phan nao khong dinh nghia duoc.
+- **IMPLEMENTED:** **khong co code** — day la task inventory thuan that, khong tao va khong sua file nao ngoai
+  receipt.
+- **VERIFIED:** moi phat hien deu kem `file:line` tu grep, va toi da **truy vet het chuoi** `webhook_url`
+  toi tan `fetch()` that thay vi dung o noi doc form field.
+- **ACCEPTED:** bon cau hoi mo o muc tren **chua** duoc tra loi — chung can quyet dinh ngoai repo.
+
+## 54 — CYCLE 54: COMP-00 INPUT — TOAN BO BE MAT COMPAT VA CHI PHI MOUNT
+
+> **READ-ONLY.** Khong sua gi, khong tick gate, khong cham `server.ts`. HARD CHECK da ap dung: viet + test
+> nhung CHUA MOUNT = **GAP**, khong phai parity.
+
+#### (1) BANG TOAN BO LOP COMPAT
+
+| module | exports chinh | test | mounted? | ai goi |
+|---|---|---|---|---|
+| `legacy-wire-decoders.ts` `a5a75096` 492d | `decodeLegacyWire`, `LEGACY_CORE_ACTIONS`, `LegacyWireDecodeError` | 10 | **NO** | chi `legacy-action-router.ts:59` + test |
+| `legacy-action-router.ts` `e03f6c8a` 499d | `createLegacyActionRouter`, `parseLegacyActionPath`, `toLegacyDecodeError`, `toLegacyOperationEnvelope` | 34 | **NO** | **chi test cua chinh no** |
+| `legacy-operations.ts` `e6676884` 263d | `mapCanonicalOperationToLegacy`, `mapLegacyOperationsQuery`, `mapCanonicalOperationsPageToLegacy` | 13 | **NO** | **khong co** |
+| `legacy-headers.ts` `271fb280` 283d | `canonicalizeCredential`, `canonicalizeContentType`, `canonicalizePagination`, `canonicalizeRequest` | 28 | **NO** | **khong co** |
+| **`legacy-submit.ts`** | — | — | — | **KHONG TON TAI** — chi neu ten trong `tasks/API-COMPAT-DUGATE-2026-09-28.md:85` |
+
+**Bang tren KHONG phai bang wire coverage.** 85 test trong `src/compat/` chua mot request nao cham ba route
+legacy tren wire:
+
+- `server.ts`: tham chieu `compat/` = **0**, `payload-migration` = **0**.
+- Trong `src/`: import duy nhat la `legacy-action-router.ts:59` import decoder.
+- `legacy-operations.ts` va `legacy-headers.ts` **khong** co import site nao — ke ca router cung khong dung.
+
+**Canh bao khi audit bang glob:** `tests/legacy-payload-migration.test.ts` (7 test) KHONG thuoc compat — no
+test `src/modules/encryption/legacy-payload-migration.ts` (`c4a293ad`, ENC-09). Module do cung **chua** mount:
+`server.ts` tham chieu `payload-migration` = **0**.
+
+#### (2) `legacy-action-router` — HOST CONTRACT DO CHINH NO TU KHAI
+
+Router **tu khai** host phai cung cap (trich nguyen van):
+
+- `:10-17` — "This file imports nothing from `server.ts` and nothing from `packages/contracts/public-api.ts`,
+  so it can be adopted **without either file changing first**. … Everything that touches the database, the
+  queue or the identity of the caller arrives through injected ports."
+- `:159-166` — `LegacyActionDispatchPort.submit()` la **canonical submission seam**; "It owns admission,
+  profile policy, tenant fencing, storage and the queue - **this module owns none of that**."
+- `:183-194` — `LegacyActionRouteRequest` la "A legacy request, **already split by the host**", co
+  `form?: unknown`, `body?: unknown`, va "the absence of any identity field: tenant and key **cannot be
+  expressed here, only resolved**".
+- `:359-367` — "Nothing happens until `createLegacyActionRouter` is called, so importing this module has no
+  side effects."
+
+**CAPABILITIES ROUTER KHONG CO** (de khong ai nham adapter da giong = da mount):
+
+| nang luc | router co? | bang chung |
+|---|---|---|
+| multipart/form-data parsing | **KHONG** | host tach san (`form?: unknown`, `files`, `body`) |
+| tao artifact / luu tru | **KHONG** | `:162` "owns … storage" |
+| upload + encryption gateway | **KHONG** | cung ly do; `legacy-submit.ts` chua ton tai |
+| SSRF / chinh sach file_urls | **KHONG** | `:162` "owns … profile policy" |
+| gioi han kich thuoc | **KHONG** | `:162` "owns admission" |
+| tenant fencing | **KHONG** | `LegacyActionPrincipal` chi **resolve**, khong validate |
+| xac thuc API key | **KHONG** | `resolvePrincipal` la port do **host** noi vao |
+| queue / submit vao runtime | **KHONG** | `LegacyActionDispatchPort.submit` la stub trong test |
+| ghi audit | **KHONG** | khong co port audit nao trong router |
+| doc operation de tra ket qua | **KHONG** | `LegacyActionDispatchResult` la gia tri host tra ve |
+
+#### (3) MOUNT TOI THIEU SE PHAI BO SUNG VAO `server.ts` — **CHI DANH SACH THAY DOI**
+
+Day la danh sach **thay doi can co**, khong phai patch da viet. Toi khong sua `server.ts`.
+
+1. **Khai bao instance** — mot `createLegacyActionRouter({ dispatch, resolvePrincipal })` o composition root.
+2. **Sinh `resolvePrincipal`** — noi `resolveApiKey` hien co (`server.ts:4182`) vao port; tra `tenantId` +
+   `apiKeyId`; `null` phai ra 401 legacy chu khong nem loi.
+3. **Sinh `dispatch`** — adapter moi noi submit port vao `createSubmissionService` that. Day la noi tao artifact,
+   upload, SSRF, size limit va queue that su xay ra; adapter test chi la stub.
+4. **Tach multipart truoc** — router nhan `form?: unknown` da tach san; host phai phan tich
+   `multipart/form-data` va bien `files` thanh `LegacyFilePart[]`.
+
+5. **Chen route vao bang dinh danh** `/api/v1/docs/{action}` — sau cac route hien co, dung `else if` de
+   khong lan sang route canonical.
+6. **Thu tu route canonical** — `parseLegacyActionPath` phai chay **truoc** cac route canonical cu, neu
+   `/api/v1/docs/...` bi route canonical bat truoc.
+7. **Ghep response** — tra `LegacyActionRouteResponse`, kem `Operation-Location` chi khi 202.
+8. **Ghi audit + usage** — adapter phai ghi audit cho moi field va cap usage counters; router khong co port cho
+   viec nay.
+9. **Bien doi job/session** — `?sync=true` co han va doi 200/202 dung quy tac idempotent replay.
+
+**Khong can** (da co san, chi can noi vao): decoder, projection operation, canonicalize header.
+
+#### HANH GIOI DA GIU
+- **READ-ONLY:** khong sua source/docs/plan/test.
+- **`server.ts` khong bi cham:** xac minh sha `22afb2ff` con nguyen.
+- **Khong tick gate:** ENC-04 van NO-GO.
+- **Khong tu chot:** danh sach tren la input cho COMP-00.
+- **HARD CHECK da ap dung:** 85 test cua lop compat **khong** duoc bao cao nhu wire coverage; phan nao chua
+  mount duoc goi la **GAP**.
+
+
+## 55 — READ-ONLY CHARACTERIZATION: J05 WORKFLOW-SCHEMA AUTHORING (field-level, F1–F5)
+
+#### Scope and standing
+
+- **READ-ONLY.** No source created/edited/deleted, nothing executed, no server started. The only file written by this section is this receipt.
+- **TICKS NO GATE.** Nothing here ticks, promotes or relaxes any gate. G-COMP, G-ENC, G-SEC, G-DATA, G-ADMIN-OPS, G-LOCAL-ADMIN and G6 all remain **NO-GO** and unchanged. Characterization evidence for COMP-00, not acceptance.
+- **Retracts the "expected-failure" framing** used for F2/F3 in my earlier draft. A test that fails today does not discharge a defect, and labelling it "expected-failure until A5 lands" was me picking a verdict that is not mine to pick. The tables below are the deliverable; the negative cases are stated as **open defects with an owner**, not as tolerated failures.
+- Verified against: lib/workflow-builder/types.ts (legacy WorkflowSchema), packages/contracts/src/manifest.ts + version.ts (rework BusinessManifest), internal/workflow-schemas/route.ts, docs/workflows/schema/route.ts, lib/workflow-builder/loader.ts + interpreter.ts + xml-converter.ts, app/api/v1/operations/[id]/resume/route.ts, orchestrator/src/server.ts, migrations/0001, modules/registry/registry.ts.
+
+#### Correction to my own earlier count
+
+My previous draft said "3 partial, 9 absent". Recount against the matrix I wrote: **3 partial (A1/A2/A8), 8 absent (A4, A5, A6-schema, A7, A9, A10, A11, A12), 1 present-but-different-domain (A3)** — 8+3+1 = 12. The earlier "9 absent" silently folded A3 (manifest authoring, which exists) into "absent". Corrected here; that one number in the section 1 table of reports/tester.md is superseded, nothing else in it is.
+
+#### F1 — schema migrated: submit → poll → result → HITL
+
+| Field | Legacy (file:line) | Rework (file:line) | Status |
+|---|---|---|---|
+| submit discriminator field | schemaSlug — docs/workflows/schema/route.ts:21 | no such route (schemaSlug = 0 matches in orchestrator/src) | **ABSENT** |
+| business-variable field | input (JSON string) — :42 | — | **ABSENT** |
+| file fields | normalizeFiles — :37 | — | **ABSENT** |
+| accept status | 202 — :100 | — | **ABSENT** |
+| Operation-Location header | :112 | — | **ABSENT** |
+| body name | :101 | — | **ABSENT** |
+| body done | :102 | — | **ABSENT** |
+| metadata.state | :104, hardcoded RUNNING | — | **ABSENT** |
+| metadata.workflow | :105, echoes schemaSlug | — | **ABSENT** |
+| metadata.progress_percent | :106 | — | **ABSENT** |
+| metadata.progress_message | :107 | — | **ABSENT** |
+| HITL wait state name | WAITING_USER_INPUT — workflow-engine.ts:257 | WAITING_INPUT — contracts/operations.ts | **DIVERGENT** (rename) |
+| resume request body | {step, extracted_data} — resume/route.ts:57-58 | {waitId, input, expectedStateVersion} — runtime.ts | **DIVERGENT** (legacy carries no waitId) |
+| resume response | {success, message} — resume:98 | {operationId,state,stateVersion,replayed,taskId}, 202/200 — server.ts:2099-2104 | **DIVERGENT** |
+| download url | /api/v1/operations/{id}/download — format.ts:73 | /api/v1/artifacts/{id}/download — server.ts:1977 | **DIVERGENT** (path) |
+
+**Net: 13 of 16 fields ABSENT, 4 divergent where rework has the primitive.** A legacy schema client has no migration target today — whole-surface build, not a shim.
+
+#### F2 — negative graph / validation
+
+| Check | Legacy (file:line) | Rework (file:line) | Status |
+|---|---|---|---|
+| schema is object | interpreter.ts:40 | manifest-validator.ts:46 (Zod) | **PRESENT** both |
+| id syntax | :41 truthy only | manifest.ts:54-56 regex ^[a-z][a-z0-9-]*$ | **DIVERGENT** (rework stricter) |
+| version format | version?: number — types.ts:173 | exact semver regex — manifest.ts:57-58 | **DIVERGENT** |
+| flow non-empty | :42 | no flow field | **ABSENT** (n/a) |
+| nodes array | :43 | no nodes field | **ABSENT** (n/a) |
+| duplicate node id | :51-52 | n/a | **ABSENT** (n/a) |
+| node-type allow-list | :54-59, 10 types | n/a | **ABSENT** (n/a) |
+| connector binding required | :61-63 | connectorSlots — manifest.ts:37, name.min(1) :15 | **DIVERGENT** |
+| flow ref resolves | :67-69 | n/a | **ABSENT** (n/a) |
+| **duplicate flow entry** | **not checked** — a flow naming the same id twice executes that node TWICE (:183-187 runs flow sequentially) | n/a | **DEFECT (legacy)** |
+| **orphan node** | **not checked** — accepted, then silently never runs (:183-185 filters it out) | n/a | **DEFECT (legacy)** |
+| **parallel/join pairing** | **not checked** | capabilities.parallel boolean only — manifest.ts:68-72 | **DEFECT (legacy)**; rework is a flag, not a graph |
+| **nesting depth bound** | **not checked** (no maxDepth anywhere in interpreter.ts) | SCHEMA_LIMITS.maxRefDepth=5 — version.ts:27 (JSON $ref only) | **DEFECT (legacy)**; partial rework bound |
+| **node/branch count bound** | **not checked** | maxProperties=200, maxManifestSchemaNodes=2000 — version.ts:30-31 | **DEFECT (legacy)**; rework bounded |
+| **serialized-size bound** | **not checked** | maxSchemaBytes=100000 — version.ts:25 | **DEFECT (legacy)**; rework bounded |
+
+**Correction to my own framing:** rework is **not** unbounded. SCHEMA_LIMITS (version.ts:24-32) already bounds bytes, $ref depth, properties and total schema nodes. Those four bounds have no legacy counterpart, so the legacy gaps are real — but the fix is largely "adopt the existing SCHEMA_LIMITS pattern", not invent one. The three **graph-shaped** gaps (duplicate flow, orphan node, parallel/join pairing) have no rework counterpart at all, because rework has no node graph.
+
+#### F3 — XML authoring / entity handling
+
+| Field | Legacy (file:line) | Rework | Status |
+|---|---|---|---|
+| XML authoring format | xmlToSchema — xml-converter.ts:13; used at internal/workflow-schemas/route.ts:36-38 | none | **ABSENT** |
+| parser + options | fast-xml-parser **5.11.1**, only ignoreAttributes + attributeNamePrefix — :7 | n/a | — |
+| external-entity resolution | no DTD fetch path in a pure-JS parser; no processEntities option set | n/a | **not applicable** (classic XXE) |
+| input size / element-count bound before parse | **not checked** — String(body.xml), no limit | maxSchemaBytes, if the same shape were adopted | **DEFECT (legacy)** |
+| canonical form | JSON canonical, XML convenience — xml-converter.ts:3-4 | JSON only | **PRESENT** |
+
+**Stated limit of my own claim:** I verified the dependency, its installed version and the constructor options. I did **not** execute a DTD-internal-subset / entity-expansion test, so I assert no entity-expansion behaviour for v5.11.1. The residual real risk here is resource exhaustion, not disclosure.
+
+#### F4 — versioning and rollback
+
+| Field | Legacy (file:line) | Rework (file:line) | Status |
+|---|---|---|---|
+| store | appSettings key wb_schema:slug — loader.ts:10,12 | business_versions — migrations/0001_platform_v1.sql:24 | **DIVERGENT** |
+| write semantics | upsert in place, onConflictDoUpdate — loader.ts:17 | INSERT + digest guard — registry.ts:94-96 | **DIVERGENT** |
+| version history | **ABSENT** | version column | **ABSENT legacy / PRESENT rework** |
+| immutability | **ABSENT** — overwrite silently | MANIFEST_DIGEST_MISMATCH — registry.ts:74 | **DIVERGENT** |
+| rollback target | **NONE** — nothing to restore | new version string | **ABSENT legacy** |
+| delete | deleteSchema — loader.ts:35 (no existence check) | none (method === DELETE → 0 matches) | **ABSENT rework** |
+| per-node override edit | internal/workflow-schemas/override/route.ts PUT — read-modify-write, **no CAS** | none | **ABSENT rework** |
+
+**Reading:** legacy cannot roll back at all — an overwrite destroys the prior version. Rework can roll back but has no delete. Neither side is complete; they are complete in different places.
+
+#### F5 — authz on the schema surface
+
+| Field | Legacy (file:line) | Rework | Status |
+|---|---|---|---|
+| key source | **request body** — form.get(apiKeyId) — docs/workflows/schema/route.ts:59 | transport-resolved resolveApiKey(ctx) — server.ts:1832 | **DIVERGENT** (rework correct) |
+| admin-key fallback | **oldest ADMIN key** — :77 | none | **ABSENT rework** (correct) |
+| tenant fence | via the key row | tenantId + SQL predicate | **DIVERGENT** |
+| unexpected-error body | raw err.message — :112 | typed HttpError → problem+json | **DIVERGENT** (rework correct) |
+| slug → routing key | unvalidated, interpolated — :56 | validateManifest + digest | **DIVERGENT** |
+
+#### §5-vs-§3 CONFLICT — raised as a QUESTION for COMP-00, not decided here
+
+My two earlier sections pointed in opposite directions and I resolved neither. Stating it as questions:
+
+- **Q1 — scope of the hardening clause.** The compat plan says do not reproduce legacy **security** bugs. Is lax schema validation a security bug (→ tighten, declare the divergence) or a wire behavior (→ accept for parity)? F2's three graph gaps fall exactly on this line and I have **not** picked a side.
+- **Q2 — who owns the three graph gaps.** Duplicate-flow double execution, orphan-node silent skip and unpaired parallel/join are defects with **no rework counterpart**, because rework has no node graph. In scope for the schema-business build, or explicitly out with the double-execution cost consequence documented for anyone who authors such a schema?
+- **Q3 — rollback semantics.** Legacy has no rollback at all. Is "cannot roll back" a behaviour to reproduce, or a capability gap to close on the rework side before cutover?
+- **Q4 — the F5 defects are not really in question.** Body-selected identity and admin-key fallback are forbidden by the plan's own wording, so I treated them as do-not-port rather than as parity questions. If COMP-00 disagrees, that moves F5 and nothing else in this section.
+
+If "5-vs-3" meant a different pair of sections than §5 and §3 of my J05 draft, name which and I will re-cut it — I am not guessing at a second reading.
+
+#### Limits held
+
+- No gate ticked, no contract frozen, no acceptance claimed, nothing executed, no server started.
+- Not reported as authoring capability: human_waits / resumeOperation (HITL **runtime**) and registerVersion (**manifest** domain — a list of actions, no node graph, no flow).
+- Single reusable asset found: the business_versions version + digest-immutability pattern (registry.ts:61-96) and SCHEMA_LIMITS (version.ts:24-32) a
+
+## 56 — CYCLE 56: COMP-01a INPUT — PER-VARIANT FIELD MATRIX (task_comp01a_field_matrix)
+
+> **READ-ONLY.** Khong sua gi, khong chay test, khong tick gate, khong doi dong COMP. **KHONG QUET DINH** —
+> day la input cho COMP-03a. Muc 55 da thuoc lane khac, nen Muc nay la 56.
+
+#### QUY TAC DEM (da tuan thu, va noi ro)
+Dem **theo QUOTED KEY**, khong theo loose substring. `id-card`, `fact-check`, `summarize-eval` la quoted key;
+mot regex bo sot chung se dem catalog thanh 28 — loi da biet.
+
+| phia | ket qua dem quoted-key |
+|---|---|
+| `lib/endpoints/registry.ts` subCases, 6 service tai lieu | **31** |
+| `compat/legacy-wire-decoders.ts:32-39` VARIANTS | **31** (4+6+7+5+6+3) |
+| `document-core.manifest.ts` enum cua discriminator | **28** (4+5+5+5+6+3) |
+
+**31 va 31 khop nhau** ⇒ bang duoi la catalog **day du**, khong phai 28 rut gon.
+
+#### (1)+(2) BANG 31 DONG
+disc = ten field chon sub-case, kem file:line trong `registry.ts`.
+
+| # | service | sub-case | disc @line | field nhan | manifest |
+|---|---|---|---|---|---|
+| 1 | ingest | parse | `mode` @76 | output_format, language | YES .manifest.ts:35 |
+| 2 | ingest | ocr | `mode` @84 | language | YES .manifest.ts:35 |
+| 3 | ingest | digitize | `mode` @92 | *(khong co)* | YES .manifest.ts:35 |
+| 4 | ingest | split | `mode` @100 | pages | YES .manifest.ts:35 |
+| 5 | extract | invoice | `type` @118 | *(khong co)* | YES .manifest.ts:79 |
+| 6 | extract | contract | `type` @126 | *(khong co)* | YES .manifest.ts:79 |
+| 7 | extract | **id-card** | `type` @134 | *(khong co)* | **NO** — normalizer:99 **TU CHOI** |
+| 8 | extract | receipt | `type` @142 | *(khong co)* | YES .manifest.ts:79 |
+| 9 | extract | table | `type` @150 | *(khong co)* | YES .manifest.ts:79 |
+| 10 | extract | custom | `type` @158 | fields, schema | YES .manifest.ts:79 |
+| 11 | analyze | classify | `task` @177 | categories | YES .manifest.ts:112 |
+| 12 | analyze | sentiment | `task` @186 | *(khong co)* | YES .manifest.ts:112 |
+| 13 | analyze | compliance | `task` @194 | criteria | YES .manifest.ts:112 |
+| 14 | analyze | **fact-check** | `task` @203 | reference_data, extract_fields | **NO** — normalizer:149 **TU CHOI** |
+| 15 | analyze | quality | `task` @212 | criteria | YES .manifest.ts:112 |
+| 16 | analyze | risk | `task` @220 | *(khong co)* | YES .manifest.ts:112 |
+| 17 | analyze | **summarize-eval** | `task` @228 | *(khong co)* | **NO** — normalizer:149 **TU CHOI** |
+| 18 | transform | convert | `action` @244 | output_format | YES (disc `variant`) |
+| 19 | transform | translate | `action` @252 | *(khong co)* | YES |
+| 20 | transform | rewrite | `action` @258 | style, tone | YES |
+| 21 | transform | redact | `action` @266 | *(khong co)* | YES |
+| 22 | transform | template | `action` @272 | template | YES |
+| 23 | generate | summary | `task` @290 | *(khong co)* | YES .manifest.ts:181 |
+| 24 | generate | outline | `task` @296 | format | YES .manifest.ts:181 |
+| 25 | generate | report | `task` @304 | *(khong co)* | YES .manifest.ts:181 |
+| 26 | generate | email | `task` @310 | tone | YES .manifest.ts:181 |
+| 27 | generate | minutes | `task` @318 | format | YES .manifest.ts:181 |
+| 28 | generate | qa | `task` @326 | questions | YES .manifest.ts:181 |
+| 29 | compare | diff | `mode` @344 | output_format | YES .manifest.ts:216 |
+| 30 | compare | semantic | `mode` @352 | focus | YES .manifest.ts:216 |
+| 31 | compare | version | `mode` @361 | output_format | YES .manifest.ts:216 |
+
+#### (4) DISCRIMINATOR — ban doan sai HAI cho
+| service | ban doan | thuc te | file:line |
+|---|---|---|---|
+| ingest | mode | mode | registry.ts:74 |
+| extract | type | type | registry.ts:116 |
+| analyze | task | task | registry.ts:175 |
+| transform | action | action | registry.ts:242 |
+| generate | mode | **task** | registry.ts:288 |
+| compare | process | **mode** | registry.ts:342 |
+| (workflows) | — | **process** | registry.ts:377 — service thu 7, **NGOAI 31 dong** |
+
+Decoder dung y registry (`legacy-wire-decoders.ts:23-30`). **Bat doi lap thu ba:** manifest dung `variant`
+cho transform (`.manifest.ts:145`) trong khi registry + decoder dung `action`.
+
+#### (3) DELTA — field legacy KHONG co counterpart o rework (input cho COMP-03a, KHONG phai quyet dinh)
+Shape canonical submit: `packages/contracts/src/operations.ts:282-293` — `input: Record<string,unknown>`
+(bat buoc), `sourceUrl?`, `artifacts?[]`, `output?`, `callback?`, `clientReference?`, `.strict()`.
+
+| field legacy | legacy side | rework side | tinh trang |
+|---|---|---|---|
+| discriminator mode/type/task/action | registry.ts:74,116,175,242,288,342 | **khong co slot nao** | phai nam trong `input` untyped — compiler khong rang buoc |
+| 15 param duoc sub-case dung | registry.ts:39-63 | chi trong `input` untyped | **khong co schema co type** |
+| 7 param khai bao, khong sub-case nao dung | registry.ts:39-63 | — | xem ghi chu C |
+| `process` (workflows) | registry.ts:377 | **khong co** o `LEGACY_CORE_ACTIONS:12-19` hay manifest `handlerKinds:19` | **NGOAI 31 dong** |
+
+**Ghi chu C:** 22 param duoc khai, chi **15** duoc sub-case tham chieu. 7 bi bo qua:
+target_language, glossary, redact_patterns, max_words, audience, focus_areas, va `type` (la discriminator).
+Dang chu y: `transform/translate` khai **khong co param nao** (`registry.ts:252`) trong khi `target_language`
+va `glossary` ton tai trong PARAMS nhung khong gan sub-case nao. Chi **ghi nhan**.
+
+**Ghi chu D — diem COMP-03a se phai noi:** `input-normalizer.ts:103` doc
+`raw.artifactIds ?? raw.artifact_ids ?? raw.file_ids`, nen tang decoder chi nhan camelCase se lam phan
+legacy rot.
+
+#### RANH GIOI / HARD CHECKS
+- **READ-ONLY**, khong tick gate, khong doi dong COMP.
+- **Dem theo QUOTED KEY** va da noi ro quy tac o dau Muc nay.
+- **KHONG** de xuat them 3 variant vao manifest; **KHONG** de xuat sua `input-normalizer` (verdict cua
+  COMP-00, owner cua COMP-09).
+- **KHONG** trinh bay 31-vs-28 nhu mot quyet dinh; day la quan sat catalog.
+- Verify `server.ts` `22afb2ff` va `contracts/src/public-api.ts` `d6017b79` **con nguyen**.
+
+## 57 — CYCLE 57: RV01-01 RECEIPT — BOOTSTRAP PRODUCTION ENCRYPTION (BOOTSTRAP **CHUA LAND**)
+
+`task_5d8e2194b39d` / RV01-01 · lease `src/main.ts` + `src/server.ts` · khong commit, khong tick gate.
+
+#### 1. KET LUAN THANG: **0 DONG PRODUCTION CODE DA VIET.** Toi DUNG, khong bao xanh gia.
+Ly do: ADR-18 ghi **"(ENC-00, partial)"**; `docs/15-decisions.md:24` cot status ghi *"Chi freeze sau khi ky
+**response wire, key-policy timing, crypto profile/test vectors, upload protocol**"*; `APP-ENCRYPTION:16` ghi
+ENC-00 con `[~]` va *"Khong dispatch crypto wire implementation khi chua freeze"*. Key-policy timing +
+upload protocol trung thang pham vi RV01-01. Sau do coordinator (17:15) **GO da go blocker** va cap phep
+bounded bootstrap — xem muc 4. Toi van chua vi, va ly do o muc 5.
+
+#### 2. TRANG THAI FILE LEASE (da xac minh bang sha256[0:8])
+| file | sha | trang thai |
+|---|---|---|
+| `src/main.ts` | `bfbd87cf` | **khong doi 1 byte** — giu nguyen baseline +7/-1 cua lane khac |
+| `src/server.ts` | `22afb2ff` | `git diff` **rong** — single-integrator rule ton trong |
+
+Baseline cua lane khac trong `main.ts` (khong phai cua toi, khong revert, khong reformat):
+`adminShellCookieSecret`, `adminShellPort`, `adminShellHost`, `ORCHESTRATOR_PORT`, va khoi
+`if (app.adminShell)`. `server.ts` khong bao gio duoc cham trong cycle nay.
+
+#### 3. BASELINE DA CHAY (khong co code doi nen khong coi la acceptance)
+| lenh | cwd | exit | log | ghi chu |
+|---|---|---|---|---|
+| `pnpm --filter @du/orchestrator typecheck` | `services/orchestrator` | **0** | 115 B, 0 diagnostic | baseline |
+| `pnpm --filter @du/orchestrator lint` | `services/orchestrator` | **0** | 110 B, 0 diagnostic | baseline |
+
+**KHONG phai hai check doc lap:** `lint` chay **cung lenh** `tsc --noEmit` nhu `typecheck`, chi khac
+wrapper. Hai dong exit 0 nay la **mot** bang chung, khong phai hai.
+Toi **khong chay** suite orchestrator cho RV01-01: khong co 1 dong code nao doi, chay lenh do co
+tinh tao hieu ung "da dat acceptance".
+
+#### 4. BOUNDED BOOTSTRAP — KE HOACH (theo GO 17:15, CHUA VI)
+Mot bien env duy nhat, map 1:1 onto `VaultTransitProviderOptions`, **fail-closed**:
+
+`DU_VAULT_TRANSIT_OPTIONS` (JSON) → `{ vaultAddress, allowedKeyRefs, transitMount?, requestTimeoutMs? }`.
+- **THIEU / sai JSON / thieu truong bat buoc** → **boot that** bang error ro rang, KHONG fallback plaintext.
+- Chi kiem tra khi `ARTIFACT_STORAGE_BACKEND=vault` **hoac** bat ky khoi encryption nao duoc bat.
+- `encryptIdentity/decryptIdentity/rewrapIdentity` **KHONG** di trong JSON: chung la `{ token: () => string }`
+  (thunk, `vault-transit-provider.ts:37-39`) — do `main.ts` tu dong cap, **khong** dua secret vao env.
+- Sau do: `VaultTransitProvider` → `KeyProvider` → `cryptoConfig` + `publicUploadEncryption` +
+  `metadataEncryption` + `deliveryEncryption`. **Chi `main.ts`**; `server.ts` de integrator.
+- KHONG tao nhieu config surface canh tranh nhau.
+
+#### 4b. OPEN QUESTIONS cho ENC-00 sign-off (de dua, KHONG tu quyet)
+1. **Ten bien** `DU_VAULT_TRANSIT_OPTIONS` — dat hay `DU_VAULT_TRANSIT` / `ORCHESTRATOR_VAULT_*`?
+2. **Token lay tu dau**: `VAULT_TOKEN` env? `VAULT_AGENT_ADDR` + `VAULT_TOKEN_FILE`? file mount
+   `/run/secrets`? Hien `token: () => string` de ho — **ai** thuc su nap gia tri, **vao luc nao**.
+3. **Refresh/TTL**: token `thu` het han thi re-read hay bao loi? `requestTimeoutMs` mac dinh bao nhieu?
+4. **`allowedKeyRefs`** lay tu `VAULT_TRANSIT_KEY` (don) hay nhieu? Co nen tach `metadata`/`artifact`?
+5. **Khoa DEK/KEK rotation** va `keyVersion` — ai so `KeyProvider` khi key bi revoke?
+
+#### 5. ACCEPTANCE — BAO CAO TRUNG THUC
+| # | dong acceptance | verdict |
+|---|---|---|
+| 1 | Ledger 54/56 repair | **PROVED** — 55 rows, `last3=[53,54,56]`, `dups=[]`, `hasCR=false`, `row56len=2521` |
+| 2 | `typecheck` exit 0 | **PROVED** (115 B, 0 diagnostic) |
+| 3 | `lint` exit 0 | **PROVED** nhưng **KHONG doc lap** voi #2 — cung `tsc --noEmit` |
+| 4 | Image sach + S3 that + Vault that: PUT ra ciphertext + manifest xac thuc | **BLOCKED: needs DB window claim from coordinator** |
+| 5 | Byte-scan: `bytes.equals(ciphertext)=false`, khong con plaintext | **BLOCKED: needs DB window claim from coordinator** |
+| 6 | Decrypt bang private key **ben ngoai** (khong dung code repo) | **BLOCKED: needs DB window claim from coordinator** |
+| 7 | Negative boot matrix (thieu env / sai JSON / thieu truong → fail-closed) | **BLOCKED: needs DB window claim from coordinator** |
+| 8 | `main.ts` doc wiring that o production boot | **NOT LANDED** — 0 dong, xem muc 1 |
+
+`createApp` unit fixture **KHONG phai acceptance** cho packet nay — packet tu noi ro. Wire trong fixture
+khong chung minh `main.ts` doc config. Cac dong 4–7 **can** instance that; unit khong the.
+DB window da duoc user cap **manual** tai terminal nay, namespace `du_test_rv0101_*` — **rieng**,
+khong dung PG :5433 default hay prefix cua lane khac. **Chua dung den** (0 lenh DB da chay).
+
+#### 6. LAM CHUA / GIOI HAN
+- **0 dong production code.** Khong commit, khong tick gate (ENC-04 **NO-GO**), khong sua `tasks/*.md`,
+  khong message `nocobase-10`, khong doc `packages/contracts` / `worker-sdk` / `modules/artifacts/**`
+  / `modules/encryption/**` de sua.
+- Ledger 54/56: **da repair + verify bang lenh, khong tin bang mat**. Row 53 dung byte-for-byte voi
+  source (3121 B) ⇒ no **chua bao gio hong**; mo ta "110 chars reflow" cua coordinator la trang thai
+  trung gian da duoc toi sua truoc do.
+- **Tu sua 1 lan cycle nay:** file bi append rac `"re both already correct and should be reused rather
+  than reinvented"` vao cuoi dong cuoi Section 56, ngay sau `**con nguyen**.` — khong co space sau
+  cham, lam cau Vietnamese vo nghia va **chen mot khang dinh khong co bang chung** vao muc READ-ONLY.
+  Da xoa fragment, giu nguyen phan `**con nguyen**.` cua dong do. Day la report cua toi nen toi tu sua.
+
+## 58 — CYCLE 58: DB WINDOW DA DUOC CAP — CHAY ACCEPTANCE 4–7, VA CHUNG **VAN KHONG CHAY DUOC**
+
+DB window 18:30 (`du_test_rv0101_*`) da duoc cap. **Toi da dung phan namespace duoc cap, va toi
+KHONG chay duoc acceptance 4–7.** Hai blocker doc lap, ca hai do bang chung may, khong phan doan.
+
+#### A. BLOCKER 1 — **CO CODE DUOI TEST KHONG TON TAI** (manh hon blocker ha tang)
+Acceptance 4–7 do chinh **item #8** (`main.ts` doc wiring that o production boot), va #8 da duoc
+coordinator **de lai cho RV01-02**. Khong co #8 thi 4–7 khong co gi de chay. Bang chung:
+| truy van | ket qua |
+|---|---|
+| grep `vault\|crypto\|CRYPTO\|ENCRYPTION\|DU_VAULT` trong `src/main.ts` | **0 match** |
+| grep `DU_VAULT_TRANSIT_OPTIONS` toan repo | chi 5 match, **tat ca trong coordination/*.md + report cua toi** — 0 trong source |
+| grep `new VaultTransitProvider\|createVaultTransit` trong `src/` | **0 construction site** — chi `vault-transit-provider.ts:191` khai bao constructor |
+
+⇒ `VaultTransitProvider` la **dead code**: co class, co typed options, **khong ai bao gio construct**.
+Chay 4–7 bay gio = do loi cua code khong ton tai va ghi "PASS". Toi khong lam do.
+
+#### B. BLOCKER 2 — HANG THIET BI S3 + VAULT **KHONG TON TAI** o env nay
+`docker ps`: du-rework chi co `du-rework-postgres` (:5433) + `du-rework-redis` (:6380).
+TCP probe 127.0.0.1: **9000 / 8200 / 8201 / 9001 → `ECONNREFUSED`** ca 4.
+grep `minio\|s3\|vault\|hashicorp` trong `infra/docker-compose.yml` → **0 match** (compose chi
+postgres:16-alpine + redis:7-alpine). Khong co instance nao de PUT ciphertext, byte-scan hay
+decrypt ngoai repo. **Thieu ha tang, KHONG phai thieu ngu luc.**
+
+#### C. PHAN NAMESPACE DA DUNG (dung, khong pham vi)
+```
+psql -U du -d postgres -c "CREATE DATABASE du_test_rv0101_enc;"   → CREATE DATABASE
+```
+Xac minh `SELECT datname WHERE datname LIKE 'du%'` → `du_orchestrator`, `du_orchestrator_test`,
+`du_test_rv0101_enc` (cua toi), `du_test_rv0103_enc` (lane khac — **khong cham**).
+Dung rieng: khong `FLUSHDB`, khong `DROP`, khong `TRUNCATE` DB/prefix nao cua lane khac, khong
+dung PG :5433 default. **0 lenh destructive.** Namespace nay da san cho #8/RV01-02.
+
+#### D. PHAT HIEN FAIL-OPEN — `server.ts:521-527` (doc `main.ts`, **CHUA CHINH SUA**)
+```ts
+// MM-05: ... Optional on purpose: with no metadataEncryption config this is
+// undefined and every control-plane column keeps its pre-delta plaintext behaviour.
+const metadataCrypto = config.metadataEncryption ? createMetadataCrypto(...) : undefined;
+```
+⇒ `main.ts` hien goi `createApp` **khong truyen `metadataEncryption`** ⇒ `metadataCrypto ===
+undefined` ⇒ **moi control-plane column van luu PLAINTEXT, im lang, khong canh bao.** Day la
+dung fail-open ma RV01-01 sinh ra de dong, va no **van dang mo**. Tuong tu `publicUploadEncryption`
+(`server.ts:557-558`) chi khoi dong `CryptoStorageFacade` khi co config. Ghi chu o day khong phai
+de chung minh #8 da xong — **nguoc lai**, no la ly do #8 phai lam.
+
+#### E. VERDICT ACCEPTANCE 4–7 — VERBATIM
+| # | dong | verdict |
+|---|---|---|
+| 4 | PUT ciphertext + manifest xac thuc | **BLOCKED: needs DB window claim from coordinator** → window DA cap, van BLOCKED: **thieu ca code (A) va thieu S3/Vault (B)** |
+| 5 | byte-scan `bytes.equals(ciphertext)=false` | **BLOCKED** — cung (A)+(B) |
+| 6 | decrypt bang private key ben ngoai | **BLOCKED** — cung (A)+(B) |
+| 7 | negative boot matrix (thieu env / sai JSON / thieu truong) | **BLOCKED** — (A) la dung: khong co parser env→options nen khong co gi de fail-closed; (B) can Vault that de chung minh reject vi chua toi |
+
+#### F. TU SUA KE HOACH — MOT BUG TRONG CHINH MUC 57 (da doc lai main.ts, dung lai)
+Muc 4 ke hoach viet *"chi kiem tra khi ARTIFACT_STORAGE_BACKEND=vault"*. **SAI.** `main.ts:81`
+`if (backend !== 's3') throw new Error('ARTIFACT_STORAGE_BACKEND must be postgres or s3')` —
+chi **`postgres` va `s3`**; `vault` khong bao gio la gia tri hop le. Dieu kien do **khong the bao gio
+chay**, va neu dua vao code thi bootstrap fail-closed se bao loi sai nguyên nhan (bao loi storage
+thay vi bao loi encryption). Trigger dung: `ARTIFACT_STORAGE_BACKEND=s3` **HOAC** bat ky khoi
+encryption nao duoc bat. **Da doc lai main.ts de sua, khong sua tu trong nho.**
+
+#### G. DE XIN — THU TU, VA REMEDIATION
+1. **Sua thu tu:** #8 (wiring main.ts) phai LAND truoc, 4–7 moi co nghia. Chay 4–7 truoc #8 la
+   do loi cho mot cai chua ton tai. Toi de xin #8 ve cung lane nay ngay (namespace DB da san).
+2. **Ha tang** de 4–7 chay that: **mot container MinIO** + bucket + creds (`:9000`), va **mot Vault
+   dev server** (`:8200`). Toi **khong tu them** — ha tang dung chung, thuoc coordinator.
+3. Row 7 (negative boot matrix) **co the chay offline** ngay khi #8 co parser: assert `main.ts`
+   throw cu thong diep ro rang khi thieu env / sai JSON / thieu truong, va assert **khong co**
+   fallback plaintext. Day la dong duy nhat trong 4–7 **khong can** S3/Vault that.
+
+#### H. GIOI HAN
+0 dong production code. `main.ts` `bfbd87cf`, `server.ts` `22afb2ff` — **khong doi 1 byte**.
+Khong commit, khong tick gate (ENC-04 **NO-GO**), khong sua `tasks/*.md`, khong message
+`nocobase-10`. DB: 1 `CREATE DATABASE` trong namespace rieng, 0 destructive. **Window duoc cap
+khong du de dat 4–7 — ly do ky thuat nam o (A) va (B), khong phai thieu ngu luc.**
+
+## 59 — CYCLE 59: RV01-02 #8 — WIRING main.ts TRUYEN ENCRYPTION VAO createApp (FAIL-CLOSED)
+
+**ROW 7 XANH OFFLINE.** #8 da LAND. Cycle dau tien tinh ra production code cho lane nay ke tu Muc 52.
+
+#### 1. FILE DA DONG (chi trong lease)
+| file | sha256[0:8] | trang thai |
+|---|---|---|
+| `src/modules/encryption/boot-options.ts` (MOI) | `09a14e2a` | parser thuan, 0 I/O |
+| `tests/encryption-boot-options.test.ts` (MOI) | `9cfdc08b` | 29 test |
+| `src/main.ts` | `65d9d36b` | **+22/-1** = +7/-1 cua lane khac (nguyen ven) + **+15 cua toi** |
+| `src/server.ts` | `22afb2ff` | **INVARIANT GIU NGUYEN**, 0 dong sua |
+
+`git diff -U0 main.ts` tach biet: 7 dong `adminShell*` + `ORCHESTRATOR_PORT` **van y nguyen**; phan
+cua toi chi la `import buildEncryptionBootOptions`, binding `encryptionBoot`, 1 `logger.info`,
+va `...encryptionBoot`. **KHONG revert/format/don** phan cua lane khac.
+
+#### 2. FAIL-OPEN DA DONG — bang chung doc tu source
+`server.ts:521-527` (Muc 58 muc D) ghi nguyen: *"with no metadataEncryption config this is undefined
+and every control-plane column keeps its pre-delta plaintext behaviour"*. `main.ts` **truoc** RV01-02
+goi `createApp` khong truyen block nao. Sau RV01-02, khi `ARTIFACT_STORAGE_BACKEND=s3` hoac flag bat,
+`main.ts` truyen ca `metadataEncryption` + `publicUploadEncryption` + `cryptoConfig`. Het duong
+fail-open.
+
+#### 3. THIET KE — MOT BIEN JSON, TOKEN KHONG NAM TRONG JSON
+- `DU_VAULT_TRANSIT_OPTIONS` (JSON) map 1:1 onto `VaultTransitProviderOptions`:
+  `vaultAddress` (bat buoc), `allowedKeyRefs` (bat buoc, `<ref> -> transit key name`),
+  `transitMount?`, `requestTimeoutMs?`, `metadataKeyRef?`, `publicUploadKeyRef?`,
+  `publicUploadKeyVersion?`, `publicUploadMaxBytes?`.
+- **Token KHONG nam trong JSON**: `DU_VAULT_TRANSIT_ENC_TOKEN` / `DU_VAULT_TRANSIT_DEC_TOKEN`.
+  `VaultTransitIdentity.token` la **thunk** (`vault-transit-provider.ts:37-39`) nen token duoc
+  doc lai **moi request**, khong dong bang trong process config luc boot.
+- **Hai identity phai khac nhau**: `VaultTransitProvider` constructor (:195-200) **tu reject** khi
+  `encryptIdentity === decryptIdentity` **hoac** `token === token`. Parser tach 2 bien va reject
+  khi gia tri trung nhau — vi duoc bao ve bang 1 test rieng.
+- Flag: `DU_ENCRYPTION_METADATA_ENABLED`, `DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED`, **strict boolean**
+  (`true`/`false`; gia tri khac ⇒ boot fail, KHONG co `if (raw) = true` doan im lang).
+- **`vault` KHONG BAO GIO la backend**: reject rieng `ARTIFACT_STORAGE_BACKEND=vault` va **chi ra
+  `DU_VAULT_TRANSIT_OPTIONS`** la noi dung de cau hinh, de khong ai ngh `vault` la mot storage backend.
+- Boot khong duoc bao `postgres` + tat ca flag off — truong hop do **tra `null`**, va `null` chi
+  duoc phep khi `createApp` bo qua het cac block (khong phai fallback plaintext duoi encryption).
+
+#### 4. ACCEPTANCE ROW 7 — CHAY OFFLINE, EXIT 0
+```
+npx jest --runInBand --config jest.unit.config.cjs tests/encryption-boot-options.test.ts
+=> Test Suites: 1 passed, 1 total / Tests: 29 passed, 29 total
+```
+Khong dung S3, khong dung Vault, **khong mo socket** — constructor `VaultTransitProvider` chi validate.
+29 case gom 5 POSITIVE + **24 NEGATIVE**, nhom case am:
+(a) thieu surface het — thieu `DU_VAULT_TRANSIT_OPTIONS`, thieu token encrypt, thieu token decrypt,
+token rong, thieu `metadataKeyRef`;
+(b) JSON hong — khong parse duoc, JSON array, JSON string;
+(c) thieu/sai field — thieu `vaultAddress`, thieu `allowedKeyRefs`, allowlist rong, key name khong
+phai string, keyRef ngoai allowlist, `requestTimeoutMs` ngoai khoang, flag boolean sai, token encrypt
+== token decrypt;
+(d) `vault` khong phai backend — `vault` bi tu choi, `vault` bi tu choi **ke ca khi surface Vault hop
+le**, backend la (`gcs`) bi tu choi;
+(e) client Vault tu choi — `http://` non-loopback, URL khong hop le, `transitMount` khong phai mot
+path segment an toan.
+
+#### 5. MUTATION — 3 lan, ca 3 LAN BIT (29 xanh khong phai bang chung gia)
+Khong tin "29/29 xanh" la bang chung. Da lam vo tung muc tieu va doc ket qua:
+| # | mutation | ket qua | doc nghia |
+|---|---|---|---|
+| M1 | `const s3 = backend === 's3' && false` (lam no trigger s3) | **22/29 FAIL** | suite that su bat su yeu trigger s3 |
+| M2 | thay `throw` bang `return { config: null }` khi thieu surface (fail-OPEN) | **3/29 FAIL** | suite that bat duoc su thoat sang plaintext |
+| M3 | `backend === 'vault' && false` (bo guard `vault`) | **2/29 FAIL** | ca 2 case `vault` bi bat |
+
+Ca 3 revert, chay lai **29/29 xanh** x3. **Khong dung `x + 0` hay `&& false` lam mutation gia** — M1
+dung `&& false` co `!== true` bao dam no doi hanh vi va TS van bien dich duoc.
+
+#### 6. REGRESSION — 16 FAIL LA PRE-EXISTING, DA CHUNG MINH BANG A/B KHONG PHAI DOAN
+Full unit: `Test Suites: 5 failed, 2 skipped, 112 passed` / `Tests: 16 failed, 29 skipped, 3963 passed, 4008 total`.
+16 fail deu o admin-shell / OIDC / SEC — **khong suite nao cham encryption**. A/B:
+```
+git stash push -- .../src/main.ts   (chi stash file cua toi)
+npx jest admin-shell oidc security-log  => Tests: 6 failed, 10 skipped, 486 passed, 502 total
+git stash pop
+npx jest admin-shell oidc security-log  => Tests: 6 failed, 10 skipped, 486 passed, 502 total
+```
+**Bang y het** co va khong co thay doi cua toi ⇒ pre-existing, khong phai regression. `stash pop` da
+khoi phuc `main.ts` byte-identical va **giu nguyen +7/-1 cua lane khac** (da verify lai bang sha +
+`git diff -U0`). Luu y: lenh `git stash push` lay ca baseline chua commit cua lane khac di theo —
+da pop ngay lap tuc va xac minh, khong de lai thay doi nao cua lane khac.
+
+#### 7. TYPECHECK
+```
+npx tsc --noEmit -p tsconfig.json   => exit 0, log rong
+```
+**BA BAI DANG DAU**: lan 1 `?? {}` lam widen type thanh `{}` ⇒ 4 loi TS2339 (`metadataEncryption`
+/ `publicUploadEncryption` khong ton tai tren `{}`); sua bang `const encryptionBoot:
+Partial<EncryptionBootOptions>`. **Boi cam bao** `pnpm --filter ... typecheck` in `EXIT=0`
+trong khi log Noi `Exit status 2` — phai doc **log**, dung tin wrapper. Lay exit that bang `npx tsc`
+truc tiep.
+
+#### 8. MUTATION-TEST DISCOVERY — MOT BUG THAT SUA TAI CHO
+Test "rejects a keyRef that is not in the allowlist" **FAIL o test dau tien** (Expected `metadata`,
+Received `undefined`). Khong phai typo: bo **2 ban sao** cua phep tinh `s3` da ** lech nhau** — validator
+tinh `metadataEnabled = flag || s3` (da sua) nhung `buildEncryptionBootOptions` van tinh
+`metadataEnabled = flag` ⇒ validator **doi** `metadataKeyRef` nhung block **khong duoc sinh ra**.
+Dung `&& false` de vo `s3` se lam fail 22/29 chu khong phai 1 — **mutation giup tach loi khoi test
+rac**: 1 test do la bug that cua code, 22 test do la bug cua *tinh hieu* cua mutation. Da gop ve **mot**
+`resolveEncryptionBoot()` tra `{ config, metadataEnabled, publicUploadEnabled }` de **khong con 2 noi
+tinh cung mot phep** — sua nguyen nhan, khong cat fragment.
+Mot test nua ("keyRef ngoai allowlist") cung fail `SAI LY DO* sau khi s3 bat ca hai block: no thieu
+`metadataKeyRef` nen chet truoc. Da them `metadataKeyRef` vao case do de no kiem **dung** loi allowlist.
+**Bai hoc: mot test fail bang thong diep KHAC ky vong = assertion dang do sai muc tieu, phai sua
+fixture truoc khi bao loi la code.**
+
+#### 9. CONG LAI / BLOCKER
+- **Row 7 XANH OFFLINE — PROVED.** 24 case am + 3 mutation bit + tsc exit 0.
+- **Rows 4–6 van OPEN** (khong phai do effort): thieu **MinIO** (:9000) + **Vault dev** (:8200) —
+  `ECONNREFUSED` ca 4, `infra/docker-compose.yml` khong define. **Chua dung den ha tang**; de xin
+  coordinator duyet 1 container MinIO + 1 Vault dev server de chay 4–6. **Toi khong tu them, khong
+  gian port lane khac.**
+- **OPEN QUESTIONS cho ENC-00** (tu Muc 57, chua co gi thay doi): 5 cau ve ten bien, token lay tu dau +
+  thoi diem nap, refresh/TTL + mac dinh timeout, `allowedKeyRefs` don hay nhieu, DEK/KEK rotation.
+  Bay gi token **da** re-read moi request qua thunk ⇒ cau so 2 **da duoc tra loi bang code**, 4 cau con lai.
+- **CHUA TICK GATE** (ENC-04 **NO-GO**), **CHUA COMMIT**, khong sua `tasks/*.md`, khong sua `AGENTS.md`,
+  khong message `nocobase-10`, khong chua `platform-mount`/OIDC/SEC fail (pre-existing, Muc 6).
+
+## 60 — CYCLE 60: RV01-04 — HANG TANG THAT MINIO + VAULT, ACCEPTANCE ROWS 4-6 **PASS**
+
+Row 7 xanh (Muc 59) thi reviewer da tu chay lai. Gioi han cua Muc 58 (B) **da duoc go**: du 2 container,
+bay gio rows 4-6 **CHAY THAT VA PASS**.
+
+#### 1. HANG TANG — LITERAL
+| thu | ket qua |
+|---|---|
+| kiem port truoc | TCP probe 127.0.0.1 9000/9001/8200/8201 — **ca 4 FREE (ECONNREFUSED)**, khong port nao bi lan |
+| MinIO | `docker run -d --name du-rv0104-minio -p 127.0.0.1:9000:9000 -p 127.0.0.1:9001:9001 -e MINIO_ROOT_USER=du_rv0104 -e MINIO_ROOT_PASSWORD=du-rv0104-test-only minio/minio:latest server /data --console-address ":9001"` — id `f5dab2b3bd2`, **Up** |
+| Vault | `docker run -d --name du-rv0104-vault -p 127.0.0.1:8200:8200 -e VAULT_DEV_ROOT_TOKEN_ID=du-rv0104-root-token -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 hashicorp/vault:latest` — **Up** (pull layer `72133771747d` tre ~15 phut truoc khi xong) |
+| bucket | `CreateBucketCommand('du-rv0104-enc')` qua `@aws-sdk/client-s3` — OK, HeadBucket 200 |
+| versioning | `PutBucketVersioningCommand({Status:'Enabled'})` — **Enabled**, bat buoc (muc 4.1) |
+| Vault mount | `sys/mounts/transit-rv0104 {type:transit}` — **mount rieng cua lane, KHONG dung `transit` chung** |
+| Vault keys | `transit-rv0104/keys/{du-metadata,du-artifact} {type:aes256-gcm96}` — `du-artifact latest_version=1` |
+| Vault policy | `sys/policy/du_test_rv0101_enc` (HCL) — 6 path: keys x2, **encrypt x2**, decrypt x2 |
+| Vault token | `auth/token/create` x2 — 2 token **KHAC NHAU**, chi quyen tren `transit-rv0104` |
+
+Docker Server 28.5.1. Khong dung port cua lane khac, khong kill container la, khong them gi vao
+`infra/docker-compose.yml` (compose la ha tang dung chung, thuoc coordinator).
+
+#### 2. ISOLATION
+- Bucket rieng `du-rv0104-enc`; Vault mount rieng `transit-rv0104`; key rieng; 2 token rieng; DB `du_test_rv0101_enc` (Muc 58).
+- Khong `FLUSHDB`/`DROP`/`TRUNCATE` thu gi cua lane khac. Khong cham `du_test_rv0103_enc`.
+
+#### 3. ROW 4/5/6 — LITERAL
+
+npx jest --runInBand --config jest.unit.config.cjs tests/rv0104-live-encryption.test.ts
+
+  v ROW 4 — object is ciphertext with a manifest holding a Vault-wrapped DEK (130 ms)
+  v ROW 5 — byte-scan: the stored bytes are not the plaintext (52 ms)
+  v ROW 6 — an independent Vault call unwraps the DEK and decrypts to the original plaintext (56 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+
+**ROW 4 PASS** — object `du-encrypted=aes-256-gcm-v1`, sidecar ton tai, manifest `version=1 kind=single`,
+AAD binding `tenantId/artifactId/objectVersion/purpose=public-artifact-upload` khop, va
+`encryption.dek.ciphertext` khop `/^vault:v[1-9][0-9]*:/` ⇒ **DEK that tu Vault, khong phai stub**.
+
+**ROW 5 PASS** — byte-scan 5 cach: `stored.equals(plain)=false`, `stored.includes(plain)=false`,
+khong chua sentinel ASCII, sha256 stored khac sha256 plaintext.
+
+**ROW 6 PASS (dong manh nhat)** — doc manifest tu bucket, **goi `POST /v1/transit-rv0104/decrypt/du-artifact`
+bang raw `fetch`** (khong dung provider/facade/gateway), lay DEK 32 byte, roi AES-256-GCM decrypt bang
+nonce + tag + AAD **lay chinh tu manifest** ⇒ **plaintext khoi lap byte-for-byte**. Khong code giai ma nao
+cua repo nam trong duong giai ma nay. DEK/AAD/tag sai ⇒ GCM tag fail.
+
+#### 4. BA DEFECT/SAI LAM CUA TOI — ghi la de khong ai sua nham sau
+1. **Versioning bat buoc.** MinIO tra `VersionId: undefined` neu bucket chua enable versioning, ma gateway
+   `upload-encryption-gateway.ts:521` **tu reject** `!versionId` ("storage did not return an immutable object
+   version"). Khong phai code bug — la **thieu cau hinh ha tang**. Da enable.
+2. **Policy Vault thieu `encrypt/...`.** Lan dau: `KEY_PROVIDER_FAILED — DEK could not be wrapped`. HCL cua toi
+   chi cap `keys/*` + `decrypt/*`, **thieu `encrypt/*`** ⇒ Vault tra **403 permission denied**. Root cause ca 3
+   test fail. Da them 2 path `encrypt/*`. **Bai hoc: `mapCryptoError` bien MOI loi thanh 503 `TEMPORARY_UNAVAILABLE`
+   ⇒ ton tai that bi giu; phai probe truc tiep.**
+3. **Manifest luu `dek` NESTED trong `encryption`, khong phai top-level.** Toi doan `manifest.dek` ⇒ undefined.
+   Doc source (`:611-626`) moi biet `storeAndVerifyManifest` bo wrapper `encryption`. **Khong sua code de chay cho
+   de — sua test cho dung.**
+4. Hai lan `Tests: 0 total` (TS18046 `unknown`, va `dek[0]` under noUncheckedIndexedAccess) — **khong tinh la
+   bang chung**, da viet lai cho bien dich duoc roi chay lai.
+
+#### 5. MUTATION — 2 lan, ca 2 BIT (3/3 xanh khong phai bang chung)
+| # | mutation | ket qua |
+|---|---|---|
+| M5 | row5 `stored.equals(plain)` → `true` | **chi ROW 5 FAIL** |
+| M6 | row6 flip 1 byte cua DEK (`dek.write(0)`) | **chi ROW 6 FAIL** |
+
+M5 khong lam row 6 fail, M6 khong lam row 5 fail ⇒ **3 row doc lap nhau, khong tranh nhau**. Da revert,
+chay lai **3/3 xanh**.
+
+#### 6. CONG LAI
+- **Rows 4, 5, 6: PROVED** tren ha tang that. Row 7 (Muc 59) van xanh offline. **4/6 dong acceptance cua
+  RV01-01 da dat bang bang chung may.** Con lai: **row 8** la production `main.ts` boot doc wiring — wiring
+  `#8` da LAND (Muc 59) nhung **chua co mot boot that cua `main.ts`**; can PG + Redis that + process thật.
+- **HA TANG CON LAI (OPEN, khong phai blocker):** minio + vault **khong persistent** — `docker rm` la mat.
+  Chay lai o may/CI khac ⇒ **UPSTREAM PULL** (MinIO ~2 phut, Vault **~15 phut** tren link nay). Khong ghi vao
+  compose vi compose la ha tang dung chung — de xin coordinator quyet dinh.
+- `server.ts` `22afb2ff` — **git diff RONG, invariant giu nguyen**. `main.ts` `65d9d36b` va `boot-options.ts`
+  `09a14e2a` **khong doi 1 byte** trong cycle nay (chi them 1 file test + infra).
+- **Khong tick gate (ENC-04 NO-GO), khong commit**, khong sua `tasks/*.md`/`AGENTS.md`/overlay, khong message
+  `nocobase-10`. **Test chuyen nghiep la EVIDENCE, khong phai blocker.**
+
+#### 7. DEV TEST ISOLATION — DA DON SACH (literal)
+Xoa het 49 object version + delete marker (`objects remaining: 0 / versions remaining: 0 / deleteMarkers: 0`),
+`DELETE sys/mounts/transit-rv0104 -> 204`, `DELETE sys/policy/du_test_rv0101_enc -> 204`,
+`remaining accessors: 0`, `docker rm -f du-rv0104-minio du-rv0104-vault`, va TCP probe sau khi xoa:
+**9000/9001/8200/8201 ca 4 FREE (ECONNREFUSED)**. KHONG dung gi cua lane khac — `du_test_rv0103_enc` nguyen
+ven, khong container la nao bi dung. DB `du_test_rv0101_enc` **giu nguyen** de dung lai cho row 8.

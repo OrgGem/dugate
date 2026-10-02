@@ -5944,7 +5944,580 @@ người đọc sẽ tưởng có kiểm tra tenant đang chạy.
 G-ADMIN-OPS **NO-GO**, G-SEC **NO-GO**, G-ENC / G6 **NO-GO**.
 Offline only, no commit/push.
 
+## 66 — TURN 344 — CYCLE 66
+
+**task_par00_classify** — hoàn tất phần **phân loại** của ORCH-PAR-00: mỗi Admin journey/legacy route vào
+**{cutover-required, post-cutover, retire}**, kèm replacement API / owner / fixture class.
+
+> **Ranh giới:** đây là **nghiên cứu**. `ORCH-PAR-00` **giữ nguyên `[ ]`** — acceptance thuộc Product/architect
+> và tôi không tick. **Không sửa source.** Mọi dòng dưới đây là **đề xuất để ký**, không phải quyết định.
+
+### 66.1 Đối chiếu thực tế (không lặp lại khẳng định của survey)
+
+`app/` nằm ở `D:/Git/dugate/app/` (**ngoài** `du-rework`). Tôi liệt kê thật: **46 `route.ts`**, trong đó
+**16 internal + 30 khác**; **44/46** có verb HTTP rõ ràng. Bảng dưới chỉ gom **Admin journey**; 9 route
+`/api/v1/docs/*` (analyze/compare/extract/generate/ingest/transform/workflows/schema) là **public product API của
+COMP**, không phải Admin journey — nêu ở 66.5 để không ai phân loại nhầm.
+
+### 66.2 Bảng phân loại (đề xuất để Product/architect ký)
+
+| ID | Admin journey | Legacy route (đã kiểm) | Replacement ở rework (đã kiểm) | **Phân loại** | Owner |
+|---|---|---|---|---|---|
+| J01 | Admin login / session | `internal/auth-key` GET · `auth/[...nextauth]` | `shell-router` admin-login POST/GET; `main.ts` OIDC/static bearer | **cutover-required** | LOCAL-00..06 |
+| J02 | API key issue/revoke/bind | `internal/apikeys` GET,PUT,POST,DELETE | `GET /api/v1/admin/api-keys` (`server.ts:2566` regex) · **mới: `apikey.issue`/`apikey.revoke`** qua `POST /api/v1/admin/actions` (`:2358`) | **cutover-required** | ORCH-PAR-01 (control plane **xong**) + Admin BFF (form) |
+| J03 | Profile policy / override | `internal/profile-endpoints` GET,POST · `test-profile-endpoint` POST · `user-profiles` GET,POST · `ext-overrides` GET,POST,DELETE | `apikey.bind-profile` (dispatcher) · `POST /api/v1/admin/profile-bindings` (`:2204`) | **cutover-required** | ORCH-PAR-02 + COMP-02/03 |
+| J04 | Connector / ext-connection | `internal/ext-connections` GET,POST · `[id]` PUT,DELETE · `[id]/test` POST | `connectors.rotate_credential`/`revoke_credential`/`test_credential` (dispatcher) — **chưa có** create/activate/retire proxy | **cutover-required** | ORCH-PAR-03 + SEC/Vault + Connector |
+| J05 | Workflow schema authoring | `internal/workflow-schemas` GET,POST,DELETE · `/override` PUT · `/pipeline-mappings` GET | **KHÔNG CÓ** — grep `workflow-schemas` trong rework `src/` = 0 match | **cutover-required** | ORCH-PAR-04 / P9-04 / COMP-09 |
+| J06 | Settings (AI/S3/cache/provider test) | `settings` GET,PUT · `settings/test` POST · `settings/s3-test` POST · `settings/cache` GET,DELETE | `crypto-config` GET/POST (`:2628`) là **mặt định dạng settings duy nhất**; global AI/S3/cache **không có** | **cutover-required** (xem 66.4 về phần UI) | ORCH-PAR-06 (crypto giữ gate G-ENC riêng) |
+| J07 | Analytics / dashboard time-series | `internal/analytics` GET | có usage rollup + overview section; **không có** time-series/drilldown tương đương | **post-cutover** | ORCH-PAR-07 |
+| J08 | Docs portal (Swagger) | `swagger` GET | **KHÔNG CÓ** — grep `swagger|/api/docs` trong rework `src/` = 0 match | **post-cutover** | ORCH-PAR-09 + COMP-11 |
+| J09 | Bull board / cleanup / recover-stalled | `cleanup` GET · `bull-board` · `recover-stalled` POST,GET | `operations.sweep-deadlines` + lifecycle reconciliation (đã có) | **retire** (raw board/cleanup) · recover-stalled **conditional** | ORCH-PAR-08 |
+| J10 | Prompt wizard / chat | `internal/prompt-wizard` POST · `chat` POST | không có, và **không nên** có provider call trong Orchestrator | **retire** hoặc tách client/demo app | Product |
+
+### 66.3 Một thay đổi thật so với survey: `PAR00-M01` đã **thu hẹp**
+
+Survey ghi M01 là *"dispatcher không có create/revoke"*. **Sau Mục 65 (chính tôi), control plane đã có** và **HTTP-reachable**
+qua `POST /api/v1/admin/actions`. Nhưng **journey trình duyệt vẫn hỏng**, và tôi đã kiểm để không báo nhầm:
+
+- Form vẫn POST `/admin/api-keys/new` (`api-key-section-renderer.ts:255`).
+- Trong `switch (matched.id)`, **chỉ** `admin-login` và `admin-crypto-config` xử lý POST; mọi match `section:` đi
+  thẳng vào `handleSectionGet` **bất kể method** (`shell-router.ts:1565-1568`).
+
+⇒ Phần còn thiếu **không còn là mutation**, mà là **form handler + bằng chứng HTTP/DB/audit** cho hành trình UI.
+Cảnh báo UI-action của survey **vẫn đúng, chưa được xử lý**.
+
+### 66.4 Fixture class cần cho từng family (COMP-00/01 cấp `consumerId`/`fixtureId` thật)
+
+> Theo survey, PAR-00 **không được đoán** consumer/fixture. Cột này chỉ ghi **lớp fixture cần chứng minh**,
+> `consumerId`/`fixtureId` chờ COMP-00/01 cấp.
+
+| ID | Fixture class bắt buộc để cutover |
+|---|---|
+| J01 | env-mode × 2 replica: session, RBAC, CSRF; chứng minh `ADMIN_TOKEN` **không** trở thành local identity |
+| J02 | create→DB(hash)→audit→revoke→**401**; raw key không xuất hiện ở response/audit/DB; idempotency replay |
+| J03 | canonical + legacy cùng một fixture; locked override → **400 legacy** vs canonical status theo contract; **no-write on deny**; pinned revision cũ |
+| J04 | standalone/container: create→activate→invoke; wrong tenant/account; rotate→revoke. **Không** coi in-process mock là deploy proof |
+| J05 | schema đã migrate: submit→poll/result/HITL; negative graph/XXE; rollback |
+| J06 | ma trận migrate **từng setting** (env/deploy ↔ profile ↔ connector revision ↔ Vault) + receipt rollback; không đọc lại raw secret |
+| J07 | chỉ cần nếu Product nâng lên required: fixture báo cáo/billing |
+| J08 | artifact OpenAPI đã freeze + migration guide (COMP-11 xuất bản trước cutover) |
+| J09 | runbook thay thế bull-board/cleanup, có receipt |
+
+### 66.5 Ranh giới không được vượt (chống phân loại nhầm)
+
+- **`/api/v1/docs/*` (9 route) + `/api/v1/billing/*` + `/api/v1/operations/*` + `/api/v1/services`** là **public
+  product/external wire của COMP** (theo `docs/02-architecture.md`), **không phải Admin journey** — PAR-00 không
+  phân loại chúng, và **không** hứa external route.
+- **`app/api/internal/*` không mặc định cần alias** trên rework: đã phân loại theo *capability*, không theo URL.
+- **Connector revision/secret thuộc Connector/Vault**; Orchestrator là proxy/binding owner — không nhân đôi credential store.
+
+### 66.6 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| Legacy inventory | **46** `route.ts` (16 internal + 30), **44** có verb — liệt kê bằng glob+grep, không lấy từ trí nhớ |
+| Rework route đã kiểm | `server.ts:1257,1273,1328,1776,2204,2315,2358,2399,2628,2719` |
+| Absence đã kiểm (không đoán) | `workflow-schemas` và `swagger|/api/docs` trong rework `src/` → **0 match** |
+| Mục 65 ảnh hưởng M01 | control plane **đã có**, form UI **vẫn hỏng** — kiểm ở `shell-router.ts:1565-1568` |
+| Sửa source | **không có** |
+| `ORCH-PAR-00` | **vẫn `[ ]`** — không tick |
+
+### 66.7 Điều cần khóa trước khi nâng trạng thái
+
+Bảng trên **chưa phải quyết định**. Ba việc chặn sign-off, theo đúng ranh giới survey đã đặt:
+
+1. **COMP-00/01** phải cấp `consumerId`/`fixtureId` và danh sách external consumer thật — tôi **không đoán**.
+2. **LOCAL-00..06** (J01) là tiền đề: chưa có local identity thì J02..J09 không có actor để ký.
+3. **Gates vẫn NO-GO**: `G-COMP`, `G-ADMIN-OPS`, `G-LOCAL-ADMIN`, `G-SEC`, `G-DATA`, `G-ENC`, `G6`.
+
+Thứ tự đề xuất giữ nguyên: PAR-00 sign-off + COMP-00/01 IDs → LOCAL session/RBAC + secure key provisioning →
+profile policy/Connector binding → schema import/publish (P9) → COMP legacy fixtures → Admin J01..J10 integration cùng build.
+
+### 66.8 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, G-COMP / G-LOCAL-ADMIN / G-SEC / G-DATA / G-ENC / G6 **NO-GO**.
+Nghiên cứu, không sửa source, không tick PAR-00, không commit/push.
+
+## 67 — TURN 344 — CYCLE 67
+
+**task_par00_shapes** — **response shape** của ba legacy route, làm input cho COMP-08.
+
+> **Read-only.** Không sửa source, không tick gate, chỉ ghi receipt này. **Trục của tôi là SHAPE**, không phải
+> consumer: `term_4568d175` đang inventory *ai gọi* ba route này — tôi chỉ mô tả **chúng trả về gì và từ đâu**.
+>
+> **Auth-fence: tôi TRÍCH DẪN, không tranh lại.** `codex-legacy-auth-fence-inventory-2026-10-01.md:26` đã ghi
+> rằng `/services`, `/billing/balance`, `/billing/usage` **đọc `x-api-key-id` trực tiếp**, services và balance
+> query theo ID đó, `/api/v1` middleware **xoá** header và các handler **không** resolve raw `x-api-key`;
+> phân loại **MUST-NOT-REPLICATE** cho *direct caller-provided key-ID selection*. Tôi chỉ ghi nhận hệ quả
+> **shape**: dưới đây, mọi giá trị đều **gắn với một key id do caller cung cấp**.
+
+### 67.1 HARD CHECK — balance là **TÍNH**, không phải **LƯU**
+
+Nói thẳng, vì COMP-08 cấm đúng hai điều này:
+
+- **Balance được TÍNH LÚC REQUEST**, không phải cột lưu sẵn:
+  `balance = spendingLimit > 0 ? spendingLimit - totalUsed : null` — `app/api/v1/billing/balance/route.ts:35-37`.
+- **Nguồn là HAI CỘT LƯU CỦA CHÍNH KEY ĐÓ** — `apiKeys.spendingLimit` và `apiKeys.totalUsed`
+  (`lib/db/schema.ts:57-58`) — **KHÔNG** phải usage của tenant, **KHÔNG** phải bảng `operations`.
+- ⇒ Balance là **KEY-scoped, không phải tenant-scoped**.
+
+**Hệ quả bắt buộc cho cutover:** không được dựng balance từ aggregate usage của tenant, và không được
+biến `totalUsed` của một key thành tổng của tenant. Hiện rework **chưa có** bất kỳ billing surface nào
+(grep `billing` trong `services/orchestrator/src` = **0 match**), nên chưa có chỗ nào đang bịa số này —
+rủi ro nằm hoàn toàn ở thiết kế cutover, và đây là ràng buộc phải ghi vào COMP-08.
+
+### 67.2 `/api/v1/services` — GET, **không nhận tham số nào**
+
+Suy ra từ `x-api-key-id` (caller-supplied, xem 67.0). Response 200:
+
+| Field | Kiểu | Null? | Suy ra từ |
+|---|---|---|---|
+| `status` | number literal `200` | không | hằng số trong body |
+| `message` | string (tiếng Việt) | không | hằng số |
+| `services` | array | không (có thể rỗng) | `Object.values(activeServices)` |
+| `services[].serviceId` | string | không | `ep.serviceSlug` (registry tĩnh) |
+| `services[].serviceName` | string | không | `svc.displayName` |
+| `services[].discriminatorKey` | string | không | `svc.discriminatorName` |
+| `services[].subCases` | array | không | registry |
+| `services[].subCases[].id` | string | **không** (null → `'_default'`) | `discriminatorValue \|\| '_default'` (`:61`) |
+| `services[].subCases[].displayName` | string | không | `sub.displayName` (bắt buộc trong type) |
+| `services[].subCases[].description` | string | không | `sub.description` (bắt buộc) |
+| `services[].subCases[].clientParameters` | object (`ParamSchema`) | không (có thể `{}`) | `parametersSchema` **lọc bỏ** `defaultLocked` (`:55`) |
+
+- **Nguồn thật**: giao của *catalog tĩnh* `getAllEndpointSlugs()` (`lib/endpoints/registry.ts:408-426`) với
+  `profileEndpoints` của key (`:26`); chỉ loại khi `enabled === false` (`:40`), kiểm cả slug `svc:case` lẫn slug
+  generic `svc`. **Không có ProfileEndpoint row ⇒ KHÔNG bị tắt** ⇒ thiên về mở.
+- **Đơn vị/tiền tệ**: không có — route này không có trường tiền tệ.
+
+### 67.3 `/api/v1/billing/balance` — GET, **không nhận tham số nào**
+
+| Field | Kiểu | Null? | Suy ra từ |
+|---|---|---|---|
+| `object` | string literal `'billing_balance'` | không | hằng số |
+| `api_key_id` | string | không | `apiKeys.id` (id từ header) |
+| `api_key_name` | string | **không** — cột `.notNull()` | `apiKeys.name` (`schema.ts:54`) |
+| `currency` | string literal `'USD'` | không | hằng số (`:43`) |
+| `details.spending_limit` | number | **có** (`null` khi ≤ 0) | `spendingLimit` (`:45`) |
+| `details.total_used` | number | **không** (`.notNull()`) | `totalUsed` |
+| `details.balance` | number | **có** (`null` khi ≤ 0) | **tính** `spendingLimit - totalUsed` (`:35`) |
+| `updated_at` | string ISO | không | **`new Date().toISOString()` — thời điểm request** (`:49`) |
+
+- **Tiền tệ/đơn vị: USD, dạng `doublePrecision`** (float) — `schema.ts:57-58`. Không phải số nguyên.
+- **Hai điểm phải nêu với COMP-08:**
+  1. `updated_at` **không** phải timestamp đã lưu — nó là *bây giờ*, trong khi `apiKeys.updatedAt` **tồn tại**
+     (`schema.ts:63`) và **không** được select. Client đọc nó dễ hiểu là "snapshot cập nhật lúc nào".
+  2. `status` **được select** (`:28`) nhưng **không** được trả về ⇒ một key đã revoke vẫn báo balance bình thường.
+- `spending_limit`/`balance` = `null` khi `spendingLimit <= 0` ⇒ **0 (mặc định DB) và số âm không phân biệt được**
+  trong response.
+
+### 67.4 `/api/v1/billing/usage` — GET, nhận `start_date`, `end_date`
+
+| Field | Kiểu | Null? | Suy ra từ |
+|---|---|---|---|
+| `object` | string literal `'billing_usage'` | không | hằng số |
+| `start_date` | string `YYYY-MM-DD` | không | `startDate.toISOString().split('T')[0]` |
+| `end_date` | string `YYYY-MM-DD` | không | tương tự |
+| `total_cost_usd` | number (USD float) | không | **cộng lúc query** `operations.totalCostUsd` |
+| `total_input_tokens` | number | không | cộng `totalInputTokens` |
+| `total_output_tokens` | number | không | cộng `totalOutputTokens` |
+| `total_operations` | number | không | `opsList.length` — **đếm operation, không phải đếm model** |
+| `usage[]` | array | không | group theo `modelUsed` |
+| `usage[].model` | string | không | `op.modelUsed ?? 'unknown'` |
+| `usage[].prompt_tokens` | number | không | cộng `totalInputTokens` |
+| `usage[].completion_tokens` | number | không | cộng `totalOutputTokens` |
+| `usage[].pages_processed` | number | không | cộng `pagesProcessed` |
+| `usage[].cost_usd` | number (USD float) | không | cộng `totalCostUsd` |
+
+**Ngữ nghĩa ngày — bất đối xứng giữa chính hai tham số:**
+
+- `start_date` → `new Date(str)`: ngày trần ⇒ **UTC nửa đêm** (`:34`).
+- `end_date` → `new Date(str + 'T23:59:59Z')`: **cuối ngày UTC** (`:35`).
+- ⇒ **Truyền timestamp ISO đầy đủ vào `end_date` sẽ thành `...T23:59:59Z` rồi hỏng ⇒ 400**, trong khi
+  `start_date` chấp nhận timestamp đầy đủ. Không đối xứng, và không có test nào bắt.
+- Lọc `gte`/`lte` trên `operations.createdAt` ⇒ **bao gồm cả hai đầu** (`:54-55`).
+- Thiếu cả hai ⇒ **mặc định 30 ngày** (`:34`). Ngày sai định dạng ⇒ 400 (`:37`).
+
+### 67.5 MISMATCH list (legacy → rework), kèm file:line
+
+| # | MISMATCH | Legacy | Rework |
+|---|---|---|---|
+| M-01 | **Không có billing surface nào** | `billing/balance`, `billing/usage` (GET) | grep `billing` trong `services/orchestrator/src` = **0 match** |
+| M-02 | **Không có `/api/v1/services`** | `app/api/v1/services/route.ts` | **0 match** |
+| M-03 | **Scope: legacy KEY-scoped, rework TENANT-scoped** | `eq(operations.apiKeyId, apiKeyId)` — *từng key* | `getUsageSummary(apiKey.tenantId, …)` — *cả tenant* (`server.ts:1266,1344,1351`) |
+| M-04 | **Đơn vị tiền: USD float ↔ microusd int (×10⁶)** | `doublePrecision` USD (`lib/db/schema.ts:36,57,58`) | `costMicrousd: z.number().int().min(0)` (`packages/contracts/src/operations.ts:155`), cộng bằng **BigInt** + safe-int ceiling (`modules/usage/usage.ts` docstring, `usage-budget.ts`) |
+| M-05 | **Hai nguồn độc lập cho cùng một “số”** | `api_keys.totalUsed` (bộ đếm lưu) vs `SUM(operations.totalCostUsd)` (tính lúc query) | chỉ có aggregate ledger; **không có** bộ đếm lưu |
+| M-06 | **`updated_at` là thời điểm request** | `new Date().toISOString()` (`balance:49`) | không có trường tương đương |
+| M-07 | **`status` chọn rồi bỏ** | select `status` (`balance:28`), không trả | không có |
+| M-08 | **Envelope lỗi không nhất quán** giữa 3 route | services `{type,title,status,detail}` (`:12-19`, `:80`); balance/usage `{error:string}` (`balance:20,32`; `usage` 400) | rework trả `problem+json` thống nhất |
+| M-09 | **500 của services rò text lỗi nội bộ** | `detail: msg` = `error.message` (`services:80`) | problem+json đã redact |
+| M-10 | **`/services` bỏ qua override tham số của key** | đọc `profileEndpoints.parameters` (JSON, `schema.ts:125`)? **KHÔNG** — chỉ đọc `enabled` | registry tĩnh; chưa có catalog tương đương |
+| M-11 | **Mặc định catalog là “mở”** | thiếu row ⇒ không tắt; chỉ `enabled === false` mới tắt (`services:40`) | chưa có |
+| M-12 | **Ngày: default 30d vs bắt buộc; `createdAt` vs `received_at`; date-only vs ISO; inclusive vs `[from,to)`** | `usage:34,54-55` | `server.ts:1258-1261` (thiếu from/to ⇒ 422); `[from,to)` trên `received_at` (`usage.ts` docstring) |
+| M-13 | **Grouping: model-only vs provider+model** | group theo `modelUsed` (`usage:60`) | provider+model, `(unattributed)` collapse |
+| M-14 | **Đặt tên snake_case ↔ camelCase + thiếu discriminator** | `prompt_tokens`, `cost_usd`, `api_key_id`, `object:'billing_*'` | `inputTokens`, `costMicrousd`, `tenantId`; **không** có `object` |
+| M-15 | **`total_operations` = số operation, không phải số model** | `opsList.length` | `totals.operations` từ ledger |
+| M-16 | **Thiếu `pages` tương đương trong usage[]** | `pages_processed` | `pages` (từ payload event, không phải cột operation) |
+
+### 67.6 Ranh giới và việc chưa làm
+
+- **Không** đề xuất tên field, DTO hay URL mới ở đây — COMP-08 mới là owner; tôi chỉ mô tả hiện trạng.
+- **Không** xếp hạng consumer (trục của `term_4568d175`).
+- **Không** tick gate. `G-ADMIN-OPS`, `G-SEC`, `G-COMP`, `G-DATA`, `G6` vẫn **NO-GO**.
+- Ba route nằm ngoài `du-rework` (legacy `app/` ở `D:/Git/dugate/app/`); mọi line number trên trích từ đó và từ
+  `lib/db/schema.ts` cùng hệ thống legacy.
+
+## 68 — TURN 344 — CYCLE 68
+
+**task_par00_reconcile** — theo dõi M-05: hai nguồn cho cùng một số. **Read-only**, không sửa source, không tick gate,
+chỉ ghi receipt này. **Không** đề xuất tên field/DTO/URL mới (COMP-08 là owner).
+
+### 68.0 HARD CHECK (3) — Nói thẳng: hai số **CHƯA BAO GIỜ** được reconcile
+
+Grep `reconcil|recompute|resync|backfill|drift` trong legacy `lib/` cho **đúng 1 match**, và nó là một prompt LLM
+không liên quan trong `lib/db/seed.ts:142`. ⇒ **Không có** job đối chiếu, **không có** sửa chữa, **không có**
+cảnh báo trôi lệch. Hai bộ đếm được giữ đúng bằng **quy ước** (cùng ghi ở đường thành công), **không**
+bằng bất kỳ bất biến nào. Tôi **không** bịa ra quy tắc reconcile nào thay cho điều đó.
+
+Bổ sung trực tiếp có hệ quả: cổng chặn chi tiêu ở `lib/pipelines/submit.ts:152,159,166-169` **chỉ đọc số A**
+(`totalUsed`). Nghĩa là khi A **thiếu**, quyết định có cho vượt hạn mức hay không lại dựa trên số không được
+đối chiếu.
+
+### 68.1 Write-path map — số A: `apiKeys.totalUsed` (bộ đếm lưu)
+
+| Thuộc tính | Nơi ghi |
+|---|---|
+| Nguồn ghi #1 | `lib/pipelines/engine.ts:417-421` — đường **thành công**, guard `operation.apiKeyId && totalCost > 0` |
+| Nguồn ghi #2 | `lib/pipelines/workflow-engine.ts:235-240` — đường **thành công** (workflow), guard `ctx.apiKeyId && ctx.totalCost > 0` |
+| Nơi đọc để chặn | `lib/pipelines/submit.ts:152,159` → 402 (xem 68.0) |
+| Transaction | **KHÔNG CÓ** — grep `db.transaction` trong legacy `lib/` = **0 match** |
+| Cột | `lib/db/schema.ts:61` `doublePrecision('totalUsed').default(0.0).notNull()` |
+
+> `worker.js:34376,34977` là **bundle đã build** của hai dòng trên, **không** phải hiện thực thứ ba — không
+> được đếm hai lần.
+
+### 68.2 Write-path map — số B: `operations.totalCostUsd` (chi phí theo operation)
+
+| Thuộc tính | Nơi ghi |
+|---|---|
+| Ghi khi **thành công** | `lib/pipelines/engine.ts:398-412` (`state:'SUCCEEDED'`, `done:true`, `totalCostUsd: totalCost`) |
+| Ghi khi **thất bại** | `lib/pipelines/engine.ts:453-465` (`state:'FAILED'`, `done:true`, `totalCostUsd: totalCost`) — **chi phí dở của các step đã chạy** |
+| Ghi ở engine workflow | `lib/pipelines/workflow-engine.ts:216-230` (`completeWorkflow`) |
+| **KHÔNG** ghi khi hủy | `app/api/v1/operations/[id]/cancel/route.ts:39-42` chỉ set `done/state/progressMessage` |
+| Tích lũy trong bộ nhớ | `engine.ts:254` khởi tạo, `engine.ts:378` `totalCost += result.costUsd` |
+| Nơi đọc (tổng hợp) | `app/api/v1/billing/usage/route.ts:49-55`, lọc `apiKeyId` + `state='SUCCEEDED'` + `done=true` + cửa sổ `createdAt` |
+| Cột | `lib/db/schema.ts:36` `doublePrecision('totalCostUsd').default(0.0).notNull()` |
+
+### 68.3 Mọi điều kiện khiến hai số lệch — kèm code path
+
+| # | Điều kiện | A vs B | Code path |
+|---|---|---|---|
+| D-1 | **Chết giữa hai `await`** trên đường thành công (UPDATE operation đã commit, UPDATE key chưa chạy / lỗi) | **A < B**, vĩnh viễn, **không có** gì sửa | `engine.ts:412` xong → `engine.ts:417`; `workflow-engine.ts:219` xong → `:235` |
+| D-2 | **`apiKeyId` null** (key không resolve được) — guard bỏ qua A, hàng operation vẫn mang chi phí | A **không có** số; B lọc `eq(operations.apiKeyId, …)` nên **không key nào thấy** ⇒ **chi phí mồ côi** | `engine.ts:417` guard; auth-fence đã ghi `runner.ts:88-110`, `submit.ts:300-304` lưu null |
+| D-3 | **Thất bại sau khi đã tiêu** token | **A và B KHỚP** — A không tăng, B loại hàng `state='FAILED'`. Không phải lệch A/B mà là **ghi thiếu âm thầm trên CẢ HAI** | `engine.ts:453-465` vs `:417`; filter `usage/route.ts:50` |
+| D-4 | **Hủy giữa chừng** | **Không ghi gì cả** — tiền đã chi ở provider, **không lưu ở đâu** | `cancel/route.ts:39-42` không chạm `totalCostUsd` lẫn `totalUsed` |
+| D-5 | **Retry BullMQ** (`attempts: 3`, `lib/queue/pipeline-queue.ts:30,60`) chạy lại **cùng operationId**; đường thành công **ghi đè** `totalCostUsd` bằng tổng của lần chạy đó | A và B **bám theo nhau**, nhưng **chi phí của lần chạy trước bị xoá khỏi B** | `engine.ts:412` (SET) vs `:419` (`+=`) |
+| D-6 | **Submit lại do người dùng** tạo operationId **mới** | A và B cùng đếm ⇒ khớp | `lib/pipelines/submit.ts:188,300-301` |
+| D-7 | **Khác đơn vị ngữ nghĩa: A là TRỌN ĐỜI, B là CỬA SỔ** | **Không phải cùng một đại lượng**, kể cả khi mọi ghi đều đúng | A đọc ổn định (`balance/route.ts:46`); B lọc theo `createdAt` (`usage/route.ts:54-55`) |
+| D-8 | **Trôi số thực**: `totalUsed = totalUsed + totalCost` cộng dồn trên `float8` | Hai số **cùng trôi**, nhưng theo **thứ tự cộng khác nhau** ⇒ lệch ở tầng ulp | `engine.ts:419`, `workflow-engine.ts:238` |
+
+### 68.4 Đơn vị và khả năng làm tròn — phân tích losslessness
+
+- **Trong legacy, A và B CÙNG ĐƠN VỊ**: cả hai là **USD `doublePrecision` float** (`schema.ts:36,61`).
+  ⇒ M-05 (hai nguồn) và M-04 (lệch đơn vị) là **hai vấn đề khác nhau**; M-04 là legacy↔rework, không phải
+  legacy-nội-bộ. Không gộp hai cái lại.
+- **Rework**: `costMicrousd` là **số nguyên microusd** — `z.number().int().min(0)`
+  (`packages/contracts/src/runtime.ts:415`, `packages/contracts/src/operations.ts:155`), cộng bằng **BigInt** với
+  safe-integer ceiling (`modules/usage/usage.ts:139`).
+- **1 USD = 10⁶ microusd.** Về mặt số học, chuyển đổi **không lossless nói chung**:
+  - USD float → microusd int: **mất** phần thập phân nếu giá trị không là bội nguyên của 10⁻⁶ (mà `float8` thì
+    thường không phải).
+  - microusd int → USD float → microusd int: chỉ khứ hồi được khi float biểu diễn **chính xác** giá trị đó;
+    ngoài 2⁵³ microusd (≈ 9.0×10⁹ USD) chính số nguyên đã vượt vùng an toàn của `Number`.
+  - ⇒ **Round-trip chính xác** chỉ đúng với giá trị là bội nguyên của 10⁻⁶ **và** dưới trần an toàn. Ngoài đó
+    **không**. Hướng an toàn duy nhất là **giữ microusd int làm nguồn chân lý**, chỉ quy đổi sang USD lúc hiển thị.
+- **Rework đã có nguyên tắc sẵn**: projector **không** bịa trường thiếu — `modules/usage/usage.ts:130-135`
+  (a 0 token is a measured zero, missing stays missing), và tổng **dedup theo `eventId`**
+  (`runtime.ts:406`, `usage.ts:139`). Đây là câu trả lời sẵn có cho câu hỏi có nên hòa giải không: rework đã chọn
+  **không bịa + dedup ở nguồn** thay vì dựng cơ chế hòa giải.
+
+### 68.5 Điều tôi KHÔNG đề xuất (đúng ba hard check)
+
+1. **Không** đề xuất tính balance từ usage của tenant — COMP-08 cấm, và nó cũng **không** phản ánh hành vi
+   legacy (balance là key-scoped).
+2. **Không** đề xuất biến `totalUsed` của một key thành tổng của tenant.
+3. **Không** bịa quy tắc reconcile. Hai số **chưa từng** được hòa giải (68.0) — tôi ghi đúng sự thật đó và
+   để COMP-08 quyết định, kèm hệ quả đo được: cổng 402 hiện dựa trên số không được đối chiếu.
+
+### 68.6 Bằng chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| Write site số A | `lib/pipelines/engine.ts:417-421`, `lib/pipelines/workflow-engine.ts:235-240` |
+| Write site số B | `lib/pipelines/engine.ts:398-412` (thành công), `:453-465` (thất bại), `workflow-engine.ts:216-230` |
+| Không ghi khi hủy | `app/api/v1/operations/[id]/cancel/route.ts:39-42` |
+| `db.transaction` trong legacy `lib/` | **0 match** |
+| `reconcil|recompute|resync|backfill|drift` | match duy nhất là prompt LLM không liên quan (`seed.ts:142`) |
+| Cổng chi tiêu | `lib/pipelines/submit.ts:152,159,166-169` → 402, chỉ đọc A |
+| Retry | `lib/queue/pipeline-queue.ts:30,60` `attempts: 3` |
+| Rework: cột per-key | `migrations/0001_platform_v1.sql:14-20` — `api_keys` **không có** `spending_limit`/`total_used` |
+| Rework: ledger | `packages/contracts/src/runtime.ts:405-420` (`costMicrousd` int, `currency` literal, `eventId` dedup) |
+| Sửa source / tick gate | **không** |
+
+### 68.7 Gate giữ nguyên
+
+G-ADMIN-OPS **NO-GO**, G-SEC / G-COMP / G-DATA / G6 **NO-GO**.
+Read-only. Không commit/push.
+
+## 69 — TURN 344 — CYCLE 69
+
+**RV01-03 (P0)** — Encrypt every Worker → S3/DB artifact and round-trip the manifest.
+
+> # ⛔ STOP — TÔI KHÔNG TRIỂN KHAI. Cần coordinator quyết nhánh.
+>
+> Tôi đọc `tasks/CODE-REVIEW-FIXES-2026-10-01.md` §RV01-03 (`:31-39`) **đầy đủ**, rồi đọc **ADR-18 tới nơi**
+> tại `docs/15-decisions.md:283-326`. **ADR-18 KHÔNG chốt nhánh cho Worker → S3/DB**, và — điểm quyết định —
+> ADR **cấm giao crypto wire implementation** từ baseline này. Tôi không đoán, không bịa kiến trúc thứ ba, và
+> **không chọn (A) chỉ vì nó đọc sạch hơn**.
+
+### 69.1 Nhánh nào được ADR chốt — và nhánh nào không
+
+ADR-18 §Baseline kỹ thuật có **6 mục**. Mục nào gán một write boundary thật:
+
+| ADR-18 | Nội dung | Có gán boundary cho Worker → S3/DB? |
+|---|---|---|
+| §1 Storage Backend Scope | S3 production, PG pilot ≤10 MB, **cả hai dùng chung một định dạng envelope ciphertext** | **Không** — nói storage *nhận* envelope, không nói *ai* seal |
+| §2 Output Delivery Policy | per-tenant `deliveryEncryptionEnabled`, server giải mã lớp storage rồi bọc lại bằng recipient DEK | Không |
+| §3 Recipient Cipher Suite | `{version, suite, recipientKeyId, enc, nonce, tag, ciphertext}` | Không — đây là envelope **delivery** |
+| §5 Streaming Chunking | >5 MB theo chunk 4 MB + manifest (chunk hash, monotonic index) | **Không** — không nói ai chạy |
+| **§6 Public upload boundary** | public single/multipart upload **phải** qua streaming gateway trong app; presigned PUT plaintext **không đạt yêu cầu**; **mô hình khác cần ADR riêng** | **Không** — §6 giới hạn cho **public upload** |
+
+⇒ **Không mục nào của ADR-18 gán write boundary cho artifact đi ra từ Worker** — đúng chủ đề của RV01-03.
+Chỗ duy nhất ADR nói **«gateway»** là §6, và §6 nói rõ **public upload**. Suy rộng từ §6 sang worker egress
+chính là **bịa quyết định kiến trúc** — đúng điều packet cấm.
+
+### 69.2 Lý do chặn thứ hai, độc lập với nhánh
+
+`docs/15-decisions.md:316-318` liệt kê quyết định **còn mở**: *“Chọn một wire profile chính xác cho mỗi suite:
+HPKE `enc` so với RSA wrapped DEK, **AAD, nonce/tag, authenticated chunk manifest**, thuật toán/key IDs và
+external-client test vectors.”*
+
+RV01-03 defect #2 yêu cầu: **“Nhánh single-shot seal … đánh rơi nonce/tag/wrapped DEK/manifest”** — tức
+implement **đúng cái wire profile ADR nói là chưa chốt**.
+
+`docs/15-decisions.md:324` (Trạng thái Gate): **“Không giao crypto wire implementation từ baseline này.”**
+`ENC-00` vẫn `[~]` tới khi *bốn nhóm quyết định mở* được ký và **contract freeze**.
+
+⇒ Dù coordinator chọn nhánh nào, **RV01-03 như đang giao sẽ implement một wire profile chưa được ADR ký**.
+Đây là blocker thứ hai, tách biệt với việc chọn nhánh.
+
+### 69.3 Nhánh (A) còn không thiết kịp dù chọn
+
+Viết boundary bắt buộc qua gateway đòi **wire ở boot** (`main.ts`) — thuộc RV01-01, và `main.ts`/`server.ts`
+**đang leased cho agent khác ngay lúc này** (packet cấm tôi sửa). Ngoài ra §6 yêu cầu **bỏ** phát
+presigned PUT/part plaintext tại `services/orchestrator/src/modules/artifacts/s3-storage-facade.ts:827-850` —
+file này trong lease của tôi, nhưng **thứ tự cấu hình** thì không.
+
+### 69.4 Code hiện tại được dựng theo hình dạng nhánh (B)
+
+Ghi lại để coordinator thấy việc chọn (B) là **tiếp tục** hiện trạng, còn (A) là **thay đổi kiến trúc**:
+
+| file:line | Bằng chứng |
+|---|---|
+| `packages/worker-sdk/src/crypto-storage.ts:2` | *“the **worker-side** application encryption seam for artifact …”* |
+| `packages/worker-sdk/src/index.ts:100` | *“W-ENC-04-SEAM: **worker-side** artifact encryption (port of the ENC-03 facade)”* |
+| `packages/worker-sdk/src/types.ts:277` | *“Per-artifact stream cap used for **worker-side** reads and writes (default 64 MiB)”* |
+| `packages/worker-sdk/src/task-context.ts:86` | `crypto?: WorkerCryptoSeam` — seam đã có chỗ cắm |
+
+### 69.5 Bốn defect packet nêu — TÔI ĐÃ TỰ XÁC MINH, CẢ BỐN ĐÚNG
+
+Packet dặn *“verify each yourself; do not trust this list blindly”*. Kết quả: **cả bốn đều đúng với code hiện tại**.
+
+| # | Defect | Xác minh |
+|---|---|---|
+| 1 | Seam vắng thì gửi plaintext; nhánh multipart không gọi seam | `task-context.ts:637-639` `self.deps.crypto ? … : null` rồi `:650-658` upload thẳng `content` (bản rõ) khi `null`; nhánh multipart không có lời gọi seal tương ứng |
+| 2 | Seal single-shot chỉ trả ciphertext, rơi nonce/tag/wrapped DEK/manifest | `task-context.ts:193` kiểu trả `{body, ciphertextSizeBytes, ciphertextSha256}`; `:220` chỉ lấy `sealed.encrypted.ciphertext`, **không** đưa `nonce`/`aad`/`WrappedDekEnvelope` ra |
+| 3 | Read path coi object thiếu marker là plaintext | `artifact-read-decrypt.ts:175-181` marker ≠ giá trị ⇒ trả `{bytes, decrypted:false}` — tức **phục vụ thẳng** |
+| 4 | Giới hạn size kiểm **sau** khi đã buffer cả stream | `task-context.ts:198-204`: gom hết `chunks[]`, `Buffer.concat`, **rồi mới** so `total > CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES` |
+
+Thêm, không nằm trong danh sách packet nhưng cùng lớp lỗi: `task-context.ts:206` tự thừa nhận trong message
+rằng **“chunked manifest upload is not wired yet”** — tức nhánh chunk 4 MB của ADR §5 **chưa tồn tại** trong code.
+
+**Tin tốt phát hiện được khi kiểm chứng:** blocker *“cần sửa `packages/contracts`”* **không có thật** — contract đã có sẵn
+đủ: `packages/contracts/src/encryption.ts:46` `CHUNK_SIZE_BYTES` 4 MiB, `:49` `SINGLE_SHOT_THRESHOLD_BYTES` 5 MiB,
+`:67` `WrappedDekEnvelopeSchema`, `:96` `EnvelopeCiphertextSchema`, `:115` `EncryptedChunkSchema`,
+`:145` `EncryptedChunkManifestSchema`. Nên **không** cần lease `packages/contracts` cho phần shape.
+
+### 69.6 Baseline acceptance — đo thật, và MỘT DÒNG ACCEPTANCE RỖNG
+
+| Lệnh | cwd | Exit | Kết quả |
+|---|---|---|---|
+| `pnpm --filter @du/worker-sdk typecheck` | `du-rework` | **0** | ⚠️ **RỖNG** — output: *“None of the selected packages has a 'typecheck' script”* |
+| `pnpm --filter @du/worker-sdk lint` | `du-rework` | **0** | thật: chạy `tsc --noEmit -p tsconfig.json`, không diagnostics |
+| `pnpm test` | `du-rework/packages/worker-sdk` | **0** | **22 suites / 628 tests, 628 passed, 0 failed, 0 skipped**, 151.5s |
+
+⚠️ **Dòng acceptance `typecheck` exit 0 là xanh-rỗng**: package không có script đó, nên lệnh pass vì không
+chạy gì. Tôi **không** dùng dòng đó để đóng bất kỳ acceptance nào. Kiểm tra thật là `lint` (tsc) + `test`.
+
+### 69.7 Các dòng acceptance còn MỞ (tôi KHÔNG claim)
+
+Theo yêu cầu packet, các dòng sau ghi **BLOCKED: needs DB window claim**:
+
+- `BLOCKED: needs DB window claim` — real worker + runtime + S3/PG pilot round-trip (nhỏ, >5 MiB, multipart >64 MiB).
+- `BLOCKED: needs DB window claim` — S3/DB chỉ thấy ciphertext; read → worker và public download xác thực/decrypt đúng.
+- `BLOCKED: needs DB window claim` — direct PUT/part bypass, marker/manifest strip, swapped object, tamper, restart, lease loss, over-limit, Vault outage.
+- `BLOCKED: needs DB window claim` — peak RSS / backpressure.
+
+Tôi chưa sửa dòng nào, nên **chưa** có vòng unit/integration crypto-seam round-trip để báo. Tôi **không** dùng
+unit seam test sẵn có (`packages/worker-sdk/tests/crypto-seam.test.ts`) làm bằng chứng thay integration.
+
+### 69.8 Điều tôi cần từ coordinator
+
+1. **Quyết nhánh (A) hay (B)** cho *Worker → S3/DB artifact*, kèm `file:line` chốt. Tôi **không** suy rộng §6
+   (public upload) sang worker egress.
+2. **Freeze wire profile** `AAD / nonce / tag / authenticated chunk manifest` — hiện là quyết định **mở**
+   (`docs/15-decisions.md:316-318`) và ADR:324 cấm giao wire implementation khi chưa freeze.
+3. Nếu chọn **(A)**: cần release/sequence `main.ts` + `server.ts` (hiện leased agent khác) vì gateway phải wire ở boot.
+4. Cấp **DB window claim** cho các dòng integration ở 69.7.
+
+### 69.9 Gate giữ nguyên
+
+`G-ENC`, `G-DATA`, `G-SEC`, `G-COMP`, `G-LOCAL-ADMIN`, `G-ADMIN-OPS`, `G6` — tất cả **NO-GO**.
+Không tick gate, không sửa `tasks/*.md`, không commit. **Không sửa source ở cycle này.**
+
+## 70 — TURN 345 — CYCLE 70
+
+**RV01-03 (P0) — nhánh B + hardening: 4 defect ĐÃ FIX trong lease, phần live còn OPEN.**
+
+Coordinator chọn **BRANCH B** (giữ worker-side seam trong `crypto-storage.ts` / `crypto-seam.ts`), bốn defect là
+**implementation work trong lease** chứ không phải quyết định ADR mở, và cấp DB window cho lane này. Tôi làm
+đúng phạm vi đó: **không** sửa `main.ts` / `server.ts` (branch A nằm ngoài lease), **không** sửa
+`du-rework/packages/contracts`, không đụng ADR, không tick gate, không sửa `tasks/*.md`, không commit.
+
+### 70.1 IMPLEMENTED — bốn defect + wiring, kèm file:line
+
+| # | Defect | Cách sửa | Bằng chứng |
+|---|---|---|---|
+| 1 | Seam vắng ⇒ gửi plaintext | **fail-closed**: `encryptionEnabled` mà không có `crypto` ⇒ typed `ArtifactEncryptionError('ENCRYPTION_REQUIRED_UNAVAILABLE')`, **không** upload gì | `task-context.ts:707` (nhánh single-PUT), `:609` (nhánh multipart) |
+| 2 | Seal single-shot rơi nonce/tag/wrappedDEK | `sealArtifactBytes` **trả về `Promise<SealedArtifact>`** — mang đủ `encrypted.nonce/tag/aad/dek` + `ciphertextSizeBytes/ciphertextSha256` | `task-context.ts:223-268` |
+| 3 | Read path coi thiếu marker là plaintext | `encryptionRequired === true` ⇒ **503 `STORAGE_FAILURE`**, không bao giờ trả bytes | `artifact-read-decrypt.ts:86,190-196` |
+| 4 | Size cap kiểm **sau** `Buffer.concat` | chặn **trong** vòng `for await`: chunk vượt ngưỡng ⇒ zero các buffer đang giữ ⇒ `SIZE_LIMIT` typed | `task-context.ts:236-248` |
+
+Wiring còn thiếu (packet nêu "seam missing" nhưng lỗi thật nằm chỗ này): `DefaultTaskContext` được dựng **không có
+seam**, nên write path không bao giờ kịp gọi tới crypto. `WorkerConfig` nay có `crypto?` /
+`encryptionEnabled?` / `chunkedEncryptionEnabled?` (`types.ts:292,298,303`) và `worker.ts:349-351` truyền
+thẳng xuống context. Cả ba **mặc định OFF** ⇒ không đổi hành vi mặc định nào, đúng yêu cầu "DEFAULTS OFF".
+
+`chunkedEncryptionEnabled` cố tình **không** mở đường nào: multipart + encryption ⇒ `SEAL_FAILED` typed
+(`task-context.ts:621-622`), kể cả khi flag bật — xem 70.6 (2).
+
+### 70.2 Test mới: 17 (worker-sdk) + 5 (orchestrator)
+
+- `packages/worker-sdk/tests/rv01-03-fail-closed.test.ts` (**mới, 17 test**): D1 typed refusal + **không có PUT
+  nào**; code `ENCRYPTION_REQUIRED_UNAVAILABLE`; multipart từ chối **trước cả multipartInit** (grantCalls = 0);
+  **CONFIG OFF** (không bật `encryptionEnabled` ⇒ vẫn upload plaintext, ref trả về đúng) — hai vế đều assert;
+  D2 envelope đủ field + round-trip `open()` + finalize mang **digest ciphertext** (không phải digest plaintext);
+  D4 chặn giữa dòng (đo được, xem 70.3); chunked 6 MiB `sealStream/openStream`, `totalChunks = 2`,
+  `chunkSizeBytes = 4 MiB`, tamper 1 byte ⇒ open fail; round-trip buffer nhỏ; cross-tenant bị từ chối.
+- `services/orchestrator/tests/artifact-read-decrypt-offline.test.ts` (**+5 test**, 23 → 28): marker thiếu +
+  `encryptionRequired: true` ⇒ 503, **kể cả khi caller đã cầm sẵn bytes trong tay** (đúng shape của các route
+  streaming), không hỏi manifest, CONFIG OFF vẫn trả plaintext, và object seal đúng vẫn giải mã bình thường.
+
+Provider trong test là **biến đổi đảo ngược thật** (XOR keystream), không phải echo — vì echo sẽ làm một AAD
+binding hỏng trông như đã xác thực, và các assertion round-trip kia sẽ xanh trên một seal hỏng.
+### 70.3 VFY — kết quả chạy thật (lệnh / cwd / exit code / số đếm)
+
+| lệnh | cwd | exit | kết quả |
+|---|---|---|---|
+| `pnpm test` | `du-rework/packages/worker-sdk` | **0** | 23 suite / 645 test / **645 pass** / 0 skip, 149.7s. Baseline trước RV01-03: 22 suite / 628 test ⇒ **+1 suite, +17 test** — đúng bằng file mới của tôi |
+| `pnpm lint` (= `tsc --noEmit -p tsconfig.json`) | `du-rework/packages/worker-sdk` | **0** | không diagnostics |
+| `pnpm typecheck` (= `tsc --noEmit`) | `du-rework/services/orchestrator` | **0** | không diagnostics |
+| `npx jest tests/artifact-read-decrypt-offline.test.ts` | `services/orchestrator` | **0** | **28/28** (23 cũ + 5 mới) |
+| `pnpm test:unit` (config offline) | `du-rework/services/orchestrator` | **1** | 116 suite: 111 pass / 2 skip / **5 FAIL**; 3976 test: 3936 pass / **11 FAIL** / 29 skip |
+
+**Tôi KHÔNG cite `pnpm --filter @du/worker-sdk typecheck`** — script đó không tồn tại nên exit 0 là vacuous, đúng như
+coordinator đã nhắc. Muốn typecheck worker-sdk thì dùng `pnpm lint`.
+
+Bóc 11 fail của orchestrator (tôi không gán nhầm và không giấu):
+
+- `oidc-boot.test.ts` — `EADDRINUSE 127.0.0.1:44812` khi chạy chung với `admin-shell-server`; **chạy riêng thì PASS**.
+  Va chạm port giữa suite, không phải logic.
+- 4 suite admin-shell (`admin-shell-session-lifecycle`, `admin-shell-server`, `admin-shell-platform-mount`,
+  `adm-base-03-safe-error-offline.functional`) — **7 test fail**.
+- **A/B proof để không đoán**: tôi backup file của mình (sha256 `d76a7ab7…`), `git checkout --` **đúng file đó**,
+  chạy lại 4 suite ⇒ **cùng 4 suite, cùng 7 test fail**; sau đó restore, sha khớp backup, `git status` lại `M`.
+  ⇒ 7 fail này **pre-existing, không phải do RV01-03** (thuộc lane admin-shell / Qwen-SEC, không phải lease tôi).
+
+**Số đo, không suy đoán:** D4 chặn ở chunk thứ 6; generator chỉ **sinh 7.340.032 byte (7 MiB)** trên stream 64 MiB
+trước khi bị từ chối (tôi ép assertion fail một lần để đọc con số rồi trả lại assertion thật). Kiểm tra sau
+`Buffer.concat` sẽ phải đọc hết 64 MiB.
+
+### 70.4 DB window (được cấp) — đo trước, không đoán
+
+- `docker ps`: `du-rework-postgres` (127.0.0.1:5433), `du-rework-redis` (127.0.0.1:6380). **Không có MinIO/S3,
+  không có Vault**; `infra/docker-compose.yml` chỉ định nghĩa postgres + redis. Probe TCP `9000 / 8200 / 8201`
+  ⇒ `ECONNREFUSED`. `PG 5432` là stack postgres của máy, không phải infra du-rework ⇒ tôi không đụng.
+- Namespace riêng của tôi: `CREATE DATABASE du_test_rv0103_enc` ⇒ `CREATE DATABASE`, exit 0; `CREATE SCHEMA rv0103`
+  + table + INSERT/SELECT ⇒ `du_test_rv0103_enc | 1`, exit 0. **Không** chạm `du_orchestrator_test`.
+- Redis **DB index 15**, prefix `du:rv0103:` ⇒ `PONG` / `OK` / `rv0103` / `DEL 1` / `DBSIZE 0`. Không `FLUSHDB`
+  index nào, không chạm db 0.
+
+| case live | trạng thái | lý do |
+|---|---|---|
+| small round-trip worker → runtime → S3 | **OPEN** | không có S3/MinIO trong env |
+| >5 MiB chunk round-trip | **OPEN** | như trên |
+| multipart >64 MiB | **OPEN** | như trên |
+| marker/manifest strip | **OPEN** | như trên |
+| tamper / restart / lease loss / over-limit / Vault outage (live) | **OPEN** | như trên + không có Vault |
+
+Không case nào trong bảng được tôi đánh dấu xanh. Round-trip chunk 6 MiB chạy offline (unit, storage double)
+**không** thay được integration evidence — đúng như packet cảnh báo.
+
+### 70.5 Sự thật phải nói trước: write đã seal, nhưng **chưa đọc lại được**
+
+- Worker egress PUT qua presigned URL: `uploadArtifactStream` chỉ gửi `content-type` + `content-length`
+  (`artifact-streams.ts:701-707`), **không** có `x-amz-meta-*`.
+- `finalizeArtifact` chỉ nhận `{taskId, leaseEpoch, sizeBytes, sha256}` (`packages/contracts/src/runtime.ts:213-218`)
+  — **không có chỗ mang envelope**.
+- Marker `du-encrypted` + sidecar `du-manifest-key` chỉ được ghi ở `public-api/upload-encryption-gateway.ts:417`
+  (ADR-18 §6, **public upload**), không phải worker egress.
+- Hệ quả đo được: bật `encryptionEnabled` hôm nay ⇒ object lưu ra là ciphertext **không có marker**; đọc với
+  `encryptionRequired: true` ⇒ **503 fail-closed** (đúng lệnh coordinator); đọc với mặc định `false` ⇒ bị phân loại
+  thành plaintext và phục vụ ciphertext dưới MIME của artifact — đúng lỗi CR28-01 sinh ra để chặn. Tôi đã assert
+  cả hai vế trong test, không giả định.
+### 70.6 OPEN QUESTIONS (không chặn tôi, nhưng chặn wire) — chưa chờ, đã ghi
+
+1. **Envelope đi đường nào?** Worker-encrypted artifact hiện **fail-closed 503 khi đọc** vì không có carrier mang
+   envelope (70.5). Đóng khoảng trống cần một trong: (a) field envelope trong `finalizeArtifact` ⇒ **sửa
+   `packages/contracts`, ngoài lease tôi**; (b) kênh metadata S3 cho worker; (c) worker ghi được sidecar manifest.
+   Cả ba đều là **wire profile** ⇒ của `ENC-00`, không phải quyết định tôi được tự chế.
+2. **Chunked AAD ordering — negative thật, không phải phòng thủ.** `sealStream` bind AAD vào `artifactId`;
+   trong multipart, `artifactId` do **SERVER cấp ở `multipartInit`, tức sau thời điểm seal**. Tôi đã thử viết
+   chunk-seal với `artifactId` tự chế rồi **dừng và xoá** — AAD sai thì ciphertext "đã xác thực nhưng không ai
+   đọc được", tức là tạo ra dữ liệu hỏng một cách âm thầm. Hiện tại: multipart + encryption ⇒ typed
+   `SEAL_FAILED` fail-closed, **không** mở đường plaintext kể cả khi bật `chunkedEncryptionEnabled`.
+3. **Wire profile ADR-18** (`docs/15-decisions.md:316-318`: HPKE vs RSA-wrapped DEK, AAD, nonce/tag, tham số
+   chunk manifest, external-client test vectors; `:324` "không giao crypto wire implementation"). Tôi dùng **nguyên
+   field của schema đã đóng băng** (`WrappedDekEnvelopeSchema`, `EnvelopeCiphertextSchema`,
+   `EncryptedChunkManifestSchema`) và **không phát minh shape mới**, **không sửa `packages/contracts`**.
+
+### 70.7 Trạng thái và lease
+
+**IMPLEMENTED**: 4 defect + wiring + 22 test mới (17 worker-sdk + 5 orchestrator); cả hai typecheck exit 0.
+**VFY-pending**: toàn bộ case live (xem 70.4) vì env không có S3/Vault; và envelope chưa có carrier (70.5).
+
+**RELEASE lease artifact/encryption** — code + focused tests đã xong, không giữ việc live nào. Không tick gate,
+không sửa `tasks/*.md`, không commit, không đụng `main.ts` / `server.ts` / `packages/contracts`. Tất cả release gate
+vẫn **NO-GO**.
+
+Ghi chú nhỏ quan sát được, **không tự sửa**: `ArtifactEncryptionError` export từ `task-context.ts` nhưng chưa được
+re-export ở `packages/worker-sdk/src/index.ts` — consumer muốn bắt typed error này phải import sâu. Tôi để nguyên vì
+đụng export surface chung là việc ngoài phạm vi packet.
 ## Ledger
+- 70 — TURN 345 RV01-03 nhánh B + hardening: **4 defect ĐÃ FIX** (fail-closed khi thiếu seam ở cả single-PUT và multipart; seal trả về FULL envelope; read path 503 khi thiếu marker + `encryptionRequired`; cap 5 MiB chặn TRONG lúc đọc — đo được produced 7 MiB/64 MiB) + wiring `WorkerConfig.crypto/encryptionEnabled/chunkedEncryptionEnabled` (mặc định OFF). Test mới 17 (worker-sdk) + 5 (orchestrator): `pnpm test` worker-sdk **exit 0 — 23 suite / 645 test / 645 pass / 0 skip** (baseline 22/628), `pnpm lint` exit 0, orchestrator `pnpm typecheck` exit 0, `artifact-read-decrypt-offline` **28/28**; `pnpm test:unit` orchestrator exit 1 (5 suite fail) — 7 fail admin-shell **chứng minh pre-existing bằng A/B revert (cùng 7 fail khi bỏ thay đổi của tôi)**, `oidc-boot` fail do EADDRINUSE port, chạy riêng thì PASS. DB window: namespace riêng `du_test_rv0103_enc` (CREATE DATABASE + schema `rv0103`, exit 0) + Redis **db index 15** prefix `du:rv0103:` (DBSIZE 0 sau cleanup); **env KHÔNG có S3/MinIO và KHÔNG có Vault** (probe 9000/8200/8201 ECONNREFUSED, `docker ps` không có) ⇒ **toàn bộ case live: OPEN, không case nào xanh**. Sự thật cần coordinator biết: write đã seal nhưng **chưa đọc lại được** — `finalizeArtifact` không có field mang envelope và chỉ public-upload gateway mới ghi marker `du-encrypted`; bật `encryptionEnabled` ⇒ đọc là 503 fail-closed (đúng lệnh), mặc định `false` ⇒ bị phục vụ ciphertext dưới MIME artifact. OPEN Q: (1) carrier cho envelope; (2) chunked AAD ordering — `sealStream` cần `artifactId` mà server cấp ở `multipartInit` **sau** thời điểm seal nên đã fail-closed `SEAL_FAILED` thay vì bịa id; (3) wire profile ADR-18 `:316-318`/`:324` (dùng nguyên schema đã đóng băng, không sửa contracts). **RELEASE lease artifact/encryption.** Mọi release gate vẫn NO-GO.
+- 69 — TURN 344 RV01-03 (P0): **STOP, KHONG trien khai** — can coordinator quyet nhanh. Da doc tasks/CODE-REVIEW-FIXES-2026-10-01.md §RV01-03 (:31-39) DAY DU, roi doc ADR-18 toi noi tai docs/15-decisions.md:283-326. **ADR-18 KHONG chot nhanh cho Worker → S3/DB**, va diem quyet dinh: ADR **cam giao crypto wire implementation** tu baseline nay. Khong doan, khong bia kien truc thu ba, khong chon (A) chi vi no doc sach hon. **NHANH NAO DUOC ADR CHOT — VA NHANH NAO KHONG:** §1 Storage Backend Scope (S3 production, PG pilot ≤10 MB, ca hai dung chung mot dinh dang envelope ciphertext) — KHONG noi AI seal; §2 Output Delivery Policy per-tenant — khong; §3 Recipient Cipher Suite `{version, suite, recipientKeyId, enc, nonce, tag, ciphertext}` — day la envelope DELIVERY, khong; §5 Streaming Chunking >5 MB chunk 4 MB + manifest — KHONG noi ai chay; **§6 Public upload boundary** — public single/multipart upload phai qua streaming gateway trong app, presigned PUT plaintext khong dat yeu cau, **mo hinh khac can ADR rieng** — §6 gioi han cho PUBLIC UPLOAD. ⇒ KHONG muc nao gan write boundary cho artifact di ra tu Worker — dung chu de cua RV01-03; cho duy nhat ADR noi 'gateway' la §6 va §6 noi ro PUBLIC UPLOAD; suy rong §6 sang worker egress chinh la BIA quyet dinh kien truc. **BLOCKER THU HAI, DOC LAP VOI NHANH:** docs/15-decisions.md:316-318 liet ke quyet dinh CON MO — chon mot wire profile chinh xac cho moi suite: HPKE enc so voi RSA wrapped DEK, **AAD, nonce/tag, authenticated chunk manifest**, thuat toan/key IDs va external-client test vectors. RV01-03 defect #2 yeu cau dung chinh cai wire profile do. docs/15-decisions.md:324 (Trang thai Gate): **"Khong giao crypto wire implementation tu baseline nay"**, ENC-00 van [~] toi khi bon nhom quyet dinh mo duoc ky va contract freeze ⇒ du chon nhanh nao, RV01-03 nhu dang giao se implement mot wire profile chua duoc ADR ky. **NHANH (A) CON KHONG THIET KIP DU CHON:** gateway bat buoc doi wire o boot (main.ts) — thuoc RV01-01, va main.ts/server.ts **dang leased cho agent khac ngay luc nay**; §6 con yeu cau BO phat presigned PUT/part plaintext tai services/orchestrator/src/modules/artifacts/s3-storage-facade.ts:827-850 (file nay trong lease cua toi nhung thu tu cau hinh thi khong). **CODE HIEN TAI DUNG THEO HINH DANG NHANH (B)** — ghi lai de coordinator thay chon (B) la TIEP TUC hien trang con (A) la THAY DOI kien truc: packages/worker-sdk/src/crypto-storage.ts:2 "the WORKER-SIDE application encryption seam"; src/index.ts:100 "W-ENC-04-SEAM: WORKER-SIDE artifact encryption (port of the ENC-03 facade)"; src/types.ts:277 "Per-artifact stream cap used for WORKER-SIDE reads and writes (default 64 MiB)"; src/task-context.ts:86 `crypto?: WorkerCryptoSeam`. **BON DEFECT PACKET NEU — DA TU XAC MINH, CA BON DUNG voi code hien tai** (packet dan "verify each yourself; do not trust this list blindly"): (1) seam vang thi gui plaintext va nhanh multipart khong goi seam — task-context.ts:637-639 `self.deps.crypto ? … : null` roi :650-658 upload thang `content` (ban ro) khi null, nhanh multipart khong co loi goi seal tuong ung; (2) seal single-shot chi tra ciphertext, roi nonce/tag/wrapped DEK/manifest — task-context.ts:193 kieu tra `{body, ciphertextSizeBytes, ciphertextSha256}` va :220 chi lay `sealed.encrypted.ciphertext`, KHONG dua nonce/aad/WrappedDekEnvelope ra; (3) read path coi object thieu marker la plaintext — artifact-read-decrypt.ts:175-181 marker khac gia tri tra `{bytes, decrypted:false}` tuc PHA VU THANG; (4) gioi han size kiem SAU khi da buffer ca stream — task-context.ts:198-204 gom het chunks[], Buffer.concat, ROI MOI so `total > CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES`. **Them, khong nam trong danh sach packet nhung cung lop loi:** task-context.ts:206 tu thua nhan trong message rang **"chunked manifest upload is not wired yet** — tuc nhanh chunk 4 MB cua ADR §5 CHUA TON TAI trong code. **Tin tot phat hien khi kiem chung:** blocker "can sua packages/contracts" **khong co that** — contract da co san du: packages/contracts/src/encryption.ts:46 CHUNK_SIZE_BYTES 4 MiB, :49 SINGLE_SHOT_THRESHOLD_BYTES 5 MiB, :67 WrappedDekEnvelopeSchema, :96 EnvelopeCiphertextSchema, :115 EncryptedChunkSchema, :145 EncryptedChunkManifestSchema ⇒ **khong** can lease packages/contracts cho phan shape. **BASELINE ACCEPTANCE — DO THAT, VA MOT DONG ACCEPTANCE RONG:** `pnpm --filter @du/worker-sdk typecheck` cwd du-rework exit **0** nhung output "None of the selected packages has a 'typecheck' script" ⇒ **XANH-RONG**, lenh pass vi khong chay gi, toi KHONG dung dong do de dong bat ky acceptance nao; `pnpm --filter @du/worker-sdk lint` cwd du-rework exit **0** that (chay `tsc --noEmit -p tsconfig.json`, khong diagnostics); `pnpm test` cwd du-rework/packages/worker-sdk exit **0** — **22 suites / 628 tests, 628 passed, 0 failed, 0 skipped**, 151.5s. **CAC DONG CON MO, TOI KHONG CLAIM** (theo yeu cau packet): `BLOCKED: needs DB window claim` — real worker + runtime + S3/PG pilot round-trip (nho, >5 MiB, multipart >64 MiB); S3/DB chi thay ciphertext va read → worker/public download xac thuc/decrypt dung; direct PUT/part bypass, marker/manifest strip, swapped object, tamper, restart, lease loss, over-limit, Vault outage; peak RSS/backpressure. Toi chua sua dong nao nen CHUA co vong unit/integration crypto-seam round-trip de bao, va toi KHONG dung unit seam test san co (packages/worker-sdk/tests/crypto-seam.test.ts) lam bang chung thay integration. **CAN TU COORDINATOR:** (1) quyet nhanh (A) hay (B) cho Worker → S3/DB kem file:line chot — toi KHONG suy rong §6 sang worker egress; (2) FREEZE wire profile AAD/nonce/tag/authenticated chunk manifest — hien la quyet dinh MO va ADR:324 cam giao wire implementation khi chua freeze; (3) neu chon (A) can release/sequence main.ts + server.ts (dang leased agent khac) vi gateway phai wire o boot; (4) cap DB window claim cho cac dong integration. Gate giu nguyen: G-ENC/G-DATA/G-SEC/G-COMP/G-LOCAL-ADMIN/G-ADMIN-OPS/G6 NO-GO. Khong tick gate, khong sua tasks/*.md, khong commit, **khong sua source o cycle nay**. Muc 69.
+- 68 — TURN 344 task_par00_reconcile: theo dõi M-05 (hai nguồn cho cùng một số). READ-ONLY, không sửa source, không tick gate, không đề xuất tên field/DTO/URL mới. **HARD CHECK (3) — NÓI THẲNG: HAI SỐ CHƯA BAO GIỜ ĐƯỢC RECONCILE.** grep reconcil|recompute|resync|backfill|drift trong legacy lib/ cho ĐÚNG 1 match và nó là một prompt LLM không liên quan ở lib/db/seed.ts:142 ⇒ KHÔNG có job đối chiếu, KHÔNG có sửa chữa, KHÔNG có cảnh báo trôi lệch; hai bộ đếm được giữ đúng bằng QUY ƯỚC (cùng ghi ở đường thành công) chứ KHÔNG bằng bất kỳ bất biến nào; tôi KHÔNG bịa quy tắc reconcile nào. **HỆ QUẢ TRỰC TIẾP CÓ ĐO ĐƯỢC:** cổng chặn chi tiêu lib/pipelines/submit.ts:152,159,166-169 CHỈ ĐỌC SỐ A (totalUsed) ⇒ khi A thiếu, quyết định cho vượt hạn mức lại dựa trên số KHÔNG được đối chiếu. **WRITE-PATH SỐ A (apiKeys.totalUsed, bộ đếm lưu):** ghi #1 lib/pipelines/engine.ts:417-421 đường THÀNH CÔNG guard operation.apiKeyId && totalCost > 0; ghi #2 lib/pipelines/workflow-engine.ts:235-240 đường thành công guard ctx.apiKeyId && ctx.totalCost > 0; đọc để chặn lib/pipelines/submit.ts:152,159 → 402; TRANSACTION: KHÔNG CÓ — grep db.transaction trong legacy lib/ = 0 match; cột lib/db/schema.ts:61 doublePrecision notNull. Lưu ý worker.js:34376,34977 là BUNDLE đã build của hai dòng trên, không phải hiện thực thứ ba — không được đếm hai lần. **WRITE-PATH SỐ B (operations.totalCostUsd):** ghi thành công lib/pipelines/engine.ts:398-412; ghi THẤT BẠI lib/pipelines/engine.ts:453-465 với chi phí DỞ của các step đã chạy; ghi ở workflow lib/pipelines/workflow-engine.ts:216-230; KHÔNG ghi khi HỦY app/api/v1/operations/[id]/cancel/route.ts:39-42 chỉ set done/state/progressMessage; tích lũy trong bộ nhớ engine.ts:254 và :378 totalCost += result.costUsd; đọc tổng hợp app/api/v1/billing/usage/route.ts:49-55 lọc apiKeyId + state=SUCCEEDED + done=true + cửa sổ createdAt; cột lib/db/schema.ts:36. **8 ĐIỀU KIỆN LỆCH (D-1..D-8) kèm code path:** D-1 chết giữa hai await trên đường thành công (UPDATE operation đã commit, UPDATE key chưa chạy) ⇒ A < B vĩnh viễn, KHÔNG có gì sửa (engine.ts:412 xong → :417; workflow-engine.ts:219 xong → :235); D-2 apiKeyId null (key không resolve được) guard bỏ qua A còn hàng operation vẫn mang chi phí ⇒ A không có số, B lọc eq(operations.apiKeyId, …) nên không key nào thấy ⇒ CHI PHÍ MỒ CÔI (auth-fence đã ghi runner.ts:88-110, submit.ts:300-304 lưu null); D-3 thất bại sau khi đã tiêu token ⇒ A và B KHỚP (A không tăng, B loại hàng state=FAILED) — KHÔNG phải lệch A/B mà là GHI THIẾU ÂM THẦM trên CẢ HAI; D-4 hủy giữa chừng ⇒ KHÔNG ghi gì cả, tiền đã chi ở provider không lưu ở đâu; D-5 retry BullMQ (attempts:3 lib/queue/pipeline-queue.ts:30,60) chạy lại CÙNG operationId và đường thành công GHI ĐÈ totalCostUsd bằng tổng của lần chạy đó ⇒ A và B bám theo nhau nhưng chi phí lần chạy trước bị XOÁ khỏi B (engine.ts:412 SET vs :419 +=); D-6 submit lại tạo operationId MỚI (submit.ts:188,300-301) ⇒ khớp; D-7 A là TRỌN ĐỜI còn B là CỬA SỔ ⇒ KHÔNG phải cùng một đại lượng kể cả khi mọi ghi đều đúng; D-8 trôi số thực totalUsed = totalUsed + totalCost cộng dồn trên float8 theo THỨ TỰ CỘNG KHÁC nhau ⇒ lệch ở tầng ulp. **ĐƠN VỊ/LOSSLESSNESS:** trong legacy A và B CÙNG ĐƠN VỊ (cả hai USD doublePrecision float schema.ts:36,61) ⇒ M-05 và M-04 là HAI VẤN ĐỀ KHÁC NHAU, M-04 là legacy↔rework chứ không phải legacy-nội-bộ, không gộp. Rework costMicrousd là SỐ NGUYÊN microusd (z.number().int().min(0) tại packages/contracts/src/runtime.ts:415 và operations.ts:155) cộng bằng BigInt với safe-integer ceiling (modules/usage/usage.ts:139). 1 USD = 10^6 microusd và chuyển đổi KHÔNG lossless nói chung: USD float → microusd int mất phần thập phân nếu giá trị không là bội nguyên của 10^-6; microusd int → USD float → microusd int chỉ khứ hồi được khi float biểu diễn CHÍNH XÁC giá trị đó, ngoài 2^53 microusd (~9.0e9 USD) chính số nguyên đã vượt vùng an toàn của Number ⇒ round-trip chính xác chỉ đúng với giá trị là bội nguyên của 10^-6 VÀ dưới trần an toàn, ngoài đó KHÔNG; hướng an toàn duy nhất là GIỮ microusd int làm nguồn chân lý, chỉ quy đổi sang USD lúc hiển thị. Rework đã có nguyên tắc sẵn: projector KHÔNG bịa trường thiếu (modules/usage/usage.ts:130-135, a 0 token is a measured zero, missing stays missing) và tổng DEDUP theo eventId (runtime.ts:406, usage.ts:139) ⇒ đây là câu trả lời sẵn có cho câu hỏi có nên hòa giải không: rework đã chọn KHÔNG bịa + dedup ở nguồn thay vì dựng cơ chế hòa giải. **KHÔNG ĐỀ XUẤT (đúng ba hard check):** (1) không đề xuất tính balance từ usage của tenant — COMP-08 cấm, và nó cũng không phản ánh hành vi legacy vì balance là key-scoped; (2) không đề xuất biến totalUsed của một key thành tổng của tenant; (3) không bịa quy tắc reconcile — hai số chưa từng được hòa giải, tôi ghi đúng sự thật đó và để COMP-08 quyết định, kèm hệ quả đo được: cổng 402 hiện dựa trên số không được đối chiếu. Evidence: write sites và line number nêu ở trên, db.transaction 0 match, reconcil 1 match không liên quan, migrations/0001_platform_v1.sql:14-20 api_keys KHÔNG có spending_limit/total_used (rework chưa có tương ứng của số A), contracts/src/runtime.ts:405-420 ledger. Gate giữ nguyên: G-ADMIN-OPS/G-SEC/G-COMP/G-DATA/G6 NO-GO. Mục 68.
+- 67 — TURN 344 task_par00_shapes: RESPONSE SHAPE cua ba legacy route lam input COMP-08. READ-ONLY: khong sua source, khong tick gate, chi ghi receipt nay. **TRUC CUA TOI LA SHAPE, khong phai consumer** — term_4568d175 dang inventory AI GOI ba route nay, toi chi mo ta CHUNG TRA VE GI va TU DAU. **AUTH-FENCE: TOI TRICH DAN, KHONG TRANH LAI** — codex-legacy-auth-fence-inventory-2026-10-01.md:26 da ghi /services, /billing/balance, /billing/usage DOC x-api-key-id TRUC TIEP, services va balance query theo ID do, /api/v1 middleware XOA header va cac handler KHONG resolve raw x-api-key, phan loai MUST-NOT-REPLICATE cho direct caller-provided key-ID selection; toi chi ghi nhan he qua shape: moi gia tri deu gan voi mot key id do caller cung cap. **HARD CHECK — BALANCE LA TINH, KHONG PHAI LUU, noi thang vi COMP-08 cam dung hai dieu:** (1) balance duoc TINH LUC REQUEST khong phai cot luu san — balance = spendingLimit > 0 ? spendingLimit - totalUsed : null tai app/api/v1/billing/balance/route.ts:35-37; (2) NGUON LA HAI COT LUU CUA CHINH KEY DO (apiKeys.spendingLimit va apiKeys.totalUsed, lib/db/schema.ts:57-58) — KHONG phai usage cua tenant, KHONG phai bang operations; (3) ⇒ balance la KEY-SCOPED khong phai TENANT-SCOPED. **HE QUA BAT BUOC CHO CUTOVER:** khong duoc dung balance tu aggregate usage cua tenant, khong duoc bien totalUsed cua mot key thanh tong cua tenant; hien rework CHUA CO bat ky billing surface nao (grep billing trong services/orchestrator/src = 0 match) nen chua co cho nao dang bia so nay — rui ro nam hoan toan o thiet ke cutover va day la rang buoc phai ghi vao COMP-08. **SHAPE /services (GET, KHONG nhan tham so nao):** status=200 hang so, message string, services[] voi serviceId/serviceName/discriminatorKey/subCases; subCases[].id = discriminatorValue || '_default' (services:61) nen KHONG bao gio null; displayName/description deu bat buoc trong type; clientParameters = parametersSchema loc bo defaultLocked (services:55). Nguon that = giao catalog tinh getAllEndpointSlugs() (lib/endpoints/registry.ts:408-426) voi profileEndpoints cua key (services:26), chi loai khi enabled === false (services:40) kiem ca slug svc:case lan slug generic svc ⇒ THIEU ROW = KHONG bi tat (thien ve mo). **SHAPE /billing/balance (GET, khong nhan tham so nao):** object='billing_balance', api_key_id, api_key_name (cot .notNull() nen KHONG null, schema.ts:54), currency='USD' hang so (:43), details.spending_limit (null khi <=0, :45), details.total_used (khong null), details.balance (null khi <=0, TINH :35), updated_at = new Date().toISOString() tuc THOI DIEM REQUEST (:49). Tien te USD doublePrecision FLOAT (schema.ts:57-58) khong phai so nguyen. HAI DIEM PHAI NEU: updated_at KHONG phai timestamp da luu ma la bay gio, trong khi apiKeys.updatedAt TON TAI (schema.ts:63) va KHONG duoc select; status DUOC select (:28) nhung KHONG duoc tra ve ⇒ key da revoke van bao balance binh thuong. spending_limit/balance = null khi spendingLimit <= 0 ⇒ 0 (mac dinh DB) va so am KHONG phan biet duoc trong response. **SHAPE /billing/usage (GET, nhan start_date/end_date):** object='billing_usage', start_date/end_date YYYY-MM-DD, total_cost_usd, total_input_tokens, total_output_tokens, total_operations (= opsList.length, DEM OPERATION khong phai dem model), usage[] group theo modelUsed voi model = modelUsed ?? 'unknown', prompt_tokens/completion_tokens/pages_processed/cost_usd. **NGU NGHIA NGAY BAT DOI XUNG GIUA CHINH HAI THAM SO:** start_date → new Date(str) = UTC nua dem (:34); end_date → new Date(str + 'T23:59:59Z') = CUOI NGAY UTC (:35) ⇒ TRUYEN timestamp ISO DAY DU vao end_date se thanh chuoi rong HON hon va hong ⇒ 400, trong khi start_date chap nhan timestamp day du; loc gte/lte tren operations.createdAt ⇒ BAO GOM CA HAI DAU (:54-55); thieu ca hai ⇒ MAC DINH 30 NGAY (:34); ngay sai dinh dang ⇒ 400 (:37). **16 MISMATCH (M-01..M-16)** noi trong muc 67.5, dang can chot cho COMP-08: (M-01) khong co billing surface nao; (M-02) khong co /api/v1/services; (M-03) **scope legacy KEY-scoped, rework TENANT-scoped**; (M-04) don vi tien USD float ↔ microusd int (×10^6) va chuyen doi la lossy phai la transform co ky, khong implicit; (M-05) hai nguon doc lap cho cung mot so (bo dem luu vs SUM luc query) khong reconcile gi; (M-06) updated_la thoi diem request; (M-07) status chon roi bo; (M-08) envelope loi khong nhat quan giua 3 route; (M-09) 500 cua services ro text loi noi bo; (M-10) /services bo qua override tham so cua key (doc parameters trong schema.ts:125 nhung doc chi enabled); (M-11) mac dinh catalog la mo; (M-12) ngay default 30d vs bat buoc, createdAt vs received_at, date-only vs ISO, inclusive vs [from,to); (M-13) grouping model-only vs provider+model; (M-14) snake_case ↔ camelCase + thieu discriminator object; (M-15) total_operations dem operation; (M-16) pages tu payload event khong phai cot operation. **KHONG** de xuat ten field/DTO/URL moi (COMP-08 la owner), **KHONG** xep hang consumer (truc cua term_4568d175), **KHONG** tick gate. Gate giu nguyen: G-ADMIN-OPS/G-SEC/G-COMP/G-DATA/G6 NO-GO. Muc 67.
+- 66 — TURN 344 task_par00_classify: hoan tat phan PHAN LOAI cua ORCH-PAR-00 — moi Admin journey/legacy route vao {cutover-required, post-cutover, retire} kem replacement API / owner / fixture class. **RANH GIOI: nghien cuu; ORCH-PAR-00 GIU NGUYEN [ ]** (acceptance thuoc Product/architect, toi KHONG tick); **KHONG sua source**; moi dong la DE XUAT de ky chu khong phai quyet dinh. **DOI CHIEU THUC TE (khong lap lai khang dinh cua survey):** app/ nam o D:/Git/dugate/app/ NGOAI du-rework; toi liet ke that 46 route.ts (16 internal + 30 khac), 44/46 co verb HTTP ro rang. **BANG PHAN LOAI (de xu):** J01 Admin login/session → cutover-required (LOCAL-00..06); J02 API key issue/revoke/bind → cutover-required (ORCH-PAR-01 control plane XONG + Admin BFF form); J03 Profile policy/override → cutover-required (ORCH-PAR-02 + COMP-02/03); J04 Connector/ext-connection → cutover-required (ORCH-PAR-03 + SEC/Vault + Connector, CHUA co create/activate/retire proxy); J05 Workflow schema authoring → cutover-required (ORCH-PAR-04/P9-04/COMP-09, rework KHONG CO gi); J06 Settings AI/S3/cache → cutover-required (ORCH-PAR-06, chi crypto-config la mat dinh dang settings duy nhat); J07 Analytics time-series → post-cutover (ORCH-PAR-07); J08 Docs portal Swagger → post-cutover (ORCH-PAR-09 + COMP-11, rework KHONG CO gi); J09 Bull board/cleanup → retire, recover-stalled conditional (ORCH-PAR-08); J10 Prompt wizard/chat → retire hoac tach client/demo app (Product). **M01 DA THU HOP sau Muc 65 (chinh toi):** control plane co va HTTP-reachable qua POST /api/v1/admin/actions, NHUNG hanh trinh trinh duyet VAN HONG — form van POST /admin/api-keys/new (api-key-section-renderer.ts:255) va trong switch chi admin-login + admin-crypto-config xu ly POST, moi match section: vao thang handleSectionGet BAT KE method (shell-router.ts:1565-1568) ⇒ phan con thieu KHONG CON la mutation ma la FORM HANDLER + bang chung HTTP/DB/audit; canh bao UI-action cua survey VAN DUNG. **FIXTURE:** theo survey PAR-00 KHONG DUOC DOAN consumer/fixture, nen chi ghi LOP fixture can chung minh (J01 env-mode x2 replica + RBAC/CSRF + ADMIN_TOKEN khong thanh local identity; J02 create→DB(hash)→audit→revoke→401 + raw khong lo + idempotency replay; J03 canonical+legacy cung fixture, locked override 400 legacy, no-write on deny, pinned revision; J04 standalone/container create→activate→invoke + wrong tenant/account + rotate→revoke, khong coi in-process mock la deploy proof; J05 schema migrated submit→poll/result/HITL + negative graph/XXE + rollback; J06 ma tran migrate tung setting + rollback receipt + khong doc lai raw secret; J07 chi can neu Product nang len required; J08 OpenAPI da freeze + migration guide; J09 runbook thay the bull-board/cleanup co receipt); consumerId/fixtureId cho COMP-00/01 cap. **RANH GIOI KHONG DUOC VUOT:** 9 route /api/v1/docs/* + /api/v1/billing/* + /api/v1/operations/* + /api/v1/services la PUBLIC product/external wire cua COMP, KHONG phai Admin journey va PAR-00 khong phan loai chung; app/api/internal/* khong mac dinh can alias tren rework (phan loai theo CAPABILITY khong theo URL); connector revision/secret thuoc Connector/Vault, Orchestrator chi la proxy/binding owner. **BA VIEC CHAN SIGN-OFF:** COMP-00/01 cap consumerId/fixtureId + danh sach external consumer that (toi khong doan); LOCAL-00..06 (J01) la tien de — chua co local identity thi J02..J09 khong co actor de ky; gates van NO-GO. Evidence: legacy 46 route/44 co verb, rework route da kiem tai server.ts:1257,1273,1328,1776,2204,2315,2358,2399,2628,2719, absence da kiem (workflow-schemas va swagger trong rework src = 0 match), khong sua source, ORCH-PAR-00 van [ ]. Gate giu nguyen: G-ADMIN-OPS/G-COMP/G-LOCAL-ADMIN/G-SEC/G-DATA/G-ENC/G6 NO-GO. Muc 66.
 - 65 — TURN 344 ORCH-PAR-01-API-KEY-REAL-MUTATION (task_9c91a4038e95): **cycle dau t toi sua PRODUCTION CODE** (Muc 50-64 chi them test) — muc do rui ro khac han, loi o day nam tren duong di that. Sua src/modules/admin-actions/dispatcher.ts **+143 dong 0 xoa** (thuan bo sung); them moi tests/admin-api-keys.test.ts **29 test** (file nay KHONG ton tai o HEAD nen baseline = 0). **TUYET DOI KHONG SUA HAI FILE BI CAM, kiem bang git status chu khong bang tri nho:** src/server.ts **rong** = khong dung; packages/contracts/src/public-api.ts **rong** = khong dung; toan bo src/ khac chi co dispatcher.ts. Ghi chu duong dan trong packet la services/orchestrator/src/contracts/public-api.ts — **thu muc do khong ton tai**, file that o packages/contracts/src/public-api.ts va toi da kiem file do; ngoai ra src/compat/ la thu muc untracked CO SAN tu lane khac (legacy-*.ts, khop phan COMP trong commit gan nhat) khong phai cua toi. **HAI ACTION MOI, DEU ADMIN-ONLY:** apikey.issue — INSERT INTO api_keys (tenant_id, hash, prefix) RETURNING id, status, created_at, gia tri tho di vao qua deps.hashApiKey va CHI digest cham cot, danh sach cot khong co cho nao chua no, tho tra ve DUNG MOT LAN trong body 201 (copy-once) khong vao store khong vao audit; apikey.revoke — UPDATE api_keys SET status='REVOKED' WHERE id=$1 AND status='ACTIVE', cot status chinh la cot ma server.ts resolveApiKey loc nen khoa bi thu hoi NGUNG xac thuc ngay khong co store thu hai phai dong bo. Ca hai di qua executeIdempotent + auditedMutation giong het cac action that san co nen du lieu va dong audit cung MOT transaction; KHONG them dependency moi nen khong can (va khong duoc) sua server.ts. **4 LOI TU BAT, tat ca la loi cua toi khong phai cua san pham:** (1) client.query tra QueryResult khong tra row, toi doc r.id truc tiep ⇒ tsc bat 6 loi TS2339, sua mutate tra rows[0]! kem guard rowCount; (2) CU PHAP HONG trong code toi viet — `(r, ) => ({ … })` dau phay thua, bat duoc khi doc lai file; (3) `(client) => client.query(...)` khi audit nhan QueryResult thay vi row ⇒ dong audit cua apikey.revoke mat tenant that va ghi tenantId null, sua bang RETURNING id, tenant_id va auditOf doc r.tenant_id — TENANT LAY TU HANG DA LUU, KHONG BAO GIO TU claim cua nguoi goi (dung nhu bind-profile); (4) **FIXTURE hashApiKey CUA TOI NHUNG CHINH RAW VAO HASH** ('sha256:…-' + raw) nghia la test 'raw khong bao gio duoc luu' **RONG** — no se dung hoac sai tuy van ban chu khong kiem duoc gi, sua lai dung createHash('sha256') that giong hashKey o server.ts — **day la loi nguy hiem nhat cua cycle: mot test co ve kiem chung bao mat ma thuc ra khong kiem gi**. Ngoai ra toi viet 2 test ky vong operator ghi duoc vao tenant cua chinh no — MAU THUAN VOI CHINH THIET KE ADMIN-ONLY cua toi, chay ra fail, da doi thanh khang dinh dung thuc te: operator bi chan o ROLE GATE, zero query, zero write. **QUAN SAT PHAI GHI KHONG DUOC GIAU:** vi ca hai action la ADMIN-ONLY, nhanh TENANT FENCE ben trong case body **hien khong reachable** — role gate da tra 403 truoc khi toi do; toi GIU nhanh fence va ghi ro trong test + receipt, day la canh cua an toan se co tac dung neu action table duoc mo rong sau nay, day la ghi nhan khong phai loi nhung neu noi thi nguoi doc se tuong co kiem tra tenant dang chay. **DIEM TOT ghim lai:** dong audit lay tenant tu hang da luu (revoke) hoac tu tenant dich da qua fence (issue) khong bao gio tu claim; AND status='ACTIVE' tren UPDATE chan ghi doi khi co race va neu mat race thi 409 chu khong phai im lang ghi tiep; moi duong tu choi deu zero write + zero audit row co test rieng; action table admin-only khop dung lap luan OIDC-03 san co cho apikey.bind-profile. Evidence: **29/29 x3** (exit 0/0/0), file moi nen baseline 0, tsc noEmit **Exit Code: 0** log rong, hoi quy admin-action-dispatcher.test.ts (duyet TOAN BO action table) **55/55** — hai action moi da duoc ma tran RBAC cu quet qua. Gate giu nguyen: G-ADMIN-OPS NO-GO, G-SEC NO-GO, G-ENC/G6 NO-GO. Muc 65.
 - 64 — TURN 344 W-ADM-UX-20-CRYPTO-CONFIG-WIRING-NEGATIVE (task_9c91a4038e95): chi sua tests/admin-crypto-config-wiring.test.ts, 0 dong production code. **BASELINE PHAI DOC DUNG:** file CHUA COMMIT nen co BA con so phai phan biet: HEAD do duoc la 23, cay lam viec ngay truoc Muc 64 la **71** (do bang cach cat file tai marker cua khoi Muc 64 roi chay, khong doan), Muc 64 dua len 122 => **+51 la cua rieng Muc 64**, khong phai +99 (so voi HEAD); git diff numstat voi HEAD la +902 vi con ca phan chua commit truoc do. **4 GOC DO DUOC:** (1) ROLE BOUNDARY — tenant VIEWER bearer KHONG COOKIE ghi duoc (200) va store that su nhan gia tri, nhung cung bearer do + cookie viewer + CSRF hop le thi 403 — chenh lech nam o CO GUI COOKIE hay khong, khong nam o role; (2) TAMPER — cookie sai secret / chu ky bi sua / rac deu 200 VAN GHI DUOC, chi CSRF sai moi 403; (3) SESSION INVALIDATION — cookie het han, iat sau exp, cookie ky bang secret la deu 200, phien khong bi vo hieu hoa; (4) PAYLOAD SHAPE — sai kieu cho ca deliveryEncryption/storageKeyRef/recipientKeyVersion deu 422 store khong dung audit rong, pin khoa bi thu hoi ra 409 chu khong phai 422. **4 DEFECT, ghi nhan KHONG sua:** (a) BEARER VIEWER GHI DUOC khi khong gui cookie — requireWriteAuth chi chan khi auth.cookieRole === 'viewer', bearer-only thi cookieRole la undefined nen NHANH CHAN VIEWER KHONG BAO GIO CHAY; (b) COOKIE KHONG XAC MINH DUOC KHONG BI TU CHOI — no bi coi la KHONG CO COOKIE, ma khong co cookie nghia la BO QUA HANG chan CSRF, nen gia mao cookie khong chan duoc ghi ma no GO DUNG CAI KIEM DUY NHAT chan ghi (do duoc ca ba: ky bang secret khac 200, sua chu ky 200, du_admin=not-even-a-cookie 200); (c) SESSION KHONG BI VO HIUEU HOA — het han / iat nam sau exp / ky bang secret server khong he co deu 200, cung nguyen nhan voi (b): phien khong duoc kiem ma don gian la vang mat voi handler, he qua la toan bo chong gia mao dua vao bearer token con gia tri cookie chi la thu BO SUNG chu khong phai thu RANG BUOC; (d) BODY KHONG PHAI OBJECT LA NO-OP IM LANG — [], null, 'x', 5 deu 200, khong phai 422 nhu cac field sai kieu khac, tuc lop validate CO nghiem cho field nhung KHONG cho hinh dang body. **DIEM TOT — cho la noi dang ghim nhat cua packet:** CSRF binding la CHAC (token sai 403, token KY TU MOT SESSION HOP LE KHAC 403 — rang buoc voi dung session cookie la thu duy nhat chong gia mao thanh cong tren toan bo be mat nay); validation field rat CHAT (sai kieu ca ba field deu 422 store khong dung audit rong, storageKeyRef ngoai allowlist 422, version chua dang ky 422, khoa bi thu hoi 409 dung la xung dot trang thai chu khong phai loi schema); field la bi loai va khong RO (sentinel trong `evil` khong xuat hien o store lan audit, dong audit chi ghi {tenantId, action, resource, actor, severity} — KHONG co field payload — va key material khong bao gio duoc echo luc doc); co lap tenant dung o ca doc lan ghi. **2 LAN TOI DOAN SAI — cung suy thanh bao cao sai:** (1) probe dau dung BEARER PLATFORM cho moi ca cookie/CSRF nen toan bo tra 200, trong nhu lo hong auth toan dien — nguyen nhan la requireWriteAuth CO Y bo qua CSRF cho platform va platform bearer la che do may-may, toi chi nhan ra vi DOI CHIEU voi bo test ENC-08 san co (dung bearer tenant-operator) va da dung lai probe bang dung bearer; (2) probe dung sai ten field pinnedRecipientKeyVersion (do la ten STORED khong phai ten REQUEST, ten request la recipientKeyVersion) nen moi ca pin tra 200 nhu no-op, sua lai moi thay validation pin hien ra dung (422/409). Ca hai deu la loi FIXTURE khong phai bug san pham va ca hai deu se thanh receipt sai neu toi tin thay vi doi chieu voi suite san co; da them ghi chu ve ten field ngay tren dau khoi test. Evidence: **122/122 x3** (exit 0/0/0), baseline ngay truoc Muc 64 la 71 → **+51**, HEAD do duoc 23 (khong phai baseline cua Muc 64), tsc noEmit **Exit Code: 0**, `git status -- services/orchestrator/src` RONG. Gate giu nguyen: G-ADMIN-OPS NO-GO, G-SEC NO-GO, G-ENC/G6 NO-GO. Muc 64.
 - 63 — TURN 344 W-ADM-UX-19-OVERVIEW-VIEW-MODEL-NEGATIVE (task_9c91a4038e94): chi sua tests/admin-overview-view-model.test.ts, 0 dong production code. **BASELINE PHAI DOC DUNG:** file CHUA COMMIT (Muc 59 de lai +368 dong), HEAD do duoc la 108, sau Muc 59 cay lam viec la 160, Muc 63 dua len **193** => **+33 la cua rieng Muc 63**; git diff numstat voi HEAD la +684 vi cong ca Muc 59 — KHONG so 193 voi 108 roi ghi +85. Day la lan 3 tren cung module va moi lan chon dat khac: M55 phu enum + co che degrade, M59 phu SAI KIEU field + thu bien mat khoi JSON, M63 phu TANG AGGREGATE (danh tinh bucket, tinh nhat quan totals, cap cua so, co lap tenant, so am). Moi con so deu DO BANG PROBE truoc khi viet — sau su co Muc 61 toi khong con viet con so nao lay tu source. **5 DEFECT, ghi nhan KHONG sua:** (1) SO AM khong bi chan o dau ca — operations -1 va pages -2 di thang toi view, hang do van lam hasRows true, totals {operations:-5} qua nguyen ven, 1e21 vuot xa safe-integer cung khong clamp, khong co san nao o tang nay nen neu nguon phat so am thi pane hien so am nhu that; (2) totals khong bao gio duoc doi chieu voi cac hang — hang operations 100 con totals.operations 1 lech nhau bat ky ma khong ai hoi, totals con mang theo KEY LA (extra) khong bi loc; (3) CAP CUA SO khong parse khong so thu tu — from/to bang undefined thi KEY BIEN MAT khoi JSON (pane mat nhan cua so), bang '' thi duoc giu nguyen chuoi rong, cua so DAO NGUOC (from sau to) qua yen; (4) CO LAP TENANT CUA USAGE ROLLUP KHONG TON TAI — rollup nhan tenantId va CHI GAN THANG, mot tenant khong so huu hang nao van nhan day du hang + totals, khac han audit list co loc that; (5) activeLeases AM van mang badge success — so lease la so dem, am la bat kha thi trong he thong dung nen hien no voi badge thanh cong nghia la con so dang duoc tin la dang tin khi khong phai, ngoai ra status chi chi phoi badge tong nen degraded + CA HAI probe xanh cho ra badge error canh hai badge success va fullyHealthy true, ba tin hieu trai chieu nhau tren cung mot pane. Ngoai ra: bucket trung provider/model KHONG duoc gop (3 hang → 3 hang), provider null va chuoi rong di qua nguyen ven, payload doc hai trong provider khong escape, rows khong phai mang → NEM TypeError. **DIEM TOT ghi lai de khong sua nham:** loc tenant cua audit list fail closed ve phia DUNG o moi truong hop CO gia tri (khac hoa thuong, khac khoang trang, hay la object deu giu 0 event, chi khi CA HAI ve cung nullish moi sup thanh no-op tuc loi nam o dung mot o trong khong phai o ca co che), allUnattributed yeu cau CA HAI provider va model khop nen hang chi gan do mot phia van duoc tinh la da gan co y de khong giau attribution, moi hang giu badge measurement rieng (do duoc ['success','neutral'] cho mot cua so tron), cap probe deu hong thi fail-closed dung (ca ba badge error, fullyHealthy false). Evidence: **193/193 x3** (exit 0/0/0), baseline ngay truoc Muc 63 la 160 → +33, HEAD do duoc 108, tsc noEmit **Exit Code: 0**, `git status -- services/orchestrator/src` RONG. Gate giu nguyen: G-ADMIN-OPS NO-GO, ADM-UX-19 [~], G-SEC/G-ENC/G6 NO-GO. Muc 63.

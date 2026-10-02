@@ -1,0 +1,78 @@
+/**
+ * Bounded fan-out.
+ *
+ * The legacy workflow used an unbounded Promise.all over every file, so a 200-file LC
+ * submission opened 200 concurrent OCR calls. Bounded fan-out is an explicit P9-02
+ * deliverable, so the ceiling is enforced here rather than left to the orchestrator.
+ *
+ * Results come back in INPUT order regardless of completion order, so a resumed run merges
+ * child payloads the same way every time.
+ */
+
+import { MAX_FANOUT_CONCURRENCY, type ChildOutcome, type ChildTaskSpec } from './primitives';
+
+export type FanoutOutcome<TPayload> = ChildOutcome<TPayload>;
+
+/** Normalise a requested ceiling: positive, integral, and never above the hard cap. */
+export function resolveConcurrency(requested: number): number {
+  if (!Number.isFinite(requested)) return 1;
+  const floored = Math.floor(requested);
+  if (floored < 1) return 1;
+  return Math.min(floored, MAX_FANOUT_CONCURRENCY);
+}
+
+function toFailure(childId: string, err: unknown): FanoutOutcome<never> {
+  const code =
+    err && typeof err === 'object' && 'code' in err && typeof (err as { code: unknown }).code === 'string'
+      ? (err as { code: string }).code
+      : 'CHILD_FAILED';
+  const message = err instanceof Error ? err.message : String(err);
+  return { childId, status: 'failed', error: { code, message } };
+}
+
+/**
+ * Run every spec with at most `maxConcurrency` in flight. One child throwing never
+ * cancels its siblings: the failure is recorded on that child and the rest still finish,
+ * because an LC set where one scan is unreadable still has to be examined on the rest
+ * rather than refused wholesale.
+ */
+export async function runBoundedFanout<TPayload>(
+  specs: readonly ChildTaskSpec[],
+  maxConcurrency: number,
+  run: (spec: ChildTaskSpec) => Promise<TPayload>
+): Promise<readonly FanoutOutcome<TPayload>[]> {
+  const outcomes: (FanoutOutcome<TPayload> | undefined)[] = new Array(specs.length);
+  const ceiling = resolveConcurrency(maxConcurrency);
+  let next = 0;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const index = next;
+      next += 1;
+      const spec = specs[index];
+      if (!spec) return;
+      try {
+        const payload = await run(spec);
+        outcomes[index] = { childId: spec.childId, status: 'succeeded', payload };
+      } catch (err) {
+        outcomes[index] = toFailure(spec.childId, err);
+      }
+    }
+  };
+
+  const workers: Promise<void>[] = [];
+  const workerCount = Math.min(ceiling, Math.max(specs.length, 1));
+  for (let i = 0; i < workerCount; i += 1) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+
+  return outcomes.map((outcome, index) =>
+    outcome ??
+    ({
+      childId: specs[index]?.childId ?? 'unknown-' + index,
+      status: 'failed',
+      error: { code: 'CHILD_NOT_SCHEDULED', message: 'Fan-out slot was never executed' },
+    } as FanoutOutcome<TPayload>)
+  );
+}

@@ -22,6 +22,7 @@ import {
   IncomingMessage,
   ServerResponse,
 } from 'node:http';
+import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { createLogger } from '@du/observability';
 import { dispatchShellRequestAsync } from './shell-router';
@@ -360,6 +361,29 @@ export function createAdminShellServer(
     cookiePolicy,
     securityAudit,
     sectionFetchers: defaultSectionFetchers,
+    adminAction: options.jsonBaseUrl ? async (action, params) => {
+      const response = await fetch(new URL('/api/v1/admin/actions', options.jsonBaseUrl), {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${options.adminToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          params: action === 'apikey.issue'
+            ? { ...params, apiKey: `du_${randomBytes(32).toString('base64url')}` }
+            : params,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      const payload: unknown = await response.json().catch(() => ({}));
+      return {
+        status: response.status,
+        body: payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? payload as Record<string, unknown>
+          : {},
+      };
+    } : undefined,
   };
 
   let lastRouteId = 'unknown';

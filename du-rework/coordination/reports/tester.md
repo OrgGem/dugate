@@ -11601,6 +11601,39 @@ The boundary runs passed **3/3 suites and 18/18 test executions**.
 - Typecheck: `pnpm --filter @du/document-core exec tsc --noEmit` - ExitCode 0, no diagnostics.
 - Result: **PASS** for this offline test packet; MIME/extension validation gaps remain visible as expected failures. All release gates remain **NO-GO** and unchanged.
 
+# T-CODEX-OFFLINE-STAT-AND-GENERATE-INDEPENDENT
+
+- Receipt time: `2026-10-01T02:24:18+07:00`. Task: `task_7aa1f0cb5610`; context: `ctx_e1495d94cb8b`; CWD: `D:\Git\dugate\du-rework`. Independent offline verification. No production source or test files were edited; this report receipt is the only requested file change.
+
+### Worker SDK artifact-stat suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 26 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 26 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/worker-sdk test -- tests/artifact-stat.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 26 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 78/78 test executions passed**; grant descriptor metadata, authorization denials, malformed artifact IDs, checksum and size validation, lease fencing, timeout propagation, and no-fetch behavior were green.
+
+### Document Core generate suite (three consecutive runs)
+
+- Command (run 1): `pnpm --filter @du/document-core test -- tests/generate.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Command (run 2): `pnpm --filter @du/document-core test -- tests/generate.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Command (run 3): `pnpm --filter @du/document-core test -- tests/generate.test.ts`
+- ExitCode: **0**; Jest reported **1 passed suite, 18 passed tests, 0 failed**.
+- Aggregate: **3/3 suites and 54/54 test executions passed**; generation variants, QA/minutes JSON validation, prompt/input limits, required output checks, unsupported formats, timeout propagation without retry/fallback, and oversized input rejection were green.
+
+### Package typechecks
+
+- Command: `pnpm --filter @du/worker-sdk exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+- Command: `pnpm --filter @du/document-core exec tsc --noEmit`
+- ExitCode: **0**, no diagnostics.
+
+- Result: **PASS**; all six targeted suite runs and both typechecks succeeded. All release gates remain **NO-GO**; this receipt records evidence only and does not change any gate.
+
 # COMP-09-LEGACY-WORKFLOW-MAPPING
 
 ### Receipt for `task_496cb1f7b98e` / `ctx_5658c2f290bb`
@@ -11655,3 +11688,732 @@ The boundary runs passed **3/3 suites and 18/18 test executions**.
   '- Full-suite regression: `npx jest --runInBand` = 110 passed / 16 skipped / **2 failed** (3871 passed, 224 skipped, 4097 total), ExitCode 1. Both failures (`adm-base-03-safe-error-offline.functional`, `admin-shell-session-lifecycle`) are **pre-existing and unrelated**: neither suite references `compat/` or `legacy-action`, and both fail identically with my two files moved out of the tree and re-run from backups. They assert on captured admin-shell log lines owned by the Admin/SEC lanes.',
   '- Result: **PASS** for the router module and its offline verification. This receipt does **not** mount the router in `server.ts` (the serialized `server.ts` mount point owned by the orchestrator owner lane), does not alter contracts, and promotes or alters **no** release gate: `G-ADMIN-OPS`, `G-SEC`, `G-DATA`, `G-ENC`, `G-COMP`, `G-LOCAL-ADMIN` and `G6` all remain **NO-GO** and unchanged.',
   ''
+
+
+## task_keyset_explain_fix — live verification blocked by separate planner case
+
+- Recorded: 2026-10-01 08:54 +07:00. CWD: D:\Git\dugate\du-rework\services\orchestrator. Current test file was already clean in git status and contains the 0019-aware matcher at tests/admin-keyset-explain.test.ts:162: operations_(tenant_)?deadline_(coalesce_(asc|desc)_)?id_idx. No test/source files were changed in this task.
+- DB window: CLAIM_DB_WINDOW=2026-10-01T08:54:02+07:00 -> RELEASE_DB_WINDOW=2026-10-01T08:54:20+07:00; session advisory lock released (true). PostgreSQL target du_orchestrator_test through host port 5433; Redis 6380 PING=PONG, ExitCode 0.
+- Command in each run: pnpm test -- tests/admin-keyset-explain.test.ts, DU_LIVE_INFRA=1, DATABASE_URL=postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test, REDIS_URL=redis://127.0.0.1:6380.
+- Run 1: PASS, ExitCode 0; 1 suite / 18 tests passed.
+- Run 2: BLOCKER, ExitCode 1; 17 passed / 1 failed. All three live 0019 deadline plan tests passed. The separate created_at backward-hop case failed because PostgreSQL chose Seq Scan + Sort instead of the expected Index Cond on ROW(created_at, id); the exact plan is in the raw log. This is outside the requested deadline-index assertions.
+- Per instruction, stopped after the unrelated failure; Run 3 was not forced or attempted. The requested three consecutive green live runs are therefore not achieved.
+- Raw output: coordination/reports/raw/admin-keyset-explain-live-x3.log. The live 0019 assertions passed in both runs; no claim is made that the full suite is green x3.
+# COMP-09-P9-04-LEGACY-WORKFLOW-RUNTIME-CHAR
+
+## Read-only characterization receipt — `task_workflow_runtime_char`
+
+- Recorded: 2026-10-01. Scope: read-only inspection of legacy `app/` and `lib/` routes/runtime plus COMP-09/P9 plan text. Only this report was appended; no legacy or rework source was edited, no tests were run, and no gate was ticked. Release gates remain **NO-GO**.
+- Evidence: `app/api/v1/docs/workflows/route.ts`; `app/api/v1/docs/workflows/schema/route.ts`; `app/api/v1/operations/[id]/resume/route.ts`; `app/api/v1/operations/[id]/route.ts`; `lib/pipelines/submit.ts`; `lib/pipelines/workflow-engine.ts`; `lib/pipelines/workflows/{disbursement,lc-checker,doc-compare}.ts`; `lib/pipelines/format.ts`; `lib/workflow-builder/{loader,run-schema,interpreter}.ts`; `worker.ts`; `lib/endpoints/registry.ts`.
+
+### Legacy workflow submission and operation shape
+
+- `POST /api/v1/docs/workflows` consumes multipart `process`, files, and process-declared variables. Missing `process` is 400; an unregistered process is 404; no files is 400. The route whitelist is exactly `disbursement`, `lc-checker`, and `doc-compare` (`lib/endpoints/registry.ts:373-403`). It submits an `ext-classifier` placeholder pipeline under endpoint slug `workflows:<process>` and keeps operation history. On acceptance it returns 202 with `{name: "operations/<id>", done: false, metadata: {state: "RUNNING", workflow: <process>, progress_percent: 0, progress_message: "Initializing workflow..."}}` and `Operation-Location: /api/v1/operations/<id>` (`route.ts:15-47,88-119`).
+- `submitPipelineJob` persists the operation and enqueues `pipeline:workflows:<process>` with `type: "workflow"`; the worker routes it to `runWorkflow` (`submit.ts:338-352`, `worker.ts:44-53`). The workflow ignores the placeholder pipeline and dispatches by job name. The worker-step children are hidden operation rows on a separate `workflow-steps` BullMQ queue; each step waits for completion with connector timeout plus a 30-second queue/file overhead, then reads the child result and accumulates usage (`workflow-engine.ts:99-194`).
+- Polling `GET /api/v1/operations/{id}` uses the legacy LRO shape `{name, done, metadata, result?, error?}`. Metadata includes state, placeholder `pipeline: ["ext-classifier"]`, current step, progress and `pipeline_steps`; successful `result` contains `output_format`, `content`, `extracted_data`, `pipeline_steps`, usage and `download_url`. Thus `pipeline_steps` carries actual workflow step records while `metadata.pipeline` still describes only the placeholder (`format.ts:14-83`).
+
+### Runtime semantics: code-driven workflows
+
+- **disbursement:** parallel per-file classification → parallel per-file extraction → pause for human review at checkpoint `currentStep=2` → cross-check → report. Each file task is isolated into success/error records; the workflow fails classification only when every classify task fails. Extraction output is persisted before the HITL pause; resume can replace a matching step's `extracted_data` before cross-check/report (`disbursement.ts:94-207`).
+- **lc-checker:** parallel OCR per file → one compliance check using OCR plus the original PDFs → report. OCR task errors are isolated; if no OCR text is available, compliance continues using PDFs. No HITL pause is implemented in this workflow (`lc-checker.ts:69-183`).
+- **doc-compare:** route accepts any non-empty file set, but the runtime throws when fewer than two files arrive; despite the message saying “exactly 2”, more than two are accepted, OCR is attempted for all, and only the first two are used for comparison. Runtime is parallel OCR → TOC extraction → section comparison → report (`doc-compare.ts:49-57,85-105,137-198`).
+- Shared checkpointing writes progress and the full `stepsResult` JSON to the parent operation. `pauseWorkflow` writes `WAITING_USER_INPUT`, `done=false`, and the resume step, persists usage, and sends a pause webhook; `completeWorkflow` writes `SUCCEEDED` and output/usage; `failWorkflow` writes `FAILED` and error/usage (`workflow-engine.ts:207-287`). The resume endpoint accepts `{step, extracted_data}`, changes a matching saved step and marks it human-edited, sets the operation back to `RUNNING`, then re-enqueues the same workflow endpoint. It accepts resume only from `WAITING_USER_INPUT` and returns `{success:true,message:"Resumed successfully"}` (`resume/route.ts:20-99`).
+
+### Schema workflow submission and output shape
+
+- `POST /api/v1/docs/workflows/schema` accepts multipart `schemaSlug`, optional JSON-string `input`, and optional files. It loads `wb_schema:<slug>` from `appSettings`, validates the schema before enqueue, returns 400 for missing/invalid input or schema and 404 for an unknown slug. Accepted submissions have the same 202 LRO fields and `Operation-Location`, with `workflow: <schemaSlug>` and progress message `Initializing schema workflow...` (`schema/route.ts:15-108`).
+- The route builds placeholder variables as `{schemaSlug, ...input}`, sets endpoint slug `workflows:schema:<requestedSlug>`, and skips placeholder connector validation. The worker prioritizes `pipelineVars.schemaSlug`, reloads the schema by that value, and invokes the schema runner (`schema/route.ts:50-56,81-90`; `workflow-engine.ts:431-449`). The schema runner executes ordered DAG blocks, runs parallel branches concurrently, pauses at human nodes while saving `_nodeResults`, restores those results on resume, and derives final `content`/`extracted_data` from `schema.output` (`run-schema.ts:17-96`; `interpreter.ts:105-166`). The polling/result envelope remains the same legacy operation shape above.
+
+### MISMATCH items for COMP-09 / P9-04
+
+1. **Process names are a compatibility key.** Runtime names are `disbursement`, `lc-checker`, `doc-compare`; the newly characterized mapping must use these exact legacy `process` values and map each to an explicit business/version/action/profile. Names such as `simple-extraction`, `multi-step-analysis`, and `transform-compare` do not represent these three legacy processes and are not aliases evidenced by the runtime. Align with COMP-09’s required mapping (`API-COMPAT-DUGATE-2026-09-28.md:58`) and P9’s three separate business lanes (`P9-business-backlog.md:18-22`).
+2. **Do not collapse the workflow semantics into a generic linear recipe.** Disbursement has parallel fan-out and a mandatory HITL checkpoint; LC-checker has parallel OCR and PDF fallback but no HITL; doc-compare has a two-document comparison contract and a different four-stage graph. COMP-09 acceptance explicitly requires submit → poll → checkpoint/HITL/resume → result/error parity, so these distinctions need fixtures and runtime mapping.
+3. **Schema identity can diverge from the validated/requested slug.** `{schemaSlug, ...input}` permits `input.schemaSlug` to override the form slug after the route validated the original. `endpointSlug` retains the original slug, but the worker dispatches using the overridden pipeline variable, so a different stored schema may execute. COMP-09 expects `schemaSlug → registered schema business`; bind the slug after input parsing and pin an approved schema identity/revision for submit/resume. The current loader is mutable slug-only storage, with the route and worker loading separately (`loader.ts:10-33`); P9-04 still requires version/security/node-capability semantics (`P9-business-backlog.md:21`).
+4. **Placeholder connector dependency leaks into legacy workflow submission.** The ordinary process route does not set `skipConnectorValidation`; therefore `submitPipelineJob` requires `ext-classifier` to exist and be enabled even though the worker ignores the placeholder. Schema submit explicitly skips this validation. This can reject a valid business workflow for an unrelated connector configuration (`submit.ts:107-145`; `schema/route.ts:81-90`).
+5. **doc-compare file bounds are not enforced consistently.** The route only enforces at least one file while runtime requires at least two. Runtime wording says “exactly 2” but the actual guard is `< 2`, and extra files are OCR’d then excluded from comparison. Make COMP-09 request validation/fixtures reflect the intended accepted count rather than treating the current error text as proof.
+6. **Legacy key resolution is not the target identity boundary.** Both submit routes accept form `apiKeyId` (internal ID or raw key) and fall back to the earliest ADMIN key when omitted. This is observed legacy behavior, but COMP-00 compatibility hardening says a request-supplied key selector must not choose identity and no admin fallback/cross-tenant read should be recreated. Preserve visible workflow wire semantics while resolving tenant/key from authenticated identity.
+7. **Schema interpreter boundary:** the legacy app contains the schema interpreter and lifecycle runner. P9-04 requires schema workflow capabilities while keeping the interpreter out of the Orchestrator; COMP-09 should resolve the legacy slug to a registered schema business rather than transplanting this interpreter into the Orchestrator.
+
+- Result: characterization complete for the three code-driven workflows and schema submit/output shape. Findings are inputs for COMP-09/P9-04 only; no implementation or gate state changed.
+
+# T-CODEX-GOLDEN-TEST-INVENTORY-COMP-10-OFF
+
+- Task: `task_golden_test_inventory`. Inventory time: `2026-10-01T09:01:32+07:00`. Scope: legacy checkout `D:\Git\dugate`, limited to `app/` and `tests/`; this receipt is stored in the existing Wave 14 tester report under `du-rework/coordination/reports/tester.md`.
+- Read-only inventory. No source/test files or gates were changed, and no tests were run.
+
+## Six document routes
+
+| Route and file:line | Existing case | Output shape asserted | Fixture source and golden-fixture value |
+|---|---|---|---|
+| `POST /api/v1/docs/ingest`; `app/api/v1/docs/ingest/route.ts:5`; `tests/e2e/ingest.e2e.test.ts:5-15,21-41,44-61` | Invalid mode; parse/ocr/digitize/split loop; multi-file submit. | Invalid case: HTTP 400 with `detail`. Accepted case: HTTP 202 and `name=operations/<id>`; polled view has `done=true`, `metadata.state=SUCCEEDED`, `result.output_format=json`. Multi-file case only checks non-empty `result.pipeline_steps`. | `tests/e2e/utils.ts:9-27` dummy PDF/DOCX bytes; request form in test. Useful for request/envelope seed, not exact generated content. |
+| `POST /api/v1/docs/extract`; `app/api/v1/docs/extract/route.ts:5`; `tests/e2e/extract.e2e.test.ts:8-24,26-51` | Five standard types and custom JSON-schema extraction. | HTTP 202 then terminal success; standard types assert JSON output format; custom case checks done/state only. | Dummy PDF via `tests/e2e/utils.ts:9-18`; custom schema is inline at `tests/e2e/extract.e2e.test.ts:28-38` (companyName/totalAmount). |
+| `POST /api/v1/docs/analyze`; `app/api/v1/docs/analyze/route.ts:5`; `tests/e2e/analyze.e2e.test.ts:8-23,26-40` | Six standard tasks plus a compliance query/prompt. | HTTP 202 then done and `metadata.state=SUCCEEDED`; standard tasks assert JSON output format. | Dummy PDF helper; task and query are inline in the test. |
+| `POST /api/v1/docs/transform`; `app/api/v1/docs/transform/route.ts:5`; `tests/e2e/transform.e2e.test.ts:8-22,25-38` | Convert/rewrite/redact/template loop and translate with targetLanguage. | HTTP 202 then done and SUCCEEDED; no `result` content or output-format value is asserted. | Dummy PDF helper; translate target is inline (`Vietnamese`). |
+| `POST /api/v1/docs/generate`; `app/api/v1/docs/generate/route.ts:5`; `tests/e2e/generate.e2e.test.ts:8-30` | Six generation tasks; QA adds a query. | HTTP 202 then done/SUCCEEDED; `result.output_format` is constrained to `json`, `markdown`, or `text`. | Dummy PDF helper; query/task inputs are inline. |
+| `POST /api/v1/docs/compare`; `app/api/v1/docs/compare/route.ts:5`; `tests/e2e/compare.e2e.test.ts:8-24` | diff/semantic/version with two input files. | HTTP 202 then done/SUCCEEDED and JSON output format. | Dummy PDF plus four-byte DOCX signature from `tests/e2e/utils.ts:9-27`; mode and filenames are inline. |
+
+The six route E2E files assert response envelopes and a few output-format constraints, not stable full-result snapshots. Their common fixture/auth source is `tests/e2e/utils.ts:4,9-35,41-64` and `tests/e2e/setup.ts:16-35`: API base defaults to `localhost:2023`, a test API key is inserted into the DB, and provider connections are expected to be configured (often toward mock-service). Treat the dummy document bytes and observed response shapes as seeds; capture deterministic golden result bodies only from a controlled provider fixture.
+
+## Operation lifecycle: list, detail, cancel, resume, download
+
+| Lifecycle surface and file:line | Existing case | Output shape evidenced by app/tests | Fixture source / gap |
+|---|---|---|---|
+| List: `app/api/v1/operations/route.ts:2,29,58-130` | No direct list-route test found in root `tests/`. | JSON `{operations:[...] , next_page_token}`; each item has `name`, `done`, and lightweight metadata; failed items may include `error`, successful items usage-only `result`. | Source reads DB operation rows; no list response fixture exists. Seed synthetic operation rows for pagination/filter goldens. |
+| Detail: `app/api/v1/operations/[id]/route.ts:14-37`; `lib/pipelines/format.ts:17-72`; test helper `tests/e2e/utils.ts:41-64` | Six route E2E suites poll detail after submit. Workflow adapter state cases: `tests/workflow-builder/du-operation-adapter.test.ts:233-276`. | Legacy detail formatter: `{name,done,metadata:{state,pipeline,current_step,progress_percent,progress_message,create_time,update_time,pipeline_steps}}`; successful result adds output/content/extracted_data/usage/download_url; failed result adds error. | E2E detail is created by live API submission; deterministic adapter fixture is `du-operation-adapter.test.ts:38-53`, but it is a distinct `DuOperationView` shape, not the legacy formatter response. |
+| Cancel: `app/api/v1/operations/[id]/cancel/route.ts:10-45` | No direct cancel-route test found in root `tests/`. | Success returns `formatOperationResponse(updated)` after marking state CANCELLED; missing/foreign/completed cases return 404/403/409 error envelopes. | No test fixture. Source expects an operation DB row; seed active, completed, absent, and API-key-mismatch rows for goldens. |
+| Resume: `app/api/v1/operations/[id]/resume/route.ts:20-101`; `tests/workflow-builder/ui-integration.test.ts:492-580,712-764,775-830` | Adapter tests cover typed resume, stale 409, replay, network failure, and submit→WAITING_INPUT→resume→SUCCEEDED using a mocked fetcher. | The test mock returns HTTP 202 plus a `DuOperationView` (`viewFixture` at `ui-integration.test.ts:48-63`). The actual legacy route returns `{success:true,message:'Resumed successfully'}` at line 98 (default 200), so these are not an HTTP golden for that handler. | Seed source for adapter shape is the local `viewFixture`; no direct invocation test of the Next.js resume route was found. This response mismatch should be resolved explicitly before choosing the golden contract. |
+| Download: `app/api/v1/operations/[id]/download/route.ts:15-118` | No direct download-route test found in root `tests/`. | Successful response is raw content or a ReadableStream with Content-Type/Disposition and optional Content-Length; not JSON. Not-ready/no-output/file-missing cases return JSON errors. | Source is `outputContent` or local/S3 storage backend; no static file fixture/test exists in root `tests/`. |
+
+## Three legacy app workflows
+
+| Process/workflow and file:line | Existing test case | Output shape to seed | Fixture source / coverage status |
+|---|---|---|---|
+| `disbursement` in `app/doc-pipeline/hooks/useWorkflowPolling.ts:46`; `app/doc-pipeline/lib/mock-data.ts:23-78`; `app/doc-pipeline/types.ts:23-36` | No direct test of this app hook/page found. Related schema-only test: `tests/workflow-builder/schema-disbursement.test.ts:12-27`; schema enqueue contract: `tests/workflow-builder/schema-route.test.ts:154-184`. | UI `PipelineStep[]`: classify→ocr→crosscheck→totrinh; each starts pending/progress 0/output null/duration null, classify and OCR marked parallel. Schema example separately models classify→extract→human→crosscheck→report. | UI seed: `getInitialSteps()` in app mock-data. Backend workflow seed: `lib/workflow-builder/examples/schema-disbursement.ts:1-35`; test asserts flow/input/output mapping, not runtime result body. |
+| `doc-compare` in `app/doc-compare/hooks/useWorkflowPolling.ts:88`; `app/doc-compare/lib/mock-data.ts:16-67`; `app/doc-compare/types.ts:22-34` | No direct test of this app process found. `tests/e2e/compare.e2e.test.ts:8-24` is the generic `/docs/compare` API route, not this workflow UI/process. | UI steps `ocr→toc→compare→report`; OCR starts parallel; each step has status/progress/output/duration and optional per-file progress. | `getInitialSteps()` is a static UI seed; no test-local doc-compare output fixture was found. |
+| `lc-checker` in `app/lc-checker/hooks/useWorkflowPolling.ts:47`; `app/lc-checker/lib/mock-data.ts:23-61`; `app/lc-checker/types.ts:23-36` | No direct test of this app process found. Generic analyze API E2E is not the LC-checker workflow. | UI steps `classify→compliance→report`; classify marked parallel; same `PipelineStep`-style state shape. | `getInitialSteps()` is a static UI seed; no test-local LC-checker result fixture was found. |
+
+## Additional deterministic workflow test fixtures
+
+These are useful golden-shape sources but do not fill the app workflow or lifecycle route gaps above.
+
+| File:line and case | Output shape | Fixture source |
+|---|---|---|
+| `tests/workflow-builder/schema-route.test.ts:89-100,154-184` — valid schema accepted and enqueued | HTTP 202, `Operation-Location`, body `{name,done:false,metadata:{state:'RUNNING',workflow:'disbursement'}}`. | Synthetic two-connector `VALID_SCHEMA`; DB and submit mocks. |
+| `tests/workflow-builder/interpreter.test.ts:56-107` — linear connector DAG and parallel branches/join | Fake nodes return `{content,data:{slug}}`; `toNodeResults()` exposes node results and join output. | Local fake executor with deterministic slug/input-derived content. |
+| `tests/workflow-builder/ui-integration.test.ts:48-63,80-108,712-764` — submit/poll and HITL resume | Typed operation view state transitions ACCEPTED/RUNNING/WAITING_INPUT/SUCCEEDED; assertions cover terminal state, not full result bytes. | Local `viewFixture` and mocked fetcher responses. |
+
+- Summary: strongest reusable golden seeds are the six route request fixtures/envelope assertions, the local operation-view and workflow schema fakes, and the three app `getInitialSteps()` UI seeds. There is no direct legacy route test for operation list, cancel, or download; resume tests exercise a mocked adapter shape that differs from the legacy route response. Inventory only; all gates remain unchanged.
+
+
+# COMP-07-LEGACY-LIFECYCLE-CHAR (READ-ONLY)
+
+### Receipt for `qwen_4` / legacy operations lifecycle characterization
+
+- Recorded: 2026-10-01 03:50 +07:00. Working directory: `D:\\Git\\dugate\\du-rework`. **READ-ONLY characterization**: no source file created, edited or deleted; `git status` shows no new entry from this task. All statements below are traced to source, not to documentation.
+- Scope read: `app/api/v1/operations/[id]/route.ts` (GET + DELETE), `.../cancel/route.ts`, `.../resume/route.ts`, `.../download/route.ts`, plus `lib/pipelines/format.ts`, `lib/pipelines/engine.ts`, `lib/pipelines/workflow-engine.ts`, `lib/db/schema.ts`; compared against rework `src/server.ts` (routes at 1813/1926/2089/2099), `src/modules/lifecycle/lifecycle.ts`, `src/modules/runtime/runtime.ts`.
+
+## Fixture matrix (legacy, measured)
+
+| Endpoint | Success | Error statuses (exact bodies) | Tenant fence |
+|---|---|---|---|
+| `GET /api/v1/operations/{id}` | `200` + `formatOperationResponse(op)` = `{name, done, metadata, result?, error?}` | `404` `{type, title:'Operation Not Found', status, detail, **requested_id**}` (route.ts:24) / `403` `{title:'Forbidden', detail:'Access denied.'}` (route.ts:30) | **CONDITIONAL - header-optional** |
+| `DELETE /api/v1/operations/{id}` | `204`, empty body (`new NextResponse(null,{status:204})`, route.ts:64) | `404` `{title:'Not Found', status}` **no `detail`** (route.ts:47) / `403` (route.ts:55) | **CONDITIONAL - header-optional** |
+| `POST .../{id}/cancel` | `200` + full legacy envelope, `done:true`, `metadata.state:'CANCELLED'`, **no `result`, no `error`** (cancel:45 via format.ts:35/53 gate) | `404` `{title:'Not Found', status}` / `403` / `409` `{type:'.../already-done', title:'Already Completed', detail:'Cannot cancel a completed operation.'}` (cancel:34) | **CONDITIONAL - header-optional** |
+| `POST .../{id}/resume` | `200` `{success:true, message:'Resumed successfully'}` (resume:98) | `404` **`{error:'Operation not found'}`** - NOT the `{type,title,status,detail}` envelope (resume:28) / `400` `{error:'Operation is in state X, cannot resume. Must be WAITING_USER_INPUT.'}` (resume:31) / `500` `{error: err.message}` (resume:101) | **NONE - no fence at all** |
+| `GET .../{id}/download` | `200` binary. Inline: `Content-Type: <html/json/md>; charset=utf-8` + `Content-Disposition: attachment; filename="<base>.<ext>"`, **no `Content-Length`** (download:47-55). File: adds `Content-Length` (local from `stat.size`, S3 only when `meta.size` truthy) (download:88/103) | `404` `{title:'Not Found'}` / `403` / `409` `{type:'.../not-ready', title:'Not Ready', detail:'Operation has not completed successfully.'}` (download:39) / `404` `{type:'.../no-output', title:'No Output'}` (download:116) | **CONDITIONAL - header-optional** |
+
+## State semantics - three hard findings
+
+1. **`CANCELLED` in legacy is ADVISORY, and it is usually a lie.** `cancel/route.ts:41` writes `{done:true, state:'CANCELLED'}` with `WHERE id=$1` only - **no state predicate, no `state_version` CAS, and the BullMQ job is never signalled or removed**. `lib/pipelines/engine.ts` never reads the operation state anywhere in its run loop (the only `state` read is `connection.state !== 'ENABLED'` at engine.ts:312, a processor-connection flag). On natural completion engine.ts:399-414 writes `{done:true, state:'SUCCEEDED', progressPercent:100, outputContent, usage...}` unconditionally, **silently overwriting the CANCELLED row**, then fires the SUCCEEDED webhook (engine.ts:429). So a cancelled-but-still-running operation returns `CANCELLED` for a window and then reverts to `SUCCEEDED` with output and usage already billed (engine.ts:417-421 mutates `api_keys.totalUsed`). The plan's caution against faking a terminal state is correct, and legacy is precisely that: it returns a terminal-looking body for work that is still running.
+2. **`resume` has NO tenant fence.** cancel/GET/DELETE/download each begin `const apiKeyId = req.headers.get('x-api-key-id'); if (apiKeyId && op.apiKeyId !== apiKeyId) 403`. **`resume/route.ts` contains no `apiKeyId` read at all** (confirmed: the string does not occur in that file). Any caller who knows an operation id can resume it, and can write arbitrary `extracted_data` into `stepsResultJson` (resume:57-58). This is a cross-tenant write, not merely a read.
+3. **`resume` has no CAS and no idempotency.** It reads the operation, then `UPDATE ... WHERE id=$1` (resume:85) setting `state:'RUNNING'`, then `queue.add(...)` (resume:96). Two concurrent resumes both pass the `state !== 'WAITING_USER_INPUT'` gate on their own snapshot and both enqueue: the operation is dispatched twice, with no `expectedStateVersion` and no `waitId` to make a replay answer the stored ack.
+
+**Cross-cutting fence defect (compounds #2):** the fence in the other four routes is `if (apiKeyId && op.apiKeyId !== apiKeyId)`. When the caller sends **no** `x-api-key-id` header the predicate is vacuously true, so the check passes and the row is served - the fence is opt-in, not fail-closed. Any legacy client using `x-api-key` (the documented public spec) instead of the internal `x-api-key-id` header is **unfenced** on all four endpoints.
+
+## MISMATCH vs rework
+
+| # | Legacy (measured) | Rework (measured) | Class |
+|---|---|---|---|
+| M1 | cancel writes `CANCELLED` immediately, worker unaware; no CAS | `lifecycle.ts` sets `state='CANCELLED', cancel_requested=true, state_version+1` under `SELECT ... FOR UPDATE`, cancels the leased task and closes the open `human_waits` row in one tx | **intentional hardening - rework is truthful, legacy is not** |
+| M2 | cancel terminal op -> `409 Already Completed` | `cancelOperation` returns `{replayed:true}` -> `200` (server.ts:2093), idempotent | semantic change: 409 -> 200 |
+| M3 | cancel response = legacy envelope, always `200` | cancel returns `{operationId, state, replayed}`, `202` fresh / `200` replay (server.ts:2093) | envelope + status change |
+| M4 | resume body `{step, extracted_data}` | requires `{waitId, input, expectedStateVersion}`, else `422 INVALID_SCHEMA` | wire change |
+| M5 | resume success `{success, message}` | `{operationId, state, stateVersion, replayed, taskId}`, `202`/`200` | envelope + status change |
+| M6 | resume fence = none; resume CAS = none | tenant-fenced (`404` on foreign tenant, fixed message), `FOR UPDATE` + `state_version` equality -> `409 STATE_CONFLICT`, `ANSWERED` wait -> `replayed:true` | **security + correctness gap in legacy** |
+| M7 | wait state is `'WAITING_USER_INPUT'` | canonical is `'WAITING_INPUT'` | **vocabulary rename - a legacy resume would be rejected by rework's state set** |
+| M8 | `DELETE /api/v1/operations/{id}` -> `204` soft delete (`deletedAt`, schema.ts:42); deleted row 404s on GET/cancel/download | **no DELETE handler exists** (`grep "method === 'DELETE'"` in server.ts -> 0 matches) | **route missing in rework** |
+| M9 | `GET .../{id}/download` on the operations path | download lives at **`/api/v1/artifacts/{id}/download`** (server.ts:2010); no operations-scoped download | **path moved** |
+| M10 | detail returns legacy envelope `{name, done, metadata}` | `toOperationView` returns canonical `{id, businessId, action, state, stateVersion, progress, links}` (server.ts:1840) | envelope change (adjudicated: legacy wire wins on the shared path) |
+| M11 | legacy 404 detail echoes the id (`requested_id`, route.ts:24) | rework uses fixed text, deliberately no id echo (`lifecycle.ts` X2 comment) | **hardening - do not port the echo** |
+| M12 | `resume` 500 leaks `err.message` (resume:101) | rework throws typed `HttpError` -> problem+json with stable code | **hardening - do not port** |
+
+## Note for COMP-07 implementation
+
+- M8 and M9 mean legacy `DELETE` and operations-scoped `download` are **new build work**, not projections. M9 additionally needs the COMP-00 result-materialization decision (inline vs `download_url`, `maxInlineBytes`) since legacy inline returns `outputContent` with no `Content-Length`.
+- M7 is a decode concern, not a rename: a legacy resume carries `{step, extracted_data}` and **no** `waitId`, so no honest mapping exists. Per COMP-00 #4 this needs a coordinator decision, not an inferred one - I have not invented one.
+- The fence defect (#3, opt-in `x-api-key-id`) is a legacy **security** bug. Per the plan's hardening clause it must NOT be reproduced on the rework side: legacy `x-api-key` clients must still be resolved and fenced server-side, and a client that omits the internal header must not bypass the check.
+- Mismatch between plan text and code: the plan describes legacy cancel as writing `CANCELLED` 'lập tức' - correct - but does not state that the engine then overwrites it. The overwrite is the operationally important half and is now pinned above.
+
+- Result: characterization **COMPLETE**, read-only, no source changed. This receipt does not implement COMP-07, does not tick any `COMP-07`/`G-COMP` gate, and leaves every release gate **NO-GO** and unchanged.
+
+
+## task_keyset_explain_fix — final live verification
+
+- Recorded: 2026-10-01 09:18 +07:00. Test-only diff in services/orchestrator/tests/admin-keyset-explain.test.ts: planWithSeqScanDisabled uses db.tx with SET LOCAL enable_seqscan=off and is called only by the created_at backward-hop EXPLAIN. The semantic assertions remain unchanged: boundary Index Cond on ROW(created_at,id), created_at index name, no Seq Scan, and any Sort limited to the bounded result. The three 0019 deadline assertions were not changed.
+- Rationale/evidence: with the suite's 1,240 seeded rows, cost-based planning had varied between Seq Scan and index paths for the small qualifying backward window. The pinned EXPLAIN shows the index path is available; runs 1 and 2 used Bitmap Index Scan on operations_created_id_idx with the exact ROW Index Cond and a bounded 63-row quicksort, while run 3 used Index Scan Backward with the same Index Cond. No run used Seq Scan for this case. This receipt proves indexability under a query-local planner setting and does not claim natural planner preference at production scale.
+- DB window: CLAIM_DB_WINDOW=2026-10-01T09:18:01+07:00 -> RELEASE_DB_WINDOW=2026-10-01T09:18:20+07:00; advisory unlock true. PostgreSQL du_orchestrator_test via host port 5433; Redis 6380 PING=PONG, ExitCode 0.
+- Command from D:\Git\dugate\du-rework\services\orchestrator, each run: pnpm test -- tests/admin-keyset-explain.test.ts with DU_LIVE_INFRA=1, DATABASE_URL=postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test, REDIS_URL=redis://127.0.0.1:6380.
+  - Run 1: ExitCode 0; 1 suite, 18 passed, 0 failed.
+  - Run 2: ExitCode 0; 1 suite, 18 passed, 0 failed.
+  - Run 3: ExitCode 0; 1 suite, 18 passed, 0 failed.
+- Post-run seed cleanup: tenants=0, operations=0. No src, migrations, contracts, or gates were changed.
+- Raw output: coordination/reports/raw/admin-keyset-explain-live-x3-final.log. Result: **PASS — three consecutive live runs**.
+
+# COMP-01-EXEC-FIXTURE-SPEC (M-06 / M-10 / M-12)
+
+### Receipt for `qwen_4` / executable fixture spec for the three replay rows
+
+- Recorded: 2026-10-01 04:15 +07:00. Working directory: `D:\\Git\\dugate\\du-rework`. **Read-only**: no source created/edited/deleted, no test run against any server, no gate ticked, no contract frozen. Only this report was written.
+
+## 0. WHICH OF THE TWO I DID - option (2): fixture spec. NO replay was executed.
+
+**Live legacy instance is NOT reachable.** Evidence, in order:
+
+| Probe | Command | Result |
+|---|---|---|
+| legacy app port | `Test-NetConnection 127.0.0.1 -Port 2023` | `TcpTestSucceeded=False` |
+| alt app port 3000 | same | `TcpTestSucceeded=False` |
+| full listener inventory | `netstat -ano \| findstr LISTENING` | 80, 443, 445, 135, 5040, 5357, 5432, 5433, 6333, 6334, 6380, 6768, 8080, 9005 + agent ports - **no DUGate HTTP port** |
+| who owns 6768 / 3906 | `Get-Process` | `Orca.exe`, `UlanziDeck.exe` - unrelated tooling |
+| containers | `docker ps` | `du-rework-postgres` (:5433), `du-rework-redis` (:6380), authentik, qdrant, nginx-ui - **rework infra, not a legacy DUGate server** |
+
+A documented harness **does** exist and is reusable - `tests/e2e/utils.ts:4` (`API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:2023/api/v1'`) with `E2E_API_KEY = 'dg_test_key_e2e_12345'` (`tests/e2e/setup.ts:15`) and blob builders `createDummyPdfBlob()`/`createDummyDocxBlob()` (`utils.ts:10,24`). But its target is port 2023, which is down, and the packet forbids starting the legacy app. Docker DB/Redis being up does **not** substitute: all three rows are HTTP-observable (status + response keys), and reading the database would not produce the observation the rows assert.
+
+**So: nothing below is an observed response. Every `expected` value is a prediction traced to a cited line.** I have not invented any observation.
+
+## 1. Row selection - one correction to the dispatch
+
+The dispatch named **M-06, M-10, M-12**. The matrix itself (`comp-01-characterization-matrix.md:340` and `:354`) names **M-06, M-10, M-16**. I have written specs for the three dispatched rows (primary) **and** M-16 (labelled 1d), since the matrix ranks it `high for migration` and the cost is one extra request.
+
+## 2. Pre-flight the next wave must satisfy
+
+1. Legacy app up on `:2023` (`npm run dev`). Not started by me.
+2. `.env`/`DATABASE_URL` present and migrated (schema `Operation` table, `tests/e2e/setup.ts:17` seeds the key).
+3. Key `dg_test_key_e2e_12345` present (setup.ts inserts it; `onConflictDoNothing`).
+4. `ExternalApiConnection` rows for `ext-doc-layout` / `ext-data-extractor` present and ENABLED - `runner.ts` submits a pipeline of these slugs and `engine.ts:312` rejects a disabled connection.
+5. Downstream processors point at `mock-service` so no real AI spend (setup.ts:29 notes this is assumed from the local DB).
+
+Run all three as one jest file reusing `submitRequest()` from `tests/e2e/utils.ts`; each is a single POST.
+
+## 3. Fixture M-06 - declared-but-unattached params are silently dropped
+
+- **Which rows, verified by recomputation, not by reading the matrix count.** I parsed the `PARAMS` block (`registry.ts:39-63`): **22 declared**, **15 attached**, **7 unattached** - `type`, `focus_areas`, `target_language`, `glossary`, `redact_patterns`, `max_words`, `audience`.
+- **Correction to the matrix.** Its M-06 text says *6* are unattached, while its own counts table (`:351`, `22 / 15`) implies **7**. Both are defensible but they measure different things, and the matrix does not say which: `type` IS unattached as a *param* yet is **not** droppable, because it is the `extract` **discriminator** (`registry.ts:116`, read separately at `runner.ts:106`). Excluding `type`, exactly **6** params are genuinely silently dropped: `focus_areas`, `target_language`, `glossary`, `redact_patterns`, `max_words`, `audience`. The matrix's prose number is right; its table arithmetic counts `type`. Fix the table, keep the prose.
+- **Request**
+  - `POST /api/v1/docs/extract`
+  - headers: `x-api-key: dg_test_key_e2e_12345`
+  - multipart fields: `type=invoice`, `file=@<dummy.pdf>` (`createDummyPdfBlob()`), plus **all six** droppable params set to distinctive values: `focus_areas=AUDIT-SENTINEL-1`, `target_language=AUDIT-SENTINEL-2`, `glossary=AUDIT-SENTINEL-3`, `redact_patterns=AUDIT-SENTINEL-4`, `max_words=4242`, `audience=AUDIT-SENTINEL-5`
+- **Expected status**: `202` (+ `Operation-Location`). The request is accepted - dropping params does not fail admission.
+- **Expected response keys**: exactly `name`, `done`, `metadata` (`format.ts:34-46`).
+- **The decisive assertion (this is the row, not the 202)**: poll to completion, then read the stored `pipeline_json` / step `variables` and assert **none** of `AUDIT-SENTINEL-1..5` appears, while the control value that IS attached **does**. Control: send `pages=1-5` (attached at `registry.ts:103`, `ingest:split`) and assert `1-5` survives.
+- **Why the prediction holds (exact lines)**: `mergeParameters` (`profile-resolver.ts:53`) builds `allAllowedKeys` from subCase params + DB params only (`:65`) and iterates **only** those (`:70`); `form.has(key)` is never consulted for any other key, so an unknown field is not rejected and not copied - it is simply never looked at. `runner.ts:9` (`normalizeFiles`) and `:226` (`output_format`) show only these specific fields are read outside the merge.
+- **Why it matters for migration**: a client sending `max_words=4242` gets `200`/`202` and silently wrong behaviour. The rework must either reject or honour these six; silence is the parity risk.
+
+## 4. Fixture M-10 - unknown form fields are never rejected
+
+- **Request**
+  - `POST /api/v1/docs/extract`
+  - headers: `x-api-key: dg_test_key_e2e_12345`
+  - multipart: `type=invoice`, `file=@<dummy.pdf>`, and three unknown fields: `totally_bogus_field=BOGUS-1`, `api_key_id=SPOOF-KEY-1`, `tenant_id=SPOOF-TENANT-1`
+- **Expected status**: `202`. **No 400, no 422.**
+- **Expected response keys**: `name`, `done`, `metadata`.
+- **Decisive assertions**: (a) request is accepted despite three unknown fields; (b) `BOGUS-1`, `SPOOF-KEY-1`, `SPOOF-TENANT-1` appear **nowhere** in the persisted input/steps; (c) - the security half - the operation's owning `api_key_id` is still the e2e key, **not** `SPOOF-KEY-1`. Note `runner.ts:96-113` resolves `apiKeyId` from `x-api-key`/middleware, never from the body, so (c) is expected to hold; assert it anyway.
+- **Why the prediction holds (exact lines)**: same seam as M-06 - `allAllowedKeys` (`profile-resolver.ts:65`) and the `for` over it (`:70`). There is no `unknown`-key branch anywhere in the submit path.
+- **Why it matters for migration**: a legacy client with a typo'd field name gets a silent success. The strict COMP-02 decoder must decide whether rework should keep swallowing unknown fields (parity) or start rejecting (safer) - that is a COMP-02/COMP-00 decision, not mine.
+
+## 5. Fixture M-12 - `output_format=csv` is served as `text/markdown` with a `.md` name
+
+- **Request**
+  - `POST /api/v1/docs/generate`
+  - headers: `x-api-key: dg_test_key_e2e_12345`
+  - multipart: `task=summary`, `file=@<dummy.docx>` (`createDummyDocxBlob()`), `output_format=csv`
+  - poll to `done`, then `GET /api/v1/operations/{id}/download`
+- **Expected status**: submit `202`; download `200`.
+- **Expected download headers - this is the row**:
+  - `Content-Type: text/markdown; charset=utf-8`  <- **not** `text/csv`
+  - `Content-Disposition: attachment; filename="<base>.md"`  <- **not** `.csv`
+  - **no `Content-Length`** (the inline branch never sets it)
+- **Expected body keys**: none - the response is raw file bytes, not JSON.
+- **Positive control (mandatory, or the test passes for the wrong reason)**: repeat with `output_format=json` and assert `application/json` + `.json`. If the control does not differ, the assertion above is not testing the mapping.
+- **Why the prediction holds (exact lines)**: `registry.ts:40` declares `options: ['md','json','html','csv']`, so `csv` is accepted on submit with no validation against a smaller set. `download/route.ts:46` maps the extension `html→html`, `json→json`, **everything else→md`**, and `:47` (also `:81`, `:96`) maps the content type `html→text/html`, `json→application/json`, **everything else→`text/markdown`**. The three-branch ternary has no `csv` arm.
+- **Precondition**: this only reproduces on the **inline** branch, which runs only `if (op.outputContent)` (`download/route.ts:45`). If the generate step stores a file path instead, the request lands on the `outputFilePath` branch (`:61`) and the mapping derives from `path.extname` of the stored key instead - so assert the control **and** record which branch was taken, or the row is untested.
+- **Why it matters for migration**: `output_format` unions already differ (matrix M-24: rework `json/md/text`, legacy adds `html`/`csv`). A legacy client asking for `csv` currently receives markdown - so 'parity' would mean porting a defect unless COMP-00 rules otherwise.
+
+## 6. Fixture M-16 (not in the dispatch; matrix ranks it high) - initial state is RUNNING, never ACCEPTED
+
+- **Request**: `POST /api/v1/docs/ingest` with `mode=parse`, `file=@<dummy.pdf>`, `x-api-key: dg_test_key_e2e_12345`. Then poll `GET /api/v1/operations/{id}` **immediately**, before the worker advances.
+- **Expected**: `202` submit; first poll returns `metadata.state = 'RUNNING'` with `done = false`. **`ACCEPTED` must never appear**, in the submit response or any poll.
+- **Decisive assertion**: sample the state on every poll from submit until terminal and assert the observed set never contains `ACCEPTED`.
+- **Why the prediction holds (exact lines)**: `lib/pipelines/submit.ts:310` writes `state: 'RUNNING'` on insert; the string `ACCEPTED` **does not occur anywhere in `submit.ts`** (verified: 0 occurrences). The documented rework submit contract is `202 {operationId, state: ACCEPTED}` (matrix M-16), so a consumer written against the rework spec will not match the legacy wire.
+- **Migration impact**: any state-map that assumes a legacy client sees `ACCEPTED` first is wrong. This is the concrete instance of the state-map mismatch and pairs with my COMP-07 note that legacy `CANCELLED` is also not trustworthy.
+
+## 7. What I did not do
+
+- Did not start the legacy app, install anything, or run migrations.
+- Did not substitute a database read for an HTTP observation, and did not report any row as replayed.
+- Did not edit source, tick a gate, or freeze a contract. All release gates remain **NO-GO** and unchanged.
+- Did not adjudicate the open questions these rows raise (unknown-field strictness for M-10, whether to port the `csv` defect for M-12). Both belong to COMP-00/COMP-02.
+
+- Result: **BLOCKED-OF-EXECUTION, spec delivered.** Every row above remains a code-read inference; the fixtures are written so a wave holding legacy infra can convert M-06, M-10, M-12 (and M-16) to observation without re-deriving anything.
+
+
+# J05-WORKFLOW-SCHEMA-AUTHORING GAP (READ-ONLY)
+
+### Receipt for `qwen_4` / J05 schema-authoring capability sizing
+
+- Recorded: 2026-10-01 04:50 +07:00. Working directory: `D:\\Git\\dugate\\du-rework`. **Read-only**: no source created/edited/deleted, nothing executed, no gate ticked. Only this report.
+- Read: `app/api/internal/workflow-schemas/{route,override/route,pipeline-mappings/route}.ts`, `app/api/v1/docs/workflows/schema/route.ts`, `app/workflow-builder/{page.tsx,run-schema-client.ts,du-operation-adapter.ts}`, `lib/workflow-builder/{loader,interpreter,run-schema,real-exec,binding,types,xml-converter}.ts`, `lib/pipelines/workflow-engine.ts`, `lib/workflow-builder/examples/`, `tests/workflow-builder/**` (13 suites), `package.json`. Rework: `services/orchestrator/src/**`, `packages/contracts/src/manifest*.ts`, `migrations/*.sql`.
+
+## 0. HARD CHECK - answered first, because it changes how the matrix must be read
+
+**Q1. If the interpreter must not live in the Orchestrator, where must it live?**
+
+**In the business/worker tier - behind a worker handler - not in `services/orchestrator/src`, and not in a compat shim.** Four independent pieces of evidence from this repo, not inference:
+
+1. Rework's own execution model already puts behaviour behind `runtime.handlerKinds` (`businesses/document-core/src/manifest/document-core.manifest.ts:19-22`: `root, ingest, extract, analyze, transform, generate, compare`), executed by the worker via `@du/worker-sdk`. The Orchestrator admits and dispatches; it does not execute business steps.
+2. The legacy leaf executor is architecturally incapable of living in the Orchestrator: `lib/workflow-builder/real-exec.ts` performs **business effects** - `fs`/`fsPromises`/`path` archive work, URL download with auth, `fetch` callbacks, parser factory, `enqueueSubStep`. The Orchestrator has none of these and must not acquire them.
+3. Tier precedent from this very wave: COMP-09's mapping landed at `businesses/document-core/src/pipelines/legacy-workflow-mapping.ts` - **not** in the Orchestrator, exactly per the COMP-09 rule.
+4. `human_waits` (migrations `0005_continuation.sql:9`) lives in the Orchestrator as **bookkeeping only** - it stores `OPEN/ANSWERED/CANCELLED/EXPIRED` and fences resume by CAS. The wait *record* is platform; the work the human unblocks is business.
+
+**Therefore the correct split is:** Orchestrator = store the schema as an immutable, digest-pinned, validated artifact + admit the operation + route `workflows:schema:<slug>` to a business action + own `human_waits` bookkeeping. Business module = parse the node graph, walk it, and call leaves through worker-side primitives. The Orchestrator must never import an interpreter, never evaluate a node graph, and never learn what a `parallel` node means.
+
+**Q2. Rework's runtime executor must NOT be reported as an authoring capability.** Stating this explicitly, because it is the easiest error to make here:
+
+- `human_waits` + `runtime.resumeOperation()` + `lifecycle.cancelOperation()` are a **HITL runtime** (93 references across `du-rework`). Answering a wait is not authoring a schema. Not one authoring row.
+- `PUT /api/runtime/v1/businesses/:id/versions/:version` -> `registerVersion` (`server.ts:1568-1573`) is a **real authoring surface**, but for a **different domain**: a `BusinessManifest` is a list of `actions` with `inputSchema`/`connectorSlots`/`artifactPolicy` (`document-core.manifest.ts:26+`). It has **no node graph, no `parallel`/`join`/`human` node type, no `flow`**. Manifest authoring is not schema-DAG authoring.
+
+**Correction to J05's premise.** J05 states rework has *NO* capability for this. That is **too strong and, as written, wrong**: rework *does* have manifest authoring (validate + version + immutable digest + store). What is absent is the **workflow-schema domain** - the node DAG, the XML authoring format, the interpreter, and the public `schemaSlug` submit. The gap is real but narrower than "no capability", and sizing it wrongly would either overbuild or hide the true gap.
+
+## 1. Capability matrix
+
+`ABSENT` = no counterpart in `du-rework` (verified by grep, not assumed). Owner per `tasks/API-COMPAT-DUGATE-2026-09-28.md` / `ORCHESTRATOR-LEGACY-FEATURE-PARITY-2026-10-01.md`.
+
+| # | Authoring operation | Legacy (file:line) | Rework counterpart | Status | Owner |
+|---|---|---|---|---|---|
+| A1 | List schemas | `internal/workflow-schemas/route.ts:26` -> `listSchemas` `loader.ts:39` | `GET /api/v1/admin/businesses` `server.ts:2399`; versions `:2426` | **PARTIAL** - lists business manifests, not schemas | orchestrator |
+| A2 | Get one by slug | `route.ts:17-23` -> `loadSchema` `loader.ts:22` | versions `/:version` `server.ts:2426` | **PARTIAL** - different identity (id/version vs slug) | orchestrator |
+| A3 | Create/save - JSON | `route.ts:38-41` -> `saveSchema` `loader.ts:12` | `PUT /api/runtime/v1/businesses/:id/versions/:version` `server.ts:1568-1573` -> `registerVersion` `registry.ts:44` | **PRESENT, different domain** (manifest, platform-runtime auth, `201`/`200`) | exists |
+| A4 | Create/save - **XML** | `route.ts:36-38` -> `xmlToSchema` `xml-converter.ts:13` | none (`xmlToSchema` 0 matches) | **ABSENT** | business tier |
+| A5 | Validate | `validateSchema` `interpreter.ts:38-73` | `validateManifest` `manifest-validator.ts:46` (Zod, structural) | **ABSENT as graph validator** | contracts |
+| A6 | **Version** | **ABSENT** - `saveSchema` upserts in place (`loader.ts:12-18`, `onConflictDoUpdate:17`); no history, no prior version | `business_versions` (migrations `0001_platform_v1.sql:24`) + digest immutability `registry.ts:61-96` (`MANIFEST_DIGEST_MISMATCH`) | **ABSENT for schemas; PRESENT for manifests** | orchestrator |
+| A7 | Per-node connector override | `internal/workflow-schemas/override/route.ts` PUT (read-modify-write, **no CAS**) | none | **ABSENT** | business tier |
+| A8 | Pipeline/connector mapping view | `internal/workflow-schemas/pipeline-mappings/route.ts` GET (masks `authSecret`) | admin connector views | **PARTIAL** | orchestrator |
+| A9 | **Delete** | `route.ts:54-63` -> `deleteSchema` `loader.ts:35` (no existence check) | none - `method === 'DELETE'` has **0 matches** in `server.ts` | **ABSENT** | orchestrator |
+| A10 | Public submit by slug | `app/api/v1/docs/workflows/schema/route.ts` POST | none (`schemaSlug` 0 matches) | **ABSENT** | COMP-09 / P9 |
+| A11 | **Interpret / execute** | `runSchemaDag` `interpreter.ts:173` + `buildExecFunc` `real-exec.ts` | none | **ABSENT** | business/worker tier |
+| A12 | Authoring UI | `app/workflow-builder/page.tsx`, `run-schema-client.ts`, `du-operation-adapter.ts` | none | **ABSENT** | business tier |
+
+**Size:** of 12 authoring operations, **0 are fully served** for the schema-DAG domain. 3 are partial-by-analogy, 9 are absent. The one genuinely reusable asset is **A6's pattern** (version row + digest immutability) - rework already solved the versioning problem for manifests and should copy that shape, not invent one.
+
+## 2. Where the legacy interpreter actually sits, and what depends on it
+
+`lib/pipelines/workflow-engine.ts:418-419` imports `runWorkflowFromSchema` + `loadSchema`; the engine is reached from the worker. Fan-in over source only (excluding `.next` build artifacts): **64 references** -
+
+- `interpreter` 8 refs, `loader` 7, `run-schema` 5, `xml-converter` 4, `real-exec` 4, `binding` 3, `types` 10.
+- Four production entry points reach it: authoring route, **override route**, public `schemaSlug` submit route, and the worker engine. Plus an authoring UI and 13 legacy test suites.
+
+**Migration consequence:** the interpreter is not one file - it is `interpreter` + `real-exec` + `binding` + `types` + `loader` + `xml-converter`, coupled to `workflow-engine` lifecycle (`pauseWorkflow`/`completeWorkflow`/`failWorkflow`) **and** to `enqueueSubStep`. Porting it means porting a scheduler-lifecycle coupling, which is precisely why it must not be bolted onto the Orchestrator (see Q1).
+
+## 3. Negative-graph findings in `validateSchema` (verified gaps)
+
+`validateSchema` (`interpreter.ts:38-73`) checks: object-ness, slug truthy, non-empty `flow`, `nodes` is an array, duplicate **node id**, node type in a 10-value allow-list, `connector` node has a connector slug, and each `flow` entry resolves to an existing node id (`:67`).
+
+It does **NOT** check - each of these passes validation today:
+
+| Gap | Consequence | Line evidence |
+|---|---|---|
+| duplicate entries in `flow` | `runSchemaDag` maps `flow` to nodes and runs them **sequentially**, so `flow: ["a","a"]` executes node `a` **twice** - double connector spend | `interpreter.ts:183-187` |
+| orphaned nodes | a node absent from `flow` is accepted and then **silently never runs** | `:183-185` filters, no completeness check |
+| `parallel`/`join` pairing | no check that a `join` has a matching `parallel`, nor that branches are well-formed | no branch validation in `:38-73` |
+| nesting depth | `runNodeSequence` recurses into `node.branches` with **no depth bound** | `maxDepth` -> **NONE** in file |
+| node/flow/branch count | no upper bound -> unbounded fan-out | no limit in `:38-73` |
+| slug charset | slug only checked truthy, then concatenated into the store key `wb_schema:<slug>` | `loader.ts:10,12` |
+| cycles | `flow` is a linear order, not a graph walk, so graph-cycle detection is **not the right frame** - the real defect is duplicate execution above | `:183` |
+
+## 4. XXE - what I can and cannot claim
+
+**Claimed with evidence:** the only XML dependency is `fast-xml-parser` **5.11.1** (installed; sole XML package in `package.json`), constructed at `xml-converter.ts:7` with only `{ignoreAttributes:false, attributeNamePrefix:'@_'}`. No entity-resolution option is set (`processEntities` -> **NONE**). `fast-xml-parser` is a pure-JS parser with no external-entity or DTD-fetching resolution, so **classic file-disclosure XXE does not apply** to this path.
+
+**Explicitly NOT claimed:** I did **not** execute a billion-laughs / DTD-internal-subset expansion test, so I will not assert entity-expansion behaviour of v5.11.1. **The residual real risk is resource exhaustion, not disclosure**: `xmlToSchema(String(body.xml))` (`internal/workflow-schemas/route.ts:36-38`) has no input size bound, no element-count bound and no depth bound before parse. That is the negative fixture worth writing.
+
+## 5. Two security defects in the legacy public submit route (do not port)
+
+1. **Body-selected identity + admin fallback.** `form.get('apiKeyId')` (`schema/route.ts:59`) lets the **request body choose the key**; if absent, `:77` falls back to the **oldest ADMIN key** (`eq(apiKeys.role,'ADMIN')` ordered by `createdAt`). The compat plan explicitly forbids both ("`apiKeyId` từ request chỉ được đối chiếu với identity đã xác thực, không được chọn tenant/key"; "không admin-key fallback"). An unauthenticated caller can therefore bill and attribute a workflow run to an admin key.
+2. **Raw error leak + unvalidated slug.** The catch returns `err.message` verbatim (`:112`, ADM-BASE-03 violation). `schemaSlug` is only `.trim()`-checked then interpolated into `endpointSlug = \`workflows:schema:${schemaSlug}\`` (`:56`), and the pipeline is a placeholder validated with `skipConnectorValidation: true` (`:90`) - so an unvalidated slug becomes a routing key.
+
+## 6. Fixture classes for cutover
+
+**F1 - schema migrated, submit -> poll -> result -> HITL.** Author a schema with a `human` node; `POST /api/v1/docs/workflows/schema` with `schemaSlug`; expect `202` + `Operation-Location`; poll to `WAITING_USER_INPUT`; assert the legacy envelope shape (`name`/`done`/`metadata.state`); resume with `{step, extracted_data}`; poll to terminal; assert result + `download_url`. Rework target: `PUT /api/runtime/v1/businesses/...` (A3) then a **business-tier** handler. **Proves A10+A11 together - neither exists.**
+**F2 - negative graph.** Submit, expect **400** each: duplicate `flow` entry; orphan node; `join` without `parallel`; deeply nested `parallel`; `slug` with illegal characters. **Prediction: today these return 201 (save) and execute, not 400** - the negative fixtures are expected-failure until A5 lands. Write them as expected-failure, exactly like the M-06/M-10 probes.
+**F3 - XML / XXE-class.** Author via `xml` with `<!DOCTYPE workflow [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>` and entity use in an attribute; assert **no file content** in the stored schema and a bounded error. Positive control: a plain XML schema still imports, or the test passes for the wrong reason. Also assert a size/depth bound is enforced (currently **not** - see §4).
+**F4 - rollback.** Legacy **cannot** roll back: `saveSchema` upserts in place (`loader.ts:12-18`), so an overwrite destroys the prior version and there is nothing to restore. Rework's manifest path *can* (new version string; same version + different digest -> `MANIFEST_DIGEST_MISMATCH`). Fixture must therefore assert: legacy A6 is a **documented capability loss to fix, not a behaviour to reproduce**; and rework refuses a silent in-place mutation.
+**F5 - authz regression guard.** Assert the rework schema submit **cannot** be driven by a body-supplied key and **has no admin fallback** - i.e. the two defects in §5 stay defects **only** in legacy.
+
+## 7. Limits honoured
+
+- Read-only throughout. Nothing executed, no server started, no source touched, no gate ticked, no contract frozen.
+- Did not report `human_waits`/`resumeOperation` (runtime) or `registerVersion` (manifest domain) as schema-DAG authoring capability - both called out in §0 instead.
+- Did not adjudicate whether the legacy §5 defects or the §3 validation gaps should be reproduced. Both are COMP-00 calls: hardening says do not port them, parity says the wire must match. **They are in direct conflict and only Product/security can resolve it.**
+- All release gates remain **NO-GO** and unchanged.
+
+# COMP-11-OPENAPI-SERVER-DIFF-CHAR
+
+## Read-only route/schema discrepancy receipt
+
+- Recorded: 2026-10-01. Compared `du-rework/docs/21-openapi.json` with the explicit dispatcher in `du-rework/services/orchestrator/src/server.ts`; checked the referenced connector handlers where the OpenAPI document describes a separate connector service. No source, contract, or gate content changed; the generator rewrote the OpenAPI artifact with byte-identical content. This report is the only persistent content change for this task.
+- Inventory: OpenAPI has **44 path templates / 47 operations**. The Orchestrator `route()` dispatcher has **56 path templates / 60 method-path handlers** when aliases are counted separately (`/api/v1/uploads/{id}` and `/content`). There are 36 matching method-path pairs; 11 documented operations are on the separate connector service; 24 Orchestrator method-path pairs are absent from the spec.
+- Generator check: from the repository root, `python du-rework/tools/openapi/gen_openapi.py` exited **0** and printed `OPENAPI-JSON path-count=44 operations-params=6 sort-values=6 usage-events-params=13 dropped-paths=0 schemas=14`. `git diff -- du-rework/docs/21-openapi.json` was empty after the run: regeneration reproduced the committed document byte-for-byte. The generator's guard proves only that regeneration did not remove a previous path; it does not compare all registered `server.ts` routes to generated paths, so it does not detect the undocumented routes below.
+
+## 1. In OpenAPI, no handler in Orchestrator `server.ts`
+
+All entries below are real connector-service endpoints in `du-rework/services/connector/src/http/server.ts` (the generator explicitly composes that router too); they are **not** missing from the repository implementation. They are absent only from the Orchestrator's `server.ts` dispatcher. OpenAPI JSON pointers identify the claims:
+
+| Method and path | OpenAPI pointer | Documented claim |
+|---|---|---|
+| `GET /health/live` | `/paths/~1health~1live/get` | Connector liveness, no auth; 200 `{ok:true}`. |
+| `GET /health/ready` | `/paths/~1health~1ready/get` | Connector readiness. |
+| `GET /capabilities` | `/paths/~1capabilities/get` | Authenticated service capability catalog. |
+| `GET /connectors` | `/paths/~1connectors/get` | Authenticated redacted connector list. |
+| `POST /connectors` | `/paths/~1connectors/post` | Authenticated connector revision creation. |
+| `POST /invocations` | `/paths/~1invocations/post` | Authenticated invocation; summary claims 200 or 202. |
+| `GET /invocations/{id}` | `/paths/~1invocations~1{id}/get` | Authenticated invocation query. |
+| `POST /invocations/{id}/cancel` | `/paths/~1invocations~1{id}~1cancel/post` | Authenticated cancel, summary claims 202. |
+| `POST /connectors/{id}/credentials/rotate` | `/paths/~1connectors~1{id}~1credentials~1rotate/post` | Write-only credential rotation, summary claims 204. |
+| `POST /connectors/{id}/disable` | `/paths/~1connectors~1{id}~1disable/post` | Connector disable, summary claims 204. |
+| `POST /connectors/{id}/test` | `/paths/~1connectors~1{id}~1test/post` | Connector self-test. |
+
+The distinct Orchestrator proxy is `GET /api/v1/connectors/{id}/test` (`server.ts:1359-1365`); it is documented and is not a handler for `POST /connectors/{id}/test`.
+
+## 2. In `server.ts`, absent from OpenAPI
+
+`server.ts` method/path predicates were inventoried across its dispatch block (roughly lines 1196-2728) and compared with every `paths` entry. `GET /api/v1/admin/audit` **is already documented** at `/paths/~1api~1v1~1admin~1audit/get`; it is not a missing route.
+
+| Method and path | Classification and behavior (source pointer) |
+|---|---|
+| `POST /api/v1/uploads` | **Public tenant upload API** (API key); initializes single or multipart upload and returns an `uploadUrl`; 200 replay / 201 new, possible 413/503 (`server.ts:1460-1480`). Public endpoint, not an internal-only route. |
+| `PUT /api/v1/uploads/{id}` | **Public tenant upload API** raw body alias; 200 replay / 201 new (`server.ts:1442-1459`). |
+| `PUT /api/v1/uploads/{id}/content` | Same handler and semantics as the preceding alias; this is the URL emitted in `uploadUrl` (`server.ts:1442-1459,1480`). |
+| `POST /api/v1/uploads/{id}/part` | Public path exists, but is deliberately rejected with 409 because direct S3 part grants are disabled for public uploads (`server.ts:1483-1490`). |
+| `POST /api/v1/uploads/{id}/complete` | Public tenant multipart completion; 200 (`server.ts:1483-1497`). |
+| `POST /api/v1/uploads/{id}/abort` | Public tenant multipart abort; 200 (`server.ts:1483-1500`). |
+| `POST /api/runtime/v1/tasks/{id}/artifacts/multipart` | Internal task-runtime multipart init; 201 new / 200 replay (`server.ts:1407-1418`). |
+| `POST /api/runtime/v1/artifacts/{id}/multipart/part-grant` | Internal task-runtime part grant; 200 (`server.ts:1422-1434`). |
+| `POST /api/runtime/v1/artifacts/{id}/multipart/part` | Alias accepted by the same part-grant handler; 200 (`server.ts:1422-1434`). |
+| `POST /api/runtime/v1/artifacts/{id}/multipart/complete` | Internal task-runtime multipart completion; 200 (`server.ts:1422-1436`). |
+| `POST /api/runtime/v1/artifacts/{id}/multipart/abort` | Internal task-runtime multipart abort; 200 (`server.ts:1422-1438`). |
+| `GET /api/runtime/v1/workspace-reference` | **Internal worker/runtime contract**; runtime bearer, query `workspacePath` + `tenantId`, 200 `{workspacePath, tenantId, referenced, activeHolders}`; 401/422 errors (`server.ts:1696-1728`). |
+| `GET /api/v1/usage` | **Admin overview JSON fetcher**; usage summary with `from`/`to`; admin bearer requires `tenantId`, API-key callers are tenant-fenced (`server.ts:1328-1357`). |
+| `POST /api/v1/admin/actions` | **Internal Admin UI/action dispatcher**; one POST route dispatches allow-listed actions and applies bearer/session/CSRF/RBAC gates (`server.ts:2351-2397`). |
+| `GET /api/v1/admin/businesses` | **Internal Admin UI** business list page (`server.ts:2399-2428`). |
+| `GET /api/v1/admin/businesses/{id}/versions` | **Internal Admin UI** business-version list (`server.ts:2430-2464`). |
+| `GET /api/v1/admin/profiles/{businessId}/{businessVersion}/{profileName}` | **Internal Admin UI** profile revision/manifest projection (`server.ts:2466-2517`). |
+| `GET /api/v1/admin/connectors/{id}/revisions/{revision}` | **Internal Admin UI** connector revision detail (`server.ts:2522-2553`). |
+| `GET /api/v1/admin/api-keys` | **Internal Admin UI** API-key page (`server.ts:2566-2608`). |
+| `GET /api/v1/admin/api-keys/{id}` | **Internal Admin UI** API-key detail (`server.ts:2566-2608`). |
+| `GET /api/v1/admin/connectors/{id}/credentials` | **Internal Admin UI** masked credential metadata read (`server.ts:2282-2312`). |
+| `POST /api/v1/admin/connectors/{id}/credentials` | **Internal Admin UI** write-only credential rotation; 201 new / 200 replay (`server.ts:2282-2312`). |
+| `GET /api/v1/admin/crypto-config` | **Internal Admin UI** crypto configuration read (`server.ts:2613-2716`). |
+| `POST /api/v1/admin/crypto-config` | **Internal Admin UI** crypto configuration mutation (`server.ts:2613-2716`). |
+
+Classification: the upload paths are public tenant-facing API and are the clearest candidate for a COMP-11 public-doc gap. The `api/runtime` paths are service-to-service worker contracts. `/api/v1/usage` and `/api/v1/admin/*` routes are Admin UI/internal control-plane surfaces. Absence of those intentionally internal routes from the public OpenAPI is not itself a public compatibility defect; decide separately whether the spec is meant to cover internal APIs. `admin audit` is already present. `/api/v1/docs/*` legacy routes were not counted: they are absent from both rework `server.ts` and this spec and remain COMP-00 scope, as directed.
+
+## 3. Shared method-path shape/status mismatches
+
+| Method and path | Spec vs current handler |
+|---|---|
+| `GET /health`, `GET /api/v1/health` | Documented 200/503 and base fields `{status,db,redis,activeLeases}` match. The handler conditionally adds `queueIntegrity` after the first integrity sweep (`server.ts:1206-1239`), an output field not mentioned in the documented body description. |
+| `GET /api/v1/operations` | OpenAPI summary says admin bearer is an alternate auth path, but its `security` only lists `ApiKey`. Handler accepts admin bearer and API key (`server.ts:1776-1809`). Admin list rows additionally project `tenantId` (`server.ts:4107-4109`); the five-field page remains the same. |
+| `GET /api/v1/operations/{id}` | OpenAPI documents only API-key auth and one `OperationView`. Handler also accepts admin bearer; that branch returns `{operation,result,artifacts,serverNow}`, while API-key auth returns `OperationView` (`server.ts:1813-1841,4119-4175`). The admin branch returns immediately and does not apply the documented `wait` polling behavior. The security/response union is not represented. |
+| `POST /api/v1/operations/{id}/cancel` | OpenAPI example supplies `{reason: "no longer needed"}` (`/paths/~1api~1v1~1operations~1{id}~1cancel/post/requestBody`). The route passes only operation id and tenant id to `cancelOperation`; the service has no reason parameter, so this field is ignored (`server.ts:2089-2096`; `modules/lifecycle/lifecycle.ts:16-30`). Success 202/200 replay statuses match. |
+| `PUT /api/v1/admin/businesses/{id}/versions/{version}/enable` | OpenAPI advertises 200 and 202; implementation only returns 200 on success (missing version is 404) (`server.ts:2109-2148`). The 202 response is not implemented. `activate` and `deactivate` do return 200/202 and match the listed success statuses. |
+| Documented `/api/runtime/v1/*` operations | Generator assigns **every** runtime operation the same success set `200,201,202,204` and empty generic descriptions (`gen_openapi.py` `rt` loop). Actual success statuses are route-specific: usage ingest, heartbeat, claim, progress, complete, fail, children GET, wait-input, finalize and access are 200; business-version registration and step save are 200/201; children POST is 202; task artifact upload and invocation-grant issuance are 201; blob PUT is 204 and blob GET is 200. Thus most runtime operations advertise statuses they cannot return and omit the route-specific response fields/bodies (e.g. upload grants, leases, child summaries). |
+| `GET /api/v1/usage/summary` | OpenAPI lists only 200, but handler requires both `from` and `to` (422) and resolves an API key (401) (`server.ts:1257-1271`). |
+| `GET /api/v1/admin/audit` | Page response and 200/401/403 are documented, but query parsing can also reject invalid filters with 422 (`server.ts:2719-2744`). |
+
+The result/download envelopes and their server-selected plain/encrypted variants were compared and their documented success shapes match the current handlers. The connector-service paths in list 1 were not counted as Orchestrator shape matches.
+
+### Additional documentation drift
+
+Several operation summaries retain old `server.ts` line numbers: e.g. business submission cites `559` while its handler is now near `1732`; operation detail cites `602` vs `1813`; result cites `1724` vs `1926`; artifact download cites `1817` vs `2010`; cancel/resume cite `646/656` vs `2089/2099`. Update source pointers when COMP-11 regenerates the document. Legacy `/api/v1/docs/*` routes have no OpenAPI `paths` handler in rework `server.ts`; keep them in COMP-00 scope rather than counting them as a docs-only implementation gap. The `x-absent` annotation is not an OpenAPI route.
+
+- Result: discrepancy inventory complete. This report makes no gate recommendation or gate mutation. `docs/21-openapi.json`, `services/orchestrator/src/server.ts`, contracts, and all source files remain unchanged; release gates remain **NO-GO**.
+
+# COMP-06-OPERATIONS-FENCE-CHARACTERIZATION
+
+Date: 2026-10-01
+Scope: Read-only characterization of legacy operation routes versus the rework Orchestrator. No source, contract, OpenAPI, or gate changes were made for this report.
+
+## Fence matrix
+
+| Operation | Legacy behavior and evidence | Rework behavior and evidence |
+|---|---|---|
+| `GET /api/v1/operations` (list) | Reads `x-api-key-id` and adds an `operations.apiKeyId` predicate only when the header is truthy; otherwise the query is constrained only by soft-delete and caller filters (`app/api/v1/operations/route.ts:35-38,58-94`). It does not resolve `x-api-key` or derive a tenant. | API-key branch calls `resolveApiKey(ctx)` (`du-rework/services/orchestrator/src/server.ts:1791`), passes its tenant to the list query (`1801-1803`), and the predicate adds `tenant_id = ...` (`server.ts:3173-3193`). An admin bearer is a separate branch: `resolveAdminPrincipal` plus `authorizeAuditTenantRead` scopes tenant operators and permits the authorized platform scope (`server.ts:1782-1789`). `resolveApiKey` hashes the credential and accepts only ACTIVE keys, with no fallback (`server.ts:4182-4193`). |
+| `GET /api/v1/operations/{id}` (detail) | Loads by operation ID only (`app/api/v1/operations/[id]/route.ts:18-27`), then rejects only if a present `x-api-key-id` differs (`29-35`). There is no key resolution or tenant predicate. | API-key branch calls `resolveApiKey` (`server.ts:1832`) and polls using `getTenantOperation(id, tenantId)` (`1835-1840`); the SQL predicate is `id=$1 AND tenant_id=$2` (`modules/runtime/runtime.ts:1336-1339`). The `waitForTerminal` facade reuses this callback for every poll (`modules/operations/facade.ts:66-84`); the view mapper itself is not a fence (`32-50`). Admin bearer is separately authenticated; tenant operators go through `requireResourceTenant` (`server.ts:1824-1830`; `modules/admin-actions/rbac.ts:73-83`), while an authorized platform principal can use the admin detail branch. |
+| `GET /api/v1/operations/{id}/result` | No separate legacy `/result` route was found in the inspected operation route set; legacy detail is `GET /operations/{id}`. | Calls `resolveApiKey` (`server.ts:1926-1930`) and checks the loaded operation tenant against the resolved tenant, returning 404 on a mismatch (`1930`). It then gates on operation state and limits projected artifacts to READY rows associated with the operation (`1931-1950`). |
+| Legacy `GET /api/v1/operations/{id}/download` vs rework download | Legacy loads by operation ID and applies the same optional-header-only check (`app/api/v1/operations/[id]/download/route.ts:19-35`). It requires successful completion (`37-42`) and serves `outputContent` or `outputFilePath` directly (`44-105`), with 404 cases at `108-117`. | No rework `/api/v1/operations/{id}/download` handler was found. Rework exposes `GET /api/v1/artifacts/{id}/download`: it calls `resolveApiKey` (`server.ts:2010-2013`), selects by artifact ID **and tenant ID**, limits to input/output artifacts referenced by a successful operation, and returns 404 for absent/foreign rows (`2013-2033`); non-READY is 409 (`2038-2039`). Plain delivery is a raw stream with stored MIME (`2053-2058,2079-2083`); tenant delivery-encryption policy can instead return a JSON envelope (`2058-2077`). |
+| `POST /api/v1/operations/{id}/cancel` | Loads by ID, optionally compares `x-api-key-id`, then writes by ID alone (`app/api/v1/operations/[id]/cancel/route.ts:14-30,32-45`). It does not resolve a key or tenant. | Calls `resolveApiKey` and passes its tenant (`server.ts:2089-2094`). `cancelOperation` selects the operation `FOR UPDATE`, returns 404 for missing or foreign tenant, then mutates operation/task/wait state within the transaction (`modules/lifecycle/lifecycle.ts:27-68`). |
+| `POST /api/v1/operations/{id}/resume` | Reads by ID only; there is no `apiKeyId` read or fence (`app/api/v1/operations/[id]/resume/route.ts:20-33`). The handler can edit checkpoint data, set RUNNING, update the operation by ID, and enqueue it (`56-63,75-96`), so a caller reaching it can perform a cross-tenant write. | Calls `resolveApiKey` and passes the resolved tenant (`server.ts:2097-2104`). `resumeOperation` locks the operation and checks `tenant_id` before state/version, wait, or writes (`modules/runtime/runtime.ts:1017-1033`); the rest of the resume and outbox mutation follows in the same transaction (`1034-1125`). |
+| `DELETE /api/v1/operations/{id}` (also exported by legacy detail file) | Same optional `x-api-key-id` comparison after ID-only read (`app/api/v1/operations/[id]/route.ts:40-60`), then soft-deletes by ID (`62-64`). | No corresponding public DELETE operations handler was found in the inspected rework operation routes. |
+
+### `resolveApiKey` coverage check
+
+For the rework API-key path, the call sites are present for list (`server.ts:1791`), detail (`1832`), result (`1928`), artifact download (`2012`), cancel (`2091`), and resume (`2101`). List and detail also have a distinct admin-bearer path before the API-key branch (`1782-1789`, `1824-1830`); those branches use admin-principal authorization and tenant checks rather than falling back to a key. The legacy operation handlers do not call `resolveApiKey`; the helper in the rework server only resolves a supplied credential by hash to an ACTIVE key and has no fallback (`4182-4193`).
+
+## Legacy defects: MUST-NOT-REPLICATE
+
+- **List-no-resolve:** the list accepts no resolved identity and does not derive a tenant from `x-api-key`; its only key restriction is a caller-context header predicate when the header is present (`app/api/v1/operations/route.ts:35-38,91-94`).
+- **Vacuous pass when header is absent:** detail, download, and cancel only reject a mismatched `x-api-key-id` when that header is truthy (`app/api/v1/operations/[id]/route.ts:29-35`; `app/api/v1/operations/[id]/download/route.ts:29-35`; `app/api/v1/operations/[id]/cancel/route.ts:24-30`). List likewise omits its key predicate when absent (`route.ts:35-38`). The `/api/v1/` middleware deletes `x-api-key-id` before forwarding, then always allows the request through that branch (`middleware.ts:32-52`), so those comparisons are normally absent on the middleware path; it does not resolve `x-api-key` for these operation handlers.
+- **Resume cross-tenant write:** resume has no key/tenant fence and performs state/checkpoint mutation plus re-enqueue after lookup by ID (`app/api/v1/operations/[id]/resume/route.ts:20-33,56-63,75-96`).
+- **ADMIN fallback:** not found in the inspected legacy operation list/detail/download/cancel/resume handlers or `middleware.ts`. Those handlers do not resolve an API key at all; do not replace the missing fence with an administrative fallback.
+
+## Download contract delta for COMP-00/07
+
+These are different route/resource and response contracts, despite both being able to deliver successful output bytes in a plain case. Legacy is operation-ID addressed and returns the operation's inline `outputContent` or local/S3 `outputFilePath`, with format/extension-derived MIME and attachment filename (`app/api/v1/operations/[id]/download/route.ts:44-105`). Rework is artifact-ID addressed, authorizes a tenant-owned READY input/output artifact linked to a successful operation, and delivers stored bytes with stored MIME or a policy-controlled JSON encrypted envelope (`du-rework/services/orchestrator/src/server.ts:2010-2039,2045-2083`; operation result artifact links are built at `1977`). The operation-ID URL is absent from rework. This is a contract delta for COMP-00/07 to decide; this report does not select a URL shape or recommend which contract to retain.
+
+Result: characterization complete. No COMP-06 or other gate was ticked, and no source or contract file was changed.
+
+# COMP-06-WRITE-WIRE-CHARACTERIZATION
+
+Date: 2026-10-01
+Scope: Read-only comparison of legacy submission idempotency/sync/replay wire behavior with the active Orchestrator business-action route. This is a characterization only; no source, contract, or gate changes were made.
+
+Source-location note: in this checkout the legacy helpers are `lib/pipelines/submit.ts`, `lib/endpoints/runner.ts`, and `lib/queue/pipeline-queue.ts` (not under `app/lib`). The business submission implementation is `du-rework/services/orchestrator/src/modules/operations/submission.ts`; no `modules/runtime/submission.ts` exists here.
+
+## 1. Idempotency scope and replay comparison
+
+| Surface | Key lookup/scope | Request-body comparison | Observed result |
+|---|---|---|---|
+| Legacy endpoint runner | Reads the raw `Idempotency-Key` header and passes it through (`lib/endpoints/runner.ts:228-247`). `submitPipelineJob` selects `operations` by `idempotencyKey` only, with no tenant, API-key, action, or body predicate (`lib/pipelines/submit.ts:142-146`); the key column has a global unique constraint (`lib/db/schema.ts:10-15`; `drizzle/0000_violet_franklin_storm.sql:74-108`). The value is stored as text and compared directly; no trimming, normalization, or key validation occurs on this path. | None. A matching raw key returns the existing operation without comparing the incoming body. The unique-race fallback repeats the same key-only lookup (`lib/pipelines/submit.ts:322-330`). | The same key occupies a global namespace across tenants/actions. A different body under that key is silently treated as a replay of the earlier operation. |
+| Rework public business action | The route passes `tenantId`, `apiKeyId`, business/action, and the `idempotency-key` header to `ctx.submission.submit` (`du-rework/services/orchestrator/src/server.ts:1733-1743`). `route_action` is `businessId/(alias ?? action)` (`modules/operations/submission.ts:175`; `packages/contracts/src/hashing.ts:39-46`). The explicit primary key is `(tenant_id, api_key_id, route_action, key)` (`migrations/0001_platform_v1.sql:57-68`), and both fast-path and transactional lookups use those columns (`modules/operations/submission.ts:210-228,266-280,682-690`). | `request_hash` is a canonical hash over normalized input, artifact identities, output, callback URL, and optional source URL (`modules/operations/submission.ts:202-208`; `packages/contracts/src/hashing.ts:7-35`). Within one tuple, same hash replays; a changed hash produces 409 `IDEMPOTENCY_CONFLICT` (`submission.ts:219-228,275-280`). | This is a deliberate implementation widening of the allowed key-reuse namespace: the same textual key may independently identify requests for different tenants, API keys, or business/actions, whereas legacy uniqueness is global. Within one tuple, body-mismatch handling is stricter than legacy raw-key replay: rework returns 409 instead of replaying the prior operation. This report characterizes that delta without recommending a scope change. |
+
+Expiration detail: the rework fast-path lookup requires `expires_at > now()` (`modules/operations/submission.ts:682-690`), but the in-transaction recheck does not test expiry (`269-280`). The primary key also does not include expiry (`migrations/0001_platform_v1.sql:67`). Thus an expired row missed by the fast lookup can still be replayed or conflict on hash in the transactional path; expiry behavior is not uniform across those paths.
+
+The generic `modules/idempotency/idempotency.ts` helper is a separate admin-mutation mechanism, not the business-action implementation: it canonicalizes a body (`68-70`), reads/validates `Idempotency-Key` or `Client-Token` (`72-82`), and looks up a globally keyed `admin_idempotency` marker, returning 409 for route or payload mismatch (`94-110,113-152`). Server call sites shown for it are admin profile bindings/deadline sweep (`server.ts:2237-2242,2320-2325`); the business action route instead passes the header directly to `ctx.submission.submit` (`server.ts:1733-1743`).
+
+## 2. Legacy `?sync=true` behavior and rework status
+
+The legacy `runEndpoint` recognizes only the exact query value `sync=true` (`lib/endpoints/runner.ts:70,228-247`). It passes `executeSync` to `submitPipelineJob`, which enqueues the worker job and calls `waitUntilFinished(queueEvents, SYNC_TIMEOUT_MS)`; the default is 30 seconds and the environment variable can override it (`lib/pipelines/submit.ts:369-385`; `lib/queue/pipeline-queue.ts:18-19`). A timeout or job failure is caught, then the route reloads the latest operation row. The runner still selects HTTP 200 whenever `executeSync` is true (`runner.ts:256-277`): on completion the body is the normal `formatOperationResponse` envelope with the terminal result/error, while on timeout it is the same envelope over the reloaded current state (often `done: false` / RUNNING if work is still active). It does not return a timeout-specific status or an `Operation-Location` header for sync mode. A failed worker whose operation row is terminal is likewise represented by that envelope rather than a special sync transport status (`lib/pipelines/format.ts:17-73`).
+
+The legacy workflow-specific POST routes do not use that runner sync path. Both return their own initial `done: false` workflow envelope with status 202 and `Operation-Location`, including `/api/v1/docs/workflows` (`app/api/v1/docs/workflows/route.ts:99-115`) and `/api/v1/docs/workflows/schema` (`app/api/v1/docs/workflows/schema/route.ts:95-109`); they pass no `executeSync` option to `submitPipelineJob` (`route.ts:88-95`; `schema/route.ts:81-91`).
+
+The active rework `POST /api/v1/businesses/{id}/actions/{action}` does not implement `?sync=true`: it does not read `ctx.searchParams`, does not pass a sync flag to the submission service, and does not call `waitUntilFinished` (`du-rework/services/orchestrator/src/server.ts:1730-1762`; `modules/operations/submission.ts:40-50,143-144`). It may kick the dispatcher asynchronously, then responds 202 for a new submission or 200 for a replay (`server.ts:1748-1762`). Therefore a caller adding `?sync=true` to this active route still receives the ordinary async acknowledgement on first submit, not a waited-for legacy operation envelope. The old `/api/v1/docs/*` paths are not mounted in `server.ts`.
+
+There is a standalone `compat/legacy-action-router.ts` which decodes the legacy `sync` query and projects 200/202 plus the legacy header (`legacy-wire-decoders.ts:248-259`; `legacy-action-router.ts:360-367,413-445`). It is not imported or invoked by the active `server.ts` path (whose imports and business-action route are at `server.ts:1-80,1730-1763`), so this isolated helper is not runtime parity for the deployed route.
+
+## 3. `Operation-Location` versus body links
+
+Legacy runner-backed POST routes (`/api/v1/docs/ingest`, `extract`, `analyze`, `transform`, `generate`, and `compare`; each delegates to `runEndpoint`, e.g. `app/api/v1/docs/ingest/route.ts:3-6`) return `Operation-Location: /api/v1/operations/{id}` only for their asynchronous 202 response; sync and idempotent replay responses are 200 with no such header (`lib/endpoints/runner.ts:256-277`). The two workflow-specific POST routes always return 202 with the same header value (`app/api/v1/docs/workflows/route.ts:110-115`; `app/api/v1/docs/workflows/schema/route.ts:106-109`). A search of the legacy source finds no other `Operation-Location` emitters.
+
+The active business-action response in `server.ts:1751-1762` returns no `headers` member, so the HTTP adapter has no route header to emit (`server.ts:798-810`). Its body does contain `links.self = /api/v1/operations/{id}` and `links.result = /api/v1/operations/{id}/result` (`modules/operations/submission.ts:704-720`). This is a body-level pointer, not the legacy `Operation-Location` response header. The standalone compatibility helper contains the legacy header projection, but is unwired as noted above.
+
+## 4. Replay status and body shape
+
+- **Legacy runner:** idempotent replay sets `isSyncOrIdempotent`, so it returns 200 and no `Operation-Location` (`lib/endpoints/runner.ts:256-277`). The body uses the same `formatOperationResponse` envelope as a non-replayed call (`runner.ts:272`; `lib/pipelines/format.ts:17-73`), with no `replayed` field. Because the replay reloads/returns the existing operation, state/result values reflect that operation's current row and need not equal the first response's values.
+- **Rework business action:** a new submit returns 202, replay returns 200 (`du-rework/services/orchestrator/src/server.ts:1751-1762`). The body shape is unchanged across the two paths: `{ operationId, state, stateVersion, replayed, correlationId, links }`; `replayed` changes from false to true, and state/version are loaded from the existing operation on replay (`modules/operations/submission.ts:226-228,362-363,693-720`). `correlationId` is the current submit call's value, not a persisted operation field selected by `loadOperationView`, so it may differ on a retry. Thus both systems return 200 on replay, but their body contracts differ: legacy has a full LRO envelope and no replay flag, while rework has a compact acknowledgement with explicit replay state and body links.
+
+Result: wire behavior characterized. No tests were run; no source, contract, or COMP/gate state was changed.
+
+# COMP-03A-INGEST-UPLOAD-MULTIPART-WIRE-CHARACTERIZATION
+
+Date: 2026-10-01
+Scope: Read-only field-level characterization of the legacy `ingest` / `extract` multipart inputs and the active Orchestrator upload/submission input path. This records the observed contract and deltas only; it does not define an implementation or select compatibility behavior.
+
+Path note: legacy route handlers are under `app/api/v1/**`; their shared parsing, validation, and submission helpers are under top-level `lib/**`.
+
+## 1. Legacy multipart fields
+
+`POST /api/v1/docs/ingest` calls `runEndpoint('ingest', req)` and `POST /api/v1/docs/extract` calls `runEndpoint('extract', req)` (`app/api/v1/docs/ingest/route.ts:5-6`; `app/api/v1/docs/extract/route.ts:5-6`). The runner consumes `req.formData()` (`lib/endpoints/runner.ts:84`); it does not declare an HTTP field schema outside the selected service/sub-case and special fields below.
+
+| Form field | Wire value | Required/optional at the runner | Read/behavior |
+|---|---|---|---|
+| `file` | One `File` blob | Optional; ignored unless it is a `File` with `size > 0` | `lib/endpoints/runner.ts:36-53` |
+| `files[]` | Repeated `File` blobs | Optional; non-`File` and zero-byte entries are filtered | `lib/endpoints/runner.ts:36-42` |
+| `source_file` | One `File` blob | Optional; ignored unless non-empty | `lib/endpoints/runner.ts:44-45` |
+| `target_file` | One `File` blob | Optional; ignored unless non-empty | `lib/endpoints/runner.ts:47-48` |
+| `file_urls` | One string containing JSON | Optional; when present, must parse to an array of at most 20 entries | `lib/endpoints/runner.ts:129-155`; limit and entry type at `lib/file-url-downloader.ts:19-23,40` |
+| `mode` | Scalar string | Required for ingest: after trim it must be `parse`, `ocr`, `digitize`, or `split`; no `_default` case is registered | discriminator comes from registry at `lib/endpoints/registry.ts:71-109`; runner selects it at `lib/endpoints/runner.ts:113-123` |
+| `type` | Scalar string | Required for extract: after trim it must be `invoice`, `contract`, `id-card`, `receipt`, `table`, or `custom` | `lib/endpoints/registry.ts:113-166`; runner `:113-123` |
+| `output_format` | Scalar string | Optional; runner separately reads it and defaults to `json` | `lib/endpoints/runner.ts:226`; it is also a declared parse parameter (`registry.ts:39-40,79-82`) |
+| `webhook_url` | Scalar string | Optional; read directly by the runner | `lib/endpoints/runner.ts:227` |
+
+`file_urls` entries require a non-empty string `url` which `new URL(...)` can parse. The declared entry type also has optional string `filename` and `mime_type`; the runner does not validate those optional properties or reject other properties before casting the JSON array (`lib/endpoints/runner.ts:129-155`; `lib/file-url-downloader.ts:19-23`). `new URL` here is a syntax/parseability check, not URL scheme, host, or destination adjudication.
+
+The UI's `DEFAULT_FILE_URL_METADATA_FIELDS` also lists `description`, but it is not a field in `FileUrlEntry` and is not consumed by the inspected runner/downloader path (`lib/file-url-downloader.ts:19-23,34-37`).
+
+The runner merges only parameters allowed by the selected sub-case plus profile DB parameter keys; client values are read as `form.get(key)` and kept as form strings (`lib/endpoints/profile-resolver.ts:53-88`). Built-in ingest/extract parameters are all optional (`registry.ts:39-63,76-165`). There is no runner-level required-file check: attachment fields and `file_urls` may all be absent at this stage. Form fields outside the selected sub-case/profile parameter set are not copied into merged variables, except the special fields read directly above (`lib/endpoints/profile-resolver.ts:64-87`; `lib/endpoints/runner.ts:226-229`).
+
+### Service discriminator and parameter differences
+
+| Route / discriminator | Selected case | Built-in case parameters beyond the discriminator |
+|---|---|---|
+| ingest / `mode` | `parse` | `output_format` and `language` (strings) |
+| ingest / `mode` | `ocr` | `language` (string) |
+| ingest / `mode` | `digitize` | None |
+| ingest / `mode` | `split` | `pages` (string) |
+| extract / `type` | `invoice`, `contract`, `id-card`, `receipt`, `table` | None in the case parameter map |
+| extract / `type` | `custom` | `fields` and `schema` (strings) |
+
+Sources: ingest maps `mode` and its four cases at `lib/endpoints/registry.ts:71-109`; extract maps `type` and its six cases at `:113-166`. Extract presets may inject `fields`/`schema` after merge when those variables are absent (`lib/endpoints/runner.ts:201-206`). `output_format` is separately read for the operation response for all cases, even where it is not an allowed case parameter; for example, a client `output_format` value is a merge parameter for ingest/parse, but not declared in extract case maps (`runner.ts:196-206,226`; `registry.ts:118-165`).
+
+## 2. Legacy validation ladder
+
+### Uploaded `File` fields
+
+1. `runEndpoint` reads `FormData`; `normalizeFiles` collects `files[]`, `source_file`, `target_file`, and `file` in that order, accepting only non-empty `File` values (`lib/endpoints/runner.ts:36-53,84`). No file is required by this normalizer.
+2. Each accepted file is passed to `saveUploadedFile`, which calls `validateFile` before saving (`lib/pipelines/submit.ts:192-196`; `lib/upload-helper.ts:29-38`). The per-file ceiling is **300 MiB** (`lib/upload.ts:8`). In the actual validation order, the filename is NFC-normalized and the extension lowercased; `.docm` is rejected explicitly; the default extension allow-list is `.docx` and `.pdf` unless a profile overrides it; a non-empty MIME must match the extension map; then the size ceiling is checked (`lib/upload.ts:26-71`). This checks filename extension/MIME metadata, not file magic bytes.
+3. There is no separate filename rejection step after the extension check. A passing name is converted to a safe storage name using `path.basename`, NFC, and replacement of control/filesystem-dangerous characters (`lib/upload-helper.ts:15-17,40-49`).
+4. The aggregate **1 GiB** default (`MAX_TOTAL_UPLOAD_SIZE`, environment-overridable) is checked after individual files have been saved (`lib/pipelines/submit.ts:187-196,234-246`).
+
+### `file_urls` entries
+
+1. The outer form value is parsed as JSON array, capped at 20 entries, and each `url` is checked only for non-empty string plus URL parseability (`lib/endpoints/runner.ts:129-155`; `lib/file-url-downloader.ts:40`).
+2. **Guarded downloader branch:** if the first connector does not set `fileUrlFieldName`, synchronous requests call `downloadAllFileUrls`; asynchronous requests retain pending entries for worker-side acquisition (`lib/pipelines/submit.ts:273-279,344-350`). The downloader first calls `assertSafeUrl` on the URL after configured query auth; it follows redirects manually and re-adjudicates each redirect, with a five-redirect ceiling (`lib/file-url-downloader.ts:102-124,136-137`; `lib/pipelines/processors/http-client.ts:82-137`). This is the URL/SSRF destination decision point.
+3. In that guarded branch, a response `Content-Length` above 300 MiB is rejected before transfer; filename is selected from the optional entry override, response disposition, or URL, then normalized/truncated and converted to a safe storage name; MIME comes from the server response then the entry override; extension/MIME and `.docm` checks run before streaming; actual streamed bytes are capped at 300 MiB and final metadata is checked after the upload (`lib/file-url-downloader.ts:174-207,217-253`; `lib/upload.ts:78-107`). The per-file cap applies, but the 1 GiB uploaded-file aggregate check occurs earlier in `submit.ts` before downloaded URL records are appended (`submit.ts:234-278`), so URL downloads are not included in that check.
+4. **Direct-forward branch:** when the first connector has `fileUrlFieldName`, `submitPipelineJob` stores remote URL records directly with size `0`, using the optional filename/MIME text or defaults, and does not call `downloadAllFileUrls` (`lib/pipelines/submit.ts:251-270`). Those entries passed the outer JSON/array/URL-syntax checks, but bypass `assertSafeUrl`/redirect adjudication, remote response and Content-Length checks, the 300 MiB streamed-byte cap, filename normalization/sanitization, extension/MIME validation, and the `.docm` metadata rejection. This is the observed input-side SSRF boundary; this report records the bypass and makes no remediation proposal.
+
+## 3. Active rework input and upload path
+
+`readBoundedBody` treats ordinary request bodies as bounded JSON, falling back to a UTF-8 string if JSON parsing fails; it has a raw-binary mode for the runtime artifact blob PUT (`du-rework/services/orchestrator/src/http/ingress.ts:55-105`; `server.ts:728-738`). Public upload PUTs are handled as a separate request stream and passed to route code as `bodyStream`, without form-data parsing (`server.ts:730-772`). There is no `req.formData()` path in the active Orchestrator ingress.
+
+The active business submission route is `POST /api/v1/businesses/{id}/actions/{action}` and passes `ctx.body` to the canonical submission service (`du-rework/services/orchestrator/src/server.ts:1730-1743`). Its strict JSON `SubmissionSchema` requires `input` as a record and accepts optional `sourceUrl`, `artifacts` (`[{ artifactId: UUID, role: non-empty string }]`), `output`, `callback`, and `clientReference` (`packages/contracts/src/operations.ts:282-293`). The submission service validates `sourceUrl` as HTTPS without credentials and applies destination adjudication; URL submissions require S3 storage (`modules/operations/submission.ts:145-165,369-381`). Artifact references are looked up under the submitting tenant and must be READY; foreign/missing/expired IDs return not-found and non-READY IDs conflict (`submission.ts:167-169,540-559`). The input JSON can also contain embedded file-like values, subject to the service-level embedded-byte budget (default 64 MiB); HTTP requests are additionally bounded by ingress maxJsonBytes (default 1 MiB) unless deployment config narrows or raises it (`submission.ts:96,133,166,590-646`; `http/ingress.ts:27-28,55-66`; `server.ts:736-740`).
+
+The separate public upload flow is metadata-init plus bytes, not a multipart form POST:
+
+- `POST /api/v1/uploads` reads JSON fields `uploadToken`, `mimeType`, `sizeBytes`, and optional `fileName`; when the request size is below the multipart floor it calls the encrypted single-init gateway, otherwise the public multipart initializer. It returns an `uploadUrl` ending in `/content` (`server.ts:1460-1480`). The route's configured max defaults to 8 GiB; the multipart contract ceiling is also 8 GiB (`server.ts:1466-1477`; `packages/contracts/src/runtime.ts:273-275,286-292`).
+- Single-init checks a UUID upload token, MIME length/control characters, optional filename length/control characters, and a positive safe-integer size below the single-init threshold/configured cap (`modules/public-api/upload-encryption-gateway.ts:712-731`). Multipart init uses the same metadata names, requires UUID `uploadToken`, non-empty `mimeType`, optional `fileName`, and integer `sizeBytes` from 64 MiB + 1 through 8 GiB; public init removes worker-only `purpose` and `leaseEpoch` and assigns purpose `input` (`modules/artifacts/multipart-service.ts:71-73,908-920`; `packages/contracts/src/runtime.ts:273-292`). Neither metadata schema performs the legacy extension-to-MIME mapping or `.docm` rejection.
+- `PUT /api/v1/uploads/{id}/content` transfers a raw byte stream; optional `Content-Length` and `x-content-sha256` headers are supplied to the encryption gateway (`server.ts:1442-1458`). The gateway compares declared length to the initialized size and validates an optional lowercase digest, then bounds/counts/hashes the plaintext stream and verifies encrypted object data before committing READY (`upload-encryption-gateway.ts:821-858`; stream checks at `:170-191,428-528`). The public `/part` route returns 409, while `/complete` is a completion-replay check (`server.ts:1481-1498`).
+- The runtime artifact producer grant is also JSON metadata (`purpose`, `mimeType`, optional `fileName`, `sizeBytes`) followed by a grant URL, rather than an HTTP multipart input (`packages/contracts/src/runtime.ts:197-205`; `modules/artifacts/artifacts.ts:105-143`).
+
+## 4. Contract delta inventory
+
+1. Legacy `ingest`/`extract` accept one multipart request containing file blobs, string form fields, and optionally JSON-string `file_urls`. The live rework business route accepts a bounded JSON submission; artifact bytes are acquired through a separate upload session and then referenced by artifact ID. The legacy field names (`file`, `files[]`, `source_file`, `target_file`, `file_urls`, `mode`, `type`) are not fields on the rework submission DTO.
+2. Legacy upload admission defaults to `.docx`/`.pdf`, 300 MiB per file and 1 GiB aggregate for uploaded blobs, with explicit `.docm` rejection and extension/MIME matching. Rework upload initialization records `fileName`, `mimeType`, and declared size metadata and transfers bytes on a separate stream path with an 8 GiB contract ceiling; the inspected rework upload metadata path does not implement that legacy extension/MIME mapping or macro-extension rule.
+3. Legacy `file_urls` is a list of up to 20 remote entries and may take the guarded download path or the connector-forward path described above. Rework has a singular optional `sourceUrl` submission field with HTTPS/credentials/destination checks and S3 admission requirements, plus READY tenant-owned artifact references; there is no equivalent `file_urls` array in the rework submission schema.
+4. Legacy selects an ingest/extract subcase using `mode` or `type`, with the parameter differences above. The live rework route selects a registered business/action and takes the action input schema plus artifact references; it has no `mode`/`type` form discriminator.
+
+Result: input wire characterized. No tests were run, no source/contracts/routes/gates were changed, and no compatibility design or COMP row decision is made here.
+
+# COMP-01-FILE-ADMISSION-DELTA-CHARACTERIZATION
+
+Date: 2026-10-01
+Scope: Read-only comparison of file admission and byte-transfer checks in legacy upload/download handling versus the rework public upload session and runtime artifact producer grant. This section records present/absent/different semantics without reconciling them. No gate or COMP row was changed.
+
+Path note: legacy helpers are top-level `lib/**`; rework paths are under `du-rework/services/orchestrator/**` and `du-rework/packages/contracts/**`.
+
+## 1. Legacy admission order
+
+### Uploaded `File`
+
+The runner first discards zero-length/non-`File` values during normalization (`lib/endpoints/runner.ts:36-53`). For each remaining file, `submitPipelineJob` passes the profile's `allowedFileExtensions` value into `saveUploadedFile` (`runner.ts:232-239`; `lib/pipelines/submit.ts:192-196`). The actual admission order in `validateFile` is:
+
+1. NFC-normalize the file name and derive a lowercased extension (`lib/upload.ts:26-28`).
+2. Reject `.docm` explicitly, before consulting the allow-list (`lib/upload.ts:30-36`).
+3. Check the extension against `allowedExtsStr` when provided (split on commas, trim, lowercase); otherwise use the default `.docx` and `.pdf` list (`lib/upload.ts:10,38-48`). The extension override originates from the loaded profile endpoint (`lib/endpoints/runner.ts:232`).
+4. Look up extension MIME in `MIME_MAP` (`lib/upload.ts:12-19,50-52`). For mapped `.docx`/`.pdf`, a non-empty `File.type` must exactly match; an empty MIME is accepted (`lib/upload.ts:50-57`). An override may permit another suffix, but it does not add an entry to `MIME_MAP`; under this code a non-empty MIME for an unmapped extension compares unequal to `undefined`.
+5. Reject a file larger than **300 MiB** (`MAX_FILE_SIZE`) (`lib/upload.ts:8,59-67`).
+6. After validation, sanitize the storage name: `path.basename`, NFC normalization, and replacement of control and filesystem-dangerous characters (`lib/upload-helper.ts:15-17,35-49`). `submitPipelineJob` separately retains the original `file.name` in its file record (`lib/pipelines/submit.ts:222`).
+7. After the individual files have been saved, sum their recorded sizes and reject if the uploaded-file aggregate exceeds `MAX_TOTAL_UPLOAD_SIZE` (environment override; default **1 GiB**); on rejection it attempts to delete the saved objects (`lib/pipelines/submit.ts:187-196,234-246`).
+
+### Downloaded files
+
+The downloaded-file path applies the same `validateFileMetadata` rules, but at multiple points, in this order (`lib/file-url-downloader.ts:129-253`; helper definition `lib/upload.ts:78-107`):
+
+1. Before streaming, reject a parsed response `Content-Length` above the same **300 MiB** per-file ceiling (`file-url-downloader.ts:174-179`).
+2. Choose the filename from the supplied filename, response Content-Disposition, or URL; NFC-normalize it and truncate to the downloader's 200-character filename bound. Choose MIME from the response Content-Type, then the optional supplied MIME (`file-url-downloader.ts:15,181-193`).
+3. Run early `validateFileMetadata(..., size=0)`: NFC/extension extraction, `.docm` rejection, allow-list check (profile override or default), and mapped extension/non-empty MIME comparison (`file-url-downloader.ts:194-199`; `lib/upload.ts:78-97`).
+4. While streaming, reject actual transferred bytes above **300 MiB** (`file-url-downloader.ts:217-235`). The filename used for storage is also reduced to a basename and safe-character set (`file-url-downloader.ts:206-207`).
+5. After upload, call `validateFileMetadata` again with actual bytes written; this rechecks extension/MIME and rejects size above 300 MiB (`file-url-downloader.ts:248-253`; `lib/upload.ts:78-107`).
+6. The aggregate check in `submit.ts` runs before downloaded-file records are appended (`submit.ts:234-278`), so it covers the uploaded `File` records at that point, not later downloaded records.
+
+## 2. Rework admission and transfer checks
+
+### Public upload session
+
+The public init route is `POST /api/v1/uploads`; it chooses encrypted single-init below the multipart floor and public multipart init at or above it, then returns a `/content` upload URL (`du-rework/services/orchestrator/src/server.ts:1460-1480`). The single-init gateway checks: object body; UUID `uploadToken`; `mimeType` length/control characters; optional `fileName` length/control characters; positive safe-integer `sizeBytes`; and the single-session/configured maximum (`modules/public-api/upload-encryption-gateway.ts:712-731`; configured maximum bound at `:317-322`; single threshold at `:33-36`). It does not NFC-normalize or path-sanitize the file name.
+
+The multipart path uses `PublicMultipartInitRequestSchema`, derived by omitting worker-only `leaseEpoch` and `purpose` from `MultipartInitRequestSchema` (`modules/artifacts/multipart-service.ts:71-73`). The contract requires UUID `uploadToken`, non-empty `mimeType`, optional `fileName` of length 1–1024, and integer `sizeBytes` from `MULTIPART_MIN_TOTAL_BYTES` through `MULTIPART_MAX_TOTAL_BYTES` (`packages/contracts/src/runtime.ts:273-292`); public init validates that schema and the configured per-session maximum (`multipart-service.ts:908-920`). This schema does not contain extension/MIME matching, `.docm`, filename control-character, NFC, or sanitization rules.
+
+During the public byte transfer, `PUT /api/v1/uploads/{id}/content` passes the raw request stream and optional `Content-Length` / `x-content-sha256` to the encrypted upload gateway (`server.ts:1442-1458`). The gateway checks header syntax, compares a supplied content length to the initialized size, bounds the plaintext transfer against both expected size and configured max, computes SHA-256, and checks an optional expected plaintext digest; it then verifies stored ciphertext metadata before commit (`upload-encryption-gateway.ts:170-215,821-858`; encrypted stream and digest verification at `:428-528,568-607`). These are byte-count/integrity checks, not file-format sniffing. The upload session's declared `mimeType` and `fileName` remain metadata during this transfer.
+
+### Runtime artifact producer grant
+
+`POST /api/runtime/v1/tasks/{id}/artifacts` calls `requestUpload` (`du-rework/services/orchestrator/src/server.ts:1367-1374`). Init parses `ArtifactUploadGrantRequestSchema`: `purpose` enum, non-empty `mimeType`, optional `fileName` length 1–1024, and integer `sizeBytes >= 0` (`packages/contracts/src/runtime.ts:197-205`). The service defaults `maxArtifactBytes` to 64 MiB (configurable), checks the requested size against it, and issues a storage grant with `contentType=req.mimeType` and `maxBytes=req.sizeBytes` (`modules/artifacts/artifacts.ts:70-72,105-143`). No extension allow-list, MIME map/equality check, `.docm` rule, NFC normalization, or filename sanitization is applied at this init point.
+
+For the in-process PostgreSQL blob route, ingress reads raw bytes under the configured `maxBlobBytes` cap and `putBlob` accepts writes only while the artifact is STAGING (`server.ts:728-738,1522-1538`; `http/ingress.ts:27-28,55-66`; `modules/artifacts/artifacts.ts:464-485`). For S3, the issued storage grant carries the declared size maximum (`artifacts.ts:123-143`). Both paths converge on artifact finalize: the request requires integer `sizeBytes >= 0` and a lowercase 64-hex `sha256` (`packages/contracts/src/runtime.ts:213-217`); the service calls `verifyAndPin` with expected size and digest and compares the verified values before READY (`modules/artifacts/artifacts.ts:160-170,257-279`). The PostgreSQL raw PUT itself does not compare its byte length with the declaration; that comparison occurs at finalize. These transfer/finalize checks establish length and digest, not file type.
+
+## 3. Rule-by-rule status
+
+| Admission rule | Legacy uploaded/downloaded | Rework public upload session | Rework runtime artifact producer |
+|---|---|---|---|
+| Extension allow-list; profile override | **Present.** Default `.docx`/`.pdf`; profile string passed into validation (`lib/upload.ts:10,38-48`; `lib/endpoints/runner.ts:232`; `lib/pipelines/submit.ts:192-196`). Downloaded metadata uses the same override (`file-url-downloader.ts:194-199,249`; `upload.ts:78-92`). | **Absent.** Init checks metadata syntax, not suffix membership (`upload-encryption-gateway.ts:712-731`; `multipart-service.ts:908-920`). | **Absent.** Grant request has no suffix allow-list (`packages/contracts/src/runtime.ts:197-205`; `artifacts.ts:105-143`). |
+| Extension-to-MIME map and mismatch rejection | **Present.** Map covers `.docx` and `.pdf`; non-empty MIME must match, empty MIME is accepted (`lib/upload.ts:12-19,50-57,90-97`). | **Absent.** MIME is checked for nonempty text/length/control characters on single-init, with no filename relationship; multipart requires nonempty MIME only (`upload-encryption-gateway.ts:721-727`; `runtime.ts:286-292`). | **Absent.** MIME must be nonempty text, but is not compared with extension (`runtime.ts:197-205`; `artifacts.ts:105-143`). |
+| Explicit `.docm` rejection | **Present before allow-list lookup** (`lib/upload.ts:30-36,82-84`). | **Absent. MUST-NOT-REPLICATE observation:** metadata init accepts a syntactically valid `.docm` filename (`upload-encryption-gateway.ts:725-731`; multipart schema/init `runtime.ts:286-292`, `multipart-service.ts:908-920`). | **Absent. MUST-NOT-REPLICATE observation:** grant schema/service has no macro-extension check (`runtime.ts:197-205`; `artifacts.ts:105-143`). |
+| Filename NFC and sanitization | **Present.** NFC before legacy extension checks; uploaded storage name is basename/NFC with unsafe characters replaced (`upload.ts:26-28`; `upload-helper.ts:15-17,40-49`). Download names are NFC-normalized/truncated and storage-safe (`file-url-downloader.ts:15,185-207`). | **Different/absent.** Single-init checks filename length and control characters; multipart checks only schema length; neither normalizes NFC or sanitizes path characters (`upload-encryption-gateway.ts:725-727`; `runtime.ts:286-292`; `multipart-service.ts:908-920`). | **Absent.** Schema retains optional fileName with length bounds only; no NFC or sanitization in requestUpload (`runtime.ts:197-205`; `artifacts.ts:105-143`). |
+| Per-file/per-artifact size ceiling | **Present.** 300 MiB per uploaded file (`upload.ts:8,59-67`); downloaded files check Content-Length and streamed bytes, then actual size (`file-url-downloader.ts:174-179,217-235,248-253`). | **Different semantics.** Declared size selects single-init or multipart; configured per-session maximum applies, with multipart contract ceiling and transfer count bound to declared size (`server.ts:1466-1477`; `upload-encryption-gateway.ts:33-36,712-731,170-215,821-858`; `runtime.ts:273-292`; `multipart-service.ts:908-920`). | **Different semantics.** Per-artifact declared size bounded by configured `maxArtifactBytes` (default 64 MiB) and the storage grant maximum; finalize verifies actual size (`artifacts.ts:70-72,105-143,238-279`; `runtime.ts:197-217`). |
+| Aggregate ceiling | **Present for uploaded blobs.** Environment-controlled aggregate ceiling defaults to 1 GiB and is checked after saves; downloaded files are appended later and do not reach that check (`submit.ts:187-196,234-278`). | **Absent as a cross-session aggregate rule in the inspected init path.** The route and multipart service check one session's size against configured/contract ceilings (`server.ts:1466-1477`; `multipart-service.ts:908-920`). | **Absent as a multi-artifact aggregate rule in requestUpload.** The service checks each requested artifact against `maxArtifactBytes` (`artifacts.ts:70-72,105-118`). |
+| Magic-byte content sniffing | **Absent in admission.** The checks inspect file name, declared MIME, and size; downloaded bytes are counted but no file signature is checked (`upload.ts:26-71,78-107`; `file-url-downloader.ts:217-253`). | **Absent.** Transfer hashes/counts bytes and verifies encrypted storage, without classifying PDF/DOCX signatures (`upload-encryption-gateway.ts:170-215,428-528,568-607,821-858`). | **Absent.** Grant/finalize checks metadata, size, and SHA-256; no signature parser is called in this path (`artifacts.ts:105-143,257-279`). |
+
+**MUST-NOT-REPLICATE observations:** rework public and runtime artifact metadata admission accept `.docm` names and do not reject an extension/MIME mismatch (`upload-encryption-gateway.ts:721-731`; `packages/contracts/src/runtime.ts:197-205,286-292`; `modules/artifacts/artifacts.ts:105-143`). These are classifications of observed behavior only, not remediation proposals.
+
+Result: file admission delta characterized. No tests were run, no source/contracts/routes/gates were changed, and no rule was proposed or selected.
+
+## W-ADM-UX-01-CLOUDFLARE-THEME
+
+- Recorded: 2026-10-01T12:37:13+07:00. Scope: Cloudflare-inspired flat theme in services/orchestrator/src/app/admin/shell-render.ts. Renderer markup was not changed; existing class selectors and data-* attributes remain intact. Release gates remain NO-GO and unchanged.
+- Command: pnpm --filter @du/orchestrator test -- tests/admin-shell-render.test.ts
+- Result: ExitCode 0; 1 suite passed, 140 tests passed, 0 failed.
+- Command: pnpm --filter @du/orchestrator exec tsc --noEmit
+- Result: ExitCode 0; no diagnostics.
+- Receipt result: PASS for the requested shell render test and typecheck. No gate was ticked or changed.
+
+# COMP-00-PROGRESS-WIRE-CHARACTERIZATION
+
+Date: 2026-10-01
+Scope: Read-only characterization of legacy and rework operation progress writes, reads, and step-level records. This records observed behavior only; no source, tests, COMP rows, or gates were changed, and no tests were run.
+
+Path note: legacy shared code is under repository-root `lib/**`; the active rework implementation is under `du-rework/**`.
+
+## 1. Legacy progress writes
+
+The legacy `operations` row has distinct `progressPercent`, `progressMessage`, and `stepsResultJson` columns (`lib/db/schema.ts:17-18,28`). The writes below leave the operation in `RUNNING` unless explicitly marked terminal or paused.
+
+| Order/event | Value and message | Persisted fields and state |
+|---|---|---|
+| Operation creation | `progressPercent = 0`; `progressMessage = 'Initializing pipeline...'` (`lib/pipelines/submit.ts:309-315`). | Insert also sets `state='RUNNING'`, `done=false`; the initial percentage and message are stored before enqueue. |
+| Pending URL downloads | `progressMessage = \`Downloading ${jobData.pendingFileUrls.length} file(s) from URLs...\`` (`lib/pipelines/engine.ts:146-150`). | Updates only `progressMessage`; percentage is retained and state remains `RUNNING`. |
+| Ordinary pipeline step | For each `i` from `resumeFromStep` to `pipeline.length - 1`, `progressPercent = Math.round((i / pipeline.length) * 100)` and `progressMessage = \`Đang xử lý bước ${i + 1}/${pipeline.length}: ${step.processor}...\`` (`lib/pipelines/engine.ts:282-293`). | Writes `currentStep=i`, `progressPercent`, and `progressMessage` while running. It also sends the same numeric value to BullMQ `job.updateProgress` (`engine.ts:295-297`). The first step reports zero; this loop’s formula does not report 100. |
+| Resume after human input | `progressMessage = 'Đang tiếp tục luồng xử lý do người dùng xác nhận...'` (`app/api/v1/operations/[id]/resume/route.ts:83-88`). | Sets state back to `RUNNING`; the update does not change `progressPercent`. |
+| Cancel request | `progressMessage = null` (`app/api/v1/operations/[id]/cancel/route.ts:39-45`). | Sets `state='CANCELLED'`, `done=true`; the update does not change `progressPercent`. |
+| Successful terminal write | `progressPercent = 100`; `progressMessage = null` (`lib/pipelines/engine.ts:399-407`). | Same update sets `state='SUCCEEDED'`, `done=true`. |
+| Failure paths | Invalid pipeline JSON (`engine.ts:131-139`), failed URL download (`:165-172`), and the general catch (`:454-464`) set `state='FAILED'`, `done=true`, and failure/result fields, but do not assign `progressPercent` or `progressMessage`. | The last stored progress value/message survives: initially `0` / `Initializing pipeline...`, the URL-download message, or the last step message/percent, depending on where failure occurred. |
+
+### Workflow parent and sub-step writes
+
+`enqueueSubStep` inserts a hidden child operation as `RUNNING`, `done=false`, `progressPercent=0`, with `progressMessage = \`Sub-step: ${processorSlug}\`` (`lib/pipelines/workflow-engine.ts:128-138`). The child then runs through the ordinary pipeline engine, which writes its own per-step formula/message and terminal 100/null values; this is progress on the child operation, separate from the parent.
+
+The workflow helper `updateProgress(ctx, percent, message)` writes the supplied values to the parent’s `progressPercent` and `progressMessage`, and serializes `ctx.stepsResult` to `stepsResultJson` (`lib/pipelines/workflow-engine.ts:206-214`). Its callers supply:
+
+| Workflow source | Percent values | `progressMessage` templates at the call sites | State |
+|---|---|---|---|
+| Schema-driven runner | `Math.round((i / totalSteps) * 100)` for each ordered node (`lib/workflow-builder/run-schema.ts:46-54`). | `Step ${i + 1}/${totalSteps}: ${node.id}`; for a human node it writes the same percent again with `node.message`, then `pauseWorkflow` stores that message. | The node updates occur while running; the human pause changes state to `WAITING_USER_INPUT` and leaves the last percentage intact (`workflow-engine.ts:255-268`). |
+| Disbursement | Start/end bands are `[5,25]`, `[30,55]`, `[60,80]`, `[85,95]`; `stepProgress` selects a band endpoint (`lib/pipelines/workflows/disbursement.ts:39-54`). | In call order: `Bước 1/${TOTAL_STEPS}: Đang phân loại ${fileCount} tài liệu...`; `Bước 1 hoàn tất. ${fileCount} file → ${allLogicalDocs.length} loại tài liệu.`; `Bước 2/${TOTAL_STEPS}: Đang bóc tách ${fileCount} file...`; `Bước 2 hoàn tất. Bắt đầu pause chờ duyệt.`; `Bước 3/${TOTAL_STEPS}: Đang đối chiếu...`; `Bước 3 hoàn tất.`; `Bước 4/${TOTAL_STEPS}: Đang soạn Tờ trình...` (`:96,154,160,204,213,231,240`). At the human pause, `pauseWorkflow` writes `Vui lòng kiểm tra và phê duyệt kết quả OCR trước khi tiếp tục.` (`:207`; `workflow-engine.ts:255-268`). | Progress calls run in `RUNNING`; after step 2 the pause writes `WAITING_USER_INPUT` without resetting the percentage. |
+| LC checker | Start/end bands are `[5,30]`, `[35,80]`, `[85,95]` (`lib/pipelines/workflows/lc-checker.ts:26-40`). | In call order: `Bước 1/${TOTAL_STEPS}: Đang OCR ${fileCount} chứng từ LC...`; `Bước 1 hoàn tất. OCR ${ocrTexts.size}/${fileCount} file, ${totalChars} chars.`; `Bước 2/${TOTAL_STEPS}: Đang kiểm tra tuân thủ UCP 600 / ISBP 821...`; `Bước 2 hoàn tất. Verdict: ${checkResult.verdict} — ${checkResult.total_discrepancies} discrepancy.`; `Bước 3/${TOTAL_STEPS}: Đang soạn Báo cáo Kiểm tra Chứng từ LC...` (`:71,125,131,165,185`). | Calls occur in `RUNNING`; success later writes 100/null. |
+| Document compare | Start/end bands are `[5,25]`, `[30,55]`, `[60,80]`, `[85,95]` (`lib/pipelines/workflows/doc-compare.ts:29-43`). | In call order: `Bước 1/${TOTAL_STEPS}: Đang OCR ${fileCount} văn bản...`; `Bước 1 hoàn tất. OCR ${ocrTexts.size}/${fileCount} file, ${totalChars} ký tự.`; `Bước 2/${TOTAL_STEPS}: Đang phân tích Mục lục 2 văn bản...`; `Bước 2 hoàn tất. Mục lục VB1: ${tocResult?.doc1_toc?.length ?? 0} mục, VB2: ${tocResult?.doc2_toc?.length ?? 0} mục.`; `Bước 3/${TOTAL_STEPS}: Đang so sánh từng mục giữa 2 văn bản...`; `Bước 3 hoàn tất. ${compareResult?.modified_count ?? 0} mục sửa đổi, ${compareResult?.added_count ?? 0} thêm, ${compareResult?.removed_count ?? 0} xóa.`; `Bước 4/${TOTAL_STEPS}: Đang soạn Báo cáo So sánh Văn bản...` (`:87,133,139,161,167,193,200`). | Calls occur in `RUNNING`; success later writes 100/null. |
+
+Workflow success sets `state='SUCCEEDED'`, `done=true`, `progressPercent=100`, and `progressMessage=null` (`workflow-engine.ts:218-232`). `failWorkflow` sets `state='FAILED'`, `done=true`, and failure/result fields without assigning either progress field (`:275-289`), so it retains the preceding values. The pause write sets only `progressMessage=message`, not `progressPercent`; the source explicitly notes that it does not set 100 while waiting (`:255-268`).
+
+## 2. Sync, async, and polling observations
+
+Sync submission enqueues and waits on `job.waitUntilFinished(queueEvents, SYNC_TIMEOUT_MS)`; the default is 30,000 ms (`lib/pipelines/submit.ts:369-385`; `lib/queue/pipeline-queue.ts:18-19`). After completion or wait timeout it reloads the operation row from PostgreSQL, and `lib/endpoints/runner.ts:256-273` formats that row with HTTP 200 for sync. Async submission enqueues and immediately returns the original inserted operation object without reloading it; the runner formats it with HTTP 202 (`submit.ts:387-391`; `runner.ts:256-273`). Thus the immediate sync response can contain a later stored progress value, while the immediate async response contains the creation snapshot (zero and the initialization message).
+
+Subsequent legacy operation polling reads the operation row from the database (`app/api/v1/operations/[id]/route.ts:20,37`); the list route selects progress columns and projects them into metadata (`app/api/v1/operations/route.ts:70-74,105-112`). The formatter includes `progress_percent` and `progress_message` in metadata for every state (`lib/pipelines/format.ts:17-31`), including `FAILED`. Polling is a read/projection path; it does not write progress back.
+
+## 3. Rework progress path
+
+The worker contract permits a lease-bound `percent` from 0 to 100 and an optional message (`du-rework/packages/contracts/src/runtime.ts:120-124`). The worker SDK forwards `progress.report(percent, message)` to the runtime client (`packages/worker-sdk/src/task-context.ts:442-450`; `runtime-client.ts:196-204`), and the live endpoint forwards the request to `runtime.reportProgress` (`services/orchestrator/src/server.ts:1636-1643`). The runtime method checks task existence and lease epoch, but then reaches the noted placeholder at `services/orchestrator/src/modules/runtime/runtime.ts:483-492`: it selects a task id and discards the result; it does not read the request’s percentage/message into a persisted write or update an operation.
+
+No production `progress.report(...)` call was found in `du-rework/businesses/document-core/src`. The active task checkpoint writer stores `step_key`, `generation`, `input_hash`, `output_ref`, and `status` (`services/orchestrator/src/modules/runtime/runtime.ts:424-481`); the `step_checkpoints` schema has those fields and timestamps but no progress field (`services/orchestrator/migrations/0001_platform_v1.sql:102-110`). The operation table likewise has no progress-percent/message or steps-JSON column (`migrations/0001_platform_v1.sql:36-54`).
+
+Both active operation-view constructors set `progress: { percent: 0, message: r.state }`: the facade used by reads (`services/orchestrator/src/modules/operations/facade.ts:32-49`) and the submission view (`modules/operations/submission.ts:698-715`). The public GET handler reads the tenant-scoped operation and maps it with `toOperationView`, including its `?wait` polling path (`server.ts:1806-1841`); the operation list uses the same mapper (`server.ts:1794-1803`). The returned operation percent is never nonzero on this active path today; the message is the current state string, so both a running and a stuck operation show `0` and `RUNNING`. A client therefore cannot distinguish them using progress alone. The percent contract’s range does not change that observation.
+
+The separate `compat/legacy-action-router.ts:307-308` can project a supplied optional `result.progressPercent` into a legacy response, but the live `server.ts` route does not import or invoke that router; it is not the active operation polling path characterized above.
+
+## 4. Step-level records separate from percent
+
+Legacy `stepsResultJson` is separate from `progressPercent`: the ordinary pipeline writes the accumulated steps after each step and at terminal success/failure (`lib/pipelines/engine.ts:391-407,454-464`); workflow progress writes the parent’s `ctx.stepsResult`, while HITL pause can wrap it with `_nodeResults` (`lib/pipelines/workflow-engine.ts:206-214,247-268`). The formatter exposes this stored structure as `pipeline_steps` (`lib/pipelines/format.ts:20-31,37-40,59-64`). It is populated during execution and is not the percentage source.
+
+Rework has no corresponding operation `steps_json` or percent column in the operations table. Its separate `step_checkpoints` rows are populated through the runtime `saveStep` path when called; they record per-step status/hash/output reference and generation, not a progress percentage (`runtime.ts:424-481`; migration `0001_platform_v1.sql:102-110`). No such checkpoint save call was found in `businesses/document-core/src`.
+
+**MUST-NOT-REPLICATE:** The active rework operation view’s hardcoded `percent: 0` (`services/orchestrator/src/modules/operations/facade.ts:45`; `modules/operations/submission.ts:715`) and the non-persisting progress endpoint (`modules/runtime/runtime.ts:489-492`) are observed parity blockers. This report makes no replacement or implementation proposal.
+
+Result: progress production and polling behavior characterized. No source edits, test runs, gate ticks, or COMP row changes were made.

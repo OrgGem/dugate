@@ -19,6 +19,7 @@ import { createApp, multipartLimitsFromEnv } from './server';
 import { createLogger, safeErrorForLog } from '@du/observability';
 import { installGracefulShutdown } from './shutdown';
 import { buildOidcAdminComponents } from './app/admin/oidc-boot';
+import { buildEncryptionBootOptions, type EncryptionBootOptions } from './modules/encryption/boot-options';
 
 const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'main' } });
 
@@ -102,8 +103,17 @@ async function main(): Promise<void> {
   if (oidcAdmin?.ready) {
     await oidcAdmin.ready();
   }
+  // RV01-02 (#8): resolved before createApp so a bad surface fails the boot
+  // instead of leaving the app running with plaintext control-plane columns.
+  const encryptionBoot: Partial<EncryptionBootOptions> = buildEncryptionBootOptions(process.env) ?? {};
+  if (encryptionBoot.metadataEncryption || encryptionBoot.publicUploadEncryption) {
+    logger.info('artifact encryption enabled', {
+      metadata: Boolean(encryptionBoot.metadataEncryption),
+      publicUpload: Boolean(encryptionBoot.publicUploadEncryption),
+    });
+  }
   const app = await createApp({
-    port: positiveInteger('PORT', 3000),
+    port: positiveInteger('ORCHESTRATOR_PORT', positiveInteger('PORT', 3000)),
     databaseUrl: required('DATABASE_URL'),
     redisUrl: optional('REDIS_URL') ?? 'redis://127.0.0.1:6379',
     runtimeToken: optional('RUNTIME_TOKEN'),
@@ -122,16 +132,27 @@ async function main(): Promise<void> {
     autoMigrate: process.env.AUTO_MIGRATE === 'true', // default FALSE: schema work is the migrate CLI's
     autoDispatch: process.env.AUTO_DISPATCH !== 'false',
     artifactStorage: artifactStorageConfig(),
+    // RV01-02 (#8): supply the crypto blocks so control-plane columns are
+    // sealed. Absent these, createApp leaves metadataCrypto undefined and every
+    // control-plane column silently keeps plaintext behaviour. Building them
+    // here is fail-closed: a half-specified surface throws instead of degrading.
+    ...encryptionBoot,
     // DATA-02 §6 signed values stay the wire defaults; env may only narrow.
     multipartLimits: multipartLimitsFromEnv(),
     adminSessionStore: oidcAdmin?.adminSessionStore,
     adminOidcFlow: oidcAdmin?.adminOidcFlow,
+    adminShellCookieSecret: optional('ADMIN_SHELL_COOKIE_SECRET'),
+    adminShellPort: optional('ADMIN_SHELL_PORT') ? positiveInteger('ADMIN_SHELL_PORT', 3001) : undefined,
+    adminShellHost: optional('ADMIN_SHELL_HOST') ?? '127.0.0.1',
   });
   const server = await app.listen();
   const address = server.address();
   logger.info('orchestrator listening', {
     address: typeof address === 'string' ? address : address ? address.port : 'unknown',
   });
+  if (app.adminShell) {
+    logger.info('admin shell listening', { url: app.adminShell.url });
+  }
 
   installGracefulShutdown({
     // Drain the app first; the OIDC session connection (redis backend)

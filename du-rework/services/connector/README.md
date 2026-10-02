@@ -16,12 +16,18 @@ The production entrypoint requires:
 - `CONNECTOR_ENCRYPTION_KEY`
 
 The three secrets must be base64-encoded 32-byte values. Optional settings are
-`PORT`, `HOST`, `REDIS_KEY_PREFIX`, `CONNECTOR_MIGRATION_DIRECTORY`,
-`DRAIN_TIMEOUT_MS`, `USAGE_SINK_URL`, `USAGE_SINK_TOKEN`,
-`PROVIDER_ALLOW_HOSTS`, and `ALLOW_PRIVATE_PROVIDER_NETWORKS`. `SIGTERM` and
+`CONNECTOR_PORT` (checked before `PORT`), `HOST`, `REDIS_KEY_PREFIX`,
+`CONNECTOR_MIGRATION_DIRECTORY`, `DRAIN_TIMEOUT_MS`, `USAGE_SINK_URL`,
+`USAGE_SINK_TOKEN`, `PROVIDER_ALLOW_HOSTS`, and
+`ALLOW_PRIVATE_PROVIDER_NETWORKS`. `SIGTERM` and
 `SIGINT` stop intake, drain HTTP work and usage delivery, and close
 PostgreSQL/Redis clients. Provider private-network access is denied by default;
 allowing it is intended only for controlled development/test environments.
+
+The listen port defaults to **8080** when neither `CONNECTOR_PORT` nor `PORT` is set.
+The repo dev runner overrides it to **8088** via `.env.local.sample`, while
+`.env.example` keeps 8080 — so the port you see locally depends on which env file
+was loaded.
 
 From `du-rework/`, install/build workspace dependencies, then run the
 standalone entrypoint with the environment above:

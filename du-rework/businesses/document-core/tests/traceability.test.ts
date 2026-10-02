@@ -6,7 +6,7 @@ import {
 import { documentCoreManifest } from '../src/manifest/document-core.manifest';
 import { RecipeRegistry } from '../src/recipes/recipe-definitions';
 
-describe('28-Variant Traceability Suite (WORKLOAD-REBALANCE-04, P5-01/P5-02/P5-10)', () => {
+describe('31-Variant Traceability Suite (WORKLOAD-REBALANCE-04, P5-01/P5-02/P5-10)', () => {
   test('traceability matrix is internally consistent and passes automated verification', () => {
     const result = verifyTraceabilityMatrix();
     if (!result.valid) {
@@ -16,12 +16,12 @@ describe('28-Variant Traceability Suite (WORKLOAD-REBALANCE-04, P5-01/P5-02/P5-1
     expect(result.valid).toBe(true);
   });
 
-  test('contains exactly 28 unique documented variants spanning DOC-01 through DOC-06', () => {
-    expect(VARIANT_TRACEABILITY_MATRIX.length).toBe(28);
+  test('contains exactly 31 unique documented variants spanning DOC-01 through DOC-06', () => {
+    expect(VARIANT_TRACEABILITY_MATRIX.length).toBe(31);
 
     const caseIds = VARIANT_TRACEABILITY_MATRIX.map((e) => e.brdCaseId);
     const uniqueCaseIds = new Set(caseIds);
-    expect(uniqueCaseIds.size).toBe(28);
+    expect(uniqueCaseIds.size).toBe(31);
 
     // Verify all 6 BRD groups exist
     const doc01 = caseIds.filter((id) => id.startsWith('DOC-01'));
@@ -32,8 +32,8 @@ describe('28-Variant Traceability Suite (WORKLOAD-REBALANCE-04, P5-01/P5-02/P5-1
     const doc06 = caseIds.filter((id) => id.startsWith('DOC-06'));
 
     expect(doc01.length).toBe(4); // Ingest (parse, ocr, digitize, split)
-    expect(doc02.length).toBe(5); // Extract (invoice, contract, receipt, table, custom)
-    expect(doc03.length).toBe(5); // Analyze (classify, sentiment, compliance, quality, risk)
+    expect(doc02.length).toBe(6); // Extract (invoice, contract, receipt, table, custom)
+    expect(doc03.length).toBe(7); // Analyze (classify, sentiment, compliance, quality, risk)
     expect(doc04.length).toBe(5); // Transform (convert, translate, rewrite, redact, template)
     expect(doc05.length).toBe(6); // Generate (summary, outline, report, email, minutes, qa)
     expect(doc06.length).toBe(3); // Compare (diff, semantic, version)
@@ -79,7 +79,7 @@ describe('28-Variant Traceability Suite (WORKLOAD-REBALANCE-04, P5-01/P5-02/P5-1
   test('traceability verification fails if any variant is missing or corrupted', () => {
     // Test robustness: verifyTraceabilityMatrix catches tampering
     const originalLength = VARIANT_TRACEABILITY_MATRIX.length;
-    expect(originalLength).toBe(28);
+    expect(originalLength).toBe(31);
 
     // Simulate duplicate or undeclared slot error
     const corruptedMatrix: VariantTraceabilityEntry[] = [

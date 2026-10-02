@@ -1,0 +1,74 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-02T00:00:00.000Z" agent="DUGate architecture docs" version="24.7.17">
+  <diagram id="system-components" name="DUGate Rework — kiến trúc thành phần">
+    <mxGraphModel dx="1440" dy="800" grid="1" gridSize="10" page="1" pageScale="1" pageWidth="1440" pageHeight="800">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="client" value="&lt;b&gt;API client&lt;/b&gt;&lt;br&gt;x-api-key, submit / poll&lt;br&gt;download / callback" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#dbeafe;strokeColor=#3b82f6;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="50" y="115" width="240" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="admin" value="&lt;b&gt;Admin operator&lt;/b&gt;&lt;br&gt;session / bearer, RBAC&lt;br&gt;registry, profile, audit" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#e0e7ff;strokeColor=#6366f1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="50" y="285" width="240" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="orchestrator" value="&lt;b&gt;Orchestrator&lt;/b&gt;&lt;br&gt;Public + Admin + Runtime API&lt;br&gt;operation / task / lease&lt;br&gt;artifact metadata + grants&lt;br&gt;outbox / usage / webhook" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#ccfbf1;strokeColor=#0f766e;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="360" y="145" width="335" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="platform_db" value="&lt;b&gt;Platform PostgreSQL&lt;/b&gt;&lt;br&gt;operations, tasks, outbox&lt;br&gt;metadata, audit, usage" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="790" y="115" width="275" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" value="&lt;b&gt;Redis / BullMQ&lt;/b&gt;&lt;br&gt;delivery queue, sessions&lt;br&gt;shared quota" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fee2e2;strokeColor=#dc2626;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="790" y="275" width="275" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="storage" value="&lt;b&gt;S3 / artifact store&lt;/b&gt;&lt;br&gt;versioned bytes, multipart&lt;br&gt;optional backend in code" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#ede9fe;strokeColor=#7c3aed;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="115" width="260" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="workers" value="&lt;b&gt;Business workers&lt;/b&gt;&lt;br&gt;document-core · example-review&lt;br&gt;lc-checker&lt;br&gt;Worker SDK + document-kit" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="360" y="505" width="335" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="connector" value="&lt;b&gt;Connector&lt;/b&gt;&lt;br&gt;grant + revision + quota&lt;br&gt;provider HTTP adapters&lt;br&gt;invocation + usage ledger" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#ffedd5;strokeColor=#ea580c;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="790" y="505" width="275" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="provider" value="&lt;b&gt;External providers&lt;/b&gt;&lt;br&gt;OCR · vision · LLM&lt;br&gt;JSON / multipart HTTP" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fce7f3;strokeColor=#db2777;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="505" width="260" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="connector_db" value="&lt;b&gt;Connector PostgreSQL&lt;/b&gt;&lt;br&gt;revision, invocation, outbox" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="660" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="public API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="client" target="orchestrator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="admin API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="admin" target="orchestrator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="state" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="platform_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="outbox" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="artifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="delivery" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="redis" target="workers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="runtime reports" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="workers" target="orchestrator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="invocation" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="workers" target="connector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="bounded fetch" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="connector" target="provider">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="ledger" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="connector" target="connector_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="usage sink" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;dashed=1;" edge="1" parent="1" source="connector" target="orchestrator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

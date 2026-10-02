@@ -72,7 +72,10 @@ export class ExtractAction {
       async () => {
         return {
           type: input.type,
-          promptText: `Extract ${input.type} information from document.`,
+          promptText:
+            (input as unknown as { type: string }).type === 'id-card'
+              ? 'Extract identity document fields. Return a JSON object with identityNumber, fullName, dateOfBirth, gender, nationality, placeOfOrigin, placeOfResidence, documentType, and expiryDate. Use null for fields that are not present; do not infer missing values.'
+              : `Extract ${input.type} information from document.`,
           documentSnippet: sources.text,
           schema: input.schema,
         };
@@ -190,6 +193,20 @@ export class ExtractAction {
       if (!obj.merchantName && !obj.totalAmount && !obj.items) {
         throw new BusinessExecutionError(
           'Extracted receipt missing essential properties (merchantName, totalAmount, or items)',
+          'SCHEMA_VALIDATION_ERROR'
+        );
+      }
+    } else if (type === 'id-card') {
+      const identifierFields = ['identityNumber', 'idNumber', 'nationalId', 'passportNumber', 'documentNumber'];
+      const hasIdentifier = identifierFields.some(
+        (field) => typeof obj[field] === 'string' && (obj[field] as string).trim().length > 0
+      );
+      const hasName =
+        (typeof obj.fullName === 'string' && obj.fullName.trim().length > 0) ||
+        (typeof obj.name === 'string' && obj.name.trim().length > 0);
+      if (!hasIdentifier && !hasName) {
+        throw new BusinessExecutionError(
+          'Extracted ID card must contain a non-empty identity number or full name',
           'SCHEMA_VALIDATION_ERROR'
         );
       }

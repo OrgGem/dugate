@@ -352,6 +352,35 @@ export const EXPECTED_RESULT_CORPUS: Record<string, CorpusVariantEntry> = {
       "warnings": []
     }
   },
+  "DOC-02-06": {
+    "brdCaseId": "DOC-02-06",
+    "action": "extract",
+    "variant": "id-card",
+    "executionMode": "provider",
+    "expectedTokenUsage": {
+      "inputTokens": 100,
+      "outputTokens": 50,
+      "costMicrousd": 250
+    },
+    "syntheticInput": {
+      "type": "id-card",
+      "text": "Vietnamese identity card for Nguyen Minh Anh, document ID VN-2048-0007."
+    },
+    "derivedExpectedEnvelope": {
+      "status": "COMPLETED",
+      "data": {
+        "identityNumber": "VN-2048-0007",
+        "fullName": "Nguyen Minh Anh",
+        "dateOfBirth": "1990-05-12",
+        "nationality": "Vietnamese"
+      },
+      "provenance": {
+        "method": "llm_extraction",
+        "modelSlot": "reasoning"
+      },
+      "warnings": []
+    }
+  },
   "DOC-03-01": {
     "brdCaseId": "DOC-03-01",
     "action": "analyze",
@@ -492,6 +521,74 @@ export const EXPECTED_RESULT_CORPUS: Record<string, CorpusVariantEntry> = {
             "level": "high"
           }
         ]
+      },
+      "provenance": {
+        "method": "llm_evaluation",
+        "modelSlot": "reasoning"
+      },
+      "warnings": []
+    }
+  },
+  "DOC-03-06": {
+    "brdCaseId": "DOC-03-06",
+    "action": "analyze",
+    "variant": "fact-check",
+    "executionMode": "provider",
+    "expectedTokenUsage": {
+      "inputTokens": 100,
+      "outputTokens": 50,
+      "costMicrousd": 250
+    },
+    "syntheticInput": {
+      "task": "fact-check",
+      "text": "The report states that Northwind revenue grew by 12% in 2025.",
+      "referenceData": {
+        "source": "Annual report",
+        "revenueGrowth2025": "12%"
+      }
+    },
+    "derivedExpectedEnvelope": {
+      "status": "COMPLETED",
+      "data": {
+        "verdict": "PASS",
+        "summary": "The reported growth matches the supplied annual-report reference.",
+        "checks": [
+          {
+            "claim": "Revenue grew by 12% in 2025.",
+            "status": "PASS",
+            "reference": "Annual report: 12% growth."
+          }
+        ]
+      },
+      "provenance": {
+        "method": "llm_evaluation",
+        "modelSlot": "reasoning"
+      },
+      "warnings": []
+    }
+  },
+  "DOC-03-07": {
+    "brdCaseId": "DOC-03-07",
+    "action": "analyze",
+    "variant": "summarize-eval",
+    "executionMode": "provider",
+    "expectedTokenUsage": {
+      "inputTokens": 100,
+      "outputTokens": 50,
+      "costMicrousd": 250
+    },
+    "syntheticInput": {
+      "task": "summarize-eval",
+      "text": "The proposal prioritizes accessible transit, phased investment, and measurable service targets."
+    },
+    "derivedExpectedEnvelope": {
+      "status": "COMPLETED",
+      "data": {
+        "summary": "The proposal improves transit access through phased investment and measurable service targets.",
+        "evaluation": {
+          "overallAssessment": "The argument is structured around practical, measurable outcomes.",
+          "authorPerspective": "The author favors incremental investment tied to public-service results."
+        }
       },
       "provenance": {
         "method": "llm_evaluation",

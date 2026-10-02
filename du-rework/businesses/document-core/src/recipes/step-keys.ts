@@ -1,5 +1,5 @@
 /**
- * Stable step identifiers across all 6 actions and 28 variants.
+ * Stable step identifiers across all 6 actions and 31 variants.
  * Stable IDs ensure deterministic checkpoint resumption and idempotent recovery.
  */
 
@@ -27,6 +27,9 @@ export const STEP_KEYS = {
     PREPARE_SOURCE: 'analyze:prepare-source',
     BUILD_PROMPT: 'analyze:build-prompt',
     CONNECTOR_INFERENCE: 'analyze:connector-inference',
+    FACT_CHECK_EXTRACT_CLAIMS: 'analyze:fact-check-extract-claims',
+    FACT_CHECK_VERIFY_CLAIMS: 'analyze:fact-check-verify-claims',
+    SUMMARIZE_EVAL_INFERENCE: 'analyze:summarize-eval-inference',
     VALIDATE_FINDINGS: 'analyze:validate-findings',
     FINALIZE: 'analyze:finalize',
   },
@@ -57,5 +60,12 @@ export const STEP_KEYS = {
     EXECUTE_VERSION: 'compare:execute-version',
     NORMALIZE_REFERENCES: 'compare:normalize-references',
     FINALIZE: 'compare:finalize',
+  },
+  DISBURSEMENT: {
+    CLASSIFY: 'disbursement:classify:v1',
+    EXTRACT: 'disbursement:extract:v1',
+    APPROVAL: 'disbursement:approval:v1',
+    CROSSCHECK: 'disbursement:crosscheck:v1',
+    REPORT: 'disbursement:report:v1',
   },
 } as const;

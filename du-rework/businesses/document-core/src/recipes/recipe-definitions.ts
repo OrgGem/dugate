@@ -1,17 +1,19 @@
 /**
- * Recipe descriptors for all 28 variants.
+ * Recipe descriptors for all 31 variants.
  */
+
+import { STEP_KEYS } from './step-keys';
 
 export interface StepDefinition {
   stepKey: string;
   isLocalOnly: boolean;
-  requiredSlot?: 'ocr' | 'reasoning' | 'vision';
+  requiredSlot?: 'ocr' | 'reasoning' | 'vision' | 'classify' | 'extract' | 'crosscheck' | 'report';
   timeoutSeconds: number;
 }
 
 export interface RecipeDefinition {
   recipeId: string;
-  action: 'ingest' | 'extract' | 'analyze' | 'transform' | 'generate' | 'compare';
+  action: 'ingest' | 'extract' | 'analyze' | 'transform' | 'generate' | 'compare' | 'disbursement';
   variant: string;
   steps: StepDefinition[];
   retryBudget: number;
@@ -87,6 +89,19 @@ export class RecipeRegistry {
       recipeId: 'recipe-extract-contract-v1',
       action: 'extract',
       variant: 'contract',
+      steps: [
+        { stepKey: 'extract:validate', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'extract:prepare-source', isLocalOnly: true, timeoutSeconds: 60 },
+        { stepKey: 'extract:connector-inference', isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
+        { stepKey: 'extract:validate-schema', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'extract:finalize', isLocalOnly: true, timeoutSeconds: 30 },
+      ],
+      retryBudget: 2,
+    },
+    'extract:id-card': {
+      recipeId: 'recipe-extract-id-card-v1',
+      action: 'extract',
+      variant: 'id-card',
       steps: [
         { stepKey: 'extract:validate', isLocalOnly: true, timeoutSeconds: 30 },
         { stepKey: 'extract:prepare-source', isLocalOnly: true, timeoutSeconds: 60 },
@@ -197,6 +212,35 @@ export class RecipeRegistry {
         { stepKey: 'analyze:validate', isLocalOnly: true, timeoutSeconds: 30 },
         { stepKey: 'analyze:prepare-source', isLocalOnly: true, timeoutSeconds: 60 },
         { stepKey: 'analyze:connector-inference', isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
+        { stepKey: 'analyze:validate-findings', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'analyze:finalize', isLocalOnly: true, timeoutSeconds: 30 },
+      ],
+      retryBudget: 2,
+    },
+    'analyze:fact-check': {
+      recipeId: 'recipe-analyze-fact-check-v1',
+      action: 'analyze',
+      variant: 'fact-check',
+      steps: [
+        { stepKey: 'analyze:validate', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'analyze:prepare-source', isLocalOnly: true, timeoutSeconds: 60 },
+        { stepKey: 'analyze:build-prompt', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'analyze:fact-check-extract-claims', isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
+        { stepKey: 'analyze:fact-check-verify-claims', isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
+        { stepKey: 'analyze:validate-findings', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'analyze:finalize', isLocalOnly: true, timeoutSeconds: 30 },
+      ],
+      retryBudget: 2,
+    },
+    'analyze:summarize-eval': {
+      recipeId: 'recipe-analyze-summarize-eval-v1',
+      action: 'analyze',
+      variant: 'summarize-eval',
+      steps: [
+        { stepKey: 'analyze:validate', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'analyze:prepare-source', isLocalOnly: true, timeoutSeconds: 60 },
+        { stepKey: 'analyze:build-prompt', isLocalOnly: true, timeoutSeconds: 30 },
+        { stepKey: 'analyze:summarize-eval-inference', isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
         { stepKey: 'analyze:validate-findings', isLocalOnly: true, timeoutSeconds: 30 },
         { stepKey: 'analyze:finalize', isLocalOnly: true, timeoutSeconds: 30 },
       ],
@@ -378,9 +422,26 @@ export class RecipeRegistry {
     },
   };
 
+  /** Workflow recipes are selectable by the host but are not document variants. */
+  private static readonly WORKFLOW_RECIPES: Record<string, RecipeDefinition> = {
+    'disbursement:workflow': {
+      recipeId: 'recipe-disbursement-workflow-v1',
+      action: 'disbursement',
+      variant: 'workflow',
+      steps: [
+        { stepKey: STEP_KEYS.DISBURSEMENT.CLASSIFY, isLocalOnly: false, requiredSlot: 'classify', timeoutSeconds: 300 },
+        { stepKey: STEP_KEYS.DISBURSEMENT.EXTRACT, isLocalOnly: false, requiredSlot: 'extract', timeoutSeconds: 300 },
+        { stepKey: STEP_KEYS.DISBURSEMENT.APPROVAL, isLocalOnly: true, timeoutSeconds: 3600 },
+        { stepKey: STEP_KEYS.DISBURSEMENT.CROSSCHECK, isLocalOnly: false, requiredSlot: 'crosscheck', timeoutSeconds: 300 },
+        { stepKey: STEP_KEYS.DISBURSEMENT.REPORT, isLocalOnly: false, requiredSlot: 'report', timeoutSeconds: 300 },
+      ],
+      retryBudget: 2,
+    },
+  };
+
   public static getRecipe(action: string, variant: string): RecipeDefinition {
     const key = `${action}:${variant}`;
-    const recipe = this.RECIPES[key];
+    const recipe = this.RECIPES[key] ?? this.WORKFLOW_RECIPES[key];
     if (!recipe) {
       throw new Error(`Unknown recipe for action "${action}" and variant "${variant}"`);
     }
@@ -389,5 +450,9 @@ export class RecipeRegistry {
 
   public static getAllRecipes(): RecipeDefinition[] {
     return Object.values(this.RECIPES);
+  }
+
+  public static getWorkflowRecipe(name: 'disbursement'): RecipeDefinition {
+    return this.getRecipe(name, 'workflow');
   }
 }

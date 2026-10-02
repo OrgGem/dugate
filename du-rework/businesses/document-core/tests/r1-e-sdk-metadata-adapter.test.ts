@@ -68,7 +68,10 @@ describe('document-core SDK artifact metadata adapter', () => {
     const result = await documentCoreHandlers.ingest!(sdkContext);
 
     expect(result.kind).toBe('completed');
-    expect(readWithMetadata).toHaveBeenCalledWith(artifactId);
+    expect(readWithMetadata).toHaveBeenCalledWith(
+      artifactId,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(parserSpy).toHaveBeenCalledWith(bytes, filename, metadata.mimeType, expect.objectContaining({
       timeoutMs: expect.any(Number),
     }));

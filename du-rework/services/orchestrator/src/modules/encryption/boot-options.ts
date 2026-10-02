@@ -1,0 +1,287 @@
+/**
+ * RV01-02 (#8): env -> ServerConfig encryption blocks for the production boot.
+ *
+ * Closes the ordering hole RV01-01 recorded: `main.ts` passed no crypto blocks
+ * to `createApp`, so `metadataCrypto` was `undefined` and every control-plane
+ * column kept its plaintext behaviour with no warning.
+ *
+ * Fail-closed by construction. The only way to get "no encryption" is
+ * `ARTIFACT_STORAGE_BACKEND=postgres` with every enable flag off, and that is
+ * a positive operator choice rather than a silently ignored config. Anything
+ * half-specified throws at boot with the missing field named.
+ *
+ * The operator surface is ONE JSON env var mapped 1:1 onto the existing
+ * `VaultTransitProviderOptions`. Tokens are deliberately NOT in that JSON:
+ * `VaultTransitIdentity.token` is a thunk, so a token is re-read per request
+ * instead of being frozen into process config at boot.
+ */
+
+import { VaultTransitProvider, type KeyProvider } from './vault-transit-provider';
+
+export const VAULT_TRANSIT_OPTIONS_ENV = 'DU_VAULT_TRANSIT_OPTIONS';
+export const VAULT_ENCRYPT_TOKEN_ENV = 'DU_VAULT_TRANSIT_ENC_TOKEN';
+export const VAULT_DECRYPT_TOKEN_ENV = 'DU_VAULT_TRANSIT_DEC_TOKEN';
+export const METADATA_ENABLED_ENV = 'DU_ENCRYPTION_METADATA_ENABLED';
+export const PUBLIC_UPLOAD_ENABLED_ENV = 'DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED';
+
+const MAX_TOKEN_CHARS = 8192;
+
+export class EncryptionBootConfigError extends Error {
+  public constructor(message: string) {
+    super('refusing to boot: ' + message);
+    this.name = 'EncryptionBootConfigError';
+  }
+}
+
+/** The validated operator surface, before any Vault client exists. */
+export interface EncryptionBootConfig {
+  readonly vaultAddress: string;
+  readonly allowedKeyRefs: Readonly<Record<string, string>>;
+  readonly transitMount?: string;
+  readonly requestTimeoutMs?: number;
+  readonly metadataKeyRef?: string;
+  readonly publicUploadKeyRef?: string;
+  readonly publicUploadKeyVersion?: number;
+  readonly publicUploadMaxBytes?: number;
+}
+
+/** The three blocks `createApp` accepts, all sharing one Vault-backed provider. */
+export interface EncryptionBootOptions {
+  readonly cryptoConfig: { readonly allowedKeyRefs: readonly string[] };
+  readonly metadataEncryption?: { readonly keyProvider: KeyProvider; readonly keyRef: string };
+  readonly publicUploadEncryption?: {
+    readonly keyProvider: KeyProvider;
+    readonly keyRef: string;
+    readonly keyVersion?: number;
+    readonly maxBytes?: number;
+  };
+}
+
+export type EnvReader = Readonly<Record<string, string | undefined>>;
+
+function readOptional(env: EnvReader, name: string): string | undefined {
+  const value = env[name];
+  return value !== undefined && value.length > 0 ? value : undefined;
+}
+
+/** Strict boolean: an unset flag is off, a typo is a boot failure, never a guess. */
+function readBoolean(env: EnvReader, name: string): boolean {
+  const raw = readOptional(env, name);
+  if (raw === undefined) return false;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new EncryptionBootConfigError(name + ' must be true or false, got ' + JSON.stringify(raw));
+}
+
+function requireNonEmptyString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new EncryptionBootConfigError(label + ' is required and must be a non-empty string');
+  }
+  return value;
+}
+
+function readBoundedInt(
+  value: unknown,
+  label: string,
+  min: number,
+  max: number,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+    throw new EncryptionBootConfigError(label + ' must be an integer between ' + min + ' and ' + max);
+  }
+  return value;
+}
+
+function parseKeyRefs(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new EncryptionBootConfigError(VAULT_TRANSIT_OPTIONS_ENV + '.allowedKeyRefs must be an object');
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) {
+    throw new EncryptionBootConfigError(
+      VAULT_TRANSIT_OPTIONS_ENV + '.allowedKeyRefs must map at least one key ref',
+    );
+  }
+  const out: Record<string, string> = {};
+  for (const [ref, keyName] of entries) {
+    out[ref] = requireNonEmptyString(keyName, VAULT_TRANSIT_OPTIONS_ENV + '.allowedKeyRefs[' + ref + ']');
+  }
+  return out;
+}
+
+function parseConfig(raw: string): EncryptionBootConfig {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new EncryptionBootConfigError(VAULT_TRANSIT_OPTIONS_ENV + ' must be valid JSON');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new EncryptionBootConfigError(VAULT_TRANSIT_OPTIONS_ENV + ' must be a JSON object');
+  }
+  const source = parsed as Record<string, unknown>;
+  const transitMount = source['transitMount'];
+  if (transitMount !== undefined && typeof transitMount !== 'string') {
+    throw new EncryptionBootConfigError(VAULT_TRANSIT_OPTIONS_ENV + '.transitMount must be a string');
+  }
+  return {
+    vaultAddress: requireNonEmptyString(
+      source['vaultAddress'],
+      VAULT_TRANSIT_OPTIONS_ENV + '.vaultAddress',
+    ),
+    allowedKeyRefs: parseKeyRefs(source['allowedKeyRefs']),
+    ...(transitMount === undefined ? {} : { transitMount }),
+    ...(source['requestTimeoutMs'] === undefined
+      ? {}
+      : { requestTimeoutMs: readBoundedInt(source['requestTimeoutMs'], 'requestTimeoutMs', 1, 60_000) }),
+    ...(source['metadataKeyRef'] === undefined
+      ? {}
+      : { metadataKeyRef: requireNonEmptyString(source['metadataKeyRef'], 'metadataKeyRef') }),
+    ...(source['publicUploadKeyRef'] === undefined
+      ? {}
+      : { publicUploadKeyRef: requireNonEmptyString(source['publicUploadKeyRef'], 'publicUploadKeyRef') }),
+    ...(source['publicUploadKeyVersion'] === undefined
+      ? {}
+      : { publicUploadKeyVersion: readBoundedInt(source['publicUploadKeyVersion'], 'publicUploadKeyVersion', 1, Number.MAX_SAFE_INTEGER) }),
+    ...(source['publicUploadMaxBytes'] === undefined
+      ? {}
+      : { publicUploadMaxBytes: readBoundedInt(source['publicUploadMaxBytes'], 'publicUploadMaxBytes', 1, Number.MAX_SAFE_INTEGER) }),
+  };
+}
+
+/**
+ * True when this deployment must have a working Vault surface. `s3` implies it
+ * because the encrypted upload gateway is the only artifact write path; the
+ * enable flags cover the postgres backend where encryption is still opt-in.
+ */
+export function encryptionIsRequired(env: EnvReader): boolean {
+  const backend = readOptional(env, 'ARTIFACT_STORAGE_BACKEND') ?? 'postgres';
+  return backend === 's3' || readBoolean(env, METADATA_ENABLED_ENV) || readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV);
+}
+
+function assertKeyRefAllowed(config: EncryptionBootConfig, keyRef: string | undefined, label: string): void {
+  if (keyRef === undefined) {
+    throw new EncryptionBootConfigError(label + ' is required but was not set');
+  }
+  if (!Object.prototype.hasOwnProperty.call(config.allowedKeyRefs, keyRef)) {
+    throw new EncryptionBootConfigError(
+      label + ' ' + JSON.stringify(keyRef) + ' is not present in allowedKeyRefs',
+    );
+  }
+}
+
+/**
+ * Validate the operator surface. Returns `null` only when encryption is
+ * neither required nor enabled — a deliberate postgres + all-flags-off boot.
+ */
+export function parseEncryptionBootConfig(env: EnvReader): EncryptionBootConfig | null {
+  return resolveEncryptionBoot(env).config;
+}
+
+/**
+ * Single decision point for "which blocks are on". Returning the flags
+ * alongside the config keeps the enable decision from being recomputed — the
+ * two copies drifted once already, which silently dropped the metadata block
+ * while validation still demanded its key ref.
+ */
+function resolveEncryptionBoot(env: EnvReader): {
+  readonly config: EncryptionBootConfig | null;
+  readonly metadataEnabled: boolean;
+  readonly publicUploadEnabled: boolean;
+} {
+  const backend = readOptional(env, 'ARTIFACT_STORAGE_BACKEND') ?? 'postgres';
+  if (backend === 'vault') {
+    throw new EncryptionBootConfigError(
+      'ARTIFACT_STORAGE_BACKEND=vault is not a storage backend; artifact storage is postgres or s3, '
+      + 'and Vault is configured through ' + VAULT_TRANSIT_OPTIONS_ENV,
+    );
+  }
+  if (backend !== 'postgres' && backend !== 's3') {
+    throw new EncryptionBootConfigError('ARTIFACT_STORAGE_BACKEND must be postgres or s3, got ' + JSON.stringify(backend));
+  }
+
+  // s3 is the encrypted-upload backend, so it turns on BOTH blocks: the artifact
+  // write path and the control-plane columns. Leaving metadata off here is the
+  // exact fail-open RV01-02 exists to close.
+  const s3 = backend === 's3';
+  const metadataEnabled = readBoolean(env, METADATA_ENABLED_ENV) || s3;
+  const publicUploadEnabled = readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV) || s3;
+  if (!metadataEnabled && !publicUploadEnabled) return { config: null, metadataEnabled, publicUploadEnabled };
+
+  const raw = readOptional(env, VAULT_TRANSIT_OPTIONS_ENV);
+  if (raw === undefined) {
+    throw new EncryptionBootConfigError(
+      VAULT_TRANSIT_OPTIONS_ENV + ' is required when artifact encryption is enabled; refusing to store artifacts in plaintext',
+    );
+  }
+  const config = parseConfig(raw);
+
+  if (metadataEnabled) assertKeyRefAllowed(config, config.metadataKeyRef, 'metadataKeyRef');
+  if (publicUploadEnabled) assertKeyRefAllowed(config, config.publicUploadKeyRef, 'publicUploadKeyRef');
+
+  return { config, metadataEnabled, publicUploadEnabled };
+}
+
+function readToken(env: EnvReader, name: string): string {
+  const value = readOptional(env, name);
+  if (value === undefined) {
+    throw new EncryptionBootConfigError(name + ' is required when artifact encryption is enabled');
+  }
+  if (value.length > MAX_TOKEN_CHARS) {
+    throw new EncryptionBootConfigError(name + ' is longer than ' + MAX_TOKEN_CHARS + ' characters');
+  }
+  return value;
+}
+
+/**
+ * Build the `createApp` blocks. Encrypt and decrypt identities stay separate
+ * objects with separate thunks: `VaultTransitProvider` refuses to share them,
+ * and a shared token would collapse the least-privilege split the two suppliers
+ * exist to keep.
+ */
+export function buildEncryptionBootOptions(env: EnvReader): EncryptionBootOptions | null {
+  const { config, metadataEnabled, publicUploadEnabled } = resolveEncryptionBoot(env);
+  if (config === null) return null;
+
+  const encryptToken = readToken(env, VAULT_ENCRYPT_TOKEN_ENV);
+  const decryptToken = readToken(env, VAULT_DECRYPT_TOKEN_ENV);
+  if (encryptToken === decryptToken) {
+    throw new EncryptionBootConfigError(
+      VAULT_ENCRYPT_TOKEN_ENV + ' and ' + VAULT_DECRYPT_TOKEN_ENV + ' must be different Vault tokens',
+    );
+  }
+
+  const keyProvider = new VaultTransitProvider({
+    vaultAddress: config.vaultAddress,
+    allowedKeyRefs: config.allowedKeyRefs,
+    encryptIdentity: { token: () => readOptional(env, VAULT_ENCRYPT_TOKEN_ENV) ?? encryptToken },
+    decryptIdentity: { token: () => readOptional(env, VAULT_DECRYPT_TOKEN_ENV) ?? decryptToken },
+    ...(config.transitMount === undefined ? {} : { transitMount: config.transitMount }),
+    ...(config.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: config.requestTimeoutMs }),
+  });
+
+  const metadataKeyRef = config.metadataKeyRef;
+  const publicUploadKeyRef = config.publicUploadKeyRef;
+
+  return {
+    cryptoConfig: { allowedKeyRefs: Object.keys(config.allowedKeyRefs) },
+    ...(metadataEnabled && metadataKeyRef !== undefined
+      ? { metadataEncryption: { keyProvider, keyRef: metadataKeyRef } }
+      : {}),
+    ...(publicUploadEnabled && publicUploadKeyRef !== undefined
+      ? {
+          publicUploadEncryption: {
+            keyProvider,
+            keyRef: publicUploadKeyRef,
+            ...(config.publicUploadKeyVersion === undefined
+              ? {}
+              : { keyVersion: config.publicUploadKeyVersion }),
+            ...(config.publicUploadMaxBytes === undefined
+              ? {}
+              : { maxBytes: config.publicUploadMaxBytes }),
+          },
+        }
+      : {}),
+  };
+}

@@ -96,7 +96,7 @@ export class InputNormalizer {
     if (!type) {
       throw new ValidationError('Missing required discriminator: "type"', 'MISSING_DISCRIMINATOR');
     }
-    if (!['invoice', 'contract', 'receipt', 'table', 'custom'].includes(type)) {
+    if (!['invoice', 'contract', 'id-card', 'receipt', 'table', 'custom'].includes(type)) {
       throw new ValidationError(`Invalid extract type: "${type}"`, 'INVALID_DISCRIMINATOR');
     }
 
@@ -146,7 +146,7 @@ export class InputNormalizer {
     if (!task) {
       throw new ValidationError('Missing required discriminator: "task"', 'MISSING_DISCRIMINATOR');
     }
-    if (!['classify', 'sentiment', 'compliance', 'quality', 'risk'].includes(task)) {
+    if (!['classify', 'sentiment', 'compliance', 'fact-check', 'quality', 'risk', 'summarize-eval'].includes(task)) {
       throw new ValidationError(`Invalid analyze task: "${task}"`, 'INVALID_DISCRIMINATOR');
     }
 
@@ -166,6 +166,22 @@ export class InputNormalizer {
       );
     }
 
+    const referenceData = raw.referenceData ?? raw.reference_data;
+    if (task === 'fact-check') {
+      const hasReference =
+        (typeof referenceData === 'string' && referenceData.trim().length > 0) ||
+        (referenceData !== null &&
+          typeof referenceData === 'object' &&
+          !Array.isArray(referenceData) &&
+          Object.keys(referenceData as Record<string, unknown>).length > 0);
+      if (!hasReference) {
+        throw new ValidationError(
+          'Analyze task "fact-check" requires non-empty "referenceData"',
+          'MISSING_REQUIRED_PARAMETER'
+        );
+      }
+    }
+
     return {
       task: task as AnalyzeInput['task'],
       artifactIds,
@@ -176,8 +192,9 @@ export class InputNormalizer {
         : typeof raw.criteria === 'string'
         ? raw.criteria
         : undefined,
-      referenceData: (raw.referenceData ?? raw.reference_data) as Record<string, unknown> | string | undefined,
-    };
+      referenceData: referenceData as Record<string, unknown> | string | undefined,
+      extractFields: this.toStringArray(raw.extractFields ?? raw.extract_fields),
+    } as AnalyzeInput;
   }
 
   public static normalizeTransform(raw: Record<string, unknown>): TransformInput {

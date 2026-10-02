@@ -13,6 +13,7 @@ describe('Document Core Worker & Handlers (P5-02)', () => {
     expect(Object.keys(documentCoreBusinessDefinition.handlers).sort()).toEqual([
       'analyze',
       'compare',
+      'disbursement',
       'extract',
       'generate',
       'ingest',

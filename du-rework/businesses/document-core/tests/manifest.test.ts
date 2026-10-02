@@ -25,7 +25,7 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     });
   });
 
-  it('manifest declares all 6 actions', () => {
+  it('manifest declares all 7 actions including the disbursement workflow', () => {
     const actionNames = documentCoreManifest.actions.map((a) => a.name);
     expect(actionNames).toEqual([
       'ingest',
@@ -34,6 +34,7 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
       'transform',
       'generate',
       'compare',
+      'disbursement',
     ]);
   });
 
@@ -160,9 +161,9 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     expect(validateManifest(manifest).ok).toBe(false);
   });
 
-  it('recipe registry contains exactly 28 unique variants', () => {
+  it('recipe registry contains exactly 31 unique variants', () => {
     const allRecipes = RecipeRegistry.getAllRecipes();
-    expect(allRecipes.length).toBe(28);
+    expect(allRecipes.length).toBe(31);
 
     const counts: Record<string, number> = {};
     for (const r of allRecipes) {
@@ -170,8 +171,8 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     }
 
     expect(counts['ingest']).toBe(4);
-    expect(counts['extract']).toBe(5);
-    expect(counts['analyze']).toBe(5);
+    expect(counts['extract']).toBe(6);
+    expect(counts['analyze']).toBe(7);
     expect(counts['transform']).toBe(5);
     expect(counts['generate']).toBe(6);
     expect(counts['compare']).toBe(3);

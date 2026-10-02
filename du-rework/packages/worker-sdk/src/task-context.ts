@@ -17,7 +17,7 @@ import { RuntimeClient, RuntimeError, AmbiguousReportError } from './runtime-cli
 import { OPEN_DEADLINE_SENTINEL } from './types';
 import { openArtifactStream, toNodeReadable, uploadArtifactStream } from './artifact-streams';
 import { uploadArtifactMultipart, type MultipartUploadTransport } from './artifact-multipart';
-import { bindTaskCrypto, CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from './crypto-seam';
+import { bindTaskCrypto, CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES, type SealedArtifact, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from './crypto-seam';
 import type {
   ArtifactFacade,
   ArtifactPurpose,
@@ -61,6 +61,27 @@ export class InputHashMismatchError extends Error {
   }
 }
 
+export type ArtifactEncryptionErrorCode =
+  | 'ENCRYPTION_REQUIRED_UNAVAILABLE'
+  | 'SEAL_FAILED'
+  | 'SIZE_LIMIT'
+  | 'DIGEST_MISMATCH';
+
+/**
+ * RV01-03: every refusal on the artifact write path is one of these, so a
+ * caller can tell "encryption is on and I could not do it" apart from a
+ * transport failure. A missing seam is an ERROR, never a plaintext upload.
+ */
+export class ArtifactEncryptionError extends Error {
+  constructor(
+    readonly code: ArtifactEncryptionErrorCode,
+    message: string
+  ) {
+    super(message);
+    this.name = 'ArtifactEncryptionError';
+  }
+}
+
 export interface TaskContextDeps {
   runtime: RuntimeClient;
   logger: Logger;
@@ -84,6 +105,19 @@ export interface TaskContextDeps {
    * plaintext bytes (see `cryptoFor`). No caller wires this yet (delta 45).
    */
   crypto?: WorkerCryptoSeam;
+  /**
+   * RV01-03: when true, artifact writes MUST be sealed. A missing `crypto`
+   * seam is then an error, never a silent plaintext upload. Default false
+   * keeps the pre-RV01-03 behaviour for deployments that wire no seam, and
+   * that difference is asserted in the tests rather than left to chance.
+   */
+  encryptionEnabled?: boolean;
+  /**
+   * ADR-18 §5: stream artifacts past 5 MiB as authenticated 4 MiB chunks with
+   * a manifest. Default OFF - the wire profile is not frozen (ADR-18 open
+   * decisions), so this is opt-in and changes no default behaviour.
+   */
+  chunkedEncryptionEnabled?: boolean;
 }
 
 export interface ConnectorInvocationPayload {
@@ -191,20 +225,27 @@ export class DefaultTaskContext implements TaskContext {
     artifactId: string,
     purpose: ArtifactPurpose,
     expectedSha256?: string
-  ): Promise<{ body: Buffer; ciphertextSizeBytes: number; ciphertextSha256: string }> {
+  ): Promise<SealedArtifact> {
     const crypto = this.cryptoFor({ artifactId, purpose });
     const chunks: Buffer[] = [];
     let total = 0;
+    // RV01-03 defect 4: the ceiling is enforced WHILE reading, so an oversized
+    // stream is refused after the first chunk that crosses it rather than after
+    // the whole stream has been buffered and concatenated.
     for await (const chunk of toNodeReadable(content)) {
       const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       total += bytes.byteLength;
+      if (total > CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES) {
+        for (const held of chunks) held.fill(0);
+        bytes.fill(0);
+        throw new ArtifactEncryptionError(
+          'SIZE_LIMIT',
+          'artifact exceeds the single-shot encryption ceiling after ' +
+            total +
+            ' bytes; enable chunked encryption to stream artifacts past 5 MiB',
+        );
+      }
       chunks.push(bytes);
-    }
-    if (total > CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES) {
-      for (const chunk of chunks) chunk.fill(0);
-      throw new Error(
-        'artifact exceeds the single-shot encryption ceiling; chunked manifest upload is not wired yet',
-      );
     }
     const plaintext = Buffer.concat(chunks, total);
     for (const chunk of chunks) chunk.fill(0);
@@ -212,15 +253,16 @@ export class DefaultTaskContext implements TaskContext {
       if (expectedSha256 !== undefined) {
         const digest = createHash('sha256').update(plaintext).digest('hex');
         if (digest !== expectedSha256) {
-          throw new Error('artifact stream does not match the declared plaintext digest');
+          throw new ArtifactEncryptionError(
+            'DIGEST_MISMATCH',
+            'artifact stream does not match the declared plaintext digest',
+          );
         }
       }
-      const sealed = await crypto.seal(plaintext, { artifactId, purpose });
-      return {
-        body: Buffer.from(sealed.encrypted.ciphertext),
-        ciphertextSizeBytes: sealed.ciphertextSizeBytes,
-        ciphertextSha256: sealed.ciphertextSha256,
-      };
+      // RV01-03 defect 2: return the WHOLE envelope. The previous shape kept
+      // only the ciphertext, so nonce, tag, aad and the wrapped DEK were dropped
+      // and the object was unreadable even though it was correctly sealed.
+      return await crypto.seal(plaintext, { artifactId, purpose });
     } finally {
       plaintext.fill(0);
     }
@@ -559,6 +601,27 @@ export class DefaultTaskContext implements TaskContext {
       expectedSha256?: string
     ): Promise<ArtifactRef> => {
       const runtime = self.deps.runtime;
+      // RV01-03 defect 1b: this branch used to stream PLAINTEXT parts even when
+      // a seam was present. With encryption on there is no plaintext path here.
+      if (self.deps.encryptionEnabled) {
+        if (!self.deps.crypto) {
+          throw new ArtifactEncryptionError(
+            'ENCRYPTION_REQUIRED_UNAVAILABLE',
+            'artifact encryption is enabled but no crypto seam is configured for this worker',
+          );
+        }
+        // The chunked manifest path is NOT wired, and that is deliberate rather
+        // than forgotten: sealStream binds the AAD to the artifactId, which in
+        // multipart the SERVER assigns during multipartInit - after this point.
+        // Sealing before init would bind the wrong AAD (authenticated, and
+        // unreadable by the real owner). Refusing is the fail-closed answer
+        // until ADR-18 freezes the wire profile. Recorded as an OPEN QUESTION in
+        // the RV01-03 receipt, not silently skipped.
+        throw new ArtifactEncryptionError(
+          'SEAL_FAILED',
+          'multipart artifacts cannot be encrypted yet: chunked sealing needs a server-assigned artifactId',
+        );
+      }
       const transport: MultipartUploadTransport = {
         init: (body) =>
           self.wrapLeaseErrors(() => runtime.multipartInit(self.taskId, { ...body, leaseEpoch: self.leaseEpoch })),
@@ -634,11 +697,22 @@ export class DefaultTaskContext implements TaskContext {
       // caller's expectedSha256 stays a PLAINTEXT contract value, so it is
       // verified here against the plaintext before sealing rather than being
       // forwarded to the upload helper.
+      //
+      // RV01-03 defect 1: this branch used to fall through to a PLAINTEXT
+      // upload whenever the seam was absent. With encryptionEnabled that is
+      // now a typed refusal: an encryption-enabled deployment must never
+      // degrade into writing the clear.
+      if (self.deps.encryptionEnabled && !self.deps.crypto) {
+        throw new ArtifactEncryptionError(
+          'ENCRYPTION_REQUIRED_UNAVAILABLE',
+          'artifact encryption is enabled but no crypto seam is configured for this worker',
+        );
+      }
       const sealed = self.deps.crypto
         ? await self.sealArtifactBytes(content, grant.artifactId, purpose, expectedSha256)
         : null;
       const integrity = sealed
-        ? await uploadArtifactStream(Readable.from([sealed.body]), {
+        ? await uploadArtifactStream(Readable.from([sealed.encrypted.ciphertext]), {
             uploadUrl: grant.uploadUrl,
             mimeType,
             sizeBytes: sealed.ciphertextSizeBytes,

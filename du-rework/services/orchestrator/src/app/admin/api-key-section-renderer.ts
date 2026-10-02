@@ -44,6 +44,9 @@ import type {
 
 export interface ApiKeySectionRenderInput {
   fetch: ApiKeyFetchResult;
+  /** Session-bound proof for browser mutations. */
+  csrfToken?: string;
+  canManage?: boolean;
   /** Optional canonical list of known key ids the shell recognises. */
   knownKeyIds?: readonly string[];
   /** Currently selected key id (drives the picker active state). */
@@ -164,7 +167,7 @@ function renderCopyOnceBanner(createCopyOnce: ApiKeyCreateView): string {
   ].join('');
 }
 
-function renderRevokePanel(row: ApiKeyListRow): string {
+function renderRevokePanel(row: ApiKeyListRow, csrfToken = ''): string {
   // The renderer always shows the revoke affordance but disables the
   // confirm button when the view model says `canRevoke === false`.
   // `data-can-revoke` is the explicit discriminator — the evidence
@@ -179,6 +182,7 @@ function renderRevokePanel(row: ApiKeyListRow): string {
     'Revoking this key permanently disables it. Outstanding operations in flight will fail.',
     '</p>',
     '<form method="POST" action="/admin/api-keys/' + esc(row.id) + '/revoke" class="api-key-section__revoke-form" onsubmit="return confirm(\'Revoke this API key? It cannot be used after revocation.\')">',
+    '<input type="hidden" name="csrf" value="' + esc(csrfToken) + '">',
     '<button type="submit" class="api-key-section__revoke-submit" data-action="revoke-api-key"' + disabled + '>Confirm revoke</button>',
     '</form>',
     '</details>',
@@ -220,7 +224,7 @@ function renderGrantsTable(
   ].join('');
 }
 
-function renderDetailPanel(ok: ApiKeyListOkResult): string {
+function renderDetailPanel(ok: ApiKeyListOkResult, csrfToken = '', canManage = true): string {
   if (!ok.selected) {
     return '';
   }
@@ -238,13 +242,13 @@ function renderDetailPanel(ok: ApiKeyListOkResult): string {
     `<dt>Last used</dt><dd>${esc(ok.selected.lastUsedAt ?? '—')}</dd>`,
     `<dt>Revoked</dt><dd>${esc(ok.selected.revokedAt ?? '—')}</dd>`,
     '</dl>',
-    renderRevokePanel(ok.selected),
+    canManage ? renderRevokePanel(ok.selected, csrfToken) : '',
     renderGrantsTable(ok.selected.id, ok.grants),
     '</section>',
   ].join('');
 }
 
-function renderCreateForm(): string {
+function renderCreateForm(csrfToken = ''): string {
   // The create affordance. Issues a POST against
   // `POST /api/v1/admin/api-keys` (the platform already exposes
   // this route today; see `services/orchestrator/src/server.ts`).
@@ -253,19 +257,21 @@ function renderCreateForm(): string {
     '<section class="api-key-section__create">',
     '<header><h3>Issue new API key</h3></header>',
     '<form method="POST" action="/admin/api-keys/new" class="api-key-section__create-form">',
-    '<label for="apiKeyLabel">Label (optional)</label>',
-    '<input id="apiKeyLabel" name="label" type="text" maxlength="80" placeholder="e.g. CI runner">',
+    '<input type="hidden" name="csrf" value="' + esc(csrfToken) + '">',
+    '<label for="apiKeyTenantId">Tenant ID</label>',
+    '<input id="apiKeyTenantId" name="tenantId" type="text" maxlength="64" required>',
     '<button type="submit" class="api-key-section__create-submit" data-action="create-api-key">Issue key</button>',
     '</form>',
     '</section>',
   ].join('');
 }
 
-function renderEmpty(message: string): string {
+function renderEmpty(message: string, csrfToken = '', canManage = true): string {
   return [
     '<section class="api-key-section api-key-section--empty" role="status">',
     '<h2>API key management</h2>',
     `<p>${esc(message)}</p>`,
+    canManage ? renderCreateForm(csrfToken) : '',
     '</section>',
   ].join('');
 }
@@ -316,16 +322,16 @@ export function renderApiKeySection(input: ApiKeySectionRenderInput): ApiKeySect
         '<section class="api-key-section" data-key-total="' + esc(String(f.total)) + '" data-key-selected="' + esc(f.selectedKeyId) + '" data-copy-once-available="' + esc(f.createCopyOnce ? 'true' : 'false') + '">',
         picker,
         copyOnce,
-        renderCreateForm(),
+        input.canManage === false ? '' : renderCreateForm(input.csrfToken),
         f.selected ? '' : renderListTable(f.rows),
-        renderDetailPanel(f),
+        renderDetailPanel(f, input.csrfToken, input.canManage),
         '</section>',
       ].join(''),
       isReady: true,
     };
   }
   if (f.kind === 'empty') {
-    return { html: renderEmpty(f.message), isReady: false };
+    return { html: renderEmpty(f.message, input.csrfToken, input.canManage), isReady: false };
   }
   if (f.kind === 'unauthorized') {
     return { html: renderUnauthorized(f.message), isReady: false };

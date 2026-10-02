@@ -6,7 +6,7 @@ Các thư mục dưới đây là cấu trúc mục tiêu. Workspace/package ch�
 
 | Mục tiêu | Hiện trạng | Quyết định/task còn mở |
 |---|---|---|
-| Hai services, business độc lập, năm shared packages | Đã đúng ở cấp workspace | Giữ dependency ownership; thêm automated boundary checks |
+| Hai services, ba business độc lập, sáu shared packages | Đã đúng ở cấp workspace | Giữ dependency ownership; thêm automated boundary checks |
 | Orchestrator Next routes/Admin + server lifecycle | node:http trong `src/server.ts` (file lớn, `route(ctx)` + `createApp`); Admin shell **đã có** tại `src/app/admin/` (~30 file: api-key/audit/business/connector/crypto-config/operation/overview renderers, OIDC boot/flow, `shell-router.ts`) mount qua `attachAdminShell` trong `createApp` (`server.ts:714`, remount `:877`); `server.listen` chạy tại `server.ts:860`, start script `node dist/main.js` | Local/OIDC auth mode còn mở ở LOCAL-00..06; `LOCAL-R03` ghi `main.ts:105-129` chưa truyền `adminShellCookieSecret` |
 | PostgreSQL + Drizzle, one-shot migrations | raw pg; migrations chạy trong createApp; SQL ở migrations/ | ADR DB approach; mở lại P2-01 |
 | S3 artifact storage | PostgreSQL bytea tạm thời theo wave-05 | P2-03 hardening và P8 storage/deployment |
@@ -45,6 +45,8 @@ du-rework/
       tests/fixtures/ tests/unit/ tests/e2e/
     example-review/
       docs/ src/ tests/          # proof of registration + HITL + fanout
+    lc-checker/
+      src/ tests/ Dockerfile     # P9-02 trade-finance LC checker, own manifest + queue
   packages/
     contracts/                  # JSON schemas, DTOs, errors, API descriptions
     worker-sdk/                 # queue/runtime lifecycle, task/step facade

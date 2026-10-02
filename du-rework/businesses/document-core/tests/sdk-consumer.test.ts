@@ -117,7 +117,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
   });
 
   describe('1. defineBusiness Registration & Validation (REG-04)', () => {
-    it('manifest passes contract validation and registers all 7 declared handler kinds', () => {
+    it('manifest passes contract validation and registers all 8 declared handler kinds', () => {
       const validation = validateManifest(documentCoreManifest);
       expect(validation.ok).toBe(true);
 
@@ -133,6 +133,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
         'transform',
         'generate',
         'compare',
+        'disbursement',
       ]);
 
       for (const kind of declaredKinds) {

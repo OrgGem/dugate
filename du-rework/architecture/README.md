@@ -1,5 +1,29 @@
 # DUGate Rework — Hồ sơ kiến trúc và đánh giá trước go-live
 
+## Bắt đầu với tài liệu toàn hệ thống
+
+Bộ **kiến trúc hiện hành** dưới đây tổng hợp toàn bộ workspace từ source và package manifests ngày 2026-10-02. Đọc theo thứ tự; mỗi trang liên kết về code/spec gốc. Sơ đồ mô tả implementation và topology mục tiêu có nhãn riêng, không tự xác nhận release.
+
+| Trang | Nội dung |
+|---|---|
+| [10 — Kiến trúc hệ thống hiện hành](10-current-system.md) | Vai trò Orchestrator, Business Worker, Connector; hạ tầng và ranh giới sở hữu. |
+| [11 — Cấu trúc subproject](11-subprojects.md) | Hai service, ba business, sáu shared package; cây workspace và dependency graph. |
+| [12 — Luồng, dữ liệu và contract](12-flows-and-data.md) | API/auth, submit→queue→worker→result, Connector/usage, artifact và data ownership. |
+| [13 — Triển khai và vận hành](13-deployment-and-operations.md) | Local/test so với production mục tiêu, startup, bảo mật, quan sát và giới hạn kiểm chứng. |
+| [14 — Bản đồ tài liệu](14-document-governance.md) | Vai trò của `docs/`, `tasks/`, `coordination/`; cách nhận biết spec, source và evidence. |
+| [15 — Năng lực nghiệp vụ](15-business-capabilities.md) | Sáu action/31 variant của document-core, example-review, lc-checker và cách thêm business. |
+| [16 — Catalog giao tiếp](16-interface-catalog.md) | Public, runtime, admin và Connector API theo nhóm; identity và version boundary. |
+| [17 — Public API và ví dụ](17-public-api-examples.md) | Request/response có thể dùng làm mẫu cho submit, poll, result và lỗi. |
+| [18 — API nội bộ và Connector](18-internal-api-examples.md) | Auth, runtime lease, usage, admin và invocation qua Connector. |
+
+Sơ đồ code riêng của [Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md) và [Connector](../services/connector/CODE-ARCHITECTURE.md) đi sâu đến thư mục/module từng service.
+
+Hai hình minh họa có ở [kiến trúc thành phần](diagrams/system-components.svg) và [topology deployment](diagrams/deployment-topology.svg); bản [draw.io của kiến trúc](diagrams/system-components.drawio) và [draw.io của deployment](diagrams/deployment-topology.drawio) có thể mở/chỉnh sửa bằng diagrams.net.
+
+## Hồ sơ thiết kế và go-live ban đầu (01–09)
+
+Các trang 01–09 bên dưới là hồ sơ thiết kế/đánh giá lập ngày 20/09/2026. Chúng vẫn hữu ích để hiểu mục tiêu và quyết định lịch sử, nhưng có thể khác source hiện tại. Khi cần mô tả code đang tồn tại, bắt đầu từ bộ 10–18 ở trên.
+
 Phiên bản tài liệu: 0.1 · Ngày đối chiếu: 20/09/2026 · Trạng thái: **đề xuất kiến trúc, chưa chứng nhận production-ready**.
 
 Bộ hồ sơ này phục vụ hội đồng kỹ thuật, chủ sản phẩm, đội tích hợp và vận hành. Phạm vi là ứng dụng mới trong `du-rework`: một cổng API xử lý tài liệu bằng parser/OCR/LLM, có quản trị tập trung, các business worker độc lập và Connector nội bộ. Không lấy mô tả kiến trúc của project gốc làm kiến trúc của hệ thống mới.

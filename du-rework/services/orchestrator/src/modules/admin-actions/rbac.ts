@@ -34,9 +34,26 @@ export function resolveAdminPrincipal(
   const auth = authHeader ?? '';
   if (!auth.startsWith('Bearer ')) return null;
   const token = auth.slice('Bearer '.length);
-  if (config.adminToken && token === config.adminToken) return { role: 'platform' };
-  const scopedTenantId = config.tenantAdminTokens?.[token];
-  if (scopedTenantId) return { role: 'tenant_operator', tenantId: scopedTenantId };
+  if (config.adminToken && constantTimeEquals(token, config.adminToken)) {
+    return { role: 'platform' };
+  }
+  // The tenant token table is consulted over OWN KEYS ONLY. A bare
+  // tenantAdminTokens?.[token] lookup walks the prototype chain, so a bearer
+  // token naming an inherited member (toString, constructor, valueOf,
+  // hasOwnProperty, __proto__, ...) reads a truthy non-string off
+  // Object.prototype and mints a tenant_operator whose tenantId is a
+  // FUNCTION, which then flows into tenant-scoped SQL at the call sites
+  // that trust this resolver. The boot guard in server.ts validates these
+  // entries with Object.entries, which likewise cannot see inherited keys,
+  // so a boot-time check never catches it. Admission is therefore decided
+  // here, from the enumerated own entries, and every comparison is
+  // constant-time so the platform token cannot be recovered byte-by-byte.
+  for (const [knownToken, tenantId] of Object.entries(config.tenantAdminTokens ?? {})) {
+    if (typeof tenantId !== 'string' || tenantId.length === 0) continue;
+    if (constantTimeEquals(token, knownToken)) {
+      return { role: 'tenant_operator', tenantId };
+    }
+  }
   return null;
 }
 
@@ -193,6 +210,10 @@ export type AdminSecurityEventKind =
 
 export type AdminSecurityEventReason =
   | 'invalid_token'
+  /** LOCAL-03: a local username/password credential POST was rejected
+   *  (unknown user, wrong password, locked account, or unusable role) —
+   *  one generic reason, no user enumeration. */
+  | 'invalid_credentials'
   | 'tls_unproven_under_enforcement'
   | 'expired_absolute'
   | 'expired_idle'
@@ -315,6 +336,14 @@ export interface AdminSessionView {
   role: 'admin' | 'operator' | 'viewer';
   csrfToken: string;
   tenantId: string | null;
+  /**
+   * LOCAL-03: identity-plane discriminator. The concrete store records
+   * `issuer='du-local'` for local password sessions and the IdP issuer
+   * for OIDC sessions. Optional so structural test stubs stay valid;
+   * the shell's mode gate treats an absent issuer as NOT local
+   * (mode `local` refuses it — fail closed).
+   */
+  issuer?: string;
 }
 
 /** Honest dead-cause for the server-side audit sink (W-SEC-AUDIT-TAXONOMY-1). */

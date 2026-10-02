@@ -75,6 +75,15 @@ export interface ArtifactDecryptDeps {
   readonly reader: StoredObjectReader;
   /** Absent means the deployment stores plaintext; reads pass through. */
   readonly facade?: Pick<CryptoStorageFacade, 'decrypt' | 'decryptStream'>;
+  /**
+   * RV01-03: when true this deployment ENCRYPTS every artifact, so an object
+   * that arrives without the sealed marker is a fault, not a plaintext payload.
+   * The marker check below fails closed instead of serving the bytes.
+   *
+   * Default false is the compatibility path for deployments that legitimately
+   * hold plaintext; flipping it is an explicit, tested decision, not a default.
+   */
+  readonly encryptionRequired?: boolean;
 }
 
 export interface DecryptOutcome {
@@ -174,6 +183,17 @@ export async function decryptStoredArtifact(
 
   const marker = metadata[ENCRYPTED_OBJECT_MARKER];
   if (marker !== ENCRYPTED_OBJECT_MARKER_VALUE) {
+    // RV01-03 defect 3: this used to classify a marker-less object as
+    // plaintext and serve it. When the deployment says it encrypts everything,
+    // a missing marker means the object is not what this system wrote - serving
+    // it would hand the caller whatever is in storage under a success status.
+    if (deps.encryptionRequired === true) {
+      fail(
+        503,
+        'STORAGE_FAILURE',
+        'artifact is missing its encryption marker but this deployment requires encryption',
+      );
+    }
     // Not sealed. The stored bytes ARE the payload, so pass them through. This
     // is the only branch that may return ciphertext-looking bytes, and it is
     // safe because the marker says they are not ciphertext.

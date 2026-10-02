@@ -4,7 +4,7 @@ import { ContractSignedGrantVerifier, HmacSignedGrantSource } from './contract-g
 import { AesCredentialCipher } from './services';
 import { HttpUsageSink } from './usage-dispatcher';
 
-const port = parsePositiveInteger(process.env.PORT, 8080);
+const port = parsePositiveInteger(process.env.CONNECTOR_PORT ?? process.env.PORT, 8080);
 const composition = createConnectorComposition({
   port,
   host: process.env.HOST ?? '0.0.0.0',

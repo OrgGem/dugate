@@ -1,5 +1,7 @@
 # P6 — Admin quản trị business/profile/connector/operation
 
+> **Mở rộng cấu hình Admin 2026-10-02:** [ACUI-00..10](ADMIN-CONTROL-PLANE-UI-2026-10-02.md) là acceptance bổ sung cho UI cấu hình thực tế, gồm Identity/OIDC/role, profile, API key, Connector và setting deployment. Các tick P6 renderer/synthetic trước đây không xác nhận form đã ghi dữ liệu hoặc cấu hình đã có hiệu lực.
+
 > **Bổ sung vận hành 2026-09-24:** [ADM-UX-00..07](ADMIN-OPS-UX-2026-09-24.md) theo yêu cầu giao diện ít cuộn, search/filter đầy đủ, live data và chống lộ dữ liệu. Các tick P6-01..07 bên dưới là baseline lịch sử; không chứng nhận `G-ADMIN-OPS`. Backlog mới không thay `ADM-BASE`, OIDC/Vault hoặc code source trong lượt cập nhật plan này.
 
 > **Acceptance review 2026-09-23:** P6-02..06 are PARTIAL: view-model slices remain accepted (independent offline rerun: 8 suites / 398 tests PASS), but rendered UI, API wiring and browser evidence are not complete. W39-O4 continues unchanged. Full UI acceptance is not replaced by helper tests. See [plan review](../coordination/PLAN-REVIEW-2026-09-23.md).

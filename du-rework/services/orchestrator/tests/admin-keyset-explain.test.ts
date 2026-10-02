@@ -100,6 +100,17 @@ async function plan(sql: string, params: unknown[]): Promise<string> {
   return res.rows.map((r) => r['QUERY PLAN']).join('\n');
 }
 
+async function planWithSeqScanDisabled(sql: string, params: unknown[]): Promise<string> {
+  return db.tx(async (client) => {
+    await client.query('SET LOCAL enable_seqscan = off');
+    const res = await client.query<{ 'QUERY PLAN': string }>(
+      `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${sql}`,
+      params as never[]
+    );
+    return res.rows.map((r) => r['QUERY PLAN']).join('\n');
+  });
+}
+
 /**
  * Walk the seeded tenant with the route keyset shape and collect ids in page
  * order. Mirrors listOperationsPage: a forward page is the limit + 1 rows
@@ -312,7 +323,7 @@ it('the tenant-scoped page query has no Sort node', async () => {
  * sort is over the qualifying window and never over the population.
  */
 it('the backward hop seeks the boundary through a keyset index', async () => {
-  const text = await plan(
+  const text = await planWithSeqScanDisabled(
     `SELECT * FROM operations
      WHERE (created_at, id) > ($1::timestamptz, $2::uuid)
      ORDER BY created_at ASC, id ASC LIMIT $3`,

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="800" viewBox="0 0 1440 800" role="img" aria-labelledby="title desc">
+<title id="title">DUGate Rework — kiến trúc thành phần</title>
+<desc id="desc">Source map · 2 services · 3 business workers · shared packages Mũi tên nét đứt: tích hợp tùy cấu hình · S3 là backend tùy chọn trong code</desc>
+<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8" fill="none" stroke="#64748b" stroke-width="1.7"/></marker></defs>
+<rect width="1440" height="800" fill="#f8fafc"/>
+<text x="48" y="52" font-family="Arial,sans-serif" font-size="29" font-weight="700" fill="#0f172a">DUGate Rework — kiến trúc thành phần</text>
+<text x="48" y="79" font-family="Arial,sans-serif" font-size="15" fill="#475569">Source map · 2 services · 3 business workers · shared packages</text>
+<polyline points="290,168 360,168" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="290,338 360,338" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="695,195 790,195" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="695,325 790,325" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="695,236 740,236 740,85 1260,85 1260,115" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="790,360 745,360 745,570 695,570" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="510,505 510,405" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="695,610 790,610" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="1065,565 1130,565" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="930,680 930,705 1130,705" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)"/>
+<polyline points="790,520 745,520 745,395 695,395" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#arrow)" stroke-dasharray="7 6"/>
+<rect x="50" y="115" width="240" height="105" rx="16" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+<text x="68" y="145" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">API client</text>
+<text x="68" y="170" font-family="Arial,sans-serif" font-size="14" fill="#334155">x-api-key, submit / poll</text>
+<text x="68" y="190" font-family="Arial,sans-serif" font-size="14" fill="#334155">download / callback</text>
+<rect x="50" y="285" width="240" height="105" rx="16" fill="#e0e7ff" stroke="#6366f1" stroke-width="2"/>
+<text x="68" y="315" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Admin operator</text>
+<text x="68" y="340" font-family="Arial,sans-serif" font-size="14" fill="#334155">session / bearer, RBAC</text>
+<text x="68" y="360" font-family="Arial,sans-serif" font-size="14" fill="#334155">registry, profile, audit</text>
+<rect x="360" y="145" width="335" height="260" rx="16" fill="#ccfbf1" stroke="#0f766e" stroke-width="2"/>
+<text x="378" y="175" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Orchestrator</text>
+<text x="378" y="200" font-family="Arial,sans-serif" font-size="14" fill="#334155">Public + Admin + Runtime API</text>
+<text x="378" y="220" font-family="Arial,sans-serif" font-size="14" fill="#334155">operation / task / lease</text>
+<text x="378" y="240" font-family="Arial,sans-serif" font-size="14" fill="#334155">artifact metadata + grants</text>
+<text x="378" y="260" font-family="Arial,sans-serif" font-size="14" fill="#334155">outbox / usage / webhook</text>
+<rect x="790" y="115" width="275" height="105" rx="16" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+<text x="808" y="145" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Platform PostgreSQL</text>
+<text x="808" y="170" font-family="Arial,sans-serif" font-size="14" fill="#334155">operations, tasks, outbox</text>
+<text x="808" y="190" font-family="Arial,sans-serif" font-size="14" fill="#334155">metadata, audit, usage</text>
+<rect x="790" y="275" width="275" height="105" rx="16" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+<text x="808" y="305" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Redis / BullMQ</text>
+<text x="808" y="330" font-family="Arial,sans-serif" font-size="14" fill="#334155">delivery queue, sessions</text>
+<text x="808" y="350" font-family="Arial,sans-serif" font-size="14" fill="#334155">shared quota</text>
+<rect x="1130" y="115" width="260" height="105" rx="16" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text x="1148" y="145" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">S3 / artifact store</text>
+<text x="1148" y="170" font-family="Arial,sans-serif" font-size="14" fill="#334155">versioned bytes, multipart</text>
+<text x="1148" y="190" font-family="Arial,sans-serif" font-size="14" fill="#334155">optional backend in code</text>
+<rect x="360" y="505" width="335" height="175" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="378" y="535" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Business workers</text>
+<text x="378" y="560" font-family="Arial,sans-serif" font-size="14" fill="#334155">document-core · example-review</text>
+<text x="378" y="580" font-family="Arial,sans-serif" font-size="14" fill="#334155">lc-checker</text>
+<text x="378" y="600" font-family="Arial,sans-serif" font-size="14" fill="#334155">Worker SDK + document-kit</text>
+<rect x="790" y="505" width="275" height="175" rx="16" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+<text x="808" y="535" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Connector</text>
+<text x="808" y="560" font-family="Arial,sans-serif" font-size="14" fill="#334155">grant + revision + quota</text>
+<text x="808" y="580" font-family="Arial,sans-serif" font-size="14" fill="#334155">provider HTTP adapters</text>
+<text x="808" y="600" font-family="Arial,sans-serif" font-size="14" fill="#334155">invocation + usage ledger</text>
+<rect x="1130" y="505" width="260" height="105" rx="16" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+<text x="1148" y="535" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">External providers</text>
+<text x="1148" y="560" font-family="Arial,sans-serif" font-size="14" fill="#334155">OCR · vision · LLM</text>
+<text x="1148" y="580" font-family="Arial,sans-serif" font-size="14" fill="#334155">JSON / multipart HTTP</text>
+<rect x="1130" y="660" width="260" height="90" rx="16" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+<text x="1148" y="690" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Connector PostgreSQL</text>
+<text x="1148" y="715" font-family="Arial,sans-serif" font-size="14" fill="#334155">revision, invocation, outbox</text>
+<text x="48" y="772" font-family="Arial,sans-serif" font-size="13" fill="#64748b">Mũi tên nét đứt: tích hợp tùy cấu hình · S3 là backend tùy chọn trong code</text>
+</svg>

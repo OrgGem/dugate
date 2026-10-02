@@ -1,19 +1,31 @@
 # @du/document-core — Document Core Worker Service
 
-Document Core is the primary business worker service in the DUGate platform. It implements all six core asynchronous document processing actions (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`) and their 28 variants, executing tasks via the `@du/worker-sdk` runner on top of BullMQ and Redis.
+Document Core is the primary business worker service in the DUGate platform. It implements the six core asynchronous document processing actions (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`) with 31 declared variants, plus the internal multi-turn `disbursement` workflow, executing tasks via the `@du/worker-sdk` runner on top of BullMQ and Redis.
 
 ## Actions & Variants
+
+Variant lists below are the **manifest enums** (`src/manifest/document-core.manifest.ts`), which are the wire contract.
 
 | Action | Handler Kind | Variants / Modes | Description |
 |---|---|---|---|
 | **ingest** | `ingest` | `parse`, `ocr`, `digitize`, `split` | Document ingestion, text/markdown conversion, OCR extraction, format digitization, bounded PDF splitting |
-| **extract** | `extract` | `invoice`, `contract`, `receipt`, `table`, `custom` | Structured data and schema-driven entity extraction via connector inference |
-| **analyze** | `analyze` | `classify`, `sentiment`, `quality`, `pii`, `summary` | Document classification, sentiment scoring, text quality assessment, PII audit, extractive/abstractive summarization |
-| **transform** | `transform` | `format`, `translate`, `rewrite`, `redact`, `template` | Bounded format conversion, multi-lingual translation, stylistic rewriting, PII redaction/masking, template rendering |
-| **generate** | `generate` | `faq`, `brief`, `metadata`, `schema`, `qa` | Contextual synthesis, executive briefing generation, metadata extraction, JSON schema inference, multi-turn Q&A |
+| **extract** | `extract` | `invoice`, `contract`, `id-card`, `receipt`, `table`, `custom` | Structured data and schema-driven entity extraction via connector inference |
+| **analyze** | `analyze` | `classify`, `sentiment`, `compliance`, `fact-check`, `quality`, `risk`, `summarize-eval` | Taxonomy classification, sentiment scoring, compliance/fact checks, quality and summary evaluation, risk assessment |
+| **transform** | `transform` | `convert`, `translate`, `rewrite`, `redact`, `template` | Bounded format conversion, multi-lingual translation, stylistic rewriting, PII redaction/masking, template rendering |
+| **generate** | `generate` | `summary`, `outline`, `report`, `email`, `minutes`, `qa` | Summaries, outlines, reports, email drafts, meeting minutes, document Q&A |
 | **compare** | `compare` | `diff`, `semantic`, `version` | Textual diffing, semantic similarity evaluation, document revision tracking |
+| **disbursement** | `disbursement` | input `inputVersion: disbursement-input-v1` | Internal multi-turn workflow: classify + extract fan-out, explicit human approval wait, reference cross-check, report |
 
 In addition, a top-level `root` dispatcher handler routes tasks to the appropriate action based on the delivery's `action` parameter.
+
+### Note on `disbursement`
+
+`disbursement` is a real handler kind, not a placeholder: `src/worker.ts` implements
+typed fan-out, checkpointed workflow state, an approval wait/resume, and connector
+invocation through four required slots (`classify`, `extract`, `crosscheck`, `report`).
+The manifest comment notes the `root` handler kind remains the dispatch fallback until
+host wiring lands in a separate lane. It requires the workflow continuation runtime and
+fails closed with `DISBURSEMENT_RUNTIME_UNAVAILABLE` when that runtime is absent.
 
 ## Configuration
 

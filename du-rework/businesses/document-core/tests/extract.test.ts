@@ -1,7 +1,7 @@
 import { ExtractAction } from '../src/actions/extract';
 import { MockTaskContext } from './fixtures/mock-context';
 
-describe('Action: Extract (DOC-02) — 5 Variants', () => {
+describe('Action: Extract (DOC-02) — 6 Variants', () => {
   let ctx: MockTaskContext;
 
   beforeEach(() => {

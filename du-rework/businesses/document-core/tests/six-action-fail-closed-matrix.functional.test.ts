@@ -42,7 +42,7 @@ const INVALID_CASES: FailClosedCase[] = [
   { action: 'ingest', name: 'page limit exceeded', payload: { mode: 'split', pages: '501' }, code: 'PAGE_LIMIT_EXCEEDED' },
   { action: 'ingest', name: 'invalid page range syntax', payload: { mode: 'split', pages: '1-5; rm -rf /' }, code: 'INVALID_PAGE_RANGE' },
 
-  // --- extract (DOC-02, 5 variants) ---
+  // --- extract (DOC-02, 6 variants) ---
   { action: 'extract', name: 'missing type discriminator', payload: {}, code: 'MISSING_DISCRIMINATOR' },
   { action: 'extract', name: 'unknown type', payload: { type: 'pdf', text: 'x' }, code: 'INVALID_DISCRIMINATOR' },
   {
@@ -66,7 +66,7 @@ const INVALID_CASES: FailClosedCase[] = [
     code: 'SCHEMA_DEPTH_EXCEEDED',
   },
 
-  // --- analyze (DOC-03, 5 variants) ---
+  // --- analyze (DOC-03, 7 variants) ---
   { action: 'analyze', name: 'missing task discriminator', payload: {}, code: 'MISSING_DISCRIMINATOR' },
   { action: 'analyze', name: 'unknown task', payload: { task: 'chat', text: 'x' }, code: 'INVALID_DISCRIMINATOR' },
   { action: 'analyze', name: 'classify without categories', payload: { task: 'classify', text: 'x' }, code: 'MISSING_REQUIRED_PARAMETER' },

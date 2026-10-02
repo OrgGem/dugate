@@ -3,7 +3,7 @@ import { RecipeRegistry, RecipeDefinition } from '../recipes/recipe-definitions'
 import { OutputValidator } from '../validation/output-validators';
 
 /**
- * Machine-checkable 28-variant traceability matrix (WORKLOAD-REBALANCE-04).
+ * Machine-checkable 31-variant traceability matrix (WORKLOAD-REBALANCE-04).
  *
  * Traceability Path:
  * BRD Case ID → Manifest Action & Input Schema Discriminator → Recipe Definition → Connector Slot → Output Validator
@@ -104,6 +104,15 @@ export const VARIANT_TRACEABILITY_MATRIX: VariantTraceabilityEntry[] = [
     requiredSlot: 'reasoning',
     validateOutput: (data, schema) => OutputValidator.validateProviderOutput('extract', 'custom', data, schema),
   },
+  {
+    brdCaseId: 'DOC-02-06',
+    action: 'extract',
+    variant: 'id-card',
+    displayName: 'Identity Document Field Extraction',
+    recipeId: 'recipe-extract-id-card-v1',
+    requiredSlot: 'reasoning',
+    validateOutput: (data) => OutputValidator.validateProviderOutput('extract', 'id-card', data),
+  },
 
   // DOC-03: Analyze (5)
   {
@@ -150,6 +159,24 @@ export const VARIANT_TRACEABILITY_MATRIX: VariantTraceabilityEntry[] = [
     recipeId: 'recipe-analyze-risk-v1',
     requiredSlot: 'reasoning',
     validateOutput: (data) => OutputValidator.validateProviderOutput('analyze', 'risk', data),
+  },
+  {
+    brdCaseId: 'DOC-03-06',
+    action: 'analyze',
+    variant: 'fact-check',
+    displayName: 'Reference-Data Fact Checking',
+    recipeId: 'recipe-analyze-fact-check-v1',
+    requiredSlot: 'reasoning',
+    validateOutput: (data) => OutputValidator.validateProviderOutput('analyze', 'fact-check', data),
+  },
+  {
+    brdCaseId: 'DOC-03-07',
+    action: 'analyze',
+    variant: 'summarize-eval',
+    displayName: 'Document Summary and Perspective Evaluation',
+    recipeId: 'recipe-analyze-summarize-eval-v1',
+    requiredSlot: 'reasoning',
+    validateOutput: (data) => OutputValidator.validateProviderOutput('analyze', 'summarize-eval', data),
   },
 
   // DOC-04: Transform (5)
@@ -286,7 +313,7 @@ export const VARIANT_TRACEABILITY_MATRIX: VariantTraceabilityEntry[] = [
 ];
 
 /**
- * Validates that the entire 28-variant traceability matrix is internally consistent,
+ * Validates that the entire 31-variant traceability matrix is internally consistent,
  * matches the manifest action schemas and declared connector slots, and maps to defined recipes.
  */
 export function verifyTraceabilityMatrix(): { valid: boolean; errors: string[] } {
@@ -294,8 +321,8 @@ export function verifyTraceabilityMatrix(): { valid: boolean; errors: string[] }
   const seenCaseIds = new Set<string>();
   const seenActionVariants = new Set<string>();
 
-  if (VARIANT_TRACEABILITY_MATRIX.length !== 28) {
-    errors.push(`Expected exactly 28 variants in traceability matrix, found ${VARIANT_TRACEABILITY_MATRIX.length}`);
+  if (VARIANT_TRACEABILITY_MATRIX.length !== 31) {
+    errors.push(`Expected exactly 31 variants in traceability matrix, found ${VARIANT_TRACEABILITY_MATRIX.length}`);
   }
 
   const manifestActionsByName = new Map(documentCoreManifest.actions.map((a) => [a.name, a]));

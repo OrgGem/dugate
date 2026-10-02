@@ -16,11 +16,11 @@ function createScanPngBytes(): Buffer {
   return Buffer.from(SCAN_PNG_BASE64, 'base64');
 }
 
-describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBALANCE-04, P5-06)', () => {
-  // Verifies that all 28 variants execute through documentCoreHandlers, write durable result artifacts,
+describe('Deterministic 31-Variant Full-Business Local E2E Matrix (WORKLOAD-REBALANCE-04, P5-06)', () => {
+  // Verifies that all 31 variants execute through documentCoreHandlers, write durable result artifacts,
   // and satisfy machine-checkable output validation contracts with controlled synthetic fixtures.
-  test('VARIANT_TRACEABILITY_MATRIX contains exactly 28 variants', () => {
-    expect(VARIANT_TRACEABILITY_MATRIX.length).toBe(28);
+  test('VARIANT_TRACEABILITY_MATRIX contains exactly 31 variants', () => {
+    expect(VARIANT_TRACEABILITY_MATRIX.length).toBe(31);
   });
 
   const customSchema = {
@@ -163,6 +163,22 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
             });
           },
         };
+      case 'DOC-02-06':
+        return {
+          input: { type: 'id-card', text: 'Vietnamese identity card for Nguyen Minh Anh, document ID VN-2048-0007.' },
+          setupMock: () => {
+            ctx.mockConnectorResponses.set('reasoning', {
+              invocationId: 'inv-ext-id-card',
+              status: 'SUCCESS',
+              data: {
+                identityNumber: 'VN-2048-0007',
+                fullName: 'Nguyen Minh Anh',
+                dateOfBirth: '1990-05-12',
+                nationality: 'Vietnamese',
+              },
+            });
+          },
+        };
 
       // DOC-03: Analyze
       case 'DOC-03-01':
@@ -217,6 +233,42 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
               invocationId: 'inv-an-ris',
               status: 'SUCCESS',
               data: { riskLevel: 'HIGH', factors: [{ name: 'liability', level: 'high' }] },
+            });
+          },
+        };
+      case 'DOC-03-06':
+        return {
+          input: {
+            task: 'fact-check',
+            text: 'The report states that Northwind revenue grew by 12% in 2025.',
+            referenceData: { source: 'Annual report', revenueGrowth2025: '12%' },
+          },
+          setupMock: () => {
+            ctx.mockConnectorResponses.set('reasoning', {
+              invocationId: 'inv-an-fact-check',
+              status: 'SUCCESS',
+              data: {
+                verdict: 'PASS',
+                summary: 'The reported growth matches the supplied annual-report reference.',
+                checks: [{ claim: 'Revenue grew by 12% in 2025.', status: 'PASS', reference: 'Annual report: 12% growth.' }],
+              },
+            });
+          },
+        };
+      case 'DOC-03-07':
+        return {
+          input: { task: 'summarize-eval', text: 'The proposal prioritizes accessible transit, phased investment, and measurable service targets.' },
+          setupMock: () => {
+            ctx.mockConnectorResponses.set('reasoning', {
+              invocationId: 'inv-an-summarize-eval',
+              status: 'SUCCESS',
+              data: {
+                summary: 'The proposal improves transit access through phased investment and measurable service targets.',
+                evaluation: {
+                  overallAssessment: 'The argument is structured around practical, measurable outcomes.',
+                  authorPerspective: 'The author favors incremental investment tied to public-service results.',
+                },
+              },
             });
           },
         };
@@ -378,7 +430,7 @@ describe('Deterministic 28-Variant Full-Business Local E2E Matrix (WORKLOAD-REBA
     }
   }
 
-  // Iterate deterministically across each of the 28 variants in the traceability matrix
+  // Iterate deterministically across each of the 31 variants in the traceability matrix
   for (const entry of VARIANT_TRACEABILITY_MATRIX) {
     test(`${entry.brdCaseId} (${entry.action}/${entry.variant}): executes E2E and validates output artifact`, async () => {
       const ctx = new MockTaskContext();

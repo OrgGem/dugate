@@ -66,6 +66,8 @@ import { registerCryptoConfigWiring } from './app/admin/shell-router';
 import type { CryptoConfigPane } from './app/admin/crypto-config-view-models';
 import type { OidcFlow } from './app/admin/oidc-flow';
 import { readBoundedBody, type IngressBody } from './http/ingress';
+import { handleLegacyRoute } from './compat/legacy-http-mount';
+import { legacyCompatHost } from './compat/legacy-host-adapter';
 import { createDispatcher } from './modules/queue/dispatcher';
 import { createIngestionConsumer } from './modules/operations/ingestion-consumer';
 import { createS3PinnedSourceStorage } from './modules/operations/ingestion-storage-s3';
@@ -729,9 +731,18 @@ export async function createApp(config: ServerConfig) {
       method === 'PUT' && /^\/api\/runtime\/v1\/artifacts\/blob\/[^/]+$/.test(url.pathname);
     const isPublicUploadStream =
       method === 'PUT' && /^\/api\/v1\/uploads\/[^/]+(?:\/content)?$/.test(url.pathname);
+    // The legacy facade receives `multipart/form-data` with file bytes inline,
+    // so it must stream too: `readBoundedBody` would JSON.parse a binary body
+    // and buffer the whole upload before the route ever sees it. The compat
+    // parser bounds its own read (see `readMultipartBody`), and unlike the
+    // upload routes it needs the bytes to still be arriving.
+    const isLegacyCompat =
+      method === 'POST' &&
+      /^\/api\/v1\/docs\/[a-z-]+(?:\/schema)?$/.test(url.pathname) &&
+      (req.headers['content-type'] ?? '').toLowerCase().startsWith('multipart/form-data');
     let ingress: IngressBody;
     try {
-      ingress = isPublicUploadStream
+      ingress = isPublicUploadStream || isLegacyCompat
         ? { body: undefined, rawBody: Buffer.alloc(0) }
         : await readBoundedBody(req, {
             binary: isBlobPut,
@@ -769,7 +780,7 @@ export async function createApp(config: ServerConfig) {
         headers: req.headers as Record<string, string>,
         body,
         rawBody,
-        ...(isPublicUploadStream ? { bodyStream: req } : {}),
+        ...(isPublicUploadStream || isLegacyCompat ? { bodyStream: req } : {}),
         correlationId,
         host: (req.headers.host as string) ?? 'localhost',
         db,
@@ -813,7 +824,11 @@ export async function createApp(config: ServerConfig) {
         res.destroy();
         return;
       }
-      if (isPublicUploadStream && !req.destroyed && !req.complete) {
+      // A rejected body (413 on a cap, a 400 from the multipart parser) means
+      // the request was abandoned part-way. Draining an unread socket would
+      // leave the client waiting for a response it already gave up on, so close
+      // instead of trying to finish reading it.
+      if ((isPublicUploadStream || isLegacyCompat) && !req.destroyed && !req.complete) {
         res.shouldKeepAlive = false;
         res.setHeader('connection', 'close');
         req.resume();
@@ -1725,6 +1740,32 @@ export async function route(ctx: RouteContext): Promise<{
         activeHolders: status.activeHolders,
       },
     };
+  }
+
+  // Legacy compat facade (COMP-03a/05/06/07/08). Mounted BEFORE the canonical
+  // routes because the legacy paths are matched by their own table; a request
+  // the facade does not own returns null and falls through unchanged. The
+  // facade reproduces the old wire verbatim (status, headers, envelope) while
+  // taking identity only from the API key — see compat/legacy-http-mount.ts.
+  {
+    const legacy = await handleLegacyRoute(
+      {
+        method,
+        pathname,
+        searchParams: ctx.searchParams,
+        headers: ctx.headers,
+        body: ctx.body,
+        ...(ctx.bodyStream ? { bodyStream: ctx.bodyStream } : {}),
+        resolvePrincipal: async () => {
+          const key = await resolveApiKey(ctx);
+          return { tenantId: key.tenantId, apiKeyId: key.id };
+        },
+      },
+      legacyCompatHost(ctx),
+    );
+    if (legacy !== null) {
+      return { status: legacy.status, body: legacy.body, headers: legacy.headers };
+    }
   }
 
   // Public: POST /api/v1/businesses/:id/actions/:action

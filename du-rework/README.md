@@ -8,11 +8,11 @@ Xây dựng mới trong `du-rework/`. Repository DUGate bên ngoài thư mục n
 
 - Ba loại service: **Orchestrator**, **Business Worker**, **Connector**.
 - Orchestrator gồm public API, Admin, Business Registry, profile và điều phối operation nền; không có Coordinator service độc lập.
-- `document-core` là business đầu tiên, sở hữu cả 6 action ingest/extract/analyze/transform/generate/compare.
+- `document-core` là business đầu tiên, sở hữu cả 6 action ingest/extract/analyze/transform/generate/compare (31 variant) cộng workflow nội bộ `disbursement`.
 - Xử lý document nội bộ là thư viện `document-kit`, được chạy trong Business Worker.
 - Mỗi business mới có worker deployment/queue/version riêng; đăng ký manifest để xuất hiện trong Admin và được gán vào profile.
 - Thêm business theo contract hiện hữu không yêu cầu build lại Orchestrator/Connector. Provider protocol mới hoặc loại UI mới có thể cần mở rộng platform.
-- Workspace hiện có package manifests, TypeScript source, migrations, container test infra và Jest suites cho contracts, SDK, Connector, Orchestrator, document-kit và document-core. Phạm vi đã chạy vẫn là các package/local slice; chưa suy ra multi-service hoặc production readiness.
+- Workspace hiện có **2 services** (orchestrator, connector), **6 shared packages** (contracts, worker-sdk, connector-client, document-kit, egress, observability) và **3 business** (document-core, example-review, lc-checker), đều có package manifest, TypeScript source, migrations, container test infra và Jest suites. Phạm vi đã chạy vẫn là các package/local slice; chưa suy ra multi-service hoặc production readiness.
 
 ## Bắt đầu từ source
 
@@ -25,11 +25,39 @@ pnpm build
 pnpm lint
 ```
 
+### 🚀 Khởi chạy nhanh toàn bộ hệ thống (Dev Mode — 1 lệnh duy nhất)
+
+Để khởi chạy đồng thời cả 3 service (**Orchestrator API + Admin UI**, **Connector**, **Document-Core Worker**) trong **1 cửa sổ terminal duy nhất** với đầy đủ log màu sắc:
+
+```bash
+# Trong thư mục du-rework/
+pnpm dev
+# hoặc: npm run dev
+# hoặc trên Windows PowerShell: .\scripts\dev.ps1
+# hoặc gắn thêm cờ watch: pnpm dev --watch
+```
+
+* **Địa chỉ truy cập & Cổng dịch vụ**:
+  - **Admin Web UI**: [http://localhost:3001/admin/login](http://localhost:3001/admin/login) *(Tài khoản mặc định: `admin` / Mật khẩu: `Admin@123456`)*
+  - **Orchestrator Public API**: [http://localhost:3000](http://localhost:3000) (Health check: `http://localhost:3000/health`)
+  - **Connector Service**: [http://localhost:8088](http://localhost:8088) (Readiness: `http://localhost:8088/health/ready`)
+  - **Worker Service**: Kết nối hàng đợi Redis BullMQ (`127.0.0.1:6380`)
+* **Tính năng tự động của Dev Runner**:
+  - Tự động nạp file `.env.local` (tự copy từ `.env.local.sample` nếu chưa có).
+  - Tự động build mã nguồn và chạy migration DB trước khi khởi động.
+  - Tự động dọn dẹp port cũ bị kẹt trước khi start để tránh lỗi `EADDRINUSE`.
+  - Khởi động tuần tự thông minh: chờ Orchestrator mở cổng thành công mới kích hoạt Worker.
+* **Cách tắt server**:
+  - **Khi đang chạy Dev Mode**: Chỉ cần nhấn `Ctrl + C` tại terminal, runner sẽ tự động kill sạch toàn bộ các tiến trình con.
+  - **Khi server đang chạy ngầm hoặc kẹt cổng**: Chạy lệnh `pnpm stop` (hoặc `.\scripts\stop-all.ps1`) để tắt ngay lập tức.
+
+Chi tiết xem tại [Hướng dẫn scripts local dev](scripts/README.md).
+
 `pnpm build` build các package/service/business trong workspace; `pnpm lint` hiện chạy các script lint của từng package (chủ yếu là TypeScript typecheck). Cấu hình mẫu ở [`.env.example`](.env.example); copy thành `.env` rồi thay toàn bộ token, mật khẩu và khóa mẫu trước khi chạy. Không commit `.env` hoặc dùng secret mẫu ngoài môi trường test. `RUNTIME_TOKEN` dành cho worker/runtime, `ADMIN_TOKEN` dành cho admin; **external client chỉ dùng `x-api-key`** đã được cấp.
 
-Hướng dẫn riêng: [Orchestrator](services/orchestrator/README.md), [Connector](services/connector/README.md), [document-core](businesses/document-core/README.md), [integration tests](tests/README.md) và [test infra](infra/README.md).
+Hướng dẫn riêng: [Orchestrator](services/orchestrator/README.md), [Connector](services/connector/README.md), [document-core](businesses/document-core/README.md), [example-review](businesses/example-review/README.md), [lc-checker](businesses/lc-checker/README.md), [integration tests](tests/README.md) và [test infra](infra/README.md).
 
-### Chạy phụ thuộc local và service
+### Chạy thủ công từng service và phụ thuộc local
 
 Compose test infra bên dưới cung cấp PostgreSQL trên `127.0.0.1:5433` và Redis trên `127.0.0.1:6380`, tách khỏi DUGate cũ. File `.env` được Compose đọc, nhưng process chạy trực tiếp từ terminal cần biến môi trường của chính terminal. Ví dụ PowerShell (thay token mẫu bằng giá trị riêng, không dùng production secret trên test DB):
 
@@ -77,7 +105,7 @@ docker compose -f infra/docker-compose.yml ps
 
 Muốn thử riêng Connector với DB/Redis test: `docker compose -f infra/docker-compose.yml --profile connector up -d --build connector`. Profile này là fixture single-replica, **không** phải deployment production; container có thể áp dụng migration vào test DB. Xem [infra README](infra/README.md).
 
-**MISMATCH Docker (kiểm tra 2026-09-29):** root [`docker-compose.yml`](docker-compose.yml) mô tả `docker compose up -d --build` cho full stack, nhưng `docker compose --env-file .env.example config --quiet` hiện lỗi `services.postgres conflicts with imported resource` do các file `include` cùng khai báo `postgres`/`valkey`. Vì vậy **chưa có lệnh Compose full-stack đã xác nhận chạy được**; không dùng lệnh ở comment/guide cũ như một hướng dẫn deploy cho đến khi topology được sửa và build/test lại. Các Dockerfile nằm tại `services/orchestrator/`, `services/connector/` và `businesses/document-core/`; chỉ có `infra/docker-compose.yml` được xác nhận hợp lệ về Compose config ở lượt cập nhật README này. Xem thêm [deployment guide](docs/12b-deployment-guide.md) và [release readiness](tasks/P8-release-readiness.md).
+**MISMATCH Docker (kiểm tra 2026-09-29):** root [`docker-compose.yml`](docker-compose.yml) mô tả `docker compose up -d --build` cho full stack, nhưng `docker compose --env-file .env.example config --quiet` hiện lỗi `services.postgres conflicts with imported resource` do các file `include` cùng khai báo `postgres`/`valkey`. Vì vậy **chưa có lệnh Compose full-stack đã xác nhận chạy được**; không dùng lệnh ở comment/guide cũ như một hướng dẫn deploy cho đến khi topology được sửa và build/test lại. Các Dockerfile nằm tại `services/orchestrator/`, `services/connector/`, `businesses/document-core/`, `businesses/example-review/` và `businesses/lc-checker/`; chỉ có `infra/docker-compose.yml` được xác nhận hợp lệ về Compose config ở lượt cập nhật README này. Xem thêm [deployment guide](docs/12b-deployment-guide.md) và [release readiness](tasks/P8-release-readiness.md).
 
 ## Tích hợp qua Public API
 

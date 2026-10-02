@@ -223,8 +223,8 @@ const NAV_ITEMS: readonly NavItem[] = [
   { section: 'businesses', label: 'Businesses', path: '/admin/businesses', requiredRole: 'viewer' },
   { section: 'operations', label: 'Operations', path: '/admin/operations', requiredRole: 'viewer' },
   { section: 'overview', label: 'Overview', path: '/admin/overview', requiredRole: 'viewer' },
-  { section: 'profiles', label: 'Profiles', path: '/admin/profiles', requiredRole: 'operator' },
-  { section: 'connectors', label: 'Connectors', path: '/admin/connectors', requiredRole: 'operator' },
+  { section: 'profiles', label: 'Profiles', path: '/admin/profiles', requiredRole: 'admin' },
+  { section: 'connectors', label: 'Connectors', path: '/admin/connectors', requiredRole: 'admin' },
   { section: 'grants', label: 'Grants', path: '/admin/grants', requiredRole: 'admin' },
   { section: 'api-keys', label: 'API keys', path: '/admin/api-keys', requiredRole: 'admin' },
 ];

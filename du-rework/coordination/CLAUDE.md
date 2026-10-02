@@ -1,5 +1,7 @@
 # Assignment — Claude Code — main long-running lane
 
+> **Lịch sử, không dùng để dispatch hiện tại (2026-10-01):** file này mô tả ownership và terminal của wave khởi tạo ở checkout cũ. Quy tắc hiện hành nằm tại `du-rework/AGENTS.md` và `du-rework/tasks/IMPLEMENTATION-FIRST-COORDINATION-2026-10-01.md`; kiểm tra terminal/Task/Dispatch thật trước khi giao việc. Không khôi phục vai trò coding owner, DB window độc quyền hoặc peer handle trong bản ghi lịch sử này.
+
 ## Objective and authorization
 
 User yêu cầu implement song song bằng Claude Code, Copilot, Antigravity và giao công việc chính/chạy dài cho Claude. Bạn là foundation/platform/integration owner trong checkout `C:/Users/gem/Documents/GitHub/dugate`. Implement hệ thống mới dưới `du-rework`; đọc docs nhưng không dừng ở plan. Không chỉnh app DUGate cũ.

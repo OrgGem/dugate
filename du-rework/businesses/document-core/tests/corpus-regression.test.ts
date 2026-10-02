@@ -21,7 +21,7 @@ import {
  * RV-06 Expected Result Corpus Regression Consumer Test Suite (Wave 40 / W40-A6)
  *
  * Verifies that EXPECTED_RESULT_CORPUS is actively consumed as an immutable regression target
- * across all 28 canonical document variants.
+ * across all 31 canonical document variants.
  *
  * Enforces:
  * 1. Exact equality between actual handler result envelopes and derived expected corpus envelopes
@@ -31,11 +31,11 @@ import {
  * 3. Machine-checkable output schema validation per variant.
  */
 
-describe('RV-06: Expected Result Corpus Regression Consumer (28 Canonical Variants)', () => {
-  test('EXPECTED_RESULT_CORPUS covers exactly 28 canonical variants matching traceability matrix', () => {
+describe('RV-06: Expected Result Corpus Regression Consumer (31 Canonical Variants)', () => {
+  test('EXPECTED_RESULT_CORPUS covers exactly 31 canonical variants matching traceability matrix', () => {
     const matrixIds = VARIANT_TRACEABILITY_MATRIX.map((v) => v.brdCaseId).sort();
     const corpusIds = Object.keys(EXPECTED_RESULT_CORPUS).sort();
-    expect(corpusIds.length).toBe(28);
+    expect(corpusIds.length).toBe(31);
     expect(matrixIds).toEqual(corpusIds);
   });
 
@@ -113,6 +113,18 @@ describe('RV-06: Expected Result Corpus Regression Consumer (28 Canonical Varian
           data: { projectId: 'PRJ-99', status: 'ACTIVE' },
         });
         break;
+      case 'DOC-02-06':
+        ctx.mockConnectorResponses.set('reasoning', {
+          invocationId: 'inv-ext-id-card',
+          status: 'SUCCESS',
+          data: {
+            identityNumber: 'VN-2048-0007',
+            fullName: 'Nguyen Minh Anh',
+            dateOfBirth: '1990-05-12',
+            nationality: 'Vietnamese',
+          },
+        });
+        break;
       case 'DOC-03-01':
         ctx.mockConnectorResponses.set('reasoning', {
           invocationId: 'inv-an-cla',
@@ -146,6 +158,30 @@ describe('RV-06: Expected Result Corpus Regression Consumer (28 Canonical Varian
           invocationId: 'inv-an-ris',
           status: 'SUCCESS',
           data: { riskLevel: 'HIGH', factors: [{ name: 'liability', level: 'high' }] },
+        });
+        break;
+      case 'DOC-03-06':
+        ctx.mockConnectorResponses.set('reasoning', {
+          invocationId: 'inv-an-fact-check',
+          status: 'SUCCESS',
+          data: {
+            verdict: 'PASS',
+            summary: 'The reported growth matches the supplied annual-report reference.',
+            checks: [{ claim: 'Revenue grew by 12% in 2025.', status: 'PASS', reference: 'Annual report: 12% growth.' }],
+          },
+        });
+        break;
+      case 'DOC-03-07':
+        ctx.mockConnectorResponses.set('reasoning', {
+          invocationId: 'inv-an-summarize-eval',
+          status: 'SUCCESS',
+          data: {
+            summary: 'The proposal improves transit access through phased investment and measurable service targets.',
+            evaluation: {
+              overallAssessment: 'The argument is structured around practical, measurable outcomes.',
+              authorPerspective: 'The author favors incremental investment tied to public-service results.',
+            },
+          },
         });
         break;
       case 'DOC-04-02':
@@ -240,7 +276,7 @@ describe('RV-06: Expected Result Corpus Regression Consumer (28 Canonical Varian
     }
   }
 
-  // Iterate deterministically across each of the 28 variants in the corpus
+  // Iterate deterministically across each of the 31 variants in the corpus
   for (const matrixEntry of VARIANT_TRACEABILITY_MATRIX) {
     const caseId = matrixEntry.brdCaseId;
     const corpusEntry = getCorpusEntry(caseId)!;

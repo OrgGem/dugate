@@ -9,6 +9,7 @@ import type {
   TaskDisposition,
   CheckpointRef,
 } from '@du/contracts';
+import type { WorkerCryptoSeam } from './crypto-seam';
 
 /**
  * SDK public interfaces (docs 09, P4-01).
@@ -283,6 +284,23 @@ export interface WorkerConfig {
    * `maxArtifactBytes`, i.e. exactly where single-PUT stops being legal.
    */
   multipartThresholdBytes?: number;
+  /**
+   * RV01-03: the application-encryption seam for artifact bytes. The worker
+   * holds ONLY this handle - a Vault-backed provider reached through it - and
+   * never a master key or a raw DEK.
+   */
+  crypto?: WorkerCryptoSeam;
+  /**
+   * RV01-03: when true, artifact writes MUST be sealed. A deployment that sets
+   * this without supplying `crypto` fails closed at the write instead of
+   * publishing plaintext. Default false keeps the pre-RV01-03 behaviour.
+   */
+  encryptionEnabled?: boolean;
+  /**
+   * ADR-18 §5 chunked manifest path. Default OFF: the wire profile is not
+   * frozen, so this changes no default behaviour yet.
+   */
+  chunkedEncryptionEnabled?: boolean;
   /**
    * Explicit connector invocation function (P4-07 wiring). Takes
    * precedence over `connectorUrl`; lets a business plug in a

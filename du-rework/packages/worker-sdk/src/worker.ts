@@ -342,6 +342,13 @@ export async function startWorker(
             fetchImpl,
             maxArtifactBytes: config.maxArtifactBytes,
             multipartThresholdBytes: config.multipartThresholdBytes,
+            // RV01-03: this is the wiring the packet found missing - the context
+            // was constructed with no seam, so the write path could only ever
+            // send plaintext. DefaultTaskContext now receives the same seam the
+            // deployment configured.
+            crypto: config.crypto,
+            encryptionEnabled: config.encryptionEnabled === true,
+            chunkedEncryptionEnabled: config.chunkedEncryptionEnabled === true,
           }
         );
 

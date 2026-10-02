@@ -1,0 +1,86 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-02T00:00:00.000Z" agent="DUGate architecture docs" version="24.7.17">
+  <diagram id="deployment-topology" name="DUGate Rework — topology triển khai">
+    <mxGraphModel dx="1400" dy="920" grid="1" gridSize="10" page="1" pageScale="1" pageWidth="1400" pageHeight="920">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="client" value="&lt;b&gt;Client / operator&lt;/b&gt;&lt;br&gt;HTTPS, external trust zone" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#dbeafe;strokeColor=#3b82f6;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="45" y="135" width="225" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="ingress" value="&lt;b&gt;Private ingress&lt;/b&gt;&lt;br&gt;TLS, routing, policy" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#e0e7ff;strokeColor=#6366f1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="325" y="135" width="225" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="orchestrator" value="&lt;b&gt;Orchestrator containers&lt;/b&gt;&lt;br&gt;Public + Admin + Runtime&lt;br&gt;separate platform secrets" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#ccfbf1;strokeColor=#0f766e;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="615" y="105" width="315" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="connector" value="&lt;b&gt;Connector containers&lt;/b&gt;&lt;br&gt;private endpoint only&lt;br&gt;service identity + grants" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#ffedd5;strokeColor=#ea580c;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="105" width="325" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="workers" value="&lt;b&gt;Worker host group&lt;/b&gt;&lt;br&gt;one image / queue / version&lt;br&gt;per business, no DB creds" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="615" y="345" width="315" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="platform_db" value="&lt;b&gt;Platform PostgreSQL&lt;/b&gt;&lt;br&gt;own DB/role + migration owner&lt;br&gt;backup / restore" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="155" y="365" width="315" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" value="&lt;b&gt;Redis / Valkey&lt;/b&gt;&lt;br&gt;BullMQ, sessions, quota&lt;br&gt;private network" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fee2e2;strokeColor=#dc2626;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="155" y="570" width="315" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="&lt;b&gt;Private versioned S3&lt;/b&gt;&lt;br&gt;artifact bytes, multipart&lt;br&gt;IAM + encryption policy" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#ede9fe;strokeColor=#7c3aed;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="345" width="325" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="connector_db" value="&lt;b&gt;Connector PostgreSQL&lt;/b&gt;&lt;br&gt;separate DB/role&lt;br&gt;revision + usage ledger" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="570" width="325" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="vault" value="&lt;b&gt;Vault&lt;/b&gt;&lt;br&gt;KV v2 / Transit by config&lt;br&gt;credential + key lifecycle" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="615" y="570" width="315" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="collector" value="&lt;b&gt;Log collector&lt;/b&gt;&lt;br&gt;redacted JSON + disk buffer" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="325" y="780" width="300" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="elastic" value="&lt;b&gt;Elasticsearch&lt;/b&gt;&lt;br&gt;private TLS, retention" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=10;spacingLeft=12;fontSize=14;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="785" y="780" width="300" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="client" target="ingress">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="ingress" target="orchestrator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="private HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="connector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="platform_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="runtime" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="workers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="queues" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="workers" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="artifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="orchestrator" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="granted bytes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="workers" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="connector" target="connector_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="key / secret" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;dashed=1;" edge="1" parent="1" source="connector" target="vault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="crypto" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;dashed=1;" edge="1" parent="1" source="orchestrator" target="vault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="logs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;dashed=1;" edge="1" parent="1" source="orchestrator" target="collector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="TLS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748b;fontColor=#475569;" edge="1" parent="1" source="collector" target="elastic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

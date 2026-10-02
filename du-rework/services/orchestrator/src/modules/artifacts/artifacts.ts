@@ -19,6 +19,7 @@ import {
   type StoredArtifactVersion,
 } from './storage-facade';
 import { createPostgresArtifactStorageFacade } from './postgres-storage-facade';
+import { writePublicArtifact } from '../../compat/legacy-public-artifact';
 
 /**
  * Artifact lifecycle with either PostgreSQL fallback storage or an injected
@@ -44,6 +45,23 @@ export interface ArtifactService {
   putBlob(storageKey: string, tenantId: string, bytes: Buffer): Promise<void>;
   /** Worker-side blob GET (slice transport; resolves `downloadUrl`). */
   getBlob(storageKey: string): Promise<Readable>;
+  /**
+   * Store a caller-supplied upload that has no task yet (the legacy compat
+   * facade). `requestUpload` cannot serve that case: it asserts a task row
+   * because it issues a WORKER grant, and the legacy submit creates its
+   * operation and task only after these files exist.
+   *
+   * The row is written with `operation_id`/`task_id` NULL, exactly like the
+   * public upload path, so the worker lifecycle cannot reach it. Bytes are put
+   * and pinned through the same `storageFor(backend)` the rest of the service
+   * uses, so the digest and size checks are not bypassed.
+   */
+  putPublicArtifact(input: {
+    tenantId: string;
+    fileName: string | null;
+    mimeType: string;
+    bytes: Buffer;
+  }): Promise<{ artifactId: string; state: string }>;
 }
 
 export interface ArtifactServiceOptions {
@@ -483,6 +501,43 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           [storageKey, tenantId, bytes]
         );
       });
+    },
+
+
+    async putPublicArtifact(input) {
+      return writePublicArtifact(
+        {
+          query: (sql, params) => db.query(sql, params as unknown[]),
+          putBlob: async (storageKey, tenantId, bytes) => {
+            // PostgreSQL fallback only. On S3 the bytes must travel through a
+            // pre-signed upload grant, so a caller that already holds the bytes
+            // in memory has no supported write path here — the facade reports
+            // that as unavailable rather than pretending the object landed.
+            if (storageBackend !== 'postgres') {
+              throw new HttpError(
+                503,
+                'TEMPORARY_UNAVAILABLE',
+                'inline legacy uploads require the PostgreSQL storage backend',
+              );
+            }
+            await db.query(
+              `INSERT INTO artifact_blobs (storage_key, tenant_id, bytes) VALUES ($1,$2,$3)` +
+                ' ON CONFLICT (storage_key) DO UPDATE SET bytes=EXCLUDED.bytes, created_at=now()',
+              [storageKey, tenantId, bytes],
+            );
+          },
+          verifyAndPin: async (pin) => {
+            try {
+              return await storageFor(storageBackend).verifyAndPin(pin);
+            } catch (error) {
+              throw storageErrorToHttp(error);
+            }
+          },
+          storageBackend,
+          maxArtifactBytes,
+        },
+        input,
+      );
     },
 
     async getBlob(storageKey): Promise<Readable> {

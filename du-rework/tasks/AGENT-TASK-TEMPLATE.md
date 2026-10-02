@@ -24,19 +24,20 @@ Copy template này vào task assignment khi người dùng yêu cầu implementa
 - Allowed write paths:
 - Read-only dependencies:
 - Shared files cần integration owner:
+- Dev resource namespace (database/schema, Redis DB/prefix, S3 bucket/prefix, Vault test path):
 - Explicit non-goals:
 
 ## Work sequence
 
-- [ ] BRD/scenario và edge cases đủ rõ.
-- [ ] Structure/interface/function signatures được thống nhất.
-- [ ] Test fixtures và observable assertions trước implementation.
+- [ ] Minimum behavior, security invariants và producer/consumer interface đủ rõ; decision chưa chốt ghi thành blocker riêng, không chặn module độc lập.
+- [ ] Structure/interface/function signatures và write lease được thống nhất.
+- [ ] Focused fixtures và observable assertions cho phần implementation đang giao.
 - [ ] Implement smallest complete behavior trong assigned paths.
-- [ ] Unit/contract tests pass; integration với real provider component khi ready.
+- [ ] Focused unit/contract/security smoke pass; integration nghiệp vụ/live chi tiết chuyển packet `VFY-*` riêng khi vertical slice sẵn sàng.
 - [ ] Lint/typecheck; UI screenshots nếu áp dụng.
 - [ ] Spec/doc changes đồng bộ; không tự đổi wire contract.
 - [ ] Producer và consumer của contract/state mới có test tương ứng.
-- [ ] Ghi rõ phần đã code, đã verify và còn chờ acceptance/live gate.
+- [ ] Ghi rõ `IMPLEMENTED`, `VFY-*` pending và acceptance/live gate còn mở; không tick parent từ smoke.
 
 ## Handoff format
 

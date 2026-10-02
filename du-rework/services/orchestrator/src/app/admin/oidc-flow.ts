@@ -109,7 +109,12 @@ function newToken(): string {
   return randomBytes(32).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-function safeReturnTo(raw: string | undefined): string {
+/**
+ * LOCAL-03: exported so the local password login reuses the SAME
+ * same-origin return-target allowlist as the IdP flow — two login paths
+ * must not drift on open-redirect safety.
+ */
+export function safeReturnTo(raw: string | undefined): string {
   // Allowlist, not blocklist: same-origin path, no scheme, no authority,
   // no encoded anything, no dot segments. Anything else -> fixed default.
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > 200) return DEFAULT_RETURN;

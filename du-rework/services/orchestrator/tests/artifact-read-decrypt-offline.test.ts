@@ -501,3 +501,56 @@ describe('D68 chunked decrypt: tampering and mis-binding fail closed', () => {
     expect(leaked).toBe(false);
   });
 });
+
+describe('RV01-03 defect 3: a marker-less object fails closed where encryption is required', () => {
+  it('refuses the read instead of serving the stored bytes as plaintext', async () => {
+    const deps: ArtifactDecryptDeps = { ...depsFor(makeReader(null, SECRET)), encryptionRequired: true };
+    await expect(decryptStoredArtifact(deps, REF)).rejects.toMatchObject({
+      status: 503,
+      code: 'STORAGE_FAILURE',
+    });
+  });
+
+  it('never returns the bytes, even when the caller already holds them', async () => {
+    // The streaming routes pass the bytes in rather than letting the reader
+    // fetch them, so the refusal must hold in that shape too - otherwise the
+    // same object would be refused on one route and served on another.
+    const deps: ArtifactDecryptDeps = { ...depsFor(makeReader(null, SECRET)), encryptionRequired: true };
+    await expect(
+      decryptStoredArtifact(deps, REF, Buffer.from(SECRET, 'utf8')),
+    ).rejects.toMatchObject({ status: 503, code: 'STORAGE_FAILURE' });
+  });
+
+  it('asks for no manifest on the refused path', async () => {
+    let asked = 0;
+    const base = makeReader(null, SECRET);
+    const reader: StoredObjectReader = {
+      ...base,
+      readManifest: async () => {
+        asked += 1;
+        return {};
+      },
+    };
+    const deps: ArtifactDecryptDeps = { ...depsFor(reader), encryptionRequired: true };
+    await expect(decryptStoredArtifact(deps, REF)).rejects.toMatchObject({ status: 503 });
+    expect(asked).toBe(0);
+  });
+
+  it('CONFIG OFF: the compatibility path still returns the plain object', async () => {
+    // encryptionRequired defaults to false, so a deployment that has not opted
+    // in keeps the pre-RV01-03 behaviour. That is safe by construction: an
+    // unmarked object is plaintext because nothing ever marked it otherwise.
+    const out = await decryptStoredArtifact(depsFor(makeReader(null, SECRET)), REF);
+    expect(out.decrypted).toBe(false);
+    expect(out.bytes.toString('utf8')).toBe(SECRET);
+  });
+
+  it('a properly sealed object still decrypts when encryption is required', async () => {
+    const provider = makeKeyProvider();
+    const fixture = await sealStoredObject(provider, UPLOAD_TOKEN);
+    const deps: ArtifactDecryptDeps = { ...depsFor(makeReader(fixture), provider), encryptionRequired: true };
+    const out = await decryptStoredArtifact(deps, REF);
+    expect(out.decrypted).toBe(true);
+    expect(out.bytes.toString('utf8')).toBe(SECRET);
+  });
+});

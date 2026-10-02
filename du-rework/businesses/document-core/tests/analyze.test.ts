@@ -2,7 +2,7 @@ import { AnalyzeAction } from '../src/actions/analyze';
 import type { ProfileSnapshot } from '../src/types/results';
 import { MockTaskContext } from './fixtures/mock-context';
 
-describe('Action: Analyze (DOC-03) — 5 Variants', () => {
+describe('Action: Analyze (DOC-03) — 7 Variants', () => {
   let ctx: MockTaskContext;
 
   beforeEach(() => {

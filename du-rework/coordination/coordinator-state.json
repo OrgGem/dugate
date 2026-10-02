@@ -1,163 +1,164 @@
 {
-  "coordinator": "openclaude",
-  "coordinator_handle": "term_1b615444-8014-4eaf-adb7-4991c9eafcc2",
-  "coordinator_model": "claude-opus-4-8",
-  "turn": 372,
-  "interval_minutes": 10,
-  "last_tick": "2026-10-01T02:41:00+07:00",
-  "previous_coordinator": "antigravity",
-  "previous_coordinator_handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
-  "handover_at": "2026-10-01T02:43:00+07:00",
-  "handover_reason": "User requested handover from Antigravity to OpenClaude due to Antigravity quota depletion. Watch state, 10-minute cadence and active dispatches preserved.",
-  "roster": {
-    "coordinator": {
-      "handle": "term_1b615444-8014-4eaf-adb7-4991c9eafcc2",
-      "identity": "openclaude",
-      "model": "claude-opus-4-8",
-      "role": "Primary coordinator: plan, reports, Orca status, task assignment and 10-minute worker monitoring; no source-code reading"
-    },
-    "backup_coordinator": {
-      "handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
-      "identity": "antigravity",
-      "model": "gemini-3.8-flash",
-      "role": "Standby coordinator; deactivated/parked due to quota exhaustion"
-    },
-    "reviewer": {
-      "handle": "term_b103836b-98e7-4fa2-900d-98db145d3d01",
-      "identity": "claude",
-      "model": "opus-4.8",
-      "role": "Independent code reviewer: post-module audit gate (implement + test complete) and high-risk/disputed changes"
-    },
-    "qwen_1": {
-      "handle": "term_4568d175-fdf8-4ff6-8916-9e787e232a58",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    },
-    "qwen_2": {
-      "handle": "term_27eb3380-f9c3-466a-8b4e-0b7fa0ad23fc",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    },
-    "qwen_3": {
-      "handle": "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    },
-    "codex_tester_offline": {
-      "handle": "term_b2d08e87-4435-4323-8e14-b58fa1a6729b",
-      "identity": "codex",
-      "model": "gpt-5.6-luna",
-      "role": "Independent unit, contract, build and regression verification"
-    },
-    "codex_tester_live": {
-      "handle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
-      "identity": "codex",
-      "model": "gpt-5.6-luna",
-      "role": "Independent integration, migration and end-to-end verification; exclusive live test window"
-    },
-    "codex_technical_lead": {
-      "handle": "term_31d9ed40-6acd-443e-9152-05ce5fd938ab",
-      "identity": "codex",
-      "model": "current-session",
-      "role": "User-facing technical decisions and cross-service review on request"
-    },
-    "codex_worker_1": {
-      "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
-      "identity": "codex",
-      "model": "gpt-6-luna",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    },
-    "codex_worker_2": {
-      "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
-      "identity": "codex",
-      "model": "gpt-6-luna",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    },
-    "codex_worker_3": {
-      "handle": "term_f1ed751c-4c2a-4563-9687-0a5b30c5900a",
-      "identity": "codex",
-      "model": "gpt-6-luna",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    },
-    "qwen_4": {
-      "handle": "term_63bf0dbc-d90e-406d-8089-37dfc45ed4bb",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "role": "Implementation and bug fixes; scoped packet ownership"
-    }
+ "coordinator": "command-code",
+ "coordinator_handle": "term_50f39a02-4ff1-4db6-8b7d-730294532221",
+ "coordinator_model": "command-code",
+ "turn": 374,
+ "interval_minutes": 10,
+ "last_tick": "2026-10-02T10:13:05+07:00",
+ "previous_coordinator": "openclaude",
+ "previous_coordinator_handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
+ "handover_at": "2026-10-02T10:05:47+07:00",
+ "handover_reason": "User 2026-10-02: Claude Code stops dispatching; review-only from now. Dispatch ownership (C1-C3/C5 cycles, watch-state writes, C2 settle, nudges) handed to command-code lane term_50f39a02. Session cron schedules for coordinator + self-review cycles cancelled. Claude Code keeps C4 review + on-demand code review.",
+ "roster": {
+  "coordinator": {
+   "handle": "term_1b615444-8014-4eaf-adb7-4991c9eafcc2",
+   "identity": "openclaude",
+   "model": "claude-opus-4-8",
+   "role": "Primary coordinator: plan, reports, Orca status, task assignment and 10-minute worker monitoring; no source-code reading"
   },
-  "deactivated_roster": {
-    "antigravity_coordinator": {
-      "handle": "term_66e31752-a330-4dc6-bda8-81b38b5fd182",
-      "identity": "antigravity",
-      "model": "gemini",
-      "deactivated_at": "2026-09-26T18:00:00+07:00",
-      "reason": "User requested handover to claude-code; AGENTS.md updated. History preserved in coordination/reports/coordinator-antigravity.md."
-    },
-    "codex_reviewer": {
-      "handle": "term_95461591-ce36-4932-bfbb-3a7ba5605da0",
-      "identity": "codex",
-      "model": "gpt-6-sol medium",
-      "deactivated_at": "2026-09-26T17:11:13+07:00",
-      "reason": "Hit ChatGPT Pro usage quota limit until Sep 30th. PTY cleanly killed and superseded by qwen_reviewer."
-    },
-    "codex_tester": {
-      "handle": "term_f31e5ec1-55f1-4483-b1eb-f1a6208bd7f5",
-      "identity": "codex",
-      "model": "gpt-5.6-luna medium",
-      "deactivated_at": "2026-09-26T16:12:05+07:00",
-      "reason": "Hit ChatGPT Pro usage quota limit until Sep 30th. PTY cleanly killed and superseded by qwen_tester."
-    },
-    "codex_security": {
-      "handle": "term_f190d102-3a5a-4827-a1bf-ea62dcbc720b",
-      "identity": "codex",
-      "model": "gpt-5.6-luna medium",
-      "deactivated_at": "2026-09-26T14:29:46+07:00",
-      "reason": "Superseded by qwen_vault at Turn 114 due to rate-limits; zero remaining backlog."
-    },
-    "qwen_vault": {
-      "handle": "term_a7757226-f4e4-45a0-ad54-dd9aa01436c4",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "deactivated_at": "2026-09-26T14:29:46+07:00",
-      "reason": "Completed 100% of VAULT-01..06 offline backlog. Live verification handled by Tester."
-    },
-    "qwen_sec": {
-      "handle": "term_3c201a29-7279-49c4-8dda-89bb6c18f48a",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "deactivated_at": "2026-09-26T14:29:46+07:00",
-      "reason": "Completed 100% of OIDC-01..04 and SEC taxonomy offline backlog."
-    },
-    "qwen_data": {
-      "handle": "term_6df22fa3-e399-4e31-9400-364917d9bdc8",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "deactivated_at": "2026-09-26T14:29:46+07:00",
-      "reason": "Completed 100% of DATA-01..04 URL ingestion and multipart stream backlog."
-    },
-    "qwen_cost": {
-      "handle": "term_4ed1695f-9152-40af-b6f2-2c3d984f0e43",
-      "identity": "qwen-code",
-      "model": "qwen3.8-max",
-      "deactivated_at": "2026-09-26T15:06:23+07:00",
-      "reason": "Completed 100% of COST-01..05 offline backlog (122 tests across contracts and orchestrator pass). Live verification handled by Tester."
-    }
+  "backup_coordinator": {
+   "handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
+   "identity": "antigravity",
+   "model": "gemini-3.8-flash",
+   "role": "Standby coordinator; deactivated/parked due to quota exhaustion"
   },
-  "reviewer_mode": "mandatory-post-module-and-on-demand",
+  "reviewer": {
+   "handle": "term_b103836b-98e7-4fa2-900d-98db145d3d01",
+   "identity": "claude",
+   "model": "opus-4.8",
+   "role": "Independent code reviewer: post-module audit gate (implement + test complete) and high-risk/disputed changes"
+  },
+  "qwen_1": {
+   "handle": "term_4568d175-fdf8-4ff6-8916-9e787e232a58",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  },
+  "qwen_2": {
+   "handle": "term_27eb3380-f9c3-466a-8b4e-0b7fa0ad23fc",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  },
+  "qwen_3": {
+   "handle": "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  },
+  "codex_tester_offline": {
+   "handle": "term_b2d08e87-4435-4323-8e14-b58fa1a6729b",
+   "identity": "codex",
+   "model": "gpt-5.6-luna",
+   "role": "Independent unit, contract, build and regression verification"
+  },
+  "codex_tester_live": {
+   "handle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
+   "identity": "codex",
+   "model": "gpt-5.6-luna",
+   "role": "Independent integration, migration and end-to-end verification; exclusive live test window"
+  },
+  "codex_technical_lead": {
+   "handle": "term_31d9ed40-6acd-443e-9152-05ce5fd938ab",
+   "identity": "codex",
+   "model": "current-session",
+   "role": "User-facing technical decisions and cross-service review on request"
+  },
+  "codex_worker_1": {
+   "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
+   "identity": "codex",
+   "model": "gpt-6-luna",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  },
+  "codex_worker_2": {
+   "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
+   "identity": "codex",
+   "model": "gpt-6-luna",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  },
+  "codex_worker_3": {
+   "handle": "term_f1ed751c-4c2a-4563-9687-0a5b30c5900a",
+   "identity": "codex",
+   "model": "gpt-6-luna",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  },
+  "qwen_4": {
+   "handle": "term_63bf0dbc-d90e-406d-8089-37dfc45ed4bb",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "role": "Implementation and bug fixes; scoped packet ownership"
+  }
+ },
+ "deactivated_roster": {
+  "antigravity_coordinator": {
+   "handle": "term_66e31752-a330-4dc6-bda8-81b38b5fd182",
+   "identity": "antigravity",
+   "model": "gemini",
+   "deactivated_at": "2026-09-26T18:00:00+07:00",
+   "reason": "User requested handover to claude-code; AGENTS.md updated. History preserved in coordination/reports/coordinator-antigravity.md."
+  },
+  "codex_reviewer": {
+   "handle": "term_95461591-ce36-4932-bfbb-3a7ba5605da0",
+   "identity": "codex",
+   "model": "gpt-6-sol medium",
+   "deactivated_at": "2026-09-26T17:11:13+07:00",
+   "reason": "Hit ChatGPT Pro usage quota limit until Sep 30th. PTY cleanly killed and superseded by qwen_reviewer."
+  },
+  "codex_tester": {
+   "handle": "term_f31e5ec1-55f1-4483-b1eb-f1a6208bd7f5",
+   "identity": "codex",
+   "model": "gpt-5.6-luna medium",
+   "deactivated_at": "2026-09-26T16:12:05+07:00",
+   "reason": "Hit ChatGPT Pro usage quota limit until Sep 30th. PTY cleanly killed and superseded by qwen_tester."
+  },
+  "codex_security": {
+   "handle": "term_f190d102-3a5a-4827-a1bf-ea62dcbc720b",
+   "identity": "codex",
+   "model": "gpt-5.6-luna medium",
+   "deactivated_at": "2026-09-26T14:29:46+07:00",
+   "reason": "Superseded by qwen_vault at Turn 114 due to rate-limits; zero remaining backlog."
+  },
+  "qwen_vault": {
+   "handle": "term_a7757226-f4e4-45a0-ad54-dd9aa01436c4",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "deactivated_at": "2026-09-26T14:29:46+07:00",
+   "reason": "Completed 100% of VAULT-01..06 offline backlog. Live verification handled by Tester."
+  },
+  "qwen_sec": {
+   "handle": "term_3c201a29-7279-49c4-8dda-89bb6c18f48a",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "deactivated_at": "2026-09-26T14:29:46+07:00",
+   "reason": "Completed 100% of OIDC-01..04 and SEC taxonomy offline backlog."
+  },
+  "qwen_data": {
+   "handle": "term_6df22fa3-e399-4e31-9400-364917d9bdc8",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "deactivated_at": "2026-09-26T14:29:46+07:00",
+   "reason": "Completed 100% of DATA-01..04 URL ingestion and multipart stream backlog."
+  },
+  "qwen_cost": {
+   "handle": "term_4ed1695f-9152-40af-b6f2-2c3d984f0e43",
+   "identity": "qwen-code",
+   "model": "qwen3.8-max",
+   "deactivated_at": "2026-09-26T15:06:23+07:00",
+   "reason": "Completed 100% of COST-01..05 offline backlog (122 tests across contracts and orchestrator pass). Live verification handled by Tester."
+  }
+ },
+ "reviewer_mode": "mandatory-post-module-and-on-demand",
+ "schedule_active": false,
+ "schedule_type": "none",
+ "schedule_task_id": null,
+ "previous_schedule": {
   "schedule_active": false,
-  "schedule_type": "none",
-  "schedule_task_id": null,
-  "previous_schedule": {
-    "schedule_active": false,
-    "schedule_type": "orca-automation-cron-10m",
-    "schedule_task_id": "1ec1f0c5-49b8-49b5-b87c-768164423bb6",
-    "reason": "Removed on 2026-10-01 because the installed Orca automation opened another Antigravity terminal on each run"
-  },
-  "consolidation_note": "The user reassigned coordination to Antigravity on 2026-09-27; prior Claude/Qwen/OpenClaude lane assignments are historical.",
-  "coordination_mode": "No active automatic coordination schedule; manual coordinator ownership remains separate from worker dispatch and Claude Code review. Only Claude Code may receive a new coordinator schedule on explicit user request.",
-  "roster_note": "Historical roster: 5 Codex (technical lead, 2 testers, 2 workers), 3 Qwen, 1 Claude reviewer, 1 OpenClaude backup, and 1 Antigravity coordinator. Verify live terminal handles and ownership before any manual cycle."
-}
+  "schedule_type": "orca-automation-cron-10m",
+  "schedule_task_id": "1ec1f0c5-49b8-49b5-b87c-768164423bb6",
+  "reason": "Removed on 2026-10-01 because the installed Orca automation opened another Antigravity terminal on each run"
+ },
+ "consolidation_note": "The user reassigned coordination to Antigravity on 2026-09-27; prior Claude/Qwen/OpenClaude lane assignments are historical.",
+ "coordination_mode": "Dispatch owned by command-code agent (term_50f39a02); Claude Code review-only (code review on demand, no dispatch, no watch-state writes, no schedules).",
+ "roster_note": "Historical roster: 5 Codex (technical lead, 2 testers, 2 workers), 3 Qwen, 1 Claude reviewer, 1 OpenClaude backup, and 1 Antigravity coordinator. Verify live terminal handles and ownership before any manual cycle. | LIVE CHECK 2026-10-02T10:15:46+07:00 by command-code: dugate space = 11 connected terminals: dispatcher 50f39a02 (command-code); review+plan 31d9ed40 (codex tech lead) + b103836b (claude); workers qwen 4568d175/27eb3380/742c2474/63bf0dbc + codex 2b05b203/949d489b (f1ed751c closed); verify codex b2d08e87 + c4486089. Separate nocobase space (6 terminals incl. antigravity 83fc0691, claude c7db8506, codex b358297f, command-code 97e32a88, qwen 9ce2ba69/de2e0f91) out of scope, never message.",
+ "coordinator_note": "2026-10-02 handover: dispatch -> command-code lane; Claude Code review-only. 10-min C1-C5 coordinator cycles and B1-B6 self-review cycles STOPPED (crons deleted). Watch-state last: 468 rows, settled 445 / running 7. | 2026-10-02T10:13:05+07:00 cycle by command-code (C1-C3/C5): settle x4, no dispatch; hold lines unchanged."
+}

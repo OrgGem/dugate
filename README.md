@@ -70,6 +70,21 @@ npm run dev
 # Access the Gateway UI at http://localhost:2023
 ```
 
+### ⚡ DU-Rework Architecture (Unified Monorepo Dev Mode)
+
+For developing the new high-performance reworked architecture (`@du/orchestrator`, `@du/connector`, `@du/document-core`):
+
+```bash
+cd du-rework
+pnpm install
+pnpm dev
+```
+* **Admin Web Shell**: [http://localhost:3001/admin/login](http://localhost:3001/admin/login) *(Default: `admin` / `Admin@123456`)*
+* **Orchestrator API**: [http://localhost:3000](http://localhost:3000)
+* **Connector**: [http://localhost:8088](http://localhost:8088)
+* **Stop all services**: Press `Ctrl + C` in the dev terminal, or run `pnpm stop`.
+* Full details: [du-rework/README.md](du-rework/README.md) & [du-rework/scripts/README.md](du-rework/scripts/README.md).
+
 ---
 
 ## 📖 Documentation & Architecture

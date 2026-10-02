@@ -35,10 +35,10 @@ RETURNS TEXT
 LANGUAGE sql
 IMMUTABLE
 AS $fn$
-  CASE WHEN credential_source ->> 'kind' = 'vault-kv2'
+  SELECT CASE WHEN credential_source ->> 'kind' = 'vault-kv2'
        THEN split_part(credential_source ->> 'path', '/', 7)
        ELSE NULL
-  END
+  END;
 $fn$;
 
 UPDATE connector_revisions

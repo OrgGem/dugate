@@ -44,6 +44,7 @@ import type { RotateSecretState } from './types';
 
 export interface ConnectorSectionRenderInput {
   fetch: ConnectorFetchResult;
+  csrfToken?: string;
   /**
    * Optional list of connector ids the shell recognises. Drives the
    * picker at the top of the pane (mirrors the P6-02 business picker).
@@ -150,6 +151,7 @@ function renderSecretSlotForm(
   revision: number,
   slot: ConnectorSecretSlotView,
   rotateState: RotateSecretState,
+  csrfToken = '',
 ): string {
   // Write-only: the input is empty and `type="password"`. The
   // server never accepts a value from the GET path; rotation is a
@@ -159,6 +161,10 @@ function renderSecretSlotForm(
   const disabled = rotateState !== 'idle' ? ' disabled' : '';
   return [
     `<form id="${formId}" method="POST" action="/admin/connectors/${esc(connectorId)}/revisions/${esc(String(revision))}/rotate-secret" class="connector-section__rotate-form" data-connector-id="${esc(connectorId)}" data-revision="${esc(String(revision))}" data-slot="${esc(slot.name)}" onsubmit="return confirm('Rotate this credential? The current value will stop working.')">`,
+    '<input type="hidden" name="csrf" value="' + esc(csrfToken) + '">',
+    '<input type="hidden" name="key" value="' + esc(slot.name) + '">',
+    '<label>Vault mount <input name="mount" required></label>',
+    '<label>Vault path <input name="path" required></label>',
     '<label class="connector-section__rotate-label" for="' + formId + '-value">',
     esc(slot.label),
     '</label>',
@@ -175,7 +181,7 @@ function renderSecretSlotForm(
   ].join('');
 }
 
-function renderTestAction(view: ConnectorTestResultView): string {
+function renderTestAction(view: ConnectorTestResultView, csrfToken = ''): string {
   // Explicit test-action block. `data-test-result-kind` is the
   // coarse "success | failure | pending" discriminator that the
   // evidence tests assert; `data-test-result` carries the fine
@@ -201,6 +207,7 @@ function renderTestAction(view: ConnectorTestResultView): string {
     // press the button, the page then re-renders with the
     // result block above.
     '<form method="POST" action="/admin/connectors/' + esc(view.connectorId) + '/revisions/' + esc(String(view.revision)) + '/test" class="connector-section__test-form" onsubmit="return confirm(\'Run a connection test against this connector?\')">',
+    '<input type="hidden" name="csrf" value="' + esc(csrfToken) + '">',
     '<button type="submit" class="connector-section__test-submit" data-action="test-connection">Run test</button>',
     '</form>',
     '</section>',
@@ -251,9 +258,10 @@ function renderRevisionPanel(
   testResult: ConnectorTestResultView,
   rotateState: RotateSecretState,
   secretSlots: readonly ConnectorSecretSlotView[],
+  csrfToken = '',
 ): string {
   const slotForms = secretSlots.map((slot) =>
-    renderSecretSlotForm(view.connectorId, view.revision, slot, rotateState),
+    renderSecretSlotForm(view.connectorId, view.revision, slot, rotateState, csrfToken),
   );
   return [
     `<section class="connector-section__revision" data-connector-id="${esc(view.connectorId)}" data-revision="${esc(String(view.revision))}" data-revision-label="${esc(revisionLabel(view.revision))}">`,
@@ -278,7 +286,7 @@ function renderRevisionPanel(
     '</p>',
     slotForms.length > 0 ? slotForms.join('') : '<p class="connector-section__secrets-empty">No secret slots on this revision.</p>',
     '</section>',
-    renderTestAction(testResult),
+    renderTestAction(testResult, csrfToken),
     '</section>',
   ].join('');
 }
@@ -341,7 +349,7 @@ export function renderConnectorSection(input: ConnectorSectionRenderInput): Conn
       html: [
         `<section class="connector-section" data-connector-id="${esc(f.connectorId)}" data-revision="${esc(String(f.revision))}" data-revision-label="${esc(revisionLabel(f.revision))}">`,
         picker,
-        renderRevisionPanel(f.revisionView, f.testResult, f.rotateState, f.secretSlotViews),
+        renderRevisionPanel(f.revisionView, f.testResult, f.rotateState, f.secretSlotViews, input.csrfToken),
         renderRevisionCompare(f.revisionView, input.compareFetch, input.compareRevision),
         '</section>',
       ].join(''),
