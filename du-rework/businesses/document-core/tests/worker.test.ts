@@ -14,6 +14,7 @@ describe('Document Core Worker & Handlers (P5-02)', () => {
       'analyze',
       'compare',
       'disbursement',
+      'doc-compare',
       'extract',
       'generate',
       'ingest',

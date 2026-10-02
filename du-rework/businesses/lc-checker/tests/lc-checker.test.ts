@@ -1,5 +1,6 @@
 import { LcCheckerError } from '../src/errors';
 import { runBoundedFanout, resolveConcurrency } from '../src/fanout';
+import { resolveFanoutConcurrency } from '@du/worker-sdk';
 import {
   LC_CHECKER_STEP_IDS,
   LC_HUMAN_SIGNOFF_REQUIRED,
@@ -219,6 +220,7 @@ describe('P9-02 bounded fan-out', () => {
     expect(resolveConcurrency(0)).toBe(1);
     expect(resolveConcurrency(Number.NaN)).toBe(1);
     expect(resolveConcurrency(3.9)).toBe(3);
+    expect(resolveFanoutConcurrency(999, MAX_FANOUT_CONCURRENCY)).toBe(MAX_FANOUT_CONCURRENCY);
   });
 
   it('never runs more than the ceiling at once', async () => {

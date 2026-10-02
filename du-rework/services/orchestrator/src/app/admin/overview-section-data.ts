@@ -40,6 +40,7 @@
  * zero `any`.
  */
 
+import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import {
   buildAuditListView,
   buildHealthOverviewView,
@@ -227,11 +228,6 @@ export type OverviewFetchResult =
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function sanitiseErrorBody(text: string): string {
-  if (!text) return '';
-  return text.slice(0, 256).replace(/[\u0000-\u001f\u007f]/g, ' ');
 }
 
 /** Numeric cast with a fallback for missing wire fields. */
@@ -817,7 +813,7 @@ async function asJson(
     !allowStatus503
   ) {
     const text = await (res as { text: () => Promise<string> }).text().catch(() => '');
-    return { __err: sanitiseErrorBody(text) || `HTTP ${String(status)}` };
+    return { __err: sanitizeUpstreamErrorBody(text) || `HTTP ${String(status)}` };
   }
   const text = await (res as { text: () => Promise<string> }).text().catch(() => '');
   if (!text) return {};

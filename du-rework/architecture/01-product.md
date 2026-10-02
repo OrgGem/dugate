@@ -11,13 +11,13 @@ Người tích hợp dùng API key gắn profile. Quản trị viên quyết đ�
 | API | Giá trị sử dụng | Các biến thể mục tiêu | Kết quả chính |
 |---|---|---|---|
 | `ingest` | Chuẩn hóa tài liệu đầu vào | parse, ocr, digitize, split | Text/Markdown, metadata, fields hoặc PDF đã tách |
-| `extract` | Bóc dữ liệu có cấu trúc | invoice, contract, receipt, table, custom | JSON theo schema và cảnh báo thiếu/không chắc chắn |
-| `analyze` | Đánh giá nội dung theo tiêu chí | classify, sentiment, compliance, quality, risk | Nhãn, điểm, findings và evidence nếu có |
+| `extract` | Bóc dữ liệu có cấu trúc | invoice, contract, id-card, receipt, table, custom | JSON theo schema và cảnh báo thiếu/không chắc chắn |
+| `analyze` | Đánh giá nội dung theo tiêu chí | classify, sentiment, compliance, fact-check, quality, risk, summarize-eval | Nhãn, điểm, findings và evidence nếu có |
 | `transform` | Biến đổi nội dung/định dạng | convert, translate, rewrite, redact, template | Nội dung hoặc artifact sau biến đổi |
 | `generate` | Tạo nội dung dựa trên tài liệu | summary, outline, report, email, minutes, qa | Tóm tắt, báo cáo, email, biên bản, câu trả lời |
 | `compare` | So sánh hai phía tài liệu | diff, semantic, version | Thay đổi văn bản/ngữ nghĩa và changelog |
 
-Phạm vi đang được mô tả trong spec rework: **6 action, 28 biến thể**, cùng một worker deployment `document-core`, có thể nhân bản nhiều replica. Endpoint nhiều không đồng nghĩa cần nhiều microservice. Registry gốc hiện có **31 biến thể core**, vì thêm `extract/id-card`, `analyze/fact-check`, `analyze/summarize-eval`; đây là chênh lệch scope cần chủ sản phẩm quyết định, chưa được xem là đã chấp thuận cắt bỏ.
+Phạm vi đang được mô tả trong spec rework: **6 action, 31 biến thể** (4+6+7+5+6+3), cùng một worker deployment `document-core`, có thể nhân bản nhiều replica. Endpoint nhiều không đồng nghĩa cần nhiều microservice. Con số này khớp với source hiện tại: manifest khai báo 31 variant và cả ba variant từng là chênh lệch (`extract/id-card`, `analyze/fact-check`, `analyze/summarize-eval`) đều có handler, recipe, input normalizer và output validator. Con số 28 từng xuất hiện trong spec là **số cũ, đã bị code vượt qua** — xem [năng lực nghiệp vụ](15-business-capabilities.md) và [variant matrix](../businesses/document-core/docs/variant-matrix.md). Việc ba variant đó có được đưa vào scope sản phẩm cam kết hay không vẫn là câu hỏi của chủ sản phẩm; trạng thái code không tự cấp phép công bố chúng ra client contract.
 
 Native parse/convert/diff có thể chạy cục bộ trong worker; OCR/vision/reasoning đi qua Connector khi recipe yêu cầu. Không cam kết giữ hoàn hảo layout, nhận dạng tuyệt đối chữ viết tay hay độ chính xác tuyệt đối của LLM. Đầu ra phải qua schema validation và đánh giá chất lượng theo corpus nghiệm thu.
 
@@ -45,7 +45,7 @@ UI dùng schema trong manifest để hiển thị cấu hình business; không t
 
 ## Phạm vi chưa cam kết
 
-Chưa đưa vào baseline: marketplace code, sandbox chạy code do khách hàng upload, agent tự chọn tool tùy ý, arbitrary DAG editor, multi-region active-active, tính chính xác tài chính của usage chưa đối soát, migration/cutover production cũ. Các biến thể ngoài 28 mục trên cần yêu cầu và nghiệm thu riêng.
+Chưa đưa vào baseline: marketplace code, sandbox chạy code do khách hàng upload, agent tự chọn tool tùy ý, arbitrary DAG editor, multi-region active-active, tính chính xác tài chính của usage chưa đối soát, migration/cutover production cũ. Các biến thể ngoài 31 mục trên cần yêu cầu và nghiệm thu riêng.
 
 ## Chức năng ở registry gốc cần quyết định chuyển sang rework
 

@@ -27,6 +27,7 @@
  * `any`.
  */
 
+import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import type {
   ConnectorConfigView,
   ConnectorEndpointDisplay,
@@ -256,11 +257,6 @@ function normaliseEndpoint(
   return { kind, maskedHost };
 }
 
-function readErrorBody(text: string): string {
-  if (!text) return '';
-  return text.slice(0, 256).replace(/[\u0000-\u001f\u007f]/g, ' ');
-}
-
 function pickCatalogEntry(
   input: ConnectorFetcherInput,
   connectorId: string,
@@ -374,7 +370,7 @@ export async function fetchConnectorConfig(
       };
     }
     if (!res.ok) {
-      const body = readErrorBody(await res.text().catch(() => ''));
+      const body = sanitizeUpstreamErrorBody(await res.text().catch(() => ''));
       return {
         kind: 'error',
         connectorId,

@@ -42,6 +42,7 @@
  * `any`.
  */
 
+import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import {
   formatOperationsListSort,
   isOperationsListFilterToken,
@@ -344,11 +345,6 @@ function prettyPrint(value: unknown): string {
   } catch {
     return '';
   }
-}
-
-function sanitiseErrorBody(text: string): string {
-  if (!text) return '';
-  return text.slice(0, 256).replace(/[\u0000-\u001f\u007f]/g, ' ');
 }
 
 function pickCatalog(
@@ -1167,7 +1163,7 @@ export async function fetchOperationDetail(
       };
     }
     if (!res.ok) {
-      const body = sanitiseErrorBody(await res.text().catch(() => ''));
+      const body = sanitizeUpstreamErrorBody(await res.text().catch(() => ''));
       return {
         kind: 'error',
         message: `Platform returned HTTP ${res.status}${body ? `: ${body}` : ''}`,

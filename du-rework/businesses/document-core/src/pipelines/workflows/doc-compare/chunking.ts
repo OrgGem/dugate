@@ -69,18 +69,45 @@ function headingOf(line: string): { title: string; level: number } | null {
 }
 
 /**
+ * Split into lines while keeping each line's absolute span in the source text.
+ *
+ * `text.split(/\r?\n/)` throws the positions away, and every later offset was
+ * therefore computed against a body-only string while the chunk was sliced out
+ * of the full text. Handling CRLF here (rather than assuming a 1-char separator)
+ * is what makes the recorded spans exact on Windows-authored documents.
+ */
+function splitLinesWithOffsets(text: string): { line: string; start: number; end: number }[] {
+  const lines: { line: string; start: number; end: number }[] = [];
+  let start = 0;
+  for (let i = 0; i <= text.length; i += 1) {
+    if (i !== text.length && text[i] !== '\n') continue;
+    let end = i;
+    if (end > start && text[end - 1] === '\r') end -= 1;
+    lines.push({ line: text.slice(start, end), start, end });
+    start = i + 1;
+  }
+  return lines;
+}
+
+/**
  * Split normalised text into sections. Text before the first heading becomes a
  * synthetic section 0 so no byte is ever dropped from the comparison.
+ *
+ * Each section also records the span it OCCUPIES in `side.text` — heading line,
+ * body and the separator that follows it. The spans tile the text with no gap
+ * and no overlap, which is what lets `planChunks` emit offsets that index the
+ * real text rather than a body-only projection of it.
  */
 export function extractSections(side: DocumentSideInput): readonly DocumentSection[] {
-  const lines = side.text.split(/\r?\n/);
+  const lines = splitLinesWithOffsets(side.text);
   const sections: DocumentSection[] = [];
   let ordinal = 0;
   let currentTitle = '(preamble)';
   let currentLevel = 0;
   let buffer: string[] = [];
+  let spanStart = 0;
 
-  const flush = (): void => {
+  const flush = (spanEnd: number): void => {
     const body = buffer.join('\n');
     sections.push({
       sectionId: sectionIdFor(side.side, ordinal, currentTitle),
@@ -88,25 +115,32 @@ export function extractSections(side: DocumentSideInput): readonly DocumentSecti
       level: currentLevel,
       ordinal,
       body,
+      textStart: spanStart,
+      textEnd: spanEnd,
     });
     ordinal += 1;
     buffer = [];
+    // The next section starts exactly where this one ended. Without this the
+    // following section would keep the SAME textStart and overlap this span.
+    spanStart = spanEnd;
   };
 
-  for (const line of lines) {
+  for (const { line, start } of lines) {
     const heading = headingOf(line);
     if (heading) {
       // Only flush real content: a heading on the very first line would
       // otherwise emit an empty (preamble) section that then competes in
-      // alignment against a genuine section.
-      if (buffer.length > 0 || sections.length > 0) flush();
+      // alignment against a genuine section. A heading that is skipped this
+      // way leaves `spanStart` untouched on purpose, so its line stays inside
+      // the following section's span instead of becoming an unread gap.
+      if (buffer.length > 0 || sections.length > 0) flush(start);
       currentTitle = heading.title;
       currentLevel = heading.level;
       continue;
     }
     buffer.push(line);
   }
-  flush();
+  flush(side.text.length);
   return sections;
 }
 
@@ -149,17 +183,18 @@ export function planChunks(
     sectionIds = [];
   };
 
-  let offset = 0;
   for (const section of side.sections) {
-    const length = section.body.length;
+    // Measured on the section's SPAN, not on `section.body`: the budget bounds
+    // what is sent to the provider, and the span is what actually gets sent.
+    const length = Math.max(0, section.textEnd - section.textStart);
     const wouldOverflow = accumulated > 0 && accumulated + length > budget;
 
-    if (wouldOverflow) emit('section', offset);
+    if (wouldOverflow) emit('section', section.textStart);
 
     if (accumulated === 0 && length > budget) {
       // One section too big for a chunk: split it on size, keep it whole overall.
-      let cursor = offset;
-      const end = offset + length;
+      let cursor = section.textStart;
+      const end = section.textEnd;
       while (cursor < end) {
         const sliceEnd = Math.min(end, cursor + budget);
         const piece: DocumentChunkRef = {
@@ -176,7 +211,10 @@ export function planChunks(
         ordinal += 1;
         cursor = sliceEnd;
       }
-      offset = end;
+      // The oversized branch advances `offset` but used to leave `startOffset`
+      // on the PREVIOUS chunk's end, so the next emit() began a chunk before
+      // this section and overlapped it. Advancing both keeps the tiling exact.
+      startOffset = end;
       accumulated = 0;
       titles = [];
       sectionIds = [];
@@ -186,23 +224,22 @@ export function planChunks(
     accumulated += length;
     titles.push(section.title);
     sectionIds.push(section.sectionId);
-    offset += length;
   }
 
   if (accumulated > 0) {
-    emit('section', offset);
+    emit('section', side.text.length);
   } else if (chunks.length === 0) {
     // An empty document still gets one chunk: a comparison with nothing to
     // read must not look identical to one that was never run.
     chunks.push({
-      chunkId: '`${side.side}-c0`,',
+      chunkId: `${side.side}-c0`,
       side: side.side,
       ordinal: 0,
       boundaryKind: 'size',
       sectionTitle: titles[0] ?? null,
       startOffset: 0,
-      endOffset: offset,
-      charCount: offset,
+      endOffset: side.text.length,
+      charCount: side.text.length,
     });
   }
 

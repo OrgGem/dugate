@@ -30,7 +30,14 @@ flowchart LR
 | `generate` | `summary`, `outline`, `report`, `email`, `minutes`, `qa` | Sinh nội dung mới từ tài liệu/đầu vào. |
 | `compare` | `diff`, `semantic`, `version` | So sánh văn bản, ngữ nghĩa hoặc phiên bản tài liệu. |
 
-`document-core` còn có workflow `disbursement` nội bộ, dùng fan-out, checkpoint, chờ duyệt và các connector slot cho classify/extract/crosscheck/report. Workflow này khác sáu action public; đọc [README](../businesses/document-core/README.md) và `src/pipelines/workflows/` khi tích hợp. Các BRD/sơ đồ từng action ở [business docs](../businesses/document-core/docs/).
+`document-core` còn có hai workflow nội bộ, cùng khai báo trong `handlerKinds` và có action riêng trong manifest — chúng khác sáu action public:
+
+| Workflow | Cơ chế | Vị trí |
+|---|---|---|
+| `disbursement` | Fan-out, checkpoint, chờ duyệt và các connector slot cho classify/extract/crosscheck/report. | `src/pipelines/workflows/disbursement/` |
+| `doc-compare` | So sánh tài liệu hai phía theo cấu trúc và reference claims, có chunking/checkpoint và connector slot riêng. Được đăng ký thành handler kind + action riêng, **không** gộp vào `compare`. | `src/pipelines/workflows/doc-compare/` |
+
+Đọc [README](../businesses/document-core/README.md) và `src/pipelines/workflows/` khi tích hợp. Các BRD/sơ đồ từng action ở [business docs](../businesses/document-core/docs/).
 
 ## 3. `example-review`
 

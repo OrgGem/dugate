@@ -47,6 +47,29 @@ import {
   type ExtractedRecord,
   type LogicalDocument,
 } from './pipelines/workflows/disbursement';
+import {
+  advanceDocCompare,
+  createDocCompareRuntime,
+  DEFAULT_DOC_COMPARE_BINDING,
+  DOC_COMPARE_BUSINESS_ID,
+  DOC_COMPARE_EVIDENCE_VERSION,
+  DOC_COMPARE_INPUT_VERSION,
+  DOC_COMPARE_RESUME_VERSION,
+  DOC_COMPARE_RESULT_VERSION,
+  DOC_COMPARE_STATE_VERSION,
+  DocCompareError,
+  MAX_CHUNK_FANOUT_CONCURRENCY,
+  mergeChunkEvidence,
+  normalizeDocCompareInput,
+  type ChunkJoinSubmission,
+  type ChunkOutcome,
+  type ChunkTaskSpec,
+  type DocCompareConnectorPort,
+  type DocCompareInput,
+  type DocCompareRuntime,
+  type DocCompareStage,
+  type DocCompareState,
+} from './pipelines/workflows/doc-compare';
 
 export type { TaskDisposition, TaskHandler, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer };
 export type BusinessTaskHandler = TaskHandler;
@@ -1237,9 +1260,585 @@ async function handleDisbursement(
   return mapDisbursementContinuation(ctx, sdk, internal, input, result);
 }
 
+/* ------------------------------------------------------------------ */
+/* doc-compare (P9-03 advanced two-document comparison)                */
+/* ------------------------------------------------------------------ */
+
+type DocCompareChunkStage = 'compare-structure' | 'compare-references';
+type DocCompareCheckpointStage = DocCompareChunkStage | 'merge-evidence';
+type DocCompareSnapshot = { input: DocCompareInput; state: DocCompareState };
+
+const DOC_COMPARE_REQUIRED_SLOTS = ['reasoning'] as const;
+const DOC_COMPARE_CHUNK_MARKER = '__docCompareChunk';
+const DOC_COMPARE_CHUNK_RESULT_VERSION = 'doc-compare-chunk-result-v1';
+const DOC_COMPARE_REVIEW_EVIDENCE_VERSION = 'doc-compare-review-evidence-v1';
+const DOC_COMPARE_STATE_STEP_PREFIX = 'doc-compare:workflow-state:';
+const DOC_COMPARE_SIDE_FIELDS = ['artifactId', 'fileName', 'text'] as const;
+const DOC_COMPARE_INPUT_FIELDS = [
+  'inputVersion',
+  'left',
+  'right',
+  'maxChunkChars',
+  'maxConcurrency',
+  'continueOnPartialFailure',
+  'requireHumanReview',
+] as const;
+
+function docCompareFailure(code: string, message: string): BusinessExecutionError {
+  return new BusinessExecutionError(message, code, false);
+}
+
+function docCompareStateStepKey(stage: DocCompareCheckpointStage): string {
+  return `${DOC_COMPARE_STATE_STEP_PREFIX}${stage}`;
+}
+
+function validateDocCompareSide(raw: unknown, side: 'left' | 'right'): void {
+  if (!isRecord(raw)) {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', `Doc-compare "${side}" must be an object.`);
+  }
+  // Rejected, not ignored: normalizeDocCompareInput derives sections from
+  // `text`, so a caller-supplied outline would be accepted and then dropped,
+  // leaving the caller believing its structure drove the comparison.
+  if (Object.keys(raw).some((key) => !(DOC_COMPARE_SIDE_FIELDS as readonly string[]).includes(key))) {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', `Doc-compare "${side}" contains an unsupported field.`);
+  }
+  for (const field of ['artifactId', 'fileName'] as const) {
+    const value = raw[field];
+    if (typeof value !== 'string' || value.trim().length === 0 || value.length > 255) {
+      throw docCompareFailure(
+        'DOC_COMPARE_INPUT_INVALID',
+        `Doc-compare "${side}.${field}" must be a non-empty string of at most 255 characters.`
+      );
+    }
+  }
+  if (typeof raw.text !== 'string') {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', `Doc-compare "${side}.text" must be a string.`);
+  }
+}
+
+function validateDocCompareInput(raw: unknown): DocCompareInput {
+  if (!isRecord(raw)) {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', 'Doc-compare input must be an object.');
+  }
+
+  // The workflow's identity/version guard runs before the field allowlist so a
+  // caller-provided identity is rejected explicitly and never used for routing.
+  let normalized: DocCompareInput;
+  try {
+    normalized = normalizeDocCompareInput(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Doc-compare input could not be normalized.';
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', message);
+  }
+
+  if (Object.keys(raw).some((key) => !(DOC_COMPARE_INPUT_FIELDS as readonly string[]).includes(key))) {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', 'Doc-compare input contains an unsupported field.');
+  }
+  if (raw.inputVersion !== DOC_COMPARE_INPUT_VERSION) {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', 'Doc-compare input version is unsupported.');
+  }
+  validateDocCompareSide(raw.left, 'left');
+  validateDocCompareSide(raw.right, 'right');
+  if (raw.maxChunkChars !== undefined && typeof raw.maxChunkChars !== 'number') {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', 'maxChunkChars must be a number.');
+  }
+  if (
+    raw.maxConcurrency !== undefined &&
+    (!Number.isInteger(raw.maxConcurrency) ||
+      (raw.maxConcurrency as number) < 1 ||
+      (raw.maxConcurrency as number) > MAX_CHUNK_FANOUT_CONCURRENCY)
+  ) {
+    throw docCompareFailure(
+      'DOC_COMPARE_INPUT_INVALID',
+      `maxConcurrency must be an integer from 1 to ${MAX_CHUNK_FANOUT_CONCURRENCY}.`
+    );
+  }
+  for (const flag of ['continueOnPartialFailure', 'requireHumanReview'] as const) {
+    if (raw[flag] !== undefined && typeof raw[flag] !== 'boolean') {
+      throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', `${flag} must be a boolean.`);
+    }
+  }
+  return normalized;
+}
+
+function requireDocCompareSdkContext(ctx: SdkTaskContext | TaskContext): SdkTaskContext {
+  const sdk = ctx as SdkTaskContext;
+  if (
+    !sdk.spawn || typeof sdk.spawn.spawnAndWait !== 'function' ||
+    !sdk.wait || typeof sdk.wait.waitForInput !== 'function' ||
+    !sdk.step || typeof sdk.step.run !== 'function' ||
+    !sdk.connector || typeof sdk.connector.invoke !== 'function' ||
+    !sdk.artifacts || typeof sdk.artifacts.write !== 'function' ||
+    typeof sdk.checkpoints !== 'function'
+  ) {
+    throw docCompareFailure(
+      'DOC_COMPARE_RUNTIME_UNAVAILABLE',
+      'The doc-compare handler requires the workflow continuation runtime.'
+    );
+  }
+  return sdk;
+}
+
+function assertRequiredDocCompareSlots(ctx: SdkTaskContext): void {
+  for (const slot of DOC_COMPARE_REQUIRED_SLOTS) {
+    if (typeof ctx.connectorBindings?.[slot] !== 'string' || ctx.connectorBindings[slot]!.trim().length === 0) {
+      throw docCompareFailure('DOC_COMPARE_CONNECTOR_SLOT_MISSING', `Required connector slot "${slot}" is not bound.`);
+    }
+  }
+}
+
+async function saveDocCompareState(
+  internal: StreamingTaskContext,
+  stage: DocCompareCheckpointStage,
+  input: DocCompareInput,
+  state: DocCompareState
+): Promise<void> {
+  const snapshot: DocCompareSnapshot = { input, state };
+  const key = docCompareStateStepKey(stage);
+  await internal.step(key, stableJsonHash(snapshot), async () => snapshot);
+}
+
+async function loadDocCompareState(
+  ctx: SdkTaskContext,
+  stage: DocCompareCheckpointStage
+): Promise<DocCompareSnapshot> {
+  const stepKey = docCompareStateStepKey(stage);
+  const checkpoint = ctx.checkpoints().find((entry) => entry.stepKey === stepKey && entry.status === 'SUCCEEDED');
+  if (!checkpoint) {
+    throw docCompareFailure('DOC_COMPARE_STATE_MISSING', `Saved workflow state for "${stage}" is unavailable.`);
+  }
+  const snapshot = await ctx.step.run<unknown>(stepKey, checkpoint.inputHash, async () => {
+    throw docCompareFailure('DOC_COMPARE_STATE_MISSING', `Saved workflow state for "${stage}" could not be replayed.`);
+  });
+  if (
+    !isRecord(snapshot) ||
+    !isRecord(snapshot.input) ||
+    !isRecord(snapshot.state) ||
+    snapshot.state.stateVersion !== DOC_COMPARE_STATE_VERSION
+  ) {
+    throw docCompareFailure('DOC_COMPARE_STATE_INVALID', 'Saved doc-compare workflow state is malformed.');
+  }
+  return snapshot as unknown as DocCompareSnapshot;
+}
+
+function parseDocCompareContinuationRef(value: unknown): { stage: DocCompareChunkStage; joinToken: string } {
+  if (typeof value !== 'string') {
+    throw docCompareFailure('DOC_COMPARE_CONTINUATION_INVALID', 'Chunk join continuation reference is missing.');
+  }
+  const match = /^doc-compare:v1:(compare-structure|compare-references):(.+)$/.exec(value);
+  if (!match || !match[1] || !match[2]) {
+    throw docCompareFailure('DOC_COMPARE_CONTINUATION_INVALID', 'Chunk join continuation reference is malformed.');
+  }
+  return { stage: match[1] as DocCompareChunkStage, joinToken: match[2] };
+}
+
+function requireDocCompareChunkTask(raw: unknown, sdk: SdkTaskContext):
+  { chunkId: string; stage: DocCompareChunkStage; input: Record<string, unknown> } | undefined
+{
+  if (!isRecord(raw) || !Object.prototype.hasOwnProperty.call(raw, DOC_COMPARE_CHUNK_MARKER)) return undefined;
+  const chunk = raw[DOC_COMPARE_CHUNK_MARKER];
+  if (
+    !isRecord(chunk) ||
+    (chunk.stage !== 'compare-structure' && chunk.stage !== 'compare-references') ||
+    typeof chunk.chunkId !== 'string' ||
+    chunk.chunkId.length === 0 ||
+    // The chunk id is the child task key; accepting a payload whose id is not
+    // the delivery's own key would let one child's evidence be filed under
+    // another chunk.
+    chunk.chunkId !== sdk.taskKey ||
+    !isRecord(chunk.input)
+  ) {
+    throw docCompareFailure('DOC_COMPARE_CHUNK_INPUT_INVALID', 'Doc-compare chunk task payload is malformed.');
+  }
+  return { chunkId: chunk.chunkId, stage: chunk.stage, input: chunk.input };
+}
+
+/**
+ * Production runtime bound to the host's connector facade.
+ *
+ * The connector call is checkpointed per distinct payload, so a redelivered
+ * chunk replays its recorded invocation instead of paying for a second one.
+ */
+function buildDocCompareRuntime(internal: StreamingTaskContext): DocCompareRuntime {
+  const port: DocCompareConnectorPort = {
+    invoke: async (slot, promptOrPayload, options) => {
+      const hash = stableJsonHash({ slot, promptOrPayload });
+      return internal.step(`doc-compare:connector:${hash.slice(0, 20)}`, hash, async () =>
+        internal.connector.invoke(slot, promptOrPayload, options)
+      );
+    },
+  };
+  return createDocCompareRuntime({
+    connector: port,
+    binding: DEFAULT_DOC_COMPARE_BINDING,
+    checkpointsEnabled: true,
+    checkpointKeyFor: (stepId) => `doc-compare:step:${stepId}`,
+  });
+}
+
+async function writeDocCompareChunkResult(
+  sdk: SdkTaskContext,
+  chunkId: string,
+  stage: DocCompareChunkStage,
+  outcome: ChunkOutcome
+): Promise<TaskDisposition> {
+  let artifact: ArtifactRef;
+  try {
+    artifact = await sdk.artifacts.write(
+      JSON.stringify({
+        schemaVersion: DOC_COMPARE_CHUNK_RESULT_VERSION,
+        chunkId,
+        stage,
+        outcome,
+      }),
+      'doc-compare-chunk-result.json',
+      'application/json',
+      'intermediate'
+    );
+  } catch {
+    throw docCompareFailure('DOC_COMPARE_EVIDENCE_WRITE_FAILED', 'Doc-compare chunk evidence could not be persisted.');
+  }
+  if (!ARTIFACT_ID_PATTERN.test(artifact.artifactId)) {
+    throw docCompareFailure('DOC_COMPARE_EVIDENCE_WRITE_FAILED', 'Doc-compare chunk evidence reference is invalid.');
+  }
+  return { kind: 'completed', resultRef: `artifact://${artifact.artifactId}` };
+}
+
+async function runDocCompareChunk(
+  ctx: SdkTaskContext | TaskContext,
+  sdk: SdkTaskContext,
+  internal: StreamingTaskContext,
+  raw: unknown
+): Promise<TaskDisposition> {
+  const chunk = requireDocCompareChunkTask(raw, sdk);
+  if (!chunk) {
+    throw docCompareFailure('DOC_COMPARE_CHUNK_INPUT_INVALID', 'Doc-compare chunk task payload is missing.');
+  }
+  assertActive(ctx);
+  const runtime = buildDocCompareRuntime(internal);
+  const spec: ChunkTaskSpec = {
+    chunkId: chunk.chunkId,
+    stage: chunk.stage,
+    input: chunk.input,
+  };
+  // runChunk converts every business failure into a recorded outcome, so this
+  // cannot throw for a provider reason: a failed chunk is evidence, not a crash.
+  const outcome = await runtime.runChunk(spec);
+  assertActive(ctx);
+  return writeDocCompareChunkResult(sdk, chunk.chunkId, chunk.stage, outcome);
+}
+
+/**
+ * Re-derive the evidence a reviewer is being asked to approve.
+ *
+ * The wait-for-review continuation deliberately carries only a reference, so
+ * the merge is recomputed here from the same state and the same exported
+ * merge function the terminal path uses. The two cannot drift because there is
+ * one merge implementation.
+ */
+function buildDocCompareReviewEvidence(state: DocCompareState): Record<string, unknown> {
+  const forStage = (stage: DocCompareStage) =>
+    Object.keys(state.chunkEvidence)
+      .filter((key) => key.startsWith(`${stage}:`))
+      .map((key) => state.chunkEvidence[key]!);
+  const structure = forStage('compare-structure');
+  const references = forStage('compare-references');
+  const merged = [...structure, ...references].map((chunk, index) => ({
+    chunkId: chunk.chunkId,
+    side: chunk.side,
+    ordinal: chunk.ordinal,
+    charCount: chunk.charCount,
+    sectionIds: chunk.sectionIds,
+    structureClaims: index < structure.length ? chunk.structureClaims : [],
+    referenceClaims: index >= structure.length ? chunk.referenceClaims : [],
+  }));
+  return {
+    schemaVersion: DOC_COMPARE_REVIEW_EVIDENCE_VERSION,
+    evidenceRef: `doc-compare-evidence:${state.left.artifactId}:${state.right.artifactId}`,
+    evidence: mergeChunkEvidence({
+      leftFileName: state.left.fileName,
+      rightFileName: state.right.fileName,
+      chunks: merged,
+      failedChunkIds: state.failedChunks.map((failure) => failure.chunkId),
+    }),
+  };
+}
+
+function readDocCompareChunkOutcome(raw: unknown, chunkId: string): ChunkOutcome {
+  if (
+    !isRecord(raw) ||
+    raw.chunkId !== chunkId ||
+    (raw.status !== 'succeeded' && raw.status !== 'failed')
+  ) {
+    throw docCompareFailure('DOC_COMPARE_CHUNK_RESULT_INVALID', `Chunk outcome for "${chunkId}" is malformed.`);
+  }
+  if (raw.status === 'failed') {
+    const error = isRecord(raw.error) ? raw.error : undefined;
+    return {
+      chunkId,
+      status: 'failed',
+      error: {
+        code:
+          typeof error?.code === 'string' && error.code.trim().length > 0 ? error.code : 'CHUNK_FAILED',
+        message:
+          typeof error?.message === 'string' && error.message.trim().length > 0
+            ? error.message
+            : 'chunk failed without a reason',
+      },
+    };
+  }
+  const evidence = raw.evidence;
+  if (
+    !isRecord(evidence) ||
+    !Array.isArray(evidence.structureClaims) ||
+    !Array.isArray(evidence.referenceClaims) ||
+    evidence.side !== 'left' && evidence.side !== 'right'
+  ) {
+    // A 'succeeded' outcome with no evidence would merge into a total that
+    // reads as a clean comparison of a chunk that was never actually read.
+    throw docCompareFailure('DOC_COMPARE_CHUNK_RESULT_INVALID', `Chunk evidence for "${chunkId}" is missing.`);
+  }
+  return raw as unknown as ChunkOutcome;
+}
+
+async function buildDocCompareJoin(
+  internal: StreamingTaskContext,
+  stage: DocCompareChunkStage,
+  token: string,
+  summary: unknown,
+  state: DocCompareState
+): Promise<ChunkJoinSubmission> {
+  if (!isRecord(summary)) {
+    throw docCompareFailure('DOC_COMPARE_CHUNK_RESULT_MISSING', 'Joined chunk results are missing.');
+  }
+  // Only the chunks this stage actually issued may come back: an extra key is
+  // an injected chunk, and a missing one is unproven evidence.
+  const issued = state.issuedChunkIds;
+  if (issued.length === 0 || Object.keys(summary).length !== issued.length) {
+    throw docCompareFailure(
+      'DOC_COMPARE_CHUNK_RESULT_MISSING',
+      'Joined chunk result count does not match the chunks issued for this stage.'
+    );
+  }
+  const results: ChunkOutcome[] = [];
+  for (const chunkId of issued) {
+    const resultRef = summary[chunkId];
+    if (typeof resultRef !== 'string') {
+      throw docCompareFailure('DOC_COMPARE_CHUNK_RESULT_MISSING', `Chunk evidence for "${chunkId}" is missing.`);
+    }
+    const resultId = /^artifact:\/\/([0-9a-f-]{36})$/i.exec(resultRef)?.[1];
+    if (!resultId) {
+      throw docCompareFailure(
+        'DOC_COMPARE_CHUNK_RESULT_INVALID',
+        `Chunk evidence for "${chunkId}" has an invalid reference.`
+      );
+    }
+    let envelope: unknown;
+    try {
+      envelope = JSON.parse((await internal.artifacts.read(resultId)).toString('utf8'));
+    } catch {
+      throw docCompareFailure(
+        'DOC_COMPARE_CHUNK_RESULT_INVALID',
+        `Chunk evidence for "${chunkId}" could not be read.`
+      );
+    }
+    if (
+      !isRecord(envelope) ||
+      envelope.schemaVersion !== DOC_COMPARE_CHUNK_RESULT_VERSION ||
+      envelope.chunkId !== chunkId ||
+      envelope.stage !== stage
+    ) {
+      throw docCompareFailure(
+        'DOC_COMPARE_CHUNK_RESULT_INVALID',
+        `Chunk evidence for "${chunkId}" is malformed or mismatched.`
+      );
+    }
+    results.push(readDocCompareChunkOutcome(envelope.outcome, chunkId));
+  }
+  return { joinToken: token, results };
+}
+
+async function mapDocCompareContinuation(
+  ctx: SdkTaskContext | TaskContext,
+  sdk: SdkTaskContext,
+  internal: StreamingTaskContext,
+  input: DocCompareInput,
+  step: Awaited<ReturnType<typeof advanceDocCompare>>
+): Promise<TaskDisposition> {
+  const continuation = step.continuation;
+  if (continuation.kind === 'spawn-chunk-children') {
+    if (continuation.stage !== 'compare-structure' && continuation.stage !== 'compare-references') {
+      throw docCompareFailure('DOC_COMPARE_CONTINUATION_INVALID', 'Unsupported chunk fan-out stage.');
+    }
+    if (continuation.children.length === 0) {
+      throw docCompareFailure('DOC_COMPARE_CONTINUATION_INVALID', 'Chunk fan-out was issued with no children.');
+    }
+    await saveDocCompareState(internal, continuation.stage, input, step.state);
+    const children = continuation.children.map((chunk) => ({
+      taskKey: chunk.chunkId,
+      kind: 'doc-compare',
+      payload: {
+        [DOC_COMPARE_CHUNK_MARKER]: {
+          chunkId: chunk.chunkId,
+          stage: chunk.stage,
+          input: chunk.input,
+        },
+      },
+    }));
+    return sdk.spawn.spawnAndWait(
+      children,
+      'all-success',
+      `doc-compare:v1:${continuation.stage}:${continuation.joinToken}`
+    );
+  }
+
+  if (continuation.kind === 'wait-for-review') {
+    await saveDocCompareState(internal, 'merge-evidence', input, step.state);
+    let evidenceArtifact: ArtifactRef;
+    try {
+      evidenceArtifact = await sdk.artifacts.write(
+        JSON.stringify(buildDocCompareReviewEvidence(step.state)),
+        'doc-compare-review-evidence.json',
+        'application/json',
+        'intermediate'
+      );
+    } catch {
+      throw docCompareFailure('DOC_COMPARE_EVIDENCE_WRITE_FAILED', 'Review evidence could not be persisted.');
+    }
+    if (!ARTIFACT_ID_PATTERN.test(evidenceArtifact.artifactId)) {
+      throw docCompareFailure('DOC_COMPARE_EVIDENCE_WRITE_FAILED', 'Review evidence reference is invalid.');
+    }
+    return sdk.wait.waitForInput(
+      'doc-compare-review-v1',
+      {
+        type: 'object',
+        properties: {
+          resumeSchemaVersion: { type: 'string', const: DOC_COMPARE_RESUME_VERSION },
+          // Explicit and required: an absent answer is never consent.
+          accepted: { type: 'boolean' },
+          acceptedBy: { type: 'string', maxLength: 256 },
+          note: { type: 'string', maxLength: 4000 },
+        },
+        required: ['resumeSchemaVersion', 'accepted'],
+        additionalProperties: false,
+      },
+      { contextRef: `artifact://${evidenceArtifact.artifactId}` }
+    );
+  }
+
+  if (continuation.terminal === 'FAILED') {
+    throw docCompareFailure(
+      continuation.failure?.code ?? 'DOC_COMPARE_FAILED',
+      continuation.failure?.message ?? 'Doc-compare workflow failed.'
+    );
+  }
+
+  const result = continuation.data;
+  if (continuation.terminal !== 'SUCCEEDED' || !result) {
+    throw docCompareFailure('DOC_COMPARE_RESULT_INVALID', 'Doc-compare workflow ended without a result.');
+  }
+  // Fail closed on a terminal record that claims nothing was compared: an
+  // empty evidence set reads as a clean comparison of two documents that were
+  // never opened, which is exactly the fabricated success this must not emit.
+  if (
+    result.resultVersion !== DOC_COMPARE_RESULT_VERSION ||
+    result.businessId !== DOC_COMPARE_BUSINESS_ID ||
+    !isRecord(result.evidence) ||
+    result.evidence.evidenceVersion !== DOC_COMPARE_EVIDENCE_VERSION ||
+    !Number.isInteger(result.evidence.chunkCount) ||
+    (result.evidence.chunkCount as number) < 1 ||
+    !Array.isArray(result.evidence.structureClaims) ||
+    !Array.isArray(result.evidence.referenceClaims) ||
+    result.evidence.structureClaims.length + result.evidence.referenceClaims.length < 1
+  ) {
+    throw docCompareFailure('DOC_COMPARE_RESULT_INVALID', 'Doc-compare result is incomplete or malformed.');
+  }
+  assertActive(ctx);
+  let resultArtifact: ArtifactRef;
+  try {
+    resultArtifact = await sdk.artifacts.write(
+      JSON.stringify(result),
+      'doc-compare-result.json',
+      'application/json',
+      'output'
+    );
+  } catch {
+    throw docCompareFailure('DOC_COMPARE_RESULT_WRITE_FAILED', 'Doc-compare result could not be persisted.');
+  }
+  if (!ARTIFACT_ID_PATTERN.test(resultArtifact.artifactId)) {
+    throw docCompareFailure('DOC_COMPARE_RESULT_WRITE_FAILED', 'Doc-compare result reference is invalid.');
+  }
+  assertActive(ctx);
+  return { kind: 'completed', resultRef: `artifact://${resultArtifact.artifactId}` };
+}
+
+async function handleDocCompare(
+  ctx: SdkTaskContext | TaskContext,
+  payload?: Record<string, unknown>
+): Promise<TaskDisposition> {
+  assertActive(ctx);
+  const sdk = requireDocCompareSdkContext(ctx);
+  assertRequiredDocCompareSlots(sdk);
+  const internal = toInternalContext(ctx);
+  const raw = payload ?? sdk.input;
+
+  if (requireDocCompareChunkTask(raw, sdk)) {
+    return runDocCompareChunk(ctx, sdk, internal, raw);
+  }
+  if (!isRecord(raw)) {
+    throw docCompareFailure('DOC_COMPARE_INPUT_INVALID', 'Doc-compare task input is missing.');
+  }
+
+  let input: DocCompareInput;
+  let state: DocCompareState | undefined;
+  let join: ChunkJoinSubmission | undefined;
+  let resume: unknown;
+
+  if (Object.prototype.hasOwnProperty.call(raw, 'resumeInput')) {
+    const snapshot = await loadDocCompareState(sdk, 'merge-evidence');
+    input = snapshot.input;
+    state = snapshot.state;
+    resume = raw.resumeInput;
+  } else if (Object.prototype.hasOwnProperty.call(raw, 'joinSummary') || raw.continuationRef !== undefined) {
+    const reference = parseDocCompareContinuationRef(raw.continuationRef);
+    const snapshot = await loadDocCompareState(sdk, reference.stage);
+    if (snapshot.state.pendingStage !== reference.stage || snapshot.state.joinToken !== reference.joinToken) {
+      throw docCompareFailure('DOC_COMPARE_CONTINUATION_INVALID', 'Join token does not match the saved workflow state.');
+    }
+    input = snapshot.input;
+    state = snapshot.state;
+    join = await buildDocCompareJoin(internal, reference.stage, reference.joinToken, raw.joinSummary, snapshot.state);
+  } else {
+    input = validateDocCompareInput(raw);
+  }
+
+  let advanced: Awaited<ReturnType<typeof advanceDocCompare>>;
+  try {
+    advanced = await advanceDocCompare({
+      input,
+      state,
+      // The parent never runs a chunk; the runtime is required by the advance
+      // signature and the child builds the real one over the connector facade.
+      runtime: buildDocCompareRuntime(internal),
+      ...(join ? { join } : {}),
+      ...(resume !== undefined ? { resume } : {}),
+    });
+  } catch (error) {
+    if (error instanceof LeaseLostError || error instanceof BusinessExecutionError) throw error;
+    // The workflow's own guards (join token, chunk provenance, resume shape)
+    // surface as DocCompareError; they are codes, not messages, so they are
+    // re-raised as the operation's error code rather than swallowed.
+    const code = error instanceof DocCompareError ? error.code : 'DOC_COMPARE_ADVANCE_FAILED';
+    const message = error instanceof Error ? error.message : 'Doc-compare could not advance.';
+    throw docCompareFailure(code, message);
+  }
+  assertActive(ctx);
+  return mapDocCompareContinuation(ctx, sdk, internal, input, advanced);
+}
+
 /**
  * Handlers dictionary for all handler kinds declared in documentCoreManifest.
- * Manifest handlerKinds: ['root', 'ingest', 'extract', 'analyze', 'transform', 'generate', 'compare', 'disbursement']
+ * Manifest handlerKinds: ['root', 'ingest', 'extract', 'analyze', 'transform', 'generate', 'compare', 'disbursement', 'doc-compare']
  */
 export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // Root: entrypoint dispatcher delegating to the appropriate action handler based on ctx.action
@@ -1394,6 +1993,11 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // yield through the SDK facades; terminal failure is reported by throwing a
   // coded error so runtime records FAILED rather than a fabricated success/cancel.
   disbursement: async (ctx, payload) => handleDisbursement(ctx, payload),
+
+  // doc-compare is likewise a real handler kind, not a mode of `compare`: it
+  // yields chunk fan-out and an optional review wait, and its terminal failure
+  // is a coded throw so the runtime records FAILED rather than a clean success.
+  'doc-compare': async (ctx, payload) => handleDocCompare(ctx, payload),
 };
 
 /**

@@ -312,8 +312,13 @@ describe('D4 doc-compare production chunk runner', () => {
           : await advanceDocCompare({ input, state, runtime, join: pendingJoin as never });
         pendingJoin = null;
         if (step.continuation.kind === 'spawn-chunk-children') {
-          const join = await runChunkChildren(step.continuation.children, runtime);
-          pendingJoin = { joinToken: step.state.joinToken ?? '', results: join.results };
+          const join = await runChunkChildren(
+            step.continuation.children,
+            runtime,
+            step.state.joinToken ?? '',
+            step.continuation.maxConcurrency,
+          );
+          pendingJoin = { joinToken: join.joinToken, results: join.results };
           state = step.state;
           continue;
         }

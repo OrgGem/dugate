@@ -27,6 +27,9 @@ import {
 import { PgSqlClient } from '../src/db/pg-client';
 import { UsageEventSchema, UsageIngestBatchSchema } from '@du/contracts';
 
+const LIVE_INFRA = process.env.DU_LIVE_INFRA === '1';
+const liveTest = LIVE_INFRA ? test : test.skip;
+
 /**
  * P8-03: Provider Unknown, Dedup, Quota & Usage Convergence Tests
  * Foundation Contracts Acceptance: CON-01..05 & USE-01/02
@@ -435,7 +438,7 @@ describe('P8-03: Connector Convergence & Foundation Contracts (CON-01..05, USE-0
       expect(jsonHttpAdapter.classifyFailure({ status: 429, headers: {}, body: {} })).toBe('PROVIDER_RATE_LIMITED');
       expect(jsonHttpAdapter.classifyFailure({ status: 503, headers: {}, body: {} })).toBe('PROVIDER_UNAVAILABLE');
       expect(jsonHttpAdapter.classifyFailure({ status: 500, headers: {}, body: {} })).toBe('PROVIDER_UNAVAILABLE');
-      expect(jsonHttpAdapter.classifyFailure({ status: 400, headers: {}, body: {} })).toBe('INVALID_PROVIDER_RESPONSE');
+      expect(jsonHttpAdapter.classifyFailure({ status: 400, headers: {}, body: {} })).toBe('PROVIDER_REQUEST_REJECTED');
       expect(jsonHttpAdapter.classifyFailure(new Error('connection reset'))).toBe('PROVIDER_UNAVAILABLE');
     });
   });
@@ -632,7 +635,7 @@ describe('P8-03: Connector Convergence & Foundation Contracts (CON-01..05, USE-0
       await dispatcher.drain();
     });
 
-    test('live usage_events projection aggregates provider tokens and costs with zero double-billing on duplicate events', async () => {
+    liveTest('live usage_events projection aggregates provider tokens and costs with zero double-billing on duplicate events', async () => {
       const dbUrl = process.env.DATABASE_URL ?? 'postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test';
       const client = new PgSqlClient({ connectionString: dbUrl });
 

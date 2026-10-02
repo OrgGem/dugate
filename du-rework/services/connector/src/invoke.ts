@@ -1,4 +1,4 @@
-import { ConnectorError } from './errors';
+import { ConnectorError, isRetryableErrorCode } from './errors';
 import { hashInvocationInput } from './hash';
 import type {
   AdapterConfig,
@@ -425,9 +425,9 @@ export async function invokeAdapter(
       const code = options.adapter.classifyFailure(response);
       await options.ledger.fail(request.invocationId, code, pollLeaseToken);
       retainQuotaLease = false;
-      throw new ConnectorError(code, 'Provider request failed.', {
+      throw new ConnectorError(code, describeNonSuccessResponse(request, response.status), {
         retryAfterMs: response.status === 429 ? 1000 : undefined,
-        safeToRetry: code === 'PROVIDER_RATE_LIMITED' || code === 'PROVIDER_UNAVAILABLE',
+        safeToRetry: isRetryableErrorCode(code),
       });
     }
     let result: NormalizedProviderResult;
@@ -451,6 +451,27 @@ export async function invokeAdapter(
   } finally {
     if (!retainQuotaLease) await releaseQuotaLease(options.quota, lease);
   }
+}
+
+/**
+ * Diagnostics for a non-2xx provider response.
+ *
+ * The HTTP status is always safe to report and is the fact an operator is missing:
+ * the previous fixed message said only 'Provider request failed.', so a request the
+ * provider refused and a provider that broke were indistinguishable in the ledger.
+ *
+ * The task discriminator is echoed only when it still looks like the business-supplied
+ * literal it normally is (`disbursement_classify`, `doc_compare_structure`, ...). `input`
+ * is caller-supplied, so anything outside that shape is withheld rather than reflected —
+ * this message travels to the orchestrator (http/server.ts:77) and must not become a
+ * channel for echoing whatever arrived in the request.
+ */
+function describeNonSuccessResponse(request: LocalInvocationRequest, status: number): string {
+  const task = request.input.task;
+  const echoableTask = typeof task === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(task) ? task : undefined;
+  return echoableTask === undefined
+    ? `Provider returned HTTP ${status}.`
+    : `Provider returned HTTP ${status} for task '${echoableTask}'.`;
 }
 
 function providerPollBackoffMs(attempt: number, random: () => number): number {

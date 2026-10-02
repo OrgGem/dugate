@@ -294,10 +294,11 @@ export function createAdminShellServer(
   // profile fetcher: falls back to the in-process catalog when
   // `jsonBaseUrl` is unset, otherwise targets
   // `GET {jsonBaseUrl}/api/v1/admin/connectors/:id/revisions/:rev`
-  // (the platform exposes only `POST /api/v1/admin/connector-bindings`
-  // today; the GET endpoint is requested in
-  // `coordination/reports/openclaude.md`). Until the route lands,
-  // the connector pane renders a `not-found` discriminated result.
+  // (route added by ADM-BASE-01, `server.ts`). There is no platform
+  // route for creating connector bindings — connectors are registered
+  // in the Connector service. When the fetch cannot resolve a
+  // registered revision, the connector pane renders a `not-found`
+  // discriminated result.
   //
   // P6-05: add the default `fetchApiKeys`. Mirrors the same shape:
   // falls back to the in-process catalog when `jsonBaseUrl` is

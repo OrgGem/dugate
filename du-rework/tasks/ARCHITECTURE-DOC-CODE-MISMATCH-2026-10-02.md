@@ -25,7 +25,7 @@ Không task nào được giao việc của task khác. `CODE-FIX-01` và `CODE-
 
 | ID | Trạng thái | Owner gợi ý | Phụ thuộc |
 |---|---|---|---|
-| DOC-SYNC-01 | [ ] | Architecture docs; không đụng code | không |
+| DOC-SYNC-01 | [~] | Architecture docs; không đụng code | không |
 
 **Allowed write paths:** `du-rework/architecture/10-current-system.md`, `12-flows-and-data.md`, `15-business-capabilities.md`, `16-interface-catalog.md`.
 
@@ -51,7 +51,7 @@ Không task nào được giao việc của task khác. `CODE-FIX-01` và `CODE-
 
 | ID | Trạng thái | Owner gợi ý | Phụ thuộc |
 |---|---|---|---|
-| DOC-SYNC-02 | [ ] | Docs lane; phải đếm mtime trước khi vá | DOC-SYNC-01 mục 1-2 (để tránh viết hai nơi khác nhau) |
+| DOC-SYNC-02 | [~] | Docs lane; phải đếm mtime trước khi vá | DOC-SYNC-01 mục 1-2 (để tránh viết hai nơi khác nhau) |
 
 > **Cảnh báo va chạm:** `du-rework/docs/` đang có **nhiều lane cùng ghi** (qwen-docs, qwen-new, codex). Quy tắc bắt buộc: đếm lines/bytes/mtime của file đích **ngay trước khi vá**; lệch số lần ghi cuối so với lúc đọc → lane khác vừa sửa, phải đọc lại toàn văn. Chỉ append phần của mình, không sửa/xoá nội dung ngoài scope. Nếu file đích đang bị lane khác ghi, **dừng và báo**, đừng viết đè.
 
@@ -73,7 +73,7 @@ Không task nào được giao việc của task khác. `CODE-FIX-01` và `CODE-
 
 | ID | Trạng thái | Owner gợi ý | Phụ thuộc |
 |---|---|---|---|
-| DOC-SYNC-03 | [ ] | Docs + chủ sản phẩm (scope decision) | DOC-SYNC-02 mục 3 đã đồng bộ phần core |
+| DOC-SYNC-03 | [~] | Docs + chủ sản phẩm (scope decision) | DOC-SYNC-02 mục 3 đã đồng bộ phần core |
 
 **Allowed write paths:** `du-rework/architecture/01-product.md`, `du-rework/architecture/04-core-api.md`, `du-rework/architecture/README.md`, `du-rework/architecture/07-capacity.md`, `du-rework/architecture/09-readiness.md`.
 
@@ -91,42 +91,60 @@ Không task nào được giao việc của task khác. `CODE-FIX-01` và `CODE-
 
 | ID | Trạng thái | Owner gợi ý | Phụ thuộc |
 |---|---|---|---|
-| CODE-FIX-01 | [ ] | Orchestrator + Admin UX; P6-admin | DOC-SYNC-01 mục 7 ghi nhận |
+| CODE-FIX-01 | [~] | Orchestrator + Admin UX; P6-admin | DOC-SYNC-01 mục 7 ghi nhận |
 
-> **Packet này KHÔNG sửa code.** Nó ghi lại phát hiện để chủ sở hữu mở packet implement. Lý do: `shell-router.ts` / `connector-section-renderer.ts` là product surface, và câu hỏi "bỏ hướng dẫn" hay "thêm route" là quyết định scope, không phải sửa typo.
+> **Đã chốt theo chỉ đạo user:** Phương án A — sửa hướng dẫn, KHÔNG thêm route. Không tick `[x]`: cần Claude Code `APPROVED`.
 
-**Mismatch (expected/actual):**
+**Mismatch ban đầu (3 chỗ, không phải 2):**
 
 | Nơi | Claim | Thực tế |
 |---|---|---|
-| `services/orchestrator/src/app/admin/connector-section-renderer.ts:318` | "The platform exposes only \`POST /api/v1/admin/connector-bindings\`" | `server.ts` có **0 match** `connector-bindings` |
-| `services/orchestrator/src/app/admin/shell-router.ts:396` | idem | idem |
+| `src/app/admin/connector-section-renderer.ts:318` | "The platform exposes only `POST /api/v1/admin/connector-bindings`" | `server.ts` có **0 match** `connector-bindings` |
+| `src/app/admin/shell-server.ts` (comment P6-04) | idem | idem |
+| `src/app/admin/shell-router-shared.ts` (comment fetcher) | idem | idem |
 
-**Việc cần quyết định (chưa làm):**
+**Phát hiện mới khi sửa — comment sai ở tầng thứ hai.** Cả ba chỗ không chỉ hướng sai về binding route, chúng còn nói **"GET route chưa có, chờ nó land"**. Điều đó sai: `GET /api/v1/admin/connectors/:id/revisions/:rev` **đã tồn tại** tại `server.ts:2562` (ADM-BASE-01). Tức admin shell đang tự diễn giải một `not-found` là do route chưa có, trong khi nguyên nhân thật có thể là connector chưa được đăng ký.
 
-- **Phương án A — sửa UI:** bỏ hướng dẫn, thay bằng đường mutation thật sự tồn tại: dispatcher action `connectors.rotate_credential` / `revoke_credential` / `test_credential` qua `POST /api/v1/admin/actions` (`modules/admin-actions/dispatcher.ts:677,727,753`). Sửa 1 file, không đụng router.
-- **Phương án B — thêm route:** cài `POST /api/v1/admin/connector-bindings`. Cần binding schema, tenant scoping, audit event, RBAC role, và test. Không phải việc làm nửa chừng.
-- **Acceptance khi implement:** UI không còn nhắc route không tồn tại; nếu chọn B thì có integration test chứng minh tạo binding rồi `revisions/bootstrap` chạy được trên bound chain; mọi mutation có audit event.
+**Việc đã làm:**
+- `connector-section-renderer.ts` — chuỗi `not-found` hiện trực tiếp cho operator nay nói đúng đường đi thật: không có platform route tạo binding; connector đăng ký ở Connector service; đổi credential qua `POST /api/v1/admin/actions` với action `connectors.rotate_credential` / `revoke_credential` / `test_credential` (xác minh ở `modules/admin-actions/dispatcher.ts:118-120,677,727,753`).
+- `shell-server.ts` + `shell-router-shared.ts` — comment ghi GET route là chờ-land, nay ghi nó đã có và quy `not-found` về nguyên nhân đúng.
+- Chỉ sửa nội dung hiển thị và comment. **Không** thêm route, **không** đổi schema/router.
 
-**Ghi chú liên quan (cùng file `server.ts`, không thuộc task này):** 9 admin route dùng `assertAdminAuth` chỉ chấp nhận bearer. Nếu UI shell hiện tại dựa vào cookie để gọi các route đó thì đã có lỗi runtime. **Claude Code cần kiểm chéo**: shell có thực sự gọi các route này bằng cookie không, hay nó dùng bearer từ server-side. Kết quả kiểm này quyết định đây là bug UI hay chỉ là bug tài liệu.
+**Verify:** `tests/admin-connector-render.test.ts` **16/16 pass x2** (exit 0). `admin-shell-render.test.ts` có 2 test đỏ nhưng **chứng minh không phải do thay đổi này**: stash đúng 2 file của packet rồi chạy lại vẫn đúng 2 fail — nguyên nhân là role `operator` bị chặn ở section `profiles`, không liên quan connector. Đã stash pop, diff khôi phục nguyên vẹn.
+
+**Phương án B (thêm `POST /api/v1/admin/connector-bindings`) — vẫn mở nhưng không chọn.** Lý do kỹ thuật, không phải thẩm mỹ: `server.ts:2554-2560` ghi rõ platform **không có** connector registry table — connector sống ở Connector service, platform chỉ giữ base URL và health probe. Tạo binding route sẽ phải bịa ra bảng state mà platform không có. Nếu sau này cần, nó phải thuộc Connector-side revision lifecycle (`revisions/bootstrap`), không phải admin route.
+
+**Câu hỏi auth đã trả lời:** shell không tự gọi route admin JSON bằng cookie. Các fetcher gọi **server-side** qua `jsonBaseUrl` với admin bearer do server cấu hình, có fallback in-process catalog. Đây là **bug tài liệu, không phải bug runtime** — `assertAdminAuth` chỉ nhận bearer là đúng với cách shell dùng nó.
+
+**Ghi chú (chưa sửa, ngoài phạm vi packet):** `tsc --noEmit` orchestrator đỏ **13 lỗi trong `src/app/admin/shell-router-shared.ts`** (`export export` x11, thiếu module `./auth-dispatch`). File đó **untracked**, đang được lane khác tạo/sửa. Không lỗi nào thuộc packet này — không sửa để không đụng lease của lane đó.
 
 ---
 
-## CODE-FIX-02 — Connector: `webhook.ts` chưa wire (CODE, plan only)
+## CODE-FIX-02 — Connector: `webhook.ts` chưa wire (đã chốt: GIỮ API, sửa mô tả)
 
 | ID | Trạng thái | Owner gợi ý | Phụ thuộc |
 |---|---|---|---|
-| CODE-FIX-02 | [ ] | Connector + P3 | DOC-SYNC-01 mục 7 |
+| CODE-FIX-02 | [~] | Connector + P3 | DOC-SYNC-01 mục 7 |
 
-> **Packet này KHÔNG sửa code.**
+> **Đã chốt theo chỉ đạo user:** giữ helper, KHÔNG wire route inbound, KHÔNG rút export. Sửa code: chỉ docstring trong `services/connector/src/webhook.ts`.
 
-**Mismatch:** `services/connector/src/webhook.ts` export `verifyWebhookSignature` + `parseWebhookPayload`; `src/index.ts:28` re-export cả hai → nhìn API package thì đây là tính năng dùng được. Nhưng `src/http/server.ts` có **0 match** `webhook` → không route nào nhận callback provider. Doc 16 §4 không claim có route này, nên **đây là lỗ hổng code, không phải lỗi doc**.
+**Quan sát ban đầu:** `services/connector/src/webhook.ts` export `verifyWebhookSignature` + `parseWebhookPayload`; `src/index.ts:28` re-export cả hai → nhìn API package thì đây là tính năng dùng được. Nhưng `src/http/server.ts` có **0 match** `webhook` → không route nào nhận callback. Doc 16 §4 không claim có route này, nên **đây là lỗ hổng code, không phải lỗi doc**.
 
-**Việc cần quyết định:**
+**Quyết định — wire route hay rút export? → CẢ HAI ĐỀU SAI.** Phân tích lại từ hướng dữ liệu thay vì chỉ nhìn route table:
 
-- Xác minh signature verification có được dùng chỗ khác không (grep toàn repo) trước khi kết luận là dead code.
-- Nếu là dead code: hoặc wire route inbound webhook (cần xác thị secret, replay window, idempotency), hoặc bỏ export khỏi `index.ts` để không hứa tính năng rỗng.
-- **Acceptance khi implement:** có route + test signature hợp lệ/tuân cố/tái phát, hoặc export bị thu hồi và test consumer được cập nhật.
+| Hướng | Vì sao không chọn |
+
+|---|---|
+
+| **Wire route inbound** | Hai hàm này xác minh delivery mà **Orchestrator gửi TỚI subscriber** (`modules/webhooks/webhooks.ts:447` phát ra, `signWebhookBody` ký HMAC-SHA256). Route inbound ở Connector sẽ có nghĩa **nhận callback TỪ provider** — trust boundary khác, secret khác, schema khác. Chưa provider protocol nào khai báo webhook nên wire route là **tự bịa contract**. |
+
+| **Rút export khỏi `index.ts`** | Không phải dead code bị bỏ rơi: có test đầy đủ (`tests/webhook.test.ts`, 6 test), dùng schema đã freeze từ `@du/contracts`, và là API public của package cho consumer. Rút export sẽ **xoá một surface hợp lệ**. |
+
+**Việc đã làm:** sửa docstring để nói rõ đây là helper dành cho consumer, và *vì sao* không có route inbound — có lập luận để người sau không "sửa cho xong" bằng cách tự thêm route.
+
+**Verify:** `tests/webhook.test.ts` 6/6 pass x2; `tsc --noEmit` connector exit 0.
+
+**Còn mở (không phải việc của packet này):** nếu sau này một provider protocol thật sự khai báo webhook inbound, route đó thuộc packet riêng của Connector với secret/replay-window/idempotency riêng.
 
 ---
 

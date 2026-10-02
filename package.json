@@ -12,6 +12,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:e2e": "jest --config jest.e2e.config.js",
+    "test:e2e:connector": "jest --config jest.e2e.config.js --runInBand tests/e2e/profile-openai-flow.e2e.test.ts",
     "seed": "npx tsx lib/db/seed.ts"
   },
   "dependencies": {

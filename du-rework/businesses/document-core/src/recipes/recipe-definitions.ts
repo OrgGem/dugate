@@ -13,7 +13,15 @@ export interface StepDefinition {
 
 export interface RecipeDefinition {
   recipeId: string;
-  action: 'ingest' | 'extract' | 'analyze' | 'transform' | 'generate' | 'compare' | 'disbursement';
+  action:
+    | 'ingest'
+    | 'extract'
+    | 'analyze'
+    | 'transform'
+    | 'generate'
+    | 'compare'
+    | 'disbursement'
+    | 'doc-compare';
   variant: string;
   steps: StepDefinition[];
   retryBudget: number;
@@ -437,6 +445,18 @@ export class RecipeRegistry {
       ],
       retryBudget: 2,
     },
+    'doc-compare:workflow': {
+      recipeId: 'recipe-doc-compare-workflow-v1',
+      action: 'doc-compare',
+      variant: 'workflow',
+      steps: [
+        { stepKey: STEP_KEYS.DOC_COMPARE.EXTRACT_STRUCTURE, isLocalOnly: true, timeoutSeconds: 120 },
+        { stepKey: STEP_KEYS.DOC_COMPARE.COMPARE_STRUCTURE, isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
+        { stepKey: STEP_KEYS.DOC_COMPARE.COMPARE_REFERENCES, isLocalOnly: false, requiredSlot: 'reasoning', timeoutSeconds: 300 },
+        { stepKey: STEP_KEYS.DOC_COMPARE.MERGE_EVIDENCE, isLocalOnly: true, timeoutSeconds: 3600 },
+      ],
+      retryBudget: 2,
+    },
   };
 
   public static getRecipe(action: string, variant: string): RecipeDefinition {
@@ -452,7 +472,7 @@ export class RecipeRegistry {
     return Object.values(this.RECIPES);
   }
 
-  public static getWorkflowRecipe(name: 'disbursement'): RecipeDefinition {
+  public static getWorkflowRecipe(name: 'disbursement' | 'doc-compare'): RecipeDefinition {
     return this.getRecipe(name, 'workflow');
   }
 }

@@ -7,13 +7,13 @@ Business ID `document-core`; initial version đề xuất `1.0.0`. Một worker 
 | Action | Discriminator và subcases | Inputs chính | Output business data | Step outline |
 |---|---|---|---|---|
 | ingest | mode: parse, ocr, digitize, split | artifacts, language, pages | Document content/layout hoặc split artifact list | validate → native parse hoặc OCR → normalize → store |
-| extract | type: invoice, contract, receipt, table, custom | documents/text, fields/schema | Structured extraction + warnings/provenance | prepare → prompt → inference → schema validation |
-| analyze | task: classify, sentiment, compliance, quality, risk | documents/text, categories/criteria/reference | Findings, classification/scores theo task schema | prepare → evaluate → validate → report |
+| extract | type: invoice, contract, id-card, receipt, table, custom | documents/text, fields/schema | Structured extraction + warnings/provenance | prepare → prompt → inference → schema validation |
+| analyze | task: classify, sentiment, compliance, fact-check, quality, risk, summarize-eval | documents/text, categories/criteria/reference | Findings, classification/scores theo task schema | prepare → evaluate → validate → report |
 | transform | action: convert, translate, rewrite, redact, template | documents/text, targetLanguage/style/template | Transformed content/artifacts | prepare → local convert hoặc inference → verify → format |
 | generate | task: summary, outline, report, email, minutes, qa | documents/text, questions/audience/tone | Generated content theo task | prepare → generate → validate → format |
 | compare | mode: diff, semantic, version | source+target roles, focus | Differences with references | prepare each → compare → normalize references |
 
-Tổng cộng **28 subcases**: 4+5+5+5+6+3. Owner P0 kiểm lại bằng registry và bỏ mọi số/label lịch sử không khớp. Không suy ra một subcase chỉ từ comment trong source.
+Tổng cộng **31 subcases**: 4+6+7+5+6+3, khớp với manifest `document-core.manifest.ts` và [variant matrix](../businesses/document-core/docs/variant-matrix.md). Ba subcase ngoài phạm vi cũ 28 là `extract/id-card`, `analyze/fact-check`, `analyze/summarize-eval`; cả ba có handler, recipe, input normalizer và output validator trong source. Không suy ra một subcase chỉ từ comment trong source.
 
 ## Input conventions
 
@@ -62,7 +62,7 @@ Mỗi action cần một BRD trong `businesses/document-core/docs/{action}.md` g
 
 ## Acceptance
 
-- Mỗi 28 variant có ít nhất valid input, invalid input, expected output schema, required capability và profile lock case.
+- Mỗi 31 variant có ít nhất valid input, invalid input, expected output schema, required capability và profile lock case.
 - Six-action E2E chạy mock, artifacts và usage; native parse được kiểm bằng fixture nội dung thật.
 - Provider malformed JSON không đánh dấu success; repair policy có budget giới hạn nếu được bật.
 - Resume với output >500 ký tự giữ nguyên full input bước kế; duplicate task không thêm invocation đã success.

@@ -1,5 +1,6 @@
 /**
- * Stable step identifiers across all 6 actions and 31 variants.
+ * Stable step identifiers across the 31 document variants and the multi-turn
+ * workflows.
  * Stable IDs ensure deterministic checkpoint resumption and idempotent recovery.
  */
 
@@ -67,5 +68,11 @@ export const STEP_KEYS = {
     APPROVAL: 'disbursement:approval:v1',
     CROSSCHECK: 'disbursement:crosscheck:v1',
     REPORT: 'disbursement:report:v1',
+  },
+  DOC_COMPARE: {
+    EXTRACT_STRUCTURE: 'doc-compare/extract-structure',
+    COMPARE_STRUCTURE: 'doc-compare/compare-structure',
+    COMPARE_REFERENCES: 'doc-compare/compare-references',
+    MERGE_EVIDENCE: 'doc-compare/merge-evidence',
   },
 } as const;

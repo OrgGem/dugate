@@ -154,6 +154,11 @@ function isChunkInput(value: unknown): value is DocCompareChunkInput {
  * document because the state machine needs both sides for alignment, but the
  * payload carries only `endOffset - startOffset` characters. Offsets are clamped
  * so a corrupt plan degrades to the available text instead of throwing mid-fan-out.
+ *
+ * The offsets index `side.text` itself. `planChunks` used to build them by
+ * summing `section.body.length`, which excludes heading lines, so every slice
+ * was shifted by the headings before it and the tail of the document was never
+ * read. `planChunks` now emits text-space offsets that tile the text exactly.
  */
 export function sliceChunkText(side: DocumentSideInput, chunk: DocumentChunkRef): string {
   const start = Math.max(0, Math.min(chunk.startOffset, side.text.length));

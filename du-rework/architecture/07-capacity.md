@@ -56,7 +56,7 @@ Các con số dưới là **mục tiêu cần chủ dự án chốt**, chưa ph�
 | Queue recovery | Không mất logical task đã accepted trong fault tests | DB truth/outbox recovery, không hứa zero duplicate delivery |
 | Quota | Không vượt configured cap trong concurrent replica test | Có log acquire/release/provider dispatch |
 
-Ma trận benchmark bắt buộc: 1→2→4 replicas; small/medium/large file; native PDF/DOCX/XLSX; scan OCR; 28 variant validation; mixed action traffic; burst và sustained; provider 429/timeout/UNKNOWN; worker kill; API restart; Redis mất queue; DB restore/failover. Thời gian chạy cần đủ đạt steady-state và soak phát hiện memory/temp-file leaks, không chỉ burst vài giây.
+Ma trận benchmark bắt buộc: 1→2→4 replicas; small/medium/large file; native PDF/DOCX/XLSX; scan OCR; 31 variant validation; mixed action traffic; burst và sustained; provider 429/timeout/UNKNOWN; worker kill; API restart; Redis mất queue; DB restore/failover. Thời gian chạy cần đủ đạt steady-state và soak phát hiện memory/temp-file leaks, không chỉ burst vài giây.
 
 Mỗi báo cáo ghi instance CPU/RAM/arch, image digest, concurrency, DB/Redis configs, page/file/token distribution, λ, provider mock latency/quota, dataset hash, p50/p95/p99, throughput, queue age, error/retry, RSS/CPU/IO và cost/job. Mock chứng minh cơ chế tải; corpus provider thật xác minh chất lượng và provider latency, có budget riêng.
 

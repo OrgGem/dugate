@@ -9,11 +9,19 @@ import {
 } from '@du/contracts';
 
 /**
- * Webhook adoption (P2-08). The Orchestrator's operation webhook path (later wave)
- * signs each delivery with HMAC-SHA256 over `{timestamp}.{body}` and sends the
+ * Webhook adoption (P2-08). The Orchestrator's operation webhook path signs each
+ * delivery with HMAC-SHA256 over `{timestamp}.{body}` and sends the
  * signature/timestamp/delivery-id in dedicated headers. This module adopts the
- * frozen `@du/contracts` surface so the Connector can verify and parse those
- * deliveries. No Connector-side webhook delivery endpoint is added yet.
+ * frozen `@du/contracts` surface so a consumer can verify and parse those
+ * deliveries.
+ *
+ * There is deliberately no inbound webhook route on the Connector. These two
+ * functions verify deliveries that the ORCHESTRATOR sends TO an external
+ * subscriber; a Connector route would instead mean receiving callbacks FROM a
+ * provider, which is a different trust boundary, a different secret, and a
+ * different schema. Wiring such a route here without a provider protocol that
+ * declares one would be inventing a contract. Consumers that need to verify a
+ * webhook call `verifyWebhookSignature` before `parseWebhookPayload`.
  */
 
 export interface WebhookHeaders {

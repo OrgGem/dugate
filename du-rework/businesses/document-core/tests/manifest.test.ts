@@ -25,7 +25,7 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     });
   });
 
-  it('manifest declares all 7 actions including the disbursement workflow', () => {
+  it('manifest declares all 8 actions including the two multi-turn workflows', () => {
     const actionNames = documentCoreManifest.actions.map((a) => a.name);
     expect(actionNames).toEqual([
       'ingest',
@@ -35,6 +35,7 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
       'generate',
       'compare',
       'disbursement',
+      'doc-compare',
     ]);
   });
 

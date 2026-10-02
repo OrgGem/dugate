@@ -141,8 +141,8 @@ Quy tắc đếm từ cần freeze, số trong ví dụ chỉ minh họa. QA thi
 
 Không đồng nhất semantic similarity với byte equality. Location/page references chỉ có khi nguồn cung cấp. Không dùng thứ tự file upload để đoán source/target.
 
-## Yêu cầu nghiệm thu áp dụng cả 28 biến thể
+## Yêu cầu nghiệm thu áp dụng cả 31 biến thể
 
 Mỗi variant cần valid/invalid input, required capability, profile lock, output schema, fixture có expected result và giới hạn kích thước. Local parser/diff dùng deterministic tests; LLM dùng mock cho protocol và corpus thật cho chất lượng. File quá dài phải chunk có coverage/provenance hoặc reject rõ ràng; cắt đầu tài liệu rồi trả success là không đạt.
 
-Chi tiết BRD/fixture matrix của lane business: [field dictionary](../businesses/document-core/docs/field-dictionary.md), [28 variants](../businesses/document-core/docs/variant-matrix.md). Khi khác nhau giữa BRD, manifest và shared contract, phải giải quyết ở contract gate; không mặc định tài liệu nào mô tả nhiều hơn là đã hỗ trợ nhiều hơn.
+Chi tiết BRD/fixture matrix của lane business: [field dictionary](../businesses/document-core/docs/field-dictionary.md), [31 variants](../businesses/document-core/docs/variant-matrix.md). Khi khác nhau giữa BRD, manifest và shared contract, phải giải quyết ở contract gate; không mặc định tài liệu nào mô tả nhiều hơn là đã hỗ trợ nhiều hơn.

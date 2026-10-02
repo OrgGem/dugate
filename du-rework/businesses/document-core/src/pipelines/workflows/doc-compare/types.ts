@@ -12,7 +12,13 @@
  */
 
 export const DOC_COMPARE_INPUT_VERSION = 'doc-compare-input-v1' as const;
-export const DOC_COMPARE_STATE_VERSION = 'doc-compare-state-v1' as const;
+/**
+ * Bumped to v2 when chunk offsets became text-space: `DocumentSection` gained
+ * `textStart`/`textEnd`, and a state written by a v1 build carries sections
+ * without them. `advanceDocCompare` rejects a foreign state version, so the bump
+ * turns that silent corruption into an explicit STATE_VERSION_MISMATCH.
+ */
+export const DOC_COMPARE_STATE_VERSION = 'doc-compare-state-v2' as const;
 export const DOC_COMPARE_RESULT_VERSION = 'doc-compare-result-v1' as const;
 
 /* ------------------------------------------------------------------ */
@@ -59,7 +65,16 @@ export interface DocumentSection {
   readonly level: number;
   /** Position in document order, 0-based. */
   readonly ordinal: number;
+  /** Heading lines are NOT part of the body; the title carries them. */
   readonly body: string;
+  /**
+   * Start of the section's whole span — heading line included — within
+   * `DocumentSideInput.text`. Section spans tile the text, so chunk offsets
+   * built from them index the real text instead of a body-only projection.
+   */
+  readonly textStart: number;
+  /** End of that span, exclusive. */
+  readonly textEnd: number;
 }
 
 export interface DocCompareInput {

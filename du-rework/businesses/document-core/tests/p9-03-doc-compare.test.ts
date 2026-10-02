@@ -2,15 +2,17 @@ import {
   advanceDocCompare,
   emptyDocCompareState,
   normalizeDocCompareInput,
+  resolveFanoutConcurrency,
   runChunkChildren,
   DOC_COMPARE_RESUME_VERSION,
   type DocCompareRuntime,
   type DocCompareStep,
 } from '../src/pipelines/workflows/doc-compare/doc-compare';
-import type {
-  ChunkOutcome,
-  ChunkTaskSpec,
-  DocCompareContinuation,
+import {
+  MAX_CHUNK_FANOUT_CONCURRENCY,
+  type ChunkOutcome,
+  type ChunkTaskSpec,
+  type DocCompareContinuation,
 } from '../src/pipelines/workflows/doc-compare/primitives';
 import {
   alignSections,
@@ -124,8 +126,13 @@ async function driveToTerminal(
       : await advanceDocCompare({ input, state: current, runtime, join: pendingJoin });
     pendingJoin = null;
     if (step.continuation.kind === 'spawn-chunk-children') {
-      const join = await runChunkChildren(step.continuation.children, runtime);
-      pendingJoin = { joinToken: step.state.joinToken ?? '', results: join.results };
+      const join = await runChunkChildren(
+        step.continuation.children,
+        runtime,
+        step.state.joinToken ?? '',
+        step.continuation.maxConcurrency,
+      );
+      pendingJoin = { joinToken: join.joinToken, results: join.results };
       current = step.state;
       continue;
     }
@@ -138,12 +145,17 @@ async function driveToTerminal(
 async function runOneStage(input: Record<string, unknown>, runtime: DocCompareRuntime): Promise<DocCompareState> {
   const first = await advanceDocCompare({ input, state: emptyDocCompareState(normalizeDocCompareInput(input)), runtime });
   if (first.continuation.kind !== 'spawn-chunk-children') throw new Error('expected a fan-out');
-  const join = await runChunkChildren(first.continuation.children, runtime);
+  const join = await runChunkChildren(
+    first.continuation.children,
+    runtime,
+    first.state.joinToken ?? '',
+    first.continuation.maxConcurrency,
+  );
   const next = await advanceDocCompare({
     input,
     state: first.state,
     runtime,
-    join: { joinToken: first.state.joinToken ?? '', results: join.results },
+    join: { joinToken: join.joinToken, results: join.results },
   });
   return next.state;
 }
@@ -243,15 +255,59 @@ describe('P9-03 doc-compare advanced', () => {
       const chunks = planChunks(side('left', 'huge.pdf', huge), 1000);
       expect(chunks.length).toBeGreaterThan(1);
       expect(chunks.every((c) => c.boundaryKind === 'size')).toBe(true);
+      // These two were 5000, which encoded the OLD body-space offsets: they
+      // counted only `section.body` and so excluded the '# Only' heading and its
+      // newline. Offsets now index `side.text`, so the covered span is the whole
+      // document. Asserting 5000 would pin the defect back in place.
       const covered = chunks.reduce((sum, c) => sum + c.charCount, 0);
-      expect(covered).toBe(5000);
-      expect(chunks[chunks.length - 1]!.endOffset).toBe(5000);
+      expect(covered).toBe(huge.length);
+      expect(chunks[chunks.length - 1]!.endOffset).toBe(huge.length);
     });
 
     it('produces one chunk for an empty document rather than none', () => {
       const chunks = planChunks(side('left', 'empty.pdf', ''), 4000);
       expect(chunks.length).toBe(1);
       expect(chunks[0]!.charCount).toBe(0);
+      // The chunk id becomes the child task key and the evidence key. It used
+      // to be the literal text '`${side.side}-c0`,' because the template was
+      // single-quoted, so every empty document minted a garbage identifier.
+      expect(chunks[0]!.chunkId).toBe('left-c0');
+    });
+
+    it('chunks tile the text exactly, so concatenating them loses no character', () => {
+      // The regression witness for the offset fix: chunks used to be indexed in
+      // body-space while the slice came out of `side.text`, so every chunk was
+      // shifted by the headings before it and the tail was never read. Rebuilding
+      // the document from the chunk spans is the property that must hold.
+      const documents: readonly string[] = [
+        '',
+        'no headings at all, just one paragraph',
+        'trailing newline\n',
+        'intro before any heading\n## Clause A\nThe payer shall settle within thirty days.',
+        '## A\naaa\n## B\nbbb\n## C\nccc',
+        '## A\r\nwindows line ending\r\n## B\r\nsecond',
+        '# Only\n' + 'y'.repeat(5000),
+        // Oversized section FOLLOWED by a normal one: the branch that used to
+        // leave `startOffset` stale and start the next chunk before this section.
+        '# Big\n' + 'y'.repeat(1000) + '\n## Small\ntail',
+        Array.from({ length: 12 }, (_, i) => '## S' + i + '\n' + 'x'.repeat(300)).join('\n'),
+      ];
+
+      for (const text of documents) {
+        const input = side('left', 'doc.txt', text);
+        const chunks = planChunks(input, 400);
+
+        expect(chunks.map((c) => input.text.slice(c.startOffset, c.endOffset)).join('')).toBe(text);
+
+        let cursor = 0;
+        for (const chunk of chunks) {
+          expect(chunk.startOffset).toBe(cursor);
+          expect(chunk.endOffset).toBeGreaterThanOrEqual(chunk.startOffset);
+          expect(chunk.charCount).toBe(chunk.endOffset - chunk.startOffset);
+          cursor = chunk.endOffset;
+        }
+        expect(cursor).toBe(text.length);
+      }
     });
 
     it('clamps an absurd budget to the ceiling', () => {
@@ -517,19 +573,102 @@ describe('P9-03 doc-compare advanced', () => {
         stage: 'compare-structure' as const,
         input: { chunk: { side: 'left' as const, ordinal: 0, charCount: 1 } },
       }));
-      const join = await runChunkChildren(specs, runtime);
+      const join = await runChunkChildren(specs, runtime, 'doc-compare:v1:token-abc');
       expect(calls.length).toBe(3);
       expect(join.results.length).toBe(3);
       expect(join.results.every((r) => r.status === 'succeeded')).toBe(true);
+      // The submission's token used to be a hard-coded '' that no state could
+      // accept, so every caller had to substitute its own.
+      expect(join.joinToken).toBe('doc-compare:v1:token-abc');
     });
 
     it('converts a thrown child into a failed outcome rather than crashing the join', async () => {
       const runtime: DocCompareRuntime = {
         runChunk: async () => { throw new Error('provider exploded'); },
       };
-      const join = await runChunkChildren([{ chunkId: 'x', stage: 'compare-references', input: {} }], runtime);
+      const join = await runChunkChildren(
+        [{ chunkId: 'x', stage: 'compare-references', input: {} }],
+        runtime,
+        'doc-compare:v1:token-abc',
+      );
       expect(join.results[0]!.status).toBe('failed');
       expect(join.results[0]!.error?.message).toBe('provider exploded');
+    });
+
+    it('clamps the caller ceiling into [1, the module cap]', () => {
+      // Table pinned against resolveFanoutConcurrency directly; the executor
+      // tests below prove the same value actually reaches the scheduler.
+      expect(resolveFanoutConcurrency(undefined)).toBe(MAX_CHUNK_FANOUT_CONCURRENCY);
+      expect(resolveFanoutConcurrency(1)).toBe(1);
+      expect(resolveFanoutConcurrency(3)).toBe(3);
+      expect(resolveFanoutConcurrency(MAX_CHUNK_FANOUT_CONCURRENCY)).toBe(MAX_CHUNK_FANOUT_CONCURRENCY);
+      // Above the cap is capped, not honoured: the module cap is a hard ceiling.
+      expect(resolveFanoutConcurrency(MAX_CHUNK_FANOUT_CONCURRENCY + 1)).toBe(MAX_CHUNK_FANOUT_CONCURRENCY);
+      expect(resolveFanoutConcurrency(9999)).toBe(MAX_CHUNK_FANOUT_CONCURRENCY);
+      // Fail closed towards serial execution, mirroring clampConcurrency in the
+      // input normaliser: a malformed ceiling must never widen the fan-out.
+      for (const bad of [0, -1, -999, 1.5, NaN, Infinity]) {
+        expect(resolveFanoutConcurrency(bad)).toBe(1);
+      }
+    });
+
+    it('runs no more children at once than the caller asked for', async () => {
+      // The defect this pins: the limit used to be
+      // `Math.min(runtime ? CAP : 1, CAP)`, which is the cap whatever the caller
+      // passed, so asking for 1 still put 8 chunks in flight.
+      const probe = () => {
+        let active = 0;
+        let peak = 0;
+        const runtime: DocCompareRuntime = {
+          runChunk: async (spec) => {
+            active += 1;
+            peak = Math.max(peak, active);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            active -= 1;
+            return { chunkId: spec.chunkId, status: 'succeeded' } as ChunkOutcome;
+          },
+        };
+        return { runtime, peak: () => peak };
+      };
+      const specs: ChunkTaskSpec[] = Array.from({ length: 12 }, (_, i) => ({
+        chunkId: `c${i}`,
+        stage: 'compare-structure' as const,
+        input: { chunk: { side: 'left' as const, ordinal: i, charCount: 1 } },
+      }));
+
+      const serial = probe();
+      await runChunkChildren(specs, serial.runtime, 'doc-compare:v1:token-abc', 1);
+      expect(serial.peak()).toBe(1);
+
+      const paired = probe();
+      await runChunkChildren(specs, paired.runtime, 'doc-compare:v1:token-abc', 2);
+      expect(paired.peak()).toBe(2);
+
+      // Above the cap must not exceed the cap.
+      const overCap = probe();
+      await runChunkChildren(specs, overCap.runtime, 'doc-compare:v1:token-abc', 9999);
+      expect(overCap.peak()).toBe(MAX_CHUNK_FANOUT_CONCURRENCY);
+
+      // Omitted falls back to the hard ceiling.
+      const defaulted = probe();
+      await runChunkChildren(specs, defaulted.runtime, 'doc-compare:v1:token-abc');
+      expect(defaulted.peak()).toBe(MAX_CHUNK_FANOUT_CONCURRENCY);
+    });
+
+    it('refuses to build a join without the token issued for the fan-out', async () => {
+      const { runtime } = stubRuntime();
+      const specs: ChunkTaskSpec[] = [{
+        chunkId: 'a',
+        stage: 'compare-structure' as const,
+        input: { chunk: { side: 'left' as const, ordinal: 0, charCount: 1 } },
+      }];
+      // An empty token is exactly what the helper used to return, and exactly
+      // what `takeJoin` rejects with JOIN_TOKEN_MISMATCH.
+      for (const bad of ['', '   ']) {
+        await expect(runChunkChildren(specs, runtime, bad)).rejects.toMatchObject({
+          code: 'JOIN_TOKEN_MISMATCH',
+        });
+      }
     });
   });
 });

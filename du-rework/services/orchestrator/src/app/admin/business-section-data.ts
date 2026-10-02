@@ -20,6 +20,7 @@
  * Strict TypeScript, zero `any`.
  */
 
+import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import type { BusinessVersionRow } from './business-view-models';
 import type { BusinessStatus, WorkerHealth } from '@du/contracts';
 import { safeTransportErrorText } from '../../http/errors';
@@ -188,14 +189,6 @@ function normaliseRow(raw: BusinessVersionWireRow, fallbackBusinessId: string): 
   };
 }
 
-function readErrorBody(text: string): string {
-  if (!text) return '';
-  // Defensive: cap at 256 chars so a noisy upstream can't bloat the
-  // shell's response body. Strip control chars.
-  const trimmed = text.slice(0, 256).replace(/[\u0000-\u001f\u007f]/g, ' ');
-  return trimmed;
-}
-
 // ---------------------------------------------------------------------------
 // Fetcher
 // ---------------------------------------------------------------------------
@@ -287,7 +280,7 @@ export async function fetchBusinessVersions(
       };
     }
     if (!res.ok) {
-      const body = readErrorBody(await res.text().catch(() => ''));
+      const body = sanitizeUpstreamErrorBody(await res.text().catch(() => ''));
       return {
         kind: 'error',
         businessId: input.businessId,

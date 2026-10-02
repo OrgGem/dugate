@@ -46,12 +46,14 @@ describe('buildExecFunc connector node', () => {
 
   it('passes filesJson when files are present', async () => {
     mockEnqueue.mockResolvedValue({ content: 'C', operation: { id: 'sub1' }, extractedData: null });
-    const exec = buildExecFunc(ctx);
+    const file = { name: 'a.pdf', path: '/tmp/a.pdf', mime: 'application/pdf', size: 12 };
+    const fileCtx = { ...ctx, filesData: [file] };
+    const exec = buildExecFunc(fileCtx);
     const node = { id: 'c', type: 'connector', connector: 'ext-x', inputs: { file: '$files' } } as ConnectorNode;
     // resolve returns files array for a $files binding
     const resolve = (b: any) => (b === '$files' ? ['/tmp/a.pdf'] : b);
     await exec(node, resolve, {});
-    expect(mockEnqueue).toHaveBeenCalledWith(ctx, 'ext-x', { file: ['/tmp/a.pdf'] }, JSON.stringify(['/tmp/a.pdf']));
+    expect(mockEnqueue).toHaveBeenCalledWith(fileCtx, 'ext-x', { file: ['/tmp/a.pdf'] }, JSON.stringify([file]));
   });
 });
 

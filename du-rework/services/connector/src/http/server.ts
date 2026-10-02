@@ -74,7 +74,16 @@ export function createConnectorServer(dependencies: ConnectorHttpDependencies): 
         try {
           if (response.destroyed || response.writableEnded) return;
           writeJson(response, errorStatus(connectorError), {
-            error: { code: connectorError.code, message: connectorError.message },
+            // retryable/retryAfterMs are already declared on the wire error shape
+            // (W39-CC2 passthrough); sending them lets a client stop inferring
+            // retryability from the HTTP status, which cannot tell a 502 that
+            // rejected the request from a 502 that is a genuine upstream outage.
+            error: {
+              code: connectorError.code,
+              message: connectorError.message,
+              retryable: connectorError.safeToRetry,
+              retryAfterMs: connectorError.retryAfterMs,
+            },
           });
         } catch {
           response.destroy();
@@ -391,6 +400,11 @@ function writeJson(response: ServerResponse, status: number, body: unknown): voi
         return 504;
       case 'PROVIDER_UNAVAILABLE':
         return 502;
+      case 'PROVIDER_REQUEST_REJECTED':
+        // The caller sent a well-formed request and the upstream refused it, so the
+        // fault is the upstream hop. 400 would wrongly tell the orchestrator its own
+        // request was malformed and send it looking in the wrong place.
+        return 502;
       case 'INVOCATION_UNKNOWN':
         return 409;
       default:
@@ -422,6 +436,11 @@ function errorStatus(error: ConnectorError): number {
     case 'PROVIDER_TIMEOUT':
       return 504;
     case 'PROVIDER_UNAVAILABLE':
+      return 502;
+    case 'PROVIDER_REQUEST_REJECTED':
+      // The caller sent a well-formed request and the upstream refused it, so the
+      // fault is the upstream hop. 400 would wrongly tell the orchestrator its own
+      // request was malformed and send it looking in the wrong place.
       return 502;
     case 'INVOCATION_UNKNOWN':
       return 409;

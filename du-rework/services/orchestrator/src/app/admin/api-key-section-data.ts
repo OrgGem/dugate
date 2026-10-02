@@ -32,6 +32,7 @@
  * zero `any`.
  */
 
+import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import type {
   ApiKeyAssignmentRow,
   ApiKeyCreateView,
@@ -234,11 +235,6 @@ function grantToWireRow(g: ApiKeyGrantRow): ApiKeyGrantWireRow {
   };
 }
 
-function readErrorBody(text: string): string {
-  if (!text) return '';
-  return text.slice(0, 256).replace(/[\u0000-\u001f\u007f]/g, ' ');
-}
-
 // ---------------------------------------------------------------------------
 // Fetcher
 // ---------------------------------------------------------------------------
@@ -321,7 +317,7 @@ export async function fetchApiKeys(
       };
     }
     if (!res.ok) {
-      const body = readErrorBody(await res.text().catch(() => ''));
+      const body = sanitizeUpstreamErrorBody(await res.text().catch(() => ''));
       return {
         kind: 'error',
         message: `Platform returned HTTP ${res.status}${body ? `: ${body}` : ''}`,

@@ -19,8 +19,8 @@ Kiến trúc mục tiêu phù hợp với hướng ba tầng: Orchestrator quả
 | GAP-07 | Transform source có `sources.text.slice(0, 4000)` ở inference calls | Có thể mất nội dung dài dù success | Chunking có coverage hoặc reject size rõ; long-document tests |
 | GAP-08 | Business manifest/output schemas còn khái quát; template binding, compare diff shape, webhook signing chưa freeze | Tài liệu chưa thể làm generated SDK contract hoàn chỉnh | OpenAPI + action JSON Schemas + webhook test vectors versioned |
 | GAP-09 | `infra` chưa có bằng chứng topology EC2/IaC/restore được triển khai | HA/scale/RPO/RTO mới là đề xuất | IaC review, deploy rehearsal, fault/restore report |
-| GAP-10 | Unit tests do lanes báo cáo; chưa có cross-service/load/security evidence trong snapshot | Không suy ra 28 variants sẵn sàng production | Chạy matrix tích hợp và quality corpus, lưu evidence |
-| GAP-11 | Registry gốc có 31 core variants và 3 workflows; rework spec có 28 core variants | Có khoảng trống feature parity, không chỉ tài liệu cũ mô tả dư | Product owner chốt đưa vào hoặc defer từng chức năng, công bố compatibility scope |
+| GAP-10 | Unit tests do lanes báo cáo; chưa có cross-service/load/security evidence trong snapshot | Không suy ra 31 variants sẵn sàng production | Chạy matrix tích hợp và quality corpus, lưu evidence |
+| GAP-11 | Registry gốc có 31 core variants và 3 workflows. **Cập nhật 2026-10-02:** source rework hiện đã khai báo đủ 31 variant — ba variant từng là khoảng trống (`extract/id-card`, `analyze/fact-check`, `analyze/summarize-eval`) đã có handler, recipe, normalizer và validator. Khoảng trống còn lại **không còn ở code**, mà ở quyết định công bố compatibility scope | Chưa tự đóng: có code không bằng có cam kết sản phẩm | Product owner chốt đưa vào hoặc defer từng chức năng, công bố compatibility scope |
 | GAP-12 | Compare source cắt snippets 3000 ký tự, fallback malformed JSON sang object summary và validate chỉ non-null object | Có thể success với kết quả thiếu nội dung/sai schema | Bounded chunking hoặc reject; validate output schema theo variant, không fallback success để che malformed output |
 
 Nguồn trực tiếp: [shared DTO](../packages/contracts/src/operations.ts), [worker result DTO](../businesses/document-core/src/types/results.ts), [normalizer](../businesses/document-core/src/validation/input-normalizer.ts), [transform action](../businesses/document-core/src/actions/transform/index.ts), [Connector HTTP](../services/connector/src/http/server.ts), [Connector report](../coordination/reports/copilot.md). Đây là danh sách khoảng trống phục vụ review, không thay thế full code audit.
@@ -31,7 +31,7 @@ Nguồn trực tiếp: [shared DTO](../packages/contracts/src/operations.ts), [w
 |---|---|
 | `/api/upload`, `/api/transform`, NextAuth trong docs-site cũ | Là API giao diện ứng dụng cũ, không dùng làm public contract rework |
 | `/api/v1/extract`, envelope `name/done/metadata` trong integration guide | Không mặc định hỗ trợ; canonical mới là business/action + Operation `id/state` |
-| `id-card`, `fact-check`, `summarize-eval` có trong registry gốc | Chưa nằm trong 28 variants của rework; cần quyết định scope/parity có ghi nhận |
+| `id-card`, `fact-check`, `summarize-eval` có trong registry gốc | Đã có trong 31 variants của source rework (handler + recipe + validator); cần quyết định scope/parity có ghi nhận ra contract công bố |
 | `mind_map` được mô tả trong integration guide | Không tự đưa vào enum rework nếu chưa có schema/implementation/test |
 | Mô tả OCR/layout/handwriting rất mạnh | Chỉ cam kết theo parser/provider capability và corpus đo được |
 | Workflow endpoint cũ | Không hứa import nguyên trạng; map workflow sang business worker theo spec riêng |
@@ -59,7 +59,7 @@ Tất cả đang **OPEN/chưa có bằng chứng nghiệm thu trong hồ sơ nà
 | Gate | Owner | Tiêu chí đạt | Evidence phải lưu |
 |---|---|---|---|
 | GL-01 Contract | Platform + business + Connector leads | Không còn wire mismatch; OpenAPI/schema/version pin nhất quán | Contract diff, generated examples validation, compatibility tests |
-| GL-02 Chức năng | BA + QA | 28 variants có acceptance; sáu public APIs và workflow mẫu hoạt động | Test matrix, fixture hashes, outputs, quality acceptance |
+| GL-02 Chức năng | BA + QA | 31 variants có acceptance; sáu public APIs và workflow mẫu hoạt động | Test matrix, fixture hashes, outputs, quality acceptance |
 | GL-03 Durability | Platform lead | Outbox, lease fencing, full checkpoint, join/resume/cancel đúng khi crash | Fault-injection results, DB assertions, duplicate usage checks |
 | GL-04 Provider integrity | Connector lead | Global quota, UNKNOWN handling, credential rotation, usage dedup | Multi-replica DB/Redis/provider mock tests |
 | GL-05 Security | Security + QA | Auth boundaries, tenant isolation, upload/SSRF/XSS/grants kiểm thử | Negative E2E, review findings và remediation |

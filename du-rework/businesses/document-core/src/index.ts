@@ -16,6 +16,7 @@ export * from './pipelines/step-checkpoint';
 export * from './pipelines/parser-budget';
 export * from './pipelines/legacy-workflow-mapping';
 export * from './pipelines/workflows/disbursement';
+export * from './pipelines/workflows/doc-compare';
 
 export * from './actions/ingest';
 export * from './actions/extract';

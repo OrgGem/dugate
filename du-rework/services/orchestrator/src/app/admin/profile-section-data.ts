@@ -28,6 +28,7 @@
  * Strict TypeScript, zero `any`.
  */
 
+import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import type {
   ConnectorCapabilityOption,
   ProfileFormModel,
@@ -360,11 +361,6 @@ function collectLockedSlots(raw: ProfileManifestWireRow): {
   return { lockedBySlot, lockedValueBySlot };
 }
 
-function readErrorBody(text: string): string {
-  if (!text) return '';
-  return text.slice(0, 256).replace(/[\u0000-\u001f\u007f]/g, ' ');
-}
-
 /**
  * Look up the headless fixture for `(businessId, businessVersion, profileName)`.
  * Returns `undefined` when no fixture matches. The caller falls back to the
@@ -498,7 +494,7 @@ export async function fetchProfileForm(
       };
     }
     if (!res.ok) {
-      const body = readErrorBody(await res.text().catch(() => ''));
+      const body = sanitizeUpstreamErrorBody(await res.text().catch(() => ''));
       return {
         kind: 'error',
         businessId,

@@ -552,18 +552,57 @@ export async function advanceDocCompare(request: DocCompareAdvanceRequest): Prom
 }
 
 /**
+ * Resolve how many children may run at once.
+ *
+ * Mirrors `clampConcurrency` in the input normaliser: anything that is not a
+ * safe integer at or above 1 collapses to 1, so a malformed ceiling serialises
+ * the fan-out instead of fanning out without limit. The module constant stays
+ * the hard ceiling.
+ *
+ * Omitted means the hard ceiling. The workflow-level default of 2 is applied
+ * earlier, by `normalizeDocCompareInput`, so a fan-out issued by
+ * `advanceDocCompare` always carries an explicit `maxConcurrency`; this fallback
+ * only governs callers that drive the executor directly.
+ */
+export function resolveFanoutConcurrency(requested: number | undefined): number {
+  if (requested === undefined) return MAX_CHUNK_FANOUT_CONCURRENCY;
+  if (!Number.isSafeInteger(requested) || requested < 1) return 1;
+  return Math.min(requested, MAX_CHUNK_FANOUT_CONCURRENCY);
+}
+
+/**
  * Fan-out executor entry point.
  *
  * The host calls this with the children it was handed and returns the join.
  * Concurrency is bounded here as well as in the spec, because a host that ignores
  * the ceiling must not be able to fan out without limit.
+ *
+ * `maxConcurrency` is the ceiling the caller asked for, clamped by
+ * `resolveFanoutConcurrency`. It used to be ignored entirely: the limit was
+ * computed as `Math.max(1, Math.min(runtime ? CAP : 1, CAP))`, which simplifies
+ * to the cap whatever the caller passed, so a caller requesting 1 still had 8
+ * chunks in flight against the provider.
+ *
+ * `joinToken` is required, not defaulted. This helper used to return a
+ * hard-coded `''`, which no state could ever accept, so every caller had to
+ * throw the returned token away and substitute `state.joinToken` — a silent
+ * footgun that reads like the helper had produced a usable submission. Making
+ * it a parameter makes the wrong submission unrepresentable.
  */
 export async function runChunkChildren(
   specs: readonly ChunkTaskSpec[],
   runtime: DocCompareRuntime,
+  joinToken: string,
+  maxConcurrency?: number,
 ): Promise<ChunkJoinSubmission> {
+  if (typeof joinToken !== 'string' || joinToken.trim().length === 0) {
+    throw new DocCompareError(
+      'JOIN_TOKEN_MISMATCH',
+      'runChunkChildren requires the join token issued for this fan-out',
+    );
+  }
   const outcomes: ChunkOutcome[] = [];
-  const limit = Math.max(1, Math.min(runtime ? MAX_CHUNK_FANOUT_CONCURRENCY : 1, MAX_CHUNK_FANOUT_CONCURRENCY));
+  const limit = resolveFanoutConcurrency(maxConcurrency);
   let cursor = 0;
 
   const worker = async (): Promise<void> => {
@@ -591,7 +630,7 @@ export async function runChunkChildren(
   for (let i = 0; i < Math.min(limit, specs.length); i += 1) workers.push(worker());
   await Promise.all(workers);
 
-  return { joinToken: '', results: outcomes };
+  return { joinToken, results: outcomes };
 }
 
 /** Test/simplification helper: align two sides directly. */

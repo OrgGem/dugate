@@ -29,6 +29,7 @@ import {
   type LogicalDocument,
   type SpawnChildren,
 } from '../src/pipelines/workflows/disbursement';
+import { resolveFanoutConcurrency } from '@du/worker-sdk';
 import {
   emptyDisbursementState,
   type DisbursementInput,
@@ -252,6 +253,7 @@ describe('P9-01 bounded fan-out', () => {
     expect(resolveConcurrency(4)).toBe(4);
     expect(resolveConcurrency(999)).toBe(MAX_FANOUT_CONCURRENCY);
     expect(resolveConcurrency(Number.NaN)).toBe(1);
+    expect(resolveFanoutConcurrency(999, MAX_FANOUT_CONCURRENCY)).toBe(MAX_FANOUT_CONCURRENCY);
   });
 });
 

@@ -127,7 +127,7 @@ export function createHttpTransport(opts: HttpTransportOptions): ConnectorTransp
 
   function interpretResponse(response: Response, raw: unknown): ClientInvocationResult {
     if (!response.ok) {
-      const errBody = raw as { error?: { code?: unknown; message?: unknown; retryAfterMs?: unknown }; code?: unknown; detail?: unknown } | null;
+      const errBody = raw as { error?: { code?: unknown; message?: unknown; retryable?: unknown; retryAfterMs?: unknown }; code?: unknown; detail?: unknown } | null;
       const code = pickString(errBody?.error?.code) ?? pickString(errBody?.code) ?? defaultCodeForStatus(response.status);
       const message =
         pickString(errBody?.error?.message) ??
@@ -135,9 +135,11 @@ export function createHttpTransport(opts: HttpTransportOptions): ConnectorTransp
         `connector HTTP ${response.status}`;
       const retryAfterMs =
         typeof errBody?.error?.retryAfterMs === 'number' ? errBody.error.retryAfterMs : undefined;
+      const wireRetryable =
+        typeof errBody?.error?.retryable === 'boolean' ? errBody.error.retryable : undefined;
       throw new ConnectorClientError(code, message, retryAfterMs, {
         status: response.status,
-        retryable: response.status === 429 || response.status >= 500,
+        retryable: wireRetryable ?? fallbackRetryable(code, response.status),
       });
     }
 
@@ -198,6 +200,21 @@ export function createHttpTransport(opts: HttpTransportOptions): ConnectorTransp
       );
     },
   };
+}
+
+/**
+ * Retryability when the wire does not carry `error.retryable`.
+ *
+ * The status alone cannot answer this any more: the service reports a provider that
+ * REFUSED the request as 502, and also reports a genuine upstream outage as 502.
+ * Collapsing both into `status >= 500` marked a deterministic refusal retryable and
+ * invited a caller to burn its budget reproducing it. So when the parsed code says the
+ * provider refused, that answer wins over the status; every other code keeps the old
+ * status heuristic, which is what a peer running the older service would need.
+ */
+function fallbackRetryable(code: string, status: number): boolean {
+  if (code === 'PROVIDER_REQUEST_REJECTED') return false;
+  return status === 429 || status >= 500;
 }
 
 function defaultCodeForStatus(status: number): string {

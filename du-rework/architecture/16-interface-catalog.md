@@ -35,17 +35,27 @@ Base path `/api/runtime/v1`; identity worker được ràng theo business, khôn
 | Connector | `POST /tasks/{id}/invocation-grants` | Signed grant giới hạn task/slot/revision. |
 | Usage ingress | `POST /usage-events` | Connector gửi event bằng token usage chuyên biệt. |
 
-Tên/path chính xác cho từng nhánh multipart và schema request phải lấy từ router/contracts khi viết client mới. `GET /tasks/{id}/context` có trong một số spec cũ; catalog source trong `server.ts` cần được đối chiếu trước khi phụ thuộc vào route đó.
+Tên/path chính xác cho từng nhánh multipart và schema request phải lấy từ router/contracts khi viết client mới.
+
+**`GET /tasks/{id}/context` không tồn tại trong router.** Route này xuất hiện trong một số spec cũ ([docs/07](../docs/07-internal-api.md), OpenAPI artifact) nhưng `server.ts` không có matcher nào cho nó; bảng matcher runtime ở trên là danh sách đầy đủ. Không phải chờ config — đây là route chưa từng được cài. Client không được phụ thuộc vào nó.
+
+Ngoài các nhóm trên, router còn phục vụ `GET /tasks/{id}/children` (join visibility) và `GET /workspace-reference?workspacePath=<dir>&tenantId=<uuid>`; route thứ hai là integration phía writer duy nhất mà worker cần theo mô tả trong source.
 
 ## 3. Operator ↔ Orchestrator Admin
 
 Admin JSON chủ yếu ở `/api/v1/admin/*`; rendered shell ở `/admin/*` khi cấu hình được cấp. API hiện có nhóm business/version, profile binding, connector management, API key listing, audit, crypto config, operations/deadline sweep và action dispatcher. Source tương ứng là [router](../services/orchestrator/src/server.ts), [admin shell](../services/orchestrator/src/app/admin/) và [admin actions](../services/orchestrator/src/modules/admin-actions/). Một số thao tác có UI/route nhưng còn phụ thuộc composition/config hoặc gate browser/security; xem [task board](../tasks/README.md).
+
+**Connector mutation đi qua action dispatcher, không phải route `/admin/connectors`.** Router chỉ có `POST|GET /api/v1/admin/connectors/{id}/credentials` và `GET /api/v1/admin/connectors/{id}/revisions/{rev}`; các thao tác xoay vòng/thu hồi/kiểm credential chạy qua `POST /api/v1/admin/actions` với action `connectors.rotate_credential`, `connectors.revoke_credential`, `connectors.test_credential`. Trái với điều đó, admin shell hiện vẫn hướng dẫn operator gọi `POST /api/v1/admin/connector-bindings` — route này không có trong router; xem [CODE-FIX-01](../tasks/ARCHITECTURE-DOC-CODE-MISMATCH-2026-10-02.md) để quyết định sửa hướng dẫn hay bổ sung route.
 
 `docs/07-internal-api.md` có bảng mục tiêu `/api/internal/v1`; source hiện tại dùng nhiều route `/api/v1/admin/*`. Khi xây client/Admin automation, chọn path từ code/contract hiện hành thay vì suy `/api/internal/v1` đã được mount.
 
 ## 4. Orchestrator/worker ↔ Connector
 
 [Connector HTTP router](../services/connector/src/http/server.ts) có health, capabilities, management `/connectors*` (revision, activation/retire, credential rotation/disable/test) và runtime `/invocations*` (invoke/get/cancel). Health liveness/readiness công khai; phần còn lại yêu cầu service identity khi verifier được cấu hình. Invocation cần signed grant, tenant/revision binding và quota. Response có `completed`, `pending`, `unknown`, `failed`, `cancelled`; consumer phải xử lý state theo contract, không tự retry `unknown` như request chưa gửi.
+
+Router còn có các route đọc revision mà catalog trước đây bỏ sót: `GET /connectors/{id}/revisions/current` và `GET /connectors/{id}/revisions/{n}` — đây là nơi đọc revision `ACTIVE` mà invariant binding của §4 dựa vào. Quan trọng hơn, `POST /connectors/{id}/revisions/bootstrap` là đường **duy nhất** tạo được revision 1 của một bound chain; đường `POST /connectors/{id}/revisions` thông thường không mở được chuỗi đã bound. Đọc router trước khi kết luận không có đường chuyển từ legacy sang bound.
+
+**Chưa có route nhận webhook của provider.** `services/connector/src/webhook.ts` export `verifyWebhookSignature`/`parseWebhookPayload` và được re-export qua `index.ts`, có test riêng, nhưng `http/server.ts` không đăng ký route nào dùng tới nó — helper xác thị callback đã có và được kiểm thử, đường nhận chưa được mount.
 
 ## 5. Không gian version và compatibility
 

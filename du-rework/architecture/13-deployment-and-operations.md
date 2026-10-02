@@ -51,7 +51,7 @@ Các biến env chi tiết nằm ở [root README](../README.md), [Orchestrator 
 | Ranh giới | Kiểm soát trong code | Điều kiện triển khai |
 |---|---|---|
 | Client → Orchestrator | `x-api-key`/tenant fencing; body limits; idempotency. | HTTPS và key provisioning/rotation riêng môi trường. |
-| Operator → Admin | Admin bearer hoặc OIDC/local session, RBAC, CSRF cho cookie mutation. | Issuer/callback/cookie secret/role mapping phải cấu hình và browser-test đúng mode. |
+| Operator → Admin | Admin bearer cho các route admin JSON; OIDC/local session chỉ cấp quyền trên `POST /api/v1/admin/actions`. Có RBAC, CSRF cho cookie mutation. | Issuer/callback/cookie secret/role mapping phải cấu hình và browser-test đúng mode. Cookie không mở được các route admin JSON khác. |
 | Worker → Runtime | Business identity token, task/lease epoch fencing. | Mỗi business/version có token riêng, không dùng chung admin/usage secret. |
 | Worker/Orchestrator → Connector | Service identity scope + signed invocation grant; revision/tenant binding. | Connector private; secret/grant authority thống nhất giữa các process. |
 | Connector → Provider | Host/network policy, bounded fetch, quota, credential source. | Chỉ allow endpoint cần thiết; credential rotation/Vault path phải được wire và live-verify. |

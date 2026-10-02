@@ -299,15 +299,19 @@ describe('createConnectorInvoker error contract', () => {
     [502, false],
     [503, true],
     [504, false],
-  ] as const)('maps HTTP %s to unavailable and applies retry classification %s', async (status, retryable) => {
+  ] as const)('reports the connector code at HTTP %s and applies retry classification %s', async (status, retryable) => {
     const fetchImpl = jest.fn(async () => response(status, JSON.stringify({
       error: { code: 'BINDING_DENIED', message: 'untrusted upstream detail' },
     }))) as unknown as typeof fetch;
     const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
     const error = await rejectedValue(invoke(grant, payload));
 
-    expect(error).toMatchObject({ status, code: 'PROVIDER_UNAVAILABLE' });
-    expect(classifyFailure(error)).toMatchObject({ errorCode: 'PROVIDER_UNAVAILABLE', retryable });
+    // The code is what the connector said happened; the status is the coarse HTTP
+    // projection and stays what decides retry. Previously this collapsed to
+    // PROVIDER_UNAVAILABLE, losing the real cause. The retry expectation is the part
+    // that must NOT move, and it does not.
+    expect(error).toMatchObject({ status, code: 'BINDING_DENIED' });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'BINDING_DENIED', retryable });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 

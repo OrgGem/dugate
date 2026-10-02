@@ -315,7 +315,7 @@ function renderNotFound(message: string): string {
     '<section class="connector-section connector-section--not-found" role="status">',
     '<h2>Connector not registered</h2>',
     `<p>${esc(message)}</p>`,
-    '<p>The shell cannot render a connector pane without a registered revision. The platform exposes <code>POST /api/v1/admin/connector-bindings</code> for new bindings — until the GET route lands, use the in-process catalog fixture for headless tests.</p>',
+    '<p>The shell cannot render a connector pane without a registered revision. There is no platform route for creating connector bindings: connectors are registered in the Connector service, and credential changes go through <code>POST /api/v1/admin/actions</code> with action <code>connectors.rotate_credential</code>, <code>connectors.revoke_credential</code> or <code>connectors.test_credential</code>. For headless tests, use the in-process catalog fixture.</p>',
     '</section>',
   ].join('');
 }

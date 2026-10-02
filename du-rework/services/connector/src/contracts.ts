@@ -9,8 +9,8 @@ import {
   type InvocationResponse,
   type UsageEvent,
 } from '@du/contracts';
-import { ConnectorError } from './errors';
-import type { GrantClaims, LocalInvocationRequest, NormalizedProviderResult } from './types';
+import { ConnectorError, isRetryableErrorCode } from './errors';
+import type { ConnectorErrorCode, GrantClaims, LocalInvocationRequest, NormalizedProviderResult } from './types';
 
 export type ContractInvocationRequest = InvocationRequest;
 export type ContractInvocationResponse = InvocationResponse;
@@ -78,7 +78,9 @@ export function toContractInvocationResponse(
       ? {
         code: result.error.code,
         message: result.error.message,
-        retryable: result.error.code === 'PROVIDER_RATE_LIMITED' || result.error.code === 'PROVIDER_UNAVAILABLE',
+        // The cast is safe in the fail-closed direction: an unrecognised code is not
+        // in the retryable set, so it is reported as non-retryable rather than retried.
+        retryable: isRetryableErrorCode(result.error.code as ConnectorErrorCode),
         retryAfterMs: result.error.retryAfterMs,
       }
       : undefined,

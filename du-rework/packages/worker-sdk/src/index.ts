@@ -1,4 +1,6 @@
 export * from './types';
+export { resolveFanoutConcurrency, runBoundedFanout } from './bounded-fanout';
+export type { FanoutChildIdentity, FanoutChildOutcome } from './bounded-fanout';
 export {
   RuntimeClient,
   RuntimeError,

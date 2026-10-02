@@ -78,6 +78,12 @@ export const jsonHttpAdapter: ProviderAdapter = {
     if (response instanceof Error) return 'PROVIDER_UNAVAILABLE';
     if (response.status === 429) return 'PROVIDER_RATE_LIMITED';
     if (response.status >= 500) return 'PROVIDER_UNAVAILABLE';
+    // A 4xx means the provider received the request and refused it — typically an
+    // unknown task discriminator, a rejected schema or auth it will never accept.
+    // It must not share a code with a 200 whose body does not match the contract:
+    // those two failures are opposites, and collapsing them sent operators looking
+    // at the provider instead of at the request that was built wrong.
+    if (response.status >= 400) return 'PROVIDER_REQUEST_REJECTED';
     return 'INVALID_PROVIDER_RESPONSE';
   },
 };

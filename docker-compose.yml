@@ -81,6 +81,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://dugate:${DB_PASSWORD}@db:5432/dugate}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       MOCK_SERVICE_URL: ${MOCK_SERVICE_URL:-http://mock-service:3099}
+      ALLOWED_PRIVATE_HOSTS: ${ALLOWED_PRIVATE_HOSTS:-mock-service}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       UPLOAD_DIR: /app/uploads
       OUTPUT_DIR: /app/outputs

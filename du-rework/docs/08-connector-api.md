@@ -55,7 +55,8 @@ HTTP deadline không kéo dài operation deadline. Provider async trả 202 và 
 | PROVIDER_RATE_LIMITED | 429 | Retry theo Retry-After và deadline |
 | PROVIDER_UNAVAILABLE | 503 | Retry nếu outcome xác định an toàn |
 | PROVIDER_TIMEOUT | 504 | Phân biệt not-sent / UNKNOWN |
-| INVALID_PROVIDER_RESPONSE | 502 | Business quyết định repair hoặc fail |
+| PROVIDER_REQUEST_REJECTED | 502 | Provider đã nhận yêu cầu và **từ chối** (4xx): task discriminator lạ, schema bị từ chối, hoặc auth. Không retry — lỗi nằm ở phía gọi/cấu hình, không phải sự cố provider |
+| INVALID_PROVIDER_RESPONSE | 502 | Provider trả 200 nhưng body không khớp contract. Business quyết định repair hoặc fail |
 | INVOCATION_UNKNOWN | 409 | Reconcile/manual policy |
 | INPUT_HASH_MISMATCH | 409 | Permanent |
 

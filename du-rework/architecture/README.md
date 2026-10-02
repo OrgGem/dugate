@@ -35,7 +35,7 @@ Bộ hồ sơ này phục vụ hội đồng kỹ thuật, chủ sản phẩm, �
 | [01 — Tổng quan chức năng](01-product.md) | Bài toán, sáu core API, workflow, profile, phạm vi | Hội đồng, BA, sản phẩm |
 | [02 — Kiến trúc ứng dụng](02-application.md) | Ranh giới ba tầng, luồng xử lý, dữ liệu, tính đúng đắn, mở rộng business | Kiến trúc sư, developers |
 | [03 — Public API và hướng dẫn tích hợp](03-public-api.md) | Auth, upload, submit, polling, kết quả, cancel/resume, lỗi | Đội tích hợp |
-| [04 — Sáu core API](04-core-api.md) | Input/output, 28 biến thể, ví dụ cho từng đầu API | BA, đội tích hợp, QA |
+| [04 — Sáu core API](04-core-api.md) | Input/output, 31 biến thể, ví dụ cho từng đầu API | BA, đội tích hợp, QA |
 | [05 — Admin và giao tiếp nội bộ](05-internal-api.md) | Registry, profile, runtime, Connector, request/response | Developers, vận hành |
 | [06 — Deploy AWS trên EC2](06-aws-deployment.md) | Một account, VPC, EC2 riêng, network, IAM, HA, triển khai | Cloud, DevOps, security |
 | [07 — Scale và năng lực tải](07-capacity.md) | Công thức sizing, autoscaling, backpressure, benchmark, chi phí | Kiến trúc sư, vận hành |

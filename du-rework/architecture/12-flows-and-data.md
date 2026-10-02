@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `/api/v1/*` | Client/tenant | `x-api-key`, tenant/profile policy và resource fencing; một số route admin có bearer/session riêng. | `orchestrator/src/server.ts` |
 | `/api/runtime/v1/*` | Worker/Connector | Worker identity theo business cho task route; token usage riêng cho Connector usage ingress. | `orchestrator/src/server.ts`, `modules/runtime/*`, `modules/usage/*` |
-| `/api/v1/admin/*`, admin shell | Operator | Admin bearer hoặc session/OIDC/local mode tùy cấu hình; admin action có RBAC/CSRF. | `server.ts`, `app/admin/*`, `modules/admin-actions/*` |
+| `/api/v1/admin/*`, admin shell | Operator | Đa số route admin JSON chỉ nhận **admin bearer token** (`assertAdminAuth` ở `server.ts:2840-2850` so `Bearer <adminToken>`, không có nhánh session; khi thiếu token thì fail-closed 401). Session/OIDC/local chỉ cấp quyền trên `POST /api/v1/admin/actions` qua `resolveAdminActionAuthAsync`, và admin action có RBAC/CSRF. | `server.ts`, `app/admin/*`, `modules/admin-actions/*` |
 | Connector `/connectors*`, `/invocations*` | Orchestrator/worker trusted caller | Service identity theo scope; invocation có signed grant, revision/tenant binding. | `connector/src/http/server.ts`, `services.ts` |
 
 Danh sách route, trạng thái implementation và wire shape cần đọc từ code + [Public API spec](../docs/06-public-api.md) + [legacy parity contract](../docs/39-legacy-parity-contract.md). `docs/21-openapi.json` là artifact do tooling sinh và catalog có thể chưa đủ route; không dùng một mình để kết luận route vắng mặt. `/api/v1/docs/{action}` hiện có mount compat trong source, nhưng việc khớp toàn bộ wire cũ vẫn là gate kiểm chứng riêng.
@@ -85,7 +85,7 @@ Orchestrator hỗ trợ PostgreSQL blob backend và S3 backend theo config trong
 | Database/schema owner | Nhóm bảng nền tảng | Ý nghĩa |
 |---|---|---|
 | Orchestrator | `tenants`, `api_keys`, `business_versions`, profile/binding tables | Identity, registry và chọn version. |
-| Orchestrator | `operations`, `submission_keys`, `tasks`, `task_dependencies`, `step_checkpoints`, `outbox` | Idempotent submit, state, dependency, lease/checkpoint và delivery bền vững. |
+| Orchestrator | `operations`, `submission_keys`, `tasks`, `task_dependencies`, `step_checkpoints`, `human_waits`, `outbox` | Idempotent submit, state, dependency, lease/checkpoint, human wait-input và delivery bền vững. `human_waits` (migration `0005_continuation.sql`) là bảng nền cho nhánh chờ người dùng nhập liệu. |
 | Orchestrator | `artifacts`, `artifact_blobs`, grant/multipart tables | Ownership, upload/download và object reference. |
 | Orchestrator | `usage_events`, audit/webhook/budget tables | Usage, chi phí, audit và callback. |
 | Connector | `connector_revisions`, `secret_versions`, `connector_invocations`, `connector_usage_outbox` | Cấu hình/credential, invocation ledger và usage delivery. |

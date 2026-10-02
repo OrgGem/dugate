@@ -9,6 +9,9 @@ import {
 import { PgSqlClient } from '@du/connector';
 import { documentCoreHandlers } from '../src/worker';
 
+const LIVE_INFRA = process.env.DU_LIVE_INFRA === '1';
+const liveTest = LIVE_INFRA ? test : test.skip;
+
 /**
  * P8-03: Document-Core Provider Unknown, Dedup & Usage Convergence Tests
  * Foundation Contracts Acceptance: CON-01..05 & USE-01/02
@@ -325,7 +328,7 @@ describe('P8-03: Document-Core Provider & Usage Convergence (CON-01..05, USE-01/
       expect(parsed.success).toBe(true);
     });
 
-    test('live usage_events projection query aggregates provider tokens and costs matching UsageSchema', async () => {
+    liveTest('live usage_events projection query aggregates provider tokens and costs matching UsageSchema', async () => {
       const dbUrl = process.env.DATABASE_URL ?? 'postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test';
       const client = new PgSqlClient({ connectionString: dbUrl });
 

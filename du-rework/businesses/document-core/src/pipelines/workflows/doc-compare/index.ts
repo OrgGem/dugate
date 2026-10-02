@@ -2,8 +2,9 @@
  * P9-03 doc-compare advanced — public surface.
  *
  * Re-exported as a unit so a host can adopt the workflow without reaching into
- * four files. Nothing here is registered anywhere: manifest, recipe and action
- * registration are a follow-up for the owning lane.
+ * five files. `./runner` is re-exported here so the production
+ * `createDocCompareRuntime` reaches the worker without a deep-path import; it
+ * used to be reachable only by importing `./runner` directly.
  */
 
 export {
@@ -11,6 +12,7 @@ export {
   compareStructureNow,
   emptyDocCompareState,
   normalizeDocCompareInput,
+  resolveFanoutConcurrency,
   runChunkChildren,
   DocCompareError,
   DOC_COMPARE_BUSINESS_ID,
@@ -73,3 +75,20 @@ export {
   type StructurePlan,
   type StructureSection,
 } from './types';
+
+export {
+  assertNoIdentityLeak,
+  createDocCompareRuntime,
+  DEFAULT_DOC_COMPARE_BINDING,
+  DEFAULT_DOC_COMPARE_CHUNK_TIMEOUT_MS,
+  DocCompareChunkError,
+  extractInvocationPayload,
+  parseReferenceClaims,
+  parseStructureClaims,
+  sliceChunkText,
+  type DocCompareChunkErrorCode,
+  type DocCompareChunkInput,
+  type DocCompareConnectorBinding,
+  type DocCompareConnectorPort,
+  type DocCompareRunnerOptions,
+} from './runner';

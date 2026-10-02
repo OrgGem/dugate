@@ -7,16 +7,108 @@ import {
 
 export { BusinessManifest, ActionManifest, ConnectorSlotManifest };
 
+/**
+ * doc-compare is registered separately from `compare` on purpose: it is a
+ * multi-turn workflow with its own two-document input contract and its own
+ * evidence result, so folding it into `compare` would make the shared compare
+ * mode contract depend on which one the caller meant.
+ */
+const DOC_COMPARE_SIDE_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    artifactId: { type: 'string', minLength: 1, maxLength: 255 },
+    fileName: { type: 'string', minLength: 1, maxLength: 255 },
+    text: { type: 'string' },
+  },
+  required: ['artifactId', 'fileName', 'text'],
+  // `sections` is rejected rather than ignored: normalizeDocCompareInput derives
+  // sections from `text`, so a caller-supplied outline would be silently dropped.
+  additionalProperties: false,
+};
+
+const DOC_COMPARE_STRUCTURE_CLAIM_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    claimId: { type: 'string', minLength: 1 },
+    verdict: { type: 'string', enum: ['unchanged', 'modified', 'added', 'removed', 'moved'] },
+    leftSectionId: { type: ['string', 'null'] },
+    rightSectionId: { type: ['string', 'null'] },
+    leftTitle: { type: ['string', 'null'] },
+    rightTitle: { type: ['string', 'null'] },
+    detail: { type: 'string' },
+    evidenceChunkIds: { type: 'array', items: { type: 'string', minLength: 1 } },
+  },
+  required: ['claimId', 'verdict', 'leftSectionId', 'rightSectionId', 'leftTitle', 'rightTitle', 'detail', 'evidenceChunkIds'],
+  additionalProperties: false,
+};
+
+const DOC_COMPARE_REFERENCE_CLAIM_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    claimId: { type: 'string', minLength: 1 },
+    verdict: { type: 'string', enum: ['resolved', 'unresolved', 'contradicted', 'not-applicable'] },
+    reference: { type: 'string' },
+    sectionId: { type: 'string' },
+    side: { type: 'string', enum: ['left', 'right'] },
+    target: { type: ['string', 'null'] },
+    detail: { type: 'string' },
+    evidenceChunkIds: { type: 'array', items: { type: 'string', minLength: 1 } },
+  },
+  required: ['claimId', 'verdict', 'reference', 'sectionId', 'side', 'target', 'detail', 'evidenceChunkIds'],
+  additionalProperties: false,
+};
+
+const DOC_COMPARE_VERDICT_COUNTS_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    unchanged: { type: 'integer', minimum: 0 },
+    modified: { type: 'integer', minimum: 0 },
+    added: { type: 'integer', minimum: 0 },
+    removed: { type: 'integer', minimum: 0 },
+    moved: { type: 'integer', minimum: 0 },
+  },
+  required: ['unchanged', 'modified', 'added', 'removed', 'moved'],
+  additionalProperties: false,
+};
+
+const DOC_COMPARE_EVIDENCE_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    evidenceVersion: { type: 'string', const: 'doc-compare-evidence-v1' },
+    leftFileName: { type: 'string', minLength: 1 },
+    rightFileName: { type: 'string', minLength: 1 },
+    // A result claiming zero chunks compared would read as a clean comparison
+    // of two documents that were never opened.
+    chunkCount: { type: 'integer', minimum: 1 },
+    structureClaims: { type: 'array', items: DOC_COMPARE_STRUCTURE_CLAIM_SCHEMA },
+    referenceClaims: { type: 'array', items: DOC_COMPARE_REFERENCE_CLAIM_SCHEMA },
+    verdictCounts: DOC_COMPARE_VERDICT_COUNTS_SCHEMA,
+    incompleteChunks: { type: 'array', items: { type: 'string', minLength: 1 } },
+  },
+  required: ['evidenceVersion', 'leftFileName', 'rightFileName', 'chunkCount', 'structureClaims', 'referenceClaims', 'verdictCounts', 'incompleteChunks'],
+  additionalProperties: false,
+};
+
 export const documentCoreManifest: BusinessManifest = {
   contractVersion: WIRE_CONTRACT_VERSION,
   businessId: 'document-core',
   version: '1.0.0',
   displayName: 'Document Core Business',
-  description: 'Document understanding business providing 31 document variants and the multi-turn disbursement workflow.',
+  description: 'Document understanding business providing 31 document variants and the multi-turn disbursement and doc-compare workflows.',
   imageDigest: 'sha256:placeholder-document-core-v1',
   runtime: {
     wireVersion: '1',
-    handlerKinds: ['root', 'ingest', 'extract', 'analyze', 'transform', 'generate', 'compare', 'disbursement'],
+    handlerKinds: [
+      'root',
+      'ingest',
+      'extract',
+      'analyze',
+      'transform',
+      'generate',
+      'compare',
+      'disbursement',
+      'doc-compare',
+    ],
   },
   capabilities: {
     cancel: true,
@@ -238,8 +330,11 @@ export const documentCoreManifest: BusinessManifest = {
       capabilities: { cancel: true, resume: true },
       defaultLimits: { timeoutSeconds: 300 },
     },
-    // Internal multi-turn workflow. The existing root handler kind remains the
-    // manifest fallback until host dispatch wiring is added in the separate F4 lane.
+    // Multi-turn workflow with its own handler kind. Dispatch is already wired:
+    // `documentCoreHandlers.disbursement` is registered, the `root` dispatcher
+    // routes on `ctx.action`, and host-side fan-out/approval rides the SDK's
+    // spawnAndWait and waitForInput facades. `root` stays declared only so a
+    // submission without an action still has a handler to land on.
     {
       name: 'disbursement',
       displayName: 'Disbursement Review Workflow',
@@ -325,6 +420,49 @@ export const documentCoreManifest: BusinessManifest = {
         { name: 'extract', required: true, acceptedCapabilities: ['chat-completion', 'structured-output'] },
         { name: 'crosscheck', required: true, acceptedCapabilities: ['chat-completion', 'structured-output'] },
         { name: 'report', required: true, acceptedCapabilities: ['chat-completion'] },
+      ],
+      artifactPolicy: { minFiles: 1, maxFiles: 20 },
+      capabilities: { cancel: true, resume: true },
+      defaultLimits: { timeoutSeconds: 3600 },
+    },
+    // Advanced two-document comparison. Multi-turn: the handler answers with a
+    // chunk fan-out, an optional human review wait, and only then a result.
+    {
+      name: 'doc-compare',
+      displayName: 'Document Comparison (Advanced)',
+      description: 'Chunk-fanned structural and semantic-reference comparison of exactly two documents, with an optional human review of the accumulated evidence before it is written as the result.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          inputVersion: { type: 'string', enum: ['doc-compare-input-v1'] },
+          left: DOC_COMPARE_SIDE_SCHEMA,
+          right: DOC_COMPARE_SIDE_SCHEMA,
+          maxChunkChars: { type: 'integer', minimum: 200, maximum: 200000 },
+          maxConcurrency: { type: 'integer', minimum: 1, maximum: 8 },
+          continueOnPartialFailure: { type: 'boolean' },
+          requireHumanReview: { type: 'boolean' },
+        },
+        required: ['inputVersion', 'left', 'right'],
+        additionalProperties: false,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          resultVersion: { type: 'string', const: 'doc-compare-result-v1' },
+          businessId: { type: 'string', const: 'document-core' },
+          businessVersion: { type: 'string', minLength: 1 },
+          evidence: DOC_COMPARE_EVIDENCE_SCHEMA,
+          incompleteChunks: { type: 'array', items: { type: 'string', minLength: 1 } },
+        },
+        required: ['resultVersion', 'businessId', 'businessVersion', 'evidence', 'incompleteChunks'],
+        additionalProperties: false,
+      },
+      profileSchema: { type: 'object', properties: {} },
+      // One slot, not two: the runner drives both stages through a single
+      // binding (DEFAULT_DOC_COMPARE_BINDING.slot = 'reasoning') and switches the
+      // provider task per stage instead of the slot.
+      connectorSlots: [
+        { name: 'reasoning', required: true, acceptedCapabilities: ['chat-completion', 'structured-output'] },
       ],
       artifactPolicy: { minFiles: 1, maxFiles: 20 },
       capabilities: { cancel: true, resume: true },

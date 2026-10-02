@@ -83,7 +83,13 @@ export function buildExecFunc(ctx: WorkflowContext) {
         let filesJson: string | null = null;
         for (const binding of Object.values(n.inputs ?? {})) {
           const resolved = resolve(binding);
-          if (Array.isArray(resolved)) filesJson = JSON.stringify(resolved);
+          if (Array.isArray(resolved)) {
+            const boundFiles = resolved.map((file) => {
+              if (typeof file !== 'string') return file;
+              return ctx.filesData?.find((entry) => entry.path === file) ?? file;
+            });
+            filesJson = JSON.stringify(boundFiles);
+          }
         }
 
         const result = await enqueueSubStep(ctx, n.connector, variables, filesJson);

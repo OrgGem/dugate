@@ -8,6 +8,7 @@ const express = require('express');
 const morgan = require('morgan');
 const healthRouter = require('./routes/health');
 const connectorsRouter = require('./routes/connectors');
+const openaiE2eRouter = require('./routes/openai-e2e');
 
 const app = express();
 const PORT = process.env.MOCK_PORT || 3099;
@@ -37,6 +38,7 @@ app.use('/ext', (req, res, next) => {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/health', healthRouter);
+app.use(openaiE2eRouter);
 app.use('/ext', connectorsRouter);
 
 // 404 fallback

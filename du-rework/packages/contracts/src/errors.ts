@@ -67,6 +67,8 @@ export const ConnectorErrorCodes = [
   'CREDENTIAL_INVALID',
   'CONNECTOR_DISABLED',
   'PROVIDER_RATE_LIMITED',
+  /** Provider answered 4xx: the request reached the provider and was rejected. Distinct from a 200 whose body does not match the contract. */
+  'PROVIDER_REQUEST_REJECTED',
   'PROVIDER_UNAVAILABLE',
   'PROVIDER_TIMEOUT',
   'INVALID_PROVIDER_RESPONSE',
