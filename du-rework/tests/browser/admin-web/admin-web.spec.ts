@@ -46,7 +46,7 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
 
   async function gotoApp(page: Page): Promise<void> {
     await page.goto(`${BASE}/admin/web`, { waitUntil: 'networkidle' });
-    await expect(page.getByRole('heading', { name: 'Admin Web bootstrap is running' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Orchestrator Portal bootstrap is running' })).toBeVisible();
   }
 
   test('1. direct unauth /admin/web -> 302 login; login form renders', async ({ page }) => {
@@ -82,7 +82,7 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
     await gotoApp(page);
     await page.reload({ waitUntil: 'networkidle' });
     expect(new URL(page.url()).pathname).toBe('/admin/web');
-    await expect(page.getByRole('heading', { name: 'Admin Web bootstrap is running' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Orchestrator Portal bootstrap is running' })).toBeVisible();
     await shot(page, '03-reload.png');
   });
 

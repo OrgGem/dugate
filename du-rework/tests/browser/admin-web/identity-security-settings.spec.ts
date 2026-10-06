@@ -73,7 +73,7 @@ test.describe('AWEB-07 Identity/Security/Settings browser evidence (harness seam
   test('4. identity: real session + auth-mode not managed + users list unavailable', async ({ page }) => {
     await gotoAsAdmin(page, 'identity');
     await expect(page.getByText('Current session')).toBeVisible();
-    await expect(page.getByText('legacy:admin')).toBeVisible();
+    await expect(page.getByText('legacy:admin').first()).toBeVisible();
     await expect(page.getByText('chưa managed')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Users & sessions' })).toBeVisible();
     await expect(page.getByText(/owner LOCAL\/OIDC/)).toBeVisible();

@@ -18,9 +18,9 @@ test.beforeEach(async ({ page }) => {
 
 test('desktop navigation, account dialog, and logout endpoint', async ({ page }) => {
   await page.goto(`${BASE}/admin/web/profiles`);
-  const nav = page.getByRole('navigation', { name: 'Admin Web Navigation' });
+  const nav = page.getByRole('navigation', { name: 'Orchestrator Portal Navigation' });
   await expect(nav.getByRole('link', { name: 'Profiles', exact: true })).toHaveAttribute('aria-current', 'page');
-  expect(await nav.getByRole('link').count()).toBe(15);
+  expect(await nav.getByRole('link').count()).toBe(16);
   await expect(page.locator('header nav')).toHaveCount(0);
   await expect(page.locator('header time')).toBeVisible();
   await page.getByRole('button', { name: 'UI Test Admin · Profile' }).click();
