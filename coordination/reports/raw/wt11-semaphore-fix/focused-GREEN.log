@@ -1,0 +1,10 @@
+
+> dugate@4.12.0 test
+> jest tests/pipelines/worker-slots.test.ts tests/pipelines/worker-slots-fail-open.test.ts tests/pipelines/profile-endpoint-limits.test.ts
+
+
+Test Suites: 3 passed, 3 total
+Tests:       30 passed, 30 total
+Snapshots:   0 total
+Time:        1.442 s, estimated 3 s
+Ran all test suites matching tests/pipelines/worker-slots.test.ts|tests/pipelines/worker-slots-fail-open.test.ts|tests/pipelines/profile-endpoint-limits.test.ts.

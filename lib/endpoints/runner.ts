@@ -9,6 +9,11 @@ import { SERVICE_REGISTRY } from './registry';
 import { EXTRACT_PRESETS } from './presets';
 import { Logger } from '@/lib/logger';
 import { loadProfileEndpoint, mergeParameters, parseConnectionSteps, getFileUrlAuthConfig } from './profile-resolver';
+import { checkRateLimit } from '@/lib/rate-limit';
+import {
+  RATE_LIMIT_API_KEY_PER_MIN,
+  RATE_LIMIT_IP_PER_MIN,
+} from '@/lib/config';
 import { type FileUrlEntry, MAX_FILE_URL_ENTRIES } from '@/lib/file-url-downloader';
 import { canMutate } from '@/lib/rbac';
 import crypto from 'crypto';
@@ -184,6 +189,45 @@ export async function runEndpoint(serviceSlug: string, req: NextRequest): Promis
       );
     }
 
+    // ── 5b. Per-endpoint rate limit ─────────────────────────────────────────
+    // Runs BEFORE any heavy I/O (file save, downloads). Semantics: a positive
+    // rateLimitPerMin wins; NULL or 0 means "use the global default".
+    {
+      let rateKey: string;
+      let rateLimit: number;
+      if (apiKeyId) {
+        const raw = profileEndpoint?.rateLimitPerMin;
+        rateLimit = raw && raw > 0 ? raw : RATE_LIMIT_API_KEY_PER_MIN;
+        rateKey = `ratelimit:profile:${apiKeyId}:${endpointSlug}`;
+      } else {
+        // Browser session without apiKey — rate by client IP (or user id fallback).
+        const forwarded = req.headers.get('x-forwarded-for');
+        const clientIp = forwarded?.split(',')[0]?.trim()
+          || req.headers.get('x-user-id')
+          || 'anonymous';
+        rateLimit = RATE_LIMIT_IP_PER_MIN;
+        rateKey = `ratelimit:endpoint:${endpointSlug}:${clientIp}`;
+      }
+      const rl = await checkRateLimit(rateKey, rateLimit, 60);
+      if (!rl.allowed) {
+        return NextResponse.json(
+          {
+            type: 'https://dugate.vn/errors/too-many-requests',
+            title: 'Too Many Requests',
+            status: 429,
+            detail: `Rate limit of ${rateLimit} requests per minute exceeded for '${endpointSlug}'.`,
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(rl.retryAfter),
+              'X-RateLimit-Remaining': '0',
+            },
+          },
+        );
+      }
+    }
+
     // ── 6. Parse profile DB params ──────────────────────────────────────────
     let dbParams: Record<string, { value: unknown; isLocked?: boolean }> = {};
     if (profileEndpoint?.parameters) {
@@ -242,6 +286,7 @@ export async function runEndpoint(serviceSlug: string, req: NextRequest): Promis
       webhookUrl,
       idempotencyKey,
       apiKeyId,
+      maxConcurrent: profileEndpoint?.maxConcurrent ?? null,
       userId,
       executeSync,
       correlationId,

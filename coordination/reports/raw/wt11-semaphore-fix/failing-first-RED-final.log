@@ -1,0 +1,74 @@
+
+> dugate@4.12.0 test
+> jest tests/pipelines/worker-slots-fail-open.test.ts
+
+FAIL tests/pipelines/worker-slots-fail-open.test.ts
+  ● worker-slots fail-open safety (F-P1-01) + rolling TTL (WT-11) › WT-11: refreshes EXPIRE on every successful acquire, not only on key creation
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "if cur == 1 then"
+    Received string:        "
+    local cur = redis.call('INCR', KEYS[1])
+    if cur == 1 then
+      redis.call('EXPIRE', KEYS[1], ARGV[2])
+    end
+    if cur > tonumber(ARGV[1]) then
+      redis.call('DECR', KEYS[1])
+      return 0
+    end
+    return 1
+    "
+
+    [0m [90m 47 |[39m     [36mconst[39m script [33m=[39m [33mString[39m(mockEval[33m.[39mmock[33m.[39mcalls[[35m0[39m][[35m0[39m])[33m;[39m
+     [90m 48 |[39m     [90m// The old script set the TTL only under `if cur == 1 then`.[39m
+    [31m[1m>[22m[39m[90m 49 |[39m     expect(script)[33m.[39mnot[33m.[39mtoContain([32m'if cur == 1 then'[39m)[33m;[39m
+     [90m    |[39m                        [31m[1m^[22m[39m
+     [90m 50 |[39m     [36mconst[39m capIdx [33m=[39m script[33m.[39mindexOf([32m'if cur > tonumber'[39m)[33m;[39m
+     [90m 51 |[39m     [36mconst[39m expireIdx [33m=[39m script[33m.[39mindexOf([32m"redis.call('EXPIRE'"[39m)[33m;[39m
+     [90m 52 |[39m     expect(capIdx)[33m.[39mtoBeGreaterThanOrEqual([35m0[39m)[33m;[39m[0m
+
+      at tests/pipelines/worker-slots-fail-open.test.ts:49:24
+      at fulfilled (tests/pipelines/worker-slots-fail-open.test.ts:16:58)
+
+  ● worker-slots fail-open safety (F-P1-01) + rolling TTL (WT-11) › F-P1-01: a Redis failure yields the distinguishable fail-open outcome and logs a warn
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "fail-open"
+    Received: true
+
+    [0m [90m 59 |[39m     [36mconst[39m outcome [33m=[39m [36mawait[39m tryAcquireSlot([32m'key-1'[39m[33m,[39m [32m'extract:invoice'[39m[33m,[39m [35m2[39m[33m,[39m [35m60[39m)[33m;[39m
+     [90m 60 |[39m
+    [31m[1m>[22m[39m[90m 61 |[39m     expect(outcome)[33m.[39mtoBe([32m'fail-open'[39m)[33m;[39m
+     [90m    |[39m                     [31m[1m^[22m[39m
+     [90m 62 |[39m     expect(warnMock)[33m.[39mtoHaveBeenCalledTimes([35m1[39m)[33m;[39m
+     [90m 63 |[39m   })[33m;[39m
+     [90m 64 |[39m[0m
+
+      at tests/pipelines/worker-slots-fail-open.test.ts:61:21
+      at fulfilled (tests/pipelines/worker-slots-fail-open.test.ts:16:58)
+
+  ● worker-slots fail-open safety (F-P1-01) + rolling TTL (WT-11) › positive control: a real acquisition DOES release exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "acquired"
+    Received: true
+
+    [0m [90m 90 |[39m     }
+     [90m 91 |[39m
+    [31m[1m>[22m[39m[90m 92 |[39m     expect(outcome)[33m.[39mtoBe([32m'acquired'[39m)[33m;[39m
+     [90m    |[39m                     [31m[1m^[22m[39m
+     [90m 93 |[39m     [36mconst[39m releaseCalls [33m=[39m mockEval[33m.[39mmock[33m.[39mcalls[33m.[39mfilter((call) [33m=>[39m
+     [90m 94 |[39m       [33mString[39m(call[[35m0[39m])[33m.[39mincludes([32m"redis.call('GET'"[39m)[33m,[39m
+     [90m 95 |[39m     )[33m;[39m[0m
+
+      at tests/pipelines/worker-slots-fail-open.test.ts:92:21
+      at fulfilled (tests/pipelines/worker-slots-fail-open.test.ts:16:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 1 passed, 4 total
+Snapshots:   0 total
+Time:        0.537 s, estimated 1 s
+Ran all test suites matching tests/pipelines/worker-slots-fail-open.test.ts.

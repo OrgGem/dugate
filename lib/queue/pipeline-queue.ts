@@ -87,6 +87,11 @@ export interface PipelineJobData {
   type?: 'pipeline' | 'workflow';
   /** Profile name associated with this job for logging/monitoring */
   profileName?: string;
+  /** Fair-share inputs for the worker slot semaphore (top-level pipeline jobs only). */
+  apiKeyId?: string;
+  endpointSlug?: string;
+  /** Raw per-endpoint maxConcurrent (nullable) — worker applies the default at execution time. */
+  maxConcurrent?: number | null;
   /** Pending file URLs to download at start of pipeline (deferred from submit for async mode) */
   pendingFileUrls?: import('@/lib/file-url-downloader').FileUrlEntry[];
   pendingFileUrlAuthConfig?: import('@/lib/file-url-downloader').FileUrlAuthConfig;

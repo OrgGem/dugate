@@ -1,0 +1,8 @@
+
+> dugate@4.12.0 worker:build
+> npx esbuild worker.ts --bundle --platform=node --target=node20 --outfile=worker.js --external:bcryptjs --external:ioredis --external:bullmq --external:mammoth --external:sharp --external:openai --alias:@=.
+
+
+  worker.js  4.6mb
+
+Done in 1367ms

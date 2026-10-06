@@ -45,6 +45,8 @@ export interface SubmitPipelineParams {
   webhookUrl?: string | null;
   idempotencyKey?: string;
   apiKeyId?: string;
+  /** Raw per-endpoint maxConcurrent from the runner's already-loaded profileEndpoint (nullable). */
+  maxConcurrent?: number | null;
   userId?: string;
   executeSync?: boolean;
   correlationId?: string;
@@ -81,6 +83,7 @@ export async function submitPipelineJob(
     webhookUrl,
     idempotencyKey,
     apiKeyId,
+    maxConcurrent: maxConcurrentParam,
     userId,
     executeSync = false,
     correlationId,
@@ -173,14 +176,23 @@ export async function submitPipelineJob(
   }
 
   // ── 4. Resolve BullMQ job priority from ProfileEndpoint ──────────────────
+  // Also resolves the raw maxConcurrent so the worker can enforce the
+  // per-(apiKey, endpoint) slot cap. The runner already loaded the row, but
+  // submit is also called by other entry points (internal test route,
+  // workflows schema route) — prefer the passed-through value, fall back to
+  // extending the existing SELECT (no extra round-trip).
   let bullPriority = 10; // default MEDIUM
+  let maxConcurrent: number | null | undefined = maxConcurrentParam;
   if (apiKeyId && endpointSlug) {
-    const [profileEndpoint] = await db.select({ jobPriority: profileEndpoints.jobPriority })
+    const [profileEndpoint] = await db.select({ jobPriority: profileEndpoints.jobPriority, maxConcurrent: profileEndpoints.maxConcurrent })
       .from(profileEndpoints)
       .where(and(eq(profileEndpoints.apiKeyId, apiKeyId), eq(profileEndpoints.endpointSlug, endpointSlug)))
       .limit(1);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     bullPriority = resolveBullPriority((profileEndpoint as any)?.jobPriority);
+    if (maxConcurrent === undefined) {
+      maxConcurrent = (profileEndpoint as { maxConcurrent?: number | null } | undefined)?.maxConcurrent ?? null;
+    }
   }
 
   // ── 4. Save uploaded files via storage backend ──────────────────────────
@@ -341,6 +353,13 @@ export async function submitPipelineJob(
     correlationId,
     type: isWorkflowJob ? 'workflow' : 'pipeline',
     profileName: apiKeyId ? profileName : undefined,
+    // Fair-share inputs for the worker semaphore (worker applies the default
+    // at execution time so admin changes take effect without re-enqueueing).
+    ...(apiKeyId && endpointSlug ? {
+      apiKeyId,
+      endpointSlug,
+      ...(maxConcurrent !== undefined ? { maxConcurrent } : {}),
+    } : {}),
     // Deferred file_urls for async mode — worker will download before running pipeline
     // Skip if URLs are being forwarded (already stored in filesJson as isRemoteUrl)
     ...(hasPendingFileUrls && !executeSync && !forwardUrls ? {

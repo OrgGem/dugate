@@ -1,0 +1,6 @@
+cwd: D:\Git\dugate
+command: npx tsc --noEmit
+timestamp: 2026-10-07T01:48:30.2346494+07:00
+--- output ---
+--- end ---
+exit=0

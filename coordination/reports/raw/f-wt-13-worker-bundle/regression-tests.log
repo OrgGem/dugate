@@ -1,0 +1,10 @@
+
+> dugate@4.12.0 test
+> jest tests/pipelines/worker-slots.test.ts tests/pipelines/worker-slots-fail-open.test.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        0.541 s, estimated 1 s
+Ran all test suites matching tests/pipelines/worker-slots.test.ts|tests/pipelines/worker-slots-fail-open.test.ts.

@@ -17,7 +17,7 @@ import './env-init';
 
 
 import v8 from 'v8';
-import { Worker, Job, DelayedError } from 'bullmq';
+import { Worker, Job } from 'bullmq';
 import { createRedisConnection } from './lib/queue/redis';
 import { runPipeline } from './lib/pipelines/engine';
 import { runWorkflow } from './lib/pipelines/workflow-engine';
@@ -26,8 +26,6 @@ import {
   WORKFLOW_STEPS_QUEUE_NAME,
   type PipelineJobData,
 } from './lib/queue/pipeline-queue';
-import { tryAcquireSlot, releaseSlot } from './lib/queue/worker-slots';
-import { MAX_CONCURRENT_PER_PROFILE_ENDPOINT } from './lib/config';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -36,15 +34,6 @@ const concurrency = parseInt(process.env.WORKER_CONCURRENCY || '5', 10);
 const subStepConcurrency = parseInt(process.env.SUBSTEP_WORKER_CONCURRENCY || String(concurrency * 2), 10);
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-// Fair-share semaphore: a contended job is re-delayed with jitter instead of
-// consuming an attempt, so other (apiKey, endpoint) keys get a chance.
-const CONTENTION_DELAY_MIN_MS = 4000;
-const CONTENTION_DELAY_JITTER_MS = 2000;
-// Slot TTL: reclaims the slot if a worker crashes between acquire and release.
-// Pipeline jobs have no per-job timeout configured, so this is a generous
-// ceiling for one top-level run; override for unusually long pipelines.
-const SLOT_TTL_SECONDS = parseInt(process.env.WORKER_SLOT_TTL_SECONDS || '900', 10);
-
 console.log(`[Worker] Starting BullMQ Workers`);
 console.log(`[Worker] pipeline queue: ${PIPELINE_QUEUE_NAME} (concurrency ${concurrency})`);
 console.log(`[Worker] workflow-steps queue: ${WORKFLOW_STEPS_QUEUE_NAME} (concurrency ${subStepConcurrency})`);
@@ -52,53 +41,17 @@ console.log(`[Worker] Redis: ${redisUrl}`);
 
 // ─── Job processor ────────────────────────────────────────────────────────────
 
-async function processJob(job: Job<PipelineJobData>, semaphoreEnabled: boolean) {
-  const { operationId, correlationId, type, profileName, apiKeyId, endpointSlug, maxConcurrent } = job.data;
+async function processJob(job: Job<PipelineJobData>) {
+  const { operationId, correlationId, type, profileName } = job.data;
   const profileStr = profileName ? ` [Profile: ${profileName}]` : '';
   console.log(`[Worker] Processing job ${job.id} (${job.name})${profileStr} → operationId=${operationId}`);
 
   // Use explicit type field; fall back to job name inspection for legacy jobs
   const isWorkflow = type === 'workflow' || job.name.includes('workflows:');
-
-  // ─── Fair-share semaphore (top-level pipeline jobs only) ────────────────────
-  // Workflow jobs and workflow-steps sub-jobs SKIP the semaphore: the parent
-  // would hold a slot while waiting for children queued behind the same cap —
-  // the two-queue split exists precisely to avoid that deadlock. Legacy/internal
-  // jobs without apiKeyId+endpointSlug also run unslotted.
-  const slotKey = semaphoreEnabled && !isWorkflow && apiKeyId && endpointSlug
-    ? { apiKeyId, endpointSlug }
-    : null;
-  let acquired = false;
-  if (slotKey) {
-    const cap = typeof maxConcurrent === 'number' && Number.isInteger(maxConcurrent) && maxConcurrent > 0
-      ? maxConcurrent
-      : MAX_CONCURRENT_PER_PROFILE_ENDPOINT;
-    const outcome = await tryAcquireSlot(slotKey.apiKeyId, slotKey.endpointSlug, cap, SLOT_TTL_SECONDS);
-    if (outcome === 'contended') {
-      // Contended: re-delay WITHOUT consuming an attempt so the slot holder can
-      // finish and other keys can interleave (approximate fair-share).
-      const delayMs = CONTENTION_DELAY_MIN_MS + Math.floor(Math.random() * CONTENTION_DELAY_JITTER_MS);
-      console.log(
-        `[Worker] No fair-share slot for ${slotKey.apiKeyId}:${slotKey.endpointSlug} (cap ${cap}) — delaying job ${job.id} by ${delayMs}ms`,
-      );
-      await job.moveToDelayed(Date.now() + delayMs, job.token);
-      throw new DelayedError();
-    }
-    // F-P1-01: only a real 'acquired' owns a slot. 'fail-open' (Redis error)
-    // runs the job without one and must never release in the finally below.
-    acquired = outcome === 'acquired';
-  }
-
-  try {
-    if (isWorkflow) {
-      await runWorkflow(operationId, correlationId, job);
-    } else {
-      await runPipeline(operationId, correlationId, job);
-    }
-  } finally {
-    if (acquired && slotKey) {
-      await releaseSlot(slotKey.apiKeyId, slotKey.endpointSlug);
-    }
+  if (isWorkflow) {
+    await runWorkflow(operationId, correlationId, job);
+  } else {
+    await runPipeline(operationId, correlationId, job);
   }
 
   console.log(`[Worker] Finished job ${job.id} → operationId=${operationId}`);
@@ -108,7 +61,7 @@ async function processJob(job: Job<PipelineJobData>, semaphoreEnabled: boolean) 
 
 const pipelineWorker = new Worker<PipelineJobData>(
   PIPELINE_QUEUE_NAME,
-  (job) => processJob(job, true),
+  processJob,
   {
     connection: createRedisConnection(),
     concurrency,
@@ -121,7 +74,7 @@ const pipelineWorker = new Worker<PipelineJobData>(
 
 const stepsWorker = new Worker<PipelineJobData>(
   WORKFLOW_STEPS_QUEUE_NAME,
-  (job) => processJob(job, false),
+  processJob,
   {
     connection: createRedisConnection(),
     concurrency: subStepConcurrency,

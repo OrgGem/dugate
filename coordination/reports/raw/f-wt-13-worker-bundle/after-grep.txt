@@ -1,0 +1,13 @@
+﻿== tryAcquireSlot ==
+2
+L110517: async function tryAcquireSlot(apiKeyId, endpointSlug, cap, ttlSec) {
+L110583: const outcome = await tryAcquireSlot(slotKey.apiKeyId, slotKey.endpointSlug, cap, SLOT_TTL_SECONDS);
+== releaseSlot ==
+2
+L110544: async function releaseSlot(apiKeyId, endpointSlug) {
+L110602: await releaseSlot(slotKey.apiKeyId, slotKey.endpointSlug);
+== moveToDelayed / DelayedError / fail-open ==
+moveToDelayed=1
+DelayedError=1
+fail-open=1
+workerslots:=2

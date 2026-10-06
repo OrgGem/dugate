@@ -21,6 +21,24 @@ export const WORKER_MEMORY_THRESHOLD = parseFloat(process.env.WORKER_MEMORY_THRE
 export const RATE_LIMIT_API_KEY_PER_MIN = parseInt(process.env.RATE_LIMIT_API_KEY || '100', 10);
 export const RATE_LIMIT_IP_PER_MIN = parseInt(process.env.RATE_LIMIT_IP || '30', 10);
 
+// ─── Per-endpoint-per-profile limits ──────────────────────────────────────────
+// Defaults apply when ProfileEndpoint.rateLimitPerMin / maxConcurrent is NULL
+// or 0. Invariant: DEFAULT_MAX_CONCURRENT_PER_ENDPOINT (2) < WORKER_CONCURRENCY
+// (5) so there is always room for another key to make progress — a single
+// profile can never starve the whole worker.
+
+/** Default requests/minute for an endpoint without an explicit rateLimitPerMin. */
+export const DEFAULT_ENDPOINT_RATE_LIMIT_PER_MIN = RATE_LIMIT_API_KEY_PER_MIN;
+
+/** Default concurrent worker slots per (apiKey, endpoint) without explicit maxConcurrent. */
+export const MAX_CONCURRENT_PER_PROFILE_ENDPOINT = parseInt(
+  process.env.MAX_CONCURRENT_PER_PROFILE_ENDPOINT || '2', 10,
+);
+
+/** Upper bounds — sanity guard against admin typos (route returns 400 above these). */
+export const MAX_ENDPOINT_RATE_LIMIT_PER_MIN = 10000;
+export const MAX_ENDPOINT_CONCURRENT = 20;
+
 // ─── Model pricing (USD per 1M tokens) ───────────────────────────────────────
 // Used for cost tracking in Phase 6. Update as provider pricing changes.
 

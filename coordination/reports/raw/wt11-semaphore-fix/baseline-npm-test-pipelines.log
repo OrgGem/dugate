@@ -1,0 +1,29 @@
+
+> dugate@4.12.0 test
+> jest tests/pipelines/
+
+FAIL tests/pipelines/external-api.test.ts
+  ● Test suite failed to run
+
+    TypeError: Cannot read properties of undefined (reading 'bind')
+
+    [0m[31m[1m>[22m[39m[90m 1 |[39m [36mimport[39m [33m*[39m [36mas[39m mammoth [36mfrom[39m [32m'mammoth'[39m[33m;[39m
+     [90m   |[39m [31m[1m^[22m[39m
+     [90m 2 |[39m [36mimport[39m { [33mDocumentParser[39m[33m,[39m [33mParseResult[39m } [36mfrom[39m [32m'./interface'[39m[33m;[39m
+     [90m 3 |[39m [36mimport[39m { [33mLogger[39m } [36mfrom[39m [32m'../logger'[39m[33m;[39m
+     [90m 4 |[39m[0m
+
+      at Object.<anonymous> (node_modules/mammoth/lib/docx/files.js:53:47)
+      at Object.<anonymous> (node_modules/mammoth/lib/docx/docx-reader.js:18:13)
+      at Object.<anonymous> (node_modules/mammoth/lib/index.js:3:18)
+      at Object.<anonymous> (lib/parsers/word-parser.ts:1:1)
+      at Object.<anonymous> (lib/parsers/factory.ts:3:1)
+      at Object.<anonymous> (lib/pipelines/processors/external-api.ts:8:1)
+      at Object.<anonymous> (tests/pipelines/external-api.test.ts:1:1)
+
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        12.605 s
+Ran all test suites matching tests/pipelines/.

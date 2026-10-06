@@ -129,6 +129,10 @@ export const profileEndpoints = pgTable('ProfileEndpoint', {
   jobPriority:           text('jobPriority').default('MEDIUM').notNull(),
   fileUrlAuthConfig:     text('fileUrlAuthConfig'),
   allowedFileExtensions: text('allowedFileExtensions'),
+  // Per-endpoint limits (nullable = use global default; 0 also = default).
+  // Want to block an endpoint entirely? Set enabled=false instead.
+  rateLimitPerMin:       integer('rateLimitPerMin'),
+  maxConcurrent:         integer('maxConcurrent'),
   createdAt:             timestamp('createdAt', { mode: 'date', precision: 3 }).default(sql`CURRENT_TIMESTAMP(3)`).notNull(),
   updatedAt:             timestamp('updatedAt', { mode: 'date', precision: 3 }).notNull().$onUpdate(() => new Date()),
 }, (t) => [
