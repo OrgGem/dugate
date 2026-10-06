@@ -1,0 +1,212 @@
+﻿COMMAND: git diff --no-ext-diff -- role repository, audit writer, legacy repository suite
+LITERAL_EXIT_CODE: 0
+
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/auth/admin-local/repository.ts', LF will be replaced by CRLF the next time Git touches it
+diff --git a/du-rework/services/orchestrator/src/modules/audit/audit.ts b/du-rework/services/orchestrator/src/modules/audit/audit.ts
+index 4e6447a..cdca787 100644
+--- a/du-rework/services/orchestrator/src/modules/audit/audit.ts
++++ b/du-rework/services/orchestrator/src/modules/audit/audit.ts
+@@ -41,6 +41,15 @@ export interface AuditRecordInput {
+   tenantId: string | null;
+   /** Stable actor id. NEVER a raw credential — admin routes pass 'admin'. */
+   actor: string;
++  /**
++   * Δ8 / T-AUD-01: the REAL principal behind `actor` when the caller has one.
++   * Server-derived session identity only (opaque session store) — never a
++   * caller-supplied string. Absent for legacy/self-contained credentials;
++   * those rows keep NULL here and their `actor` fallback unchanged.
++   */
++  actorIssuer?: string;
++  actorSub?: string;
++  actorRole?: string;
+   /** Renderer AuditEventKind where one describes the event honestly; otherwise
+    *  a namespaced ledger kind (e.g. `profile_binding.bind`) — see module doc. */
+   action: string;
+@@ -61,7 +70,12 @@ export interface AuditWireEvent {
+   message: string;
+ }
+ 
+-interface AuditRow {
++/**
++ * A raw `admin_audit_events` row. Exported (CONV-13) so every ledger read
++ * path — the service list and the paginated route — projects rows through
++ * ONE wire mapper instead of keeping a mirrored copy.
++ */
++export interface AuditRow extends Record<string, unknown> {
+   id: string;
+   tenant_id: string | null;
+   actor: string;
+@@ -72,7 +86,14 @@ interface AuditRow {
+   created_at: Date;
+ }
+ 
+-function toWire(row: AuditRow): AuditWireEvent {
++/**
++ * CONV-13: the single wire projection for a ledger row (CONV-D03: this body
++ * used to exist twice, here and in server.ts as `toAuditWire`). The route
++ * pagination path imports THIS function; a second copy must not come back.
++ * `created_at` may arrive as a Date (pg timestamptz) or a string (fixture /
++ * cursor rows); both map to the same ISO instant.
++ */
++export function toAuditWire(row: AuditRow): AuditWireEvent {
+   return {
+     id: row.id,
+     kind: row.action,
+@@ -98,12 +119,15 @@ export function createAuditService(db: Db) {
+     async record(input: AuditRecordInput, executor?: Queryable): Promise<{ id: string }> {
+       const res = await (executor ?? db).query<{ id: string }>(
+         `INSERT INTO admin_audit_events
+-           (tenant_id, actor, action, resource, severity, correlation_id)
+-         VALUES ($1, $2, $3, $4, $5, $6)
++           (tenant_id, actor, actor_issuer, actor_sub, actor_role, action, resource, severity, correlation_id)
++         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id`,
+         [
+           input.tenantId,
+           input.actor,
++          input.actorIssuer ?? null,
++          input.actorSub ?? null,
++          input.actorRole ?? null,
+           input.action,
+           input.resource,
+           input.severity ?? 'info',
+@@ -127,7 +151,7 @@ export function createAuditService(db: Db) {
+          LIMIT $2`,
+         [tenantId, limit]
+       );
+-      return res.rows.map(toWire);
++      return res.rows.map(toAuditWire);
+     },
+   };
+ }
+diff --git a/du-rework/services/orchestrator/src/modules/auth/admin-local/repository.ts b/du-rework/services/orchestrator/src/modules/auth/admin-local/repository.ts
+index 1ab3dc1..b2e6bbc 100644
+--- a/du-rework/services/orchestrator/src/modules/auth/admin-local/repository.ts
++++ b/du-rework/services/orchestrator/src/modules/auth/admin-local/repository.ts
+@@ -34,6 +34,30 @@ export interface CreateAdminLocalUserInput {
+   actor: string;
+ }
+ 
++export type AdminLocalUserIdentityRole = 'ADMIN' | 'USER' | 'VIEWER';
++
++export type AdminLocalUserRolePolicyErrorCode =
++  | 'INVALID_ROLE'
++  | 'INVALID_CALLER_ROLE'
++  | 'ROLE_ESCALATION_DENIED';
++
++export class AdminLocalUserRolePolicyError extends Error {
++  constructor(readonly code: AdminLocalUserRolePolicyErrorCode, message: string) {
++    super(message);
++    this.name = 'AdminLocalUserRolePolicyError';
++  }
++}
++
++export interface CreateAdminLocalUserWithRoleInput extends CreateAdminLocalUserInput {
++  /** Requested wire role; validated at runtime against ADMIN/USER/VIEWER. */
++  role: unknown;
++}
++
++export interface AdminLocalUserCreationContext {
++  /** Must be mapped from the server-authenticated caller, never request JSON. */
++  callerRole: AdminLocalUserIdentityRole;
++}
++
+ export interface SetAdminLocalUserStatusInput {
+   tenantId: string;
+   userId: string;
+@@ -54,6 +78,46 @@ export interface AdminLocalUserPasswordUpdate extends AdminLocalUserTarget {
+ 
+ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ const USERNAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
++const IDENTITY_ROLE_TO_STORED_ROLE: Record<AdminLocalUserIdentityRole, string> = {
++  ADMIN: 'admin',
++  USER: 'operator',
++  VIEWER: 'viewer',
++};
++const ROLE_RANK: Record<AdminLocalUserIdentityRole, number> = {
++  ADMIN: 3,
++  USER: 2,
++  VIEWER: 1,
++};
++
++function isAdminLocalUserIdentityRole(value: unknown): value is AdminLocalUserIdentityRole {
++  return value === 'ADMIN' || value === 'USER' || value === 'VIEWER';
++}
++
++function requireRequestedRole(value: unknown): AdminLocalUserIdentityRole {
++  if (!isAdminLocalUserIdentityRole(value)) {
++    throw new AdminLocalUserRolePolicyError('INVALID_ROLE', 'role must be ADMIN, USER, or VIEWER');
++  }
++  return value;
++}
++
++function requireCallerRole(value: unknown): AdminLocalUserIdentityRole {
++  if (!isAdminLocalUserIdentityRole(value)) {
++    throw new AdminLocalUserRolePolicyError('INVALID_CALLER_ROLE', 'server caller role is invalid');
++  }
++  return value;
++}
++
++function authorizeRoleAssignment(requestedRole: unknown, callerRoleInput: unknown): string {
++  const requested = requireRequestedRole(requestedRole);
++  const callerRole = requireCallerRole(callerRoleInput);
++  if (ROLE_RANK[requested] > ROLE_RANK[callerRole]) {
++    throw new AdminLocalUserRolePolicyError(
++      'ROLE_ESCALATION_DENIED',
++      'caller may not assign a role with greater privileges'
++    );
++  }
++  return IDENTITY_ROLE_TO_STORED_ROLE[requested];
++}
+ 
+ function requireTenantId(tenantId: string): string {
+   if (typeof tenantId !== 'string' || !UUID.test(tenantId)) {
+@@ -137,6 +201,48 @@ export function createAdminLocalUserRepository(db: Db, audit: AuditService) {
+   }
+ 
+   return {
++    /**
++     * Request-path creation. The caller role must come from the server's
++     * authenticated session; validate it and the requested grant before any
++     * database or audit side effect.
++     */
++    async createUser(
++      input: CreateAdminLocalUserWithRoleInput,
++      context: AdminLocalUserCreationContext
++    ): Promise<AdminLocalUser> {
++      const storedRole = authorizeRoleAssignment(input.role, context?.callerRole);
++      const tenantId = requireTenantId(input.tenantId);
++      const username = normalizeLocalUsername(input.username);
++      const actor = requireActor(input.actor);
++      if (!isLocalPasswordHash(input.passwordHash)) {
++        throw new Error('password hash format is invalid');
++      }
++
++      return db.tx(async (client: PoolClient) => {
++        const result = await client.query<AdminLocalUserRow>(
++          `INSERT INTO admin_local_users
++             (tenant_id, username_normalized, password_hash, role)
++           VALUES ($1, $2, $3, $4)
++           RETURNING ${SAFE_COLUMNS}`,
++          [tenantId, username, input.passwordHash, storedRole]
++        );
++        const row = result.rows[0];
++        if (!row) throw new Error('admin local user insert returned no row');
++        await audit.record(
++          {
++            tenantId,
++            actor,
++            action: 'admin_local_user.create',
++            resource: `admin_local_user:${row.id}`,
++            severity: 'success',
++          },
++          client
++        );
++        return toUser(row);
++      });
++    },
++
++    /** Bootstrap CLI only. Request-driven creation must use createUser(). */
+     async createAdmin(input: CreateAdminLocalUserInput): Promise<AdminLocalUser> {
+       const tenantId = requireTenantId(input.tenantId);
+       const username = normalizeLocalUsername(input.username);

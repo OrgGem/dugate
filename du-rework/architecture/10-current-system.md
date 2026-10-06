@@ -1,6 +1,6 @@
 # 10 — Kiến trúc hệ thống hiện hành
 
-**Phạm vi:** toàn bộ workspace `du-rework/`, đối chiếu source ngày 2026-10-02. Đây là bản đồ implementation, không phải xác nhận release. Các tài liệu `01–09` là hồ sơ thiết kế/đánh giá mục tiêu; [README](README.md) chỉ đường đọc và giải thích mức tin cậy.
+**Phạm vi:** toàn bộ workspace `du-rework/`, đối chiếu cấu trúc source ngày 2026-10-04. Đây là bản đồ implementation, không phải xác nhận release. Các tài liệu `01–09` là hồ sơ thiết kế/đánh giá mục tiêu; [README](README.md) chỉ đường đọc và giải thích mức tin cậy.
 
 ## 1. Hệ thống giải quyết việc gì?
 
@@ -40,7 +40,7 @@ Ba **vai trò triển khai** là Orchestrator, Business Worker và Connector. V�
 | Connector | Connector revision/credential, invocation ledger, quota provider, HTTP adapter, provider usage outbox | Operation lifecycle, business workflow |
 | `packages/contracts` | DTO/schema và wire contract dùng chung | Persistence hoặc process lifecycle |
 
-Ranh giới này được thực thi qua [Orchestrator source](../services/orchestrator/src/server.ts), [Connector composition](../services/connector/src/composition.ts), [worker SDK](../packages/worker-sdk/src/worker.ts) và các package manifest. Các service hiện dùng `node:http` và raw `pg` trong source; mô tả Next.js/Drizzle ở tài liệu mục tiêu cũ không phản ánh implementation này.
+Ranh giới này được thực thi qua [Orchestrator router](../services/orchestrator/src/server.ts), [bootstrap](../services/orchestrator/src/app/bootstrap/create-app.ts), [Connector composition](../services/connector/src/composition.ts), [worker SDK](../packages/worker-sdk/src/worker.ts) và các package manifest. Các service hiện dùng `node:http` và raw `pg` trong source; mô tả Next.js/Drizzle ở tài liệu mục tiêu cũ không phản ánh implementation này.
 
 ## 3. Thành phần hạ tầng
 
@@ -67,10 +67,10 @@ Chi tiết các nhánh, trạng thái và owner nằm trong [12 — luồng và 
 
 | Chủ đề | Trong source hiện tại | Tài liệu mục tiêu / lưu ý |
 |---|---|---|
-| HTTP platform | `node:http`, route table và wiring tại `services/orchestrator/src/server.ts` | [02-application](02-application.md) và [docs/03](../docs/03-project-structure.md) có phần kiến trúc mục tiêu cũ; không dùng làm bằng chứng framework hiện hành. |
+| HTTP platform | `node:http`; `server.ts` chọn nhóm route, `http/routes/` xử lý public/runtime/admin, `app/bootstrap/create-app.ts` lắp dependency và lifecycle | [02-application](02-application.md) mô tả một phần kiến trúc mục tiêu cũ; không dùng làm bằng chứng framework hiện hành. |
 | Database | `pg` + SQL migration riêng service | Đề xuất Drizzle ở tài liệu cũ chưa phải dependency/source thực tế. |
 | Admin UI | Server-rendered shell trong `orchestrator/src/app/admin/` | Có code; hiệu lực các auth mode và browser acceptance phải xem gate mới nhất. |
-| Legacy API | Có `compat/` và `handleLegacyRoute` được gọi trong `server.ts` | Một số catalog cũ còn ghi route chưa implement; phải kiểm route, test và contract theo commit đang xét. |
+| Legacy API | `handleLegacyRoute` trong `compat/` được gọi từ `http/routes/public.ts`, gồm `/api/v1/docs/{action}`, multipart và `?sync=true` | Kiểm wire và end-to-end theo [legacy parity contract](../docs/39-legacy-parity-contract.md); có route không đồng nghĩa mọi parity gate đã đạt. |
 | Storage | PostgreSQL hoặc S3 theo cấu hình, có migration/read-path code | Private versioned S3 là mục tiêu production; test fixture không chứng minh deployment. |
 | Release | Source có nhiều vertical slice và test | [Task board](../tasks/README.md) và [review](../coordination/reports/review.md) vẫn là nguồn đánh giá gate, không suy ra release từ sơ đồ này. |
 

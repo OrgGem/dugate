@@ -1,0 +1,6 @@
+﻿COMMAND: docker exec psql: restore the original migration table from task-local view fixture
+LITERAL_EXIT_CODE: 0
+
+DROP VIEW
+ALTER TABLE
+DROP SEQUENCE

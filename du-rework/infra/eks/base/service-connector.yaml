@@ -1,0 +1,18 @@
+# Connector ClusterIP :8080 — KHÔNG BAO GIỜ có Ingress/DNS.
+# Admin quản trị qua Orchestrator Backend proxy, không gọi trực tiếp từ browser.
+apiVersion: v1
+kind: Service
+metadata:
+  name: connector
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: connector
+    app.kubernetes.io/part-of: du-rework
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: connector
+  ports:
+    - name: api
+      port: 8080
+      targetPort: 8080

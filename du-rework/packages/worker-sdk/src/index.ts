@@ -177,7 +177,14 @@ export {
   streamTransportError,
   toNodeReadable,
   readErrorDetail,
+  readErrorResponse,
 } from './artifact-streams';
+export type { ArtifactErrorResponse } from './artifact-streams';
+export {
+  ARTIFACT_STORAGE_POLICY_CODES,
+  isArtifactStoragePolicyCode,
+} from './storage-policy';
+export type { ArtifactStoragePolicyCode } from './storage-policy';
 export type {
   TempWorkspace,
   TempWorkspaceOptions,
@@ -192,3 +199,6 @@ export type {
   ArtifactStreamIntegrity,
   ArtifactStreamErrorCode,
 } from './artifact-streams';
+
+// All business process logs use the same metadata-only privacy boundary.
+export { createLogger, safeErrorForLog, metadataLogRecord } from '@du/observability';

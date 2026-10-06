@@ -1,0 +1,10 @@
+COMMAND=docker exec -i du-vfy-counter808-pg16-20261005 psql -v ON_ERROR_STOP=1 -U postgres -d du_vfy808 -f -
+
+STDOUT:
+INSERT 0 2
+
+
+STDERR:
+
+
+LITERAL_EXIT_CODE=0

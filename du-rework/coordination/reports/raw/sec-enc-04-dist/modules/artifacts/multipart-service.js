@@ -1,0 +1,1073 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.publicUploadToken = publicUploadToken;
+exports.createMultipartService = createMultipartService;
+const node_crypto_1 = require("node:crypto");
+const contracts_1 = require("@du/contracts");
+const errors_1 = require("../../http/errors");
+const boot_options_1 = require("../encryption/boot-options");
+const multipart_storage_1 = require("./multipart-storage");
+const storage_facade_1 = require("./storage-facade");
+/**
+ * DATA-02 server-side multipart upload lifecycle (`init` → per-part grants →
+ * `complete` → `abort`), on the wire shapes in `@du/contracts` runtime.ts.
+ *
+ * Division of labour, and why each guard sits where it does:
+ *
+ * - The Zod schemas are the OUTER wire bounds. Deployment policy values are
+ *   injected and may only narrow them (`resolvePolicy`), never widen them.
+ * - Storage is authoritative about bytes. A client receipt is never trusted:
+ *   `complete` re-reads `listMultipartParts` and refuses to publish unless
+ *   every part's etag, size and checksum agree with what the server declared
+ *   at grant time. The whole object is then re-hashed from the pinned
+ *   generation before anything is committed.
+ * - The lease fence is re-taken in every durable step. A takeover between
+ *   steps makes the next step 409 `LEASE_LOST` rather than a silent write.
+ * - `finalize` (single-PUT path, unchanged schema) stays the only
+ *   STAGING → READY transition, so both upload branches converge on one
+ *   verified-then-committed gate.
+ *
+ * The provider upload id stays server-side; clients see only the derived
+ * opaque `uploadHandle`. Presigned part URLs are never logged.
+ */
+/**
+ * RFX-03 — is the PUBLIC multipart lifecycle available on this deployment?
+ *
+ * The public branch presigns client PUTs straight at the object store, so the
+ * bytes land exactly as the client sent them. The encrypted upload gateway is
+ * the only artifact write path boot accepts, and nothing refused this
+ * lifecycle when encryption was on: the result was plaintext at rest in the
+ * same bucket the gateway exists to protect — and, with
+ * `encryptionRequired`, an artifact that could never be read back.
+ *
+ * The direction chosen here is the reversible one: REFUSE, loudly, rather than
+ * grow a second write path with different encryption semantics. The server-side
+ * seal variant is recorded as a follow-up decision, not attempted.
+ *
+ * The predicate is deliberately `encryptionIsRequired` — the SAME function boot
+ * uses — rather than a second copy. boot-options already records that two
+ * copies of this decision drifted once and silently dropped a block while
+ * validation still demanded its key ref.
+ *
+ * A malformed flag makes that function throw. A throw is read as REQUIRED: a
+ * typo in the encryption surface must never be the reason the plaintext path
+ * opens.
+ */
+function publicMultipartBlockedByEncryption() {
+    try {
+        return (0, boot_options_1.encryptionIsRequired)(process.env);
+    }
+    catch {
+        return true;
+    }
+}
+function assertPublicMultipartAllowed() {
+    if (!publicMultipartBlockedByEncryption())
+        return;
+    throw new errors_1.HttpError(501, 'PUBLIC_MULTIPART_UNAVAILABLE', 'public multipart upload is not available while artifact encryption is required; ' +
+        'use the encrypted upload gateway (single PUT or multipart) instead');
+}
+const SESSION_SELECT = `
+  SELECT id AS "artifactId", tenant_id AS "tenantId", operation_id AS "operationId",
+         task_id AS "taskId", purpose, file_name AS "fileName", mime_type AS "mimeType",
+         size_bytes AS "sizeBytes", state, storage_key AS "storageKey",
+         upload_token AS "uploadToken", multipart_upload_id AS "uploadId",
+         part_size_bytes AS "partSizeBytes", part_count AS "partCount",
+         storage_version_id AS "committedVersionId", sha256 AS "committedSha256",
+         multipart_expires_at AS "expiresAt"
+  FROM artifacts`;
+/**
+ * Signed §6 ceiling for one part: 64 MiB. S3 itself admits 5 GiB per part, so
+ * this is not a storage limit — the producer buffers exactly one part while it
+ * hashes it, and the worker SDK refuses any larger geometry outright. A
+ * deployment configured above this would mint sessions no peer can fill, so
+ * operators may only narrow below it (see narrow()).
+ */
+const MAX_PART_SIZE_BYTES = 64 * 1024 * 1024;
+/* Public branch wire shapes (draft §8, packet W-DATA02-PUB-1): the SAME §2
+ * bodies minus the fields a public caller cannot hold — no leaseEpoch (a
+ * client upload has no producer lease) and no purpose (public uploads are
+ * always 'input', server-forced). This is an orchestrator-local surface: the
+ * contracts package stays frozen; the runtime wire is untouched. */
+const PublicMultipartInitRequestSchema = contracts_1.MultipartInitRequestSchema.omit({ leaseEpoch: true, purpose: true });
+const PublicMultipartPartGrantRequestSchema = contracts_1.MultipartPartGrantRequestSchema.omit({ leaseEpoch: true });
+const PublicMultipartCompleteRequestSchema = contracts_1.MultipartCompleteRequestSchema.omit({ leaseEpoch: true });
+const PublicMultipartAbortRequestSchema = contracts_1.MultipartAbortRequestSchema.omit({ leaseEpoch: true });
+/**
+ * Deterministic replay key for the public init when the caller authenticates
+ * the retry with an Idempotency-Key header instead of a body uploadToken
+ * (draft §8 left the choice to the coordinator — the route accepts both).
+ * The derivation is namespaced by tenant, so two tenants replaying the same
+ * header string never collide on the shared upload_token column.
+ */
+function publicUploadToken(tenantId, idempotencyKey) {
+    const digest = (0, node_crypto_1.createHash)('sha256').update('du-uploads|' + tenantId + '|' + idempotencyKey).digest('hex');
+    const variant = ((parseInt(digest.slice(16, 17), 16) & 0x3) | 0x8).toString(16);
+    return [
+        digest.slice(0, 8),
+        digest.slice(8, 12),
+        '5' + digest.slice(13, 16),
+        variant + digest.slice(17, 20),
+        digest.slice(20, 32),
+    ].join('-');
+}
+const TASK_LOCK_SELECT = `SELECT lease_epoch, state,
+        (lease_expires_at IS NOT NULL AND lease_expires_at > now()) AS lease_active
+ FROM tasks WHERE id=$1 FOR UPDATE`;
+function positiveInt(value, label) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+        throw new Error(`multipart policy ${label} must be a positive safe integer`);
+    }
+    return value;
+}
+/**
+ * narrows a requested value into [floor, contractCeiling]: the contract
+ * constant is the widest anything on this deployment may accept, so an
+ * operator typo can never open the wire beyond what peers are tested against.
+ */
+function narrow(value, floor, ceiling, label) {
+    positiveInt(value, label);
+    if (value < floor) {
+        throw new Error(`multipart policy ${label} must be at least ${floor}`);
+    }
+    return Math.min(value, ceiling);
+}
+function createMultipartService(db, options = {}) {
+    const now = options.now ?? Date.now;
+    const storage = options.storage;
+    const encryptionRequired = options.encryptionRequired ?? publicMultipartBlockedByEncryption();
+    /**
+     * SEC-ENC-04 (SD-03): the worker multipart branch writes client bytes
+     * directly to object storage, so it is a plaintext-at-rest bypass whenever
+     * this deployment requires encryption. Until a server-mediated sealed
+     * multipart writer exists, refusing before the session is created is the
+     * only fail-closed answer; `abort` stays open so an operator can clean up.
+     */
+    function assertWorkerMultipartSealingAvailable() {
+        if (!encryptionRequired)
+            return;
+        throw new errors_1.HttpError(501, 'ENCRYPTED_MULTIPART_UNAVAILABLE', 'worker multipart uploads are disabled while artifact encryption is required; '
+            + 'use the server-mediated single upload path');
+    }
+    const policy = {
+        partSizeBytes: narrow(options.partSizeBytes ?? contracts_1.MULTIPART_FIXED_PART_BYTES, contracts_1.MULTIPART_FIXED_PART_BYTES, MAX_PART_SIZE_BYTES, 'partSizeBytes'),
+        maxTotalBytes: narrow(options.maxTotalBytes ?? contracts_1.MULTIPART_MAX_TOTAL_BYTES, contracts_1.MULTIPART_MIN_TOTAL_BYTES, contracts_1.MULTIPART_MAX_TOTAL_BYTES, 'maxTotalBytes'),
+        sessionTtlMs: narrow(options.sessionTtlMs ?? contracts_1.MULTIPART_SESSION_TTL_MS, 1, contracts_1.MULTIPART_SESSION_TTL_MS, 'sessionTtlMs'),
+        partUrlTtlMs: narrow(options.partUrlTtlMs ?? contracts_1.MULTIPART_PART_URL_TTL_S * 1000, 1, contracts_1.MULTIPART_PART_URL_TTL_S * 1000, 'partUrlTtlMs'),
+    };
+    function requireStorage() {
+        if (!storage) {
+            throw (0, errors_1.conflict)('MULTIPART_NOT_AVAILABLE', 'this deployment has no storage backend that can hold an incomplete multipart upload');
+        }
+        return storage;
+    }
+    function invalidSchema(operation, error) {
+        return (0, errors_1.unprocessable)('INVALID_SCHEMA', `multipart ${operation} request failed validation`, {
+            errors: error.issues.slice(0, 20).map((issue) => ({
+                pointer: '/' + issue.path.join('/'),
+                message: issue.message,
+            })),
+        });
+    }
+    function toSession(row) {
+        // part_count identifies the multipart branch; a purged ABORTED row keeps
+        // it while its provider pointer is already gone, so uploadId stays null.
+        // taskId may be null (public branch): the runtime fences reject such
+        // rows via ownerTaskOf long before a session is built from them.
+        if (row.partCount === null || row.partSizeBytes === null)
+            return null;
+        return {
+            artifactId: row.artifactId,
+            tenantId: row.tenantId,
+            operationId: row.operationId,
+            taskId: row.taskId,
+            purpose: row.purpose,
+            fileName: row.fileName,
+            mimeType: row.mimeType,
+            declaredSizeBytes: Number(row.sizeBytes ?? 0),
+            state: row.state,
+            storageKey: row.storageKey,
+            uploadToken: String(row.uploadToken),
+            uploadId: row.uploadId,
+            partSizeBytes: Number(row.partSizeBytes),
+            partCount: Number(row.partCount),
+            committedVersionId: row.committedVersionId,
+            committedSha256: row.committedSha256,
+            expiresAtMs: row.expiresAt instanceof Date ? row.expiresAt.getTime() : Date.parse(String(row.expiresAt)),
+        };
+    }
+    async function selectSession(sql, params) {
+        const res = await db.query(sql, params);
+        return res.rowCount ? toSession(res.rows[0]) : null;
+    }
+    function assertMultipartSession(session) {
+        if (!session) {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'artifact is not an open multipart upload session');
+        }
+        return session;
+    }
+    /** A STAGING session past the guards below always has a provider upload. */
+    function assertSessionLive(session) {
+        if (session.state !== 'STAGING') {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', `multipart upload is ${session.state}`);
+        }
+        if (!session.uploadId) {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload has no open provider session');
+        }
+        if (!(session.expiresAtMs > now())) {
+            throw (0, errors_1.conflict)('MULTIPART_EXPIRED', 'multipart upload session expired; start a new upload');
+        }
+        return session;
+    }
+    /** Size of one part under the server-fixed geometry (the last part takes the remainder). */
+    function partSizeOf(session, partNumber) {
+        const start = (partNumber - 1) * session.partSizeBytes;
+        return Math.min(session.partSizeBytes, session.declaredSizeBytes - start);
+    }
+    /** Read-only producer fence, mirroring the single-PUT grant path. */
+    async function assertLease(taskId, leaseEpoch) {
+        const res = await db.query(`SELECT t.lease_epoch, t.operation_id, o.tenant_id
+       FROM tasks t JOIN operations o ON o.id = t.operation_id WHERE t.id=$1`, [taskId]);
+        if (!res.rowCount)
+            throw (0, errors_1.notFound)(`task ${taskId} not found`);
+        const row = res.rows[0];
+        if (row.lease_epoch !== leaseEpoch) {
+            throw (0, errors_1.conflict)('LEASE_LOST', `stale leaseEpoch ${leaseEpoch}, current ${row.lease_epoch}`);
+        }
+        return row;
+    }
+    /** Durable fence: same task → artifact lock order as `finalize`. */
+    async function lockTask(client, taskId, leaseEpoch, guard) {
+        const res = await client.query(TASK_LOCK_SELECT, [taskId]);
+        if (!res.rowCount)
+            throw (0, errors_1.notFound)(`task ${taskId} not found`);
+        const task = res.rows[0];
+        if (task.lease_epoch !== leaseEpoch) {
+            throw (0, errors_1.conflict)('LEASE_LOST', 'producer lease epoch is stale');
+        }
+        if (!task.lease_active)
+            throw (0, errors_1.forbidden)('producer lease has expired');
+        if (guard.requireRunning && task.state !== 'RUNNING') {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'producer task is not RUNNING');
+        }
+    }
+    async function lockSession(client, artifactId) {
+        const res = await client.query(`${SESSION_SELECT} WHERE id=$1 FOR UPDATE`, [artifactId]);
+        return res.rowCount ? toSession(res.rows[0]) : null;
+    }
+    /**
+     * Tenant-scoped lock for the public branch. A foreign row is never
+     * returned, so one tenant cannot distinguish another tenant's artifact from
+     * an id that does not exist (same no-leak shape as the submit guard).
+     */
+    async function lockSessionTenant(client, artifactId, tenantId) {
+        const res = await client.query(`${SESSION_SELECT} WHERE id=$1 AND tenant_id=$2 FOR UPDATE`, [artifactId, tenantId]);
+        return res.rowCount ? toSession(res.rows[0]) : null;
+    }
+    /** 404 -> not-a-multipart-session -> not-public, in that order. */
+    function lockPublicSession(session) {
+        if (!session)
+            throw (0, errors_1.notFound)('multipart upload session not found');
+        assertMultipartSession(session);
+        if (session.taskId !== null) {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart session is runtime-owned; the client lifecycle cannot drive it');
+        }
+        return session;
+    }
+    /**
+     * The lifecycle routes are addressed by artifact id, so the owning task is
+     * resolved from the row rather than from a client-declared body field.
+     */
+    async function ownerTaskOf(artifactId) {
+        const res = await db.query(`SELECT task_id AS "taskId" FROM artifacts WHERE id=$1`, [
+            artifactId,
+        ]);
+        if (!res.rowCount)
+            throw (0, errors_1.notFound)(`artifact ${artifactId} not found`);
+        const taskId = res.rows[0].taskId;
+        if (!taskId)
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'artifact has no owning task');
+        return taskId;
+    }
+    /**
+     * Records the geometry and hash the server agreed to accept for one part.
+     *
+     * A part row is a PROMISE, not a suggestion: once a grant exists for
+     * (artifact, partNumber), that grant is what the client is held to. The old
+     * `ON CONFLICT DO UPDATE` let a second, concurrent grant silently rewrite the
+     * first one's hash, so a client that uploaded per grant #1 failed `complete`
+     * with CHECKSUM_MISMATCH against grant #2's declaration — a server-side race
+     * surfaced to the operator as a client error.
+     *
+     * `DO NOTHING` plus an explicit read-back makes the promise one-way: the same
+     * hash is a legitimate replay of the same grant and succeeds; a different
+     * hash is a `PART_CONFLICT` naming the part.
+     *
+     * RFX-07 finding — why the session lock did not save this: BOTH grant paths
+     * already take `SELECT ... FOR UPDATE` on the session row inside the same
+     * transaction, so two concurrent grants WERE serialised. Blocking is not
+     * comparing. The overwrite was reachable precisely because nothing compared
+     * the two declarations once the loser held the lock.
+     */
+    async function insertPartDeclaration(client, artifactId, partNumber, declaredSha256, sizeBytes) {
+        const inserted = await client.query(`INSERT INTO artifact_multipart_parts (artifact_id, part_number, declared_sha256, size_bytes)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (artifact_id, part_number) DO NOTHING
+       RETURNING part_number`, [artifactId, partNumber, declaredSha256, sizeBytes]);
+        if (inserted.rowCount)
+            return;
+        const existing = await client.query(`SELECT declared_sha256 AS "declaredSha256", size_bytes::int AS "sizeBytes"
+         FROM artifact_multipart_parts
+        WHERE artifact_id=$1 AND part_number=$2`, [artifactId, partNumber]);
+        // The row can only disappear if another transaction removed it between the
+        // two statements. Refusing is the honest answer; re-inserting would
+        // resurrect a declaration nobody agreed to any more.
+        if (!existing.rowCount) {
+            throw (0, errors_1.conflict)('PART_CONFLICT', `part ${partNumber} declaration is no longer present; re-initialise the upload`);
+        }
+        const row = existing.rows[0];
+        if (row.declaredSha256 !== declaredSha256 || Number(row.sizeBytes) !== sizeBytes) {
+            throw (0, errors_1.conflict)('PART_CONFLICT', `part ${partNumber} was already granted a different checksum; ` +
+                'a part number carries one declaration for the life of the session');
+        }
+        // Same hash and size: the same grant, asked for twice.
+    }
+    /** Presigns the server-fixed part size, binding the declared hash into the URL. */
+    async function presignPartGrant(backend, session, artifactId, partNumber, declaredSha256, sizeBytes) {
+        const expiresAt = new Date(now() + policy.partUrlTtlMs).toISOString();
+        let presigned;
+        try {
+            presigned = await backend.presignUploadPart({
+                artifactId,
+                tenantId: session.tenantId,
+                objectKey: session.storageKey,
+                uploadId: providerUploadOf(session),
+                partNumber,
+                sizeBytes,
+                partSha256: declaredSha256,
+                expiresAt,
+            });
+        }
+        catch (error) {
+            throw storageToHttp(error, 'presign');
+        }
+        const requiredHeaders = {
+            ...(presigned.headers ?? {}),
+            'content-length': String(sizeBytes),
+        };
+        return { artifactId, partNumber, partUrl: presigned.url, sizeBytes, requiredHeaders, expiresAt };
+    }
+    async function loadDeclarations(client, artifactId) {
+        const res = await client.query(`SELECT part_number AS "partNumber", declared_sha256 AS "declaredSha256", size_bytes AS "sizeBytes"
+       FROM artifact_multipart_parts WHERE artifact_id=$1 ORDER BY part_number`, [artifactId]);
+        return res.rows.map((row) => ({
+            partNumber: Number(row.partNumber),
+            declaredSha256: String(row.declaredSha256),
+            sizeBytes: Number(row.sizeBytes),
+        }));
+    }
+    /** Client receipts must tile 1..partCount with the server-fixed sizes. */
+    function assertReceiptGeometry(receipts, session) {
+        const seen = new Set();
+        receipts.forEach((receipt, index) => {
+            if (seen.has(receipt.partNumber)) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `part ${receipt.partNumber} is declared more than once`);
+            }
+            seen.add(receipt.partNumber);
+            if (receipt.partNumber !== index + 1) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `parts must cover 1..${session.partCount} in ascending order`);
+            }
+            if (receipt.sizeBytes !== partSizeOf(session, receipt.partNumber)) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `part ${receipt.partNumber} size does not match the upload geometry`);
+            }
+        });
+        if (receipts.length !== session.partCount) {
+            throw (0, errors_1.conflict)('PART_SET_MISMATCH', `expected ${session.partCount} parts, received ${receipts.length}`);
+        }
+    }
+    /** The server's own grant ledger, not the client's claim, defines the set. */
+    function assertDeclaredCoverage(declared, session) {
+        const byNumber = new Map(declared.map((part) => [part.partNumber, part]));
+        for (let partNumber = 1; partNumber <= session.partCount; partNumber += 1) {
+            const part = byNumber.get(partNumber);
+            if (!part) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `part ${partNumber} was never granted`);
+            }
+            if (part.sizeBytes !== partSizeOf(session, partNumber)) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `part ${partNumber} size does not match the upload geometry`);
+            }
+        }
+        if (declared.length !== session.partCount) {
+            throw (0, errors_1.conflict)('PART_SET_MISMATCH', 'grant ledger covers part numbers outside the upload geometry');
+        }
+    }
+    function assertReceiptsAgreeWithDeclarations(receipts, declared) {
+        const byNumber = new Map(declared.map((part) => [part.partNumber, part]));
+        for (const receipt of receipts) {
+            const part = byNumber.get(receipt.partNumber);
+            if (receipt.sha256 !== part.declaredSha256) {
+                throw (0, errors_1.conflict)('CHECKSUM_MISMATCH', `part ${receipt.partNumber} hash differs from the granted declaration`);
+            }
+        }
+    }
+    /**
+     * Storage is authoritative: every part it holds must be one the server
+     * granted, with the same size and the same checksum, and the etag the client
+     * reports must be the etag storage recorded.
+     */
+    function assertStoredPartsAgree(stored, declared, receipts, session) {
+        const declaredByNumber = new Map(declared.map((part) => [part.partNumber, part]));
+        const receiptByNumber = new Map(receipts.map((receipt) => [receipt.partNumber, receipt]));
+        if (stored.length !== session.partCount) {
+            throw (0, errors_1.conflict)('PART_SET_MISMATCH', `storage holds ${stored.length} parts, the upload geometry has ${session.partCount}`);
+        }
+        for (const part of stored) {
+            const grant = declaredByNumber.get(part.partNumber);
+            if (!grant) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `storage holds ungranted part ${part.partNumber}`);
+            }
+            const expectedSize = partSizeOf(session, part.partNumber);
+            if (part.sizeBytes !== expectedSize || grant.sizeBytes !== expectedSize) {
+                throw (0, errors_1.conflict)('SIZE_MISMATCH', `part ${part.partNumber} size does not match the upload geometry`);
+            }
+            if (part.sha256 !== grant.declaredSha256) {
+                throw (0, errors_1.conflict)('CHECKSUM_MISMATCH', `part ${part.partNumber} bytes differ from the granted declaration`);
+            }
+            const receipt = receiptByNumber.get(part.partNumber);
+            if (!receipt) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `part ${part.partNumber} is missing from the completed list`);
+            }
+            if (normalizeEtag(receipt.etag) !== normalizeEtag(part.etag)) {
+                throw (0, errors_1.conflict)('PART_SET_MISMATCH', `part ${part.partNumber} etag does not match storage`);
+            }
+        }
+    }
+    function normalizeEtag(etag) {
+        return etag.replace(/\"/g, '').trim().toLowerCase();
+    }
+    /** A lifecycle step that talks to the provider needs the stored upload id. */
+    function providerUploadOf(session) {
+        if (!session.uploadId) {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload has no open provider session');
+        }
+        return session.uploadId;
+    }
+    function initAck(session, replayed) {
+        return {
+            artifactId: session.artifactId,
+            uploadHandle: (0, multipart_storage_1.multipartUploadHandle)(providerUploadOf(session)),
+            partSizeBytes: session.partSizeBytes,
+            partCount: session.partCount,
+            expiresAt: new Date(session.expiresAtMs).toISOString(),
+            replayed,
+        };
+    }
+    function completeAck(session, replayed) {
+        return {
+            artifactId: session.artifactId,
+            sizeBytes: session.declaredSizeBytes,
+            sha256: String(session.committedSha256),
+            committed: true,
+            replayed,
+        };
+    }
+    /**
+     * A committed-but-unreferenced generation is deleted before the error is
+     * returned: nothing may point at bytes that never passed the commit gate.
+     */
+    async function deleteUnpublishedVersion(storageKey, versionId) {
+        try {
+            await storage?.delete({ objectKey: storageKey, versionId });
+        }
+        catch {
+            // Cleanup failure must not replace the public result or leak provider text.
+        }
+    }
+    /**
+     * The provider phase of completion, shared by both branches. Storage is
+     * authoritative: list its parts, agree them with the grant ledger and the
+     * client receipts, publish the immutable generation, then re-hash the
+     * pinned version whole. The published generation is deleted again whenever
+     * a later phase disagrees, so nothing can point at unverified bytes.
+     */
+    async function publishVerifiedBytes(backend, session, req, declared) {
+        let stored;
+        try {
+            stored = await backend.listMultipartParts({
+                objectKey: session.storageKey,
+                uploadId: providerUploadOf(session),
+            });
+        }
+        catch (error) {
+            throw storageToHttp(error, 'list parts');
+        }
+        assertStoredPartsAgree(stored, declared, req.parts, session);
+        let versionId;
+        try {
+            versionId = (await backend.completeMultipartUpload({
+                artifactId: session.artifactId,
+                tenantId: session.tenantId,
+                objectKey: session.storageKey,
+                uploadId: providerUploadOf(session),
+                parts: stored.map((part) => ({ partNumber: part.partNumber, etag: part.etag })),
+            })).versionId;
+        }
+        catch (error) {
+            throw storageToHttp(error, 'complete');
+        }
+        if (!versionId || versionId === 'null') {
+            throw (0, errors_1.conflict)('STATE_CONFLICT', 'storage published the upload without an immutable version');
+        }
+        // The published generation is re-hashed whole before anything is
+        // recorded, so a lost commit can be replayed without re-verifying bytes.
+        let pinnedSizeBytes;
+        let pinnedSha256;
+        try {
+            const pinned = await backend.verifyAndPin({
+                artifactId: session.artifactId,
+                tenantId: session.tenantId,
+                objectKey: session.storageKey,
+                expectedSizeBytes: session.declaredSizeBytes,
+                expectedSha256: req.sha256,
+            });
+            pinnedSizeBytes = pinned.sizeBytes;
+            pinnedSha256 = pinned.sha256;
+        }
+        catch (error) {
+            await deleteUnpublishedVersion(session.storageKey, versionId);
+            throw storageToHttp(error, 'verify');
+        }
+        if (pinnedSizeBytes !== session.declaredSizeBytes || pinnedSha256 !== req.sha256) {
+            await deleteUnpublishedVersion(session.storageKey, versionId);
+            throw (0, errors_1.conflict)('CHECKSUM_MISMATCH', 'committed bytes do not match the declared whole-object hash');
+        }
+        return { versionId, pinnedSizeBytes, pinnedSha256 };
+    }
+    return {
+        async init(taskId, body) {
+            const parsed = contracts_1.MultipartInitRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('init', parsed.error);
+            assertWorkerMultipartSealingAvailable();
+            const req = parsed.data;
+            const backend = requireStorage();
+            if (req.purpose === 'input') {
+                throw (0, errors_1.forbidden)('multipart init admits only producer artifact purposes');
+            }
+            const lease = await assertLease(taskId, req.leaseEpoch);
+            if (req.sizeBytes > policy.maxTotalBytes) {
+                throw new errors_1.HttpError(413, 'PAYLOAD_TOO_LARGE', 'artifact exceeds the configured multipart size limit');
+            }
+            const partCount = Math.ceil(req.sizeBytes / policy.partSizeBytes);
+            if (partCount > contracts_1.MULTIPART_MAX_PARTS) {
+                throw (0, errors_1.conflict)('PARTS_EXCEEDED', `artifact would need ${partCount} parts (max ${contracts_1.MULTIPART_MAX_PARTS})`);
+            }
+            const existing = await selectSession(`${SESSION_SELECT} WHERE task_id=$1 AND upload_token=$2`, [
+                taskId,
+                req.uploadToken,
+            ]);
+            if (existing) {
+                assertSameInitParams(existing, req);
+                assertSessionLive(existing);
+                return initAck(existing, true);
+            }
+            const artifactId = (0, node_crypto_1.randomUUID)();
+            const storageKey = `art-${artifactId}`;
+            const expiresAtMs = now() + policy.sessionTtlMs;
+            let uploadId;
+            try {
+                uploadId = (await backend.createMultipartUpload({
+                    artifactId,
+                    tenantId: lease.tenant_id,
+                    objectKey: storageKey,
+                    contentType: req.mimeType,
+                })).uploadId;
+            }
+            catch (error) {
+                throw storageToHttp(error, 'create');
+            }
+            if (!uploadId)
+                throw (0, errors_1.unavailable)('artifact storage is temporarily unavailable');
+            // `token` keeps its NOT NULL role for the single-PUT proxy route. This
+            // row is never given a method or expiry, so the blob route fails closed
+            // on it (CR-12) and the multipart grants stay the only write path.
+            const inserted = await db.query(`INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type,
+                               size_bytes, state, token, storage_key, storage_backend,
+                               upload_token, multipart_upload_id, part_size_bytes, part_count,
+                               multipart_expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,$10,'s3',$11,$12,$13,$14,$15)
+         ON CONFLICT (task_id, upload_token) WHERE upload_token IS NOT NULL DO NOTHING
+         RETURNING id`, [
+                artifactId,
+                lease.tenant_id,
+                lease.operation_id,
+                taskId,
+                req.purpose,
+                req.fileName ?? null,
+                req.mimeType,
+                req.sizeBytes,
+                (0, node_crypto_1.randomUUID)(),
+                storageKey,
+                req.uploadToken,
+                uploadId,
+                policy.partSizeBytes,
+                partCount,
+                new Date(expiresAtMs),
+            ]);
+            if (!inserted.rowCount) {
+                // Lost the race against a concurrent replay of the same token: keep the
+                // winner's session and discard the provider upload just created.
+                await backend.abortMultipartUpload({ objectKey: storageKey, uploadId }).catch(() => undefined);
+                const winner = await selectSession(`${SESSION_SELECT} WHERE task_id=$1 AND upload_token=$2`, [
+                    taskId,
+                    req.uploadToken,
+                ]);
+                if (!winner)
+                    throw (0, errors_1.conflict)('IDEMPOTENCY_CONFLICT', 'multipart upload could not be recorded');
+                assertSameInitParams(winner, req);
+                assertSessionLive(winner);
+                return initAck(winner, true);
+            }
+            return {
+                artifactId,
+                uploadHandle: (0, multipart_storage_1.multipartUploadHandle)(uploadId),
+                partSizeBytes: policy.partSizeBytes,
+                partCount,
+                expiresAt: new Date(expiresAtMs).toISOString(),
+                replayed: false,
+            };
+        },
+        async grantPart(artifactId, body) {
+            const parsed = contracts_1.MultipartPartGrantRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('part grant', parsed.error);
+            assertWorkerMultipartSealingAvailable();
+            const req = parsed.data;
+            const backend = requireStorage();
+            const taskId = await ownerTaskOf(artifactId);
+            const prepared = await db.tx(async (client) => {
+                await lockTask(client, taskId, req.leaseEpoch, { requireRunning: true });
+                let session = assertMultipartSession(await lockSession(client, artifactId));
+                if (session.taskId !== taskId)
+                    throw (0, errors_1.forbidden)('artifact does not belong to task');
+                session = assertSessionLive(session);
+                if (req.partNumber > session.partCount) {
+                    throw (0, errors_1.unprocessable)('PART_OUT_OF_RANGE', `part ${req.partNumber} is outside 1..${session.partCount}`);
+                }
+                const sizeBytes = partSizeOf(session, req.partNumber);
+                await insertPartDeclaration(client, artifactId, req.partNumber, req.sha256, sizeBytes);
+                return { session, sizeBytes };
+            });
+            return presignPartGrant(backend, prepared.session, artifactId, req.partNumber, req.sha256, prepared.sizeBytes);
+        },
+        async complete(artifactId, body) {
+            const parsed = contracts_1.MultipartCompleteRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('complete', parsed.error);
+            assertWorkerMultipartSealingAvailable();
+            const req = parsed.data;
+            const backend = requireStorage();
+            const taskId = await ownerTaskOf(artifactId);
+            const opened = await db.tx(async (client) => {
+                await lockTask(client, taskId, req.leaseEpoch, { requireRunning: true });
+                let session = assertMultipartSession(await lockSession(client, artifactId));
+                if (session.taskId !== taskId)
+                    throw (0, errors_1.forbidden)('artifact does not belong to task');
+                session = assertSessionLive(session);
+                if (session.committedVersionId && session.committedSha256) {
+                    if (session.committedSha256 !== req.sha256) {
+                        throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload is committed with different integrity metadata');
+                    }
+                    return { kind: 'replay', ack: completeAck(session, true) };
+                }
+                assertReceiptGeometry(req.parts, session);
+                const declared = await loadDeclarations(client, artifactId);
+                assertDeclaredCoverage(declared, session);
+                assertReceiptsAgreeWithDeclarations(req.parts, declared);
+                return { kind: 'open', session, declared };
+            });
+            if (opened.kind === 'replay')
+                return opened.ack;
+            const { session, declared } = opened;
+            const published = await publishVerifiedBytes(backend, session, req, declared);
+            const { versionId, pinnedSizeBytes, pinnedSha256 } = published;
+            try {
+                const committed = await db.tx(async (client) => {
+                    await lockTask(client, taskId, req.leaseEpoch, { requireRunning: true });
+                    const current = assertMultipartSession(await lockSession(client, artifactId));
+                    if (current.committedVersionId && current.committedSha256 === req.sha256) {
+                        return { session: current, replayed: true };
+                    }
+                    if (current.committedVersionId) {
+                        throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload committed with different integrity metadata');
+                    }
+                    const updated = await client.query(`UPDATE artifacts SET storage_version_id=$2, sha256=$3, size_bytes=$4
+             WHERE id=$1 AND task_id=$5 AND state='STAGING' AND part_count IS NOT NULL
+               AND storage_version_id IS NULL
+             RETURNING id`, [artifactId, versionId, pinnedSha256, pinnedSizeBytes, taskId]);
+                    if (!updated.rowCount) {
+                        throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload changed before the commit');
+                    }
+                    return {
+                        session: {
+                            ...current,
+                            committedVersionId: versionId,
+                            committedSha256: pinnedSha256,
+                            declaredSizeBytes: pinnedSizeBytes,
+                        },
+                        replayed: false,
+                    };
+                });
+                if (committed.replayed)
+                    await deleteUnpublishedVersion(session.storageKey, versionId);
+                return completeAck(committed.session, committed.replayed);
+            }
+            catch (error) {
+                await deleteUnpublishedVersion(session.storageKey, versionId);
+                throw error;
+            }
+        },
+        async abort(artifactId, body) {
+            const parsed = contracts_1.MultipartAbortRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('abort', parsed.error);
+            const req = parsed.data;
+            const backend = requireStorage();
+            const taskId = await ownerTaskOf(artifactId);
+            const outcome = await abortSession(backend, { artifactId, taskId, leaseEpoch: req.leaseEpoch, reason: req.reason });
+            return { artifactId, state: 'ABORTED', replayed: outcome.replayed };
+        },
+        async sweepExpiredSessions(sweep = {}) {
+            const backend = requireStorage();
+            const nowMs = sweep.nowMs ?? now();
+            const limit = Math.min(Math.max(Math.trunc(sweep.limit ?? 50), 1), 1000);
+            const candidates = await db.query(`${SESSION_SELECT}
+         WHERE part_count IS NOT NULL
+           AND ((state='STAGING' AND multipart_expires_at IS NOT NULL AND multipart_expires_at <= $1)
+                OR (state='ABORTED' AND multipart_upload_id IS NOT NULL))
+         ORDER BY multipart_expires_at
+         LIMIT $2`, [new Date(nowMs), limit]);
+            const summary = { scanned: candidates.rowCount ?? 0, aborted: 0, purged: 0, failed: 0 };
+            for (const row of candidates.rows) {
+                const session = toSession(row);
+                if (!session)
+                    continue;
+                try {
+                    if (session.state === 'STAGING') {
+                        // The lease is gone by definition (the session is past its TTL), so
+                        // the sweep marks the row terminal under its own lock instead of
+                        // pretending a producer fence still applies.
+                        const claimed = await db.tx(async (client) => {
+                            const current = assertMultipartSession(await lockSession(client, session.artifactId));
+                            if (current.state !== 'STAGING')
+                                return null;
+                            const updated = await client.query(`UPDATE artifacts SET state='ABORTED', abort_reason='expired'
+                 WHERE id=$1 AND state='STAGING' AND part_count IS NOT NULL
+                 RETURNING multipart_upload_id AS "uploadId"`, [session.artifactId]);
+                            return updated.rowCount ? { uploadId: String(updated.rows[0].uploadId ?? current.uploadId), current } : null;
+                        });
+                        if (!claimed)
+                            continue;
+                        summary.aborted += 1;
+                    }
+                    if (await purgeSessionStorage(backend, session.artifactId))
+                        summary.purged += 1;
+                }
+                catch {
+                    summary.failed += 1;
+                }
+            }
+            return summary;
+        },
+        async publicInit(tenantId, body) {
+            // RFX-03: refuse before a session row, a storage upload or a presign exists.
+            assertPublicMultipartAllowed();
+            const parsed = PublicMultipartInitRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('uploads init', parsed.error);
+            const req = parsed.data;
+            const backend = requireStorage();
+            if (req.sizeBytes > policy.maxTotalBytes) {
+                throw new errors_1.HttpError(413, 'PAYLOAD_TOO_LARGE', 'artifact exceeds the configured multipart size limit');
+            }
+            const partCount = Math.ceil(req.sizeBytes / policy.partSizeBytes);
+            if (partCount > contracts_1.MULTIPART_MAX_PARTS) {
+                throw (0, errors_1.conflict)('PARTS_EXCEEDED', `artifact would need ${partCount} parts (max ${contracts_1.MULTIPART_MAX_PARTS})`);
+            }
+            const selectPublicToken = `${SESSION_SELECT} WHERE tenant_id=$1 AND upload_token=$2 AND task_id IS NULL`;
+            const publicParams = { purpose: 'input', mimeType: req.mimeType, fileName: req.fileName, sizeBytes: req.sizeBytes };
+            const existing = await selectSession(selectPublicToken, [tenantId, req.uploadToken]);
+            if (existing) {
+                assertSameInitParams(existing, publicParams);
+                assertSessionLive(existing);
+                return initAck(existing, true);
+            }
+            const artifactId = (0, node_crypto_1.randomUUID)();
+            const storageKey = `art-${artifactId}`;
+            const expiresAtMs = now() + policy.sessionTtlMs;
+            let uploadId;
+            try {
+                uploadId = (await backend.createMultipartUpload({
+                    artifactId,
+                    tenantId,
+                    objectKey: storageKey,
+                    contentType: req.mimeType,
+                })).uploadId;
+            }
+            catch (error) {
+                throw storageToHttp(error, 'create');
+            }
+            if (!uploadId)
+                throw (0, errors_1.unavailable)('artifact storage is temporarily unavailable');
+            // operation_id and task_id stay NULL: this is the public branch's
+            // signature, and the runtime fences (ownerTaskOf, the auth JOINs) then
+            // make the row structurally unreachable from the worker lifecycle.
+            const inserted = await db.query(`INSERT INTO artifacts (id, tenant_id, purpose, file_name, mime_type, size_bytes,
+                               state, token, storage_key, storage_backend,
+                               upload_token, multipart_upload_id, part_size_bytes, part_count,
+                               multipart_expires_at)
+         VALUES ($1,$2,'input',$3,$4,$5,'STAGING',$6,$7,'s3',$8,$9,$10,$11,$12)
+         ON CONFLICT (tenant_id, upload_token) WHERE task_id IS NULL AND upload_token IS NOT NULL DO NOTHING
+         RETURNING id`, [
+                artifactId,
+                tenantId,
+                req.fileName ?? null,
+                req.mimeType,
+                req.sizeBytes,
+                (0, node_crypto_1.randomUUID)(),
+                storageKey,
+                req.uploadToken,
+                uploadId,
+                policy.partSizeBytes,
+                partCount,
+                new Date(expiresAtMs),
+            ]);
+            if (!inserted.rowCount) {
+                // Lost the race against a concurrent replay of the same key: keep the
+                // winner's session and discard the provider upload just created.
+                await backend.abortMultipartUpload({ objectKey: storageKey, uploadId }).catch(() => undefined);
+                const winner = await selectSession(selectPublicToken, [tenantId, req.uploadToken]);
+                if (!winner)
+                    throw (0, errors_1.conflict)('IDEMPOTENCY_CONFLICT', 'multipart upload could not be recorded');
+                assertSameInitParams(winner, publicParams);
+                assertSessionLive(winner);
+                return initAck(winner, true);
+            }
+            return {
+                artifactId,
+                uploadHandle: (0, multipart_storage_1.multipartUploadHandle)(uploadId),
+                partSizeBytes: policy.partSizeBytes,
+                partCount,
+                expiresAt: new Date(expiresAtMs).toISOString(),
+                replayed: false,
+            };
+        },
+        async publicGrantPart(artifactId, tenantId, body) {
+            // RFX-03: no presigned PUT URL is minted for a plaintext-at-rest path.
+            assertPublicMultipartAllowed();
+            const parsed = PublicMultipartPartGrantRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('uploads part grant', parsed.error);
+            const req = parsed.data;
+            const backend = requireStorage();
+            const prepared = await db.tx(async (client) => {
+                const session = assertSessionLive(lockPublicSession(await lockSessionTenant(client, artifactId, tenantId)));
+                if (req.partNumber > session.partCount) {
+                    throw (0, errors_1.unprocessable)('PART_OUT_OF_RANGE', `part ${req.partNumber} is outside 1..${session.partCount}`);
+                }
+                const sizeBytes = partSizeOf(session, req.partNumber);
+                await insertPartDeclaration(client, artifactId, req.partNumber, req.sha256, sizeBytes);
+                return { session, sizeBytes };
+            });
+            return presignPartGrant(backend, prepared.session, artifactId, req.partNumber, req.sha256, prepared.sizeBytes);
+        },
+        async publicComplete(artifactId, tenantId, body) {
+            // RFX-03: a session opened before encryption was turned on must not be
+            // publishable through this branch either.
+            assertPublicMultipartAllowed();
+            const parsed = PublicMultipartCompleteRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('uploads complete', parsed.error);
+            const req = parsed.data;
+            const backend = requireStorage();
+            const opened = await db.tx(async (client) => {
+                const session = lockPublicSession(await lockSessionTenant(client, artifactId, tenantId));
+                // The replay branch runs BEFORE the liveness gate on this branch: a
+                // completed public upload is READY (there is no later finalize to
+                // wait for), so a lost response must stay replayable after the
+                // session TTL too — the commit is durable and byte-verified.
+                if (session.committedVersionId && session.committedSha256) {
+                    if (session.committedSha256 !== req.sha256) {
+                        throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload is committed with different integrity metadata');
+                    }
+                    return { kind: 'replay', ack: completeAck(session, true) };
+                }
+                assertSessionLive(session);
+                assertReceiptGeometry(req.parts, session);
+                const declared = await loadDeclarations(client, artifactId);
+                assertDeclaredCoverage(declared, session);
+                assertReceiptsAgreeWithDeclarations(req.parts, declared);
+                return { kind: 'open', session, declared };
+            });
+            if (opened.kind === 'replay')
+                return opened.ack;
+            const { session, declared } = opened;
+            const { versionId, pinnedSizeBytes, pinnedSha256 } = await publishVerifiedBytes(backend, session, req, declared);
+            try {
+                const committed = await db.tx(async (client) => {
+                    const current = lockPublicSession(await lockSessionTenant(client, artifactId, tenantId));
+                    if (current.committedVersionId && current.committedSha256 === req.sha256) {
+                        return { session: current, replayed: true };
+                    }
+                    if (current.committedVersionId) {
+                        throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload committed with different integrity metadata');
+                    }
+                    // Public finalize: the verified commit IS the STAGING -> READY
+                    // edge for this branch (no producer lease exists to prove on the
+                    // runtime finalize route). The submit guard still only admits READY.
+                    const updated = await client.query(`UPDATE artifacts SET state='READY', storage_version_id=$3, sha256=$4, size_bytes=$5
+             WHERE id=$1 AND tenant_id=$2 AND task_id IS NULL AND state='STAGING' AND part_count IS NOT NULL
+               AND storage_version_id IS NULL
+             RETURNING id`, [artifactId, tenantId, versionId, pinnedSha256, pinnedSizeBytes]);
+                    if (!updated.rowCount) {
+                        throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload changed before the commit');
+                    }
+                    return {
+                        session: {
+                            ...current,
+                            committedVersionId: versionId,
+                            committedSha256: pinnedSha256,
+                            declaredSizeBytes: pinnedSizeBytes,
+                        },
+                        replayed: false,
+                    };
+                });
+                if (committed.replayed)
+                    await deleteUnpublishedVersion(session.storageKey, versionId);
+                return completeAck(committed.session, committed.replayed);
+            }
+            catch (error) {
+                await deleteUnpublishedVersion(session.storageKey, versionId);
+                throw error;
+            }
+        },
+        async publicAbort(artifactId, tenantId, body) {
+            const parsed = PublicMultipartAbortRequestSchema.safeParse(body);
+            if (!parsed.success)
+                throw invalidSchema('uploads abort', parsed.error);
+            const req = parsed.data;
+            const backend = requireStorage();
+            const claimed = await db.tx(async (client) => {
+                const session = lockPublicSession(await lockSessionTenant(client, artifactId, tenantId));
+                if (session.state === 'ABORTED')
+                    return { replayed: true };
+                // A READY public artifact passed the verification gate; its bytes are
+                // live input for submissions and are never purged through this door
+                // (same invariant as the runtime abort of a finalized artifact).
+                if (session.state !== 'STAGING') {
+                    throw (0, errors_1.conflict)('STATE_CONFLICT', `multipart upload is ${session.state} and cannot be aborted`);
+                }
+                const updated = await client.query(`UPDATE artifacts SET state='ABORTED', abort_reason=$2
+           WHERE id=$1 AND tenant_id=$3 AND task_id IS NULL AND state='STAGING' AND part_count IS NOT NULL`, [artifactId, req.reason, tenantId]);
+                if (!updated.rowCount) {
+                    throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload changed before the abort');
+                }
+                return { replayed: false };
+            });
+            // Mark-then-purge, exactly like the runtime abort: the row is terminal
+            // before any byte is dropped; a crash between is finished by the sweep.
+            await purgeSessionStorage(backend, artifactId);
+            return { artifactId, state: 'ABORTED', replayed: claimed.replayed };
+        },
+    };
+    /* ------------------------------------------------------------------ */
+    /* abort / cleanup shared by the route and the sweeper                 */
+    /* ------------------------------------------------------------------ */
+    /**
+     * Marks the row ABORTED first, then purges storage. A crash between the two
+     * leaves `multipart_upload_id` set, which is exactly what
+     * `sweepExpiredSessions` looks for to finish the cleanup.
+     */
+    async function abortSession(backend, input) {
+        const claimed = await db.tx(async (client) => {
+            await lockTask(client, input.taskId, input.leaseEpoch, { requireRunning: false });
+            const session = assertMultipartSession(await lockSession(client, input.artifactId));
+            if (session.taskId !== input.taskId)
+                throw (0, errors_1.forbidden)('artifact does not belong to task');
+            if (session.state === 'ABORTED')
+                return { session, replayed: true };
+            if (session.state !== 'STAGING') {
+                throw (0, errors_1.conflict)('STATE_CONFLICT', `multipart upload is ${session.state} and cannot be aborted`);
+            }
+            const updated = await client.query(`UPDATE artifacts SET state='ABORTED', abort_reason=$2
+         WHERE id=$1 AND task_id=$3 AND state='STAGING' AND part_count IS NOT NULL`, [input.artifactId, input.reason, input.taskId]);
+            if (!updated.rowCount) {
+                throw (0, errors_1.conflict)('STATE_CONFLICT', 'multipart upload changed before the abort');
+            }
+            return { session, replayed: false };
+        });
+        // Mark-then-purge: the row is terminal before any byte is dropped, so a
+        // concurrent complete can never commit against a row being aborted.
+        await purgeSessionStorage(backend, input.artifactId);
+        return { replayed: claimed.replayed };
+    }
+    /** Best-effort storage cleanup for one ABORTED row; true when it completed. */
+    async function purgeSessionStorage(backend, artifactId) {
+        const res = await db.query(`${SESSION_SELECT} WHERE id=$1`, [artifactId]);
+        const session = res.rowCount ? toSession(res.rows[0]) : null;
+        if (!session)
+            return false;
+        let clean = true;
+        if (session.committedVersionId) {
+            try {
+                await backend.delete({ objectKey: session.storageKey, versionId: session.committedVersionId });
+            }
+            catch {
+                clean = false;
+            }
+        }
+        if (session.uploadId) {
+            try {
+                await backend.abortMultipartUpload({ objectKey: session.storageKey, uploadId: session.uploadId });
+            }
+            catch {
+                clean = false;
+            }
+        }
+        if (clean) {
+            await db.query(`UPDATE artifacts SET multipart_upload_id=NULL WHERE id=$1 AND state='ABORTED'`, [artifactId]);
+        }
+        return clean;
+    }
+}
+function assertSameInitParams(session, req) {
+    if (session.purpose !== req.purpose ||
+        session.mimeType !== req.mimeType ||
+        (session.fileName ?? undefined) !== req.fileName ||
+        session.declaredSizeBytes !== req.sizeBytes) {
+        throw (0, errors_1.conflict)('IDEMPOTENCY_CONFLICT', 'uploadToken is already bound to different upload parameters');
+    }
+}
+/** Stable HTTP failures; provider exception text never reaches a response. */
+function storageToHttp(error, step) {
+    if (error instanceof storage_facade_1.ArtifactStorageError) {
+        switch (error.code) {
+            case 'INVALID_UPLOAD_GRANT':
+                return (0, errors_1.unprocessable)('INVALID_STORAGE_GRANT', `multipart ${step}: storage rejected the grant`);
+            case 'SIZE_MISMATCH':
+                return (0, errors_1.conflict)('SIZE_MISMATCH', `multipart ${step}: stored bytes do not match the declared size`);
+            case 'CHECKSUM_MISMATCH':
+                return (0, errors_1.conflict)('CHECKSUM_MISMATCH', `multipart ${step}: stored bytes do not match the declared hash`);
+            case 'OBJECT_NOT_FOUND':
+                return (0, errors_1.conflict)('PART_SET_MISMATCH', `multipart ${step}: storage holds no bytes for this upload`);
+            case 'OBJECT_VERSION_REQUIRED':
+            case 'ARTIFACT_METADATA_MISMATCH':
+            case 'TENANT_METADATA_MISMATCH':
+                return (0, errors_1.conflict)('STATE_CONFLICT', `multipart ${step}: storage metadata could not be verified`);
+            case 'INVALID_OBJECT_BODY':
+            case 'STORAGE_UNAVAILABLE':
+                return (0, errors_1.unavailable)(`multipart ${step}: artifact storage is temporarily unavailable`);
+        }
+    }
+    return (0, errors_1.unavailable)(`multipart ${step}: artifact storage is temporarily unavailable`);
+}

@@ -1,0 +1,6 @@
+command: git diff --check -- tasks/PLAN-COMPLETION-2026-10-04.md tasks/README.md
+exit: 0
+stdout:
+
+stderr:
+warning: in the working copy of 'du-rework/tasks/README.md', LF will be replaced by CRLF the next time Git touches it

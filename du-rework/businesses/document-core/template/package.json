@@ -1,0 +1,27 @@
+{
+  "name": "@du/document-core-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WORKER-TEMPLATE-PILOT-890R2 - self-contained document-core worker template (vendored, no workspace:* deps).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "postinstall": "node scripts/scaffold-shims.mjs",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "scaffold": "node scripts/scaffold-shims.mjs",
+    "scaffold:check": "node scripts/scaffold-shims.mjs --check",
+    "verify:vendor": "node scripts/verify-vendor-lock.mjs",
+    "boot:check": "node scripts/scaffold-shims.mjs --check && tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "zod": "^3.23.8",
+    "bullmq": "^5.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

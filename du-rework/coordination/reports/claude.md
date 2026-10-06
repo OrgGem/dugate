@@ -1384,3 +1384,635 @@ DB window: FREE (this lane holds no claim). No jest/tsx running on this side.
 - `services/orchestrator/src/app/admin/business-section-renderer.ts` — cột Queue (offline evidence: render suite trong 190/190).
 
 KHÔNG commit, KHÔNG push, KHÔNG tick row. DB window: FREE (lane này không giữ claim, không có jest/tsx chạy).
+
+---
+
+# REVIEW-801 — Claude independent review wave (2026-10-05, offline, read-only)
+
+**Packet:** `coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md` §1 · Owner claude (`term_19edcad8`) · task `task_12a45ac2f379` + ADDENDUM V5.
+**Mode:** OFFLINE — 0 source edit, 0 test run, không watch-state, không commit/tick/push. Mọi số liệu trích nguyên văn receipt gốc + đối chiếu file:line trên candidate hiện tại.
+**Snapshot:** HEAD `b088eececcb5f3df0b4edbe073a29401dafda624` (dirty tree, RCR candidate chưa commit — đúng theo A2 lease release).
+**Scope:** V1 (mở khóa A4) + V2 (kể cả delta STUB-EXT + digest mới) + V3 + V4 + V5 (RCR-01..06 trên candidate đã release). Verdict mỗi slice: APPROVED / APPROVED-WITH-CONDITIONS / CHANGES_REQUIRED.
+
+## V1 — P763-W1C-COMPOSE (mở khóa A4) → APPROVED-WITH-CONDITIONS
+
+**Đối chiếu:** composition hunks `src/app/bootstrap/create-app.ts:64` (import `createAcquisitionRefResolver`), `:472-478` (compose resolver với `{ db }`, env defaults nằm trong resolver), `:500-503` (forward `resolveSourceAuth` trên nhánh S3 only) vs owner `p730-acquire-2026-10-04.md:78-135` (3 hunk, 5 case, focused 76×3 exit 0, boot-reg 15, tsc 0, post-SHA `5913db5e`) + `tester.md:12758-12834` VERIFY-COMPOSITION (3 vòng × 76 exit 0, digest/patch khớp, no-touch hash nguyên, `DEVIATION: NO`) + settle turn 770.
+**Expected (row PLAN:275):** boot production-equivalent tạo resolver + inject ingestion-consumer; bearer/header tới allowlisted mock; deny query/wrong-ref/key/tag trước upstream; no-secret; "independent verify + review"; real PG/MinIO cells giữ live window.
+**Actual:** owner DONE + independent VERIFY PASSED (offline) — comptest pin factory gọi 1 lần với `resolveSourceAuth` + cùng `db`; Postgres-only no-op; consumer factory mock đúng ranh giới factory, resolver chạy THẬT trên pool app scripted (`p730-acquire:118-124`); deny-before-fetch ✓; W1c no-secret ✓. Hunk W1C còn nguyên sau drift `5913db5e` → `ae7e29ce64ed558c022be456bbabccecd59345962af789a32a898b18d939ed0e` (drift có chủ đích: hunk additive CW-A/ENCMETA của lane khác; `tick-proposal-2-2026-10-05.md:32` đã xác nhận). 7 SHA còn lại MATCH.
+**Câu hỏi A4 (phải trả lời rõ):** verify-leg của tester có đủ là review-leg theo row không, hay cần thêm reviewer leg? → **KHÔNG đủ. Row ghi "independent verify + review" — ledger hiện chỉ có tester-verify + coordinator-settle; Part-4 verdict W1c không cover composition; chưa có artifact reviewer riêng cho hunk composition. Cần thêm một reviewer leg ngắn. REVIEW-801 này chính là leg đó.**
+**Gap còn mở (điều kiện):** (a) live cells — row PG thật + fetch thật quan sát header; (b) missing-key full-boot mới chứng minh bằng code-path (`tester.md:12813`), chưa chạy boot thật gỡ `ENCRYPTION_KEY`; (c) tick-note phải ghi "verified at `5913db5e`; later additive hunks preserved W1C at `ae7e29ce`".
+**Verdict V1: APPROVED-WITH-CONDITIONS** — offline leg đủ để coordinator tick `P763-W1C-COMPOSE` ở phạm vi offline (mở A4 nửa còn lại); parent/live giữ mở. Alt strict (đòi live ngay trong acceptance): NO-TICK tới live window.
+
+## V2 — CONNECTOR-WIRE-A + B-BFF + CW-B-UI kể cả STUB-EXT → APPROVED-WITH-CONDITIONS
+
+**A (backend core):** contracts `connector-management.ts` strict view; store list/getRevision/getCurrent/createPending/activate-CAS/retire/disable/test; `admin.ts` +capabilities/list; dispatcher +5 `connector.*` admin-only CSRF-before-role; boot compose từ `connectorBaseUrls`; service-identity headers additive. 23 tests ×3 + 66-test regression xanh.
+**B-BFF:** `bff/handle.ts:466-529` (+63 dòng): `GET /admin/api/connectors` + `/capabilities` trước revision regex; fence platform-admin (anon 401, viewer/operator 403 `PERMISSION_DENIED`); relay verbatim; 5xx→502 `UPSTREAM_ERROR`. 17/17 ×3 + BFF 76/76.
+**STUB-EXT delta (in-lease per A1):** `apps/admin-web/src/features/connectors/connectors-screen.tsx` (902 lines, SHA `755875b569b3f240`) — bootstrap `client.getSession()` TRƯỚC capabilities `:118-144`; session lỗi ⇒ state `sessionFailed` + banner riêng `:299-312`. Root cause `apps/admin-web/src/lib/api/client.ts:146,156,221-223` (`csrfToken` null cho tới khi `getSession()`) + `bff/handle.ts:436-439` (thiếu `x-csrf-token` ⇒ 403 `CSRF_REJECTED`); 5 screen anh em đều đã gọi `getSession()` trước (`api-keys:46`, `profiles:97`, `overview:44`, `security:38`, `businesses:40`), màn connectors là ngoại lệ — trước fix mọi mutation connector 403 trên deployment thật. Secret hygiene `state.ts:297-364` (chỉ tên, `secretPresent` boolean, không bao giờ value). Harness `tests/browser/admin-web/harness.ts` (854 lines, `d890aa3e61f9147e`) mô phỏng đúng wire thật (CAS/CAS-loss/422/mint/502-fold); spec `api-keys-connectors.spec.ts` (284 lines, `410d4c0e92eff7fd`) case 6/7 viết lại + 8/9/10 mới (management journey: ledger→rev2 `platform ledger`→Activate assert CAS `{connectorId, revision:2, expectedCurrentRevision:1}`→Disable ConfirmDialog→409→422; upsert 201 assert payload không chứa `sk-live-stub-ext-9c31`, không chứa `private-dir`).
+**Digest (per A1):** `apps/admin-web/dist/assets/index-CqyHzg0b.js` / `0b8ed8ed715bbd16` (+ CSS `index-HHyOtXdi.css` / `2edb802939854314`) THAY THẾ `index-xBfDFWzz.js` / `6148de23c282f0d5` — verdict CW-B UI cũ STALE, đúng như adjudication.
+**Evidence:** `npx tsc --noEmit` 0; `npx vite build` 0 (477.42 kB, gzip 149.17); `playwright -g "connectors:"` 5 passed; `--repeat-each=3` 15/15; full dir 92 passed / 9 skipped (skipped đều là `live-admin-web.spec.ts` live-gated `DU_LIVE_INFRA=1`, skipped ≠ pass). Pre-existing RED `tsconfig` alias `@/lib/api` + `harness.ts writeFileSync` + `p745-ui-keys.spec.ts:76-77` không do slice này.
+**Verdict V2: APPROVED-WITH-CONDITIONS** — offline wire + UI + STUB-EXT đạt; điều kiện: Antigravity UI-REVIEW-CW-B-R2 phải re-sign trên digest mới `0b8ed8ed715bbd16` (review cũ trên digest cũ không có giá trị); live round-trip (`DU_LIVE_INFRA=1`) còn mở.
+
+## V3 — CREDWORKFLOW-IMPL → APPROVED-WITH-CONDITIONS (giữ nguyên 3 limits)
+
+Vault KV2 writer (`POST /v1/{mount}/data/{path}` `{data,options:{cas}}`, `GET` metadata, `x-vault-token`, redirect=error, timeout abort `DEFAULT_TIMEOUT_MS` 5000, ≤64KB; 412→`CAS_CONFLICT`, 403→`CAPABILITY_DENIED`, 401→`VAULT_NO_TOKEN`, 408/429/5xx→retryable) + compose (`create-app.ts:438-447`: full env→workflow, partial/bad→`CredentialWorkflowBootError`, absent→undefined, `config.credentialWorkflow` override wins) + bootstrap + e2e (create→bootstrap→rotate→activate→test→disable, audit 5 rows, sentinel 0). Evidence: 12×3 + regression 89 + tsc 0.
+**Đối chiếu limits VERIFY-CREDWORKFLOW (giữ nguyên, không nới):** (a) timeout mới source-only (AbortController có trong code, test chỉ throw `ECONNREFUSED`+SENTINEL, không có AbortSignal wait thật); (b) override precedence mới source-only (code `config` wins `:438-447`, chưa có test cả injected+env cùng lúc); (c) SQL capture vacuous (`makeDb` chỉ ghi SQL string, drop binds; audit mocked, stores faked ⇒ `sql []` nên `leaks(sql)==false` + forbidden-table assertion chạy trên list rỗng).
+**Verdict V3: APPROVED-WITH-CONDITIONS** — PASS-with-limits đứng; follow-up thuộc live/DB window (timeout thật, precedence test, SQL binds thật).
+
+## V4 — ENCMETA-RESULTREF-IMPL + ENCMETA-SCHEMA-IMPL → APPROVED-WITH-CONDITIONS (A3 bound)
+
+**RESULTREF:** seal 2 cột `tasks.result_ref` + `operations.result_ref` (`metadata-crypto.ts:60-61`); `MetadataContext` tenant|slot|refId AAD; đúng 1 writer `completeTask` seal ×2 trước UPDATEs (`runtime.ts:808-820`); `readStoredText` envelope→`readStored(...,false)` fail-closed. 10/10 ×3 + 61/61 regression + tsc 0.
+**SCHEMA:** Option-C exemption (`waitInput` `ui_schema`/`context_ref` verbatim BY EXEMPTION, 2× `leaksSentinel` true giữ làm evidence + trigger comment) + 5 wire guards + slot-boundary guard.
+**Ràng buộc A3 (non-blocking bound cho V4 offline):** `openMetadata` (`runtime.ts:453`, spec ghi `:445`) hardcode `readStored(..., true)` — không có window switch nên backfill window mở vĩnh viễn, bật mã hóa metadata không fail-closed trên legacy plaintext. Mọi fix chạm `runtime.ts` chờ A2 (Native Luna). R1 `/result` open `public.ts:535-546` (opaque projection `:544-546`), R2 `getChildren` `runtime.ts:1199-1207`, R3 open-before-merge `:1805-1824`, R4 SDK `fan-out.ts:605`; G3 cross-slot/tenant AAD refusal, G4 `NOT_SEALED` khi false.
+**Verdict V4: APPROVED-WITH-CONDITIONS** — offline đạt; điều kiện: A3 + live PG/Vault + window-gated suites + HTTP route test + ENC-09 inventory update (thuộc ENCMETA-ENC09-KIND / WINDOW-DESIGN) còn mở.
+
+## V5 — RCR-01..06 backend trên candidate đã release → APPROVED (offline; live gates còn mở riêng)
+
+**Candidate + hash (đã verify độc lập, khớp frozen candidate, case-insensitive):** `runtime.ts` `ACB476FD3079E6F3FDBF4B81BB54F5FE0B5B2F07679BB72AB47C73664BC09138`; `http/routes/runtime.ts` `8A4209F370B4BEDCA8C24C52AC5D1B08F7D5D59EE9AC72184F7C53D3A9CA5602`; `metadata-crypto.ts` `C614ECDCFDA50EAC79A29EAC2098B92CB3BBA77280D90DDEC6F3A815A4A602A1`; `0032_checkpoint_session_ref.sql` `69A9CC6BEA5DF9A999546AB5BB98A43EE1A1A0C3835BE5D7E8C6AEE72788E55E`; `public.ts` `422DB30E924DB063C30405B26BE73CCC867CE4E4DEDE8E344B411A169CBB057C`; `submission.ts` `8F7DA672…`; `create-app.ts` `CA24177A…`; `legacy-http-mount.ts` `4AEFF966…`. Baseline pre-fix tái hiện 8 passed/8 failed (expired-lease writes, missing business fence, rollback, omitted status, dropped sessionRef) — đúng defect characterization.
+**Lệnh + kết quả (trích receipt, verifier độc lập):** cwd `services/orchestrator`, `pnpm exec jest --runInBand --runTestsByPath tests/rcr-http-offline.functional.test.ts tests/rcr-luna-http-encryption.test.ts tests/rcr-luna-verification.test.ts tests/rv01-loopback-http-offline.test.ts tests/runtime-lease-fencing-offline.test.ts tests/runtime-encryption-metadata.test.ts tests/migrations-ledger-guard.test.ts` → 7 suites passed, 229 passed, 0 skipped, exit 0 (6.366s, raw SHA `337dabaa…`); `pnpm exec tsc --noEmit -p tsconfig.json` → exit 0 no output (raw SHA `e3b0c442…`). Open-handle warning còn (exit vẫn 0, không forceExit) — residual đã khai, không ảnh hưởng correctness.
+**Expected/actual từng finding trên candidate:**
+- RCR-01: malformed Host/URL không thoát listener boundary, request sau vẫn phục vụ — Actual: `create-app.ts:590` `handleListenerFailure`, `:617` `handleHttpRequest`, `:627` `new URL(...)`, `:629` throw `HttpError(400 INVALID_REQUEST)`, `:760` `.catch(handleListenerFailure)`. ✓
+- RCR-02: spawn/wait đòi RUNNING + cùng business + current epoch + `lease_expires_at > clock_timestamp()`; expiry ở final CAS rollback; replay durable y hệt vẫn pass — Actual: `runtime.ts:976-978` lock SELECT `lease_active`, `:996` `assertTaskBusiness`, `:1000` epoch check, `:1016-1038` replay trước RUNNING gate, `:1040` `assertActiveLease`, `:1140-1154` parent CAS + `LEASE_LOST` khi zero-row, mirror waitInput `:1230-1270`, `:1304-1318`; routes `http/routes/runtime.ts:451-452` + `:471-472` truyền `workerBusinessId`; helpers `:162-165` 403 business, `:172-178` LEASE_LOST. 33/33 fencing + verifier RCR-02 cases xanh. ✓
+- RCR-03: scoped same-body replay trước admission; khác body 409; foreign scope không replay — Actual: `submission.ts:235-251` `findSubmissionKey` + `request_hash` compare ⇒ `IDEMPOTENCY_CONFLICT` vs `{replayed:true}`, đặt trước `:254` storageBackend gate, `:267` artifact readiness, `:275` `resolveEnabledVersion`. ✓
+- RCR-04: omitted status persist SUCCEEDED; invalid payload 422 zero SQL — Actual: `runtime.ts:664` `SaveStepRequestSchema.safeParse`, `:665` `zodIssuesToProblem`, chỉ `parsed.data` đi tiếp; default chảy tới INSERT `:731`. Route `:412` `ctx.body as never` là cố ý (parse ở service boundary). ✓
+- RCR-05: sessionRef survives save→claim dưới metadata encryption, full checkpoint AAD, null/omitted tương thích, newest-first, fail-closed open — Actual: slot `metadata-crypto.ts:49` `step_checkpoints.session_ref`; `0032:2-3` `ADD COLUMN IF NOT EXISTS session_ref jsonb`; seal `runtime.ts:700-710` (`refId: taskId:stepKey:nextGen`), INSERT `:717`, undefined→NULL `:732`; claim `:1880` `ORDER BY step_key, generation DESC`, open `:1889-1899` đúng slot/refId, non-string ⇒ `INVALID_SCHEMA`. AAD `output_ref` cũ (generation-free, `:1906`) cố ý không copy. Ordering nhiều generation nhạy với việc gỡ ORDER BY (fake DB chỉ sort khi production query yêu cầu) — đã ghi nhận. ✓
+- RCR-06: byte-exact tới wire; tenant delivery policy bảo vệ plaintext; crypto unavailable fail-closed — Actual: `public.ts:305-311` carry `legacy.raw`, broken tenant handoff ⇒ 503; `:313-321` policy resolve failure ⇒ 503; `:322-343` enabled ⇒ encrypted envelope, strip binary Content-Length/MIME, 413 oversize via `maxBlobBytes`, null encrypt ⇒ 503; `:346-351` disabled ⇒ `{raw}` preserved. ✓
+**A2 lease:** dsh_1 `rcr-runtime-2026-10-05.md` RELEASED (0 product edits, pin hash paths); cc_1 `runtime.ts READ-ONLY`; baseline→candidate hash `01FFFF43…` ⇒ `ACB476FD…` một lần duy nhất thuộc Runtime Luna; không thấy fleet-lane write vào 4 paths — sole-editor claim SUPPORTED.
+**Caveat không-blocking (đã khai):** RCR-01 Host tới route result (controlled 4xx); RCR-03 `loadOperationView WHERE id=$1` tenant hardening là defense-in-depth; RCR-06 `Content-Diposition` parity (`docs/39-legacy-parity-contract.md:191-207`) còn thiếu; verifier inventory refresh trong `runtime-encryption-metadata.test.ts` là test-only.
+**Verdict V5: APPROVED** — 6/6 RCR behaviors đạt trên candidate đã release (offline backend scope). Per ADDENDUM: đây là điều kiện để ACCEPTED offline; **live gates còn mở riêng, không block offline ACCEPTED**: rollout 0032 trên PG thật via normal migration path, live PG/Vault/storage + lease-timing + worker restart, reviewer APPROVED + coordinator acceptance.
+
+## Tổng hợp verdict + đề nghị coordinator
+
+| Slice | Verdict | Mở khóa / điều kiện |
+|---|---|---|
+| V1 W1C-COMPOSE | APPROVED-WITH-CONDITIONS | REVIEW-801 này là reviewer leg còn thiếu → coordinator có thể tick offline-leg `P763-W1C-COMPOSE` (ghi digest note); live giữ mở |
+| V2 WIRE-A/B-BFF/UI+STUB-EXT | APPROVED-WITH-CONDITIONS | A1 adjudication ghi nhận (product delta in-lease); cần UI-REVIEW-CW-B-R2 re-sign trên digest mới; live còn mở |
+| V3 CREDWORKFLOW | APPROVED-WITH-CONDITIONS | Giữ nguyên 3 limits tới live/DB window |
+| V4 ENCMETA pair | APPROVED-WITH-CONDITIONS | A3 bound (fix chờ A2); live + window-gated suites mở |
+| V5 RCR-01..06 | APPROVED | Đủ điều kiện ACCEPTED offline; live gates (PG/Vault/storage + restart + 0032 rollout) mở riêng |
+
+KHÔNG commit, KHÔNG push, KHÔNG tick row (coordinator tick). DB window: FREE. Không sửa source/test/docs nào khác ngoài section này.
+
+---
+
+# REVIEW-802 — Claude module/backend review wave 802 (2026-10-05, offline, read-only)
+
+**Packet:** task `task_6b550a0be24e` (dispatch `ctx_2c7a38201a79`) · Owner claude (`term_19edcad8`).
+**Mode:** REVIEW-ONLY, offline, 0 source edit, không watch-state, không commit/tick. Không review UI/UX văn phòng — phần đó thuộc Antigravity §5.
+**Phạm vi:** S1 FU-ENCMETA-ADMIN + S2/S3/S4 CFGADM-UI-PORT-P1/P2/P3 — chỉ module/backend (seam, adapter, contract, hygiene, gating). Verdict mỗi slice kèm file:line + expected/actual.
+
+## S1 — FU-ENCMETA-ADMIN (qwen_2) → APPROVED
+
+**Defect (đúng):** admin-bearer `GET /api/v1/operations/:id` → `buildAdminOperationDetail` (`public.ts:455`) copy thẳng `op.result_ref` vào `result.data.resultRef` mà không gọi `readStoredText`; `getOperation` là `SELECT *` nên giá trị tới là **envelope đã seal** khi seam bật — response trả envelope thay vì opaque pointer, lệch với R1 `/result` (`public.ts:531-546`) đã đúng.
+**Fix (1 file, trong lease, đã verify trên disk):** `services/orchestrator/src/modules/operations/mappers.ts:100-108` mở envelope với đúng triple của R1 — `readStoredText(ctx.metadataCrypto ?? undefined, String(op.result_ref), { tenantId: String(op.tenant_id), slot: 'operations.result_ref', refId: String(op.id) }, true)`; `null` → `undefined` → `data: {}` (`:101,:111`); non-terminal → `result: null` (`:49`).
+**Tenant-triple đối chiếu (không mismatch):** R1 dùng `tenantId: apiKey.tenantId` (`public.ts:541`) SAU khi đã check `op.tenant_id === apiKey.tenantId` (`:482`) nên bằng nhau tại điểm mở; admin route là cross-tenant by design (`public.ts:441-443`) nên fix dùng `String(op.tenant_id)` là BẮT BUỘC đúng — dùng caller tenant ở đây mới là sai vì admin không có tenant. Seal lúc ghi dùng operation tenant ⇒ open khớp AAD cả hai đường.
+**Route không đổi:** `public.ts:455` truyền nguyên `ctx` (đã có `metadataCrypto`, dùng ở `:539`); `AdminOperationDetailContext.metadataCrypto?` optional (`mappers.ts:24`) nên structural-compat — tsc exit 0 chứng minh.
+**Test load-bearing thật:** `fu-encmeta-admin-projection.test.ts` 5 case (seam ON mở envelope + response không chứa `__sealed`; seam OFF plaintext nguyên vẹn; legacy plaintext window nguyên vẹn; non-terminal null; result_ref null → `{}`); focused ×3 (`fu-encmeta-admin-projection` + `encmeta-resultref-offline` + `enc-meta-sentinel-runtime-refs`) 21/21 exit 0 cả 3 lần; **mutation probe**: revert fix → FAIL đúng 1 case `Expected: "opaque-result-ref-abc123" / Received: "{\"__sealed\":1,...}"` — chính là envelope lộ ra; re-apply → 5/5.
+**Giới hạn đã khai (ngoài slice):** A3 window-switch vẫn mở (`readStoredText(..., true)` giữ backfill convention — việc đóng chờ `runtime.ts`/lease A2 Luna); envelope thật + key provider thật thuộc leg live/crypto.
+**Module/backend cho ACCEPTED:** `mappers.ts:100-108` + test file trên. **Verdict S1: APPROVED.**
+
+## S2 — CFGADM-UI-PORT-P1 settings (qwen_5) → APPROVED
+
+**Phát hiện quyết định (đúng, đã verify):** không có settings wire — `packages/contracts` zero Settings schema, không có read DTO/writer action. Port trung thực duy nhất là catalog + disabled-with-reason, không fake save, không invent endpoint, không đọc value vào browser.
+**Code (trong lease, đã đọc):** `features/settings/catalog.ts:35-60` 17 keys (AI 5 port + 1 retire, prompt 5, storage 6) với `replacement` là LOGICAL id (comment `:5-7` nói rõ chưa assert tồn tại route/column); `settingsWriteReason` (`:67-75`) 3 nhánh lý do riêng (retire / secret cần Vault adapter / non-secret boot-time config); `settings-screen.tsx:40-73` render label + badge secret/retire + Button **disabled** với `title={reason}` — không có `<input>` nào (imports `:1-10` không có Input), secret rows chỉ badge không value; banner `:87-92` khai "no settings wire at all".
+**Self-found defect đã đóng trong slice:** label-order `secret` trước `retire` làm retire branch unreachable (test 2 đếm Replace secret 5 thay vì 4) — fix `settings-screen.tsx:69` đảo thứ tự, không chạm ngoài lease.
+**A5:** 0 router/client edit. **Evidence:** typecheck ×3 + build ×3 exit 0; browser 6/6 ×3 (attempt 3/4/5) exit 0 — 17 controls disabled với title reason >30 chars không chứa "saved"; zero `<input>`; retire là decision; 320px; keyboard focus. 2 blocker ngoại lai gán đúng chủ (P2 identity-screen xóa gây đỏ build; Playwright concurrent `test-results/`) và không chạm file lane khác.
+**GAP khai rõ:** CFGADM-01/02/03/04 stay OPEN — writer actions (Policy, Vault secret-ref adapter, Artifact storage generation) là backend work riêng theo parity mapping.
+**Module/backend cho ACCEPTED:** `catalog.ts` + `state.ts` + disabled-with-reason rendering + secret hygiene (no input/no value/no log). Phần văn phòng (Antigravity §5) không thuộc verdict này. **Verdict S2: APPROVED.**
+
+## S3 — CFGADM-UI-PORT-P2 identity (codex_worker_1) → APPROVED-WITH-CONDITIONS
+
+**Adapter (đã đọc, đúng spec):** `features/identity/identity-api.ts` — CSRF `x-csrf-token` (`:97`), `idempotency-key` mọi non-GET (`:98`), `credentials: same-origin` (`:105`), `TRANSPORT_ERROR` khi fetch throw (`:109-111`); projection validation chặt: role allowlist `ADMIN|USER|VIEWER` (`:209-211`), `version` safe-int ≥0 (`:166-167`), OIDC allowlist đúng 4 field issuer/clientId/callbackUrl/scopes (`:183-201`, cipher/hash sentinel lạ bị ignore), `safeProblemCode` regex `^[A-Z0-9_-]{1,48}$` else `HTTP_ERROR` (`:213-218`) — không render raw error/response body.
+**Screen gating (đã đọc):** session-first `client.getSession()` (`identity-screen.tsx:48`); `canWriteUsers` = session admin + `capabilities.userWriter === true` + local/both mode (`:75-79`); create password write-only + default VIEWER (`:39,358-372` kèm chú thích never returned); `expectedVersion` từ snapshot hiện tại (`:121`); **success chỉ sau readback** `:131-147` (role khớp + enabled khớp + version tăng, else "No success was reported"); writer vắng → controls disabled + banner (`:302-306`).
+**Trung thực giới hạn:** CRUD success cases verify bằng intercepted responses, không phải live writer — receipt khai rõ; BFF identity route chưa tồn tại trong snapshot; route-registration request cho dsh_2 (3 routes GET/POST/PATCH + CAS 409 + audit + tenant từ trusted session) đúng A5, không tự sửa router/lib.
+**Điều kiện (backend, ngoài slice UI):** (1) dsh_2 đăng ký 3 BFF routes theo request + live CRUD proof trước khi CFGADM-08 đóng; (2) repo local-user `create` hiện fix role `admin` phải sửa theo policy phía server (receipt §43 đã flag — browser không được infer grants).
+**Module/backend cho ACCEPTED:** adapter contract + validation + gating/readback logic (offline). BFF + live integration chưa ACCEPTED. **Verdict S3: APPROVED-WITH-CONDITIONS.**
+
+## S4 — CFGADM-UI-PORT-P3 workflows/docs (dsh_2) → APPROVED-WITH-CONDITIONS
+
+**Workflows disabled-with-reason thật:** `features/workflows/workflows-screen.tsx:8-32` (32 dòng) — banner "Workflows route is disabled" nêu Δ-DEV-03, zero BFF call, zero data read/mutate, fail-closed. Đúng gate user-gated, không fake list/import/mappings/schemaSlug.
+**Docs-screen không rò secret (đã đọc):** `features/docs/docs-screen.tsx:34-51` catalog 13 entries suy từ client surface cùng bundle (không invent endpoint — mọi path đều có method client tương ứng); workbench dùng `client.testProfileEndpoint` có sẵn (`lib/api/client.ts:303`, type `:111`) — real BFF route `/profiles/test-endpoint`, same-origin; inputs chỉ business identifiers/URLs (`:143-173`); lỗi chỉ render `status · code` (`:174-178`).
+**Router/client tối thiểu (sole owner A5):** `router.tsx` chỉ +2 imports (`:14-15`) +2 route entries (`:49-50`); **zero** `lib/api/client.ts`/`types.ts` hunk (không cần — method đã tồn tại) ⇒ không phá lane khác. Build digest mới `index-Bs0p8VRI.js`/`8ccdbab15d44cca1` (499.53 kB) — typecheck 0, build ×3 digest trùng, route-level browser evidence đủ hai route.
+**GAP khai rõ (điều kiện):** AI wizard CFGADM-06 không ship — chưa có wizard BFF route/contract, làm wizard lúc này phải bịa contract nên ghi GAP thay vì fake; workflows backend disabled tới khi Δ-DEV-03 unblock.
+**Residual quan sát (không defect):** workbench render `testResult` JSON verbatim (`:179-183`) — chấp nhận được vì route trả test outcome, nhưng chủ BFF cần bảo đảm response đó không bao giờ chứa secret material.
+**Module/backend cho ACCEPTED:** disabled gating + catalog trung thực + workbench qua real route + router hunks tối thiểu. Wizard + workflows-live chưa ACCEPTED. **Verdict S4: APPROVED-WITH-CONDITIONS.**
+
+## Tổng hợp
+
+| Slice | Verdict | Module/backend ACCEPTED được | Còn mở (đúng chủ) |
+|---|---|---|---|
+| S1 ENCMETA-ADMIN | APPROVED | mappers triple + 5 tests (mutation-probed) | A3 window-switch (Luna/A2); live crypto leg |
+| S2 P1 settings | APPROVED | catalog 17 keys + disabled-reason + hygiene | Writer actions P+x (Policy/Vault/Artifact); Antigravity §5 visual |
+| S3 P2 identity | APPROVED-WITH-CONDITIONS | adapter + gating + readback-confirm | 3 BFF routes (dsh_2) + repo role-fix + live CRUD |
+| S4 P3 workflows/docs | APPROVED-WITH-CONDITIONS | disabled gate + catalog + workbench + router | AI wizard BFF; Δ-DEV-03 unblock; Antigravity §5 visual |
+
+KHÔNG commit, KHÔNG push, KHÔNG tick row (coordinator tick). DB window: FREE.
+
+---
+
+# V1-BOOT-DENIAL-DECISION (2026-10-05) — pointer
+
+Decision record đầy đủ: `coordination/reports/v1-boot-denial-decision-2026-10-05.md` (task `task_602ccacaf42b`).
+Kết luận: **allow boot + typed denial + boot warn (reject fail-fast)** — fail-fast sẽ hạ deployment không dùng profile cipher.
+Fix tối thiểu 2 hunk: try/catch `acquisition-ref-resolver.ts:199-203` → `denial(500,'AUTH_DECRYPT_FAILED',...)` (code đã có trong `PERMANENT_CODES` `ingestion-consumer.ts:276`, không sửa list); warn-only `main.ts` sau `:154`.
+Offline accept 5a-5e (boot warn, typed denial, permanent, ciphertext-hỏng, đường lành); live gates (PG thật, key xoay, restart) còn mở. Không tick V1 thêm từ decision này.
+
+---
+
+# REVIEW-803 — Claude ENCMETA/resultref offline-ACCEPTED decision (2026-10-05, offline, read-only)
+
+**Packet:** task `task_89c380b1a6eb` / dispatch `ctx_3830863f8725` · Owner claude (`term_19edcad8`).
+**Mode:** REVIEW-ONLY, 0 source/test edit, offline, không watch-state, không commit/tick/push.
+**Evidence base:** REVIEW-801 §V4 (APPROVED-WITH-CONDITIONS + A3 bound); owner `encmeta-enc09-kind-2026-10-05.md` (23/23 ×3, regression 39, tsc 0, 2 bugs self-caught, Δ-DEVIATION +1/-1); tester `VFY-802` (`tester.md:13569-13593`: FU-ENCMETA-ADMIN 5/5 ×3 + route probe + RESULTREF regression 6/6) và `VFY-ENC09-803` (`tester.md:13617-13647`: ENC09 23/23 ×3 + real AES-GCM R1/R2 probe, SDK fan-out 21/21 ×3 + actual route→SDK wire probe, raw SHA `1f8208f4…`/`133cfa82…`/`4cfcd18f…`); PLAN `PLAN-COMPLETION-2026-10-04.md:54` (G-ENC row), `:412` (ENCMETA pair fold), `:670` (S1 scope), `:704` (VFY-ENC09-803 task); code đối chiếu `public.ts:538-543`, `runtime.ts:1202-1207`/`1814-1819`, `mappers.ts:100-108`, `metadata-crypto.ts:350-373`.
+
+## 0. Đối chiếu nhanh bằng chứng mới (expected/actual)
+
+- ENC09-KIND registration: `operations.result_ref` + `tasks.result_ref` vào `ENC09_PAYLOAD_KINDS`, kind string ≡ `METADATA_SLOTS` slot (slot===kind by construction, không drift). **Bug 1 thật** (`tasks` không có `tenant_id` — `0001_platform_v1.sql:66-89`; fix `{tenant}` → `o.tenant_id` qua JOIN) và **bug 2 thật** (composite `kind:rowId` làm refId seal ra envelope không reader nào mở được; fix `payloadId: row.id`, composite chỉ addressing). Mutation probe load-bearing (composite→5 RED, window-guard off→1 RED, đã revert, grep MUTATION sạch). VFY-ENC09-803 rerun độc lập 23/23 ×3 exit 0. ✓
+- Real-crypto interop (điểm mạnh nhất của wave này): probe dùng `createMetadataCrypto` AES-GCM thật + key provider deterministic — backfill 2 rows → stored `operations.result_ref` qua **real R1 `/result` handler** mở đúng, stored `tasks.result_ref` qua **real R2 getChildren reader** mở đúng, envelope không chứa sentinel plaintext, sai row UUID → `CONTEXT_MISMATCH`. Closed-window → `incomplete` + `MIGRATION_STORE_UNAVAILABLE` + **zero writes**; open-window control writes. ✓ (scripted in-memory DB adapter, không phải PG — xem mục 2.)
+- SDK R4: `parseChildren` camelCase-first (`row.resultRef ?? row.result_ref`, tương tự taskId/errorCode), snake fallback giữ; 21/21 ×3 + probe actual `handleRuntimeRoutes` → `RuntimeService.getChildren` → serialize → `waitForChildren` parse giữ ref. ✓
+- FU-ENCMETA-ADMIN: VFY-802 route probe gọi thật `handlePublicRoutes` admin-bearer — response chứa opaque pointer (không envelope), seam nhận đúng triple `{tenantId, slot:'operations.result_ref', refId}` + `readStored(..., allowPlaintext=false)` ở probe stub; 5/5 ×3. REVIEW-802 S1 APPROVED đứng. ✓
+- Hai giới hạn verifier khai rõ, tôi xác nhận trên code hiện tại: (i) **không production caller** của `ResultRefPgMigrationStore`/`backfillLegacyPayloads` (store guard đã verify nhưng bounded window chưa ai enforce trong prod); (ii) mọi `readStoredText` caller vẫn `allowPlaintext=true` — R1 `public.ts:542`, R2 `runtime.ts:1206`, R3 `:1818`, admin `mappers.ts:107` (đúng chữ, đã đọc). A3 (`openMetadata` hardcode true, REVIEW-801 §V4) vẫn mở. Full suite `runtime-encryption-metadata.test.ts` **không chạy được nguyên vẹn**: `:603-617` assert inventory chỉ 4 slot và loại `tasks.result_ref` — xung đột trực tiếp với registration mới (verifier chỉ pick row-binding test; full run sẽ RED cho tới khi inventory assertion được update).
+
+## 1. ACCEPTED offline ngay bây giờ (phạm vi từng slice)
+
+| Slice | Quyết định | Cơ sở |
+|---|---|---|
+| RESULTREF writer + R1/R2/R3 readers + G3/G5/G6 guards | **ACCEPTED offline** | Seal đúng triple (tenant\|slot\|row-id), single writer `completeTask`, AAD refusal `CONTEXT_MISMATCH`, real-crypto round-trip qua reader thật, regression 6/6 (VFY-802) + 61/61 (VERIFY-ENCMETA) |
+| SCHEMA Option-C + 5 wire guards + slot-boundary | **ACCEPTED offline** (giữ nguyên V4) | Không bị thách thức bởi evidence mới; exemption documented, detector 10/10 ×3 |
+| ENC09-KIND registration + store + codec (fake-PG) | **ACCEPTED offline ở mức module** | 23/23 ×3 + regression 39 + tsc 0 + mutation probes; SQL-shape assert qua fake dispatch, **không phải** real planner (xuống mục 2) |
+| Store closed-window refusal + zero-write | **ACCEPTED offline ở mức store-unit** | Store-level guarantee đã chứng minh; chưa phải production behavior (chưa caller) |
+| SDK R4 camelCase + route→SDK wire agreement | **ACCEPTED offline** | 21/21 ×3 + non-fixture actual-route probe |
+| FU-ENCMETA-ADMIN projection (mapper triple) | **ACCEPTED offline** | S1 APPROVED + route-handler probe + regression; scope đúng PLAN `:670` (mapper/test slice, không full G-ENC) |
+
+## 2. Điều kiện còn lại: full ACCEPTED (đóng được offline) vs live-window-only
+
+**A — Full ACCEPTED, đóng được offline (cần implementation + verify packets, không cần live window):**
+- A1. Wire production backfill entry point: caller thật tiêu thụ `ResultRefPgMigrationStore`/`backfillLegacyPayloads` với bounded window được supply (hiện store "honour window nếu được đưa" nhưng không ai đưa — `encmeta-enc09-kind.md` §8).
+- A2. Runtime window switch (A3): thay `allowPlaintext=true` hardcode tại 4 điểm gọi (R1/R2/R3/mapper) bằng policy-gated value + thiết kế nguồn policy (xem mục 3). Chạm `runtime.ts` → chờ lease A2 (Native Luna) như REVIEW-801 đã bound.
+- A3. Update `runtime-encryption-metadata.test.ts:603-617` inventory assertion (4 slot → gồm result_ref kinds) + full suite xanh ×3.
+- A4. Coordinator ratify-or-revert Δ-DEVIATION +1/-1 `tests/legacy-payload-migration.test.ts` (§6 receipt owner — thay đổi coverage arithmetic bắt buộc, tối thiểu, đã khai).
+- A5. Sau A1+A2: rerun affected suites (enc09-kind, resultref-offline, runtime-encryption-metadata full, SDK fan-out) ×3 + tsc 0, verifier độc lập.
+
+**B — Chỉ live window đã duyệt mới đóng được (không claim từ offline):**
+- B1. Real PG planner/transaction behavior: SQL JOIN/lock-FOR-UPDATE/CAS trên rows thật, rollback thật (fake không model rollback — owner đã khai).
+- B2. Deployed `metadataCrypto` + Vault/key-provider unwrap/authentication thật.
+- B3. Backfill completion trên rows thật + kiểm kê legacy rows còn lại.
+- B4. G-ENC recipient + `ARTIFACT_STORAGE_MIGRATION_WINDOW=false` acceptance run (PLAN `:54` — seam S3/artifact, khác seam result_ref).
+- B5. Lease-timing/worker-restart behavior dưới encryption.
+
+## 3. Cần gì NGAY TRƯỚC khi window switch (nếu switch thì phải có, không thì cấm switch)
+
+Window switch không phải "đổi true→false": đóng sớm khi còn plaintext rows = tự tạo `NOT_SEALED` outage diện rộng; đóng muộn/mãi mở = mã hóa at-rest chỉ là tuyên bố. Thứ tự bắt buộc: (i) A1 landed (backfill caller thật chạy xong trên PG thật, B3 kiểm kê leftovers = 0 hoặc danh sách known); (ii) thiết kế nguồn policy (env/config, default fail-closed hay fail-open, mirror pattern `ARTIFACT_STORAGE_MIGRATION_WINDOW` của G-ENC); (iii) rollout order: backfill → flip → verify `NOT_SEALED` trên leftovers có chủ đích → audit log; (iv) key rotation/outage behavior (seam unavailable fail-closed thế nào — RCR-06 pattern 503 đã có cho blob, cần tương đương cho metadata readers); (v) leftover-plaintext-rows audit query ship cùng switch (nếu không đếm được rows chưa seal thì không bao giờ đủ điều kiện đóng). **Cấm flip switch chỉ vì "store đã có guard"** — guard chưa wired thì flip là đổi chữ, không đổi hành vi bảo mật.
+
+## 4. G-ENC / G-RESULTREF: đóng cái nào, giữ cái nào
+
+- Không tồn tại row tên "G-RESULTREF" trong PLAN — cụm ENCMETA/resultref sống trong fold §15 row `:412` ("PG/Vault thật + backfill window thật" còn mở) và S1 row `:670`. Cả hai **giữ mở** sau REVIEW-803; offline legs ở mục 1 không tick chúng.
+- **G-ENC (PLAN `:54`) giữ mở toàn phần.** G-ENC là acceptance seam S3/artifact (upload→encrypted S3→worker→encrypted output→recipient + rotation/outage/tamper + window=false run) — khác seam với result_ref (DB-column metadata encryption). PLAN §19.1 đã nói rõ S1 APPROVED "không full G-ENC"; REVIEW-803 tái khẳng định: không suy G-ENC closure từ bất kỳ evidence result_ref nào.
+- Đóng được sau A1–A5 (offline, coordinator tick): "RESULTREF offline chain" trong fold `:412` ở phạm vi offline (writer/readers/guards/SDK-wire/store-unit). Live nửa còn lại của chính row đó + toàn bộ G-ENC chỉ live window.
+
+## 5. Rủi ro residual của "seal trong khi allowPlaintext=true" (đánh giá trung thực)
+
+**Mức: thấp cho availability, trung bình-cao cho confidentiality-perception — rủi ro thật duy nhất là "tưởng đã mã hóa nhưng chưa".**
+- Không vỡ availability: writer mới seal đúng context (real-crypto round-trip đã chứng minh), readers cũ đọc được cả sealed lẫn plaintext → không outage, không `NOT_SEALED` bất ngờ. Đây là thiết kế backfill-window đúng, không phải bug.
+- Nhưng: mọi legacy plaintext row **đọc được mãi mãi** cho tới khi A2 flip; không có alarm nào (không `NOT_SEALED`, không kiểm kê rows-chưa-seal được surface) — deployment bật metadata encryption hôm nay mà tin "cột result_ref đã protected at-rest" là **sai**: kẻ đọc được DB vẫn thấy legacy refs in clear. Kẻ tấn công không cần phá crypto, chỉ cần tìm rows chưa backfill.
+- "Window" hiện là khái niệm test-only (store guard có, caller không) — mọi tuyên bố "bounded 14-day window" về prod hôm nay là chưa enforce.
+- Giảm thiểu duy nhất có ý nghĩa: A1 (backfill thật + kiểm kê leftovers) → mục 3 (policy + rollout + audit) → A2 flip → verify. Cho tới lúc đó, mọi receipt/claim phải ghi "encryption best-effort trong backfill window, legacy rows plaintext-readable" — không ghi "at-rest encrypted".
+
+**Tổng verdict REVIEW-803: ACCEPTED-OFFLINE theo mục 1 (6 slice, đều có phạm vi ghi rõ) + CONDITIONS A1–A5 cho full ACCEPTED + LIVE B1–B5 giữ mở + PRE-SWITCH mục 3 bắt buộc + G-ENC/fold giữ mở + residual mục 5 phải đi kèm mọi claim mã hóa.**
+
+KHÔNG commit, KHÔNG push, KHÔNG tick row (coordinator tick). DB window: FREE. Không sửa source/test/docs nào khác ngoài section này.
+
+---
+
+# REVIEW-804 — S1 V1-BOOT-TYPED-DENIAL + S2 REVIEW-803/A8 sweep (2026-10-05, offline, read-only)
+
+**Packet:** task `task_040c53fd4ef6` / dispatch `ctx_987f040499a1` · Owner claude (`term_19edcad8`).
+**Mode:** REVIEW-ONLY, 0 source/test edit, offline, không watch-state, không commit/tick/push.
+**Evidence base:** receipt `v1-boot-typed-denial-2026-10-05.md` (codex_worker_1); decision `v1-boot-denial-decision-2026-10-05.md`; code trên disk: `acquisition-ref-resolver.ts` (untracked, 289 dòng), `main.ts` diff, `tests/v1-boot-typed-denial.test.ts` (untracked, 303 dòng), `file-url-auth.ts:91-123` (untracked nhưng nội dung đúng contract cũ), `ingestion-consumer.ts` diff; PLAN `:54` (G-ENC), `:412` (ENCMETA fold), `:670` (S1 scope); `coordinator-state.json:1898` + rule `:1889` (A8 đã ghi); `docs/04-data-state.md:100-102`; `tasks/LIVE-TEST-PLAN-MINIO-VAULT-BROWSER-2026-10-03.md:365`.
+
+## S1 — V1-BOOT-TYPED-DENIAL (codex_worker_1) → APPROVED-WITH-CONDITIONS
+
+**Đối chiếu decision (5/5 điểm, đã đọc code thật):**
+1. Typed denial tại resolver boundary ✓ — `acquisition-ref-resolver.ts:199-207`: `decryptFileUrlAuthConfig(binding.cipher, env, warnLegacy)` trong try/catch, mọi throw đồng bộ (key vắng từ `resolveProfileCryptoKey`, sai shape) → `denial(500,'AUTH_DECRYPT_FAILED','stored auth cipher could not be decrypted with this deployment key')`. Comment `:203-205` ghi rõ lý do đặt tại boundary (helper phục vụ cả write + nullable-read). Branch `decrypted===null` (`:208-211`) giữ nguyên code+message — đúng decision (wrong-key/tag-rách đã deny typed sẵn, nay thống nhất message).
+2. Không đổi code-lists ✓ — `SourceAuthDenialCode` (`:48-54`) giữ nguyên union (không thêm member, chỉ dùng `AUTH_DECRYPT_FAILED` đã có); `file-url-auth.ts` không đổi contract (file untracked nhưng `decryptFileUrlAuthConfig:91-123` vẫn fail-closed `null`, không throw mới — đúng "KHÔNG sửa helper").
+3. Đường null giữ nguyên ✓ — snapshot null/undefined → `{configured:false}` (`:111`), `configured=false` → `{kind:'none'}` (`:171`); cipher null/'' → `AUTH_CONFIG_MISSING` 422 (`:195-197`, phân biệt đúng "chưa cấu hình" vs "mở không được"); legacy-plaintext vẫn warn-once + read (`file-url-auth.ts:117-121`).
+4. `main.ts` đúng MỘT warning ✓ — `:155-160`: `if (!ENCRYPTION_KEY && !NEXTAUTH_SECRET) logger.warn(...)` — warn-only, không throw/exit, đặt sau encryption-seam log, trước `createApp`. Không gate boot.
+5. Không đường non-typed nào thoát ✓ — quét `resolveSourceAuth`: mọi throw đều qua `denial(...)` (`:113,118,124,135,167,178,190,193,196,206,210,217,223,231,240,245`); `withSourceAuth` (`:262-288`) không throw auth (chỉ pin origin + forward). `fileUrlAuthConfigCarriesSecret` false → `AUTH_CONFIG_MISSING`, `query` → `QUERY_AUTH_FORBIDDEN` — typed hết.
+**Test có chứng minh thật permanence:** `v1-boot-typed-denial.test.ts:261-281` — consumer thật + resolver thật (cipher thật từ `CONFIGURED_ENV`, env trống) → `runOnce()` → `{retried:0, escalated:1}`, `fetcher` zero-call, `failTaskParams/failOperationParams` = `AUTH_DECRYPT_FAILED`, `retryParams` rỗng. Đây là assertion trực tiếp trên `PERMANENT_CODES` path (không còn suy luận code-path như decision record). Tamper (`:293-301`) + key-hợp-lệ (`:283-291`) + no-leak (`:257`) đủ.
+**Boot case:** `:222-241` — `createApp` + `listen` mock hoàn tất + đúng 1 warn / 0 warn. **Đây là điểm trừ duy nhất:** `createApp`/`listen` là mock (`:196-208` doMock server/shutdown/oidc/encryption-boot-options), không phải entrypoint thật + PG/Redis disposable như evidence V1-CONDITIONS-802 của decision record. Test chứng minh *logic warn + thứ tự boot*, không chứng minh *process boot thật*.
+**Ngoài lease (ghi nhận, không phạt):** `main.ts` diff còn chứa `tenantAdminTokensFromEnv` (`:75-112`) + `tenantAdminTokens` wiring (`:168`) — pre-existing local edits, receipt đã khai (§Scope). `ingestion-consumer.ts` diff chứa P730-ACQUIRE composition + `PERMANENT_CODES` mở rộng (6 codes mới, `AUTH_DECRYPT_FAILED` đã có trong đó) + `openDispatchSourceUrl` (ENC-META-FIX-G1) + `failureCode` map `SourceAuthDeniedError` — đều là composition hunks của lane khác/W1c, không phải của slice này, receipt không claim chúng. Không thấy sửa sai; chỉ ghi để coordinator phân biệt ownership khi tick.
+**Verdict S1: APPROVED-WITH-CONDITIONS** — implementation đúng decision 5/5, permanence chứng minh trực tiếp; điều kiện duy nhất: live-boot thật (entrypoint + PG/Redis disposable, key-vắng) trước khi coi boot-policy là ACCEPTED hoàn toàn (đúng handoff receipt §Scope đã tự khai).
+
+## S2 — REVIEW-803/A8 sweep → XÁC NHẬN + 1 FILE CẦN SỬA
+
+**A8 đã được coordinator ghi (xác nhận):** `coordinator-state.json:1898` ("Cap nhat A8: moi claim ma hoa phai kem canh bao muc 5") + rule chi tiết `:1889` ("TUYET DOI khong ghi at-rest encrypted cho den khi PRE-SWITCH muc 3 hoan tat"); `agent-watch-state.json:9847` adjudication tương ứng. Ràng buộc có hiệu lực trong state, không chỉ trong receipt của tôi.
+**Sweep claim mã hóa (phạm vi: receipt 2026-10-05 + docs/tasks hiện hành):**
+- ĐÚNG (đã kèm cảnh báo hoặc giới hạn): REVIEW-803 §5 (câu chuẩn best-effort + cấm at-rest); `encmeta-backfill-prep` (BLOCKER window-switch + "permanently open"); `encmeta-resultref-impl:50` ("không claim live"); `encmeta-enc09-kind` §8 ("No live DB / No wiring / window switch absent"); PLAN `:412` (live còn mở), `:670` (scope mapper slice), `:54` (G-ENC giữ mở); `LIVE-TEST-PLAN-MINIO-VAULT-BROWSER:365` (mô tả legacy plaintext + window true/false đúng bản chất, không claim đã encrypted).
+- SAI 1 chỗ (cần sửa ngay, docs hiện hành): **`docs/04-data-state.md:102`** — câu "reader dùng `readStoredText` và **fail-closed** (`NOT_SEALED`) khi giá trị trông giống envelope mà thiếu seam/không mở được" mô tả sai hành vi hiện tại: cả 4 callers (`public.ts:542`, `runtime.ts:1206/1818`, `mappers.ts:107`) đều truyền `allowPlaintext=true`, nên plaintext/envelope-lạ được trả verbatim, KHÔNG fail-closed. Đúng phải là: "trong backfill window hiện tại readers truyền `allowPlaintext=true` nên legacy plaintext đọc được verbatim (best-effort); fail-closed `NOT_SEALED` chỉ có hiệu lực sau window switch (A3/A2)". File:line duy nhất cần sửa: `docs/04-data-state.md:102`.
+- NGOÀI PHẠM VI A8 (không sửa, seam khác): `docs/12-operations.md:26` ("Secret encrypted at rest"), `packages/contracts/src/profile-policy.ts:170`, test name `p730-admin-mutate-offline.test.ts:529`, `codex-comp01-slice-f-2026-10-02` — đều nói về AppSetting secrets / `fileUrlAuthConfig` cipher (AES-256-GCM + ENCRYPTION_KEY, seam Vault/profile-key), không phải result_ref/metadata seam. A8 chỉ áp cho result_ref/metadata claims. `encmeta-resultref-prep:63` ("protected in transit... RED detector strictly about at-rest copy") viết đúng, không sửa.
+**Verdict S2: XÁC NHẬN A8 đã ghi + 1 fix docs** — coordinator không cần hành động thêm về A8; chuyển `docs/04-data-state.md:102` cho docs-owner sửa theo câu trên (doc-only, không cần lease code).
+
+KHÔNG commit, KHÔNG push, KHÔNG tick row (coordinator tick). DB window: FREE. Không sửa source/test/docs nào khác ngoài section này.
+
+# REVIEW-805 — kiểm tra trung thực gap-inventory-803 + commit-prep-803 — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_bb6dec52eef4` / dispatch `ctx_7a5643cbc5cc`. Phương pháp: grep + read từ root `du-rework` (không phải từ `coordination/reports`), đối chiếu từng file:line, kiểm tra mtime để phân biệt evidence sai lúc viết vs stale sau khi viết. DOC-ONLY: không sửa source/test, không commit; sửa duy nhất là section receipt này.
+
+## (1) gap-inventory-803-2026-10-05.md — từng mức độ
+
+Kết luận chung: **không có mức CAN nào phải hạ toàn phần xuống KHÔNG CẢN**; nhưng **G5 cần sửa evidence + tách hàng**, **G3 cần refresh evidence** (file mới xuất hiện sau inventory), **G6 cần sửa đường dẫn evidence**, **G1 cần sửa tiền tố đường dẫn**. Chi tiết:
+
+- **G1 CONFIRMED, sửa tiền tố path.** `readStoredText(crypto, value, context, allowPlaintext)` chữ ký đúng có flag bắt buộc; cả 4 call sites vẫn hardcode `true`: `services/orchestrator/src/modules/runtime/runtime.ts:1202`, `:1814`, `services/orchestrator/src/http/routes/public.ts:538`, `services/orchestrator/src/modules/operations/mappers.ts:103`. Hiệu lực CAN LIVE cho tuyên bố at-rest giữ nguyên. Sửa duy nhất: file switch nằm ở `modules/runtime/metadata-crypto.ts`, không phải `metadata-crypto.ts` như evidence ghi.
+- **G2 CONFIRMED, split đã ghi là thật.** Open-before-merge `runtime.ts:1809-1816` có thật (comment "parent could never read them"); các SELECT `human_waits` (`:1254`, `:1293`, `:1370`) không project `ui_schema`/`context_ref`; `mappers.ts` 0 hit `ui_schema`. Hậu quả tách đôi (CẢN LIVE cho at-rest / KHÔNG CẢN cho UI) có cơ sở hành vi, không phải suy diễn — giữ nguyên.
+- **G3 REFRESH-EVIDENCE, giữ CAN UI.** Tại thời điểm inventory (mtime 04:48) claim "0 matches Settings" là đúng; sau đó `packages/contracts/src/settings.ts` xuất hiện (untracked, mtime 05:01) với read DTO + writer contract **disabled/fail-closed** (`SettingsUpdateParamsSchema :128`, `SETTINGS_WRITER_DISABLED_CODE :146-147`, `writerEnabled`). Nhưng BFF writer vẫn vắng (không có `POST /admin/api/settings`, `settings.tsx` không có POST/PATCH, `settings-screen.tsx:21` "no Save button", mọi write control disabled có lý do). Yêu cầu: cập nhật dòng evidence, tùy chọn tách G3-read (catalog/read đã có) vs G3-write (vẫn CẢN UI). Không hạ severity.
+- **G4 CONFIRMED.** `wizard`/`Wizard` 0 hit trên cả `services/orchestrator/src` và `apps/admin-web/src` (không chỉ 2 thư mục hẹp trong evidence). CẢN UI giữ nguyên.
+- **G5 SỬA EVIDENCE + TÁCH HÀNG, giữ CẢN UI by-design.** Evidence "no `workflows` path" là **sai trên disk hiện tại**: `apps/admin-web/src/router.tsx:14` import + `:49` đăng ký `path: 'workflows'` (untracked, mtime 03:54 — TRƯỚC inventory 04:48, nên đây là miss chứ không phải stale). Nhưng `workflows-screen.tsx` (32 dòng, mtime 03:40) chỉ render banner disabled theo Δ-DEV-03, không đọc/mutate data. Yêu cầu: sửa file:line, tách G5-route (đã tồn tại, SHIPPED-DISABLED) vs G5-gate (DEV-03 user go/no-go + A6). Không hạ xuống KHÔNG CẢN — operator vẫn không dùng được workflows.
+- **G6 SỬA ĐƯỜNG DẪN, giữ CẢN UI.** Đường dẫn evidence sai: `apps/admin-web/src/app/admin/bff/` không tồn tại; BFF thật ở `services/orchestrator/src/app/admin/bff/identity.ts` (`:5-6` khai `POST /admin/api/identity/users`, `:52-53` route match, `:117` forward tới `/api/v1/admin/identity/users`) — file proxy này evidence bỏ sót. Backend CRUD thật vẫn vắng (grep `local_users|/users|/roles` chỉ ra file proxy + noise `submit_roles`). Yêu cầu: sửa paths, giữ CẢN UI cho CFGADM-08.
+- **G7 CONFIRMED.** `server.ts:87` khai báo-only; `main.ts` không truyền field này (0 match); `create-app.ts:408` fallback `?? {}`, `:442` hard-error khi thiếu; `route-context.ts:74` document "Absent = …". CẢN LIVE giữ nguyên (kèm ghi nhận degrade disabled trung thực).
+- **G8 CONFIRMED.** `0032_checkpoint_session_ref.sql` đúng 2 câu lệnh `ADD COLUMN IF NOT EXISTS session_ref jsonb`; không có down-migration API (khớp `migration-0032-rollout-prep`). Hậu quả tách đôi (KHÔNG CẢN offline / CẢN LIVE nếu mở window thiếu SQL) là thật.
+- **G9 CONFIRMED.** `cleanup|retention` chỉ trúng `catalog.ts` (3 rows CFGADM-03/04 tại `:50,56,80`) + comment `settings-screen.tsx:21-29`; không có stats/cleanup control, không Save. CẢN UI giữ nguyên.
+- **G10 CONFIRMED, evidence thiếu nhưng không đổi severity.** Hai điểm đã nêu đúng (`connector-http-store.ts:77`, `connector-management-store.ts:101` — lưu ý evidence ghi nhầm thư mục `connectors/` cho site 1, thật là `connector-credentials/`); ngoài ra còn `webhooks.ts:340`, `bff/upstream.ts:118`, `shell-server.ts:774`. Vẫn KHÔNG CẢN (coverage-only), phạm vi thiếu test còn rộng hơn đã nêu.
+- **G11 CONFIRMED** qua `cred-limits-801-2026-10-05.md:69-77` (mock trả `{sequence,filename}` cho cả count-query → `rows[0].count` undefined → fix 4 dòng trong test file, exit 0 ×3). KHÔNG CẢN giữ nguyên.
+- **G12 CONFIRMED** qua `qwen-acui-00-config-catalog-2026-10-02.md:31` ("None is manageable"), `:64` ("unmanaged / requires deployment action"), `:66-72` dead caps gồm `connectorBaseUrls`. Luận điểm coupling (G12 là root của G3/G7/G9) đứng vững.
+
+## (2) commit-prep-803-2026-10-05.md — quét A8 + quét GO
+
+- **Thiếu cảnh báo A8 (cần bổ sung, không phải lỗi GO):** grep `best-effort|muc 5|section-5|section 5|at-rest|backfill window|plaintext-readable` trên file cho **0 hit** — cả tài liệu chưa có câu chuẩn A8. Các nhóm chạm A8/dữ liệu mã hóa mà thiếu câu này: hàng **c3** ("encrypted window/cutover", "ENC/session/order hunks", "A3 pending"), **§4/§72** ("window guard chưa wired", "`allowPlaintext=true` A3 còn"), §1 migration-runner note. Điều kiện GO thiếu: thêm một câu A8 ("encryption best-effort trong backfill window, legacy rows vẫn plaintext-readable; tuyệt đối không claim at-rest encrypted tới PRE-SWITCH mục 3") vào các vị trí trên trước khi user dựa vào tài liệu. Nhóm nêu tên: **c3 claim/P2 + §4 delta wave802/§72**.
+- **Không có nhóm nào được GO khi còn CHANGES_REQUIRED hoặc reviewer chưa phát:** hàng **c4** ghi đúng docs CHANGES_REQUIRED → UI-inclusive HOLD tới CSRF fix + re-review (HOLD chứ không GO); **c5** HOLD affected hunks tới typed/permanent + warning + tests 5a-5e + independent review; mọi GO còn lại đều là bounded-conditional (c1 excludes carrier/connector/settings + prefix pass; c2/c3/c6 tương tự); A6 chưa GO nhóm nào (dòng 5 + checklist 7); 5 task wave803 đều dispatched có exit criteria, 2 ready + 1 awaiting-dispatch được khai rõ — không có GO lén.
+
+**Verdict REVIEW-805:** cả hai tài liệu dùng được sau khi sửa: gap-inventory cần 4 yêu cầu sửa evidence (G1 path, G3 refresh + tách read/write, G5 sửa + tách route/gate, G6 sửa paths), commit-prep cần 1 bổ sung (câu A8 cho c3/§4/§72). Không hạ severity nào, không phát hiện GO trái phép.
+
+# REVIEW-806 — review BACKFILL-LEFTOVER-COUNTER + nối A8 — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_f83efc3677f7` / dispatch `ctx_2356fa028729`. Đối tượng: `backfill-leftover-counter-803-2026-10-05.md` (qwen_1, `task_62b94672e22a`) + SQL `coordination/backfill-leftover-counter-803.sql`. Phương pháp: đọc receipt + SQL thật, đối chiếu từng claim với code/migrations trên disk. DOC-ONLY: 0 edit source/test, không commit; sửa duy nhất là section này.
+
+**Đối chiếu code (đã đọc thật):** 8 slots trong SQL §0 khớp từng member `METADATA_SLOTS` (`metadata-crypto.ts:44-62`); migration columns khớp (`0001:47,48,76,85,107`, `0005:19`, `0031:15`, `0032:3`); jsonb predicate mirror đúng envelope shape (`version:1`, `aes-256-gcm`, `dek` object, `nonce`/`tag`/`ciphertext` string); SQL chỉ SELECT/COUNT/FILTER + `default_transaction_read_only = on` + `statement_timeout 120s` (read-only thật); bug NULL-unsafe → COALESCE fix (§2.1) đúng hướng nguy hiểm (undercount = fail-open cho gate). `DU_ENCRYPTION_METADATA_ENABLED` tồn tại (`boot-options.ts:24`). Số seed cộng tay khớp (10/2/8/GATE FAILS).
+
+**(1) Counter có dùng làm điều kiện chặn A2 flip được không; hàng nào actionable thật:** CÓ, với 2 caveat. Công thức gate `actionable = leftover − empty` đúng vì `{}` (NOT NULL DEFAULT, `0001:47,76`) không chứa tenant data — nhưng `{}` chỉ "không actionable" theo nghĩa backfill, operator vẫn nên quyết định có seal `{}` thành envelope rỗng hay giữ làm product call (receipt §7 đã tự khai, đồng ý). 8 hàng actionable thật = 2 `operations.input_ref` + 2 `tasks.payload_ref` + 1 `human_waits.response_ref` + 1 `output_ref` + 1 `session_ref` + 1 `prompt_overrides_ref` + 1 `tasks.result_ref` + 1 `operations.result_ref` trừ 2 `{}`. Caveat 1: predicate là **shape test, không decrypt** (§7 tự khai) — envelope hỏng AAD/tag vẫn đếm là sealed → trước flip cần thêm sample mở thật (task khác, đã được receipt gọi tên). Caveat 2: text-column LIKE ba substring có thể đếm nhầm plaintext chứa đủ ba chuỗi (implausible nhưng possible, §7 đã khai).
+
+**(2) Có slot nào sót không; outbox.payload có vào gate:** KHÔNG sót slot nào trong 8 — SQL §0 liệt kê đúng cả 8 members. `outbox.payload` KHÔNG vào gate là đúng: nó không thuộc `METADATA_SLOTS`, không được metadata seam seal (seam chỉ seal 8 columns), write path (`submission.ts:508,841`, `runtime.ts:912,1113,1445,1540,1845`) ghi plain `BusinessJobV1` envelope. `outbox_payload` chỉ là ENC-09 kind (inventory adapter), không phải metadata slot — hai taxonomy khác nhau, không lẫn. §9 báo cáo riêng để chống ngộ nhận là đủ. Ghi nhận thêm: `human_waits.ui_schema`/`context_ref` (`0005_continuation.sql:16-17`) cũng plaintext by Option-C exemption (REVIEW-803 V4) nhưng ngoài phạm vi counter — coordinator nên quyết định có đưa vào gate mở rộng hay giữ exemption; không phạt receipt này vì scope của nó là METADATA_SLOTS.
+
+**(3) Điều kiện chạy DB thật còn thiếu gì:** receipt §4 đã có window/replica/timeout/flag/watch/counts-only. Còn thiếu 3 điểm: (a) **baseline row counts trước khi mở transaction** để so "không đổi" có đối chứng (hiện chỉ re-check sau); (b) **ngưỡng abort định lượng** cho lock waits / replication lag (ai watch, số nào thì cancel); (c) **plan chi phí**: `EXPLAIN` hoặc giới hạn scope theo partition/date-range nếu `operations`/`tasks` lớn — full-scan 8 cột không phải lúc nào cũng vừa một window. Không thiếu gì về mặt an toàn đọc (read-only + timeout đã đủ).
+
+**(4) Cập nhật A8:** KHÔNG đổi cách phát biểu. A8 hiện tại ("best-effort trong backfill window, legacy rows vẫn plaintext-readable; tuyệt đối không claim at-rest encrypted tới PRE-SWITCH mục 3") đã bao đúng trường hợp này — counter cho con số 8 hàng thay vì chữ "một số hàng", đó là **bằng chứng định lượng cho A8, không phải lý do sửa A8**. Câu chuẩn cho báo cáo dùng counter: "đếm được N hàng plaintext trong backfill window (best-effort); flip chỉ khi actionable = 0".
+
+**(5) Verdict: APPROVED-WITH-CONDITIONS** — counter đúng scope, đúng predicate, đúng gate, trung thực về limitations; điều kiện: bổ sung 3 điểm §(3) (baseline counts, ngưỡng abort, plan chi phí) vào runbook trước lần chạy DB thật đầu tiên; sample mở envelope thật (task riêng) trước A2 flip.
+
+# REVIEW-807 — chốt 3 quyết định từ REVIEW-806 → A10 — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_c8666f096998` / dispatch `ctx_82dc9ef92034`. Cơ sở: REVIEW-806 trong file này; `backfill-leftover-counter-803-2026-10-05.md`; SQL `coordination/backfill-leftover-counter-803.sql:202-205` (gate); `metadata-crypto.ts:350` (`readStoredText`) + `:363-372` (fail-closed NOT_SEALED sau window); `runtime.ts:1278-1286` (INSERT human_waits plaintext); migrations `0001`, `0005_continuation.sql:16-17`, `0031:15`, `0032:3`; `boot-options.ts:24` (flag). DOC-ONLY: 0 edit source/test, không commit; sửa duy nhất là section này.
+
+Ghi chú về "seed mới / 4 empty": trên disk chỉ tồn tại đúng một lần chạy counter (receipt §3: total 10 / empty 2 / actionable 8); không có receipt, raw output hay SQL version nào ghi seed mới với 4 empty. Quyết định (1) dưới đây bao cả hai trường hợp (2 và 4) để coordinator áp dụng trực tiếp khi seed mới xuất hiện.
+
+## (1) `{}` rows — GIỮ NGUYÊN, không seal; gate phải ghi rõ — verdict: APPROVED (quyết định)
+
+`{}` là NOT NULL DEFAULT của schema (`0001:47` `input_ref`, `0001:76` `payload_ref`), không chứa tenant data — sealing nó tạo envelope mã hóa của object rỗng, tốn KMS/Vault transit call mà không giảm rủi ro (kẻ tấn công mở envelope rỗng cũng chỉ được `{}`). **Chốt: giữ nguyên `{}` (product call: "nothing to do"), KHÔNG seal thành envelope rỗng.** Điều kiện đi kèm (bắt buộc trong gate/report): gate phải in thêm dòng `{}`-only, và câu chuẩn là "`{}` rows are schema defaults, not tenant data; they are never counted as plaintext-readable and never gate the flip" — đúng yêu cầu packet (không bao giờ coi `{}` là plaintext-readable riêng). Áp dụng cho cả seed cũ (2) và seed mới (4): công thức `actionable = leftover − empty` không đổi.
+
+## (2) `ui_schema`/`context_ref` — GIỮ EXEMPTION, không vào gate 8-slot; nói rõ ranh giới — verdict: APPROVED (quyết định)
+
+Cả hai cột (`0005_continuation.sql:16-17`) là **render hints / routing pointers do worker truyền vào lúc tạo wait** (`runtime.ts:1286` `JSON.stringify(req.uiSchema)`, `contextRef ?? null`), không phải tenant business content qua metadata seam; không có writer nào seal chúng và không có reader nào gọi `readStoredText` trên chúng (grep `ui_schema` ngoài INSERT = 0 hit). Đưa vào gate 8-slot sẽ trộn hai taxonomy và làm gate FAILS vì lý do ngoài scope. **Chốt: giữ Option-C exemption (REVIEW-803 V4), KHÔNG đưa vào gate.** Ranh giới phải ghi trong báo cáo: metadata seam = 8 `METADATA_SLOTS` columns (seal-on-write, AAD tenant|slot|refId, fail-closed sau window); exemption = `ui_schema`/`context_ref` + `outbox.payload` (operational/routing, plaintext by design, báo cáo riêng không gate). Nếu sau này threat model đổi (ui_schema chứa PII), đó là packet mới thêm slot + writer, không phải sửa gate hiện tại.
+
+## (3) Task sample-mở trước A2 flip — thiết kế rõ — verdict: APPROVED (thiết kế task)
+
+Vì predicate chỉ là shape test, task riêng (không thuộc counter) như sau: **phạm vi = toàn bộ rows mà counter đếm là `sealed`** (không sample ngẫu nhiên — số lượng sealed pre-flip là nhỏ, đếm toàn bộ loại bỏ sampling risk); **phương pháp = `readStored`/`readStoredText` với `allowPlaintext=false` trên read replica** (đúng semantics post-flip: envelope hỏng → throw `NOT_SEALED`/`CONTEXT_MISMATCH`/`AUTHENTICATION_FAILED`, `metadata-crypto.ts:363-372`); **bằng chứng = counts (opened OK / failed by code), KHÔNG in giá trị** (giữ nguyên tắc counts-only của counter); **khi phát hiện row hỏng = STOP, không flip**: (a) ghi nhận slot + error code, (b) coi như `actionable > 0` (row hỏng quay lại hàng backfill), (c) điều tra nguyên nhân (sai AAD/slot, tag rách, key rotation) trước khi đếm lại. Task này chạy sau counter `actionable = 0` và trước A2 flip, trong cùng maintenance window, cùng điều kiện read-only + timeout.
+
+**Verdict REVIEW-807: APPROVED** — cả 3 quyết định chốt theo hướng giữ nguyên hiện trạng (giữ `{}`, giữ exemption, thêm task sample-mở toàn bộ); không đổi code, không đổi gate SQL, không đổi A8. Việc còn lại: ghi 3 chốt này vào A10 (coordinator), bổ sung dòng `{}`-only + câu ranh giới vào runbook counter trước lần chạy DB thật.
+
+# REVIEW-808 — A11 tái định nghĩa gate A2 flip — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_b33ee10125b8` / dispatch `ctx_61bd7022fae4`. Cơ sở: `tester-off.md:94-137` (VFY-ENVELOPE-INTEGRITY, CONFIRMED); A11 (`coordinator-state.json` adjudication_A11 07:31 +07, `agent-watch-state.json`: "shape-pass KHÔNG phải bằng chứng bảo vệ; phải xác thực chứng mỗi hàng shape-pass. A2 flip tiếp tục bị chặn"); code `metadata-crypto.ts:350-372`, SQL gate `:202-205`. DOC-ONLY: 0 edit, không commit; sửa duy nhất là section này.
+
+**Tóm tắt phát hiện (đã đọc evidence, không suy diễn):** 4 rows `operations.input_ref` (1 valid + 3 hỏng giữ shape: ciphertext-flip, tag-flip, wrong-tenant AAD) → cả 4 `shape=true`; reader thật: 1 open + `AUTHENTICATION_FAILED` ×2 + `CONTEXT_MISMATCH` ×1; SQL nguyên bản trên chính DB đó: `sealed=4, leftover=0, GATE PASSES`, exit 0. Gate đếm mà không mở nên false-clear — nếu chạy DB thật sẽ cho flip trong khi dữ liệu đã không đọc được.
+
+## (1) Gate A2 flip mới sau A11
+
+Điều kiện đo (cả hai phải đồng thời = 0, đo toàn bộ không sample): (a) **shape gate cũ** `actionable_leftover = 0` (bắt plaintext lộ + `{}`-only, SQL hiện tại giữ nguyên làm census nhanh); (b) **auth gate mới** `auth_failed_total = 0`, trong đó auth gate = `readStored`/`readStoredText` với `allowPlaintext=false` trên MỌI non-null row shape-pass ở cả 8 slots, bằng production key provider + đúng tenant/slot/refId của từng row, đếm opened-OK vs failed-by-code, không in giá trị. **Bằng chứng THẬT duy nhất được chấp nhận: auth gate counts** (mở được từng hàng); shape-pass chỉ là điều kiện cần để vào auth gate, không bao giờ là bằng chứng bảo vệ. Chưa có batch-auth helper trên disk (grep 0 hit) — đó là `GATE-AUTHENTICATE-808` đã dispatched cho qwen_1.
+
+## (2) Hàng sealed-nhưng-hỏng — KHÔNG phải bảo vệ; không đếm vào "không chứa dữ liệu bảo vệ", mà đếm vào HÀNG LỖI chặn flip
+
+Envelope hỏng (tag rách / sai AAD) không đọc được bởi bất kỳ ai — kể cả attacker — nhưng cũng không đọc được bởi hệ thống, nên flip sẽ gây mất dữ liệu (fail-closed `NOT_SEALED` sau window). **Chốt: không coi là bảo vệ; không nhập vào `{}`-class; đếm vào `auth_failed_total`, mỗi hàng lỗi = 1 veto chặn flip**, xử lý như REVIEW-807 §(3) đã thiết kế (ghi slot + error code → điều tra nguyên nhân → backfill lại → đếm lại). Điểm mới A11 bổ sung vào §(3): auth gate là bắt buộc trên toàn bộ shape-pass (không còn là "task riêng nên có"), và `GATE PASSES` của shape counter không có giá trị GO độc lập.
+
+## (3) A8 có cần cập nhật không — CÓ, thêm một câu
+
+A8 hiện tại chỉ biết hai trạng thái (plaintext-readable vs at-rest encrypted). A11 phát hiện trạng thái thứ ba: **shape-sealed nhưng không mở được — hàng mà counter đếm là sealed nhưng thực tế không ai đọc được**. Câu bổ sung (đề xuất vào A8): "shape-pass không phải bằng chứng bảo vệ; hàng sealed-nhưng-hỏng là mất dữ liệu chờ xử lý, không phải hàng đã bảo vệ; tuyệt đối không dùng `GATE PASSES` của shape counter làm bằng chứng flip." Không sửa phần cũ của A8 (vẫn đúng).
+
+## (4) REVIEW-803/806/807 phần nào còn đúng
+
+- **REVIEW-803:** các ACCEPTED offline về seal/writer/AAD/projection vẫn đúng (crypto thật vẫn mở đúng khi envelope nguyên vẹn — VFY dùng chính `createMetadataCrypto` + AES-GCM thật). Phần bị vô hiệu: mọi câu suy ra "đếm sealed = đã bảo vệ" (nếu có) — phải đọc lại qua A11.
+- **REVIEW-806:** verdict AWC vẫn đúng nhưng **điều kiện chưa đủ** — 3 điểm runbook (baseline, ngưỡng abort, plan chi phí) vẫn cần, NHƯNG ngay cả khi đủ, `actionable = 0` cũng chỉ cho qua shape gate, chưa cho flip. Caveat "shape test, không decrypt" (§7 receipt gốc + REVIEW-806 §(1) caveat 1) nay đã thành **finding CONFIRMED thay vì caveat** — đó chính là nội dung A11.
+- **REVIEW-807:** quyết định (1) `{}` và (2) exemption giữ nguyên hiệu lực (không liên quan shape/auth). Thiết kế (3) sample-mở được **nâng cấp thành auth gate bắt buộc toàn bộ** theo §(1) trên — thay "nên có" bằng "phải có", thay "sample" bằng "toàn bộ shape-pass".
+
+## (5) Điều kiện còn lại để A2 flip GO + ai biểu quyết — USER-GATED
+
+1. Shape gate `actionable = 0` (SQL hiện tại, runbook REVIEW-806 3 điểm + REVIEW-807 dòng `{}`-only). 2. Auth gate `auth_failed_total = 0` (`GATE-AUTHENTICATE-808` implement + independent review + chạy DB thật trong maintenance window). 3. `ENCMETA-WINDOW-DESIGN-808` (dsh_3) đóng phần wiring + window switch control. 4. PRE-SWITCH mục 3 hoàn tất (A8). **Biểu quyết: coordinator đề xuất GO kỹ thuật khi 1-4 đủ; USER quyết định GO cuối cùng cho A2 flip** (user-gated — flip đổi semantics đọc toàn hệ thống, không flip từ receipt kỹ thuật). Không có flip từng phần từ shape-pass đơn độc.
+
+**Verdict REVIEW-808: CHANGES_REQUIRED** — không phải cho code hiện tại (crypto đúng), mà cho **gate và quy trình**: shape counter + mọi kết luận dựa trên nó chưa đủ điều kiện flip cho tới khi auth gate tồn tại, được review độc lập và chạy qua trên DB thật. A2 flip tiếp tục bị chặn (đồng ý A11).
+
+# REVIEW-809 — rà soát lại toàn bộ tuyên bố bảo vệ sau false-pass proof — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_036ad275b19e` / dispatch `ctx_32a25eadd3e6`. Cơ sở: VFY-ENVELOPE-INTEGRITY (`tester-off.md:94-137`, CONFIRMED: 1 valid + 3 hỏng giữ shape đều shape=true, reader thật AUTHENTICATION_FAILED ×2 + CONTEXT_MISMATCH ×1, SQL nguyên bản GATE PASSES exit 0); A11; `backfill-counter-fixes-807` (Seed A 10/2/8 FAILS + Seed B 0/0/0 PASSES, shape-only caveat đã ghi ở header/SQL); `a12-auth-gate-runbook-808` (A8 integrity clause + A12 auth gate đã vào runbook); docs + reports trên disk. DOC-ONLY: 0 edit, không commit; sửa duy nhất là section này.
+
+## (1) Quét tuyên bố: at-rest / PRE-SWITCH / con số counter
+
+- **README.md:** không có tuyên bố at-rest encrypted nào (chỉ mô tả delivery-encryption envelope `:134` + secrets mã hóa `:82` — seam khác, không ảnh hưởng). KHÔNG cần sửa.
+- **`docs/04-data-state.md:93`:** "Metadata DB không chứa inline plaintext, chỉ chứa encrypted reference" — SAI theo nghĩa đen trong backfill window (legacy rows vẫn plaintext-readable, REVIEW-804 S2 đã bắt 1 lỗi tương tự ở `:102`). Cần sửa (xem §3).
+- **`docs/04-data-state.md:100`:** "giờ có **7 slot** được seal" — SAI SỐ LƯỢNG: `METADATA_SLOTS` trên disk có **8 members** (`metadata-crypto.ts:44-62`, đã đếm: thiếu `step_checkpoints.session_ref` trong liệt kê). Đồng thời câu AAD "`replay chéo row ⇒ CONTEXT_MISMATCH`" vẫn ĐÚNG (xem §4). Cần sửa số lượng, giữ câu AAD.
+- **`docs/12-operations.md:26`** ("Secret encrypted at rest"): seam AppSetting/Vault, không phải metadata seam — REVIEW-804 S2 đã loại khỏi A8, giữ nguyên.
+- **`commit-prep-803` / `gap-inventory-803`:** không chứa tuyên bố at-rest encrypted hay con số counter nào (đã grep: PRE-SWITCH chỉ trúng file khác; counter numbers chỉ có trong `backfill-leftover-counter`, `backfill-counter-fixes-807`, `a12-runbook`, `claude.md`, `tester-off.md` — tất cả đều đã kèm caveat hoặc là receipt kỹ thuật). KHÔNG cần sửa.
+- **Con số counter được trích dẫn:** Seed A (10/2/8 FAILS) và Seed B (0/0/0 PASSES) trong `backfill-counter-fixes-807:52-82` — Seed B PASSES nay phải đọc lại qua A11: PASSES đó là shape-PASSES, không phải bằng chứng bảo vệ (Seed B chưa từng chạy reader thật). Cần thêm caveat (xem §3).
+
+## (2) Báo cáo nào đứng / cần cảnh báo / phải sửa
+
+| Báo cáo | Trạng thái sau A11 |
+|---|---|
+| `backfill-leftover-counter-803` (gốc) | CẦN CẢNH BÁO — §7 "shape test" đã tự khai nhưng §3/§10 trình bày GATE PASSES/FAILS như kết luận flip; phải thêm: PASSES chỉ là shape-PASSES |
+| `backfill-counter-fixes-807` | CẦN CẢNH BÁO NHẸ — header + §2 + §6 đã ghi shape-only rõ ràng; chỉ còn Seed B PASSES (`:80-82`) thiếu dòng "chưa chạy reader, không phải bằng chứng flip" |
+| `a12-auth-gate-runbook-808` | ĐỨNG — A8 integrity clause + A12 auth gate + two-gate rule đã đúng hướng A11; không sửa |
+| `tester-off.md` VFY-ENVELOPE-INTEGRITY | ĐỨNG — chính là proof; không sửa |
+| REVIEW-803/806/807/808 trong `claude.md` | ĐỨNG với điều chỉnh REVIEW-808 đã ghi (803 crypto đúng, 806 caveat→finding, 807 nâng thành auth gate bắt buộc) |
+| `docs/04-data-state.md:93,100` | PHẢI SỬA — 2 chỗ (§3) |
+
+## (3) Câu sửa cụ thể (coordinator chuyển cho docs-owner, không tự sửa nhầm)
+
+1. **`docs/04-data-state.md:93`** — thay "không chứa inline plaintext nội dung tài liệu; chỉ chứa encrypted reference" bằng: "trong backfill window hiện tại vẫn chứa legacy plaintext-readable (best-effort, A8); chỉ sau window switch + backfill xong mới chỉ chứa sealed envelope".
+2. **`docs/04-data-state.md:100`** — thay "**7 slot**" bằng "**8 slot**" và thêm `step_checkpoints.session_ref` vào liệt kê (giữ nguyên câu AAD/CONTEXT_MISMATCH).
+3. **`backfill-counter-fixes-807:80-82`** (Seed B) — thêm sau gate block: "GATE PASSES ở đây là shape-PASSES; các envelope không được mở bằng reader thật nên đây không phải bằng chứng bảo vệ hay cơ sở flip (A11)."
+
+## (4) AAD và tenant binding sau proof wrong-tenant-bị-đếm-sealed
+
+Các nhận định về AAD **vẫn đúng hoàn toàn** — proof thực tế CỦNG CỐ chúng: envelope bound-to-other-tenant giữ nguyên shape (shape=true) nhưng reader thật trả `CONTEXT_MISMATCH` (`tester-off.md:109,120`), đúng như `metadata-crypto.ts:303` thiết kế. Phân biệt rõ hai lớp: **shape predicate không kiểm AAD** (đó là lỗi của counter, đã có A11) vs **reader/Open kiểm AAD và từ chối đúng** (crypto đúng, không lỗi). Không có claim AAD nào cần rút lại; câu `04-data-state.md:100` về replay ⇒ CONTEXT_MISMATCH được giữ lại trong §(3).2.
+
+## (5) Bảng mức độ tin cậy sau false-pass proof
+
+| Tuyên bố | Tin cậy |
+|---|---|
+| Crypto seal/open/AAD đúng (AES-GCM thật, CONTEXT_MISMATCH/AUTHENTICATION_FAILED đúng) | CAO — VFY dùng compiled crypto + key adapter thật, reader hành xử đúng cả 4 variants |
+| Shape counter bắt được plaintext lộ + `{}` (census nhanh) | CAO — Seed A/B phân loại đúng các lớp shape/plaintext |
+| `sealed count` / `GATE PASSES` = đã bảo vệ / đủ điều kiện flip | KHÔNG CÒN GIÁ TRỊ — false-pass đã chứng minh; chỉ auth gate counts mới là bằng chứng (A11/A12) |
+| AAD/tenant binding bảo vệ replay | CAO — proof xác nhận reader từ chối đúng |
+| Outbox/ui_schema ngoài gate | CAO — taxonomy đúng, không liên quan shape/auth |
+| Số slot "7" trong docs | SAI SỐ LIỆU — phải là 8 (§3.2) |
+
+**Verdict REVIEW-809: APPROVED (kết luận rà soát)** — không phát hiện thêm tuyên bố sai ngoài 3 chỗ §(3) (2 docs + 1 caveat Seed B); mọi receipt kỹ thuật còn lại đứng sau khi đọc qua A11; AAD claims giữ nguyên. Việc còn lại: coordinator chuyển 3 câu sửa cho docs-owner/counter-owner; không flip cho tới auth gate (REVIEW-808 §5).
+
+# REVIEW-810 — chốt thứ tự fix sau BYPASS-AUDIT-809 — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_df56fa88618f` / dispatch `ctx_f89d467412c5`. Cơ sở: `bypass-audit-809-2026-10-05.md` (codex_arch, BA-01..BA-09); VFY-AUTH-GATE-808 (`tester-off.md:140+`, auth gate đúng + vacuous-pass edge `EMPTY_DB_NO_SEAM → PASS`); A13 (BA-01 + BA-05 VERIFY trước mọi đổi boolean); A12 (two-gate rule); code trên disk đã đọc thật (dòng dẫn dưới). DOC-ONLY: 0 edit, không commit; sửa duy nhất là section này.
+
+## (1) Ba nguyên nhân gốc hay một dấu hiệu sai — PHẢI SỬA CẢ HAI + CHẠY LẠI TOÀN BỘ
+
+Báo cáo nêu đúng ba defect độc lập, không phải một: **(a) BA-01 representation mismatch** — `output_ref` TEXT writer `JSON.stringify` (`runtime.ts:730`) nhưng reader `openMetadata→readStored` (`:1903→:453→metadata-crypto.ts:327`) thấy string ⇒ `isSealed=false` ⇒ trả nguyên văn không AEAD (xác nhận: `isSealed` chỉ nhận record `:241-250`, TEXT envelope luôn là string); **(b) BA-05 gate coverage hole** — `specs` optional (`metadata-auth-counter.ts:153`), `specs:[]` ⇒ 0 vòng lặp ⇒ PASS, không có coverage assertion (`:217-223`); **(c) vacuous PASS** — DB rỗng + no seam ⇒ `blockers=0` ⇒ PASS (VFY edge `EMPTY_DB_NO_SEAM`). Ba lỗi ở ba lớp khác nhau (reader decode / gate API / gate semantics) — sửa một không che hai còn lại. **Chốt: sửa cả (a)+(b)+(c) và chạy lại toàn bộ shape+auth trên fixture nhiễm + sạch + rỗng.**
+
+## (2) Slot TEXT nào khác cũng lỗ; reader nào khác cùng kiểu — kiểm kê đường đọc hợp lệ
+
+Ba slot TEXT (`0001_platform_v1.sql:48,85,107`): `step_checkpoints.output_ref` LỖ (dùng `openMetadata`, `:1903`); `tasks.result_ref` + `operations.result_ref` KHÔNG lỗ cùng kiểu — chúng đã dùng `readStoredText` đúng (`runtime.ts:1202,1814`, `public.ts:538`, `mappers.ts:103`). Nhưng cả ba TEXT slots + 4 jsonb slots qua `openMetadata` đều còn `allowPlaintext=true` cứng (BA-03: 7 điểm true — helper `:453`, 4 result sites, `ingestion-consumer.ts:664`, claim/replay/join). Thêm BA-02 (`metadata-crypto.ts:356-358` non-string→`String()`, `!crypto→return value`, `runtime.ts:452` no-seam→raw) và BA-04 (`openDispatchSourceUrl` `:318` return mọi string trước crypto; `submission.ts:535` ghi raw khi thiếu seam) — **đường đọc hợp lệ còn lại sau khi trừ bypass: prompt-carrier strict read (`runtime.ts:342`, readStored false) là positive control duy nhất; mọi đường còn lại đều legacy-readable.** BA-09 (`getChildren :1175` SELECT `c.tenant_id` trong khi `tasks` không có cột này `:70-89`) là SQL hỏng trước crypto — phải fix JOIN operations như counter đã làm đúng.
+
+## (3) BA-05 chốt cửa gate — 8 slot LUÔN + bằng chứng so sánh
+
+**Chốt: cửa gate là đúng 8 canonical specs, luôn luôn** (`METADATA_AUTH_SLOT_SPECS` `:51-58` đã đủ 8 — xác nhận trên disk). Production gate wrapper phải: reject `specs` rỗng/trùng/subset (chỉ cho phép diagnostic API riêng); in coverage manifest (8/8 canonical slot, mỗi slot đúng table/column/kind/tenantExpr/refIdExpr); **bằng chứng so sánh bắt buộc: số slot đọc (counter báo) == số slot quét (manifest) == 8**, thiếu một là FAIL không cần xem counts. Vacuous PASS (§(4)) là trường hợp riêng của cùng quy tắc này (0/8 ≠ 8/8).
+
+## (4) Vacuous PASS — KHÔNG được coi là chứng minh gì; gate phải in rõ
+
+PASS trên DB rỗng + no seam (`EMPTY_DB_NO_SEAM → nonNull=0, blockers=0, PASS`) không chứng minh bất kỳ hàng nào được bảo vệ — VFY ghi đúng "genuine zero-row case, not a populated row passing". **Chốt: vacuous PASS không chứng minh gì cả** (không phải "sạch", không phải "đóng gate"). Gate phải in: `nonNull_total`, `seam_present (true/false)`, `slots_covered (N/8)` và verdict phân biệt ba trạng thái: `PASS (authenticated N rows)` / `NOT APPLICABLE - EMPTY SCOPE (0 rows, 0 coverage)` / `FAIL (blockers)`. Nếu policy yêu cầu no-seam không bao giờ PASS thì thêm global missing-seam blocker (VFY để mở, coordinator quyết — đề xuất: thêm, vì no-seam trên production là misconfiguration).
+
+## (5) Thứ tự sửa + VERIFY dùng A12/A13; điều kiện trước mọi đổi boolean
+
+Thứ tự (theo A13 + bypass §6, đã đối chiếu code): **B1** fix BA-01 (TEXT→text reader/facade, tenant/slot/taskId:stepKey, bỏ fallback `?? r.outputRef` ở `:1913`) + BA-09 (JOIN operations lấy tenant) → VERIFY PG-thật-to-reader (valid/corrupt-tag/wrong-AAD/plaintext, cả open lẫn closed policy); **B2** always-compose reader policy (BA-02/03/04: `!crypto→deny` trừ projection được duyệt, typed facade mọi mixed-read, outbox duplicate vào execution policy) + BA-05 wrapper (reject subset, manifest 8/8, vacuous states) + BA-06/07/08 bounds → VERIFY static boundary tests + real-reader coverage mọi execution consumer; **B3** chạy shape+auth đầy đủ trên production scope (write/snapshot controls, mọi actionable/broken veto) → coordinator đề xuất, **USER GO cuối** (A12). **Điều kiện cứng trước mọi đổi `allowPlaintext` true→false: B1 VERIFIED** (A13: "BA-01 phải sửa TRƯỚC bất kỳ thay đổi boolean nào" — vì flip boolean mà không sửa decode sẽ REJECT cả envelope TEXT hợp lệ, tức flip gây hỏng dữ liệu hợp lệ). B2 VERIFIED trước flip production; B3 là chính flip decision.
+
+## (6) Báo cáo này yêu cầu sửa THEO gì, và chỉ sửa tài liệu ở đâu
+
+SỬA THEO (code/product, owner khác làm — receipt này không sửa): BA-01 decode + fallback; BA-09 JOIN; BA-02 `!crypto`/String() early returns; BA-03 typed facade + frozen default; BA-04 outbox duplicate policy; BA-05 production wrapper (reject subset + manifest + vacuous states + optional missing-seam blocker); BA-06/07/08 bounds. CHỈ SỬA TÀI LIỆU: 3 chỗ REVIEW-809 §(3) vẫn còn hiệu lực (`04-data-state.md:93,100`, Seed B caveat) + runbook phải thêm ba verdict states §(4) và quy tắc 8/8 §(3). Không có kết luận REVIEW-803/806/807/808/809 nào bị BYPASS-AUDIT làm sai thêm — BA findings là defect mới ở lớp reader/gate API, không phải bằng chứng chống lại crypto core hay AAD (reader từ chối đúng khi được gọi đúng).
+
+**Verdict REVIEW-810: APPROVED (thứ tự + tiêu chí)** — sửa cả ba gốc + chạy lại toàn bộ; cửa gate 8/8 + so sánh manifest; vacuous PASS không chứng minh gì + in ba states; B1→B2→B3, B1 VERIFIED là điều kiện cứng trước mọi đổi boolean; USER GO cuối. A2 tiếp tục bị chặn.
+
+# REVIEW-811 — kiểm lại độc lập BYPASS-FIX-810 + chốt chuẩn VERIFY — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_16e192c6c58a` / dispatch `ctx_de4400dedfb3`. Cơ sở: `bypass-fix-810-2026-10-05.md` (BA-01/02/05 fixed, BA-04 warned, 13 + 153×3 + tsc 0); diff trên disk (`runtime.ts` openMetadata dispatch + claim reader, `metadata-crypto.ts` readStoredText + looksLikeEnvelope, `metadata-auth-counter.ts:53-70` assertFullCoverage + `:181` call); test `bypass-fix-810.test.ts`; A13. DOC-ONLY: 0 edit, không commit; sửa duy nhất là section này.
+
+## (1) BA-01 là AEAD open thật, binding là binding của hàng — XÁC NHẬN
+
+Fix dispatch `typeof value === 'string' → readStoredText(crypto, value, context, true)` (`runtime.ts` diff); `readStoredText` parse JSON → `crypto.isSealed` → `open(parsed, context)` với đúng `context` caller truyền (tenant/slot/refId của row: claim truyền `taskId:stepKey` `:1903`, counter truyền cùng refIdExpr `:51-58`). Test dùng seal thật + binding thật (`CTX` TENANT/REF `:29`), tamper ciphertext (`flipFirstChar :90`) → throw authenticated-decryption (`:93`), mutation revert dispatch ⇒ 4/13 RED với received là raw envelope JSON (`§1.4`) — đúng pre-fix behaviour. Không chỉ parse JSON: parse xong còn `open` AEAD thật.
+
+## (2) BA-02 fail-closed khi thiếu seam — ĐÚNG PHẠM VI ĐÃ CHỐT, còn 2 đường raw có chủ ý
+
+`readStoredText` nay: non-string → `INVALID_INPUT`; no-seam + `looksLikeEnvelope` → `KEY_PROVIDER_FAILED`; no-seam + plaintext → verbatim (đúng quyết định §2 receipt: không break deployment chưa seal gì). Còn lại `return value` ở `:349` (parsed không phải envelope — legacy plaintext trong window, fail-closed `NOT_SEALED` khi `allowPlaintext=false` ở `:400`) và `:395` (no-seam plaintext) — cả hai đều là window-compat có chủ ý, không phải bypass. `sealMetadata`/`openMetadata` `!crypto → return value` (`runtime.ts:442,467`) cũng là no-seam verbatim đối xứng với writer — chấp nhận được khi `(4)` dưới đây (BA-04 guard) tồn tại, vì sealed-row-no-seam đã bị chặn ở lớp TEXT.
+
+## (3) BA-05 từ chối spec rút gọn — XÁC NHẬN, không còn đường bypass qua params
+
+`assertFullCoverage` (`:53-70`): exact set match 8 slots — missing/extra/duplicates/count đều throw kèm message nêu tên (`missing=[...] extra=[...] count=N/8`); gọi ở `:181` trước mọi query. Test chứng minh trimmed (`:160-164`) và empty (`:171-173`) đều rejected. Không còn đường caller rút gọn qua `specs` param — diagnostic subset muốn có phải là API riêng (đúng yêu cầu REVIEW-810). Lưu ý: production caller duy nhất hiện tại là tests (grep `countUnsealedWithAuth` ngoài counter file = 3 test files, 0 production caller) — wrapper production + manifest 8/8 vẫn là việc của `GATE-AUTHENTICATE-808`/window-design, không phải của packet này.
+
+## (4) BA-04 chưa sửa — MỨC ĐỘ: LATENT, chấp nhận được với guard + điều kiện
+
+`openDispatchSourceUrl :318` vẫn `return raw` mọi string trước crypto; `submission.ts:535` vẫn ghi raw khi thiếu seam. Mức độ: **latent, không live** — submit side seal `sourceUrl` trong jsonb `outbox.payload` nên string branch hiện chỉ gặp legacy plaintext writer (đúng phân tích §6 receipt). **Chốt: KHÔNG cần sửa trước A2**, chấp nhận với 2 guard: (a) pre-flip inventory phải liệt kê outbox duplicate strings riêng (đã yêu cầu từ REVIEW-810 B2); (b) fix BA-04 (mirror BA-01: string parse-to-envelope → crypto) phải landed trước khi bất kỳ writer nào ghi envelope-string vào `sourceUrl` — hiện chưa có writer nào làm vậy. Nếu writer đó xuất hiện, BA-04 thành live bypass ngay.
+
+## (5) BA-01 có làm mất đường đọc TEXT cũ — KHÔNG, tương thích ngược đã có test
+
+Ba test bảo vệ đường cũ trong cùng file: jsonb path unchanged (`:107-111`), legacy plaintext TEXT passthrough trong window (`:114-117` `'artifact://legacy-plaintext'` verbatim), reader≡counter cùng shape (`:119-126`). Dữ liệu cũ (plaintext TEXT / jsonb envelope) đọc đúng như trước; chỉ có envelope TEXT (trước đây trả raw JSON sai) nay được mở đúng. Điểm còn lại duy nhất: fallback `openedOutputRef ?? r.outputRef` (`runtime.ts:1931`) vẫn còn — sau fix, `openedOutputRef` chỉ nullish khi input nullish (thành công trả string, thất bại throw), nên fallback không còn che bypass; nhưng nên xóa ở packet dọn dẹp để khỏi gây hiểu nhầm.
+
+## (6) Checklist VERIFY bắt buộc trước GO + phần chỉ chứng minh được trên Vault/DB thật
+
+BẮT BUỘC (offline đủ): 13 bypass-fix tests + 153 regression ×3 + tsc 0 (đã có, giữ xanh); mutation revert dispatch ⇒ RED (đã chứng minh 4/13); PG16 thật-to-reader (valid/corrupt-tag/wrong-AAD/plaintext, open+closed policy) cho BA-01/BA-09; boundary tests (trimmed/empty specs rejected, non-string INVALID_INPUT, no-seam sealed KEY_PROVIDER_FAILED). CHỈ CHỨNG MINH TRÊN VAULT/DB THẬT: production key provider unwrap (tests dùng HMAC stand-in — receipt §8 tự khai); full-table shape+auth counts trên production scope; key outage/rotation behaviour; scan cost trong window. **Chưa đủ điều kiện đổi boolean**: BA-04 guard (a) chưa có inventory; fallback `:1931` chưa xóa (khuyến nghị, không chặn); production gate wrapper + manifest chưa tồn tại (0 production caller). Đổi `allowPlaintext` khi B1 VERIFIED trên PG thật + guards trên landed.
+
+**Verdict REVIEW-811: APPROVED-WITH-CONDITIONS** — BA-01/02/05 fixes đúng, đủ test, tương thích ngược giữ; BA-04 latent chấp nhận với guard; điều kiện GO đổi boolean: PG-thật VERIFY + outbox inventory + production gate wrapper. A2 tiếp tục bị chặn.
+
+KHÔNG commit, KHÔNG push, KHÔNG tick row (coordinator tick). DB window: FREE. Không sửa source/test/docs nào khác ngoài section này.
+
+# REVIEW-812 — redefine the gate standard after A17 (RLS silent PASS) — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_78ea5b68f888` / dispatch `ctx_c002b68ecadf`. DOC-ONLY: 0 edit source/test, no commit.
+Basis: VFY-VACUOUS-PASS-810 (`tester.md:13706`, PG16 disposable real DB, CONFIRMED); WRAPPER-FIX-812 receipt (BA-02 closed at the wrapper, 11 tests, 170/170 x3, mutation 3 RED); gate return shape on disk (`metadata-auth-counter.ts:245-250`).
+
+## (0) What A17 proved (read, not inferred)
+
+- Empty migrated DB + crypto undefined: 8 slot queries, values seen=0, authenticated=0, blockers=0 → **PASS**. Tenant + API key only, no business rows: still **PASS**.
+- RLS fixture (PG16, ENABLE + FORCE ROW LEVEL SECURITY): two tenant ops (tenant A valid envelopes, tenant B plaintext result_ref). Unrestricted scan → FAIL 1 blocker. Restricted role → sees 1 op, all 8 slot queries SUCCESS, 2 envelopes authenticated, 0 blockers → **PASS**. Observed cross-tenant false PASS.
+- Negative controls behave: 7/8 specs → coverage error before any query (0 calls); query-4 failure → error propagates, no status; reader throw → sealedBrokenOther=1 FAIL; provider throw → KEY_PROVIDER_FAILED, sealedBrokenOther=2, FAIL.
+- On-disk gap CONFIRMED: gate returns `{slots, totals, blockers, gate}` only — no slotsRead/slotsScanned/valuesAuthenticated-attempted/coverageComplete fields (`:245-250`). VFY's required fields do not exist yet.
+
+## (1) Standard A2 gate definition post-A17 + mandatory reports + when PASS is allowed
+
+**PASS is allowed iff ALL hold simultaneously (measured, not asserted):**
+1. `expectedSlots == 8` and `slotsRead == slotsScanned == 8` (exact-8 spec guard stays, but it proves the slot list, never visibility).
+2. `coverageComplete == true`: every slot query ran to completion against the full dataset (no error, no skip, counts agree).
+3. `valuesAuthenticated` reported as attempted/success (auth gate ran `allowPlaintext=false` on every visible non-null shape-pass row with production key provider + exact row binding): `auth_failed_total == 0` AND `shape actionable leftover == 0`.
+4. Seam present: configured crypto seam required even at zero visible rows (no-seam + zero rows is NOT APPLICABLE, never PASS).
+5. Tenant full-visibility proven: gate ran with full dataset read rights (see §2) or a separately proven complete tenant census; absent proof → FAIL closed.
+**Mandatory report fields:** expectedSlots, slotsRead, slotsScanned, row/value counts, auth attempted/success by code, coverageComplete, seam_present, role + RLS state used, tenant census source. Verdict vocabulary (per REVIEW-810 §4): `PASS (authenticated N rows)` / `NOT APPLICABLE - EMPTY SCOPE` / `FAIL (named reason)`. Zero-values-authenticated + PASS is forbidden output.
+
+## (2) RLS decision — full-read-rights vs app-role + census
+
+- **Option A (recommended): run the gate with full dataset read rights** — dedicated short-lived audit role (table owner or BYPASSRLS) in the maintenance window, RLS on/off + role recorded in the report. Why: the gate's job is proving *no hidden data*; running it under the app's restricted role re-proves only what the app sees — the exact blind spot A17 demonstrated. Risks: privileged credential exists briefly (scope to window, audit its use, destroy after); a misconfigured audit role could itself miss data — mitigate by asserting the tenant census inside the same run (§1.5).
+- **Option B: app role + separate tenant census proof** — expected-tenant list from a trusted identity source, verify each tenant visible to the gate role. No privilege escalation, but the census source's completeness becomes the new unproven assumption.
+- **Never allowed:** running under an unexamined role and treating query success as coverage (that is the A17 failure mode). If A is policy-forbidden, B requires an explicit accepted-risk statement naming who attests census completeness — never silent.
+
+## (3) True PASS vs silent PASS — when FAIL-on-thin-coverage is correct vs gate-broken
+
+- **FAIL with named reason + coverage manifest = gate working correctly.** Missing slots, query errors, count mismatch, absent seam, unproven tenant visibility → FAIL (or throw, or NOT-APPLICABLE for genuine zero-scope) is the defined behavior, not a defect.
+- **Gate broken has two directions:** (a) FAIL despite complete coverage proof (bug — fix the gate); (b) PASS without coverage proof — the RLS and empty-DB cases — broken toward *unsafe*, strictly worse than (a). A silent PASS looks like a clean bill of health while data exists; a loud FAIL looks bad but harms no data.
+- Operational rule: any flip decision citing a PASS must attach the §1 manifest; a PASS line without it carries zero evidentiary weight after A17.
+
+## (4) B1-B2-B3 order post-A17 + BA-04 leaning
+
+B1 (BA-01 decode + BA-09 JOIN + PG-real-to-reader VERIFY) → B2 (reader policy facade + BA-05 wrapper + bounds) → B3 (full shape+auth on production scope → coordinator proposes, USER GO) **still stands**, but is now **insufficient without a B2b: gate-envelope change** — implement §1 manifest fields + full-visibility rule in the counter (offline-implementable: code + unit tests proving new fields, missing-slot/query-error/no-seam/unproven-tenant all FAIL), then run on real DB with full rights.
+BA-04 (`openDispatchSourceUrl` string-before-crypto, raw outbox writer): **leaning stays GUARD, not fix-before-flip** (unchanged from REVIEW-811 §4 — A17 does not make it live; still no envelope-string writer). Guard content grows by one item: pre-flip outbox duplicate-strings inventory joins the §1 manifest as reported-but-not-gating scope. Fix lands before any writer emits envelope-strings to `sourceUrl`.
+
+## (5) Final VERIFY checklist — offline-runnable vs Vault/real-DB-only
+
+**Offline (must all be green, ×3 + tsc 0, mutations reverted):** bypass-fix-810 13/13; wrapper-fix-812 11/11; gate-authenticate-808 (+ manifest-field tests when B2b lands); shape+auth on seeded fixture (clean + infected + empty + RLS-restricted-role reproducing silent PASS on old gate, FAIL/NOT-APPLICABLE on new); PG16-disposable runs (vacuous, RLS, missing-spec, query-error, reader/provider-throw controls); mutation probes (dispatch revert, bypass restore, composite-kind).
+**Vault/real-DB-only (never claimed from offline):** production key-provider unwrap; full-table shape+auth counts on production scope under audit role; tenant census completeness; RLS-policy audit of deployed role; query cost in window; key outage/rotation behavior; backfill completion + leftover recount; `ARTIFACT_STORAGE_MIGRATION_WINDOW=false` acceptance (G-ENC seam, separate).
+
+## (6) USER-owned conditions (no flip from technical receipts)
+
+Final A2 flip GO; RLS on/off + role choice accepted-risk sign-off (§2); tenant-census attestor if Option B; window-switch policy + rollout order (PRE-SWITCH-3); missing-seam-blocker policy (open since REVIEW-810); `{}`-never-plaintext wording and ui_schema/context_ref exemption boundary (REVIEW-807 — restated, not reopened).
+
+**Verdict REVIEW-812: APPROVED (standard + order + checklist)** — §1 gate definition, §2 Option-A recommendation, §3 FAIL-correct vs PASS-broken rule, §4 B1→B2→B2b→B3 with BA-04 guard leaning, §5 split checklist, §6 USER list. A2 stays blocked until B2b + Vault/real-DB legs are evidenced.
+
+# REVIEW-813 — bay con hoan tat recheck truoc quyet dinh commit — 2026-10-05 (REVIEW-ONLY, offline)
+
+Task `task_e6b0a9cafda8` / dispatch `ctx_25420499fe26`. DOC-ONLY: 0 edit source/test, no commit.
+Basis: A11/A12/A13/A15/A17 adjudications (read from coordinator-state.json); receipts GATE-AUTHENTICATE-808, GATE-COVERAGE-817, WRAPPER-FIX-812, BA04-FIX-811, MUTATION-WRAPPER-814, VERIFY-WRAPPER-FIX-813; code on disk; `tsc --noEmit` exit 0 (this turn).
+
+## (1) Trang thai tung ban: dong vs mo
+
+| Ban / receipt | Trang thai |
+|---|---|
+| BA-01 TEXT decode (A13→bypass-fix-810) | DONG offline — string dispatch to readStoredText; mutation 4/13 RED; PG16 VFY confirmed |
+| BA-02 reader strict (A13) | DONG offline — INVALID_INPUT / KEY_PROVIDER_FAILED; PG16 5-case reader verdung |
+| BA-02 WRAPPER bypass (A15→WRAPPER-FIX-812) | DONG offline — `if (!crypto) return value` gone (`runtime.ts:473-479` now asserts); 11 tests; MUTATION-WRAPPER-814 re-proved 3/11 + 4/24 RED with SHA-identical restore |
+| VERIFY-WRAPPER-FIX-813 open items (PG16 fixture NOT RUN, mutation NOT RUN) | DONG by others — PG16 leg covered by GATE-COVERAGE-817 RLS run; mutation leg covered by MUTATION-WRAPPER-814. Verifier's honest NOT-RUNs are now filled, no orphan |
+| BA-05 exact-8 (A13) + census (A17→GATE-COVERAGE-817) | DONG offline implementation — `slotsRead/slotsScanned/valuesAuthenticated/coverage/census` on disk (`metadata-auth-counter.ts:107-147,222,232,279,309,341-358`); RLS PG16 run FAILs correctly with blockers=0 |
+| BA-04 string bypass (BA04-FIX-811) | DONG offline — `safeDispatchSourceUrlJson` door (`ingestion-consumer.ts:324,360`); 13 tests; mutation 3/13 RED; writer already seals (§3 receipt) so no writer task |
+| GATE-COVERAGE-817 tsc error (TS2554 noted as out-of-lease) | RESOLVED — full `tsc --noEmit` exit 0 this turn; wrapper + assert both single-arg now |
+| ENCMETA-WINDOW-DESIGN-808 (dsh_3) | MO — DOC-ONLY design exists (14-day bounded window reuse, 6 literal-true inventory, MetadataReader adapter proposal). Zero implementation: six `true` literals remain, no policy object, no injection |
+| GATE-COVERAGE-817 new counter code | MO review-wise — implemented + PG16-proved but NO independent reviewer leg yet (same gap pattern REVIEW-801 V1 flagged: verify-leg ≠ review-leg) |
+| docs/04-data-state.md:93 + :100 (REVIEW-809 §3 fixes) | MO — NOT applied (see §5) |
+
+## (2) Lech giua yeu cau ban va cai duoc sua
+
+- A15 demanded "BA-02 phai sua O WRAPPER" — done exactly there; verifier confirmed no separate decision path. No drift.
+- A17 demanded gate report "SO SLOT DOC, SO SLOT QUET, SO TENANT THAY, SO GIA TRI XAC THUC" — all four exist on disk. No drift.
+- A15 also flagged "1 mock regression trong bo test outbox-source" — BA04-FIX-811 regression set includes `enc-meta-sentinel-outbox-source-url` green in 186/186 x3. Closed.
+- Verifier receipt §1 cited signature `assertReadableWithoutSeam(value, allowPlaintext = false)`; on disk it is `(value: unknown): void` single-arg, both callers single-arg. Behavior identical (throw-or-void), but the receipt's signature line is stale — cosmetic, note for the record, not a defect.
+- Receipt line-number drift (wrapper :475→:477, reader :424→:419) from concurrent-lane edits; behavior verified on current bytes. No action.
+- One premise correction stood: BA04-FIX-811 §3 proved the outbox writer already seals, so A15's implied writer task was correctly NOT opened. Good — not drift, but record it so nobody re-opens it.
+
+## (3) BA-04: dong chua, rui ro con lai
+
+DONG offline. Residual risks, all non-live: (a) the door is a shape test — A11 applies, but corrupt-but-shaped strings route INTO the crypto and fail there, which is the correct outcome, so this is contained by construction; (b) the door reuses `looksLikeSealedEnvelope` (shared with reader, not re-implemented) — no check-drift risk; (c) no envelope-string writer exists anywhere, so the PROTECTED lane's string arm is currently defense-in-depth. Live leg only: real-DB/Vault behavior. No guard beyond the code itself is needed.
+
+## (4) Dieu kien con thieu cho A2 GO ky thuat vs phan USER
+
+Technical (must close before any GO proposal): (i) independent review leg for GATE-COVERAGE-817 counter code; (ii) window-switch implementation per ENCMETA-WINDOW-DESIGN (policy object + injection at 6 sites + MetadataReader adapter) + its own review; (iii) backfill run on real DB + leftover recount + auth gate under audit role with production provider; (iv) docs :93/:100 fixes (§5).
+USER-owned (never from technical receipts): final flip GO; RLS on/off + audit-role risk acceptance; tenant-census attestor if not full rights; window-switch policy + rollout order (PRE-SWITCH-3); missing-seam-blocker policy; `{}`/exemption wording restated (REVIEW-807, not reopened).
+
+## (5) Bao cao bao ve du lieu con thieu canh bao A11/A17
+
+- `docs/04-data-state.md:93` — STILL UNGUARDED: blanket "không chứa inline plaintext… chỉ chứa encrypted reference" with no backfill-window/A11/A17 caveat in the sentence. (REVIEW-809 §3.1 fix never applied.)
+- `docs/04-data-state.md:100` — STILL WRONG COUNT: "**7 slot**" (missing `step_checkpoints.session_ref`; on-disk `METADATA_SLOTS` has 8). (REVIEW-809 §3.2 fix never applied.)
+- `docs/28-test-inventory.md`, `docs/35-acceptance-baseline.md` — CLEAN: test-outcome descriptions only, each carrying live-only disclaimers ("no live S3, database, Vault"); no at-rest claims to warn.
+- REVIEW-809's two other fixes (same two lines) are the complete docs delta — no new unguarded claim found in this sweep.
+
+## (6) Ket luan: BLOCK GO vs quyen USER
+
+| # | Item | Loai |
+|---|---|---|
+| 1 | GATE-COVERAGE-817 counter code chua co reviewer leg | BLOCK GO (ky thuat) — review-only packet, ~1 turn |
+| 2 | Window-switch chua implement (6 literal true, design-only) | BLOCK GO (ky thuat) — implementation packet + review |
+| 3 | Backfill that + auth gate tren DB that / Vault that | BLOCK GO (ky thuat) — live-window only |
+| 4 | docs :93/:100 fixes | BLOCK commit-as-clean (docs-owner, doc-only, nho) |
+| 5 | Final flip GO + RLS/census/rollout/policy chap nhan | USER — khong flip tu receipt ky thuat |
+
+Bay con (BA-01/02/04/05, wrapper, mutation, coverage-counter, RLS repro): khong co gi bi bo qua, khong colech vat lieu nao giua ban va fix, verifier NOT-RUNs da duoc packet khac lap day. Thu con lai deu nam o buoc tiep theo (review counter moi → implement window → live legs → USER GO), khong phai o viec sua thieu qua khu.
+
+**Verdict REVIEW-813: APPROVED (recheck)** — bay hoan tat that, 4 BLOCK-items ky thuat + docs deu da goi ten cu the, khong con blind spot; trinh USER quyet dinh commit khi (4) xong va (1)-(3) co packet chu.
+
+# REVIEW-814 — tham dinh doc lap 6 quyet dinh commit wave (D1-D6) — 2026-10-05 (REVIEW-ONLY, offline)
+
+Yeu cau truc tiep tu Nguoi Dung: tham dinh chuyen mon doc lap 6 quyet dinh D1-D6 cua Coordinator truoc commit wave.
+Co so: `commit-preflight-813-2026-10-05.md` (31 receipt-confirmed / 94 pre-existing-mtime / 32 unattributed); REVIEW-812; REVIEW-813; doi chieu truc tiep repo tren dia (branch `codex/fix-workflow-builder`, HEAD `b088eec`, 0 staged).
+DOC-ONLY: 0 edit source/test, khong stage/commit. Receipt nay tu no lam file nay dirty — nhat ky lane khong bao gio vao product commit (D3).
+
+## D1 — Danh sach 157 file tracked diff + co tach 31 file truoc khong
+
+**Xac nhan:** tai thoi diem doc, `git diff --name-only` = **156** (khong con 157) — workspace van fluid, lech 1 path so voi preflight. Index 0 staged (tot: chua ai stage gi — dung). Phan loai 31/94/32 cua preflight ve mat cau truc la trung thuc, NHUNG 31 chi la "packet co cham" o muc hunk, khong phai bao chung toan-file.
+**Khuyen nghi DUT KHOAT: KHONG tach commit 31 file.** Ly do: nhieu file trong 31 mang diff hon receipt chung minh — `server.ts` (89 insertions vs 4008 deletions, receipt CW-A chi cover composition-field hunk), `main.ts` (receipt chi cover boot-warning hunk, file con gop chuc nang khac), `shell-server.ts`/`view-models.ts` (accumulated work). Commit tron 31 file se cuon ca code chua review. Thay vao do: FREEZE cay → stage tung hunk co receipt → moi file can mot reviewer xac nhan "toan diff con lai da doc". Thu tu uu tien theo preflight §Ordered (contracts → persistence/runtime → admin/wiring → tests → docs → tooling).
+
+## D2 — Root Next.js app/config co thuoc wave khong
+
+**Da doc diff that:** `app/doc-compare/page.tsx` (97+/81-: restyle sang `@/components/ui` + lucide-react icons), `app/doc-pipeline/components/Icons.tsx` (7+/31-), root `package.json`/`package-lock.json` (them `tailwind-merge`, sua flag test e2e), root `tsconfig.json` (`exclude` them `du-rework` — chinh la ran giới tach biet hai deliverable).
+**Khuyen nghi DUT KHOAT: LOAI TRU.** Day la cong viec root legacy app (UI restyle + dependency root), khong thuoc `du-rework/` product boundary, khong co packet wave nao nhan, va branch hien tai (`codex/fix-workflow-builder`) goi y chung thuoc effort khac. Commit chung se tron deliverable va nguoi review.
+
+## D3 — Tach docs/tasks/coordination khoi code san pham
+
+**Xac nhan + bo sung:** untracked hien tai **2,163 paths** (tang tu 2,140 luc preflight — workspace fluid). Dynamic state (`coordinator-state.json`, `agent-watch-state.json`), lane logs (`claude.md` — gom ca section nay, `tester.md`), `.commandcode/taste/**` tuyet doi khong vao product commit. Nguy hiem nhat: `du-rework/.env.live` TON TAI tren dia va **KHONG duoc ignore** (`git check-ignore` exit 1) — moi thao tac `git add` rong truoc khi sua .gitignore deu co nguy co stage secret that.
+**Khuyen nghi DUT KHOAT: TACH 3 tang** — (1) product code (hunk-reviewed), (2) docs/tasks (mot commit docs-only sau khi verify generated outputs), (3) coordination/reports/state KHONG commit (lich su van hanh, giu ngoai repo hoac luu kenh rieng). Dieu kien tien quyet cho moi stage: sua .gitignore + xac minh `.env.live` bi ignore.
+
+## D4 — 32 diff chua gan nhan: phan loai va xu ly
+
+| Nhom | File | Xu ly |
+|---|---|---|
+| Prompt-pin cluster (9) | 6 document-core actions + `types/context.ts` + `types/results.ts` + `worker.ts` + execution-pin test | Mot tinh nang coherent (pinned prompt-step identity) — gom 1 commit, can owner ky ten nguyen cum |
+| Crypto/submission core (5) | `contracts/runtime.ts`, `submission.ts`, `metadata-crypto.ts`, `runtime.ts`, `ingestion-consumer.ts` | Dung tam wave BA-01/02/04/05 da review — hunk-review bat buoc, nhung thuoc wave, uu tien cao |
+| Legacy mount (2) | `legacy-http-mount.ts` + test | Binary passthrough feature — owner xac nhan, di kem test |
+| Test-only updates (5) | admin-crypto-config, oidc02, p8-01, runtime-encryption-metadata, rv01 tests | Di kem source commit tuong ung, khong commit le |
+| Docs/tasks (4) | 11-admin-ux, ADMIN-CONTROL-PLANE-UI, P8-readiness, README | Vao commit docs-only (D3) |
+| Noise (2) | `operations.ts` (line-ending-only, van dirty XN), `taste.md` | Normalize/bo — tuyet doi khong commit dang nay |
+
+## D5 — .env.example, .gitignore, OpenAPI catalog, test inventory
+
+- **`.env.example` (19+/0-): DA DOC THAT — PHE DUYET CO DIEU KIEN.** Ca hai hunk deu comment-only: AWEB-08 (mount/admin-web flags) + CREDWORKFLOW (chi dan + placeholder `change_me_*`, khong co secret that). Dieu kien: giu nguyen, cam them secret that vao file nay.
+- **`.gitignore`: CHAN — phai normalize truoc.** Git bao `Bin 304 -> 866 bytes` (mixed-encoding/NUL); noi dung khong inspect duoc dang tin. Va nhu D3: sua xong phai verify `.env.live` da ignored truoc bat ky stage nao.
+- **`21-openapi.json` (601+/3-):** chu yeu additions — chap nhan vao commit docs SAU KHI verify regenerate tu canonical source (DOCS-CONNECTOR-WIRE). Khong commit output generated chua verify.
+- **`28-test-inventory.md` (1111+/1015-):** rewrite nang — day la living log giong lane reports; quyet dinh no co phai tracked output chinh thuc khong, neu co thi freeze + verify, neu khong thi exclude khoi commit.
+
+## D6 — Doan xoa lon + lockfile/manifest
+
+- **`server.ts` (89+/4008-): DA XAC MINH LA REFACTOR-SPLIT, khong phai xoa.** 89 dong them la re-export shims (CONV-01 list-query, HttpError); imports bi xoa (node:http, bullmq, ioredis, S3, webhooks) doi ung module chu — split targets TON TAI (`http/errors.ts`, `modules/operations/list-query.ts`). Dieu kien stage: (a) hunk-review ngoai CW-A hunk, (b) chung minh server con boot (tsc + smoke boot), (c) khong bao gio stage deletion 4008 dong mu.
+- **`runtime.test.ts` (37+/2121-):** chua doi chieu case-by-case trong packet nay — yeu cau owner liet ke suite thay the cho tung khoi bi xoa truoc khi chap nhan.
+- **Lockfile/manifest:** hai workspace rieng (`du-rework/pnpm-lock.yaml` vs root `package-lock.json`); chi include cap manifest+lockfile khop nhau, theo dung workspace boundary (D2). Root package.json diff thuoc root app — loai (D2).
+
+## Tong ket khuyen nghi cho Nguoi Dung
+
+1. KHONG commit 31 file tron goi (D1) — freeze + hunk-stage co receipt.
+2. LOAI root app/config khoi wave (D2).
+3. TACH 3 tang; sua .gitignore + chan `.env.live` truoc moi stage (D3, dieu kien tien quyet so 1).
+4. 32 file xu ly theo 6 nhom D4 — khong file nao duoc stage mu.
+5. Phe duyet .env.example; chan .gitignore/OpenAPI/test-inventory cho toi khi verify (D5).
+6. server.ts split da verify huong dung nhung can boot-proof; runtime.test.ts can bang thay the; lockfile theo workspace (D6).
+
+**Verdict REVIEW-814: CHUA DU DIEU KIEN COMMIT.** Khong phai vi code sai — bay con da dong that (REVIEW-813) — ma vi ranh gioi commit chua an toan: `.env.live` chua ignored, 32 file chua owner, 2 doan xoa lon chua du proof thay the. Dong y toan bo 10 blocker/dieu kien cua preflight-813; bo sung phat hien moi: tracked count da drift 157→156, untracked 2140→2163 (workspace fluid → freeze la bat buoc), operations.ts van dirty line-ending, server.ts split targets da ton tai (giam nhe rui ro D6).
+
+## REVIEW-815 — REVIEW-814 OUTSTANDING adjudication (2026-10-05, GLM reviewer-only, doc-only)
+
+Packet: pasted coordinator request "REVIEW-814 OUTSTANDING, can GLM adjudication. Doc lap doc lap, reviewer chi doc, KHONG sua source." 0 source edits, 0 commits, 0 ticks. Ledger read: `coordinator-state.json` (adjudication_A21, A22, authorization_libs_migration, lease_release_usage_fixture), `agent-watch-state.json` round894/round891/round896.
+
+### OUTSTANDING #2 — .gitignore + .env.live: XAC MINH DOC LAP (independent verify DONE)
+
+**(a) `.env.live` bi ignore — CONFIRMED.** `git check-ignore -v --no-index` tra ve `du-rework/.gitignore:8:.env.live`, exit 0 — khop voi coordinator. Tracked du-rework = 1556 (repo total 2573), khong mat file.
+
+**(b) Khong con secret that nao untracked-khong-bi-ignore — CONFIRMED.** Da quet: (i) khong file nao co secret extension (.pem/.key/.p12/.crt/.pfx/.jks/id_rsa) trong untracked set; (ii) `du-rework/.env.docker.example` la placeholder/empty-secrets only (negation `!.env.docker.example` line 11 hoat dong dung — file van untracked de commit); (iii) debris paths (.qwen/.qwen-tmp/.openclaude/Q1/tl*.json) absent, `.cache` ignored by root :30; (iv) false positives duy nhat la code/docs/PNGs (tokens.css = design tokens, dispatch-specs, connector-credentials source). Khong doc/print noi dung `.env.live`.
+
+**(c) Pattern `.env.*.live` over-broad che file khong nen ignore — KHONG.** Khong tracked file nao match `.env.*.live`/`.env.*.local`; khong legit committable file nao bi shadow; negation ordered dung.
+
+**RESIDUAL (khuyen nghi, reviewer khong sua):**
+1. `du-rework/.env.local` hien chi duoc cover boi ROOT `.gitignore:4:.env.local` — pattern `.env.*.local` cua du-rework (line 10) KHONG match bare `.env.local` (glob doi hoi mot segment giua). Du-rework file chua self-contained; root .gitignore lai dang dirty (pending normalize per REVIEW-814 D5) mac du diff khong cham env lines. Khuyen nghi: them exact `.env.local` vao du-rework/.gitignore — recommendation only.
+2. Untracked count tang 2163→2301 — freeze van bat buoc truoc commit.
+3. Root `.env.example` (tracked, placeholder-only) thuoc legacy root app, excluded khoi wave (D2).
+
+**Verdict #2: DIEU KIEN TIEN QUYET SO 1 (D3) DA DUOC DAP UNG.** `.env.live` da ignored, khong secret that lo thien. Con lai residual #1 (self-contain `.env.local`) nen lam truoc stage de khong phu thuoc root dirty file.
+
+### OUTSTANDING #3 — shipping checklist final E2E gate: VAN DONG (CONFIRMED)
+
+- A22 da phan loai dung: SHIPPING-CHECKLIST-878 (`coordination/reports/shipping-checklist-878-2026-10-05.md:3`) tu khai pham vi la "ung dung DUGate o repository root `D:\Git\dugate`" — legacy app (route tree `/api/v1/docs/{slug}`, `lib/endpoints/runner.ts:91-110` auth concern, worker.ts, prisma root). Verdict FAIL cua no ap dung cho LEGACY only, khong phai du-rework shipping blocker. Da doc receipt truc tiep — xac nhan classification.
+- SHIPPING-DU-REWORK-887 (tester_live) dang chay lai tren du-rework (round894 parallel list, round891 tester_live_warning, round896 review814_status). Cho den khi co verdict tren dung target, **shipping gate VAN DONG — khong ky.**
+- Round896 review814_status xac nhan: "#1 full regression: DA DISPATCH FULL-REGRESSION-889. #2 .gitignore + .env.live: DA GUI CLAUDE adjudication (= packet nay). #3 shipping-checklist: VAN DUNG."
+
+### DA DONG — RERUN-PLAT-MIG-02-888: acknowledged CLOSED
+
+Receipt `rerun-plat-mig-02-888-2026-10-05.md` doc truc tiep: 7/7 tren disposable PG16 `--network none` (container vfy-plm02-888-pg-20261005, tmpfs, no published port, removed), khong dung shared DB. SQL-contract gap DA DONG. Round896 receipts_settled ghi DONE.
+
+### VAN MO — restated, khong implement (per routing rule)
+
+- **Race atomic revocation: VAN MO.** Routed GLM tu truoc; quyet dinh semantics cua toi van dung: (A) eventual revocation + contract sentence; reject re-read/lock-across-network-IO; future path via A21 short-lived probe token. KHONG implement fix khi chua co quyet dinh (lease_release_usage_fixture race_OPEN). Round891 readiness_decision (admitted probe <=5s, later deny, zero network rowlocks) va round896 deu nhat quan voi huong nay.
+- **Signed identity PARTIAL (A21).** Verifier that TON TAI — `services/connector/src/identity.ts:5` (`HmacServiceIdentityVerifier`) va `:43` (`requireServiceIdentity`, aud + scope + exp check) — da doc source truc tiep. Thieu phia Orchestrator: phat identity that cho management HTTP integration (round891 management_identity_decision: reuse verifier, fresh HS256 JWT aud=connector, exp=iat+60s — decision, chua phai implementation). Hard rule A21 van dung: mock echo header KHONG duoc tinh la xac thuc.
+
+**Verdict REVIEW-815: #2 DONG (voi residual #1 khuyen nghi), #3 VAN DONG cho den SHIPPING-DU-REWORK-887 verdict, RERUN-888 DONG, race + identity VAN MO theo routing hien hanh.** DOC-ONLY compliance: no source file edited; nothing committed; nothing ticked.

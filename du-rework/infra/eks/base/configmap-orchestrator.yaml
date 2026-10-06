@@ -1,0 +1,49 @@
+# Map 1:1 từ compose/orchestrator.yml — chỉ biến không secret.
+# Secret (DATABASE_URL, tokens, keys...) lấy từ Secret `orchestrator` trong Deployment.
+# Khi dùng IRSA: KHÔNG set AWS_ACCESS_KEY_ID/SECRET (bỏ trống như compose mặc định).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrator
+  namespace: du-platform
+data:
+  PORT: "3000"
+  ORCHESTRATOR_HOST: "0.0.0.0"
+  ORCHESTRATOR_PORT: "3000"
+  ORCHESTRATOR_INTERNAL_HOST: "0.0.0.0"
+  ORCHESTRATOR_INTERNAL_PORT: "3002"
+  ORCHESTRATOR_INTERNAL_BASE_URL: "http://orchestrator-internal:3002"
+  DU_S3_SOURCE_RULES: ""
+  AUTO_MIGRATE: "false"
+  ADMIN_SHELL_HOST: "0.0.0.0"
+  ADMIN_SHELL_PORT: "3001"
+  DU_ADMIN_WEB: "0"
+  DU_ADMIN_AUTH_MODE: ""
+  DU_ADMIN_TRUST_PROXY_PROTOCOL: "false"
+  SHUTDOWN_TIMEOUT_MS: "30000"
+  ARTIFACT_STORAGE_BACKEND: "postgres"
+  ARTIFACT_S3_BUCKET: "du-artifacts-example"
+  ARTIFACT_S3_REGION: "REGION"
+  ARTIFACT_S3_ENDPOINT: ""
+  ARTIFACT_S3_FORCE_PATH_STYLE: "false"
+  ARTIFACT_STORAGE_MIGRATION_WINDOW: "false"
+  DU_ENCRYPTION_METADATA_ENABLED: "false"
+  DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED: "false"
+  DU_VAULT_TRANSIT_OPTIONS: ""
+  DU_ADMIN_WEB_ROUTES: ""
+  DU_VAULT_KV_OPTIONS: ""
+  DU_CONNECTOR_INITIAL_BINDINGS: ""
+  DU_ADMIN_OIDC_ISSUER: ""
+  DU_ADMIN_OIDC_CLIENT_ID: ""
+  DU_ADMIN_OIDC_REDIRECT_URI: ""
+  DU_ADMIN_OIDC_ALLOWED_ISSUERS: ""
+  DU_ADMIN_OIDC_PUBLIC_ORIGIN: ""
+  DU_ADMIN_OIDC_SESSION_BACKEND: ""
+  DU_ADMIN_OIDC_PKCE_METHOD: ""
+  # Management surface mặc định TẮT (fail-closed 503 khi vắng) như compose.
+  # Bật: DU_CONNECTOR_BASE_URLS='{"default-connector":"http://connector:8080"}'
+  #   + SERVICE_IDENTITY_SECRET trong Secret `orchestrator` (ký identity per-request).
+  # Lưu ý: DU_CONNECTOR_MANAGEMENT_HEADERS và DU_CONNECTOR_IDENTITY_EXPIRES_AT đã
+  #   OBSOLETE — main.ts từ chối boot nếu set (assertConnectorComposition).
+  #   Không bao giờ set hai biến đó.
+  DU_CONNECTOR_BASE_URLS: ""

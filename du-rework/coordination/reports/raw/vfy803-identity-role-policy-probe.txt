@@ -1,0 +1,6 @@
+﻿COMMAND: node coordination/reports/raw/vfy803-identity-role-policy-probe.cjs
+LITERAL_EXIT_CODE: 0
+
+IDENTITY_ROLE_POLICY_PROBE=PASS
+invalid_caller=INVALID_CALLER_ROLE; queries=0; transaction_calls=0
+ADMIN_assignments=USER(operator),VIEWER(viewer); role_bound_at=$4; audit_rows=2

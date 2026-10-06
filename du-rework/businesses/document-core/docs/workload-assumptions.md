@@ -76,9 +76,9 @@ Design assumptions for sizing local queue workers and database connection pools:
    - **Current Status: `[PARTIAL / ONGOING ENFORCEMENT]`**. Active runtime queries filter by `tenant_id`, and package boundary tests verify workers cannot access DB directly. However, row-level security (RLS) policies and comprehensive tenant penetration tests are ongoing platform work (Claude lane).
    - Owner: Platform (Claude lane).
 2. **Key-to-Profile Binding**:
-   - API keys map to a single immutable `tenant_id` and assigned `profile_id`. A profile pins exactly one `business_version` and specific connector slot configurations.
-   - **Current Status: `[PARTIAL / TARGET]`**. SHA-256 API key lookup without dev fallback is implemented in Orchestrator (`server.ts`) to resolve authenticated `tenant_id`. However, dynamic binding of API keys to specific `profile_id` database rows and per-profile connector slot configurations is deferred/target architecture; connector slot configuration currently relies on global server options.
-   - Owner: Platform (Claude lane).
+   - API keys map to a tenant. `profile_bindings` stores immutable revisions for each key, business/version/action and connector slot pin map; a key can have multiple bindings across actions.
+   - **Current Status: `[IMPLEMENTED SOURCE / LIVE VERIFICATION SEPARATE]`**. Orchestrator resolves the matching binding before submission, stores `profile_id`, revision and connector pins on the operation, and rejects an unbound action when the key is in profile mode. See [`profiles.ts`](../../../services/orchestrator/src/modules/profiles/profiles.ts) and [`submission.ts`](../../../services/orchestrator/src/modules/operations/submission.ts). Source implementation alone does not establish live multi-service acceptance.
+   - Owner: Platform.
 3. **Credential Separation**:
    - Runtime workers operate with zero database credentials and zero storage secret keys.
    - Connector credentials (provider API keys) are stored encrypted via AES-256-GCM in `secret_versions` and are never returned to clients or workers.

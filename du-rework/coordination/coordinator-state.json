@@ -1,164 +1,2524 @@
 {
- "coordinator": "command-code",
- "coordinator_handle": "term_50f39a02-4ff1-4db6-8b7d-730294532221",
- "coordinator_model": "command-code",
- "turn": 405,
- "interval_minutes": 10,
- "last_tick": "2026-10-02T14:22:36+07:00",
- "previous_coordinator": "openclaude",
- "previous_coordinator_handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
- "handover_at": "2026-10-02T10:05:47+07:00",
- "handover_reason": "User 2026-10-02: Claude Code stops dispatching; review-only from now. Dispatch ownership (C1-C3/C5 cycles, watch-state writes, C2 settle, nudges) handed to command-code lane term_50f39a02. Session cron schedules for coordinator + self-review cycles cancelled. Claude Code keeps C4 review + on-demand code review.",
- "roster": {
-  "coordinator": {
-   "handle": "term_1b615444-8014-4eaf-adb7-4991c9eafcc2",
-   "identity": "openclaude",
-   "model": "claude-opus-4-8",
-   "role": "Primary coordinator: plan, reports, Orca status, task assignment and 10-minute worker monitoring; no source-code reading"
+  "coordinator": "antigravity",
+  "coordinator_handle": "antigravity-session-64123580",
+  "coordinator_model": "gemini-2.5-pro",
+  "turn": 870,
+  "interval_minutes": 10,
+  "last_tick": "2026-10-06T17:10:00+07:00",
+  "previous_coordinator": "term_6904d82c-e563-416b-9cc2-8da4f7bc16b3",
+  "previous_coordinator_handle": "term_6904d82c-e563-416b-9cc2-8da4f7bc16b3",
+  "handover_at": "2026-10-05T22:30:00+07:00",
+  "handover_reason": "User directly reassigned coordination authority to Antigravity. DeepSeek coordinator (term_6904d82c) exited (operator_close) after persistent harness pwsh schema errors and goal phase locked in blocked.",
+  "roster": {
+    "coordinator": {
+      "handle": "antigravity-session-64123580",
+      "identity": "antigravity",
+      "model": "gemini-2.5-pro",
+      "role": "Primary coordinator: plan, reports, Orca status, task assignment and fleet monitoring"
+    },
+    "reviewer": {
+      "handle": "term_19edcad8-dcd8-4930-a6a2-24f5f8be5bd8",
+      "identity": "claude",
+      "model": "opus-4.8",
+      "role": "Independent code reviewer: post-module audit gate (implement + test complete)"
+    },
+    "qwen_1": {
+      "handle": "term_7cb640ae-5ffe-4675-9f7b-0c99c1070268",
+      "identity": "qwen-code",
+      "model": "qwen3.8-max",
+      "role": "Worker Platform: Queue runtime, submission, core"
+    },
+    "qwen_2": {
+      "handle": "term_4bca69af-a9d5-40f4-8dac-2edb1853dbac",
+      "identity": "qwen-code",
+      "model": "qwen3.8-max",
+      "role": "Worker Docs/DB: Migrations, schemas, sync docs"
+    },
+    "qwen_5": {
+      "handle": "term_822128f8-b2b6-4685-bd12-ce91069949b8",
+      "identity": "qwen-code",
+      "model": "qwen3.8-max",
+      "role": "Worker Pool: Parallel implementation and backlog acceleration"
+    },
+    "antigravity": {
+      "handle": "term_ae2d7e42-8042-4b85-95d5-cabed5ee3191",
+      "identity": "antigravity",
+      "model": "gemini-3.8-flash",
+      "role": "UI Foundation & Contract Â§5 UI reviewer; chay supervisor audit 30 phong (bao loi nhac dieu phoi, KHONG tu dispatch)"
+    },
+    "codex_arch": {
+      "handle": "term_86ac9be9-dbec-43dc-8dfa-3726b2e805c1",
+      "role": "codex_arch",
+      "agentIdentity": "codex",
+      "title": "Cập nhật Master Plan MIG-05 | dugate"
+    },
+    "codex_worker_1": {
+      "handle": "term_37c6cebe-5c6f-4eae-9690-db6d1b3c8740",
+      "identity": "codex",
+      "model": "gpt-6-luna",
+      "role": "Codex Worker 1: Implementation and refactoring (YOLO mode)"
+    },
+    "oc_1": {
+      "handle": "term_cefb27a0-271a-4343-b2dc-ae1fe9910365",
+      "role": "oc_1",
+      "agentIdentity": "opencode",
+      "title": "OC | Đối chiếu độc lập migration nền tảng …"
+    },
+    "oc_2": {
+      "handle": "term_169a5da5-5a0c-4cbf-b226-7f2d51264b24",
+      "role": "oc_2",
+      "agentIdentity": "opencode",
+      "title": "OC | Audit tách biệt quyền connector invok…"
+    },
+    "oc_3": {
+      "handle": "term_8a432ae3-63b7-41fd-929e-0797860c7426",
+      "role": "oc_3",
+      "agentIdentity": "opencode",
+      "title": "OpenCode"
+    },
+    "oc_4": {
+      "handle": "term_f1c5a1d1-8fd0-494e-ab43-64e5f5414f92",
+      "role": "oc_4",
+      "agentIdentity": "opencode",
+      "title": "OpenCode"
+    }
   },
-  "backup_coordinator": {
-   "handle": "term_d4f1e008-c4ae-4406-b055-1f21b79e8a95",
-   "identity": "antigravity",
-   "model": "gemini-3.8-flash",
-   "role": "Standby coordinator; deactivated/parked due to quota exhaustion"
+  "reviewer_mode": "mandatory-post-module-and-on-demand",
+  "schedule_active": true,
+  "schedule_type": "command-code-session-cron-10m",
+  "schedule_task_id": "73fe7445",
+  "previous_schedule": {
+    "schedule_active": false,
+    "schedule_type": "orca-automation-cron-10m",
+    "schedule_task_id": "1ec1f0c5-49b8-49b5-b87c-768164423bb6",
+    "reason": "Removed on 2026-10-01 because the installed Orca automation opened another Antigravity terminal on each run"
   },
-  "reviewer": {
-   "handle": "term_b103836b-98e7-4fa2-900d-98db145d3d01",
-   "identity": "claude",
-   "model": "opus-4.8",
-   "role": "Independent code reviewer: post-module audit gate (implement + test complete) and high-risk/disputed changes"
+  "consolidation_note": "The user reassigned coordination to Antigravity on 2026-09-27; prior Claude/Qwen/OpenClaude lane assignments are historical.",
+  "coordination_mode": "Dispatch owned by Antigravity coordinator per user directive 2026-10-05 22:28+07; Claude Code review-only; Codex + Qwen = implement + independent verify.",
+  "roster_note": "Historical roster: 5 Codex (technical lead, 2 testers, 2 workers), 3 Qwen, 1 Claude reviewer, 1 OpenClaude backup, and 1 Antigravity coordinator. Verify live terminal handles and ownership before any manual cycle. | LIVE CHECK 2026-10-02T10:15:46+07:00 by command-code: dugate space = 11 connected terminals: dispatcher 50f39a02 (command-code); review+plan 31d9ed40 (codex tech lead) + b103836b (claude); workers qwen 4568d175/27eb3380/742c2474/63bf0dbc + codex 2b05b203/949d489b (f1ed751c closed); verify codex b2d08e87 + c4486089. Separate nocobase space (6 terminals incl. antigravity 83fc0691, claude c7db8506, codex b358297f, command-code 97e32a88, qwen 9ce2ba69/de2e0f91) out of scope, never message.",
+  "coordinator_note": "2026-10-02 handover: dispatch -> command-code lane; Claude Code review-only. 10-min C1-C5 coordinator cycles and B1-B6 self-review cycles STOPPED (crons deleted). Watch-state last: 468 rows, settled 445 / running 7. | 2026-10-02T10:13:05+07:00 cycle by command-code (C1-C3/C5): settle x4, no dispatch; hold lines unchanged. | 2026-10-02T10:19:23+07:00: dispatched PERF-01B (ingress concat) to F8; claude committed 6fb5294. | 2026-10-02T10:22:25+07:00 cron cycle: F8 working PERF-01B. SECURITY EVENT (claude lane): push blocked by GH secret scanning - 2 real Vault dev tokens hardcoded tests/rv0104-live-encryption.test.ts:39-40; claude remediating via env vars + amend (unpushed) + re-push; tokens dev-local, container removed. Coordinator side: record only, no interference. | 2026-10-02T10:24:23+07:00: user hoi vi sao chua dung qwen -> dispatch G7b redo (read-only) sang qwen_2. | 2026-10-02T10:30:49+07:00: USER WAVE - dispatched 5 lanes (D5, P9-WF-SPEC, RV01-LOOPBACK, SEC-SWEEP, POSTCOMMIT-REG). | 2026-10-02T10:33:31+07:00: claude push OK df2fb2c (secrets removed env vars, tsc/test verified); settle PERF-01B + G7b; luu y concurrency cua claude: lan push toi nen git pull --rebase truoc (nhieu lane cung branch). | 2026-10-02T10:42:51+07:00: dispatch CONN-BINDINGS + PROC-NAME-EV (read-only) sau spec P9; P9-WF-SPEC receipt landed; qwen_1 user-thread investigating claim. | 2026-10-02T10:52:08+07:00: settle CONN-BINDINGS + PROC-NAME-EV. qwen_1 investigation closed: headless claude CLI ignored scope but 0 damage; user approved DOC-SYNC-01/02/03 (doc-only) for qwen_1. connector finding: no task registry, slots enforced at grants.ts:195-204, acceptedCapabilities unenforced. | 2026-10-02T11:03:32+07:00: settle D5/SEC-SWEEP/POSTCOMMIT/P9-WF-SPEC; dispatch D5B+P8-03+SEC-PROVENANCE; temp-pending qwen_1. | 2026-10-02T11:12:23+07:00: settle P8-03 + RV01; offline doc-core GREEN 920/1skip; RV01 6 findings + shapes. | 2026-10-02T11:22:59+07:00: settle x3; D5B done (concurrency gap -> D5C dispatch); secret shell-server:374 = benign. | 2026-10-02T11:32:26+07:00: settle D5C; ghi nhan CLAUDE commit f2be0de (PERF-01B + coordination sync, secret-scanned, pushed); dispatch RV01-FIX-DRAFT cho qwen_3. | 2026-10-02T11:42:08+07:00: settle RV01-VERIFY + RV01-FIX-DRAFT; F4 la owner decision (401 qua legacyError), khong phai parity; cho user duyet F1/F4. | 2026-10-02T11:51:54+07:00: settle D5-VERIFY + P9-PATCH-DRAFT; toan bo prep hoan tat, cho user quyet (F1/F4, F2-F6, Q1-Q6, commit dot). | 2026-10-02T12:01:35+07:00: quiet cycle - no receipts, no dispatch, standby cho user. | 2026-10-02T12:34:11+07:00: user approves 2c; qwen_2 message stuck -> nudged -> running. qwen_1 running (post-nudge). | 2026-10-02T12:42:19+07:00: qwen_1 bg-claude verifier (plan-mode) running; qwen_2 impl 2c in flight. | 2026-10-02T12:54:22+07:00: PLAN WAVE x5 (CONV-00/ACUI-00/CONV-05/CONV-08/CONV-10) theo user 'xu ly task trong plan'; 2c done (PROVIDER_REQUEST_REJECTED 502); qwen_2 follow-up audit in flight (nudged); qwen_1 waiting bg claude. | 2026-10-02T12:55:56+07:00: all 7 lanes active; qwen_1 self-resumed (bg claude cancelled); plan wave in flight. | 2026-10-02T13:02:56+07:00: settle ACUI-00 + audit; audit found 2c regression (A-1 retryable) -> dispatched CONN-2C-FIX; dispatched CONV-12 (shell-router split, file clean). | 2026-10-02T13:13:57+07:00: settle CONV-05/00/10/08; worker.ts vuot 2000 (debt moi); CONV-10 baseline red (tenant-fence) noted; retire CONV-08 receipt misfile -> relocation requested; dispatched ACUI-01-PREP + CONV-06-PREP. | 2026-10-02T13:22:05+07:00: settle CONN-2CFIX (self-corrected audit); relocation CONV-08 verified; dispatched 2 verify (conn2cfix, fence-red). | 2026-10-02T13:32:37+07:00: settle x4; fence-red = (c) undetermined (re-verify after CONV-12); ACUI-01-prep: 6/12 forms lack handlers + retire product decision; dispatched connector-p8-03-guard + CONV-06-IMPL. | 2026-10-02T13:42:05+07:00: settle CONV-12 + p8-03 guard; dispatched fence-red-reverify + conv12-verify. | 2026-10-02T13:52:54+07:00: settle CONV12-VERIFY (all verified); holds: ACUI-01 gated on user decisions. | 2026-10-02T14:02:43+07:00: settle fence-red ((a) no gap) + CONV-06-IMPL; dispatched 3 follow-ups; codex lanes at rate-limit dialog (hands off). | 2026-10-02T14:12:35+07:00: settle CONV06-VERIFY; 3 codex lanes at rate-limit dialogs (b2d08e87/2b05/c448) - no dispatch there; dispatched WORKER-SPLIT-PREP -> qwen_3. | 2026-10-02T14:17:38+07:00: settle FENCE-TEST-ALIGN; finding shadowed-403 vao queue quyet dinh. | 2026-10-02T14:22:36+07:00: settle WORKER-SPLIT-PREP; codex dialogs cleared; dispatched VFY-REG-refresh + fence-align-verify. | 2026-10-04T17:24:54+07:00: STATE REBUILT tu git HEAD + delta; directive 17:18 recorded; Claude stopped + lease revoked; redistribution W1/W2/W3 pending user confirm. (Chi tiet: COORDINATION-TOPOLOGY.md + reviews/2026-10-04-*.md) | 2026-10-04T17:27:23+07:00: cycle 17:32 - Claude stopped confirmed; hold awaiting user confirm on W1/W2/W3. | 2026-10-05T22:30:00+07:00: Handover to Antigravity coordinator per user directive.",
+  "state_rebuilt_at": "2026-10-04T17:24:54+07:00",
+  "state_rebuild_reason": "coordinator-state.json bi truncate do loi scratch script (mo file write truoc khi tinh args) luc 17:22; khoi phuc tu git HEAD (commit b088eec) + delta phien hien tai; audit trail day du nam trong coordination/reviews/2026-10-04-*.md (moi chu ky 1 file).",
+  "directive": "2026-10-05T22:28 user directive: Antigravity = sole coordinator/dispatcher; implementation -> Qwen (qwen_1/2/5) + Codex (cw1/arch); Claude = review-only/plan-mode; Testers = codex_tester_offline / codex_tester_live.",
+  "roles": {
+    "coordinator": "antigravity-session-64123580",
+    "workers_qwen": [
+      "term_7cb640ae-5ffe-4675-9f7b-0c99c1070268",
+      "term_4bca69af-a9d5-40f4-8dac-2edb1853dbac",
+      "term_822128f8-b2b6-4685-bd12-ce91069949b8"
+    ],
+    "workers_codex": [
+      "term_2ea0ce2e-1612-449f-b772-b177fe15df31",
+      "term_3adb7228-0087-45c5-8a18-77a4150a5043",
+      "term_37c6cebe-5c6f-4eae-9690-db6d1b3c8740"
+    ],
+    "codex_plan_editor": "term_43f85ccc-f868-4ec5-b9df-7a64325b1ce6",
+    "claude": "term_19edcad8-dcd8-4930-a6a2-24f5f8be5bd8",
+    "antigravity": "term_ae2d7e42-8042-4b85-95d5-cabed5ee3191",
+    "unclassified_cc_lanes": [],
+    "workers_dsh": [
+      "term_a85c47f2-6461-40db-8dc1-acff797f9f37",
+      "term_bac0ad06-e10d-4870-9c57-b63a7ccf0bb3",
+      "term_273952b5-c8d6-4c35-9965-bfa84e7eb1e6"
+    ],
+    "workers_cc": []
   },
-  "qwen_1": {
-   "handle": "term_4568d175-fdf8-4ff6-8916-9e787e232a58",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "role": "Implementation and bug fixes; scoped packet ownership"
+  "claude_lane": {
+    "status": "stopped-review-only",
+    "stoppedAt": "2026-10-04T17:22:00+07:00",
+    "leaseRevoked": true,
+    "stoppedAtTurn": "Phase 2 mid-turn (T-SUB-03 area; runtime snapshot validation + 5 test-stub files)"
   },
-  "qwen_2": {
-   "handle": "term_27eb3380-f9c3-466a-8b4e-0b7fa0ad23fc",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "role": "Implementation and bug fixes; scoped packet ownership"
+  "redistribution": {
+    "status": "approved-dispatched",
+    "approved_at": "2026-10-04T17:58:00+07:00",
+    "orchestration_run": "run_069ecd6957cd",
+    "wave1_dispatched_at": "2026-10-04T18:07:00+07:00",
+    "dispatches": {
+      "W1": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_b50d80dea4aa",
+        "dispatch": "ctx_badbcc56263a",
+        "spec": "coordination/dispatch-specs/2026-10-04-1805-W1-admission-seam.md"
+      },
+      "W2-A": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e",
+        "task": "task_1b422867dd49",
+        "dispatch": "ctx_99b1be23659a",
+        "spec": "coordination/dispatch-specs/2026-10-04-1805-W2-producer-consumer-fixtures.md",
+        "gate": "phase B cho W1 checkpoint (a)/(b)"
+      },
+      "LIVE-prep": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228",
+        "task": "task_693890760d56",
+        "dispatch": "ctx_04a7c97a06b1",
+        "spec": "coordination/dispatch-specs/2026-10-04-1805-LIVE-prep-evidence-matrix.md"
+      },
+      "PLAN04-05a": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_7796580129fe",
+        "dispatch": "ctx_d4d1e58a7c49",
+        "spec": "coordination/dispatch-specs/2026-10-04-1805-PLAN05a-plan-graph-validation.md"
+      },
+      "PLAN04-05b": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_6cdf447c7685",
+        "dispatch": "ctx_94f8cf91bc5a",
+        "spec": "coordination/dispatch-specs/2026-10-04-1805-PLAN05b-receipt-status-inventory.md"
+      },
+      "PLAN-REVIEW-730": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_3eac9b118212",
+        "dispatch": "ctx_3e2138e3e4d6",
+        "spec": "coordination/reports/plan-review-730-2026-10-04.md (deliverable)",
+        "status": "running (started 18:15)"
+      },
+      "P730-SDK-PREP": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_a61ea487ce09",
+        "dispatch": "ctx_51e2ce89a332",
+        "status": "completed (20:07)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1835-P730-SDK-PREP.md",
+        "result": "receipt 66 dong; 5 DELTA (A blocking test conflict)"
+      },
+      "P730-API-PREP": {
+        "lane": "qwen_3",
+        "handle": "term_f8d68e4d",
+        "task": "task_787e2da71488",
+        "dispatch": "ctx_39d86a68b51a",
+        "status": "completed (20:07)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1835-P730-API-PREP.md",
+        "result": "receipt 76 dong; role table + Delta2 schema"
+      },
+      "P730-ACQ-PREP": {
+        "lane": "qwen_4",
+        "handle": "term_f1996f34",
+        "task": "task_085af29ae64d",
+        "dispatch": "ctx_f30cacf53f1c",
+        "status": "completed (19:47)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1835-P730-ACQ-PREP.md",
+        "result": "receipt p730-acquisition-prep; 5 delta (Delta2 HIGH: secret in URL query)"
+      },
+      "P730-CURL-IMPORT": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8",
+        "task": "task_9574f9b1abdd",
+        "dispatch": "ctx_cbd5678d5eee",
+        "status": "running (18:34)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1835-P730-CURL-IMPORT.md"
+      },
+      "PLAN-GRAPH-DELTA": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_20e2e29cb66d",
+        "dispatch": "ctx_971b550c4f6a",
+        "status": "running (18:37)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1840-CC1-PLAN-GRAPH-DELTA.md"
+      },
+      "CFGADM-SCREEN-SPEC": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_08fa395438aa",
+        "dispatch": "ctx_46410643f3c6",
+        "status": "running (18:37)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1840-CFGADM-SCREEN-SPEC-REVIEW.md",
+        "note": "read-only; KHONG UI_APPROVED"
+      },
+      "P730-CONT-PREP": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_84dfce20ecff",
+        "dispatch": "ctx_4f4c89427d35",
+        "status": "running (18:41)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1845-P730-CONT-PREP.md",
+        "note": "inventory-only; khong can W1; khong freeze CONT-01"
+      },
+      "P730-PLAN-MERGE-FIX": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_2f228e1c6e1a",
+        "dispatch": "ctx_9fa07f36fd15",
+        "status": "running (18:52)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1852-P730-PLAN-MERGE-FIX.md",
+        "note": "doc-only; 10 fixes from cc_1 delta"
+      },
+      "P730-W2-B": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e",
+        "task": "task_f7c9fa06fb1b",
+        "dispatch": "ctx_1078e574397a",
+        "status": "completed (19:31)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1900-P730-W2-B.md",
+        "result": "finding P730-W2-B-01 (P2): claim accepts mismatched credentialRef tuple + commits lease; 3 red tests kept; sentinel clean; F-PP1 verified"
+      },
+      "W1-DD03": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228",
+        "task": "task_95b56abe6d0e",
+        "dispatch": "ctx_e1c76f69d00d",
+        "status": "running (19:00)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1900-W1-DD03-FAILCLOSED.md"
+      },
+      "CFGADM-LPG-REGISTER-DELTA": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_85969506ef22",
+        "dispatch": "ctx_574e354d05a5",
+        "status": "running (19:00)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1900-CFGADM-LPG-REGISTER-DELTA.md"
+      },
+      "W1-RECEIPT-AUDIT": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_6e63e91cdfef",
+        "dispatch": "ctx_87ceace0f0a2",
+        "status": "running (19:00)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1900-W1-RECEIPT-AUDIT.md"
+      },
+      "W1-HANDOFF": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_b5aa5fbfd8ca",
+        "dispatch": "ctx_ec5319fdee3b",
+        "status": "running (19:01)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1901-W1-HANDOFF-RELEASE.md"
+      },
+      "W1-REVIEW-P1": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_26d9b660253d",
+        "dispatch": "ctx_674ab8926bcd",
+        "status": "completed (19:41)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1901-W1-DESIGN-REVIEW-PART1.md",
+        "note": "read-only; KHONG verdict (Part 2 sau verify)",
+        "result": "6/6 supported; 2 MEDIUM + 2 LOW (MEDIUM-2 ~ P2 root cause; MEDIUM-1 parameters.value channel)"
+      },
+      "T-PROF-03-CLOSURE": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_f0014eff828a",
+        "dispatch": "ctx_3802b8e4c58b",
+        "status": "completed (19:21)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1910-T-PROF-03-CLOSURE.md",
+        "note": "go dieu kien (b) theo plan-review cho W1c/W3",
+        "result": "25 tests; 3x exit 0/0/0; publish.ts 0 product diff; VERIFIED OFFLINE decision layer; live gaps recorded"
+      },
+      "PLAN-MERGE-VERIFY-1": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_be85253ebc47",
+        "dispatch": "ctx_7ad755aac42d",
+        "status": "running (19:11)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1920-PLAN-MERGE-VERIFY-1.md"
+      },
+      "REGISTER-DELTA-VERIFY": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_3af18a96b465",
+        "dispatch": "ctx_41e4151d9de4",
+        "status": "running (19:11)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1920-REGISTER-DELTA-VERIFY.md"
+      },
+      "PLAN-REFRESH-736-740": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_a2241935cb88",
+        "dispatch": "ctx_40d4c311fefb",
+        "status": "completed (19:29)",
+        "note": "fold verify results + N1-N4 + Delta-DEV; table 736-740",
+        "result": "N1-N4 folded; backlog 736-740; REF-BIND-FIX noted; validator 197 links/17 settings/no dup"
+      },
+      "DD-05-INVARIANT1": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_7e8ce5064039",
+        "dispatch": "ctx_0fd71deb3582",
+        "status": "completed (20:11)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1930-DD05-INVARIANT1.md",
+        "result": "65/65; receipt appended by coordinator from staged temp (lane stream errors) + attribution"
+      },
+      "P730-ACQUIRE-W1C": {
+        "lane": "cc_1 (reassigned tu qwen_4 22:32)",
+        "handle": "term_c03791d1",
+        "task": "task_5ea244dba6a3",
+        "dispatch": "ctx_dfd2ecc31506 (old ctx_d366ef0dc7f6 abandoned - qwen_4 stream error x3)",
+        "status": "completed (22:44 - cc_1 offline DONE)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1930-P730-ACQUIRE-W1C.md",
+        "note": "HARD (1) MET -> gate mo; Delta2 ap dung",
+        "result": "resolver moi + wiring + 26/26 x3; tsc 0; regression 45/45; deny 11 vector truoc network; sentinel no-secret; Delta2 QUERY_AUTH_FORBIDDEN; Delta-composition pending; live PG/MinIO mo"
+      },
+      "P730-ADMIN-MUTATE-W3": {
+        "lane": "qwen_3",
+        "spec": "coordination/dispatch-specs/2026-10-04-1930-P730-ADMIN-MUTATE-W3.md",
+        "status": "SPEC READY - dispatch sau khi API-PREP receipt settle"
+      },
+      "W2B-P2-FIX": {
+        "lane": "qwen_4",
+        "handle": "term_f1996f34",
+        "task": "task_6d21a84909fd",
+        "dispatch": "ctx_ee8fc052b95b",
+        "status": "completed (21:31 - offline VERIFIED)",
+        "result": "tuple check + 422 INVALID_SCHEMA + rollback cung tx; 11/11 x3; 5 suite exit 0; tsc 0; live con mo; runtime.ts mang 41 dong T-SUB-04 + tuple check chua commit"
+      },
+      "P730-UI-INTEGRATE": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8",
+        "task": "task_009c9082b8a8",
+        "dispatch": "ctx_27b4ef76404e",
+        "status": "completed (20:20)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1935-P730-UI-INTEGRATE-P1.md",
+        "result": "mount accept-only + disabled save/test (GAP backend); d14-17; Playwright SKIP (runner UNRESOLVED); Q1-Q3 open untouched; typecheck/build/SSR x3 exit 0"
+      },
+      "LIVE-READY-PREP2": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228",
+        "task": "task_cf6424e5dbc5",
+        "dispatch": "ctx_022b86640fab",
+        "status": "completed (19:47)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1935-LIVE-READY-PREP2.md",
+        "result": "count-only script + identity matrix A-D + window prerequisites (offline checks pass)"
+      },
+      "CURL-UI-REVIEW": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_2f948281c7bf",
+        "dispatch": "ctx_297fda93eb9c",
+        "status": "completed (19:41)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1935-CURL-UI-REVIEW.md",
+        "note": "Q1/Q2/Q3; khong UI_APPROVED",
+        "result": "Q1 fail-closed accept; Q2 heuristic+toggle; Q3 accept-only; contract PASS; Q da duoc coordinator chap nhan"
+      },
+      "PLAN-GRAPH-DELTA-2": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_dedbc42fa7bd",
+        "dispatch": "ctx_aac515e4bce5",
+        "status": "completed (19:41)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1938-PLAN-GRAPH-DELTA-2.md",
+        "result": "N1-N4 4/4 APPLIED verified semantic; 177 links/0 broken; hashes 6/6; L2-remainder STILL (33 dong) -> sweep"
+      },
+      "N1-N4-VERIFY": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_413fd446f780",
+        "dispatch": "ctx_89ed905fa9cc",
+        "status": "completed (19:41)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1938-REGISTER-N-VERIFY.md",
+        "result": "N1/N2/N3/N4 FIXED semantic; register clean"
+      },
+      "PLAN-MERGE-FIX-2": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_b29ad0ac15b9",
+        "dispatch": "ctx_583ba610d5c1",
+        "status": "completed (19:46)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1945-PLAN-MERGE-FIX-2.md",
+        "result": "34 refs/33 dong -> ORCH-PAR; Q pointers AWEB/CFGADM; validator 210 links/17 settings/no dup; diff-check 0"
+      },
+      "W1-REVIEW-P2": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_c5fe5231eebb",
+        "dispatch": "ctx_3ec8236fdbef",
+        "status": "completed (20:03)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1952-W1-REVIEW-PART2.md",
+        "note": "verdict slice producer+T-PROF-03",
+        "result": "VERDICT: APPROVED-WITH-CONDITIONS; (1) HARD P2-FIX+rerun; (2) MEDIUM-1; (3) optional uuid; (4) live"
+      },
+      "L2-CLOSURE-RECHECK": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_d7d810a38799",
+        "dispatch": "ctx_356ec2b1dfad",
+        "status": "completed (19:57)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1952-L2-CLOSURE-RECHECK.md",
+        "result": "4 target files bare=0; residual 58 tokens in 4 parent docs -> sweep decision"
+      },
+      "PLAN-REFRESH-741-745": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_5766b4f2482a",
+        "dispatch": "ctx_e2e74c2c6dc9",
+        "status": "completed (20:03)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1952-PLAN-REFRESH-741-745.md",
+        "result": "L2 dong 4 file; validator 244 links; backlog 741-745"
+      },
+      "ACQ-PREP-RECEIPT-AUDIT": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_80400947ca7e",
+        "dispatch": "ctx_ed4eb6af9d20",
+        "status": "completed (20:10)",
+        "spec": "coordination/dispatch-specs/2026-10-04-2010-ACQ-PREP-RECEIPT-AUDIT.md",
+        "result": "claims SUPPORTED; Delta2 khop; F4 = qwen_1 DD-05 edit (within lease)"
+      },
+      "P730-SDK-CONSUME": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_2b84598811e7",
+        "dispatch": "ctx_0494c49eb964",
+        "status": "completed (21:44 - VERIFIED-OFFLINE)",
+        "result": "5 src + 2 test moi; 3x exit 0; regression 683; null semantics; Delta-D giu invoke; Delta-1 pre-existing attributed; D2-D5 GAP notes"
+      },
+      "PLAN-MERGE-FIX-3": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_03a10d6224a3",
+        "dispatch": "ctx_e34c5df6e379",
+        "status": "completed (20:18)",
+        "spec": "coordination/dispatch-specs/2026-10-04-2010-PLAN-MERGE-FIX-3.md",
+        "result": "suite-wide bare PAR=0 (44 docs); validator 263 links/78 IDs/17 settings; diff-check 0"
+      },
+      "P730-ADMIN-MUTATE": {
+        "lane": "cc_2 (reassigned tu qwen_3 21:49)",
+        "handle": "term_ee7e9f33",
+        "task": "task_d3d24feeea5e",
+        "dispatch": "ctx_83537346799a (old ctx_2efb2333a801 abandoned - qwen_3 stream error lap)",
+        "status": "completed (22:35 - cc_2 offline DONE)",
+        "spec": "coordination/dispatch-specs/2026-10-04-1930-P730-ADMIN-MUTATE-W3.md",
+        "note": "ÃŽâ€7 CHOT (A): migration 0028 profile_name+unique key + contract ApiKeyRefSchema .transform() non-breaking; ÃŽâ€8 lease mo rong (rbac/session-store/audit+migration, single-writer announce); ÃŽâ€10 client.ts DD-06; ÃŽâ€9 order accepted. Adjudication sent 20:36.",
+        "result": "Delta7(A) registry profile_names + ApiKeyRef transform + Delta8 + Delta10; 4x tsc 0; focused 3x (39/215); 18/18 suite moi; A/B standing-red pre-existing"
+      },
+      "L2-FINAL-RECHECK": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_493e788efa8c",
+        "status": "completed (20:22)",
+        "result": "PASS: bare PAR=0 tren 44 docs; PAR-XA 18 nguyen; 4/4 hash khop; 197 links/0 broken; diff-check 0; checkboxes untouched -> L2 (plan-level) CLOSED"
+      },
+      "P730-MEDIUM1-PREP": {
+        "lane": "cc_1 (reassigned tu qwen_5 21:22)",
+        "handle": "term_c03791d1",
+        "task": "task_92386069361b",
+        "dispatch": "ctx_61bbc09b3b5f",
+        "oldDispatch": "ctx_d6ac0c8d7f4a (abandoned - qwen_5 stream error lap 2)",
+        "status": "completed (21:25 - cc_1, 4m45s)",
+        "spec": "coordination/dispatch-specs/2026-10-04-2030-P730-MEDIUM1-PREP.md",
+        "result": "receipt p730-medium1-prep-2026-10-04.md; threat model + phuong an + test plan (read-only)"
+      },
+      "PLAN-REFRESH-746-750": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_7241b33964d9",
+        "dispatch": "ctx_adeed45ae58f",
+        "status": "completed (20:50)",
+        "note": "checkpoint 745 (%5) - fold + backlog 746-750",
+        "result": "validator PASS 304 links/84 IDs/17 settings; diff-check 0; +6 task P745-* (PROMPT-PRODUCER/SESSION-CONSUME/UI-MASK/UI-BROWSER/CONNECTOR-WIRE/PARAMETER-POLICY) + backlog 746-750"
+      },
+      "VFY-REFRESH-746-750": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_4fd8e5361e76",
+        "dispatch": "ctx_b208239be6f5",
+        "status": "completed (21:00)",
+        "spec": "verify doc-only",
+        "result": "VERIFIED: validator byte-identical + exit 0; 6/6 P745 rows; 5/5 notices; bare=0 doc lap; ORCH-CONFIG pin khop 3 receipt; write-set 7 file dung"
+      },
+      "PLAN-CHKPT-750": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_91ef59873b8e",
+        "dispatch": "ctx_26aae789ad3f",
+        "status": "running (21:12)",
+        "note": "receipt plan-chkpt-750-2026-10-04.md da land; codex_arch con Working - settle khi xac nhan xong"
+      },
+      "P2-VERIFY": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_752170703b0c",
+        "dispatch": "ctx_be6764daa2f4",
+        "status": "completed (21:37 - tester CONFIRMED)",
+        "note": "HARD condition (1): rerun 3 negative cells doc lap",
+        "result": "2x11/11 exit 0; 3 negative cells xac nhan; DD03 2/2; source check runtime.ts:208 + db.ts:24; Delta=NO. HARD (1) MET."
+      },
+      "P745-CONNECTOR-WIRE-PREP": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_3b30aa15f0d3",
+        "dispatch": "ctx_041e4b0edaae",
+        "status": "completed (21:50 - cc_1)",
+        "spec": "read-only design prep",
+        "result": "receipt p745-connector-wire-prep; gap map + lease file-map + test plan + sequencing G7; read-only"
+      },
+      "W-CLOSURE-P2-SDK": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_0addf647db7b",
+        "dispatch": "ctx_f96909215cfa",
+        "status": "completed (22:02 - claude Part 3)",
+        "note": "verdict P2 closure + SDK slice; receipt w1-review-part3",
+        "result": "V1 P2-FIX APPROVED (offline) - HARD (1) DONG; V2 SDK-CONSUME APPROVED-WITH-CONDITIONS (D2/3/4 + D1 rebuild)"
+      },
+      "P730-PREFCONSUME": {
+        "lane": "cc_2 (reassigned tu qwen_2 22:37)",
+        "handle": "term_ee7e9f33",
+        "task": "task_9dba7eee7db1",
+        "dispatch": "ctx_e4b519212c97 (old ctx_e15974b18a2b abandoned - qwen_2 stream error x3)",
+        "status": "completed (22:44 - cc_2 offline DONE)",
+        "note": "receipt moi p730-prefconsume-2026-10-04.md",
+        "result": "resolver + 6 semantic vector pinned; 45/45 x3; lint 0; DELTA-A nguyen; 5 Delta-PC; chua co call-site (co y)"
+      },
+      "P745-SESSION-CONSUME-PREP": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_a4708b357731",
+        "dispatch": "ctx_2244386cf80f",
+        "status": "completed (22:10 - cc_1)",
+        "spec": "read-only session seam prep",
+        "result": "receipt p745-session-consume-prep; seam map + Delta-A/B/C + test plan (gap-detector RED plan); read-only"
+      },
+      "P745-PROMPT-PRODUCER-PREP": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_c298ce6849b9",
+        "dispatch": "ctx_ea7bf55444b6",
+        "status": "completed (22:20 - cc_1)",
+        "note": "Delta-2 producer design prep (read-only)",
+        "result": "receipt p745-prompt-producer-prep; producer pin path map + design (submit pin markers -> claim map) + immutability tests; marker/hash formula CHO coordinator chot truoc implement"
+      },
+      "VERIFY-W3": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_e52fb8f1013a",
+        "dispatch": "ctx_b5ce4a170704",
+        "status": "completed (22:42 - CONFIRMED)",
+        "result": "3x lien tiep 39/39 + 215/215 exit 0; source+migration match; precision 23503->404 rollback target; standing-red reproduced"
+      },
+      "VERIFY-W1C-PC": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228-0087",
+        "task": "task_0aa353cd87a0",
+        "dispatch": "ctx_759426f05de4",
+        "status": "completed (22:48 - CONFIRMED)",
+        "result": "9 suite/116 pass 0 fail; W1c 26/26+45/45; PC 45/45; DELTA-A hash unchanged; limit fetch-spy query-only"
+      },
+      "P745-PRODUCER-IMPL": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_9d1ffbf78b99",
+        "dispatch": "ctx_60038bdc14b3",
+        "status": "completed (23:00)",
+        "note": "step 1 P2-a marker-only; adjudications ap dung",
+        "result": "17/17 x3; tsc 0; br12 re-attributed A/B byte-exact; migration 0030; malformed fail-closed 6 dang; Delta-1 phase 2 open"
+      },
+      "W-REVIEW-PART4": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_1a216aea0570",
+        "dispatch": "ctx_15b30f96eeab",
+        "status": "completed (22:54)",
+        "result": "V1 W3 APPROVED; V2 W1c APPROVED; V3 PREFCONSUME AW-C (blocked ÃŽâ€-PC-1); commit plan 1->6 + profile-commands vao c1"
+      },
+      "T-API-01-CLOSURE": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_b0375ce6acbd",
+        "dispatch": "ctx_13eeb721625c",
+        "status": "completed (22:56)",
+        "result": "detail real rev+apiKeyId; E2E detail->upsert->rev3->re-read; 6 suite/134 x3; 7/7 moi; Delta-UI-1 (admin-web lease) dispatched; no migration"
+      },
+      "W1C-COMPOSITION": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_ae17f82ce77d",
+        "dispatch": "ctx_07fbdcb5e9f8",
+        "status": "completed (23:08)",
+        "result": "create-app compose resolver (feature enable) + composition test; receipt acquire updated; git sach"
+      },
+      "P745-UI-KEYS": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_769a4f3d6ee1",
+        "dispatch": "ctx_9992cd00e835",
+        "status": "completed (23:10)",
+        "result": "types+screen+client; typecheck 3x0; Playwright 8 passed x3; build 3x0; parity rollback; honest absence; GAP live; bonus: p730-curl-import spec khong load (CJS)"
+      },
+      "PLAN-UPDATE-763": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_39784a756996",
+        "dispatch": "ctx_baf9d6fd7bb8",
+        "status": "completed (23:12)",
+        "result": "Part4 verdicts + ticks folded; +3 task rows; validator PASS 369/87"
+      },
+      "UI-REVIEW-P745-UI-KEYS": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_895fc7558fff",
+        "dispatch": "ctx_6b50bc003ebd",
+        "status": "completed (23:15 - UI_APPROVED)",
+        "result": "Antigravity Ã‚Â§5: UI_APPROVED; 4 tieu chi dat; PW 8/8 + typecheck/build; live journey gap (live DB seed)"
+      },
+      "CURL-SPEC-FIX": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_2a07da73a049",
+        "dispatch": "ctx_f0c6dcda19dc",
+        "status": "completed (23:20)",
+        "result": "__dirname CJS-safe; 16 passed x3; full-dir collect 72/9 exit 0; 0 finding"
+      },
+      "P745-CARRIER-DESIGN": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_77e15edce138",
+        "dispatch": "ctx_48e42e1c42cf",
+        "status": "completed (23:34)",
+        "note": "Delta-PC-1 sealed carrier design (READ-ONLY)",
+        "result": "Form A + 7 decision items + lease map + T1-T7 + ordering; adjudications chot ca 7"
+      },
+      "VERIFY-COMPOSITION": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_832210f22344",
+        "dispatch": "ctx_57bf7078f67c",
+        "status": "completed (23:34 - PASSED)",
+        "result": "3 rounds x 76 tests (26+5+45) exit 0; create-app khop patch+digest; S3-only giu Postgres-only; fail-closed giu; hashes unchanged"
+      },
+      "P745-PARAMETER-POLICY": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_90dce8eb4ed7",
+        "dispatch": "ctx_286e91afeefb",
+        "status": "completed (00:02)",
+        "note": "MEDIUM-1 impl C+A-lite+admin-trusted; scope chot tu prep",
+        "result": "C+A-lite (service-level createRevision)+admin-trusted; caps 64/8192 (duyet); 219/219; 12 fail pre-existing attributed; public-client bound future"
+      },
+      "P745-UI-MASK": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8",
+        "task": "task_73a9a521e775",
+        "dispatch": "ctx_9fd5a60f39cf",
+        "status": "completed (23:54)",
+        "note": "Q2 heuristic toggle accepted",
+        "result": "Q2 toggle; typecheck 3x0; build 3x0; SSR masked-by-default + heuristic boundary; GAP click SKIP; d18-d20"
+      },
+      "P745-CARRIER-IMPL-A": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_0aa4370bf6bf",
+        "dispatch": "ctx_d5cc950504ae",
+        "status": "completed (23:55)",
+        "note": "core: contracts field + 0031 + slot + producer + claim + T1-T4",
+        "result": "7/7 adjudications; 14 test moi; 11 suite/115 x3; tsc 0; contracts 24/25 (vault pre-existing A/B); allowPlaintext=false rieng carrier"
+      },
+      "P745-SESSION-CONSUME": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_be715b5308db",
+        "dispatch": "ctx_c917363c86c6",
+        "status": "completed (23:59 offline DONE)",
+        "note": "sessionRef capture/inject trong invoke seam (gioi invoke; DELTA-D)",
+        "result": "seam capture/inject; 10/10 + focused x3 23; DELTA-A giu; ts c0; Delta-1 duyet; Delta-2 conservative ruling; Delta-3/4 live"
+      },
+      "AUDIT-EXT": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_c6286c814a37",
+        "dispatch": "ctx_b031db8b72b7",
+        "status": "completed (23:54)",
+        "note": "mo rong principal fields moi action (Delta-8 follow-up)",
+        "result": "principal fields moi dispatcher action; 155 x3; W3 suite nguyen; follow-up route-level -> AUDIT-EXT-2"
+      },
+      "P745-CONNECTOR-PASSTHROUGH": {
+        "lane": "cc_3 (MOI)",
+        "handle": "term_4954d39e",
+        "task": "task_28a74700349e",
+        "dispatch": "ctx_6bb173710545",
+        "status": "completed (00:10)",
+        "note": "T5 whitelist provider options",
+        "result": "allowlist contract-level; chain pin 4; focused x3; lease-tension resolved (connector.ts contracts duyet)"
+      },
+      "VERIFY-TAPI01": {
+        "lane": "codex_3 (MOI)",
+        "handle": "term_37c6cebe",
+        "task": "task_1e164d59de07",
+        "dispatch": "ctx_3bcefd7a5c4",
+        "status": "completed (23:49 - CONFIRMED)",
+        "note": "independent verify T-API-01 closure",
+        "result": "E2E rev 2->3; registry 1 ban; policy giu; cipher khong lo; 0/{} chi con /new; tester.md:12835"
+      },
+      "VERIFY-PRODUCER": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_4e95d4b8c8a6",
+        "dispatch": "ctx_b53df392c1d5",
+        "status": "completed (23:56 - CONFIRMED)",
+        "result": "marker/parser verified; 0030+test khop pin; regression 10/11 (BR-12 pre-existing); hash delta attributed carrier edits"
+      },
+      "PLAN-UPDATE-770": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc",
+        "task": "task_8c2c33df8fde",
+        "dispatch": "ctx_59622d4e75e4",
+        "status": "completed (23:58)",
+        "result": "carrier adjudications + roster 13 exact + UI tick + LOW-1 + MISMATCH-CLEAR; validator PASS"
+      },
+      "DESIGN-REVIEW-CARRIER": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_330e383c486d",
+        "dispatch": "ctx_c88c8aabc1dc",
+        "status": "completed (00:11 - APPROVED-WITH-CONDITIONS)",
+        "note": "Part4 task closed phia Orca truoc khi dispatch",
+        "result": "Form A dung; AAD timingSafe; cross-check strong (single-bucket invariant); caps OK; conditions: debug-log, step_checkpoints no-duplicate, B null->connector default"
+      },
+      "UI-BROWSER-ENV": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_4636ffd00de9",
+        "dispatch": "ctx_3ad085d26f3c",
+        "status": "completed (23:50)",
+        "result": "runbook 2-plane; env table; script 5.2; unskip matrix 75 (24 PASS/46 ready/5 live); blockers B1-B4"
+      },
+      "PLANE-A-RUN": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228-0087",
+        "task": "task_1727b13138ec",
+        "dispatch": "ctx_a4040b36bb40",
+        "status": "completed (00:16)",
+        "note": "46 harness tests + PNG evidence -> Antigravity full-page review",
+        "result": "43/46 tests (count mismatch - Delta); manual 5.2; PNG collected; harness.json restored after auto-policy delete attempt"
+      },
+      "UI-REVIEW-P745-UI-MASK": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_7871609d9f2f",
+        "dispatch": "ctx_75765af5bf27",
+        "status": "completed (23:57 - UI_APPROVED)",
+        "result": "UI_APPROVED; d18/d19/d20 chap nhan as-is (d20 display-only an toan, khong can packet); 19/19"
+      },
+      "AUDIT-EXT-2": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_8fef289f15bc",
+        "dispatch": "ctx_4edcea774277",
+        "status": "completed (00:02)",
+        "result": "route-level principal; admin-local repository = deferral chu dich (CLI provisioning no principal); 280x3"
+      },
+      "P745-CARRIER-IMPL-B1": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_f450395484b0",
+        "dispatch": "ctx_f2a019e7220d",
+        "status": "completed (00:08)",
+        "note": "SDK leg; B2 (wiring document-core) sau khi qwen_2 xong",
+        "result": "SDK forward; 6 test; 35x3; full SDK 691; ORCH 11/115 x3; deviation .optional() duyet"
+      },
+      "VERIFY-IMPL-A": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_891b52968b39",
+        "dispatch": "ctx_bbb3ad6eab00",
+        "status": "completed (00:14 - CONDITIONAL)",
+        "result": "T1/T2 7+7; 11/115 x3; GAPS: claim caps chua mirror; tampered-tag test sua ciphertext khong sua tag"
+      },
+      "IMPL-REVIEW-A": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_5bc5a732f055",
+        "dispatch": "(queue - bind sau DESIGN-REVIEW-CARRIER)",
+        "status": "completed (00:11 - APPROVED-WITH-CONDITIONS)",
+        "result": "1a-1g ALL PASS; sentinel/0-write verified; fail-closed classes; conditions Packet-B"
+      },
+      "P745-CARRIER-IMPL-B2": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_d0bf5c731a86",
+        "dispatch": "ctx_7908e7b5ad5d",
+        "status": "completed (00:59 - partial, gaps documented)",
+        "note": "PARTIAL: T6 xong; T7 1/6 site; cho adjudication Delta-B2-1..4 -> da gui (00:42): B2-1=(a) xoa field+2 dong test co phe duyet; B2-2=adapter chokepoint substitution; B2-3=format confirmed; B2-4=duyet dist.",
+        "result": "T6+extract+adapter chokepoint; 10/10; x3 31; GAP: 5 site thieu promptStepId (honest) -> B2-WIRING"
+      },
+      "IMPL-A-CAPFIX": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_f9c10fd458c5",
+        "dispatch": "ctx_5a37aa735415",
+        "status": "completed (00:23)",
+        "result": "claim caps PROMPT_CARRIER_TOO_LARGE + tag-tamper that; T2 9/9; 117 x3; tsc 0; single-bucket giu"
+      },
+      "UI-FULLPAGE-REVIEW": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_d8663d8060cc",
+        "dispatch": "ctx_a5424a973e2e",
+        "status": "completed (00:23 - UI_APPROVED page-level)",
+        "result": "Overview/Profiles/Connectors/Operations/Security; 43/43 pass (43 la so dung, 46 nominal); 53 PNG dat chuan"
+      },
+      "VERIFY-CAPFIX": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_0c68c859d589",
+        "dispatch": "ctx_3a289d031b8c",
+        "status": "completed (00:28 - PASSED)",
+        "result": "claim limits 64/16KiB/256KiB sau shape-parse truoc cross-check; tag-tamper that -> AUTHENTICATION_FAILED + 0 writes; single-bucket OK; tester.md:13082"
+      },
+      "CONNECTOR-WIRE-A": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_546243dde80a",
+        "dispatch": "ctx_1035d55f0a6d",
+        "status": "completed (00:40)",
+        "result": "store+routes+5 actions (admin-only/CSRF/audit/idempotency pinned)+boot fail-closed+contracts; 23x3; regression 66; deltas 1-5 duyet"
+      },
+      "BR12-FIX": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_405beb3abd64",
+        "dispatch": "ctx_044ef081e554",
+        "status": "completed (00:37)",
+        "result": "fixture inputSchema (test-side, 0 source delta); br12 x3 green 18/18; standing-red bot 1"
+      },
+      "SESSION-LEG": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_e53411a69920",
+        "dispatch": "ctx_2da1e7a27c2d",
+        "status": "completed (00:42)",
+        "result": "adapter forward sessionRef (json/multipart/canonicalInput); 19x3; 322 connector; mutation probe load-bearing; revert sach"
+      },
+      "UI-MASK-PW": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8",
+        "task": "task_06d144551366",
+        "dispatch": "ctx_c9546b53e153",
+        "status": "completed (00:39)",
+        "result": "2 browser case x3 green; click-reveal/hide + header rule proven; 4 PNG; GAP dong; no production change"
+      },
+      "VERIFY-T5": {
+        "lane": "codex_worker_1",
+        "handle": "term_37c6cebe",
+        "task": "task_0483674d7681",
+        "dispatch": "ctx_f1acf61e1313",
+        "status": "completed (00:38 - CONFIRMED)",
+        "result": "3 test x3; allowlist contract-level; vault pre-existing; jest green"
+      },
+      "PLAN-UPDATE-780": {
+        "lane": "cc_3 (reassigned tu codex_arch - terminal arch dang user-occupied)",
+        "handle": "term_4954d39e",
+        "task": "task_df847128ecc0",
+        "dispatch": "ctx_8b0d50eb22a7 (old ctx_eb4e6d7f9e55 abandoned)",
+        "status": "completed (01:02 - cc_3)",
+        "result": "fold day du (page tick, verdicts, CAPFIX, PLANE-A 43, BR12/UI-MASK-PW/CW-A/SESSION-LEG/VERIFY-T5, B2 status, backlog 776-780) + supersede chain validator; receipt plan-update-780"
+      },
+      "CONNECTOR-WIRE-B-BFF": {
+        "lane": "dsh_1 (MOI)",
+        "handle": "term_a85c47f2",
+        "task": "task_75f7d8cc08a5",
+        "dispatch": "ctx_401c70cd59c3",
+        "status": "completed (01:38)",
+        "result": "17 test pinned; gates/platform-only; redaction/no-evil-query; 502/503/405; dot-segment; actions CSRF/409 sanitized; deltas duyet; standing-red root-cause found -> SHELL-RED-FIX"
+      },
+      "CONNECTOR-WIRE-B-UI": {
+        "lane": "dsh_2 (MOI)",
+        "handle": "term_bac0ad06",
+        "task": "task_f7ad68e17fa3",
+        "dispatch": "ctx_bbb742933ae9",
+        "status": "completed (02:00)",
+        "result": "typecheck x3; build; 43+89 passed; 2 PNG; G1 STALE (reconcile: BFF co du 2 route); G4 stub ext queue"
+      },
+      "B2-WIRING": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_2e09ab77d719",
+        "dispatch": "ctx_ccd5f17c4226",
+        "status": "completed (01:07)",
+        "result": "10 call site (5 action) promptStepId; 17/17; 38 x3; tsc 0; DELTA-A 10/10 sau 2 literal duyet; live gap noted"
+      },
+      "VERIFY-CW-A": {
+        "lane": "codex_worker_1",
+        "handle": "term_37c6cebe",
+        "task": "task_8f9ce55a491f",
+        "dispatch": "ctx_c27f8d01582a",
+        "status": "completed (01:10 - CONFIRMED)",
+        "result": "5 action/CSRF/replay/CAS/503/placeholder 28 dong match"
+      },
+      "CREDWORKFLOW-PREP": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_2bbec4129b83",
+        "dispatch": "ctx_352b952d737e",
+        "status": "completed (01:03)",
+        "result": "design + test plan + 5 Delta (adjudicated: D1 no-sink; D2 bootstrap trong IMPL; D3 DU_VAULT_KV_* refuse-partial; D4 defer; D5 later)"
+      },
+      "DOC-SYNC-TAPI01": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_2b052925e814",
+        "dispatch": "ctx_ecb97a00a8ae",
+        "status": "completed (01:04)",
+        "result": "openapi + stale comment fix + rerun"
+      },
+      "ENCMETA-RESULTREF-PREP": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_32812712e575",
+        "dispatch": "ctx_a9a7bde53604",
+        "status": "completed (01:07)",
+        "result": "Option A+C recommended; grep xac nhan /result copy verbatim opaque ref -> A an toan (open tai read path)"
+      },
+      "CREDWORKFLOW-IMPL": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_22dab711e217",
+        "dispatch": "ctx_a8d69d2bc454",
+        "status": "completed (01:16)",
+        "result": "writer+compose+bootstrap+e2e; 12x3; regression 89; sentinel 0 lo; Vault-down 503+0 calls; D1-D5 dung"
+      },
+      "VERIFY-B2": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_b7e271ade46d",
+        "dispatch": "ctx_0e84cb56400d",
+        "status": "completed (01:24 - PASSED)",
+        "result": "17/17 x3; 38/38 x3; DELTA-A 10/10; 11 call site; execution-pin diff chi 2 field duyet"
+      },
+      "VERIFY-CREDWORKFLOW": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228-0087",
+        "task": "task_04301fc07aac",
+        "dispatch": "ctx_62d64ea05985",
+        "status": "completed (01:4x - PASS)",
+        "result": "12x3 + regression 89 + tsc; limits ghi ro (timeout/override/SQL-empty)"
+      },
+      "ENCMETA-RESULTREF-IMPL": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_633f9b96e6d6",
+        "dispatch": "ctx_ffcd5c8b8f53",
+        "status": "completed (01:30)",
+        "note": "seal 2 slot + open R1/R2/R4 + open-truoc-R3-merge; flip FINDING pin",
+        "result": "2 slot sealed; writer seal 2 binding; R2/R3 open-truoc-merge; R1 opaque; readStoredText; FINDING flip; 10/10 x3; regression 61; Delta-LEASE 3 file RATIFY"
+      },
+      "W-REVIEW-B2": {
+        "lane": "claude",
+        "handle": "term_19edcad8",
+        "task": "task_21af02ba4415",
+        "dispatch": "ctx_bc624a8dc94a",
+        "status": "completed (01:51 - APPROVED-WITH-CONDITIONS)",
+        "result": "T-PROM-02 OFFLINE CHAIN KIN toi mocked invoke boundary; carry-forward no-log + checkpoints -> live"
+      },
+      "VERIFY-ENCMETA": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_f39001c0c67c",
+        "dispatch": "ctx_139662a9b6a8",
+        "status": "completed (01:43 - pass voi limits)",
+        "result": "limits: chua co case sai-row-cung-slot rieng; khong toan bo metadata suite"
+      },
+      "LIVE-PLAN-REFRESH": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_b7c99ec4d2c2",
+        "dispatch": "ctx_afbb0ac3a000",
+        "status": "completed (01:35)",
+        "result": "append-only byte-proof; +5 items; 8-cau-hoi o coordination/reports/live-test-prep-2026-10-04.md (tim thay sau do)"
+      },
+      "ENCMETA-SCHEMA-PREP": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_27a5fa9e47a4",
+        "dispatch": "ctx_48adcb0c82c8",
+        "status": "completed (01:39)",
+        "result": "Option C duyet (documented exemption + wire guards + conditional trigger)"
+      },
+      "UI-KEYS-JOURNEY-PW": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8",
+        "task": "task_e1870326f139",
+        "dispatch": "ctx_8ee4b68970ac",
+        "status": "completed (01:48 - DONE)",
+        "result": "browser journey that 3x green; wire asserts; regression 89/5skip; live DB seed GAP"
+      },
+      "MEDIUM-2": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_8fec5804c846",
+        "dispatch": "ctx_122f0d660360",
+        "status": "completed (01:52)",
+        "result": "credentialRef.tenantId uuid; fixture sua; revision bump DEFER (commit plan)"
+      },
+      "VERIFY-CW-B-BFF": {
+        "lane": "codex_worker_1",
+        "handle": "term_37c6cebe",
+        "task": "task_82e713edee2e",
+        "dispatch": "ctx_df3d287ab309",
+        "status": "completed (01:48 - PASS)",
+        "result": "17x3 + tsc; gates/redaction/errors/fence/actions pinned; standing-red 16/102 attributed khong do BFF"
+      },
+      "SHELL-RED-FIX": {
+        "lane": "cc_3",
+        "handle": "term_4954d39e",
+        "task": "task_1150c4b4d22f",
+        "dispatch": "ctx_88774c089e26",
+        "status": "completed (01:51)",
+        "result": "9/11 shell suites PASS; con session-lifecycle 2 test -> SHELL-RED-FIX-2"
+      },
+      "ENCMETA-SCHEMA-IMPL": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_cab89954cb71",
+        "dispatch": "ctx_612fa0aba4e6",
+        "status": "completed (01:56)",
+        "result": "test 3 flip documented acceptance + wire guards; +48 nguyen"
+      },
+      "UI-REVIEW-CW-B-UI": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42",
+        "task": "task_de439740b4d3",
+        "dispatch": "ctx_b0a15d54ebb9",
+        "status": "completed (02:03 - UI_APPROVED)",
+        "result": "6/6 tieu chi; 43 playwright pass; tick CW-B UI slice"
+      },
+      "SHELL-RED-FIX-2": {
+        "lane": "codex_worker_1",
+        "handle": "term_37c6cebe",
+        "task": "task_af5bb1404490",
+        "dispatch": "ctx_0a3acc65bf8a",
+        "status": "completed (02:08)",
+        "result": "103/103 x3 (session+render+auth); 2 case pass ca NODE_ENV=production"
+      },
+      "VERIFY-SCHEMA-IMPL": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612",
+        "task": "task_845e8d834007",
+        "dispatch": "ctx_4a0fdf13183d",
+        "status": "completed (02:08 - pass+limits)",
+        "result": "limits: HumanWaitViewSchema van cho uiSchema; e2e projector khong HTTP; +48 gom ca carrier slot"
+      },
+      "STUB-EXT": {
+        "lane": "dsh_2",
+        "handle": "term_bac0ad06",
+        "task": "task_6c3f34cf5eda",
+        "dispatch": "ctx_24fea64135e7",
+        "status": "running (02:17)"
+      },
+      "NAV-DEDUPE": {
+        "lane": "cc_3",
+        "handle": "term_4954d39e",
+        "task": "task_18a515f5642d",
+        "dispatch": "ctx_6b37fda36043",
+        "status": "completed (02:07)",
+        "result": "view-models single-source; 3 shell suite x3 xanh"
+      },
+      "PLAN-UPDATE-795": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_1af50f8e916b",
+        "dispatch": "ctx_bfab13ab2da8",
+        "status": "completed (02:16)",
+        "result": "fold 781-795 + skeleton 796-800; validator roster 15 exact; notices supersede 780"
+      },
+      "COMMIT-PLAN-PREP": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_eb945181f7a1",
+        "dispatch": "ctx_33c9d6900da0",
+        "status": "completed (02:24)",
+        "result": "15 nhom c1-c6/u7-u15 + hunk-map 11 file dung chung + NOT-GROUP + 6 luu y; 0 staged"
+      },
+      "LIVE-READY-PREP3": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228-0087",
+        "task": "task_7676cc6beee5",
+        "dispatch": "ctx_7cd9af4dca30",
+        "status": "running (02:3x)"
+      },
+      "VERIFY-SHELL-FIX": {
+        "lane": "codex_worker_1",
+        "handle": "term_37c6cebe",
+        "task": "task_38ba91de18b8",
+        "dispatch": "ctx_cafd66344c73",
+        "status": "completed (02:34 - CONFIRMED)",
+        "result": "FIX-2 assertions dung nghia; ALL_NAV_ITEMS canonical reference; tester.md:13397"
+      },
+      "DOCS-CONNECTOR-WIRE": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_ffa9937e11eb",
+        "dispatch": "ctx_48666507e972",
+        "status": "completed (02:35)",
+        "result": "docs-connector-wire receipt; env-sync proposal approved -> dispatched"
+      },
+      "ENCMETA-BACKFILL-PREP": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae",
+        "task": "task_e076e82aa5ce",
+        "dispatch": "ctx_c8f2e110ace5",
+        "status": "running (02:3x)"
+      },
+      "LIVE-SPEC-EXT": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af",
+        "task": "task_d4a8f00a4f28",
+        "dispatch": "ctx_92a2f2039d8d",
+        "status": "completed (02:38)",
+        "result": "legs moi gated; --list collect"
+      },
+      "CFGADM-UI-INVENTORY": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8",
+        "task": "task_85009ba75bb3",
+        "dispatch": "ctx_50ddd4e2f30e",
+        "status": "completed (02:38)",
+        "result": "12 rows: 3 legacy-working/1 scaffold/7 UI-missing; token single-source; port order"
+      },
+      "ENV-EXAMPLES-SYNC": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_cc1e2d165279",
+        "dispatch": "ctx_7f36147ce450",
+        "status": "completed (02:39)",
+        "result": "3 env Vault + notes"
+      },
+      "TICK-PROPOSAL-2": {
+        "lane": "cc_3",
+        "handle": "term_4954d39e",
+        "task": "task_6dc9b87a7e9d",
+        "dispatch": "ctx_18b515a9ff1d",
+        "status": "running (02:39)"
+      },
+      "PLAN-UPDATE-800": {
+        "lane": "cc_2",
+        "handle": "term_ee7e9f33",
+        "task": "task_fa67752250b2",
+        "dispatch": "ctx_51d9319aee5e",
+        "status": "running (02:42)"
+      },
+      "RCR-HTTP": {
+        "lane": "cc_1",
+        "handle": "term_c03791d1",
+        "task": "task_0a7e017eb66e",
+        "dispatch": "ctx_162171357e12",
+        "status": "running (02:46)",
+        "note": "RCR-01/03/06 tu user-lane review"
+      },
+      "RCR-RUNTIME": {
+        "lane": "dsh_1",
+        "handle": "term_a85c47f2",
+        "task": "task_fa1463127729",
+        "dispatch": "ctx_505e2ce3892b",
+        "status": "running (02:46)",
+        "note": "RCR-02/04/05; runtime.ts EXCLUSIVE"
+      }
+    },
+    "holds": {
+      "W1b": "sau W1a DTO freeze (checkpoint a)",
+      "W1c": "shared Orchestrator files serialize sau W1a",
+      "W3": "sau W1a contract/publish/CAS invariant"
+    },
+    "next_plan_review_turn": 805,
+    "ref": "coordination/COORDINATION-TOPOLOGY.md Ã‚Â§4 + Ã‚Â§6",
+    "WAVE-801": {
+      "ctx_607025e003d5": {
+        "lane": "claude",
+        "handle": "term_19edcad8-dcd8-4930-a6a2-24f5f8be5bd8",
+        "task": "task_12a45ac2f379",
+        "dispatch": "ctx_607025e003d5",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_a80031d035fb": {
+        "lane": "codex_arch",
+        "handle": "term_43f85ccc-f868-4ec5-b9df-7a64325b1ce6",
+        "task": "task_e9b996b83fde",
+        "dispatch": "ctx_a80031d035fb",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_5f644956d3b2": {
+        "lane": "antigravity",
+        "handle": "term_ae2d7e42-8042-4b85-95d5-cabed5ee3191",
+        "task": "task_71453f2d9153",
+        "dispatch": "ctx_5f644956d3b2",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_2f23e0b3f8fa": {
+        "lane": "qwen_1",
+        "handle": "term_7cb640ae-5ffe-4675-9f7b-0c99c1070268",
+        "task": "task_7901486104c7",
+        "dispatch": "ctx_2f23e0b3f8fa",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_fbbec9a88802": {
+        "lane": "qwen_5",
+        "handle": "term_822128f8-b2b6-4685-bd12-ce91069949b8",
+        "task": "task_34af06b387a2",
+        "dispatch": "ctx_fbbec9a88802",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_b9419d156c42": {
+        "lane": "qwen_2",
+        "handle": "term_4bca69af-a9d5-40f4-8dac-2edb1853dbac",
+        "task": "task_2c00f0092235",
+        "dispatch": "ctx_b9419d156c42",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_3f37fbbfabd2": {
+        "lane": "codex_worker_1",
+        "handle": "term_37c6cebe-5c6f-4eae-9690-db6d1b3c8740",
+        "task": "task_7516a19e10e1",
+        "dispatch": "ctx_3f37fbbfabd2",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_bb755b3f71cd": {
+        "lane": "dsh_2",
+        "handle": "term_bac0ad06-e10d-4870-9c57-b63a7ccf0bb3",
+        "task": "task_3057f69f1012",
+        "dispatch": "ctx_bb755b3f71cd",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_9058d276aaa2": {
+        "lane": "dsh_1",
+        "handle": "term_a85c47f2-6461-40db-8dc1-acff797f9f37",
+        "task": "task_60c55b14b7d2",
+        "dispatch": "ctx_9058d276aaa2",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_ef0b304b8519": {
+        "lane": "codex_tester_offline",
+        "handle": "term_2ea0ce2e-1612-449f-b772-b177fe15df31",
+        "task": "task_fdb2d8dc32d6",
+        "dispatch": "ctx_ef0b304b8519",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_bcb31a81def4": {
+        "lane": "codex_tester_live",
+        "handle": "term_3adb7228-0087-45c5-8a18-77a4150a5043",
+        "task": "task_793fb952ec41",
+        "dispatch": "ctx_bcb31a81def4",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      },
+      "ctx_d42ffaa6c3f6": {
+        "lane": "dsh_3",
+        "handle": "term_273952b5-c8d6-4c35-9965-bfa84e7eb1e6",
+        "task": "task_0b16a395e2af",
+        "dispatch": "ctx_d42ffaa6c3f6",
+        "status": "dispatched (03:0x +07)",
+        "spec": "coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md"
+      }
+    }
   },
-  "qwen_3": {
-   "handle": "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "role": "Implementation and bug fixes; scoped packet ownership"
+  "operating_directives_2026_10_04": [
+    "1) Dieu phoi du roster (5 Qwen, 2 Codex tester, 2 CC phu, Codex Arch, Claude reviewer, Antigravity UI) - khong de idle vo co.",
+    "2) Moi phien: doc log that tung agent dang nhan task; stuck (cho xac nhan / prompt interactive / lap loi) -> nudge/go blocker ngay.",
+    "3) Implement xong + receipt dat chuan -> bat buoc goi Claude review backend/API/module + Antigravity UI Ã‚Â§5; chi tick acceptance khi co verdict APPROVED.",
+    "4) Sau moi 5 luot (turn % 5 == 0) -> ra soat Master Plan, phoi hop codex_arch (term_43f85ccc), bo sung task + tai cau truc backlog 5 chu ky tiep theo."
+  ],
+  "coordinator_note_update_1805": "Wave1 dispatched tren run_069ecd6957cd (W1 qwen_1; W2-A tester offline; LIVE-prep tester live; PLAN05a cc_1; PLAN05b cc_2). HOLD: W1b/W1c/W3 theo gate; qwen_2/3/4/5 cho checkpoint/plan-review 730; qwen_4 cho user chot scope security. Cron 10 phut: 73fe7445.",
+  "plan_review_730": {
+    "status": "DONE 18:29 - receipt plan-review-730-2026-10-04.md; backlog 731-735; 4 packets dispatched 18:34 (SDK/API/ACQ prep + CURL)",
+    "partner": "codex_arch term_43f85ccc",
+    "task": "task_3eac9b118212",
+    "dispatch": "ctx_3e2138e3e4d6",
+    "started_at": "2026-10-04T18:15:00+07:00",
+    "inputs": [
+      "W1 audit F-W1-1..6",
+      "wave1 status",
+      "cc_1/cc_2 receipts (incoming)"
+    ],
+    "rule": "user rule #4: turn % 5 == 0"
   },
-  "codex_tester_offline": {
-   "handle": "term_b2d08e87-4435-4323-8e14-b58fa1a6729b",
-   "identity": "codex",
-   "model": "gpt-5.6-luna",
-   "role": "Independent unit, contract, build and regression verification"
+  "coordinator_note_update_1820": "Turn 730: plan-review 730 -> codex_arch (running, doc receipt plan-review-730). W1 dang implement fix F-W1-1 (validated snapshot build thay JSON.stringify(profile.policy) tai submission.ts:399). tester_offline baseline exit 0 (packages/contracts/tests/profile-policy.test.ts; khong co prompt-override.test.ts rieng). tester_live dang thu thap LIV context (liv03..11, rv0104). cc_1/cc_2: da go permission prompt + bat permission bypass (alt+m x3 tren cc_1/cc_2). claude/qwen_2/4/5 idle dung thiet ke.",
+  "coordinator_note_update_1830": "Turn 731: cc_2 DONE PLAN05b (receipt-status-inventory-2026-10-04.md; 13 row mapped; CONT/LPG gated boi COMP-00+PAR-00). tester_live finalize receipt LIVE-prep (4 gate tables + 8 cau hoi + window checklist; harness tests/live-prep/). W1 dang viet test cho fix F-W1-1. cc_1 ~14m. codex_arch chia backlog (slice Import cURL mo ngay).",
+  "coordinator_note_update_1836": "Turn 731 (inter-cycle sau nudge antigravity 18:30): settled codex_arch + cc_1 + 2 testers (Orca tasks completed). Wave 2 dispatched: P730-SDK-PREP->qwen_2; P730-API-PREP->qwen_3; P730-ACQ-PREP->qwen_4 (tra loi: KHONG mo security scope moi; receipt file moi); P730-CURL-IMPORT->qwen_5 (CFGADM-07 slice doc lap). W1 (qwen_1) dang verify (eslint lease files). Claude review chi sau W1 checkpoint (b).",
+  "coordinator_note_update_1840": "Turn 732: W1 (qwen_1) nudged - npx eslint doi cai package (prompt y), eslint KHONG thuoc acceptance; uu tien jest focused + tsc. Wave-2 lanes (qwen_2/3/4/5) dang chay tot. cc_1 nhan PLAN-GRAPH-DELTA re-scan (sau delta 15 docs). antigravity nhan CFGADM screen-spec review (read-only; khong UI_APPROVED). cc_2 HOLD: cho plan-editor sync register + cc_1 delta xong de tranh double-scan cay dang dong.",
+  "coordinator_note_update_1845": "Turn 733: cc_2 duoc mo khoa -> P730-CONT-PREP (inventory-only; plan-review Ã‚Â§4 ghi ro khong can W1). qwen_1: nudge da xep hang, dang cho timeout cua npx eslint (~7m) roi tu adapt - khong nhac lap. Wave-2 + cc_1 delta + antigravity screenspec dang chay. Chua co receipt moi.",
+  "coordinator_note_update_1855": "Turn 734: settle 3 receipt moi - cc_1 plan-graph-delta (150 link/0 broken; 10 fix con lai -> codex_arch), cc_2 continuity draft (15 open decisions COMP/PAR), antigravity cfgadm screen-spec (3 journey; Delta-DEV-01/02/03; khong UI_APPROVED). Dispatch P730-PLAN-MERGE-FIX -> codex_arch (10 doc fixes). qwen_1 dang danh bong receipt (da qua eslint); qwen_2 bi API stream error truoc buoc ghi receipt -> da nudge hoan tat; qwen_3/4/5 dang chay.",
+  "w1_status": {
+    "state": "PRODUCER-DONE (checkpoint (b) self-declared 18:55)",
+    "receipt": "coordination/reports/qwen1.md (W1-1/W1-2, 1994 dong)",
+    "fixes": "6/6 (F-W1-1..6)",
+    "verify": "3/3 focused 0/0/0; mutation probe 5/10 RED -> 10/10 xanh; 182/182 suite lien quan",
+    "pending": [
+      "W2-B independent verify (running)",
+      "cc_1 receipt audit (running) Ã¢â‚¬â€ xac nhan T-PROF-03 publish/CAS",
+      "Claude review sau verify"
+    ],
+    "notes": [
+      "DD-03 legacy plaintext snapshot fail-closed -> probe (tester_live)",
+      "DD-04 acquisition read path thuoc W1c",
+      "8 suite do toan cay la pre-existing (khong thuoc W1)"
+    ]
   },
-  "codex_tester_live": {
-   "handle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
-   "identity": "codex",
-   "model": "gpt-5.6-luna",
-   "role": "Independent integration, migration and end-to-end verification; exclusive live test window"
+  "coordinator_note_update_1900": "User hoi codex/CC agents idle -> coordination: W1 HOAN TAT (checkpoint b self-declared) => mo khoa verify wave. Dispatch 19:00: P730-W2-B (tester_offline - phase B doc lap), W1-DD03 probe (tester_live - fail-closed legacy snapshot), CFGADM-LPG-REGISTER-DELTA (cc_2), W1-RECEIPT-AUDIT (cc_1 - dac biet xac nhan T-PROF-03 publish/CAS). qwen_1 idle-brief cho ket qua verify; qwen_2 dang hoan tat receipt.",
+  "coordinator_note_update_1905": "Antigravity nudge 19:00: check log that -> qwen_2/3/4 dinh API stream error (18:5x-19:00) truoc buoc ghi receipt -> nudge x3 (qwen_2 lan 2). qwen_5 van chay (24m+). qwen_1 idle -> W1-HANDOFF task (release list W1c/W3). W1 task Orca -> completed. Claude duoc mo review Part 1 (design read-only, turn_started) theo rule #3.",
+  "checkpoint_b_resolution": {
+    "decision": "Theo dinh nghia plan-review-730 Ã‚Â§2: (b) YEU CAU publish/rollback/CAS evidence. W1 producer dat pham vi W1-spec (4 hang muc) nhung T-PROF-03 chua co bang chung (cc_1 audit Ã‚Â§5) => (b) CHUA dat. W1c/W3 giu HOLD cho den khi T-PROF-03 CLOSURE xong. Khong mo gate bang dinh nghia W1-spec."
   },
-  "codex_technical_lead": {
-   "handle": "term_31d9ed40-6acd-443e-9152-05ce5fd938ab",
-   "identity": "codex",
-   "model": "current-session",
-   "role": "User-facing technical decisions and cross-service review on request"
+  "plan_checkpoint_735": {
+    "note": "Tien do vs bang 731-735 (plan-review Ã‚Â§5): 731 OK (4 prep + W1); 732 OK ((b) self-declared + verify wave + register delta + handoff); 733-734 OK (W2-B/DD03/audit/review P1 + merge-fix + CURL + CONT-PREP); con lai: SDK-CONSUME (cho receipt qwen_2), W1c/W3 (cho T-PROF-03), UI-INTEGRATE (cho CURL done + Connector API), CONT decisions (user). De xuat: sau merge-fix receipt -> yeu cau codex_arch refresh 736-740 voi N1-N4 + Delta-DEV + ket qua verify."
   },
-  "codex_worker_1": {
-   "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
-   "identity": "codex",
-   "model": "gpt-6-luna",
-   "role": "Implementation and bug fixes; scoped packet ownership"
+  "coordinator_note_update_1910": "Turn 735: settle CURL-IMPORT (qwen_5; Playwright SKIP -> UI-INTEGRATE; 3 cau hoi), W1-AUDIT (cc_1; 6/6+2/2 SUPPORTED; lease PASS; T-PROF-03 KHONG co evidence -> (b) chua dat), REGDELTA (cc_2; 0 dup; N1-N4). Tao T-PROF-03 CLOSURE task_f0014eff828a (cho dispatch sau HANDOFF). W2-B/DD03/claude P1/codex_arch dang chay.",
+  "coordinator_note_update_1920": "Turn 736: settle merge-fix (10/10 doc fixes; validator 170 links/56 IDs/17 settings; diff-check 0) + DD03 (legacy snapshot -> 422 INVALID_SCHEMA; sentinel khong ro; 2/2 exit 0). Dispatch 19:11: T-PROF-03 CLOSURE -> qwen_1 (tra loi 4 cau hoi: credentialRef thuoc W1c; W3 khong ghi submission.ts; W1b chi doc runtime.ts; DD-03 live checklist). PLAN-MERGE-VERIFY-1 -> cc_1; REGISTER-DELTA-VERIFY -> cc_2; PLAN-REFRESH-736-740 -> codex_arch. W2-B + claude P1 + qwen_2/3/4 receipts van dang chay.",
+  "checkpoint_b": {
+    "status": "MET (19:30)",
+    "basis": "T-PROF-03 CLOSURE (25 tests 3x0; publish/rollback/CAS evidence) + plan-refresh Ã‚Â§2 definition",
+    "riders": [
+      "DD-05 invariant#1 test running (qwen_1)",
+      "W2-B/independent verify + live gaps remain cho full acceptance",
+      "Named leases da dat: W1c resolver leaf + W3 admin leaf/BFF"
+    ],
+    "effective": "W1c/W3 INTEGRATION duoc phep mo (khong phai full acceptance)"
   },
-  "codex_worker_2": {
-   "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
-   "identity": "codex",
-   "model": "gpt-6-luna",
-   "role": "Implementation and bug fixes; scoped packet ownership"
+  "coordinator_note_update_1930": "Turn 737: settle cc_1 MERGE-VERIFY-1 (9/10 FIXED; L2 PARTIAL: 33 bare PAR-## con lai -> plan editor) + cc_2 REGDELTA-VERIFY (N1-N4 STILL truoc refresh; refresh da APPLY -> can re-scan) + qwen_1 T-PROF-03 CLOSURE (25 tests 3x0; 0 product diff). (b) CHOT MET -> mo W1c/W3 sau prep receipts; specs named da soan: ACQUIRE (qwen_4, leaf acquisition-ref-resolver.ts) + ADMIN-MUTATE (qwen_3). DD-05 dispatch qwen_1. Nudge qwen_2 (finalize receipt-only) + qwen_3 (receipt lan 2). F-3: giu nguyen; DD-06: note cho W3. codex_arch refresh dang chay (validator pending); claude P1 dang chay; W2-B dang chay (co 1 run exit 1 dang dieu tra).",
+  "w1c_gate": "ACQ-PREP receipt + P2-FIX (task_6d21a84909fd) + named lease; ACQUIRE chi mo sau do",
+  "coordinator_note_update_1935": "Nudge antigravity 19:30 -> fresh-read: qwen_1 DD-05 run 3/3 (active); qwen_2 active (nudge queued); qwen_3 recovered + writing receipt; qwen_4 blocked-on-question -> da tra loi (approve receipt); qwen_5 idle -> UI-INTEGRATE p1; tester_off W2-B DONE -> settle (finding P2 ref-tuple); tester_live idle -> LIVE-READY-PREP2; antigravity -> CURL review Q1/Q2/Q3. P2-FIX created; W1c gate += P2-FIX.",
+  "coordinator_note_update_1940": "Turn 738: settle refresh-736-740 (N1-N4 folded; validator 197 links/17 settings; REF-BIND-FIX noted). Claude P1: turn ket thuc, Claude hoi xac nhan -> da xac nhan, dang viet receipt w1-review-part1 (turn_started). cc_1/cc_2 -> DELTA-2 + N-VERIFY (sau refresh delta). qwen_1 DD-05: 65/65 green, dang ghi receipt (temp-staging); qwen_2 dang xu ly nudge 3; qwen_3 dang auto-retry sau stream errors (lan 3); qwen_4 dang ghi receipt; qwen_5 UI-INTEGRATE p1 + tester_live LIVE-PREP2 dang chay.",
+  "coordinator_note_update_1945": "Turn 739: settle DELTA-2 + N-VERIFY + CURL-UI-REVIEW (3 receipt; N1-N4 FIXED; L2 sweep -> merge-fix-2; Q1/Q2/Q3 da chot theo de xuat). Dispatch merge-fix-2 -> codex_arch. Nudge: qwen_1 append DD-05 receipt; qwen_3/qwen_4 go loi tool Exec {} (kenh ghi receipt truc tiep). qwen_2/qwen_5/tester_live/claude dang chay.",
+  "plan_checkpoint_740": {
+    "block": "736-740",
+    "status": "DONG BLOCK: (b) MET 19:30; verify wave hoan tat (W2-B + P2 finding; audit PASS; DD03; delta-2; N-verify; CURL review); T-PROF-03 CLOSURE; DD-05 staged; UI-INTEGRATE p1 running; LIVE prep ready-to-run; docs chain dong (merge-fix 1+2, refresh 736-740); Part 2 verdict dang chay; REFRESH-741-745 dang chay.",
+    "next_block_focus": "P2-FIX -> W2-B 11/11 -> dong P2; SDK-CONSUME (cho receipt qwen_2); W1c (sau P2-FIX + release list); W3; UI-INTEGRATE completion + browser gap; Part 2 verdict -> dieu kien dong; CONT user-gated.",
+    "note": "KhÃƒÂ´ng tÃ¡ÂºÂ¡o G6/GO claim; mÃ¡Â»Âi acceptance cho verify/review/live riÃƒÂªng."
   },
-  "codex_worker_3": {
-   "handle": "term_f1ed751c-4c2a-4563-9687-0a5b30c5900a",
-   "identity": "codex",
-   "model": "gpt-6-luna",
-   "role": "Implementation and bug fixes; scoped packet ownership"
+  "coordinator_note_update_1955": "Turn 740 (checkpoint): settle merge-fix-2 + live-prep-2 + claude P1 (3). Dispatch: W1-REVIEW-P2 (claude, verdict), L2-RECHECK (cc_1), REFRESH-741-745 (codex_arch). Xu ly qwen errors: qwen_3 ESC-cancel turn treo (20m/114 tokens) + re-instruct ghi receipt; qwen_1 retry append DD-05; qwen_2 nudge receipt NGAN (stream idle timeout 240s). qwen_4 ACQ-PREP receipt land (settle sau khi doc). qwen_5 UI-INTEGRATE dang chay (slow).",
+  "adjudications": {
+    "DELTA2-URL-QUERY-SECRET": {
+      "decision": "CAM raw secret trong URL query cua acquisition request (deny hoac redact co chu dich theo PLAN04-01 Ã‚Â§2 - khong de im lang); fold vao W1c acceptance + test negatives.",
+      "at": "2026-10-04T20:02:06+07:00"
+    },
+    "L2-RESIDUAL": {
+      "decision": "Sweep tiep 4 parent docs (ORCHESTRATOR-LEGACY-FEATURE-PARITY, ORCH-PAR-00-SURVEY, FEATURE-PARITY-BOUNDARIES, ADMIN-CONTROL-PLANE-UI) qua PLAN-MERGE-FIX-3 de dong L2 toan suite; giu PAR-XA-*.",
+      "at": "2026-10-04T20:02:06+07:00"
+    },
+    "DELTA-A-EXECUTION-PIN": {
+      "decision": "Test execution-pin thuoc W2: KHONG sua trong W1b; SDK-CONSUME phai giu assertion pinned-variant/slot; neu xung dot that -> Delta + de xuat.",
+      "at": "2026-10-04T20:13:14+07:00"
+    },
+    "DELTA-B-PRODUCER-PROMPTREVISIONS": {
+      "decision": "promptRevisions hardcode {} la producer gap - SDK pass-through + GAP note; producer fill thuoc packet producer sau (khong mo rong P2-FIX).",
+      "at": "2026-10-04T20:13:14+07:00"
+    },
+    "DELTA-C-PRECEDENCE": {
+      "decision": "resolve consumer-side tu snapshot (Code>Profile>Connector + _default); doi producer -> Delta.",
+      "at": "2026-10-04T20:13:14+07:00"
+    },
+    "DELTA-D-RUNCONNECTORSTEP": {
+      "decision": "Giu invoke hien co; seam runConnectorStep de GAP (khong chuyen trong packet nay).",
+      "at": "2026-10-04T20:13:14+07:00"
+    },
+    "DELTA7-W3-IDENTITY-KEY": {
+      "decision": "CHOT (A): migration 0028 (profile_name + unique key) + ApiKeyRefSchema transform non-breaking; giu semantics (b,v,n); leaf resolve bang SELECT truoc ghi; ÃŽâ€-DEVIATION cho Claude closure.",
+      "at": "2026-10-04T20:34:50+07:00"
+    },
+    "DELTA8-TAUD-SEAM-LEASE": {
+      "decision": "CAP LEASE MO RONG (khong tach seam): rbac.ts + session-store.ts + audit.ts + migration; dieu kien single-writer + LEASE-ANNOUNCE + additive-only + fallback cu giu nguyen.",
+      "at": "2026-10-04T20:34:50+07:00"
+    },
+    "DELTA10-DD06-CLIENT": {
+      "decision": "Cap 1 dong apps/admin-web/src/lib/api/client.ts (expectedRevision -> number); khong cham gi khac.",
+      "at": "2026-10-04T20:34:50+07:00"
+    },
+    "P745-PRODUCER-MARKER": {
+      "at": "2026-10-04T22:31:27+07:00",
+      "decision": "CHOT phase 1 marker-only (P2-a): cot moi operations.prompt_revisions_pin jsonb NULL; marker [{connectionId, stepId, revision}]; revision = sha256:hex(sha256(connectionId|stepId|content)). Map trong claim: key = connectionId::stepId (composite, luon) de tranh collision da connection; _default = connectionId::_default. Legacy op = {}. Pin hong -> fail-closed INVALID_SCHEMA. Migration = 0030 (0028/0029 da bi chiem boi W3). Content pin (Delta-1) = phase sau (ENC-META carrier decision)."
+    },
+    "DELTA-DECOMP-0028": {
+      "at": "2026-10-04T22:32:47+07:00",
+      "decision": "APPROVED registry design (bang profile_names) thay cot-on-bindings: unique key khong ap duoc len append-only (chan revision N+1); registry la artifact cua leaf, giu single-writer; semantics Delta7-A giu. Cot-on-bindings chi khi mo named lease profiles.ts - KHONG can thiet."
+    },
+    "DELTA-PC-SET": {
+      "at": "2026-10-04T22:42:04+07:00",
+      "decision": "PC-1: P2-a marker-only la phase 1 (done qua PRODUCER-IMPL); P2-b sealed content carrier = phase 2 rieng (ENC-META security design). PC-2: chon (a) substitution tai payload construction (khong doi contracts). PC-3: producer pre-scope rows (thuoc producer packet). PC-4: marker-map sau key-format (da chot composite). PC-5: GIU parity pickPromptOverride (cleared exact khong hoi sinh _default)."
+    },
+    "MEDIUM-1-SCOPE": {
+      "at": "2026-10-04T23:32:05+07:00",
+      "decision": "CHOT C + A-lite + admin-trusted pin (khong doi snapshot DTO/contracts; khong scan secret values)."
+    },
+    "CARRIER-PC1-SET": {
+      "at": "2026-10-04T23:34:02+07:00",
+      "decision": "1a Form A; 1b cross-check ON fail-closed; 1c NULL+markers no-plaintext; 1d caps 64/16KiB/256KiB + 422; 1e decrypt orch-side + subst business-side; 1f additive pinned.promptOverrides (Delta-CONTRACTS, lease contracts cap); 1g name promptOverrides + fold dead-field removal vao packet B."
+    },
+    "W3-LOW1-ROLLBACK-CAS": {
+      "at": "2026-10-04T23:46:45+07:00",
+      "decision": "GIU NGUYEN rollback expectedRevision optional (semantics da pin + test); publish van require CAS. Ghi note hardening tuong lai (khong doi slice)."
+    },
+    "SESSION-DELTA12": {
+      "at": "2026-10-05T00:02:49+07:00",
+      "decision": "Delta-1: DUYET 2 field optional (additive). Delta-2: conservative - khong match -> SKIP capture/inject (fail-la-nhed); khong doan binding; mapping table = packet rieng sau."
+    },
+    "MEDIUM1-CAPS": {
+      "at": "2026-10-05T00:04:27+07:00",
+      "decision": "DUYET caps 64 keys / 8192 bytes (service-side constants, de doi). Aggregate-cap + public-client effectiveInput bound = future items."
+    },
+    "B1-DEVIATION-OPTIONAL": {
+      "at": "2026-10-05T00:11:29+07:00",
+      "decision": "DUYET giu .optional() (thay default(null)) Ã¢â‚¬â€ revert can 9 cast sites, khong dang."
+    },
+    "T5-LEASE-TENSION": {
+      "at": "2026-10-05T00:11:29+07:00",
+      "decision": "DUYET connector.ts nam trong packages/contracts la file duy nhat Ã¢â‚¬â€ allowlist tai contract schema (single source) la dung; huong thay the (task-context/connector-session) ngoai lease va hash-parity xau hon."
+    },
+    "B2-DELTA-SET": {
+      "at": "2026-10-05T00:41:32+07:00",
+      "decision": "B2-1: (a) xoa ProfileSnapshot.promptOverrides + sua 2 dong literal execution-pin (giu assertions). B2-2: substitution tai adapter chokepoint (worker.ts:392-400); thieu context -> skip + gap. B2-3: format connectorId@revision confirmed. B2-4: duyet dist rebuild."
+    },
+    "CWA-DELTA-SET": {
+      "at": "2026-10-05T00:51:33+07:00",
+      "decision": "Duyet Delta1 (placeholder honest-degraded giu byte-identical; compose=>ledger that), Delta2 (test no-audit mirror), Delta3 (headers additive), Delta4 (DTO strict), Delta5 (credentialWorkflow config-injected; Vault writer = packet rieng)."
+    },
+    "ENCMETA-RESULTREF": {
+      "at": "2026-10-05T01:11:59+07:00",
+      "decision": "CHON Option A (seal tasks.result_ref + operations.result_ref, open-before-R3-merge + backfill window) + C complement (siet contract); grep xac nhan /result route copy verbatim opaque ref -> open tai read path giu nguyen public shape. Detector FINDING pin flip co y thuc khi implement. IMPL packet queue sau wave hien tai."
+    },
+    "ENCMETA-DELTA-LEASE": {
+      "at": "2026-10-05T01:32:24+07:00",
+      "decision": "RATIFY 3 file toi thieu (public.ts/route-context/create-app, 1 hunk moi file) Ã¢â‚¬â€ can de open R1; hoan nguyen duoc neu can."
+    }
   },
-  "qwen_4": {
-   "handle": "term_63bf0dbc-d90e-406d-8089-37dfc45ed4bb",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "role": "Implementation and bug fixes; scoped packet ownership"
-  }
- },
- "deactivated_roster": {
-  "antigravity_coordinator": {
-   "handle": "term_66e31752-a330-4dc6-bda8-81b38b5fd182",
-   "identity": "antigravity",
-   "model": "gemini",
-   "deactivated_at": "2026-09-26T18:00:00+07:00",
-   "reason": "User requested handover to claude-code; AGENTS.md updated. History preserved in coordination/reports/coordinator-antigravity.md."
+  "coordinator_note_update_2005": "Nudge antigravity 20:00: root cause chuoi loi qwen = call surface (write_file unavailable; Exec thieu source) -> da gui huong dan dung Exec+source (JS fs) cho qwen_1/2/3 (nudge dau dinh bug quote, da gui lai sach). claude Part2: turn ket thuc sau evidence nhung receipt chua co -> da nudge viet ngay. codex_arch refresh-741 dang chay (gap os error 206 filename too long, dang retry). Quota codex lanes 49% (5h). ACQ-PREP + L2-recheck settled. ÃŽâ€2 adjudicated: cam raw secret URL query; L2 residual -> merge-fix-3 sweep.",
+  "coordinator_note_update_2010": "Turn 741: qwen_1/2 dang ap dung Exec+source; qwen_3 nudge queued (con cham); qwen_5 UI-INTEGRATE 30m; claude dang viet Part2; refresh-741 gan xong (guard PASS). Dispatch cc_2 ACQ-PREP receipt audit. Specs san sang: SDK-CONSUME (cho receipt qwen_2), MERGE-FIX-3 (L2 residual 4 parent docs, sau refresh-741). Quota codex 48%.",
+  "coordinator_note_update_2015": "Turn 742: 6 settles (SDK-PREP/API-PREP/ACQ-AUDIT/PART2/REFRESH-741/DD-05). W1 REVIEW PART 2 = APPROVED-WITH-CONDITIONS (4 dieu kien; (1) HARD cho W1c). Mo 4 dispatch: P2-FIX->qwen_1 (DD-05 append done by coordinator), SDK-CONSUME->qwen_2 (5 Delta rulings), W3->qwen_3, MERGE-FIX-3->codex_arch. 5 adjudications moi. qwen_4/cc lanes idle-brief (W1c gate; L2 dong).",
+  "coordinator_note_update_2025": "Turn 743: settle UI-INTEGRATE p1 (mount accept-only; GAP backend+browser; d14-17) + MERGE-FIX-3 (bare PAR=0 suite-wide). qwen_1 P2-FIX: stream error ngay sau packet -> nudge retry theo buoc nho. qwen_2 SDK-CONSUME + qwen_3 W3 dang chay. Dispatch cc_1 L2-FINAL micro recheck.",
+  "terminal_handle_fixes": {
+    "tester_offline": {
+      "wrong": "term_2ea0ce2e-e893-49fe-ac31-51c52179fc9b",
+      "correct": "term_2ea0ce2e-1612-449f-b772-b177fe15df31",
+      "at": "2026-10-04T20:31:53+07:00",
+      "note": "handle dung da co trong watch-state; brief handoff liet ke sai suffix gay terminal_handle_stale khi read -> da doi chieu orca terminal list, xac nhan correct handle"
+    },
+    "tester_live": {
+      "wrong": "term_3adb7228-4125-42ef-98c3-6eadd8a8b9ec",
+      "correct": "term_3adb7228-0087-45c5-8a18-77a4150a5043",
+      "at": "2026-10-04T20:31:53+07:00",
+      "note": "handle dung da co trong watch-state; brief handoff liet ke sai suffix gay terminal_handle_stale khi read -> da doi chieu orca terminal list, xac nhan correct handle"
+    }
   },
-  "codex_reviewer": {
-   "handle": "term_95461591-ce36-4932-bfbb-3a7ba5605da0",
-   "identity": "codex",
-   "model": "gpt-6-sol medium",
-   "deactivated_at": "2026-09-26T17:11:13+07:00",
-   "reason": "Hit ChatGPT Pro usage quota limit until Sep 30th. PTY cleanly killed and superseded by qwen_reviewer."
+  "coordinator_note_update_2030": "Nudge giam sat 20:30 xu ly: (a) reviewer claude KHONG stuck - verdict Part2 done 20:03, standby dung (cho P2-FIX); (b) 7-IDLE claim lech nhip: qwen_1/2/3 + cc_1 dang nhan task, tester sai handle (da sua), qwen_4/tester_live gate user, qwen_5 vua xong -> da giao MEDIUM-1-PREP. 0 lane idle vo co.",
+  "checkpoints": {
+    "745": {
+      "type": "plan-refresh",
+      "status": "dispatched (20:37) -> codex_arch PLAN-REFRESH-746-750",
+      "prev": "741-745 land 20:03"
+    },
+    "750": {
+      "type": "plan-chkpt",
+      "status": "dispatched (21:12) -> codex_arch PLAN-CHKPT-750",
+      "contents": "VFY verified; P2-FIX reassign; W3 D7=(A)+D8; backlog 751-755"
+    },
+    "765": {
+      "type": "plan-refresh(%5)",
+      "status": "in-progress via PLAN-UPDATE-763 (codex_arch dang fold Part4 verdicts + ticks); khong can packet moi",
+      "at": "2026-10-04T23:03:02+07:00"
+    },
+    "780": {
+      "type": "plan-update(%5)",
+      "status": "dispatched PLAN-UPDATE-780",
+      "at": "2026-10-05T00:33:01+07:00"
+    },
+    "795": {
+      "type": "plan-update(%5)",
+      "status": "dispatched PLAN-UPDATE-795 (fold wave 781-795 + skeleton 796-800)",
+      "at": "2026-10-05T02:11:40+07:00"
+    },
+    "hard-1": {
+      "status": "CLOSED offline (Part 3 APPROVED 22:02); live PG proof = live acceptance item (khong chan W1c logic)",
+      "basis": "P2-FIX offline VERIFIED + tester P2-VERIFY doc lap CONFIRMED; Claude closure verdict pending (Part 3)"
+    },
+    "PART4-TICKS": {
+      "at": "2026-10-04T23:01:43+07:00",
+      "status": "W3 TICKED (APPROVED offline); W1c TICKED (APPROVED offline); PREFCONSUME = AW-C (chua tick full acceptance - cho T-PROM-02 closure)"
+    },
+    "UI-APPROVED-KEYS": {
+      "at": "2026-10-04T23:21:44+07:00",
+      "status": "UI-KEYS slice UI_APPROVED + ticked (Antigravity)"
+    },
+    "UI-MASK-APPROVED": {
+      "at": "2026-10-04T23:58:54+07:00",
+      "status": "UI-MASK TICKED (UI_APPROVED; d20 as-is)"
+    },
+    "UI-PAGE-LEVEL": {
+      "at": "2026-10-05T00:24:18+07:00",
+      "status": "Tick page-level UI_APPROVED (5 man hinh, 43/43, 53 PNG)"
+    },
+    "T-PROM-02-OFFLINE": {
+      "at": "2026-10-05T02:02:24+07:00",
+      "status": "CLOSED toi mocked invoke boundary (Claude W-REVIEW-B2 AW-C 01:51; VERIFY-B2 PASS); live leg (observed provider request + Vault/PG) = live window"
+    }
   },
-  "codex_tester": {
-   "handle": "term_f31e5ec1-55f1-4483-b1eb-f1a6208bd7f5",
-   "identity": "codex",
-   "model": "gpt-5.6-luna medium",
-   "deactivated_at": "2026-09-26T16:12:05+07:00",
-   "reason": "Hit ChatGPT Pro usage quota limit until Sep 30th. PTY cleanly killed and superseded by qwen_tester."
+  "coordinator_note_update_2035": "Turn 745 (%5 checkpoint): L2 CLOSED (cc_1 l2-final all-green). W3 adjudicated: ÃŽâ€7=(A) migration 0028 + contract non-breaking; ÃŽâ€8=expanded lease (+announce/serialization); ÃŽâ€10=client.ts. qwen_1 compact applied. Refreshed plan 746-750 dispatched to codex_arch. Turn=745.",
+  "coordinator_note_update_2043": "Turn 746: qwen_1 het cuu (/compact Unknown command) -> reassign P2-FIX sang qwen_4: worker-abandon ctx_dfe38abe356a, task-update ready, dispatch moi ctx_ee8fc052b95b, packet sent (qwen4.md semant). qwen_2/3/5 + codex_arch dang chay.",
+  "new_plan_rows_745": [
+    "P745-PROMPT-PRODUCER (hold: runtime.ts serialized voi P2-FIX)",
+    "P745-SESSION-CONSUME (hold: worker-sdk cua qwen_2)",
+    "P745-UI-MASK (hold: UI lane + Q2 policy)",
+    "P745-UI-BROWSER (hold: runner UNRESOLVED)",
+    "P745-CONNECTOR-WIRE (design/prep co the dispatch sau)",
+    "P745-PARAMETER-POLICY (= MEDIUM-1, qwen_5 dang prep)"
+  ],
+  "coordinator_note_update_2052": "Turn 747: REFRESH-746-750 settled (6 task moi trong plan). qwen4.md xac nhan la receipt lane qwen_4 (lich su) -> P2-FIX section se append. Dispatch cc_2 VFY-REFRESH. qwen_2 (35m) / qwen_3 (17m) / qwen_4 (8m) / qwen_5 dang chay. codex_arch quota 35% - bao toan.",
+  "ops_techniques": {
+    "pending-draft-submit": "NeÃ¯Â¿Â½?u terminal ket o prompt voi draft text chua gui: gui --text \" \" --enter (empty --text bi reject; space+enter submit draft hien co).",
+    "dispatch-reassign": "abandon -> task-update ready -> dispatch moi -> packet moi + stand-down lane cu.",
+    "msg-no-double-quotes": "Terminal send tu PowerShell: dau \" (double quote) trong message PHA argv -> orca nhan sai (Unknown command...). Luon gui ban KHONG co dau \" (hoac single quotes). La nguyen nhan cac loi accepted= empty rai rac."
   },
-  "codex_security": {
-   "handle": "term_f190d102-3a5a-4827-a1bf-ea62dcbc720b",
-   "identity": "codex",
-   "model": "gpt-5.6-luna medium",
-   "deactivated_at": "2026-09-26T14:29:46+07:00",
-   "reason": "Superseded by qwen_vault at Turn 114 due to rate-limits; zero remaining backlog."
+  "coordinator_note_update_2101": "Nudge 21:00 xu ly: reviewer standby dung (verdict Part2 done 20:03; khong co artifact moi de review); 7-IDLE claim lai lech (qwen_2/3/4/5 chay; tester gated; qwen_1 chet surface); cc_2 VFY=VERIFIED -> settle; qwen_2 nudge Exec/source; qwen_5 giai phong draft treo bang space+enter.",
+  "coordinator_note_update_2105": "Turn 749: tat ca 4 lane chay (qwen_5 resume OK sau lenh tuong minh 21:03; qwen_2 48m; qwen_3 30m; qwen_4 21m). Khong receipt moi. codex_arch idle giu quota (35%, reset 22:11).",
+  "coordinator_note_update_2113": "Turn 750 (%5 checkpoint): PLAN-CHKPT-750 -> codex_arch (fold + backlog 751-755). qwen_3 draft pending (chay bang pnpm --filter contracts test) da submit -> lane tiep tuc dung runner. qwen_5 empty-stream lan 2 -> retry toi gian (ghi receipt <=40 dong). qwen_4 P2-FIX co command exit 0 (test dang chay). qwen_2 vua chay document-core jest.",
+  "coordinator_note_update_2123": "Turn 751: MEDIUM-1-PREP reassign qwen_5->cc_1 (abandon ctx_d6ac0c8d7f4a; new ctx_61bbc09b3b5f; packet day du). qwen_5 stand-down. qwen_3 nudge tiep tuc (lease-announce + contracts test). qwen_4 37m Exit 0 lien tuc. qwen_2 60m. plan-chkpt-750 receipt land (cho xac nhan xong).",
+  "coordinator_note_update_2133": "Turn 752: 3 settles (P2-FIX qwen_4 offline VERIFIED 11/11x3; MEDIUM-1 cc_1 4m45s; CHKPT-750). Dispatch P2-VERIFY -> tester_offline (HARD (1)). qwen_3 retry sau stream error. Ghi chu: runtime.ts chua commit mang 41 dong T-SUB-04 + tuple check (Claude Phase 2 flag).",
+  "coordinator_note_update_2137": "Turn 753: tester_offline dang chay P2-VERIFY (doc runtime/db/test). qwen_3 resume OK sau retry. qwen_2 1h11m active. cc_1 nhan P745-CONNECTOR-WIRE prep (read-only). qwen_4 lane van spin (post-task; theo doi).",
+  "coordinator_note_update_2149": "Turn 754: HARD (1) MET -> W1c mo (qwen_4, ctx_d366ef0dc7f6). SDK-CONSUME settle (683 regression). Claude Part 3 closure dispatched (P2+SDK). W3 reassign qwen_3->cc_2 (stream chet lan 2; ctx_83537346799a). qwen_3 stand-down.",
+  "coordinator_note_update_2155": "Turn 755: connwire prep settle (cc_1). claude Part3 dung sau luot doc dau -> nudge hoan tat + receipt. Drafts pending qwen_4 (tiep tuc) + qwen_2 (tiep packet business precedence) da submit. PREFCONSUME -> qwen_2 (ctx_e15974b18a2b). W1c qwen_4 dang doc migration/policy context.",
+  "coordinator_note_update_2202": "Nudge 22:00 xu ly: claude tien tung buoc (nudge hoan tat + receipt); qwen_4 dung 10p -> nudge buoc nho W1c; cc_2 chua khoi dong W3 -> nudge; qwen_2 PREFCONSUME chay (8m50s). cc_1 nhan SESSION-CONSUME prep. tester_offline standby (se verify W1c/W3 sau).",
+  "commit_plan": {
+    "note": "Claude Part 3 de xuat (chua thuc thi; cho lenh user hoac moc acceptance)",
+    "c1": "frozen DTO (a): contracts/src/profile-policy.ts (new) + contracts/src/runtime.ts re-export + tag/freeze note",
+    "c2": "W1 producer: submission.ts builder + gate + 2 test w1-*",
+    "c3": "claim + P2-FIX: runtime.ts T-SUB-04 + tuple check (rerun focused P2 11/11 truoc khi commit)",
+    "separate": "config.ts + crypto-storage.ts -> lane owner rieng, KHONG gop",
+    "order": "1->2->3 giu bisect sach"
   },
-  "qwen_vault": {
-   "handle": "term_a7757226-f4e4-45a0-ad54-dd9aa01436c4",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "deactivated_at": "2026-09-26T14:29:46+07:00",
-   "reason": "Completed 100% of VAULT-01..06 offline backlog. Live verification handled by Tester."
+  "coordinator_note_update_2205": "Turn 757: Claude Part 3 settle - P2-FIX APPROVED (HARD (1) DONG offline), SDK APPROVED-WITH-CONDITIONS. Commit plan ghi nhan. cc_2 da LEASE-ANNOUNCE (21:58) - W3 dang chay. qwen_4 W1c chay lai (spinner). qwen_2 PREFCONSUME 11m. cc_1 session-prep dang chay.",
+  "coordinator_note_update_2215": "Turn 758: session-prep settle (cc_1). qwen_4 W1c stream error -> retry buoc 1. qwen_2 PREFCONSUME dung prompt -> nudge. cc_2 idle 8p -> nudge buoc 2 (contracts). cc_1 -> PROMPT-PRODUCER prep. codex_arch nghi (khong doc-work).",
+  "pending_decisions": {
+    "producer-marker-formula": {
+      "packet": "P745-PROMPT-PRODUCER impl",
+      "note": "cc_1 de xuat marker map; coordinator can chot formula truoc khi dispatch implement; submission.ts/runtime.ts hot-set serialization",
+      "status": "CLOSED (22:32) - xem adjudications.P745-PRODUCER-MARKER"
+    },
+    "w1c-composition": {
+      "packet": "W1c Delta-composition (create-app/main wiring)",
+      "note": "grant lease create-app.ts/main.ts Ã¢â‚¬â€ THUC HIEN SAU khi VERIFY-W1C-PC xanh",
+      "status": "open"
+    },
+    "tapi01-closure": {
+      "packet": "T-API-01 closure (detail read real data)",
+      "note": "dispatch sau khi VERIFY-W3 xanh (phu thuoc registry W3)",
+      "status": "DISPATCHED (22:58 - cc_2)"
+    }
   },
-  "qwen_sec": {
-   "handle": "term_3c201a29-7279-49c4-8dda-89bb6c18f48a",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "deactivated_at": "2026-09-26T14:29:46+07:00",
-   "reason": "Completed 100% of OIDC-01..04 and SEC taxonomy offline backlog."
+  "coordinator_note_update_2225": "Turn 759: producer-prep settle (cc_1 - 4 packet toi nay). qwen_4 + qwen_2 retry deu chet (provider burst) -> micro-retry 1 dong. cc_2 dang tien (cursor advance). cc_1 idle sau 4 packet.",
+  "coordinator_note_update_2232": "Turn 760: qwen_4/qwen_2 stream chet x3 -> W1c reassign cc_1 (ctx_dfd2ecc31506); PREFCONSUME HOLD. Phat hien 0028_profile_name + 0029_audit_actor_principal da ton tai (qwen_3 tao 21:48) -> da bao cc_2 verify/bo sung. Marker formula CHOT (composite key connectionId::stepId; migration 0030).",
+  "coordinator_note_update_2238": "Turn 761: W3 DONE offline (cc_2) -> settle; Delta-DECOMP APPROVED; VERIFY-W3 -> tester_offline; PREFCONSUME reassign qwen_2->cc_2 (ctx_e4b519212c97). cc_1 W1c dang doc surfaces. Next: T-API-01 closure packet (cho sau verify).",
+  "coordinator_note_update_2248": "Turn 762: W1c + PREFCONSUME cung DONE offline (cc lanes) -> settle ca hai; adjudications Delta-PC set + P2-a; VERIFY-W1C-PC -> tester_live (ctx_759426f05de4); PRODUCER-IMPL step1 -> cc_1 (ctx_60038bdc14b3). VERIFY-W3 dang chay (tester_offline). cc_2 standby 1 nhip (cho verifies truoc T-API-01).",
+  "coordinator_note_update_2258": "Turn 763: VERIFY-W3 + VERIFY-W1C-PC CONFIRMED -> settle. Claude Part 4 (3 slice verdicts) dispatched. T-API-01 closure -> cc_2. cc_1 PRODUCER-IMPL dang build (8m54s).",
+  "coordinator_note_update_2305": "Turn 764: Part 4 verdicts (W3+W1c APPROVED -> tick; PC AW-C). T-API-01 closure DONE. PRODUCER-IMPL step1 DONE. Mo: W1C-COMPOSITION (cc_1), P745-UI-KEYS (cc_2), PLAN-UPDATE-763 (codex_arch). NEXT CRITICAL: Delta-PC-1 carrier decision (P2-b sealed ENC-META design) - pha 2.",
+  "coordinator_note_update_2312": "Turn 765 (%5 checkpoint - covered by PLAN-UPDATE-763): cc_1 composition Analyzing; cc_2 UI-KEYS Ruminating; codex_arch fold 57s. Khong receipt moi. Next critical: Delta-PC-1 carrier design packet (cho lane free).",
+  "coordinator_note_update_2313": "Turn 766: UI-KEYS + COMPOSITION settle. Antigravity UI review Ã‚Â§5 dispatched. CURL-SPEC-FIX -> cc_2 (bonus finding). plan-update-763 con Working (cho settle chu ky sau).",
+  "coordinator_note_update_2325": "Turn 767: 3 settles (UI-REVIEW UI_APPROVED + tick; CURL-SPEC-FIX 16x3; PLAN-UPDATE-763 PASS). Mo carrier-design (cc_1) + VERIFY-COMPOSITION (tester). T-PROM-02 critical path tiep tuc.",
+  "qwen_recovery": {
+    "at": "2026-10-04T23:32:05+07:00",
+    "note": "qwen provider hoi phuc ~23:28: qwen_1 context 3.8% fresh (standby sach), qwen_2/5 alive; qwen_2 draft nguy hiem (tiep tuc PREFCONSUME da xong) -> da gui redirect DUNG; chua sua file nao (self-report).",
+    "reispatch": "qwen_1=PARAMETER-POLICY; qwen_5=UI-MASK; qwen_2=cho packet (SESSION-CONSUME next)"
   },
-  "qwen_data": {
-   "handle": "term_6df22fa3-e399-4e31-9400-364917d9bdc8",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "deactivated_at": "2026-09-26T14:29:46+07:00",
-   "reason": "Completed 100% of DATA-01..04 URL ingestion and multipart stream backlog."
+  "coordinator_note_update_2335": "Nudge 23:30 xu ly: qwen provider HOI PHUC (probe 3 lane) -> qwen_1=PARAMETER-POLICY, qwen_5=UI-MASK, qwen_2 redirect DUNG-PREFCONSUME (da xong o lane khac; chua sua file). cc_1 carrier-design + tester verify-composition dang chay.",
+  "coordinator_note_update_2340": "Turn 769: carrier-design settle + 7 adjudications chot. CARRIER-IMPL-A -> cc_1 (core). SESSION-CONSUME -> qwen_2 (ack dung sach; gioi invoke per DELTA-D). qwen_1 PARAMETER-POLICY chay; qwen_5 UI-MASK chay; tester VERIFY-COMPOSITION dang ghi.",
+  "roster_changes": {
+    "2026-10-04-2344": {
+      "added": [
+        "cc_3 (term_4954d39e) - Command Code lane moi",
+        "codex_3 (term_37c6cebe) - Codex verifier moi"
+      ],
+      "removed": [
+        "qwen_3 (term_f8d68e4d) terminal closed",
+        "qwen_4 (term_f1996f34) terminal closed"
+      ]
+    }
   },
-  "qwen_cost": {
-   "handle": "term_4ed1695f-9152-40af-b6f2-2c3d984f0e43",
-   "identity": "qwen-code",
-   "model": "qwen3.8-max",
-   "deactivated_at": "2026-09-26T15:06:23+07:00",
-   "reason": "Completed 100% of COST-01..05 offline backlog (122 tests across contracts and orchestrator pass). Live verification handled by Tester."
-  }
- },
- "reviewer_mode": "mandatory-post-module-and-on-demand",
- "schedule_active": false,
- "schedule_type": "none",
- "schedule_task_id": null,
- "previous_schedule": {
-  "schedule_active": false,
-  "schedule_type": "orca-automation-cron-10m",
-  "schedule_task_id": "1ec1f0c5-49b8-49b5-b87c-768164423bb6",
-  "reason": "Removed on 2026-10-01 because the installed Orca automation opened another Antigravity terminal on each run"
- },
- "consolidation_note": "The user reassigned coordination to Antigravity on 2026-09-27; prior Claude/Qwen/OpenClaude lane assignments are historical.",
- "coordination_mode": "Dispatch owned by command-code agent (term_50f39a02); Claude Code review-only (code review on demand, no dispatch, no watch-state writes, no schedules).",
- "roster_note": "Historical roster: 5 Codex (technical lead, 2 testers, 2 workers), 3 Qwen, 1 Claude reviewer, 1 OpenClaude backup, and 1 Antigravity coordinator. Verify live terminal handles and ownership before any manual cycle. | LIVE CHECK 2026-10-02T10:15:46+07:00 by command-code: dugate space = 11 connected terminals: dispatcher 50f39a02 (command-code); review+plan 31d9ed40 (codex tech lead) + b103836b (claude); workers qwen 4568d175/27eb3380/742c2474/63bf0dbc + codex 2b05b203/949d489b (f1ed751c closed); verify codex b2d08e87 + c4486089. Separate nocobase space (6 terminals incl. antigravity 83fc0691, claude c7db8506, codex b358297f, command-code 97e32a88, qwen 9ce2ba69/de2e0f91) out of scope, never message.",
- "coordinator_note": "2026-10-02 handover: dispatch -> command-code lane; Claude Code review-only. 10-min C1-C5 coordinator cycles and B1-B6 self-review cycles STOPPED (crons deleted). Watch-state last: 468 rows, settled 445 / running 7. | 2026-10-02T10:13:05+07:00 cycle by command-code (C1-C3/C5): settle x4, no dispatch; hold lines unchanged. | 2026-10-02T10:19:23+07:00: dispatched PERF-01B (ingress concat) to F8; claude committed 6fb5294. | 2026-10-02T10:22:25+07:00 cron cycle: F8 working PERF-01B. SECURITY EVENT (claude lane): push blocked by GH secret scanning - 2 real Vault dev tokens hardcoded tests/rv0104-live-encryption.test.ts:39-40; claude remediating via env vars + amend (unpushed) + re-push; tokens dev-local, container removed. Coordinator side: record only, no interference. | 2026-10-02T10:24:23+07:00: user hỏi vì sao chưa dùng qwen -> dispatch G7b redo (read-only) sang qwen_2. | 2026-10-02T10:30:49+07:00: USER WAVE - dispatched 5 lanes (D5, P9-WF-SPEC, RV01-LOOPBACK, SEC-SWEEP, POSTCOMMIT-REG). | 2026-10-02T10:33:31+07:00: claude push OK df2fb2c (secrets removed env vars, tsc/test verified); settle PERF-01B + G7b; luu y concurrency cua claude: lan push toi nen git pull --rebase truoc (nhieu lane cung branch). | 2026-10-02T10:42:51+07:00: dispatch CONN-BINDINGS + PROC-NAME-EV (read-only) sau spec P9; P9-WF-SPEC receipt landed; qwen_1 user-thread investigating claim. | 2026-10-02T10:52:08+07:00: settle CONN-BINDINGS + PROC-NAME-EV. qwen_1 investigation closed: headless claude CLI ignored scope but 0 damage; user approved DOC-SYNC-01/02/03 (doc-only) for qwen_1. connector finding: no task registry, slots enforced at grants.ts:195-204, acceptedCapabilities unenforced. | 2026-10-02T11:03:32+07:00: settle D5/SEC-SWEEP/POSTCOMMIT/P9-WF-SPEC; dispatch D5B+P8-03+SEC-PROVENANCE; temp-pending qwen_1. | 2026-10-02T11:12:23+07:00: settle P8-03 + RV01; offline doc-core GREEN 920/1skip; RV01 6 findings + shapes. | 2026-10-02T11:22:59+07:00: settle x3; D5B done (concurrency gap -> D5C dispatch); secret shell-server:374 = benign. | 2026-10-02T11:32:26+07:00: settle D5C; ghi nhan CLAUDE commit f2be0de (PERF-01B + coordination sync, secret-scanned, pushed); dispatch RV01-FIX-DRAFT cho qwen_3. | 2026-10-02T11:42:08+07:00: settle RV01-VERIFY + RV01-FIX-DRAFT; F4 la owner decision (401 qua legacyError), khong phai parity; cho user duyet F1/F4. | 2026-10-02T11:51:54+07:00: settle D5-VERIFY + P9-PATCH-DRAFT; toan bo prep hoan tat, cho user quyet (F1/F4, F2-F6, Q1-Q6, commit dot). | 2026-10-02T12:01:35+07:00: quiet cycle - no receipts, no dispatch, standby cho user. | 2026-10-02T12:34:11+07:00: user approves 2c; qwen_2 message stuck -> nudged -> running. qwen_1 running (post-nudge). | 2026-10-02T12:42:19+07:00: qwen_1 bg-claude verifier (plan-mode) running; qwen_2 impl 2c in flight. | 2026-10-02T12:54:22+07:00: PLAN WAVE x5 (CONV-00/ACUI-00/CONV-05/CONV-08/CONV-10) theo user \"xu ly task trong plan\"; 2c done (PROVIDER_REQUEST_REJECTED 502); qwen_2 follow-up audit in flight (nudged); qwen_1 waiting bg claude. | 2026-10-02T12:55:56+07:00: all 7 lanes active; qwen_1 self-resumed (bg claude cancelled); plan wave in flight. | 2026-10-02T13:02:56+07:00: settle ACUI-00 + audit; audit found 2c regression (A-1 retryable) -> dispatched CONN-2C-FIX; dispatched CONV-12 (shell-router split, file clean). | 2026-10-02T13:13:57+07:00: settle CONV-05/00/10/08; worker.ts vuot 2000 (debt moi); CONV-10 baseline red (tenant-fence) noted; retire CONV-08 receipt misfile -> relocation requested; dispatched ACUI-01-PREP + CONV-06-PREP. | 2026-10-02T13:22:05+07:00: settle CONN-2CFIX (self-corrected audit); relocation CONV-08 verified; dispatched 2 verify (conn2cfix, fence-red). | 2026-10-02T13:32:37+07:00: settle x4; fence-red = (c) undetermined (re-verify after CONV-12); ACUI-01-prep: 6/12 forms lack handlers + retire product decision; dispatched connector-p8-03-guard + CONV-06-IMPL. | 2026-10-02T13:42:05+07:00: settle CONV-12 + p8-03 guard; dispatched fence-red-reverify + conv12-verify. | 2026-10-02T13:52:54+07:00: settle CONV12-VERIFY (all verified); holds: ACUI-01 gated on user decisions. | 2026-10-02T14:02:43+07:00: settle fence-red ((a) no gap) + CONV-06-IMPL; dispatched 3 follow-ups; codex lanes at rate-limit dialog (hands off). | 2026-10-02T14:12:35+07:00: settle CONV06-VERIFY; 3 codex lanes at rate-limit dialogs (b2d08e87/2b05/c448) - no dispatch there; dispatched WORKER-SPLIT-PREP -> qwen_3. | 2026-10-02T14:17:38+07:00: settle FENCE-TEST-ALIGN; finding shadowed-403 vao queue quyet dinh. | 2026-10-02T14:22:36+07:00: settle WORKER-SPLIT-PREP; codex dialogs cleared; dispatched VFY-REG-refresh + fence-align-verify."
-}
+  "coordinator_note_update_2348": "Turn 770: VERIFY-COMPOSITION PASSED -> settle. User them 2 lane moi (cc_3 + codex_3) -> onboard: cc_3=CONNECTOR-PASSTHROUGH (T5), codex_3=VERIFY-TAPI01. AUDIT-EXT resent cc_2 (sau ping loi). qwen_3/qwen_4 terminals closed (roster update). LOW-1 = giu nguyen.",
+  "roster_official": {
+    "at": "2026-10-04T23:48:41+07:00",
+    "source": "USER cap nhat 23:45",
+    "active13": [
+      "coordinator term_58db0267",
+      "claude term_19edcad8 (reviewer)",
+      "antigravity term_ae2d7e42 (UI lead/supervisor)",
+      "codex: tester_offline term_2ea0ce2e-1612, tester_live term_3adb7228, codex_worker_1 term_37c6cebe, codex_arch term_43f85ccc",
+      "cc: cc_1 term_c03791d1, cc_2 term_ee7e9f33, cc_3 term_4954d39e",
+      "qwen: qwen_1 term_7cb640ae, qwen_2 term_4bca69af, qwen_5 term_822128f8"
+    ],
+    "off": [
+      "qwen_3",
+      "qwen_4"
+    ],
+    "naming_fix": "codex_3 -> codex_worker_1",
+    "dsh_lanes": {
+      "at": "2026-10-05T00:54:45+07:00",
+      "source": "USER bo sung 2026-10-05 ~00:56",
+      "lanes": [
+        {
+          "name": "dsh_1",
+          "handle": "term_a85c47f2-6461-40db-8dc1-acff797f9f37",
+          "identity": "dsh-tui v0.13.0 / dsh-core v0.2.0-rc.2",
+          "model": "deepseek-v4.1-flash",
+          "mode": "danger-full-access"
+        },
+        {
+          "name": "dsh_2",
+          "handle": "term_bac0ad06-e10d-4870-9c57-b63a7ccf0bb3",
+          "identity": "dsh-tui v0.13.0",
+          "model": "deepseek-v4.1-flash",
+          "mode": "danger-full-access"
+        }
+      ],
+      "note": "roster total=15 active (13 cu + 2 dsh); arch terminal (43f85ccc) hien user-occupied (DeepSeek Harness CLI) - khong dispatch vao."
+    }
+  },
+  "coordinator_note_update_2350": "Turn 771: nhan cap nhat roster user (13 active; +codex_worker_1 +cc_3; -qwen_3 -qwen_4). Phan bo phu kin: VERIFY-PRODUCER (tester_offline), PLAN-UPDATE-770 (arch), DESIGN-REVIEW-CARRIER (claude), UI-BROWSER-ENV (antigravity). Fix: dong task Part4 phia Orca (terminal claude con dispatch cu).",
+  "coordinator_note_update_2352": "Turn 772: UI-BROWSER-ENV settle (runbook). PLANE-A-RUN -> tester_live (46 harness tests + PNG). Sau khi co evidence -> Antigravity full-page integrated review.",
+  "coordinator_note_update_2356": "Turn 773: UI-MASK + AUDIT-EXT settle. UI-MASK review -> antigravity (msg resent sau loi). AUDIT-EXT-2 -> cc_2. Dang chay: IMPL-A, PARAMETER-POLICY, SESSION-CONSUME, VERIFY-PRODUCER, PLANE-A, VERIFY-TAPI01, DESIGN-REVIEW, PLAN-770.",
+  "coordinator_note_update_0001": "Turn 774: UI-REVIEW-MASK = UI_APPROVED (tick). VERIFY-PRODUCER CONFIRMED. IMPL-A DONE settle -> B1 (SDK) cc_1 + VERIFY-IMPL-A + IMPL-REVIEW-A (queued claude).",
+  "coordinator_note_update_0004": "Nudge 00:00 xu ly: qwen_1/2 VAN CHAY (khong idle); qwen_5 idle dung (UI wave cho PLANE-A PNG); codex_worker_1 DONE -> VERIFY-TAPI01 CONFIRMED settle. PLAN-770 + SESSION-CONSUME settle. qwen_2 nhan adjudication Delta-1/2 + standby B2.",
+  "coordinator_note_update_0012": "Turn 776: PARAMETER-POLICY + AUDIT-EXT-2 settle (deferrals dung). cc_1 B1 dang chay (35x3 tests). cc_3 T5 dang chay (19m, snapshot hashes). tester_offline VERIFY-IMPL-A chay. tester_live PLANE-A chay (harness bg). B2 (wiring) cho sau B1.",
+  "coordinator_note_update_0015": "Turn 777: B1 + T5 settle (2 deviation duyet). B2 -> qwen_2 (wiring). claude co ca 2 verdict san sang nhung chua ghi receipt -> da nudge viet ngay. tester_offline VERIFY-IMPL-A chay; tester_live PLANE-A chay (raw log + SHA256).",
+  "coordinator_note_update_0025": "Turn 778: 4 settles (design-review AWC; impl-review-A AWC 1a-1g PASS; VERIFY-IMPL-A conditional 2 gaps; PLANE-A 43/46). Dispatch: IMPL-A-CAPFIX (cc_1), UI-FULLPAGE (antigravity). B2 (qwen_2) chay 9m.",
+  "coordinator_note_update_0028": "Turn 779: UI-FULLPAGE settle (page-level UI_APPROVED tick; 43 dung). CAPFIX settle -> VERIFY-CAPFIX dispatched. B2 (qwen_2) chay 12m.",
+  "coordinator_note_update_0036": "Turn 780 (%5) + nudge 00:30: VERIFY-CAPFIX PASSED settle. Phan bo lai 6 packet cho 6 lane idle: CONNECTOR-WIRE-A (cc_1), BR12-FIX (cc_2), SESSION-LEG (qwen_1), UI-MASK-PW (qwen_5), VERIFY-T5 (codex_worker_1), PLAN-UPDATE-780 (arch). qwen_2 B2 chay. Hold: testers live/offline (cho B2 verify), claude (cho B2 review), antigravity (cho UI-MASK-PW verify).",
+  "coordinator_note_update_0044": "Turn 781: BR12-FIX + UI-MASK-PW settle. B2 partial -> adjudication Delta-B2-x gui (hoan tat trong chu ky sau). CW-A (cc_1) + SESSION-LEG (qwen_1) + VERIFY-T5 (cw1) + PLAN-780 (arch) dang chay.",
+  "coordinator_note_update_0055": "Turn 782: CW-A + SESSION-LEG + VERIFY-T5 settle (ca 3 chat luong cao). PLAN-780 missing (arch terminal user-occupied DeepSeek CLI) -> reassign cc_3 (ctx_8b0d50eb22a7). B2 (qwen_2) dang lam theo adjudication (9m18s).",
+  "coordinator_note_update_0100": "Turn 783: USER bo sung 2 deepseek agent (dsh-tui): dsh_1 (a85c47f2) + dsh_2 (bac0ad06). Da dang ky roster + giao CONNECTOR-WIRE-B tach 2 nhanh (BFF -> dsh_1; UI -> dsh_2). Roster=15 active.",
+  "coordinator_note_update_0106": "Turn 784 (nudge 01:00): B2 settle (partial + gap honest) -> B2-WIRING (qwen_2). Phan bo: VERIFY-CW-A (cw1), CREDWORKFLOW-PREP (cc_1), DOC-SYNC-TAPI01 (cc_2 - phat hien & fix loi \\\" trong message!), ENCMETA-RESULTREF-PREP (qwen_1). testers standby B2 verify.",
+  "coordinator_note_update_0112": "Turn 785: PLAN-780 settle (cc_3 - validator supersede chain). Dang chay: dsh_1/dsh_2 (CW-B, 8m33s), qwen_2 (B2-WIRING), cw1 (VERIFY-CW-A), cc_1 (CREDWORKFLOW-PREP), cc_2 (DOC-SYNC), qwen_1 (ENCMETA-PREP). cc_3 free -> standby verify wave.",
+  "coordinator_note_update_0126": "Turn 786: 5 settles (B2-WIRING; CREDWORKFLOW-PREP; ENCMETA-PREP; VERIFY-CW-A; DOC-SYNC). ENCMETA chot A+C. Dispatch CREDWORKFLOW-IMPL (cc_1) + VERIFY-B2 (tester). dsh_1/dsh_2 CW-B van chay (16m).",
+  "plan_checks": {
+    "update780-check-0128": {
+      "at": "2026-10-05T01:14:59+07:00",
+      "requested_by": "USER (kiem tra lai plan da cap nhat)",
+      "result": {
+        "content_landed": true,
+        "evidence": [
+          "PLAN-COMPLETION section 14 @:352 + backlog section @:385",
+          "TOPOLOGY Current update 780 @:3",
+          "AWEB tail 2 log row update780",
+          "validator claims: 451 links/87 defs/errors []"
+        ],
+        "pin_drift": [
+          "tasks/README.md (mtime 01:11:33 > pin ~00:59)",
+          "tasks/ADMIN-WEB-DELIVERY (01:07:25)",
+          "tasks/ADMIN-LEGACY-CONFIG-PARITY (01:07:25)"
+        ],
+        "pin_match": [
+          "PLAN-COMPLETION",
+          "LEGACY-PARITY-GAP-ADDENDUM",
+          "COORDINATION-TOPOLOGY"
+        ],
+        "attribution": "AWEB+CFGADM same-second batch (01:07:25.056/.057) + README later (01:11:33) = update780 lane finishing writes SAU khi pin guard snapshot; content khop update780 (2 log row AWEB, notices) -> KHONG co foreign writer; nhung pins stale khong con bao chung.",
+        "staleness": "Roster plan/topo ghi 13 active; thuc te 15 (dsh_1/dsh_2 them 00:56 sau update780) -> can fold o plan update ke tiep.",
+        "open_items": [
+          "page-level live journey (DB seed)",
+          "carrier live PG/Vault",
+          "provider-session live",
+          "CW-B inflight",
+          "CREDWORKFLOW-IMPL inflight",
+          "ENCMETA-IMPL queued",
+          "commit plan 1->6 cho lenh user"
+        ],
+        "user_decisions": [
+          "live window + 8 cau hoi",
+          "Delta-DEV-03 route /admin/workflows",
+          "commit/push go-no-go"
+        ]
+      }
+    }
+  },
+  "coordinator_note_update_0128": "Turn 787: USER yeu cau kiem tra plan cap nhat (update780). Ket qua: content landed + validator claims OK; 3/6 docs pin drift (README/AWEB/CFGADM - update780 lane viet sau pin snapshot, content khop, 0 foreign writer); roster plan 13 vs thuc te 15 (dsh lanes) -> can fold; open items + user decisions liet ke.",
+  "coordinator_note_update_0125": "Turn 788: CREDWORKFLOW-IMPL settle (12x3, sentinel 0 lo). Dispatch VERIFY-CREDWORKFLOW (tester_live) + ENCMETA-RESULTREF-IMPL (cc_1). VERIFY-B2 (tester_offline) dang xac nhan 11 promptStepId - sap xong. dsh_1/dsh_2 CW-B van chay (49%/67% ctx).",
+  "coordinator_note_update_0137": "Nudge 01:30 + turn 789: V-B2 PASSED settle -> W-REVIEW-B2 (claude). ENCMETA-IMPL settle (Delta-LEASE RATIFY) -> VERIFY-ENCMETA (tester_offline). Phan bo: LIVE-PLAN-REFRESH (cc_2), ENCMETA-SCHEMA-PREP (qwen_1), UI-KEYS-JOURNEY-PW (qwen_5), MEDIUM-2 (qwen_2). cw1/cc_3 hold verify wave.",
+  "coordinator_note_update_0145": "Turn 790: khong receipt moi. dsh_1/dsh_2 CW-B van chay (~40m; ctx 59%/54% - tien trien deu). claude W-REVIEW-B2 dang lam (auto-compact 6%). tester_offline VERIFY-ENCMETA vua bat dau. cc_2/qwen_1/qwen_5/qwen_2 chay prep/hardening.",
+  "coordinator_note_update_0148": "Turn 791: CW-B-BFF + SCHEMA-PREP + LIVE-PLAN settle. Dispatch: V-CWB-BFF (cw1), SHELL-RED-FIX (cc_3; nav role drift + cookie TLS tu dsh_1 root-cause), ENCMETA-SCHEMA-IMPL (qwen_1; Option C). claude W-REVIEW-B2 dang lam (3% compact). tester_offline VERIFY-ENCMETA chay. dsh_2 CW-B-UI van chay (~62%).",
+  "coordinator_note_update_0202": "Turn 792: 4 settles (V-CREDWORKFLOW PASS; V-CWB-BFF PASS; V-ENCMETA pass+limits; UI-KEYS-JOURNEY DONE). claude da duoc nudge hoan tat W-REVIEW-B2 (dung giua verdict, 3% compact). dsh_2 CW-B-UI van chay (~70m, 67%). cc_3 SHELL-RED-FIX + qwen_1 SCHEMA-IMPL chay.",
+  "coordinator_note_update_0206": "Turn 793: 5 settles (B2-review AW-C -> T-PROM-02 offline CLOSED; CW-B-UI; SHELL-RED-FIX 9/11; MEDIUM-2; SCHEMA-IMPL). G1 reconcile STALE. Dispatch: UI-REVIEW-CWB-UI (antigravity), SHELL-RED-FIX-2 (cw1), V-SCHEMA-IMPL (tester_offline).",
+  "coordinator_note_update_0218": "Turn 794: antigravity UI-REVIEW-CW-B-UI + cw1 FIX-2 + tester V-SCHEMA-IMPL dang chay. Dispatch them: STUB-EXT (dsh_2; G4 harness management journey), NAV-DEDUPE (cc_3; view-models single-source). Hold co ly do: cc_1/cc_2/qwen_2/qwen_5/tester_live/claude/dsh_1 (backlog offline can; live/commit user-gated).",
+  "coordinator_note_update_0230": "Turn 795 (%5): UI-REVIEW-CW-B-UI UI_APPROVED (tick); NAV-DEDUPE + SHELL-RED-FIX-2 (103x3) + VERIFY-SCHEMA-IMPL settle. PLAN-UPDATE-795 -> cc_2 (checkpoint %5). LUU Y: USER dang truc tiep yeu cau antigravity build+browser-test UI - khong can thiep. dsh_2 STUB-EXT dang chay.",
+  "coordinator_note_update_0244": "Turn 796: PLAN-795 settle (roster 15 validator). COMMIT-PLAN-PREP -> cc_1 (checklist 1->6 + git add -n dry-run, KHONG commit/stage). STUB-EXT (dsh_2) chay. Antigravity: user dang thao tac truc tiep (browser/files) - khong can thiep.",
+  "coordinator_note_update_0236": "Nudge 02:30 + turn 797: cc_1 (COMMIT-PLAN-PREP) + dsh_2 (STUB-EXT) dang chay - KHONG idle. Phan bo 6 packet that cho 6 lane: LIVE-READY-PREP3 (tester_live), VERIFY-SHELL-FIX (cw1), DOCS-CONNECTOR-WIRE (cc_2), ENCMETA-BACKFILL-PREP (qwen_1), LIVE-SPEC-EXT (qwen_2), CFGADM-UI-INVENTORY (qwen_5). Hold: tester_offline (V-STUB-EXT cho dsh_2), cc_3 (tick-proposal sau).",
+  "pending_user_go": {
+    "commit_plan": "READY (commit-plan-prep-2026-10-05.md) - cho user go/no-go",
+    "live_window": "READY-PREP3 dang soan + 8 cau hoi",
+    "route_decision": "Delta-DEV-03 /admin/workflows"
+  },
+  "coordinator_note_update_0250": "Turn 798: COMMIT-PLAN-PREP settle - checklist 15 nhom + hunk-map san sang; 0 staged. dsh_2 STUB-EXT chay (63%). 6 packet moi (PREP3/V-SHELL-FIX/DOCS/BACKFILL/SPEC-EXT/CFGADM-INV) chay.",
+  "watch_snapshot_0237": {
+    "at": "2026-10-05T02:38:28+07:00",
+    "note": "USER yeu cau kiem tra toan bo agent + doc log that. Ket qua: 7 ACTIVE (tester_live PREP3; qwen_1 BACKFILL; qwen_2 SPEC-EXT; qwen_5 CFGADM-INV; dsh_2 STUB-EXT; antigravity + arch = user-directed), 2 settles moi (cw1 V-SHELL-FIX; cc_2 DOCS), idle-con-lai: claude/tester_offline/cc_1/dsh_1 + cw1 (hold co ly do)"
+  },
+  "coordinator_note_update_0239": "Turn 799: USER yeu cau kiem tra toan bo agent + log that. 2 settle moi (V-SHELL-FIX cw1; DOCS-CW cc_2). Dispatch ENV-SYNC (cc_2) + TICK-PROPOSAL-2 (cc_3). LUU Y: arch dang chay tac vu USER-directed (Doi chieu tinh nang quan tri).",
+  "new_findings_0239": {
+    "source": "orchestrator-app-core-review-2026-10-05.md (user-lane arch)",
+    "verdict": "CHANGES_REQUIRED: 4 HIGH (RCR-01/02/03/06) + 2 MED (RCR-04/05)",
+    "routed": "RCR-HTTP (cc_1) + RCR-RUNTIME (dsh_1) + verify wave sau (cw1/tester) + Claude review sau fix"
+  },
+  "coordinator_note_update_0248": "Turn 800 (%5): 3 settles (LIVE-SPEC-EXT; CFGADM-UI-INV; ENV-SYNC). RCR findings (user-lane) -> 2 fix packet (cc_1/dsh_1) + addendum PLAN-800 (cc_2). PLAN-800 running. Verify wave (cw1/tester) + Claude review se goi khi fix land.",
+  "dsh_3": {
+    "handle": "term_273952b5-c8d6-4c35-9965-bfa84e7eb1e6",
+    "identity": "dsh",
+    "model": "deepseek-v4.1-flash",
+    "role": "Worker DeepSeek 3 (new lane 2026-10-05T03:05+07:00): parallel implementation / backlog acceleration"
+  },
+  "deactivated_roster": [
+    {
+      "handle": "term_58db0267-57aa-4e3d-bc3e-95ec6858f863",
+      "role": "coordinator (cu)",
+      "reason": "operator_close 2026-10-04T19:52+07; run da takeover gen 2"
+    },
+    {
+      "handle": "term_c03791d1-2f0a-4c30-afc1-533d28f193ea",
+      "role": "cc_1",
+      "reason": "operator_close (het credit) sau RCR-HTTP; task da settle bang receipt"
+    },
+    {
+      "handle": "term_ee7e9f33-e20d-483d-8423-830f2924d90c",
+      "role": "cc_2",
+      "reason": "operator_close sau PLAN-UPDATE-800 + DOCS-CW + ENV-SYNC"
+    },
+    {
+      "handle": "term_4954d39e-5641-41b1-b436-274f95924c49",
+      "role": "cc_3",
+      "reason": "operator_close sau NAV-DEDUPE + TICK-PROPOSAL-2"
+    },
+    {
+      "handle": "term_f8d68e4d-aa60-4c45-b4d9-e497ceef27b0",
+      "role": "qwen_3",
+      "reason": "terminal khong con tren Orca; P730-API-PREP da completed"
+    },
+    {
+      "handle": "term_f1996f34-4828-48d1-a717-061cfad08859",
+      "role": "qwen_4",
+      "reason": "terminal khong con tren Orca; P730-ACQ-PREP + W2B-P2-FIX da completed"
+    },
+    {
+      "handle": "term_d4f1e008",
+      "role": "backup_coordinator",
+      "reason": "offline; khong tao lai"
+    },
+    {
+      "handle": "term_31d9ed40",
+      "role": "codex_technical_lead",
+      "reason": "offline; Claude lane review-only theo directive 17:18"
+    },
+    {
+      "handle": "term_2b05b203 / term_949d489b / term_f1ed751c",
+      "role": "codex_worker_2 / _3 / old worker_1",
+      "reason": "offline"
+    },
+    {
+      "handle": "term_3f5e1a6b-248d-4ebf-a599-e3e1c985419a",
+      "role": "(shell)",
+      "reason": "PowerShell thuong cua user, KHONG phai agent lane"
+    }
+  ],
+  "agent_inventory_0310": {
+    "captured_at": "2026-10-05T03:12:58+07:00",
+    "live_terminals": 14,
+    "agent_lanes": 13,
+    "plain_shell": 1,
+    "roster_live": [
+      "coordinator=term_6904d82c (dsh deepseek-v4.1-flash)",
+      "reviewer=term_19edcad8 (claude opus-4.8)",
+      "antigravity=term_ae2d7e42 (UI Â§5 + supervisor audit)",
+      "codex_arch=term_43f85ccc (gpt-6-luna; plan editor + user-facing lane)",
+      "qwen_1=term_7cb640ae",
+      "qwen_2=term_4bca69af",
+      "qwen_5=term_822128f8",
+      "codex_tester_offline=term_2ea0ce2e",
+      "codex_tester_live=term_3adb7228",
+      "codex_worker_1=term_37c6cebe",
+      "dsh_1=term_a85c47f2",
+      "dsh_2=term_bac0ad06",
+      "dsh_3=term_273952b5 (MOI)"
+    ]
+  },
+  "coordinator_note_update_0310": "2026-10-05T03:12:58+07:00 dsh coordinator moi takeover run_069ecd6957cd gen2. (1) kiem ke 14 terminal: 13 agent lane + 1 shell; bo sung dsh_3 (term_273952b5) vao roster; roles.coordinator va workers_* chuan hoa theo terminal that; deactivated_roster ghi 10 lane offline. (2) Settle 7 task: STUB-EXT (delta source: connectors-screen.tsx bootstrap session/CSRF + build digest moi index-CqyHzg0b.js/0b8ed8ed715bbd16 => UI review CW-B cu STALE), LIVE-READY-PREP3, ENCMETA-BACKFILL-PREP (BLOCKER: thieu window switch runtime.ts:445), TICK-PROPOSAL-2, PLAN-UPDATE-800, RCR-HTTP (base cc_1 + residual Luna), RCR-RUNTIME (RELEASED 0 edits -> native Luna). (3) Reply + ack mail Luna packet (msg_29474381db7a, msg_d958e29cf365). (4) Adjudication: tick P763-PROMPT-WIRING offline-leg; P763-W1C-COMPOSE cho review ngan Claude truoc tick. (5) Wave 801 dispatch 11 lane: review Claude, plan codex_arch, 5 implement, 2 verify, UI re-review Antigravity.",
+  "coordinator_note_update_0330": "2026-10-05T03:27:54+07:00 vong 801 ket qua: (a) UI-REVIEW-CW-B-R2 da tra UI_APPROVED tren digest moi index-CqyHzg0b.js/0b8ed8ed715bbd16 -> A1 dong, slice UI CW-B da clear. (b) User packet RCR Luna HOAN TAT: RCR-01..06 da implement + release; verify doc lap 7 suite 229/229 exit 0, tsc 0, runtime.ts hash ACB476FD...; A2 dong. (c) Da bo sung V5 RCR backend review vao REVIEW-801 cua Claude; ACCEPTED chi khi APPROVED; live gates (PG/Vault/storage thu + restart + rollout migration 0032) van giu. (d) Lease moi cho A3 window switch cap khi co design receipt cua dsh_1 + verify-before-edit. (e) Mailbox Orca da ack sach; 12 packet wave 801 dang chay tren 12 lane. (f) 3 lane qwen nhan prompt qua terminal send vi qwen CLI khong injectable - da tao Dispatch khong inject de ledger trung thuc.",
+  "review_verdicts_wave801": {
+    "recorded_at": "2026-10-05T03:33:54+07:00",
+    "reviewer": "term_19edcad8 (claude)",
+    "receipt": "coordination/reports/claude.md section REVIEW-801",
+    "V1": "P763-W1C-COMPOSE: APPROVED-WITH-CONDITIONS; reviewer leg da du chay nen A4 cho phep tick offline-leg; con live cells PG that + boot thieu ENCRYPTION_KEY + tick-note",
+    "V2": "CONNECTOR-WIRE-A + B-BFF + CW-B-UI + delta STUB-EXT: APPROVED-WITH-CONDITIONS; dieu kien re-sign UI tren digest moi da dong bang UI_APPROVED luc 03:26 (0b8ed8ed715bbd16) -> CW-B offline-accepted",
+    "V3": "CREDWORKFLOW-IMPL: APPROVED-WITH-CONDITIONS; 3 limits (timeout abort that, config precedence test, SQL capture co binds) con lai -> route sang wave verify offline",
+    "V4": "ENCMETA-RESULTREF + ENCMETA-SCHEMA: APPROVED-WITH-CONDITIONS; A3 window switch + ENC-09 inventory + live window con lai -> route ENCMETA-ENC09-KIND + ENCMETA-WINDOW-DESIGN",
+    "V5": "RCR-01..06 backend tren candidate ACB476FD: APPROVED; 7 suite 229/229 exit 0, tsc 0 -> RCR dat ACCEPTED offline; live gates (PG/Vault/storage + restart + rollout 0032) con rieng",
+    "conditions_open": "V1 a-b-c; V2 live round-trip DU_LIVE_INFRA=1; V3 a-b-c; V4 A3 + live + window-gated suites + ENC-09 inventory; V5 live rollout"
+  },
+  "coordinator_note_update_0400": "2026-10-05T03:49:11+07:00 vong 802: (1) Claude REVIEW-801 xong: V1 W1C-COMPOSE + V2 CW-B + V3 CREDWORKFLOW + V4 ENCMETA = APPROVED-WITH-CONDITIONS, V5 RCR-01..06 = APPROVED => RCR ACCEPTED offline. (2) A4 mo khoa: PLAN-805 tick CA HAI row P763 o offline-leg, validator exit 0. (3) V2 dieu kien UI re-sign da dong bang UI_APPROVED 03:26 tren digest moi. (4) VFY-ENCMETA-801 xac nhan A3 + tim ra 2 finding HIGH moi: SDK parseChildren camelCase mismatch va admin operation-detail tra envelope; da tao 2 task fix, gan qwen_2 (ADMIN projection) va codex_worker_1 (R4 SDK). (5) TRACE-SYNC-801 va CFGADM-UI-PORT-P2 settle; route registration cho identity con dsh_2. (6) dsh_2 worker_done chi mapping, 0 file, 0 receipt: da tra task ve ready + dispatch moi + yeu cau implement that.",
+  "adjudication_A7": {
+    "decided_at": "2026-10-05T04:34:07+07:00",
+    "title": "Lease release: settings contract + orchestrator BFF + identity routes cho dsh_2",
+    "why": "dsh_2 (SETTINGS-WIRE-BASE) dung cong dung khi tu choi cap lease va bao ro seam; A2 doc qua rong - A2 chi giu runtime.ts, http/routes/runtime.ts, metadata-crypto.ts va 0032 cho Luna RCR, khong bao gio app/admin/bff/** hay packages/contracts/**.",
+    "grant": [
+      "packages/contracts/src/settings.ts (moi)",
+      "packages/contracts/src/identity.ts hoac contract hieu dung (moi)",
+      "packages/contracts/src/index.ts export",
+      "services/orchestrator/src/app/admin/bff/settings.ts (moi)",
+      "services/orchestrator/src/app/admin/bff/identity.ts (moi)",
+      "services/orchestrator/src/app/admin/bff/handle.ts:147-160 route registration"
+    ],
+    "owner": "dsh_2 (term_bac0ad06) la sole editor cua app/admin/bff/** va packages/contracts/src/settings* trong wave nay",
+    "still_reserved": [
+      "runtime.ts va http/routes/runtime.ts - A2 da giai phong sau khi RCR-01..06 ACCEPTED offline, nhung khong can trong packet nay nen giu ngoai tam thoi",
+      "metadata-crypto.ts va migration 0032 - giu nguyen, khong sua trong wave nay"
+    ],
+    "no_touch": [
+      "apps/admin-web/src/router.tsx va lib/api/** chi khi co ACK client/route sau khi backend route da ton tai"
+    ]
+  },
+  "coordinator_note_update_0435": "2026-10-05T04:34:07+07:00 A7 cap lease settings contract + BFF route cho dsh_2 sau khi lane bao ro seam thay vi tu cap lease. Incident: composer qwen_2 chua co chi thi commit khong duoc uy quyen (chua submit, HEAD khong doi, da canh bao supervisor). UI verdict hien tai chung minh khop digest index-Bs0p8VRI.js nen khong stale.",
+  "adjudication_A8": {
+    "decided_at": "2026-10-05T04:52:21+07:00",
+    "title": "Bat buoc kem ghi chu muc 5 vao moi claim ve ma hoa ENCMETA/result_ref",
+    "source": "REVIEW-803 (claude): residual rui ro la TUONG DA MA HOA NHUNG CHUA - writer seal dung context va reader doc duoc ca sealed lan plaintext nen khong gay availability risk, nhung moi legacy plaintext row van doc duoc ma hoa moi toi khi A2 flip, khong co alarm nao, attacker khong can crypto chi can tim rows chua backfill.",
+    "rule": "Moi receipt/claim/bao cao nao noi ve result_ref hoac metadata encryption phai ghi: encryption best-effort trong backfill window, legacy rows van plaintext-readable. TUYET DOI khong ghi at-rest encrypted cho den khi PRE-SWITCH muc 3 hoan tat.",
+    "pre_switch_level_3": [
+      "A1 backfill that + dem leftovers",
+      "muc 3 policy + rollout + audit",
+      "A2 flip sang allowPlaintext=false",
+      "verify lai bang reader that"
+    ],
+    "open_conditions": "A1-A5 cho full ACCEPTED; LIVE B1-B5 giu mo; G-ENC va fold giu mo - khong suy G-ENC closure tu result_ref evidence"
+  },
+  "coordinator_note_update_0455": "2026-10-05T04:52:21+07:00 REVIEW-803: ACCEPTED-OFFLINE muc 1 cho 6 slice + conditions A1-A5. Cap nhat A8: moi claim ma hoa phai kem canh bao muc 5. Typed denial da implement theo phuong an (b). Gap inventory xep hang gap theo hau qua thuc te, thu tu la cua user. Docs catalog 13/13 endpoint that.",
+  "adjudication_A9": {
+    "decided_at": "2026-10-05T04:56:01+07:00",
+    "title": "Tach file receipt cua hai tester de khong trung write lease",
+    "why": "LEASE-AUDIT-803 (tester_off) da bao escalation: ca tester_off va tester_live deu append vao coordination/reports/tester.md. Tester dung cach de lai append thay vi cop nham - dung, va coordinator sua ngay.",
+    "grant": [
+      "codex_tester_offline -> coordination/reports/tester-off.md (file moi, append)",
+      "codex_tester_live -> coordination/reports/tester.md (append)",
+      "section da ton tai trong tester.md giu nguyen, khong di chuyen"
+    ]
+  },
+  "lane_retirements": {
+    "dsh_1": {
+      "status": "RETIRED",
+      "term": "term_a85c47f2-6461-40db-8dc1-acff797f9f37",
+      "at": "2026-10-05T05:01:34+07:00",
+      "reason": "Ba lan lien tiep gap loi provider Stream ended without finish_reason, moi lan mat toan bo context (0/262k) va khong ghi duoc receipt",
+      "mitigation": "Task ENCMETA-WINDOW-DESIGN da chuyen sang dsh_3; lane khong con duoc gan task moi"
+    }
+  },
+  "coordinator_note_update_0505": "2026-10-05T05:01:34+07:00 dsh_1 nghi thu viec (3 lan provider error). MIGRATION-0032-RESTORE-REHEARSAL xac nhan rollback bang restore tren PG16 disposable. A9 tach file receipt tester. 45 task settle.",
+  "adjudication_A10": {
+    "decided_at": "2026-10-05T06:33:01+07:00",
+    "title": "Gate A2 flip: counter duoc APPROVED-WITH-CONDITIONS, chua duoc phep chay tren DB that",
+    "source": "REVIEW-806 (claude APPROVED-WITH-CONDITIONS) + VFY-LEFTOVER-COUNTER-806 (tester_offline)",
+    "verdict": "Counter la tong hop TOAN BO tren 8 cot METADATA_SLOTS, xac minh doc lap bang seed moi: so dem doi dung du lieu moi (25 leftover / 21 actionable tren seed-806-b). Khong phai mau.",
+    "confirmed": [
+      "8/8 slot covered, khong sot slot nao",
+      "outbox.payload KHONG vao gate la dung - no khong thuoc METADATA_SLOTS, chi la ENC-09 kind inventory adapter",
+      "read-only that: MD5 fingerprint tung dong truoc/sau giong het",
+      "A8 KHONG doi - counter la bang chung dinh luong cho A8"
+    ],
+    "before_real_db_run": [
+      "them baseline row counts TRUOC transaction",
+      "nguong abort mac dinh cho lock waits va replication lag",
+      "EXPLAIN hoac gioi han scope theo partition/date-range"
+    ],
+    "before_flip": [
+      "them sample envelope THAT - predicate chi shape test nen envelope hong AAD/tag van dem la sealed",
+      "quyet dinh {} co seal thanh envelope hay giu lam product call",
+      "quyet dinh human_waits.ui_schema/context_ref co dua vao gate hay giu Option-C exemption"
+    ],
+    "open_findings": [
+      "read-only setting khong lam transaction read-only - PG16 transaction_read_only=off; can sua",
+      "outbox_payload chua phan loai plaintext/sealed"
+    ]
+  },
+  "adjudication_A11": {
+    "decided_at": "2026-10-05T07:31:45+07:00",
+    "title": "CAM ket hinh thuc: KHONG duoc dem counter shape-pass lam bang chung duoc bao ve. Gate phai xac thuc chung hang shape-pass.",
+    "severity": "CAO - day la false-clear du chung minh bang test, khong phai suy dien",
+    "source": "VFY-ENVELOPE-INTEGRITY (tester_offline): 1 envelope hop le + 3 envelope hong giu nguyen shape; ca 4 shape=true; reader that tra AUTHENTICATION_FAILED x2 va CONTEXT_MISMATCH x1; SQL NGUYEN BAN tra GATE PASSES exit 0",
+    "what_went_wrong": "Predicate chi kiem shape JSON nen khong xac thuc ciphertext, tag, hay tenant/AAD binding. Gate xem 3 envelope hong la sealed va bao GATE PASSES - tuc la neu chay len DB that no se cho phep A2 flip trong khi du lieu da khong doc duoc.",
+    "decision": [
+      "Khong bao gio coi shape-pass = sealed",
+      "Counter chi dung lam census, KHONG phai bang chung bao ve",
+      "Bat buoc xac thuc chung moi hang shape-pass truoc khi flip",
+      "Reader that la nguon su that: AUTHENTICATION_FAILED va CONTEXT_MISMATCH phai duoc dem la khong bao ve"
+    ],
+    "consequence_for_A2": "A2 flip tiep tuc bi chan. Gate hien tai chi co y nghia khi doc chung; con lai chi dem so hang.",
+    "unaffected": "A8 van dung - nhung bay gi con mot hang bi bao sai da doc duoc, nen phai nÃ³i ro hang nao da xac thuc, hang nao chi qua shape"
+  },
+  "adjudication_A12": {
+    "decided_at": "2026-10-05T08:01:04+07:00",
+    "title": "Gate A2 flip moi: shape gate VA auth gate dong thoi bang 0; USER la nguoi quyet dinh GO cuoi",
+    "source": "REVIEW-808 (claude) CHANGES_REQUIRED tren gate va quy trinh, khong tren code",
+    "dual_gate": [
+      "shape gate: actionable_leftover = 0, doan toan bo khong sample, SQL hien tai giu nguyen lam census nhanh",
+      "auth gate: auth_failed_total = 0, doc readStored voi allowPlaintext=false tren moi non-null row shape-pass o ca 8 slots, bang production key provider + dung tenant/slot/refId cua tung row, khong in gia tri"
+    ],
+    "sole_accepted_evidence": "chi auth gate counts la bang chung bao ve that; shape-pass chi la dieu kien vao auth gate, bao gio cung khong phai bang chung bao ve",
+    "broken_but_sealed": "KHONG phai bao ve, KHONG nhop vao class khoong chua du lieu bao ve; tinh vao auth_failed_total va moi hang la 1 veto chan flip; xu ly: ghi slot + error code, dieu tra nguyen nhan, backfill lai, dem lai",
+    "a8_amendment": "Them mot cau: shape-pass khong phai bang chung bao ve; hang sealed-nhung-hong la mat du lieu cho xu ly chu phai hang da bao ve; tuyet doi khong dung GATE PASSES cua shape counter lam bang chung flip. Phan goc cua A8 van dung.",
+    "review_effects": [
+      "REVIEW-803: kiem crypto seal/writer/AAD/projection van dung; VO HIEU moi suy ra dem sealed = da bao ve",
+      "REVIEW-806: AWC van dung nhung CHUA DU; ca khi du 3 runbook diem thi actionable=0 chi cho qua shape gate",
+      "REVIEW-807: giu nguyen; thiet ke sample nang thanh auth gate bat buoc toan bo"
+    ],
+    "remaining_conditions": [
+      "shape gate = 0",
+      "auth gate = 0 va duoc review lai lap",
+      "ENCMETA-WINDOW-DESIGN-808 dong",
+      "PRE-SWITCH muc 3 hoan tat"
+    ],
+    "authority": "Coordinator de xuat GO ky thuat khi 4 dieu kien du. USER quyet dinh GO cuoi cho A2 flip - user-gated vi flip doi semantics doc toan ha thong."
+  },
+  "adjudication_A13": {
+    "decided_at": "2026-10-05T09:01:36+07:00",
+    "title": "Bypass xac thuc: co duong doc protected slots MA KHONG chay AEAD open. A2 van bi chan.",
+    "source": "BYPASS-AUDIT-809 (codex_arch) escalation + receipt; VFY-AUTH-GATE-808 (tester_offline) vacuous-pass edge",
+    "bypass_TB": "step_checkpoints.output_ref la TEXT. Writer luu JSON.stringify(sealedOutputRef) tai runtime.ts:730. Reader tai runtime.ts:1903 va 453 gui TEXT do qua openMetadata voi readStored(...,true) - metadata-crypto.ts:327-333 coi chuoi la unsealed va tra ve NGUYEN VAN, KHONG AEAD open. Mot envelope hop le HOAC tampered luu dang TEXT van den duoc checkpoint outputRef nhu raw JSON string. Auth counter moi dung readStoredText(false) nen QUANG DUNG cho slot nay - hai doc gia khac nhau ve cung mot du lieu.",
+    "consequence": "Neu chi dao boolean allowPlaintext ma khong sua decode, cac envelope TEXT hop le se bi tu choi - flip se lam HONG DU LIEU HOP LE chu khong phai chi chan du lieu hong.",
+    "gate_integrity": "BA-05: counter cho phep caller truyen specs tuy chon, nen caller truyen 8 slot thieu se duoc PASS ma van con slot chua quet. Gate phai bao phu duong 8 slot, khong rut gon.",
+    "other_high": "BA-02 metadata-crypto.ts:356-358 non-string bi String() ep va khong co crypto thi tra raw value. BA-04 openDispatchSourceUrl tai ingestion-consumer.ts:318 tra ve moi chuoi TRUOC khi crypto, outbox writer tai submission.ts:535 ghi plain.",
+    "vacuous_pass": "Tester_offline chung minh DB rong, khong co seam, auth gate tra PASS voi zero blockers. Day la vacuous pass - PASS khong chung minh gi. Gate phai phan biet rong-that voi chua-quet-that.",
+    "decision": [
+      "A2 van bi chan",
+      "BA-01 checkpoint TEXT decode phai sua TRUOC bat ky thay doi boolean nao",
+      "BA-05 gate phai chan specs tuy chon va bao duong 8 slot",
+      "BA-02 va BA-04 phai sua hoac dat giap chong ro",
+      "Phai phan biet vacuous PASS voi PASS that"
+    ],
+    "ordering": "BA-01 va BA-05 phai sua va VERIFY truoc khi bat ky len doi allowPlaintext nao"
+  },
+  "adjudication_A14": {
+    "decided_at": "2026-10-05T09:32:03+07:00",
+    "title": "Khong ton tai ranh gioi commit cho wave nay. Phai chung minh bang bang chung, khong dung moc thoi gian.",
+    "evidence": "git status --porcelain --untracked-files=all tra 2217 muc; 155 file tracked modified; 1311 untracked; 26027 insertions, 14599 deletions. Khong co gi trong du-rework da commit qua wave 780-809.",
+    "why_it_matters": "Cau hoi file nao thay doi trong wave nay KHONG phai la cau hoi git. Dung mtime lam ranh gioi la gia dinh, va mot gia dinh sai se dan commit nham file pre-existing hoac bo sot san pham that - ca hai deu nguy hiem.",
+    "decision": [
+      "Khong commit gi khi chua co ranh gioi co bang chung",
+      "Tach product code khoi coordination docs va reports",
+      "Tach pre-existing khoi wave nay",
+      "Phan nao van khong chung minh duoc thi phai nem ra cho user quyet dinh chu khong doan"
+    ],
+    "open_questions": "155 file tracked modified chua tach duoc wave nay voi pre-existing; 1311 untracked chua biet muc nao rac, muc nao file sinh.",
+    "followup": "COMMIT-BOUNDARY-811 (qwen_5)"
+  },
+  "adjudication_A15": {
+    "decided_at": "2026-10-05T10:31:10+07:00",
+    "title": "BA-01 fix CHUA dat yeu cau day du. Wrapper runtime van cho plaintext qua va van bypass guard khi thieu crypto. A2 van chan.",
+    "source": "VFY-BYPASS-FIX-811 (tester_offline) PG16.11 disposable doc lap, 5 hang step_checkpoints.output_ref that",
+    "what_works": "Reader strict (readStoredText voi false) BÃO ÄÃšNG: valid mo duoc; ciphertext flip AUTHENTICATION_FAILED; tag flip AUTHENTICATION_FAILED; sai tenant AAD CONTEXT_MISMATCH; plaintext NOT_SEALED. Mutation probe that. BA-02 String() ep non-string da chuyen INVALID_INPUT. BA-05 gate tu choi specs rong/rut gon. Gate that bao blockers=4 va FAIL dung nhu 4 loi checkpoint.",
+    "what_fails": "Wrapper runtime THAT openMetadata(...,crypto) VAN cho plaintext di qua khi ENC-09 window con mo - bang chung hang plaintext ra artifact://checkpoint-plaintext thay vi bi tu choi. VA wrapper co if (!crypto) return value nen tra raw JSON cua envelope hop le khi thieu seam, trong khi readStoredText thi nem KEY_PROVIDER_FAILED. Tuc BA-02 guard bi wrapper bypass, khong phai reader.",
+    "also_open": "BA-04 chua sua: openDispatchSourceUrl ingestion-consumer.ts:318 tra ve moi chuoi truoc khi crypto. Con 1 mock regression trong bo test outbox-source.",
+    "decision": [
+      "A2 van chan",
+      "BA-02 phai sua O WRAPPER chu khong phai chi o reader - tranh chap trong hop wrapper bao qua helper",
+      "BA-04 phai sua truoc A2",
+      "Mock regression trong outbox-source phai het truoc khi coi la xanh",
+      "Khong coi BA-01 da xong khi wrapper con cho plaintext qua"
+    ],
+    "rationale": "Neu chi sua reader ma wrapper van cho qua, thi duong chay that cua he thong van doc duoc du lieu duoc bao ve o che do plaintext - van hoat dong nhu cu."
+  },
+  "adjudication_A16": {
+    "decided_at": "2026-10-05T10:33:14+07:00",
+    "title": "Ranh gioi commit da co bang chung. CHUA duoc commit - con phai tach pre-existing va phan loai file rui ro cao.",
+    "evidence": "UNTRACKED_TOTAL = 2062 (khong phai 1311 nhu 809 bao sai), TRACKED_MODIFIED = 155. Untracked tach: coordination 1716 khong commit, services 115 co tru 4 raw dump, scratch 80 khong, apps 71 co, tests 30 partial.",
+    "note": "Agent tu phat hien va sua loi dem cua chinh minh thay vi bao ve con so cu. Day la mau hanh vi dung can ghi nhan.",
+    "still_blocking": [
+      "155 file tracked modified chua tach duoc wave nay voi pre-existing",
+      "4 raw dump trong services co can loai hay la bang chong nen giu",
+      "test-results trong tests phai loai",
+      "1716 muc coordination - can quyet dinh luu trong repo hay chuyen ra ngoai"
+    ],
+    "decision": [
+      "Khong commit gi khi chua tach duoc pre-existing",
+      "coordination receipts khong commit vao product repo",
+      "scratch va file sinh loai khoi",
+      "Phan khong chung minh duoc thi nem cho user quyet chu khong doan"
+    ]
+  },
+  "adjudication_A17": {
+    "decided_at": "2026-10-05T11:24:22+07:00",
+    "title": "NGUY HIEM NHAT TUNG GAP: ROW-LEVEL SECURITY an mot tenant khi gate van tra PASS. Gate phai chung minh BAO PHU day du chu khong chi tra ve thanh cong.",
+    "source": "VFY-VACUOUS-PASS-810 (tester_live), PostgreSQL that",
+    "finding": "RLS co the giu MOT TENANT khi ca 8 slot query deu SUCCESS va gate VAN tra PASS. Du lieu van ton tai nhung gate khong thay - nguy hiem hon truong hop DB rong vi do giong het ca bi au ma van bao PASS.",
+    "status_security": "BA-01 fix that (xac minh doc lap). BA-02 fix tai WRAPPER that: quyet dinh thieu seam nam trong assertReadableWithoutSeam chung, ca hai duong deu goi; 11 test moi; 170/170 x3; mutation probe 3 test RED khoi phuc bypass.",
+    "decision": [
+      "A2 van chan",
+      "Gate phai bao cao SO SLOT DOC, SO SLOT QUET, SO TENANT THAY, SO GIA TRI XAC THUC buoc noi gate",
+      "Gate phai FAIL hoac nem loi khi bao phu khong chung minh duoc day du - PASS im lang nguy hiem hon FAIL",
+      "Phai chay gate voi quyen doc day du cua bo so du lieu de RLS khong che giu tenant",
+      "Phan nao RLS can bat tat khi chay gate phai duoc ghi ro va chap nhan rui ro"
+    ],
+    "hard_rule": "Khong duoc bao cao PASS chi vi cac query khong bao loi. Query thanh cong KHONG chung minh doc het du lieu."
+  },
+  "plan_update_1210": {
+    "updated_at": "2026-10-05T11:24:42+07:00",
+    "objective": "A2 flip + commit wave; A2 van bi chan boi A17 (RLS an tenant) va BA-04",
+    "lane_807": "ENCMETA-WINDOW-DESIGN-803 phan dinh nghia con lai - BAO DOC xuat hien trong legacy-payload-migration.ts:500-535 tai dung, khong viet lai",
+    "lane_808": "BACKFILL-WIRING-DESIGN da xong. Ke tiep: wiring plan cho production",
+    "lane_809": "WAVE-COMMIT-PLAN xong. COMMIT-BOUNDARY xong: 2062 untracked, 155 modified, tach duoc nhung 155 modified chua tach pre-existing",
+    "lane_810": "BACKFILL-FIXES xong. GATE-AUTHENTICATE-810 xong. BYPASS-AUDIT-809 xong",
+    "lane_811": "VFY-BYPASS-FIX-811 xong: reader dung, wrapper chua. COMMIT-BOUNDARY-811 xong. FIX-PROMPT-SLOTS-811 xong",
+    "lane_812": "WRAPPER-FIX-812 xong: BA-02 sua tai wrapper, 170/170 x3, mutation 3 test RED. VFY-VACUOUS-PASS-810 xong: RLS an tenant van PASS",
+    "open_gates": [
+      "A17: gate phai bao cao bao phu day du va FAIL khi khong chung minh duoc",
+      "BA-04 latent - can 2 giac chong hoac sua",
+      "shape gate = 0 tren DB that",
+      "auth gate = 0 tren DB that",
+      "ENCMETA-WINDOW-DESIGN dong",
+      "PRE-SWITCH muc 3",
+      "tach 155 file modified khoi pre-existing truoc khi commit"
+    ],
+    "allocation": [
+      "qwen_1 BA04-FIX-811 chua co receipt - can giao lai",
+      "tester_off GATE-COVERAGE-817 - sua gate theo A17",
+      "tester_live VERIFY-WRAPPER-813 - xac minh doc lap WRAPPER-FIX",
+      "claude REVIEW-812 - gate criteria moi theo A17",
+      "cw1 GATE-COVERAGE-DESIGN - thiet ke bao phu day du",
+      "dsh_2 BFF-WIRING-DESIGN chua co receipt",
+      "dsh_3 ENCMETA-WINDOW-DESIGN-803 chua co receipt",
+      "qwen_5 COMMIT-PRE-FLIGHT-813 - tach 155 modified"
+    ]
+  },
+  "delegation_D1_D6": {
+    "decided_at": "2026-10-05T13:00:38+07:00",
+    "title": "D1-D6 chuyen giao cho Claude REVIEW-814. Coordinator khong quyet va khong tranh chap pham vi nay.",
+    "source": "Chi thi truc tiep cua USER qua supervisor relay",
+    "delegated": [
+      "D1 chon ranh gioi 155 cu hay 157 path",
+      "D2 root Next.js app/config thuoc deliverable khong",
+      "D3 commit docs/tasks/coordination rieng hay khong",
+      "D4 32 diff khong ro nguon goc - ai review va danh dau hunk",
+      "D5 duyet .env.example, chuan hoa .gitignore, xac nhan OpenAPI/test inventory",
+      "D6 xoa lon trong server.ts va runtime.test.ts, quyen so huu lockfile/manifest truoc khi stage"
+    ],
+    "owner": "claude term_19edcad8 - REVIEW-814 tham dinh chuyen mon doc lap",
+    "coordinator_role": [
+      "KHONG dua ra danh gia D1-D6 de tranh hai ket luan mau thuan",
+      "KHONG stage hay commit gi khi Claude chua tra ket luan",
+      "Lam viec tiep tren backlog khac: FULL-REGRESSION-815, ENCMETA-WINDOW-808, va cac lane doc lap"
+    ],
+    "boundary": "Chi dung STOP khi Claude bao REVIEW-814 xong hoac USER bao doi chieu kich ban"
+  },
+  "adjudication_A18": {
+    "decided_at": "2026-10-05T14:01:16+07:00",
+    "title": "IMPLEMENT CHUA XONG. A3 la THIET KE, chu phai control plane da cai dat. CÃ¢u hoi USER co phai chi con test live - KHONG dung.",
+    "evidence": [
+      "metadata-read-policy.ts CHUA TON TAI tren dia",
+      "backfill-metadata-cli.ts CHUA TON TAI tren dia",
+      "Khong co injected reader trong production source",
+      "Khong co production caller cho backfill - chi test goi",
+      "Khong parse env plaintext mode - fail-closed flip KHONG the theo cach mo ta",
+      "Khong co metric hay tu dong close nao duoc cai dat",
+      "Literal true thuc te la 8 cho 6",
+      "authenticated gate call trong tai lieu BO SUNG expectedTenantIds nen se tra FAIL"
+    ],
+    "distinction": [
+      "DA LAM: bao mat BA-01 BA-02 BA-04 BA-05 A17 - sua va chung minh bang fixture that",
+      "CHUA LAM: control plane A3 - doc moi duoc viet, chua co code nao",
+      "CHUA LAM: metric va tu dong close window",
+      "CON MO: shipping checklist 6 endpoint, workflow, worker, idempotency, webhook, auth, RBAC",
+      "CON MO: 230 test skip chua triage xong",
+      "CON MO: 32 diff khong ro nguon goc - Claude REVIEW-814"
+    ],
+    "correction": "TUI DA TUONG CHO IMPLEMENT DA XONG khi thuc te chi co design. Bai hoc: design receipt KHONG phai bang chung implement - phai kiem FILE tren dia truoc khi ket luan."
+  },
+  "adjudication_A19": {
+    "decided_at": "2026-10-05T15:31:38+07:00",
+    "title": "A19 - BAN VA CAI DAT MOI TAO BYPASS MOI O CHINH DIEM KIEM SOAT DUY NHAT. Co bang chung dong va doc truc tiep tren dia.",
+    "source": "VERIFY-CONTROL-PLANE-821 va kiem chung truc tiep cua coordinator tai metadata-read-policy.ts:122-127",
+    "finding": "createMetadataReader.readStored co if (!crypto) thi assertReadableWithoutSeam(value) roi return value - KHONG goi policy.allowPlaintext() bao gio. Tuc la o mode forbid, va sau khi window het han, gia tri CHUA BAO GIO SEAL van duoc tra raw o plaintext. Day chinh la diemkiem soat duy nhat, va no dang bo qua policy chinh no tao ra.",
+    "why_worse": "Trcoc khi cai dat, 8 literal true la loi thay the se lo. Sau khi cai dat, co MOT control point nhung control point do KHONG kiem tra policy - de bi doc nham hon khi co nguoi tin rang policy da ton tai.",
+    "confirmed_by": [
+      "VERIFY-CONTROL-PLANE-821: reader/helper tra plaintext ma khong ap dung policy, ke ca mode forbid va sau han",
+      "Coordinator doc truc tiep metadata-read-policy.ts:122-127 tren dia - xac nhan doc lap",
+      "Cau hinh 8 literal true: grep 0 hit tai runtime.ts, public.ts, mappers.ts, ingestion-consumer.ts - phan thay the DA lam"
+    ],
+    "status_mixed": "IMPLEMENTED: metadata-read-policy.ts co that, enum co, factory co, unit test co, 8 literal da thay, focused suites 219/219 va boundary 49/49 exit 0, tsc exit 0, PG16 gate 2/2 exit 0, hash 188 file khong drift, HEAD b088eec giu nguyen. CHUA: policy khong duoc ap dung khi thieu seam; chua co backfill CLI va production caller; chua co metric; chua co duong uy quyen de dong som window.",
+    "hard_rule": "Chi bao cao IMPLEMENTED khi Kiem chung doc lap xac nhan code that ap dung policy o MOI duong, khong chi co file va test xanh."
+  },
+  "adjudication_A20": {
+    "decided_at": "2026-10-05T16:32:03+07:00",
+    "title": "A19 DA DONG. Nhung phat hien moi: nhieu file product dang UNTRACKED nen khong co git snapshot de doi chieu, va A2/HEAD khong phai hinh anh dung cua trang thai hien tai.",
+    "source": "VERIFY-POLICY-FIX-824 PASS, LITERAL-AUDIT-823, kiem chung truc tiep tren dia cua coordinator",
+    "a19_closed": "metadata-read-policy.ts:137-142 co assertReadableWithoutSeam(value) giu nguyen, sau do if (!policy.allowPlaintext()) throw plaintextReadRefused() roi moi return value. Xac nhan doc truc tiep tren dia. Verifier doc lap xac nhan forbid va expired bi tu choi, window con mo tra verbatim, envelope hop le khong seam van KEY_PROVIDER_FAILED, mutation-sensitive PASS, hash khop.",
+    "new_risk_untracked": "public.ts va mappers.ts dang UNTRACKED - khong co snapshot tuong ung trong HEAD. Trong HEAD chi chung minh 1 literal true executable tai runtime.ts:221, hai vi tri getChildren va join con tra result_ref tho. Nghia la HEAD KHONG PHAI hinh anh dung cua trang thai hien tai, va khong the dung HEAD de chung minh gi ve code untracked.",
+    "consequence": [
+      "Khong the du tin git show HEAD la bang chong day du cho A16 commit boundary",
+      "Khi lap danh sach stage phai phan biet file untracked CO THAT tren dia voi file tracked",
+      "BAY GIO khong commit gi - nhung neu commit ma khong luon y thu muc untracked, trang thai commit se khong phan anh duoc code dang chay"
+    ],
+    "hard_rule": "Moi claim ve code phai kem file:line tren dia va hash. HEAD chi la baseline, khong phai bang chung trang thai hien tai khi file untracked."
+  },
+  "intake_plat_mig": {
+    "recorded_at": "2026-10-05T17:43:31+07:00",
+    "source": "DU-PLATFORM-MIGRATION-2026-10-05.md + docs/40-du-platform-architecture.md; user decision 2026-10-05",
+    "user_decision": "TOI DA loai repo mac dinh: Orchestrator gom Connector nhung chay bang service/image RIENG; business workers la instance cua cung mot loai Worker template, build/deploy/scale doc lap; Connector repo la loai THU BA tu chon. KHONG rename Portal thanh platform-api, KHONG tach Runtime service, KHONG gom Connector vao process API.",
+    "phase_a": [
+      "PLAT-MIG-00 freeze topology va inventory docs",
+      "PLAT-MIG-01 boot composition Connector URL + signed management identity",
+      "PLAT-MIG-02 ingress fencing public/admin/runtime/Connector",
+      "PLAT-MIG-03 align Connector root-path contract + docs prefix"
+    ],
+    "phase_b": "PLAT-MIG-04/05 - sau RPK-00..21 baseline closure; KHONG mo extraction writers som",
+    "verify": "VFY-PLAT-MIG-06 doc lap; REVIEW-PLAT-MIG-07 Claude backend reviewer",
+    "constraints": [
+      "Khong duplicate coordinator, editor hoac gate",
+      "Khong claim migration complete truoc verification",
+      "Khong remote/push/cutover tu packet",
+      "Mot owner cho shared docs/lockfile/Docker/Compose tai mot thoi diem",
+      "Reuse ACUI-M06/COMP/RPK/AWEB/SCALE task IDs khi cung output"
+    ],
+    "mismatch_confirmed": "PM-M01 xac nhan con that tren dia tai luc intake: main.ts KHONG truyen connectorBaseUrls hay connectorManagementHeaders; chi co positiveInteger fallback. KHONG sua gi khi intake.",
+    "harness_note": "pwsh hoat dong binh thuong. Khong co harness error. Khong route work sang lane khac vi ly do harness.",
+    "mailbox_note": "delivery_0ddd7e1cbbea chi chua 2 worker_done cu (REVIEW-811 va mutation-814) da settle truoc do; msg_25dfffbb5f0a KHONG xuat hien trong delivery. Noi dung migration lay truc tiep tu file trong repo, khong do tin nhan."
+  },
+  "user_execution_reply": {
+    "decided_at": "2026-10-05T18:00:59+07:00",
+    "request": "USER execution request: implement migration, reconcile leases, dispatch ready Phase A + independent verification, reply to term_43f85ccc",
+    "reply_status": "TERMINAL BLOCKED - orca terminal send accepted=False TWICE cho term_43f85ccc-f868-4ec5-b9df-7a64325b1ce6. Composer doc duoc - Ask Codex to do anything / GPT-6.1-Sol. Da thu ca text dai va text ngan, ca hai deu False. Enter ok=True nhung khong gui duoc noi dung. Quyet dinh duoc tra truc tiep trong response cho USER thay vi gui qua terminal. KHONG claim da reply thanh cong.",
+    "slice_decision": "CHUA DUOC - ly do rui ro DU LIEU THAT khong phai quy trinh. 2358 file UNTRACKED + 192 tracked modified. Product source chua bao gio git: app/admin/bff/ 8 file (body, context, envelope, handle, identity, operations, profiles, security). 81/280 file test untracked. A20: HEAD chi chung minh 1 literal true tai runtime.ts:221; public.ts va mappers.ts KHONG ton tai trong HEAD.",
+    "slice_risk": [
+      "Tao repo candidate tu HEAD = copy cay KHONG phai cay dang chay",
+      "Rsync tu working tree = mang ca 2358 file lem",
+      "Ca hai deu mat hoac sai migration"
+    ],
+    "slice_unlock": [
+      "PLAT-MIG-00 inventory co hash xong va duoc chot",
+      "2358 file untracked da phan loai: wave nay / pre-existing / khong ro",
+      "RPK-00..21 baseline closure cho Phase B"
+    ],
+    "slice_allowed_now": "Tool doc-only doc file, lam trong thu muc rieng. KHONG tao repo candidate tu HEAD, KHONG cat file tu working tree, KHONG rsync co exclude, KHONG commit gi.",
+    "lease_reconcile": "PLAT-MIG-01 DANG LAM THAT: main.ts mtime 17:52:08 co connectorBaseUrlsFromEnv tai :124, connectorManagementHeadersFromEnv tai :159, field readonly tai :227-228. 5 lane giu dispatch, KHONG trung writer.",
+    "rpk_gate_finding": "RUN run_069ecd6957cd CO 0 TASK RPK. SHARED-PACKAGES-REDISTRIBUTION-2026-10-05.md noi dung RPK-00..19/21 nhung khong task nao trong Run nay. Phase B KHONG the moc - thieu ca thuoc RPK. Khong mo extraction writer som.",
+    "no_claim": "KHONG claim migration hoan tat. Tinh hinh: A3 IMPLEMENTED nhung VERIFIED con thieu, chua co gi ACCEPTED, A2 chua GO."
+  },
+  "lease_approval_plat_mig_02": {
+    "decided_at": "2026-10-05T18:06:08+07:00",
+    "decision": "APPROVED - user-owned lease cho term_43f85ccc, PLAT-MIG-02 tenant readiness",
+    "owner": "term_43f85ccc-f868-4ec5-b9df-7a64325b1ce6 (USER-owned lane, disjoint sixth)",
+    "paths_granted": [
+      "services/orchestrator/src/modules/connectors/probe-authorization.ts (NEW)",
+      "services/orchestrator/src/http/routes/public.ts - CHI NHANH connector-test, lines 206-213",
+      "services/orchestrator/tests/plat-mig-02-probe-authorization.test.ts (NEW)"
+    ],
+    "paths_denied": [
+      "main.ts - MIG-01 writer, KHONG dung",
+      "profile modules - KHONG dung",
+      "src/modules/connectors/connectors.ts mtime 09-25 - KHONG dung",
+      "src/modules/connectors/connector-management-store.ts mtime 10-05 01:12 - KHONG dung",
+      "docs/40, docs/02/03/09/12b - MIG-00, KHONG dung",
+      "docs/08, docs/21 - MIG-03, KHONG dung"
+    ],
+    "conflict_check": "KHONG co owner xung dot. (1) probe-authorization.ts va test deu la file MOI, chua ton tai. (2) MIG-01 lease chi la main.ts, config/composition, .env.example va boot test - KHONG co public.ts. (3) Grep tat ca task dispatched: khong task nao lease public.ts. (4) public.ts mtime 14:48:20 - MIG-01 khong dung bao; main.ts mtime 17:52:08 moi la MIG-01. (5) Khong co task dispatched nao nao instance public.ts.",
+    "bug_confirmed": "PM-M03 XAC NHAN CON THAT tai public.ts:206-213. Nhanh GET /api/v1/connectors/:id/test chi goi resolveApiKey(ctx) roi ctx.connectors.testConnector(id) - KHONG co kiem tra tenant hay binding cua connector ID. Foreign tenant co the probe ID cua tenant khac; probe chay sau xac thuc API key va truoc khi co ra network, nen se ro outbound probe. So sanh dong 196-198 usage branch CO kiem tenantParam === apiKey.tenantId - nhanh connector-test thieu dung check do.",
+    "acceptance_hint": "Tu choi TRUOC khi probe ra network; phan biet readiness voi provider test; KHONG echo upstream error; giu nguyen public wire shape va legacy precedence; own tenant van chay, foreign va unbound bi tu choi; test bao cao zero outbound probe khi denied.",
+    "not_dispatched": "TOI KHONG tao task trong Orca cho lane nay va KHONG gui composer input - USER tu implement. Lease nay USER-owned, khong co agent coordinator nao giu.",
+    "hash_audit": "USER da co read-only hash audit: 1030 files, 246 untracked, zero drift. Ghi nhan, khong kiem lai trung lap.",
+    "pending_clarification": "Source extraction clarification PENDING USER - Phase B van bi chan boi RPK gate (0 task RPK trong Run) va clarification nay."
+  },
+  "lease_release_plat_mig_02": {
+    "decided_at": "2026-10-05T18:14:18+07:00",
+    "status": "RELEASED",
+    "lease": "lease_approval_plat_mig_02 cho term_43f85ccc - HET khan dung, giai phong 18:xx",
+    "verification_by_coordinator": "XAC NHAN TREN DIA: probe-authorization.ts ton tai mtime 18:08:18 1825 byte; public.ts mtime 18:08:07; test ton tai. Doc ca file: JOIN profile_active_revisions + profile_bindings + api_keys, dieu kien p.api_key_id = principal.id AND p.tenant_id = principal.tenantId AND p.enabled = true AND k.status ACTIVE; binding parse loi thi 503; khong binding nao match thi 403; KHONG co fallback global registry. KHONG tran lease - khong sua main.ts, profile modules, connectors.ts, connector-management-store.ts, docs.",
+    "owner_claim": "18/18 pass gom 3 HTTP loopback that; tsc exit 0; 6 SQL assertion tren PG private session TEMP table co BEGIN/ROLLBACK khong doi du lieu vinh vien; git diff --check exit 0. CHUA co independent VFY, CHUA co full regression, CHUA ACCEPTED.",
+    "deliberate_break": "Hanh vi unbound probe doi tu 404 sang 403 - co chu dich va la security tightening theo PM-M03, nhung la CONTRACT CHANGE voi client dang probe ID khong co binding. Ghi nhan ro de reviewer danh gia xem co can changelog.",
+    "fixture_owed": "tests/usage-summary.test.ts:298-337 co unbound live fixture - can assigned published binding cho stub/dead connectors va doi ky vong nope thanh 403. NGOAI lease user, CHUA sua. Can owner rieng.",
+    "stale_artifact": "plat-mig-snapshot-audit-2026-10-05.json capture TRUOC khi sua source - 1030 file, 246 untracked, zero drift, digest e415d76b... KHONG dung lam bang chung candidate cuoi. Phai refresh.",
+    "pending": "Source extraction clarification PENDING USER. KHONG extraction, KHONG commit, KHONG deploy."
+  },
+  "lease_approval_usage_fixture": {
+    "decided_at": "2026-10-05T18:18:26+07:00",
+    "decision": "APPROVED - user-owned lease, TUAN LE so voi task da giao truoc",
+    "owner": "term_43f85ccc-f868-4ec5-b9df-7a64325b1ce6",
+    "paths_granted": [
+      "services/orchestrator/tests/usage-summary.test.ts - CHI fixture connector readiness dong 298-337 va import/helper can them cho published enabled bindings",
+      "KHONG sua suite nao khac"
+    ],
+    "paths_denied": [
+      "src/modules/connectors/probe-authorization.ts - MIG-02 slice da xong",
+      "src/http/routes/public.ts - MIG-02 slice da xong",
+      "src/main.ts - MIG-01 writer",
+      "profile modules",
+      "src/modules/connectors/connectors.ts",
+      "connector-management-store.ts",
+      "Compose / proxy",
+      "docs/08 va docs/21 - MIG-03",
+      "docs/40 va docs/02/03/09/12b - MIG-00",
+      "tests/plat-mig-02-probe-authorization.test.ts"
+    ],
+    "conflict_resolved": "DA PHAT HIEN XUNG DOT: task_9eabcd6855bc USAGE-FIXTURE-FIX-883 da dispatched cho qwen_1 tren DUNG file nay. usage-summary.test.ts CHUA bi sua (mtime 09/25/2026 11:32:47). Da release task do voi ly do TRANSFERRED, nen bay chi con MOT writer - user-owned.",
+    "duplicate_writer_prevented": "Neu khong release, se co qwen_1 va user sua cung fixture dong 298-337 dong thoi - chinh vi pham duplicate writer ma user da nhac trong migration doc.",
+    "db_access": "Cho phep chay tren ISOLATED TEMPORARY DATABASE. KHONG dung project DB, KHONG ghi du lieu vinh vien. Bao cao ten database/namespace va rollback.",
+    "phase_a_directive": "USER CHI DAO: KHONG CHO PHAI Phase B clarification de hoan tat Phase A. Phase A MIG-00/01/02/03 tiep tuc chay doc lap voi RPK gate; RPK gate chi chan Phase B MIG-04/05 extraction.",
+    "pending": "Source extraction clarification van pending USER nhung KHONG chan Phase A."
+  },
+  "adjudication_A21": {
+    "decided_at": "2026-10-05T18:19:28+07:00",
+    "title": "A21 - PLAT-MIG-01 KHONG implement signed management identity. Test kiem tra mot chuoi literal, khong phai xac thuc that.",
+    "source": "User correction + coordinator doc lap truc tiep tren dia",
+    "evidence": [
+      "tests/plat-mig-01-boot.test.ts:16 const HEADERS = { X-Connector-Identity: signed-identity } - CHUOI LITERAL TINH",
+      "tests/plat-mig-01-boot.test.ts:122 expect(mock.requests[0].headers[x-connector-identity]).toBe(signed-identity) - mock CHI ECHO lai chuoi dua vao",
+      "Grep toan orchestrator src KHONG co HMAC verifier cho connector identity; khong createHmac/timingSafeEqual nao gan voi connector",
+      "Code HMAC ton tai (shell-auth.ts, crypto-config-dispatch.ts) la cho ADMIN shell auth va crypto config, KHONG phai connector identity",
+      "Khong co audience, khong co scope, khong co exp cho connector identity"
+    ],
+    "meaning": "Receipt 12/12 + tsc 0 chi chung minh PARSER va MOCK TRANSPORT hoat dong. KHONG chung minh co bat ky xac thuc identity nao. Test nay se PASS duoi ca mot mock bo qua toan bo verification.",
+    "required_before_accepted": [
+      "Verifier that tren Connector THAT - HMAC chu ky request",
+      "Audience binding - identity phai dung audience cua Connector nhan",
+      "Scope binding - invoke scope phai dung scope duoc cap",
+      "Expiry - identity het han bi tu choi, kem refresh co owner",
+      "Standalone createApp THAT khong phai mock"
+    ],
+    "hard_rule": "Mock echo header KHONG duoc tinh la xac thuc. Moi claim security phai co test that co BI SAI input bi tu choi - neu khong co test negative, thi KHONG co xac thuc.",
+    "status_change": "PLAT-MIG-01 chuyen tu IMPLEMENTED sang PARTIAL. Chi config plumbing + URL resolver + unknown-ID denial la that. Signed identity CHUA co.",
+    "rpk_directive": "USER CHI DAO: RPK-00 dang absent phai BIND VAO RUN Hien TAI, khong de plan-only. Phase A tie tuc chay doc lap - RPK chi chan Phase B MIG-04/05."
+  },
+  "adjudication_A22": {
+    "decided_at": "2026-10-05T18:25:26+07:00",
+    "title": "A22 - SHIPPING-CHECKLIST-878 chay NHAM codebase. Phai tach legacy root app voi du-rework.",
+    "source": "User correction + coordinator doc truc tiep cau truc dia",
+    "structure_confirmed": "du-rework la target moi tach thanh services/connector + services/orchestrator, orchestrator co 20 module sach: public-api, auth, connectors, queue, webhooks, idempotency, operations, profiles, encryption... Legacy root app D:\\Git\\dugate van con lib/endpoints/runner.ts, app/api/v1, worker.ts, prisma - day la app CU can migrate khoi.",
+    "wrong_scope": "SHIPPING-CHECKLIST-878 da chay tren repository ROOT D:\\Git\\dugate (legacy app), KHONG phai du-rework. Verdict FAIL cua no - 6 endpoint /api/v1/{slug} vs route tree /api/v1/docs/{slug}, DAG disbursement fail, idempotency, webhook, auth - ap dung cho LEGACY APP, khong phai migration target.",
+    "auth_finding_reclassified": "lib/endpoints/runner.ts:91-110 - middleware no longer validates x-api-key; runner resolves key, NEU KHONG khop chi ghi logger.warn roi TIEUC tiep submitPipelineJob voi apiKeyId undefined/null. Day la code-path co the cho request khong key tao job. NHUNG day la LEGACY ROOT APP, khong phai du-rework orchestrator. Van la finding THAT cho app cu, KHONG phai shipping blocker cua du-rework. CHUA co runtime test nao chung minh.",
+    "action": "Phai chay lai shipping checklist tren du-rework services/orchestrator. Khong duoc dung ket qua cu cho migration."
+  },
+  "lease_release_usage_fixture": {
+    "decided_at": "2026-10-05T18:26:21+07:00",
+    "status": "RELEASED - fixture lease het khan dung",
+    "fixture_verified": "usage-summary.test.ts hash tren dia 8b4af23057e4bdc1c703983d0ffba583105de6bb31266585892579d26ee4c925 KHOP CHINH XAC hash user bao. mtime 18:19:15. Focused 5/5, full usage-summary 10/10 khong skip, exit 0, standalone createApp + PG16/Redis7 moi + HTTP proxy, 2 container private da remove, KHONG dung project DB.",
+    "sql_gap_closed": "VFY883 phat hien mutation bo tenant predicate SQL van 18/18 PASS. User da dong gap trong PG harness rieng cua ho - them assertion samekey + foreign principal tenant, real extracted SQL 7/7 exit 0, va mutation remove tenant predicate hien FAIL expected 0 actual 1 exit 3. KHONG sua source hay test. Gap SQL-contract DA DONG bang bang chung that.",
+    "race_OPEN": "VAN MO - KHONG CLAIM ATOMIC REVOCATION. Khong co transaction/row lock/lan doc thu hai giua authorizeConnectorProbe va testConnector. Routing toi Claude de quyet dinh semantics: chap nhan revocation co eventual, hay yeu cau atomic. KHONG implement fix khi chua co quyet dinh.",
+    "next_user_lease": "Da cap tiep cho user sau khi release: can xac nhan."
+  },
+  "authorization_libs_migration": {
+    "decided_at": "2026-10-05T18:28:50+07:00",
+    "authorization": "USER DIRECT AUTHORIZATION 2026-10-05: hÃ£y yÃªu cáº§u cÃ¡c agent trong workspace xá»­ lÃ½ task tÃ¡ch libs vÃ  migration. hÃ£y nháº¯c vÃ  cho phÃ©p agent Ä‘iá»u phá»‘i thá»±c hiá»‡n. Source: tasks/USER-AUTHORIZED-LIBS-MIGRATION-2026-10-05.md",
+    "resolved": "Clarification pending USER DA RESOLVED. Slice migration user-owned truoc do bi BLOCKED vi 2358 untracked + ru ro du lieu - bay USER da cap phep LOCAL implementation va isolated candidate. KHONG con bao cao thieu authorization cho scope nay.",
+    "superseded": "RPK-00 wait trong SHARED-PACKAGES-REDISTRIBUTION va PLAT-MIG Phase B BI SUPERSEDE cho LOCAL implementation sequencing. RPK-00 van la BASELINE/ACCEPTANCE tracking task, KHONG bi danh dau ACCEPTED. KHONG bao gio ACCEPTED gi tu packet nay.",
+    "hard_rules": [
+      "KHONG push remote, KHONG prod cutover, KHONG destructive",
+      "KHONG tao repo thu tu bang HEAD-only - phai allowlist co hash",
+      "KHONG blanket dirty-tree copy",
+      "Giu nguyen original source den khi candidate duoc verify",
+      "Unclassified files can owner decision",
+      "Khong co fourth SDK repo, khong separately built worker SDK",
+      "Connector la service rieng TRONG Orchestrator repo, KHONG tach ra repo rieng",
+      "Khong rename backend thanh App Portal, khong tach Runtime thanh service riem",
+      "Khong tick box tu design hoac mock-only evidence"
+    ],
+    "architecture": [
+      "Hai loai repo mac dinh: Orchestrator va Worker. Connector repo la TU CHON, khong bat buoc",
+      "Orchestrator chua Admin Portal + Platform API/Orchestration Runtime + Connector; Connector chay service/image rieng",
+      "Canonical contracts, shared library/reference source, client/runtime/document/egress/observability helpers, guides va skills thuoc Orchestrator repo",
+      "Moi business Worker derive tu self-contained worker template, build/deploy doc lap; uu tien Runtime/Connector APIs; materialize thin clients + executable helpers lam local versioned source co provenance, KHONG can SDK build rieng hay sibling repo",
+      "Skills giup scaffolding/integration/upgrade nhung lease/heartbeat/checkpoint/crypto/document parsing VAN CAN executable code"
+    ],
+    "current_state": [
+      "packages/: connector-client, contracts, document-kit, egress, observability, worker-sdk",
+      "businesses/: document-core, example-review, lc-checker, scratch",
+      "services/: connector, orchestrator"
+    ],
+    "wave_1": "RPK-INVENTORY-FREEZE-889 (qwen_1) + WORKER-TEMPLATE-PILOT-890 (qwen_5) + 2 testers verify + Claude review",
+    "not_started": "Orchestrator repo/build canonical libs migration - staged, bind khi lane trong"
+  },
+  "adjudication_A23_codex_arch": {
+    "decided_at": "2026-10-05T18:39:43+07:00",
+    "authority": "Codex Arch decision via coordination/reports/codex-arch-unblock-migration-2026-10-05.md requested by User & relayed by Antigravity",
+    "readiness": "Current DB authorization snapshot at authorizeConnectorProbe time. Bounded probe <=5s finishes. Requests after revocation denied. Zero network rowlocks.",
+    "management_identity": "Reuse existing services/connector/src/identity.ts HmacServiceIdentityVerifier. Fresh real HS256 Bearer JWT (aud=connector, scopes=[connector:manage], exp=iat+60s) per request from shared key.",
+    "lane_allocation": {
+      "cw1": {
+        "handle": "term_37c6cebe-5c6f-4eae-9690-db6d1b3c8740",
+        "status": "IDLE - no dispatched task in Run",
+        "target_task": "ORCH-CANONICAL-LIBS-891 (task_8edd16dbe85d)",
+        "lease": "NEW isolated migration-candidates/orchestrator/**",
+        "receipt": "coordination/reports/orch-canonical-libs-891-2026-10-05.md",
+        "rule": "Original packages/services/businesses/root lockfile/Compose/shared docs are READ-ONLY"
+      },
+      "tester_live": {
+        "handle": "term_3adb7228-0087-45c5-8a18-77a4150a5043",
+        "status": "BUSY (authoritative assigned887 ctx_dc4b4371e091 despite idle TUI). NOT free.",
+        "note": "Coordinator must deliver/wake exact 887 packet for du-rework target"
+      },
+      "pilot890": {
+        "task_id": "task_d4e65e83fe2e",
+        "status": "READY/unbound (qwen_5 still holds 877). Prior dispatch claim was inaccurate."
+      }
+    },
+    "message_delivery": "Durable inbox message msg_5d4113734ce8 & msg_3a42a061d0cd enqueued for Run run_069ecd6957cd. 891 will not be claimed started until actual dispatch+prompt receipt."
+  },
+  "adjudication_893_routing": {
+    "decided_at": "2026-10-05T20:01:36+07:00",
+    "decision": "USER chuyen 5 diem KHONG QUYET DUOC sang Codex reviewer (cw1, task_7cc31d6414c6 ctx_7d928f163e9f). Coordinator KHONG tu quyet.",
+    "Q1_classify_76": "76 UNCLASSIFIED trong TSV 1019 rows. Nhom dau apps/admin-web/ - toan bo Admin Portal UI. Cau hoi: co thuoc Orchestrator repo khong (user: Orchestrator chua Admin Portal + Platform API/Runtime + Connector)? Neu co phai ORCHESTRATOR_PORTAL_UI. File KHONG phai product source (.gitignore, README, components.json, postcss.config.mjs) tach nhom rieng.",
+    "Q2_worker_deps": "document-core khai bao BA workspace sibling workspace:*. Can tra loi: vendor toan bo hay chi phan thuc su dung; provenance format; co duoc re-export contracts o worker khong hay contracts canonical duy nhat. QUYET DINH KIEN TRUC - coordinator khong tu quyet.",
+    "Q3_race": "public.ts:212-213 khong transaction/khong row lock/khong re-read. Options A eventual / B atomic re-read hoac row lock / C cap. De xuat + anh huong.",
+    "Q4_legacy_auth": "lib/endpoints/runner.ts:91-110 legacy root app, xac nhan code path co the cho request khong key tao job, CHUA co runtime test. Cutover co lam gia re, hay chi ghi nhan? Co can fix truoc cutover?",
+    "Q5_acceptance": "freeze-inventory + allowlist co hash + isolated build proof co du len VERIFIED chua? A2 flip con phu thuoc gi?",
+    "not_claimed": "KHONG mark RPK-00 ACCEPTED. KHONG claim migration complete. Khong commit, khong tick, A2 van dong."
+  },
+  "fleet_check_2026_10_05": {
+    "checked_at": "2026-10-05T20:04:22+07:00",
+    "reason": "USER da close bot agent deepseek - yeu cau check lai trang thai fleet va loai bo agent inactive",
+    "fleet_total": 14,
+    "orphaned": [
+      "term_c02a6ae4-ccc6-4fd5-b937-1dd69c67c1bf - codex, orphaned=true, worktree D:/Git/nocobase - THUOC REPO KHAC, khong phai dugate, KHONG loai bo"
+    ],
+    "deepseek": "KHONG CON trong terminal list - da duoc dong. KHONG co terminal deepseek nao bi loai bo vi khong con.",
+    "active_by_agent": [
+      "qwen-code x3: term_7cb640ae (qwen_1), term_822128f8 (qwen_5), term_4bca69af (CHUA DUNG)",
+      "codex x5 trong dugate: term_37c6cebe (cw1), term_2ea0ce2e (tester_offline), term_3adb7228 (tester_live), term_43f85ccc (USER-owned lane), term_cefb27a0 la opencode",
+      "claude x2: term_19edcad8 (REVIEW, dugate), term_f2ad12d7 (nocobase - KHONG dung)",
+      "antigravity x1: term_ae2d7e42 (UI reviewer, dugate)",
+      "dsh x1: term_6904d82c (chinh la coordinator nay)",
+      "+ 1 floating powershell term_3f5e1a6b"
+    ],
+    "coordinator_lanes_verified": "OK - ca 6 terminal toi gui deu con: qwen_1, qwen_5, tester_offline, tester_live, cw1, claude. KHONG co terminal nao bi dong ngoai y muon.",
+    "unused": [
+      "term_4bca69af qwen-code thu 3 - chua duoc gan task",
+      "term_f2ad12d7 claude nocobase - repo khac, KHONG dung cho dugate",
+      "term_ae2d7e42 antigravity - UI reviewer, chi dung khi co thay doi UI"
+    ],
+    "not_done": "KHONG xoa terminal nao - viec do thuoc USER. Chi ghi nhan trang thai."
+  },
+  "antigravity_intervention_2015": {
+    "timestamp": "2026-10-05T20:15:49+07:00",
+    "action": "Antigravity direct dispatch & unblock across idle/stuck agents per user request",
+    "dispatched": {
+      "qwen_1": {
+        "task": "ORCH-CANONICAL-LIBS-891 (task_8edd16dbe85d)",
+        "lease": "migration-candidates/orchestrator/**",
+        "status": "RUNNING"
+      },
+      "qwen_2": {
+        "task": "WORKER-TEMPLATE-PILOT-890R2 (task_2752ce44260d)",
+        "action": "Unblocked tool read_fty crash -> resumed vendor mapping",
+        "status": "RUNNING"
+      },
+      "qwen_5": {
+        "action": "/compress executed, context freed to 66.5%",
+        "status": "IDLE / FRESH"
+      },
+      "codex_arch": {
+        "task": "PLAT-MIG-03 (task_9ee833042ba7)",
+        "lease": "docs/08-connector-api.md + docs/21-openapi.json + contract tests",
+        "status": "RUNNING"
+      },
+      "cw1": {
+        "task": "ADJUDICATION-893 (task_7cc31d6414c6)",
+        "status": "COMPLETED - receipt coordination/reports/adjudication-893-2026-10-05.md"
+      }
+    }
+  },
+  "lease_extension_plat_mig_03": {
+    "decided_at": "2026-10-05T20:17:14+07:00",
+    "decision": "APPROVED - narrow lease extension cho term_cefb27a0 (codex arch, user-owned lane)",
+    "parent_task": "PLAT-MIG-03 task_9ee833042ba7",
+    "original_lease": "docs/08-connector-api.md + docs/21-openapi.json (generated) + contract tests",
+    "extension_granted": [
+      "tools/openapi/gen_openapi.py - CHI Connector component block va validation lien quan",
+      "docs/21-openapi.json - regenerate, khong hand-edit"
+    ],
+    "extension_denied": [
+      "KHONG sua source khac",
+      "KHONG sua docs/08 (da thuoc lease goc, tiep tuc lane nay)",
+      "KHONG sua docs/40, 02/03/09/12b - PLAT-MIG-00",
+      "KHONG sua services/** - chi DOC de kiem chung",
+      "KHONG sua packages/contracts",
+      "KHONG sua compose/Docker/lockfile",
+      "KHONG sua migration SQL"
+    ],
+    "router_facts_VERIFIED": "services/connector/src/http/server.ts:138 - path.startsWith(/connectors) ? connector:manage : connector:invoke. Dong 163 GET /capabilities, dong 164 GET /connectors, dong 168 POST /connectors. KHONG co /management alias nao - xac nhan doc lap tren dia.",
+    "stale_confirmed": "docs/21-openapi.json mtime 02:35, gen_openapi.py mtime 09/28 12:31 - generated doc CU HON source. Generator MISSING: revisions, scope, Connector server override, va source lines cho cac path tren.",
+    "writer_guard": "KHONG task Orca nao khac lease gen_openapi.py hoac docs/21 - grep xac nhan khong xung dot. Chi MOT writer: codex arch lane nay. KHONG tao task Orca cho PLAT-MIG-03 de tranh trung writer.",
+    "lifecycle_ids": "KHONG fabricate lifecycle ID. task_9ee833042ba7 van status ready UNBOUND tren board; user-owned execution khong co dispatch ID. Ghi nhan trung thuc.",
+    "reproducibility": "Generator phai tai lap duoc: chay lai cung input cho cung output. Ghi command + cwd + input version + output hash.",
+    "hard_rules": [
+      "KHONG hand-edit docs/21 - phai regenerate tu generator",
+      "KHONG doi public wire contract",
+      "COMP-02/11 giu external schema/OpenAPI, COMP-10 giu golden verdict",
+      "Khong claim VERIFIED tu generator chay duy nhat - can contract test that goi endpoint that"
+    ],
+    "owner_handle_correction": {
+      "corrected_at": "2026-10-05T20:18:33+07:00",
+      "issue": "Record truoc ghi owner la term_cefb27a0 nhung terminal list cho thay agentIdentity=opencode, KHONG phai Codex Arch. Toi KHONG doan handle.",
+      "action": "KHONG gui composer input - USER tu execute lane nay. Grant ghi theo mo ta cua USER: Codex Arch, user-owned.",
+      "needed": "Neu muon coordinator gui packet, can handle chinh xac cua Codex Arch lane."
+    }
+  },
+  "lease_extension_plat_mig_03_admin": {
+    "decided_at": "2026-10-05T20:22:39+07:00",
+    "decision": "APPROVED - moc rong lease generator them 4 admin entry de full regeneration khong drop history",
+    "parent_task": "PLAT-MIG-03 task_9ee833042ba7",
+    "nonreproducibility_CONFIRMED": [
+      "Generator gen_openapi.py: /api/v1/admin/actions -> 0 occurrences; /api/v1/admin/connectors -> 0 occurrences",
+      "docs/21-openapi.json HIEN CO ca 4 path (6/6/2/2 occurrences) - tuc la HAND-EDITED, khong phai generator output",
+      "=> Full regeneration SE DROP 4 path. NO-DROP guard tu choi ghi la DUNG, khong phai bug. Khong giu hand-edited JSON la solution vi khong reproducible."
+    ],
+    "source_shapes_VERIFIED": [
+      "admin.ts:317-334 POST /api/v1/admin/actions - POST-only, non-POST -> 405, unknown action -> 404, auth bearer truoc roi session cookie qua CSRF gate; RBAC/denials o modules/admin-actions/dispatcher",
+      "admin.ts:532-542 GET /api/v1/admin/connectors/capabilities - assertAdminAuth, body booleans composition-derived management/credentialWorkflow/test, KHONG phai config values; khong store -> management false va management calls fail closed 503",
+      "admin.ts:543 GET /api/v1/admin/connectors - assertAdminAuth",
+      "admin.ts:559 GET /api/v1/admin/connectors/:id/revisions/:rev - ADM-BASE-01"
+    ],
+    "paths_granted": [
+      "/api/v1/admin/actions",
+      "/api/v1/admin/connectors",
+      "/api/v1/admin/connectors/capabilities",
+      "/api/v1/admin/connectors/{id}/revisions/{rev}"
+    ],
+    "paths_still_denied": [
+      "KHONG hand-edit docs/21 - chi qua generator",
+      "KHONG sua source khac",
+      "KHONG sua docs/08 (lease goc lane nay)",
+      "KHONG sua docs/40, 02/03/09/12b - PLAT-MIG-00",
+      "KHONG sua services/** - chi DOC lam nguon shape",
+      "KHONG sua packages/contracts",
+      "compose/Docker/lockfile",
+      "migration SQL"
+    ],
+    "wire_rule": "Giu nguyÃªn wire. Capabilities body la BOOLEAN composition-derived, KHONG phai config value - generator KHONG duoc bien capabilities thanh config surface. POST /api/v1/admin/actions chi POST, phai ghi 405 cho non-POST va 404 cho unknown action.",
+    "no_drop_rule": "NO-DROP guard phai GIU. Sau khi generator biet 4 path, guard chay lai phai bang 0 drop. Neu van drop thi BLOCK write va bao lai - KHONG bao qua guard de force ghi.",
+    "auth_evidence": "User bao real router auth tests: GRANT_INVALID 401 (missing/wrong key/expired), BINDING_DENIED 403 (aud/scope). Day la bang chung that, dung de validate docs + tests khi align.",
+    "verify_boundary": "Khong claim VERIFIED tu generator chay. Can contract test goi endpoint THAT. Auth 401/403 chi chung minh khi co test that tren router that, khong phai doc code."
+  },
+  "fleet_add_opencode": {
+    "added_at": "2026-10-05T20:26:17+07:00",
+    "handle": "term_cefb27a0-271a-4343-b2dc-ae1fe9910365",
+    "identity": "opencode 2.0.22, model DeepSeek V4.1 Flash OpenCode, worktree D:/Git/dugate, branch codex/fix-workflow-builder",
+    "probe_result": "HANH DONG: gui text --enter accepted=true, bytesWritten=1, va terminal doc duoc noi dung gui vao. KHONG phai terminal read-only nhu term_43f85ccc.",
+    "assigned_role": "IMPLEMENTATION LANE - nhan packet implement/fix voi write lease khong giao nhau. KHONG phai reviewer, KHONG phai tester.",
+    "authority": [
+      "Nhan va thuc hien packet implement theo write lease duoc cap",
+      "Bao cao blocker hoac question - KHONG tu quyet decision ngoai pham vi",
+      "KHONG dispatch cho agent khac - khong co quyen dieu phoi",
+      "KHONG commit, KHONG push, KHONG prod cutover",
+      "KHONG tick box tu design hoac mock-only evidence"
+    ],
+    "first_task": "KHONG giao - can USER xac nhan lease truoc. Tui da kiem tra 4 task UNBOUND deu phu thuoc lane dang giu hoac con PLAT-MIG-03 dang ban o lane khac.",
+    "safety": "KHONG gan task nao trung lease voi lane dang chay. Phai kiem conflict tren dia truoc khi cap lease."
+  },
+  "lease_release_plat_mig_03": {
+    "decided_at": "2026-10-05T20:30:19+07:00",
+    "status": "RELEASED - PLAT-MIG-03 user-owned slice het khan dung",
+    "coordinator_verified_on_disk": [
+      "docs/21-openapi.json mtime 20:26, sha256 tien toan 346a30fa - KHOP",
+      "docs/08-connector-api.md mtime 20:22",
+      "tools/openapi/gen_openapi.py mtime 20:25, 60.3 KB (truoc 53.3 KB)",
+      "docs21 paths=54 schemas=14 - KHOP user claim",
+      "Generator DA BIET 4 admin path: /api/v1/admin/actions 0 -> 3 occurrences, /api/v1/admin/connectors 0 -> 8, /capabilities 0 -> 3. NONREPRODUCIBILITY DA DONG.",
+      "Cáº£ 4 path CÃ“ trong docs21 generated: actions, connectors, connectors/capabilities, connectors/{id}/revisions/{rev}",
+      "0 path chua /management - KHONG co alias, khong con trong docs08/21"
+    ],
+    "user_claim": "Connector 40/40, client 22/22, proxy 19/19, het skip, exit 0; examplevalidation 23 PASS; typecheck 0; 26 test real-router/HMAC moi. 401 invalid signature/expired vs 403 aud/scope. 4 changed hash verified 4/4.",
+    "explicitly_not_claimed": "Store/runtime doubles explicit LIMITED. KHONG claim live DB, KHONG claim provider that, KHONG claim production boot. Identity issuer/refresh va ingress la VIEC RIENG chua dong.",
+    "out_of_scope_respected": "KHONG edit services/** source khac, docs/40, 02/03/09/12b, lockfile, Compose - xac nhan.",
+    "no_fabrication": "KHONG fabricate Dispatch ID hay worker_done. task_9ee833042ba7 van ready/unbound tren board - user-owned execution."
+  },
+  "lastTickAt": "2026-10-06T06:16:26.521Z"
+}

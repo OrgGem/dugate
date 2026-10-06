@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-du}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-du_orchestrator}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [du-platform-net]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    stop_grace_period: 30s
+  valkey:
+    image: ${VALKEY_IMAGE:-valkey/valkey:8-alpine}
+    command: [valkey-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    volumes:
+      - valkeydata:/data
+    networks: [du-platform-net, du-worker-net]
+    healthcheck:
+      test: [CMD, valkey-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    stop_grace_period: 30s
+networks:
+  du-platform-net: {}
+  du-worker-net: {}
+volumes:
+  pgdata: {}
+  valkeydata: {}

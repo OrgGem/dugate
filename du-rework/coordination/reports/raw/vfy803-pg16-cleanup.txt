@@ -1,0 +1,4 @@
+﻿COMMAND: docker rm --force task-owned du-vfy803-pg16 only
+LITERAL_EXIT_CODE: 0
+
+du-vfy803-pg16

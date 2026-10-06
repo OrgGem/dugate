@@ -1,0 +1,24 @@
+services:
+  example-review:
+    image: ${DU_IMAGE_PREFIX:-du}-example-review:${DU_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: example-review
+    environment:
+      RUNTIME_URL: ${RUNTIME_URL:-http://orchestrator:3002/api/runtime/v1}
+      RUNTIME_TOKEN: ${EXAMPLE_REVIEW_RUNTIME_TOKEN:-${RUNTIME_TOKEN:?Set RUNTIME_TOKEN}}
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      CONCURRENCY: ${EXAMPLE_REVIEW_CONCURRENCY:-2}
+      HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-10000}
+      SHUTDOWN_GRACE_MS: '15000'
+      IMAGE_DIGEST: ${EXAMPLE_REVIEW_IMAGE_DIGEST:-}
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks: [du-worker-net]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s

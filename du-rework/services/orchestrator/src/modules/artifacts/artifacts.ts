@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import type { Readable } from 'node:stream';
+import { createHash, randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import {
   ArtifactAccessGrantSchema,
   ArtifactAccessRequestSchema,
@@ -19,6 +19,21 @@ import {
   type StoredArtifactVersion,
 } from './storage-facade';
 import { createPostgresArtifactStorageFacade } from './postgres-storage-facade';
+import {
+  ARTIFACT_CIPHERTEXT_CONTENT_TYPE,
+  ARTIFACT_SIDECAR_CONTENT_TYPE,
+  artifactEncryptionContext,
+  manifestKeyFor,
+  manifestObjectMetadata,
+  openWorkerArtifact,
+  parseWorkerArtifactSidecar,
+  sealWorkerArtifact,
+  sealedObjectMetadata,
+  verifyWorkerArtifact,
+  type ParsedWorkerArtifactSidecar,
+  type WorkerArtifactEncryption,
+  type WorkerArtifactIdentity,
+} from './artifact-encryption';
 import { writePublicArtifact } from '../../compat/legacy-public-artifact';
 
 /**
@@ -28,7 +43,19 @@ import { writePublicArtifact } from '../../compat/legacy-public-artifact';
  * the existing authorized proxy route and stream the exact pinned version.
  */
 
-const GRANT_TTL_MS = 15 * 60 * 1000;
+/**
+ * RFX-15: the grant token rides the blob URL (`?grant=`), because the worker
+ * SDK consumes grants as bare presigned-style URLs — `downloadArtifact` does a
+ * plain `fetch(downloadUrl)` and `uploadArtifact` sends only content headers,
+ * so an Authorization-header transport would require changing every client
+ * outside this package. The token therefore lives where access logs can see
+ * it: its lifetime is the only server-side bound. 2 minutes is enough for the
+ * immediate use the grant flow performs (request grant -> PUT/GET at once)
+ * while shrinking the leak window 7.5x versus the old 15 minutes; a caller
+ * that misses the window simply re-requests a grant. The download side is
+ * additionally single-use at the route (spent on first accepted GET).
+ */
+const GRANT_TTL_MS = 2 * 60 * 1000;
 
 export interface ArtifactService {
   requestUpload(
@@ -72,6 +99,15 @@ export interface ArtifactServiceOptions {
   migrationWindow?: boolean;
   /** Matches the bounded binary ingress default; S3 grants enforce it before upload. */
   maxArtifactBytes?: number;
+  /**
+   * SEC-ENC-04: server-mediated envelope sealing for worker artifact writes.
+   * When present, every new worker upload is sealed by this service before it
+   * reaches PostgreSQL or S3, reads open the authenticated envelope, and a
+   * backend without a server write port fails closed. `required: true` makes
+   * legacy unsealed rows unreadable (strict policy); the default compatibility
+   * path serves them as plaintext during an approved migration window.
+   */
+  encryption?: WorkerArtifactEncryption;
 }
 
 export function createArtifactService(db: Db, options: ArtifactServiceOptions = {}): ArtifactService {
@@ -89,6 +125,23 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
   if (!Number.isSafeInteger(maxArtifactBytes) || maxArtifactBytes < 0) {
     throw new Error('maxArtifactBytes must be a non-negative safe integer');
   }
+  const encryption = options.encryption;
+  if (encryption) {
+    const facade = encryption.facade;
+    if (
+      !facade
+      || typeof facade.encrypt !== 'function'
+      || typeof facade.encryptStream !== 'function'
+      || typeof facade.decrypt !== 'function'
+      || typeof facade.decryptStream !== 'function'
+      || typeof encryption.keyRef !== 'string'
+      || encryption.keyRef.length < 1
+      || encryption.keyRef.length > 256
+    ) {
+      throw new Error('artifact encryption requires a crypto storage facade and an allowlisted key ref');
+    }
+  }
+  const encryptionRequired = encryption?.required === true;
   const postgresStorage = createPostgresArtifactStorageFacade({
     async read(storageKey) {
       const result = await db.query<{ bytes: Buffer }>(
@@ -100,6 +153,13 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     async delete(storageKey) {
       await db.query('DELETE FROM artifact_blobs WHERE storage_key=$1', [storageKey]);
     },
+    async write(storageKey, tenantId, bytes) {
+      await db.query(
+        `INSERT INTO artifact_blobs (storage_key, tenant_id, bytes) VALUES ($1,$2,$3)
+         ON CONFLICT (storage_key) DO UPDATE SET bytes=EXCLUDED.bytes, created_at=now()`,
+        [storageKey, tenantId, bytes],
+      );
+    },
   });
 
   function storageFor(backend: string): ArtifactStorageFacade {
@@ -108,16 +168,35 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     throw unavailable('artifact storage backend is not configured');
   }
 
+  /**
+   * SEC-ENC-04: the sealed worker upload path is server-mediated, so the S3
+   * presigned grant is never minted when encryption is configured. Returning
+   * the tokenized proxy URL keeps the single-PUT wire shape unchanged while
+   * ensuring the only writer is this service.
+   */
+  function serverMediatedUploadGrant(proxyUrl: string, expiresAt: string): ArtifactStorageUploadGrant {
+    return { url: proxyUrl, expiresAt };
+  }
+
   async function assertLease(taskId: string, leaseEpoch: number) {
     const res = await db.query(
-      `SELECT t.lease_epoch, t.operation_id, o.tenant_id
+      `SELECT t.lease_epoch, t.operation_id, o.tenant_id,
+              (t.lease_expires_at IS NOT NULL AND t.lease_expires_at > now()) AS lease_active
        FROM tasks t JOIN operations o ON o.id = t.operation_id WHERE t.id=$1`,
       [taskId]
     );
     if (!res.rowCount) throw notFound(`task ${taskId} not found`);
-    const row = res.rows[0] as { lease_epoch: number; operation_id: string; tenant_id: string };
+    const row = res.rows[0] as {
+      lease_epoch: number;
+      operation_id: string;
+      tenant_id: string;
+      lease_active: boolean;
+    };
     if (row.lease_epoch !== leaseEpoch) {
       throw conflict('LEASE_LOST', `stale leaseEpoch ${leaseEpoch}, current ${row.lease_epoch}`);
+    }
+    if (!row.lease_active) {
+      throw conflict('LEASE_LOST', `lease has expired for task ${taskId}`);
     }
     return row;
   }
@@ -141,27 +220,45 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       // time even if the advertised `expiresAt` is ignored by the caller.
       const expiresAt = new Date(Date.now() + GRANT_TTL_MS).toISOString();
       const proxyUrl = `/api/runtime/v1/artifacts/blob/${encodeURIComponent(storageKey)}?grant=${token}`;
+      // SEC-ENC-04: when sealing is configured the object version and the
+      // server-mediated proxy URL are pinned at admission. No direct backend
+      // grant is minted, so bytes cannot reach storage around the seal.
+      const objectVersion = encryption ? randomUUID() : null;
       let storageGrant: ArtifactStorageUploadGrant;
-      try {
-        storageGrant = await storageFor(storageBackend).createUploadGrant({
-          artifactId,
-          tenantId: lease.tenant_id,
-          objectKey: storageKey,
-          contentType: req.mimeType,
-          maxBytes: req.sizeBytes,
-          expiresAt,
-          proxyUrl,
-        });
-      } catch (error) {
-        throw storageErrorToHttp(error);
+      if (encryption) {
+        storageGrant = serverMediatedUploadGrant(proxyUrl, expiresAt);
+      } else {
+        try {
+          storageGrant = await storageFor(storageBackend).createUploadGrant({
+            artifactId,
+            tenantId: lease.tenant_id,
+            objectKey: storageKey,
+            contentType: req.mimeType,
+            maxBytes: req.sizeBytes,
+            expiresAt,
+            proxyUrl,
+          });
+        } catch (error) {
+          throw storageErrorToHttp(error);
+        }
       }
-      await db.query(
-        `INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type, size_bytes, state,
-                                token, token_mode, token_expires_at, storage_key, storage_backend)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12)`,
-        [artifactId, lease.tenant_id, lease.operation_id, taskId, req.purpose, req.fileName ?? null, req.mimeType, req.sizeBytes,
-          token, expiresAt, storageKey, storageBackend]
-      );
+      if (objectVersion) {
+        await db.query(
+          `INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type, size_bytes, state,
+                                  token, token_mode, token_expires_at, storage_key, storage_backend, upload_token)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12,$13)`,
+          [artifactId, lease.tenant_id, lease.operation_id, taskId, req.purpose, req.fileName ?? null, req.mimeType, req.sizeBytes,
+            token, expiresAt, storageKey, storageBackend, objectVersion]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, file_name, mime_type, size_bytes, state,
+                                  token, token_mode, token_expires_at, storage_key, storage_backend)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'STAGING',$9,'upload',$10,$11,$12)`,
+          [artifactId, lease.tenant_id, lease.operation_id, taskId, req.purpose, req.fileName ?? null, req.mimeType, req.sizeBytes,
+            token, expiresAt, storageKey, storageBackend]
+        );
+      }
       return {
         artifactId,
         uploadUrl: storageGrant.url,
@@ -190,18 +287,24 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       }
       return db.tx(async (client) => {
         const taskRes = await client.query(
-          `SELECT lease_epoch, state,
+          `SELECT lease_epoch, state, operation_id,
                   (lease_expires_at IS NOT NULL AND lease_expires_at > now()) AS lease_active
            FROM tasks WHERE id=$1 FOR UPDATE`,
           [req.taskId]
         );
         if (!taskRes.rowCount) throw notFound(`task ${req.taskId} not found`);
-        const task = taskRes.rows[0] as { lease_epoch: number; state: string; lease_active: boolean };
+        const task = taskRes.rows[0] as {
+          lease_epoch: number;
+          state: string;
+          operation_id: string;
+          lease_active: boolean;
+        };
 
         const artifactRes = await client.query(
-          `SELECT tenant_id AS "tenantId", storage_key AS "storageKey", storage_backend AS "storageBackend",
+          `SELECT tenant_id AS "tenantId", operation_id AS "operationId", storage_key AS "storageKey", storage_backend AS "storageBackend",
                   storage_version_id AS "storageVersionId", state,
                   task_id AS "taskId", size_bytes AS "sizeBytes", sha256,
+                  upload_token AS "uploadToken", manifest_version_id AS "manifestVersionId",
                   finalized_lease_epoch AS "finalizedLeaseEpoch",
                   part_count AS "partCount"
            FROM artifacts WHERE id=$1 FOR UPDATE`,
@@ -210,6 +313,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         if (!artifactRes.rowCount) throw notFound(`artifact ${artifactId} not found`);
         const art = artifactRes.rows[0] as {
           tenantId: string;
+          operationId: string | null;
           storageKey: string;
           storageBackend?: string;
           storageVersionId?: string | null;
@@ -217,10 +321,15 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
           taskId: string;
           sizeBytes: number | string | null;
           sha256: string | null;
+          uploadToken?: string | null;
+          manifestVersionId?: string | null;
           finalizedLeaseEpoch: number | null;
           /** Non-null only on the multipart branch, where it bounds the cap. */
           partCount?: number | string | null;
         };
+        if (art.operationId && task.operation_id && art.operationId !== task.operation_id) {
+          throw conflict('PERMISSION_DENIED', 'task cannot finalize artifact of different operation');
+        }
         if (art.state === 'READY') {
           if (
             art.taskId === req.taskId &&
@@ -274,6 +383,114 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
               },
             })
           : storageFor(artifactBackend);
+
+        const finishFinalize = async (finalized: {
+          rowCount: number | null;
+          rows: unknown[];
+        }): Promise<{ artifactId: string; state: string }> => {
+          if (!finalized.rowCount) {
+            // The task lock prevents cancel/takeover during this transaction;
+            // the UPDATE predicate also checks lease expiry at the commit edge.
+            const currentTaskRes = await client.query(
+              `SELECT lease_epoch, state,
+                      (lease_expires_at IS NOT NULL AND lease_expires_at > now()) AS lease_active
+               FROM tasks WHERE id=$1`,
+              [req.taskId]
+            );
+            const currentTask = currentTaskRes.rows[0] as {
+              lease_epoch: number;
+              state: string;
+              lease_active: boolean;
+            } | undefined;
+            if (!currentTask || currentTask.lease_epoch !== req.leaseEpoch) {
+              throw conflict('LEASE_LOST', 'producer lease epoch changed before finalization');
+            }
+            if (!currentTask.lease_active) {
+              throw forbidden('producer lease expired before finalization');
+            }
+            if (currentTask.state !== 'RUNNING') {
+              throw conflict('STATE_CONFLICT', 'producer task is not RUNNING');
+            }
+            throw conflict('STATE_CONFLICT', 'artifact changed before finalization');
+          }
+          return { artifactId, state: (finalized.rows[0] as { state: string }).state };
+        };
+
+        // SEC-ENC-04: a sealed worker artifact is verified against its
+        // authenticated envelope. The finalize request carries PLAINTEXT
+        // business metadata; storage holds ciphertext whose pinned version and
+        // hash stay separate from the plaintext sha/size committed to the row.
+        if (encryption && art.uploadToken) {
+          if (!art.storageVersionId) {
+            throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
+          }
+          const manifestKey = manifestKeyFor(art.storageKey);
+          let sidecarBytes: Buffer;
+          try {
+            if (typeof verificationStorage.readServerObject !== 'function') {
+              throw new ArtifactStorageError('ENCRYPTION_UNAVAILABLE');
+            }
+            sidecarBytes = await verificationStorage.readServerObject(manifestKey);
+          } catch (error) {
+            if (error instanceof ArtifactStorageError && error.code === 'OBJECT_NOT_FOUND') {
+              throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
+            }
+            throw storageErrorToHttp(error);
+          }
+          const identity: WorkerArtifactIdentity = {
+            tenantId: art.tenantId,
+            artifactId,
+            objectVersion: art.uploadToken,
+          };
+          let parsed: ParsedWorkerArtifactSidecar;
+          try {
+            parsed = parseWorkerArtifactSidecar(JSON.parse(sidecarBytes.toString('utf8')) as unknown);
+          } catch (error) {
+            throw storageErrorToHttp(error);
+          }
+          let verified: { plaintextSha256: string; plaintextSizeBytes: number };
+          try {
+            const ciphertext = await collectReadable(await verificationStorage.openRead({
+              objectKey: art.storageKey,
+              versionId: art.storageVersionId,
+            }), maxArtifactBytes);
+            verified = await verifyWorkerArtifact({
+              sidecar: parsed,
+              ciphertext,
+              context: artifactEncryptionContext(identity),
+              seam: encryption,
+            });
+          } catch (error) {
+            throw storageErrorToHttp(error);
+          }
+          if (verified.plaintextSizeBytes !== req.sizeBytes) {
+            throw storageErrorToHttp(new ArtifactStorageError('SIZE_MISMATCH'));
+          }
+          if (verified.plaintextSha256 !== req.sha256) {
+            throw storageErrorToHttp(new ArtifactStorageError('CHECKSUM_MISMATCH'));
+          }
+          const sealedFinalized = await client.query(
+            `UPDATE artifacts SET state='READY', size_bytes=$2, sha256=$3,
+                                  finalized_lease_epoch=$5, storage_version_id=$6,
+                                  manifest_version_id=COALESCE(manifest_version_id,$7)
+             WHERE id=$1 AND task_id=$4 AND state='STAGING'
+               AND EXISTS (
+                 SELECT 1 FROM tasks t
+                 WHERE t.id=$4 AND t.lease_epoch=$5 AND t.state='RUNNING'
+                   AND t.lease_expires_at > now()
+               )
+             RETURNING id, state`,
+            [artifactId, verified.plaintextSizeBytes, verified.plaintextSha256,
+              req.taskId, req.leaseEpoch, art.storageVersionId, art.manifestVersionId ?? null]
+          );
+          return finishFinalize(sealedFinalized);
+        }
+        if (encryption && encryptionRequired && !art.uploadToken) {
+          // Strict deployment: a row admitted without the sealed carrier must
+          // not become READY, even if its raw bytes still verify as plaintext.
+          throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
+        }
+
         let pinned: StoredArtifactVersion;
         try {
           pinned = await verificationStorage.verifyAndPin({
@@ -307,32 +524,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
            RETURNING id, state`,
           [artifactId, pinned.sizeBytes, pinned.sha256, req.taskId, req.leaseEpoch, pinned.versionId]
         );
-        if (!finalized.rowCount) {
-          // The task lock prevents cancel/takeover during this transaction;
-          // the UPDATE predicate also checks lease expiry at the commit edge.
-          const currentTaskRes = await client.query(
-            `SELECT lease_epoch, state,
-                    (lease_expires_at IS NOT NULL AND lease_expires_at > now()) AS lease_active
-             FROM tasks WHERE id=$1`,
-            [req.taskId]
-          );
-          const currentTask = currentTaskRes.rows[0] as {
-            lease_epoch: number;
-            state: string;
-            lease_active: boolean;
-          } | undefined;
-          if (!currentTask || currentTask.lease_epoch !== req.leaseEpoch) {
-            throw conflict('LEASE_LOST', 'producer lease epoch changed before finalization');
-          }
-          if (!currentTask.lease_active) {
-            throw forbidden('producer lease expired before finalization');
-          }
-          if (currentTask.state !== 'RUNNING') {
-            throw conflict('STATE_CONFLICT', 'producer task is not RUNNING');
-          }
-          throw conflict('STATE_CONFLICT', 'artifact changed before finalization');
-        }
-        return { artifactId, state: (finalized.rows[0] as { state: string }).state };
+        return finishFinalize(finalized);
       });
     },
 
@@ -365,7 +557,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         if (task.lease_epoch !== req.leaseEpoch) {
           throw conflict('LEASE_LOST', 'requester lease epoch is stale');
         }
-        if (!task.lease_active) throw forbidden('requester lease has expired');
+        if (!task.lease_active) throw conflict('LEASE_LOST', 'requester lease has expired');
         if (task.state !== 'RUNNING') {
           throw conflict('STATE_CONFLICT', 'requester task is not RUNNING');
         }
@@ -376,7 +568,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
                   storage_version_id AS "storageVersionId", file_name AS "fileName", mime_type AS "mimeType",
                   size_bytes AS "sizeBytes", sha256,
                   state, task_id AS "taskId", purpose
-           FROM artifacts WHERE id=$1 FOR UPDATE`,
+            FROM artifacts WHERE id=$1 FOR UPDATE`,
           [artifactId]
         );
         if (!artifactRes.rowCount) throw notFound(`artifact ${artifactId} not found`);
@@ -410,6 +602,9 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
             hasDeclaredArtifactReference(task.submitArtifacts, artifactId);
           if (!sameOperation && !declaredReference) {
             throw conflict('PERMISSION_DENIED', 'task is not authorized to read artifact');
+          }
+          if (art.taskId !== req.taskId && art.state !== 'READY') {
+            throw conflict('PERMISSION_DENIED', 'foreign task cannot access unready artifact');
           }
           if (art.state !== 'READY') throw conflict('STATE_CONFLICT', 'artifact is not READY');
           readVersionId = art.storageVersionId ??
@@ -482,17 +677,92 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     async putBlob(storageKey, tenantId, bytes): Promise<void> {
       await db.tx(async (client) => {
         const cur = await client.query(
-          `SELECT a.state, a.storage_backend AS "storageBackend" FROM artifacts a
+          `SELECT a.id, a.state, a.storage_backend AS "storageBackend", a.upload_token AS "uploadToken"
+           FROM artifacts a
            WHERE a.storage_key=$1 AND a.tenant_id=$2 FOR UPDATE OF a`,
           [storageKey, tenantId]
         );
         if (!cur.rowCount) throw notFound('artifact upload target not found');
-        const row = cur.rows[0] as { state: string; storageBackend?: string };
-        const state = row.state;
-        if (state !== 'STAGING') {
+        const row = cur.rows[0] as {
+          id: string;
+          state: string;
+          storageBackend?: string;
+          uploadToken: string | null;
+        };
+        const backend = row.storageBackend ?? 'postgres';
+        if (row.state !== 'STAGING') {
           throw conflict('STATE_CONFLICT', 'artifact is not STAGING and its bytes are immutable');
         }
-        if ((row.storageBackend ?? 'postgres') !== 'postgres') {
+        if (encryption) {
+          // SEC-ENC-04: the server seals before any byte reaches a store. A
+          // row without its pinned object version cannot satisfy the policy.
+          if (!row.uploadToken) {
+            throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
+          }
+          const identity: WorkerArtifactIdentity = {
+            tenantId,
+            artifactId: row.id,
+            objectVersion: row.uploadToken,
+          };
+          const sealed = await sealWorkerArtifact({ bytes, identity, seam: encryption });
+          const manifestKey = manifestKeyFor(storageKey);
+          let writtenCiphertextVersion: string | null = null;
+          let writtenManifestVersion: string | null = null;
+          try {
+            if (backend === 'postgres') {
+              await client.query(
+                `INSERT INTO artifact_blobs (storage_key, tenant_id, bytes) VALUES ($1,$2,$3)
+                 ON CONFLICT (storage_key) DO UPDATE SET bytes=EXCLUDED.bytes, created_at=now()`,
+                [storageKey, tenantId, sealed.ciphertext],
+              );
+              writtenCiphertextVersion = sealed.ciphertextSha256;
+              await client.query(
+                `INSERT INTO artifact_blobs (storage_key, tenant_id, bytes) VALUES ($1,$2,$3)
+                 ON CONFLICT (storage_key) DO UPDATE SET bytes=EXCLUDED.bytes, created_at=now()`,
+                [manifestKey, tenantId, sealed.sidecar],
+              );
+              writtenManifestVersion = createHash('sha256').update(sealed.sidecar).digest('hex');
+            } else {
+              const writer = storageFor(backend);
+              if (typeof writer.putServerObject !== 'function') {
+                throw new ArtifactStorageError('ENCRYPTION_UNAVAILABLE');
+              }
+              writtenCiphertextVersion = (await writer.putServerObject({
+                objectKey: storageKey,
+                tenantId,
+                body: sealed.ciphertext,
+                contentType: ARTIFACT_CIPHERTEXT_CONTENT_TYPE,
+                metadata: sealedObjectMetadata({ artifactId: row.id, tenantId, manifestKey }),
+              })).versionId;
+              writtenManifestVersion = (await writer.putServerObject({
+                objectKey: manifestKey,
+                tenantId,
+                body: sealed.sidecar,
+                contentType: ARTIFACT_SIDECAR_CONTENT_TYPE,
+                metadata: manifestObjectMetadata({ artifactId: row.id, tenantId }),
+              })).versionId;
+            }
+            await client.query(
+              `UPDATE artifacts SET storage_version_id=$2, manifest_version_id=$3
+               WHERE id=$1 AND state='STAGING'`,
+              [row.id, writtenCiphertextVersion ?? null, writtenManifestVersion ?? null],
+            );
+          } catch (error) {
+            if (backend !== 'postgres' && options.storageFacade) {
+              // Best-effort orphan cleanup; the row stays STAGING and the
+              // recovery sweeper owns anything left behind.
+              if (writtenManifestVersion) {
+                await options.storageFacade.delete({ objectKey: manifestKey, versionId: writtenManifestVersion }).catch(() => undefined);
+              }
+              if (writtenCiphertextVersion) {
+                await options.storageFacade.delete({ objectKey: storageKey, versionId: writtenCiphertextVersion }).catch(() => undefined);
+              }
+            }
+            throw storageErrorToHttp(error);
+          }
+          return;
+        }
+        if (backend !== 'postgres') {
           throw conflict('STATE_CONFLICT', 'S3 uploads must use the issued storage grant');
         }
         await client.query(
@@ -505,6 +775,12 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
 
     async putPublicArtifact(input) {
+      if (encryption) {
+        // The legacy compat writer owns its own INS/DELETE transaction and has
+        // no envelope carrier, so it cannot satisfy the sealing policy. Refuse
+        // before any plaintext byte is written rather than degrade the policy.
+        throw unavailable('legacy inline uploads are unavailable while artifact encryption is configured');
+      }
       return writePublicArtifact(
         {
           query: (sql, params) => db.query(sql, params as unknown[]),
@@ -543,7 +819,8 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     async getBlob(storageKey): Promise<Readable> {
       const result = await db.query(
         `SELECT id, tenant_id AS "tenantId", state, storage_backend AS "storageBackend",
-                storage_version_id AS "storageVersionId", size_bytes AS "sizeBytes", sha256
+                storage_version_id AS "storageVersionId", size_bytes AS "sizeBytes", sha256,
+                upload_token AS "uploadToken"
          FROM artifacts WHERE storage_key=$1`,
         [storageKey],
       );
@@ -556,6 +833,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         storageVersionId: string | null;
         sizeBytes: number | string | null;
         sha256: string | null;
+        uploadToken: string | null;
       };
       if (art.state !== 'READY') throw conflict('STATE_CONFLICT', 'artifact is not READY');
       if (!art.sha256 || art.sizeBytes === null || art.sizeBytes === undefined) {
@@ -564,6 +842,58 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
       const expectedSizeBytes = Number(art.sizeBytes);
       const expectedSha256 = art.sha256;
       const backend = art.storageBackend ?? 'postgres';
+
+      // SEC-ENC-04: sealed worker artifacts are opened server-side, exactly
+      // like the public upload route. The envelope binds tenant/artifact/pinned
+      // version, so a swapped row or ciphertext is a refusal, never a raw
+      // ciphertext body served under a success status.
+      if (encryption && art.uploadToken) {
+        const objectStore = storageFor(backend);
+        if (typeof objectStore.readServerObject !== 'function') {
+          throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_UNAVAILABLE'));
+        }
+        const manifestKey = manifestKeyFor(storageKey);
+        let sidecarBytes: Buffer | null = null;
+        try {
+          sidecarBytes = await objectStore.readServerObject(manifestKey);
+        } catch (error) {
+          if (!(error instanceof ArtifactStorageError && error.code === 'OBJECT_NOT_FOUND')) {
+            throw storageErrorToHttp(error);
+          }
+        }
+        if (sidecarBytes) {
+          if (!art.storageVersionId) {
+            throw conflict('STATE_CONFLICT', 'artifact has no immutable version and integrity metadata');
+          }
+          try {
+            const manifest = parseWorkerArtifactSidecar(JSON.parse(sidecarBytes.toString('utf8')) as unknown);
+            const ciphertext = await collectReadable(await objectStore.openRead({
+              objectKey: storageKey,
+              versionId: art.storageVersionId,
+            }), maxArtifactBytes);
+            const plaintext = await openWorkerArtifact({
+              sidecar: manifest,
+              ciphertext,
+              context: artifactEncryptionContext({
+                tenantId: art.tenantId,
+                artifactId: art.id,
+                objectVersion: art.uploadToken,
+              }),
+              seam: encryption,
+            });
+            const plaintextSha256 = createHash('sha256').update(plaintext).digest('hex');
+            if (plaintextSha256 !== expectedSha256 || plaintext.byteLength !== expectedSizeBytes) {
+              throw new ArtifactStorageError('ENVELOPE_INVALID');
+            }
+            return Readable.from([plaintext]);
+          } catch (error) {
+            throw storageErrorToHttp(error);
+          }
+        }
+        if (encryptionRequired) {
+          throw storageErrorToHttp(new ArtifactStorageError('ENCRYPTION_REQUIRED'));
+        }
+      }
 
       // During DATA-05 roll-forward, check S3 first. For legacy PostgreSQL rows,
       // verify the candidate S3 object against source metadata. Only the active
@@ -656,6 +986,21 @@ function proxyBlobUrl(storageKey: string, token: string): string {
   return `/api/runtime/v1/artifacts/blob/${encodeURIComponent(storageKey)}?grant=${token}`;
 }
 
+/** Collect one bounded server-side stream (envelope/plaintext read paths). */
+async function collectReadable(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    total += bytes.byteLength;
+    if (total > maxBytes) {
+      throw new ArtifactStorageError('SIZE_MISMATCH');
+    }
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks, total);
+}
+
 function isStorageObjectNotFound(error: unknown): boolean {
   return error instanceof ArtifactStorageError && error.code === 'OBJECT_NOT_FOUND';
 }
@@ -678,6 +1023,12 @@ function storageErrorToHttp(error: unknown) {
       case 'INVALID_OBJECT_BODY':
       case 'STORAGE_UNAVAILABLE':
         return unavailable('artifact storage is temporarily unavailable');
+      case 'ENCRYPTION_UNAVAILABLE':
+        return unavailable('artifact encryption is temporarily unavailable');
+      case 'ENCRYPTION_REQUIRED':
+        return unavailable('artifact encryption is required and was not satisfied');
+      case 'ENVELOPE_INVALID':
+        return conflict('STATE_CONFLICT', 'artifact encryption envelope could not be verified');
     }
   }
   // Never propagate provider exception messages, request IDs, URLs or paths.

@@ -1,0 +1,4 @@
+﻿# cmd: npx tsc --noEmit -p tsconfig.json
+# time: 2026-10-05T01:44:07.039+07:00
+
+TSC_EXIT=0

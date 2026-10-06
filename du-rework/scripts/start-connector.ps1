@@ -1,5 +1,5 @@
 # ==============================================================================
-# start-connector.ps1 — Start Connector Service (Port 8080)
+# start-connector.ps1 — Start Connector Service (local default Port 8088)
 # ==============================================================================
 
 $Host.UI.RawUI.WindowTitle = "DUGate Connector [Port 8080]"
@@ -24,6 +24,7 @@ $DistEntry = "$WorkspaceRoot\services\connector\dist\entrypoint.js"
 if (-not (Test-Path $DistEntry)) {
     Write-Host "Compiled binary not found. Running build-all.cjs..." -ForegroundColor Yellow
     node "$ScriptDir\build-all.cjs"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 # Ensure SQL migration files exist in dist/db/migrations
@@ -35,8 +36,10 @@ if (-not (Test-Path $DistMigrations)) {
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   Starting DUGate Connector Service (Port 8080)" -ForegroundColor Cyan
-Write-Host "   Ready check : http://localhost:8080/health/ready" -ForegroundColor Green
+Write-Host "   Starting DUGate Connector Service (local default Port 8088)" -ForegroundColor Cyan
+Write-Host "   Ready check : http://localhost:8088/health/ready" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 node --env-file=$EnvFile "$DistEntry"
+
+exit $LASTEXITCODE

@@ -1,0 +1,17 @@
+{
+  "docs/19-traceability-audit-matrix.md": {
+    "sha256": "0f1d3da8c66a5bbc91bc8436d808a17523c82c27a69456e78ae998320298f729",
+    "bytes": 157464,
+    "snapshot": "coordination/reports/trace-reconcile-803-2026-10-05.1.before.md"
+  },
+  "docs/28-test-inventory.md": {
+    "sha256": "33655cc2f7587bc13680e0b16963541c61488fec7d692741955a384958b7e1e5",
+    "bytes": 525537,
+    "snapshot": "coordination/reports/trace-reconcile-803-2026-10-05.2.before.md"
+  },
+  "docs/35-acceptance-baseline.md": {
+    "sha256": "c19144286c3cbd51ad48f7c49efddc2fea2344297d87f361ed8fc35387de9e77",
+    "bytes": 375793,
+    "snapshot": "coordination/reports/trace-reconcile-803-2026-10-05.3.before.md"
+  }
+}

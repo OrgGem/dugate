@@ -1,0 +1,14 @@
+{
+  "extends": "../../../services/orchestrator/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "baseUrl": "../../../services/orchestrator",
+    "paths": {
+      "@du/contracts": ["../../packages/contracts/dist/index.d.ts"]
+    }
+  },
+  "include": [
+    "../../../services/orchestrator/src/modules/artifacts/**/*.ts"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "project": "arch-phase-b-20261006",
+  "connectorId": "arch-extract-mock-muw58i0k",
+  "phases": {
+    "connectorRevision": { "created": true, "revision": 1, "adapter": "json-http", "state": "ACTIVE" },
+    "fixtureCredentialActive": true,
+    "profileBinding": { "created": true, "revision": 1, "slot": "reasoning", "connectorRevision": 1 },
+    "submit": { "http": 202, "accepted": true, "operationId": "85905084-47bb-4306-863f-461443e9b579" },
+    "operation": { "state": "SUCCEEDED", "done": true },
+    "database": { "state": "SUCCEEDED", "errorCode": null, "taskCount": 1, "checkpointCount": 3 },
+    "mockProvider": { "calls": 1 },
+    "apiKeyRevoked": true,
+    "connectorDisabled": true,
+    "networkCleanup": { "mockSidecarStopped": true, "connectorEgressPolicyRestored": true }
+  },
+  "verdict": "FAIL",
+  "code": "extract_result_fixture_marker_missing"
+}

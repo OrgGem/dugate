@@ -1,5 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import type { IngestionReceipt } from '@du/contracts';
+import { createPinnedFetch } from '@du/egress';
 import {
   createIngestionTaskHandler,
   createSourceAcquisitionIngestor,
@@ -8,10 +9,26 @@ import {
   type PinnedSourceStorage,
   type SdkFetcher,
   type SourceIngestionErrorCode,
+  type SourceIngestorOptions,
 } from '@du/worker-sdk';
 import type { Db } from '../../db/db';
 import { HttpError } from '../../http/errors';
 import { maybeScheduleWebhook, type DbClient } from '../webhooks/webhooks';
+import { MetadataCryptoError, type MetadataCrypto } from '../runtime/metadata-crypto';
+import { compatibilityMetadataReader, type MetadataReader } from '../encryption/metadata-read-policy';
+import {
+  SourceAuthDeniedError,
+  withSourceAuth,
+  type AcquisitionRefCoords,
+  type ResolvedSourceAuth,
+} from './acquisition-ref-resolver';
+import {
+  createEncryptedSourceStorageWrapper,
+  encryptedSourceArtifactId,
+  encryptedSourceObjectVersion,
+  hasEncryptedSourceWriteCapability,
+  type EncryptedSourceWriteDescription,
+} from './ingestion-storage-s3';
 import { processIngestionTask, type SourceAcquirer } from './submission';
 
 /**
@@ -71,6 +88,8 @@ export interface IngestionTransferPolicy {
 }
 
 export interface IngestionConsumerOptions {
+  /** Tenant-scoped IAM S3 acquisition adapter, composed by the platform. */
+  acquireS3FileForTenant?: (tenantId: string, source: string) => NonNullable<SourceIngestorOptions['acquireFile']>;
   db: Db;
   /** Private-store port the pinned versions land in (S3 adapter in prod).
    * A resolvePinned hit means a retry answers without any network. */
@@ -92,6 +111,44 @@ export interface IngestionConsumerOptions {
    * not wait a full dispatcher tick. Best-effort: the timer is the safety
    * net, mirroring the submit route's dispatch kick. */
   onGateOpened?: (operationId: string) => void;
+  /**
+   * CRX-01: the SAME metadata seam the submit side wrote with. The consumer
+   * uses it on BOTH ends of the gate:
+   *  - read: a submit-side sealed `tasks.payload_ref` is opened under its
+   *    (tenant, slot, root task) binding before the envelope is trusted;
+   *  - write: `processIngestionTask` re-seals the READY envelope into
+   *    `operations.input_ref` / `tasks.payload_ref`.
+   * Absent = control-plane encryption off for this deployment; every
+   * statement stays byte-identical to the historical body.
+   */
+  metadataCrypto?: MetadataCrypto;
+  /**
+   * CONTROL-PLANE-IMPL-818: the boot-built reader for the plaintext decision
+   * on the root `tasks.payload_ref` read below. Absent (an in-process boot) the
+   * bounded compatibility reader applies; the sourceUrl envelope read stays
+   * STRICT and never consults this.
+   */
+  metadataReader?: MetadataReader;
+  /**
+   * P730-ACQUIRE (W1c): resolve the operation's pinned Profile source
+   * credential IMMEDIATELY before the fetch (decrypt-at-fetch, never earlier).
+   * A `SourceAuthDeniedError` from this seam is a deterministic, typed denial
+   * that escalates on the spot — no network, no retry. Absent = the
+   * historical unauthenticated acquisition path, byte-identical.
+   */
+  resolveSourceAuth?: (coords: AcquisitionRefCoords) => Promise<ResolvedSourceAuth>;
+  /**
+   * SEC-ENC-03 (SD-02): when true, every cold source acquisition MUST persist
+   * a canonical encrypted envelope and the artifacts row carries the strict
+   * reader's `upload_token` + `manifest_version_id`. The storage adapter must
+   * expose the encrypted write capability (composed from the SAME Vault-backed
+   * facade the deployment already uses); a deployment that sets this flag
+   * without that capability fails at construction instead of silently writing
+   * plaintext. Absent/false keeps the historical plaintext path byte-identical
+   * for synthetic/legacy environments until SEC-ENC-05 flips the real-data
+   * default.
+   */
+  requireEncryptedSourceWrites?: boolean;
 }
 
 export interface IngestionSweepResult {
@@ -223,16 +280,36 @@ const ARTIFACT_BY_ID_SQL =
 
 /** token is NOT NULL in the base schema but is only a placeholder here: the
  * grant routes rotate token/token_mode on demand (artifacts.ts:410), and a
- * platform-materialized source pin was never PUT through the proxy path. */
+ * platform-materialized source pin was never PUT through the proxy path.
+ * SEC-ENC-03: `upload_token` (AAD object version) and `manifest_version_id`
+ * are appended for encrypted writes; both stay NULL on the historical
+ * plaintext path. */
 const ARTIFACT_INSERT_SQL =
   'INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, mime_type, ' +
-  'size_bytes, sha256, state, token, storage_key, storage_version_id, storage_backend) ' +
-  "VALUES ($1,$2,$3,$4,'input','application/octet-stream',$5,$6,'READY',$7,$8,$9,$10) " +
+  'size_bytes, sha256, state, token, storage_key, storage_version_id, storage_backend, ' +
+  'upload_token, manifest_version_id) ' +
+  "VALUES ($1,$2,$3,$4,'input','application/octet-stream',$5,$6,'READY',$7,$8,$9,$10,$11,$12) " +
   'ON CONFLICT (id) DO NOTHING';
 
 /** Non-retryable: redelivery cannot change the answer. Everything that
- * depends on the outside world (transport, storage, DB) stays retryable. */
-const PERMANENT_CODES = new Set(['TASK_INVALID', 'INVALID_URL', 'SCHEME_NOT_ALLOWED', 'INVALID_SCHEMA', 'MATERIALIZATION_CONFLICT']);
+ * depends on the outside world (transport, storage, DB) stays retryable.
+ * P730-ACQUIRE: every typed source-auth denial is deterministic by
+ * construction (bad ref, foreign tenant, vanished revision, wrong key,
+ * missing secret, forbidden query credential), so it escalates immediately
+ * instead of burning the retry budget re-reading the same rows. */
+const PERMANENT_CODES = new Set([
+  'TASK_INVALID',
+  'INVALID_URL',
+  'SCHEME_NOT_ALLOWED',
+  'INVALID_SCHEMA',
+  'MATERIALIZATION_CONFLICT',
+  'REF_INVALID',
+  'REF_NOT_FOUND',
+  'REF_TENANT_MISMATCH',
+  'AUTH_CONFIG_MISSING',
+  'AUTH_DECRYPT_FAILED',
+  'QUERY_AUTH_FORBIDDEN',
+]);
 
 /**
  * T180-D1: raised whenever a guarded write answers rowCount 0 - the claim
@@ -254,13 +331,91 @@ function permanentFailure(reason: string): SourceIngestionError {
   return new SourceIngestionError(422, 'TASK_INVALID', reason);
 }
 
+/**
+ * ENC-META-FIX-G1: open the `sourceUrl` the outbox dispatch payload carries.
+ *
+ * The submit side seals that field with the metadata seam under the same
+ * binding as the root task payload (tenant, 'tasks.payload_ref', taskId), so
+ * the gate can open both copies with the context it already builds. A legacy
+ * row written before the fix - or by a deployment with no seam configured -
+ * still carries the plaintext string and passes through unchanged. Envelope
+ * opens fail closed: `KEY_PROVIDER_FAILED` is retryable (key-service outage),
+ * every other crypto failure is a corrupt or mis-bound value that redelivery
+ * cannot repair; the caller maps both. This never falls back to reading a
+ * plaintext value out of a malformed envelope shape.
+ */
+export async function openDispatchSourceUrl(
+  raw: unknown,
+  binding: { tenantId: string; taskId: string },
+  crypto: MetadataCrypto | undefined
+): Promise<string> {
+  // BA04-FIX-811: the RENDER lane and the PROTECTED lane share this door.
+  // A TEXT string carrying a sealed envelope MUST be AEAD-opened on this
+  // binding; otherwise a payload could bypass every crypto check forever just
+  // by being a string. A plain URL that is not envelope-shaped keeps its
+  // behaviour unchanged. See the door comment on `looksLikeSealedEnvelope`.
+  if (typeof raw === 'string') {
+    const parsed = safeDispatchSourceUrlJson(raw);
+    if (parsed === undefined) return raw;
+    // The string carries a sealed envelope. It enters the PROTECTED lane
+    // below: same crypto, same binding, same error codes.
+    raw = parsed;
+  }
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new MetadataCryptoError('NOT_SEALED', 'dispatch sourceUrl is neither a string nor a sealed envelope');
+  }
+  if (!crypto) {
+    throw new MetadataCryptoError('KEY_PROVIDER_FAILED', 'dispatch sourceUrl is sealed but no metadata seam is configured');
+  }
+  const opened = await crypto.readStored(raw, {
+    tenantId: binding.tenantId,
+    slot: 'tasks.payload_ref',
+    refId: binding.taskId,
+  }, false);
+  if (typeof opened !== 'string' || opened.length === 0) {
+    throw new MetadataCryptoError('NOT_SEALED', 'dispatch sourceUrl did not open to a non-empty string');
+  }
+  return opened;
+}
+
+/**
+ * BA04-FIX-811: the door that decides whether a TEXT string is a sealed
+ * envelope or a plain URL.
+ *
+ * The submit side seals `sourceUrl` as JSON text inside the outbox payload
+ * (`sealOutboxSourceUrl` returns the envelope OBJECT, embedded in the payload
+ * JSON). So a TEXT string that parses to an envelope-shaped object is a
+ * PROTECTED value and must be AEAD-opened. A plain URL is not envelope-shaped
+ * and keeps its behaviour unchanged.
+ *
+ * Returns the parsed object when the string carries an envelope, otherwise
+ * undefined. Never throws: a malformed string is treated as a plain URL.
+ */
+function safeDispatchSourceUrlJson(raw: string): Record<string, unknown> | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  const v = parsed as Record<string, unknown>;
+  if (v.version !== 1 || v.algorithm !== 'aes-256-gcm') return undefined;
+  if (typeof v.ciphertext !== 'string') return undefined;
+  if (typeof v.dek !== 'object' || v.dek === null) return undefined;
+  if (typeof v.nonce !== 'string' || typeof v.tag !== 'string') return undefined;
+  return v;
+}
+
 function failureCode(err: unknown): string {
   const raw =
     err instanceof SourceIngestionError || err instanceof SourceAcquisitionError
       ? err.code
-      : err instanceof HttpError
+      : err instanceof SourceAuthDeniedError
         ? err.code
-        : 'INGESTION_FAILED';
+        : err instanceof HttpError
+          ? err.code
+          : 'INGESTION_FAILED';
   return typeof raw === 'string' && /^[A-Z][A-Z0-9_]{0,39}$/.test(raw) ? raw : 'INGESTION_FAILED';
 }
 
@@ -273,8 +428,18 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const backoff = options.retryBackoffSeconds ?? DEFAULT_RETRY_BACKOFF_SECONDS;
   const claimLease = options.claimLeaseSeconds ?? DEFAULT_CLAIM_LEASE_SECONDS;
+  // CRX-01: optional seam; absent = historical plaintext statements.
+  const metadataCrypto = options.metadataCrypto;
+  // CONTROL-PLANE-IMPL-818: one reader for the consumer's policy-governed
+  // read; the sourceUrl envelope read (line ~336) stays strict by design.
+  const metadataReader = options.metadataReader ?? compatibilityMetadataReader(metadataCrypto);
   if (!Number.isSafeInteger(options.transfer.maxBytes) || options.transfer.maxBytes < 1) {
     throw new Error('ingestion consumer requires a positive integer transfer.maxBytes');
+  }
+  // SEC-ENC-03: fail at composition, not mid-ingestion, when encryption is
+  // required but the storage adapter cannot produce envelopes.
+  if (options.requireEncryptedSourceWrites && !hasEncryptedSourceWriteCapability(options.storage)) {
+    throw new Error('ingestion consumer requires encrypted source writes but the storage adapter does not implement putEncrypted');
   }
   // T180-D1: the claim lease must outlive the transfer it protects, or the
   // fence exists only on paper (a lease shorter than the deadline guarantees
@@ -340,15 +505,21 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   async function materializeArtifactRow(
     row: ClaimedRow,
     coords: { tenantId: string; operationId: string; taskId: string },
-    receipt: IngestionReceipt
+    receipt: IngestionReceipt,
+    encrypted?: EncryptedSourceWriteDescription | null,
   ): Promise<string> {
-    const artifactId = sourceArtifactId({
-      tenantId: coords.tenantId,
-      operationId: coords.operationId,
-      storageKey: receipt.storageKey,
-      versionId: receipt.versionId,
-      sha256: receipt.sha256,
-    });
+    // SEC-ENC-03: an encrypted write pre-binds the row id (AAD artifactId) and
+    // the object version (AAD objectVersion); the plaintext path keeps the
+    // historical deterministic pin formula.
+    const artifactId = encrypted
+      ? encrypted.artifactId
+      : sourceArtifactId({
+          tenantId: coords.tenantId,
+          operationId: coords.operationId,
+          storageKey: receipt.storageKey,
+          versionId: receipt.versionId,
+          sha256: receipt.sha256,
+        });
     return options.db.tx(async (client) => {
       await assertOwnership(client, row);
       const found = await client.query(ARTIFACT_FIND_SQL, [
@@ -369,6 +540,8 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
         artifactId, coords.tenantId, coords.operationId, coords.taskId,
         receipt.sizeBytes, receipt.sha256, randomUUID(),
         receipt.storageKey, receipt.versionId, options.storageBackend,
+        encrypted?.objectVersion ?? null,
+        encrypted?.manifestVersionId ?? null,
       ]);
       if (inserted.rowCount) return artifactId;
       // PK conflict: our deterministic id already exists (concurrent or
@@ -396,16 +569,58 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
     // the in-tx fences below catch the race during flight.
     const preNew = await options.db.query(FENCE_RENEW_SQL, [row.id, claimLease, row.token]);
     if (!preNew.rowCount) throw new IngestionPreemptedError();
+    // P730-ACQUIRE (W1c): resolve + decrypt the pinned source credential at
+    // fetch time — after the ownership renew (so a stolen claim never runs
+    // this) and before ANY network. The returned credential lives for this
+    // call only: it is handed to the fetcher wrapper below and never enters
+    // the queue payload, checkpoint, claim or logs.
+    const sourceAuth = !sourceUrl.startsWith('s3://') && options.resolveSourceAuth
+      ? await options.resolveSourceAuth({ operationId: coords.operationId, tenantId: coords.tenantId })
+      : ({ kind: 'none' } as ResolvedSourceAuth);
+    const transfer =
+      sourceAuth.kind === 'none'
+        ? options.transfer
+        : {
+            ...options.transfer,
+            fetcher: withSourceAuth(options.transfer.fetcher ?? createPinnedFetch(), sourceAuth),
+          };
     const storageKey = sourceStorageKey(coords.tenantId, coords.operationId);
+    // SEC-ENC-03: bind this acquisition's envelope identity. The wrapper fails
+    // closed when the adapter has no encrypted capability; with the flag
+    // absent the historical storage port is used unchanged.
+    let encryptedWrite: EncryptedSourceWriteDescription | null = null;
+    const acquisitionStorage = options.requireEncryptedSourceWrites
+      ? createEncryptedSourceStorageWrapper(options.storage, {
+          context: {
+            tenantId: coords.tenantId,
+            artifactId: encryptedSourceArtifactId({
+              tenantId: coords.tenantId,
+              operationId: coords.operationId,
+              storageKey,
+            }),
+            objectVersion: encryptedSourceObjectVersion({
+              tenantId: coords.tenantId,
+              operationId: coords.operationId,
+              storageKey,
+            }),
+          },
+          onWritten: (description) => { encryptedWrite = description; },
+        })
+      : options.storage;
     const ingestor = createSourceAcquisitionIngestor({
-      storage: options.storage,
+      storage: acquisitionStorage,
       storageKey,
-      transfer: options.transfer,
+      transfer,
       taskId: coords.operationId,
+      ...(sourceUrl.startsWith('s3://') ? {
+        acquireFile: options.acquireS3FileForTenant
+          ? options.acquireS3FileForTenant(coords.tenantId, sourceUrl)
+          : async () => { throw permanentFailure('S3 source ingestion is not configured'); },
+      } : {}),
     });
     const handler = createIngestionTaskHandler({
       acquirer: ingestor,
-      materializeArtifact: (_task, receipt) => materializeArtifactRow(row, coords, receipt),
+      materializeArtifact: (_task, receipt) => materializeArtifactRow(row, coords, receipt, encryptedWrite),
     });
     // The handler IS the SourceAcquirer processIngestionTask demands: the
     // audit's missing middle - acquisition plus READY-artifact
@@ -427,7 +642,9 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
       // gate writes and the claim check commit or roll back together.
       async (client) => {
         await assertOwnership(client, row);
-      }
+      },
+      // CRX-01: the READY gate re-seals both columns with the submit-side seam.
+      metadataCrypto
     );
     // Post-commit stamp is attempt-guarded too; a steal in the tiny window
     // between gate commit and here leaves the (correct) state for the new
@@ -473,11 +690,18 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   async function processRow(row: ClaimedRow): Promise<keyof IngestionSweepResult> {
     const payload = row.payload;
     const operationId = payload.operationId;
-    const sourceUrl = payload.sourceUrl;
+    // ENC-META-FIX-G1: with the seam configured this field is a sealed
+    // envelope object; a legacy row (pre-fix, or a seam-less deployment)
+    // still carries the plaintext string. The envelope is opened below,
+    // after the task row supplies the tenant + id its binding needs.
+    const rawSourceUrl = payload.sourceUrl;
     const taskId = payload.taskId;
+    const sourceUrlShapeOk = typeof rawSourceUrl === 'string'
+      ? rawSourceUrl.length > 0
+      : rawSourceUrl !== null && typeof rawSourceUrl === 'object' && !Array.isArray(rawSourceUrl);
     if (
       typeof operationId !== 'string' || operationId.length === 0 ||
-      typeof sourceUrl !== 'string' || sourceUrl.length === 0 ||
+      !sourceUrlShapeOk ||
       typeof taskId !== 'string' || taskId.length === 0
     ) {
       // A row missing its own coordinates cannot be escalated to an
@@ -516,8 +740,54 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
       return await escalate(row, permanentFailure('dispatch taskId does not match the root task row'));
     }
 
+    // ENC-META-FIX-G1: resolve the dispatch copy of the URL under the same
+    // (tenant, 'tasks.payload_ref', taskId) binding the sealed task payload
+    // uses; a legacy plaintext row passes through openDispatchSourceUrl
+    // unchanged. A key-service outage is retryable; a corrupt or mis-bound
+    // envelope is decided HERE, before any network or storage work.
+    let sourceUrl: string;
+    try {
+      sourceUrl = await openDispatchSourceUrl(
+        rawSourceUrl,
+        { tenantId: record.tenantId, taskId: record.taskId },
+        metadataCrypto
+      );
+    } catch (err) {
+      if (err instanceof MetadataCryptoError && err.code === 'KEY_PROVIDER_FAILED') {
+        if (row.attempts + 1 >= maxAttempts) return await escalate(row, err);
+        return await retry(row);
+      }
+      return await escalate(row, permanentFailure('dispatch sourceUrl cannot be opened under its binding'));
+    }
+
     const rawEnvelope = record.payloadRef as Record<string, unknown> | string | null;
-    const envelope = typeof rawEnvelope === 'string' ? safeJson(rawEnvelope) : rawEnvelope;
+    const parsedEnvelope = typeof rawEnvelope === 'string' ? safeJson(rawEnvelope) : rawEnvelope;
+    // CRX-01: the submit side seals `tasks.payload_ref` before its INSERT, so
+    // with the seam configured the value read back is an envelope bound to
+    // (tenant, 'tasks.payload_ref', root task id). Open it under the SAME
+    // binding before trusting the envelope; a plaintext row (pre-encryption
+    // backfill window) passes through, mirroring the runtime's openMetadata
+    // policy. A failed open is decided HERE, before any network or storage
+    // work: a key-service outage is retryable, every other crypto failure is
+    // a corrupt or mis-bound row that redelivery cannot repair and escalates
+    // permanently.
+    let envelope: Record<string, unknown> | null = parsedEnvelope;
+    if (metadataCrypto) {
+      try {
+        const opened = await metadataReader.readStored(parsedEnvelope, {
+          tenantId: record.tenantId,
+          slot: 'tasks.payload_ref',
+          refId: record.taskId,
+        });
+        envelope = opened as Record<string, unknown> | null;
+      } catch (err) {
+        if (err instanceof MetadataCryptoError && err.code === 'KEY_PROVIDER_FAILED') {
+          if (row.attempts + 1 >= maxAttempts) return await escalate(row, err);
+          return await retry(row);
+        }
+        return await escalate(row, permanentFailure('root task payload_ref cannot be opened under its binding'));
+      }
+    }
     if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
       return await escalate(row, permanentFailure('root task payload_ref is not a JSON object'));
     }

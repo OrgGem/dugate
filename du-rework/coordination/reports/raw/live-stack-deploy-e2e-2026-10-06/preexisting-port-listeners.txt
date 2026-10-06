@@ -1,0 +1,9 @@
+﻿
+::1       8080 wslrelay          
+::        8080 com.docker.backend
+::        3000 node              
+127.0.0.1 3001 node              
+
+
+
+container=nginx-ui mapping=0.0.0.0:8080->80/tcp, [::]:8080->80/tcp

@@ -265,6 +265,7 @@ test('HTTP maps quota and provider failures to stable statuses', async () => {
     },
     capabilities: () => ({}),
     ready: async () => true,
+    allowUnauthenticatedTestTraffic: true,
   });
   await listenLoopback(server, 43560 + ((process.pid % 8) * 8));
   const address = server.address();

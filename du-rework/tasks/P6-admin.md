@@ -1,5 +1,7 @@
 # P6 — Admin quản trị business/profile/connector/operation
 
+> **Handoff frontend 2026-10-04:** [Admin Web plan](ADMIN-WEB-DELIVERY-2026-10-04.md) xây UI React/BFF mới theo `ACUI`/`ORCH-PAR`. Các dòng P6 và yêu cầu backend gắn tên agent bên dưới là **nhật ký renderer hiện tại**, không phải phân công cho Admin Web mới. Giữ evidence lịch sử; route mới chỉ thay renderer theo từng slice đã verify.
+
 > **Mở rộng cấu hình Admin 2026-10-02:** [ACUI-00..10](ADMIN-CONTROL-PLANE-UI-2026-10-02.md) là acceptance bổ sung cho UI cấu hình thực tế, gồm Identity/OIDC/role, profile, API key, Connector và setting deployment. Các tick P6 renderer/synthetic trước đây không xác nhận form đã ghi dữ liệu hoặc cấu hình đã có hiệu lực.
 
 > **Bổ sung vận hành 2026-09-24:** [ADM-UX-00..07](ADMIN-OPS-UX-2026-09-24.md) theo yêu cầu giao diện ít cuộn, search/filter đầy đủ, live data và chống lộ dữ liệu. Các tick P6-01..07 bên dưới là baseline lịch sử; không chứng nhận `G-ADMIN-OPS`. Backlog mới không thay `ADM-BASE`, OIDC/Vault hoặc code source trong lượt cập nhật plan này.

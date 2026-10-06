@@ -1,0 +1,28 @@
+{
+  "id": "d26c96ed-a894-4649-b227-3906876d40d3",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
+      "status": "running",
+      "tail": [
+        "  │ du-rework/services/orchestrator/src/modules/usage/usage.ts | Select-Object -Last 45; rg -n 'cost|usage|budget|reservation|totalUsed|billing' du-rework/services/orchestrator/src",
+        "  └ du-rework/services/orchestrator/src\\server.ts:1252:    return { status: 200, body: await ctx.usage.ingest(ctx.body) };",
+        "    du-rework/services/orchestrator/src\\server.ts:1266:    return { status: 200, body: await ctx.usage.getUsageSummary(apiKey.tenantId, fromDate, toDate) };",
+        "    … +434 lines (ctrl + t to view transcript)",
+        "    du-rework/services/orchestrator/src\\app\\admin\\overview-view-models.ts:359:    costMicrousd: number;",
+        "    du-rework/services/orchestrator/src\\app\\admin\\shell-render.ts:453:  // (api-key-section__list, overview-section__usage-table,ing •ing ing •ng ng ng•nggg•gg••W•WW•Wo30Wo•WoWoWorWorWorWorkWorkWorkWrkiWorkiWorkiWorkiWorkinWorkinWorkinWorinorkingorkingorkingrkingrkingrking1kingkingking•kinging•inging•ngng•ngg•ggg••W•WW•Wo2Wo•WoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrking3kigkingkingking•inging•ingng•ngng•gg•gg••W•WW•Wo4Wo•WoWoWorWorWorWorkWorkWorkWorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrking5rkigkingkingking•inging•ingng•ngng•gg•gg••W•WW•Wo6Wo•WoWoWorWorWorWorkWorkWorkWrkiWorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrkingrking7rkingkingkingking•inging•inging•ngng•ngg•gg•••WW•WWo8•WoWoWorWorWororWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorinorkingorkingorkingrkingrking9rkingkingkingking•kining•inging•ngng•ngg•gg•g•W•WW•WWo40•WoWoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorkingorkingrkingrkingrking1rkigkingkingking•inging•ingng•ngng•ngg•gg••W•WW•Wo2Wo•WoWoWorWorWorWorkWorkWorkWrkiWorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorkingorkingrkingrkingrking3kingkingking•kinging•inging•ngng•ngg•ggg••W•WW•Wo4Wo•WoWoWorWorWorWorkWorkWorkWorkiWorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkingrkingrking5rkigkingkingking•inging•ingng•ngng•ngg•gg••W•WW•WWo6•WoWoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrkingrking7rkingkingkingking•inging•inging•ngng•ngg•gg••W•WW•WWo8Wo•WoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrkingrking9rkingkingkingking•inging•inging•ngng•ngg•gg•••WW•WWo50•WoWoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorkinorinorkingorkingorkingorkngrkingrking1rkingkingkingking•ining•inging•ngng•ngg•gg•••WW•WWo2•WoWoWor"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "44211",
+      "nextCursor": "45205",
+      "latestCursor": "45205",
+      "returnedLineCount": 6,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

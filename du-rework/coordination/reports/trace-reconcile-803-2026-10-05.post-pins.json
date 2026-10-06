@@ -1,0 +1,14 @@
+{
+  "docs/19-traceability-audit-matrix.md": {
+    "sha256": "e4efd02ec7f80d0e4006746d8c04a8f85f2e5daa8a9bdedb169d1d9a6a29c0de",
+    "bytes": 173358
+  },
+  "docs/28-test-inventory.md": {
+    "sha256": "bfa9295d494e01e86edfb5f7fab671432b6252fca6cfd1c5ed884c71171b11f5",
+    "bytes": 541516
+  },
+  "docs/35-acceptance-baseline.md": {
+    "sha256": "a502a3c2ec6a51fe2308c090f721c07f18a917edb366d82d559b52879ae66b51",
+    "bytes": 391767
+  }
+}

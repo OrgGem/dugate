@@ -1,0 +1,5 @@
+# Container build inputs must use LF on Windows checkouts.
+Dockerfile text eol=lf
+**/Dockerfile text eol=lf
+*.yml text eol=lf
+scripts/docker/*.cjs text eol=lf

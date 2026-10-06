@@ -1,0 +1,13 @@
+{
+  "head": "b088eececcb5f3df0b4edbe073a29401dafda624",
+  "files": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "sha256": "81051c8ae7db3544f339eb0736548c934eeb46b0e42c1e2ef5460d4832a3c02a",
+      "snapshot": "coordination/reports/plan-checkpoint-805-2026-10-05.1.before.md"
+    },
+    "tasks/README.md": {
+      "sha256": "15371224823774bfa5df67f879c07a91aba582faa60f471e734814aa371b708c",
+      "snapshot": "coordination/reports/plan-checkpoint-805-2026-10-05.2.before.md"
+    }
+  }
+}

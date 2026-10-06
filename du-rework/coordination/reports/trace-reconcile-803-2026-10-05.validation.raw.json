@@ -1,0 +1,43 @@
+{
+  "scope": "document-only; no product suite/live/browser/build rerun",
+  "checks": [
+    {
+      "file": "docs/19-traceability-audit-matrix.md",
+      "old_byte_prefix_equal": true,
+      "old_bytes": 157464,
+      "appended_bytes": 15894,
+      "unchanged_checkbox_count": 13,
+      "owner_attributed_rows": 31
+    },
+    {
+      "file": "docs/28-test-inventory.md",
+      "old_byte_prefix_equal": true,
+      "old_bytes": 525537,
+      "appended_bytes": 15979,
+      "unchanged_checkbox_count": 48,
+      "owner_attributed_rows": 31
+    },
+    {
+      "file": "docs/35-acceptance-baseline.md",
+      "old_byte_prefix_equal": true,
+      "old_bytes": 375793,
+      "appended_bytes": 15974,
+      "unchanged_checkbox_count": 198,
+      "owner_attributed_rows": 31
+    }
+  ],
+  "appended_links_checked": 81,
+  "required_tokens_per_doc": 31,
+  "checkbox_changes": 0,
+  "intake_relative_diff_check_exits": [
+    1,
+    1,
+    1
+  ],
+  "no_index_exit_1_means_expected_content_diff": true,
+  "intake_relative_whitespace_diagnostics": 0,
+  "worktree_vs_HEAD_diff_check_exit": 2,
+  "HEAD_whitespace_diagnostics_in_preserved_prefix": 1055,
+  "HEAD_whitespace_diagnostics_in_append": 0,
+  "errors": []
+}

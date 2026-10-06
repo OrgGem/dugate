@@ -1,0 +1,4 @@
+﻿offline root Jest command: pnpm exec jest --runInBand --verbose --json --outputFile <raw>/offline-jest-results.json --runTestsByPath <15 paths under tests, excluding tests/e2e>
+DAG command: pnpm exec tsx --tsconfig tsconfig.json <raw>/disbursement-dag-harness.ts; literal exit 1
+RBAC helper command: pnpm exec tsx --tsconfig tsconfig.json <raw>/rbac-helper-harness.ts; literal exit 0
+Live preconditions: .env absent; .env.local absent; DATABASE_URL, REDIS_URL, NEXTAUTH_SECRET unset; listeners 2023=0, 2025=0, 3099=0, 5432=2, 6379=0. E2E not run because no isolated DATABASE_URL and test setup inserts a key into the configured DB.

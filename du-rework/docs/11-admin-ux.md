@@ -1,5 +1,11 @@
 # Admin UX và cấu hình động
 
+> **Screen architecture/acceptance mới 2026-10-05:** [AOPS](../tasks/ADMIN-SYSTEM-OPERATIONS-SUPERSET-2026-10-05.md) mở rộng navigation baseline dưới đây thành nhóm Điều hành, Cấu hình dịch vụ, Truy cập/Bảo mật, Dữ liệu/Chi phí và Hệ thống/Hỗ trợ. Required: đầy đủ CFGADM parity cùng Overview ca trực, Services, Workers & Queues, Incidents, Maintenance và deployment desired/observed. Sidebar/context/breadcrumb, freshness/stale/error, drilldown và safe actions theo AOPS §3–6; bảng Navigation v1 bên dưới là baseline, không giới hạn scope mới. Route Workflow giữ decision hiện hữu; chưa có receipt không được claim accepted.
+
+> Đây là đặc tả hành vi và trạng thái màn hình. [Contract phát triển UI](admin-ui-development-contract.md) và [plan Admin Web mới](../tasks/ADMIN-WEB-DELIVERY-2026-10-04.md) chốt stack React/Vite/shadcn, BFF, thứ tự chuyển route và handoff Profile. Các widget/renderers P6 hiện tại là baseline lịch sử; trạng thái triển khai xem task/receipt, không suy từ bảng navigation dưới đây.
+>
+> Rollout Admin Web (React) đi theo **từng route**: bật bằng `DU_ADMIN_WEB` + allow-list `DU_ADMIN_WEB_ROUTES` (fail-closed, route ngoài allow-list trả 404 nhất quán; legacy `/admin/*` không đổi) — semantics/rollback đầy đủ ở [Deployment Guide §3.1](12b-deployment-guide.md).
+
 Yêu cầu ca trực về tìm kiếm operation, phân loại token/chi phí LLM, bảng giá và ngân sách được đặc tả tại [Admin Ops Monitoring & Cost](admin-ops-monitoring-cost.md). Các dòng Usage/Operations bên dưới là baseline, chưa thay acceptance chi tiết của đặc tả bổ sung.
 
 ## Navigation v1
@@ -17,6 +23,8 @@ Overview; Businesses; Profiles; API Keys; Connectors; Operations; Usage; Audit. 
 | Usage | Measured/estimated/pending, client/business/provider | Filter/export bounded | Corrections hiển thị riêng |
 
 ## Dynamic profile form
+
+Theo [handoff Profile 2026-10-04](../coordination/reports/profile-parity-analysis-2026-10-04.md), màn mới cần client/key selector, service/endpoint matrix, revision thật, effective-config preview, per-step prompt override và bulk save báo lỗi từng endpoint. User được gán chỉ sửa `parameters/connectionsOverride` của endpoint đang bật sau gate `VFY-LOCAL`; admin mới có full-field. `fileUrlAuthConfig` là trường write-only, lưu mã hóa AES-256-GCM trong DB; credential của Connector/provider vẫn theo Vault. Plan triển khai và test nằm ở [AWEB-04](../tasks/ADMIN-WEB-DELIVERY-2026-10-04.md), không suy tính năng đã chạy từ renderer P6 hiện có.
 
 UI đọc manifest schema từ Registry API. Widgets hữu hạn: input, textarea, number, checkbox, enum select, array editor, nested group, JSON editor. Unknown widget rơi về validated JSON editor; unsupported schema có message rõ, không render silently sai.
 

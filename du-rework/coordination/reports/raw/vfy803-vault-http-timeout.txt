@@ -1,0 +1,7 @@
+﻿COMMAND: node coordination/reports/raw/vfy803-vault-http-timeout.mjs
+LITERAL_EXIT_CODE: 0
+
+LOCAL_DELAYED_HTTP_RESULT=PASS
+request_count=1; method=POST; token_present=true; sentinel_received_by_local_stub=true
+abort_signal_present=true; abort_signal_fired=true; elapsed_ms=95; timeout_ms=80
+error_name=VaultKv2WriterError; code=VAULT_UNAVAILABLE; retryable=true; error_sentinel_leak=false

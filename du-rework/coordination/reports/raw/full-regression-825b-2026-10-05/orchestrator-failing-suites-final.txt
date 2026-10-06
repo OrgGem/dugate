@@ -1,0 +1,5 @@
+﻿tests/admin-shell-session-lifecycle.test.ts
+tests/artifact-read-authorization.test.ts
+tests/migration-0032-rollback.test.ts
+tests/migration-verify-trap-fix.test.ts
+tests/legacy-payload-migration.test.ts

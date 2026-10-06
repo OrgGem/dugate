@@ -1,0 +1,36 @@
+VERIFY ENC09/R4 raw: worker-sdk fan-out suite x3
+cwd=D:\Git\dugate\du-rework\packages\worker-sdk
+command=node node_modules/jest/bin/jest.js --runInBand tests/fan-out.test.ts
+rounds=3
+===== ROUND 1 =====
+
+--- stderr ---
+Test Suites: 1 passed, 1 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        2.071 s
+Ran all test suites matching tests/fan-out.test.ts.
+EXIT_CODE=0
+EXIT_SIGNAL=none
+
+===== ROUND 2 =====
+
+--- stderr ---
+Test Suites: 1 passed, 1 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        1.78 s, estimated 2 s
+Ran all test suites matching tests/fan-out.test.ts.
+EXIT_CODE=0
+EXIT_SIGNAL=none
+
+===== ROUND 3 =====
+
+--- stderr ---
+Test Suites: 1 passed, 1 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        1.818 s, estimated 2 s
+Ran all test suites matching tests/fan-out.test.ts.
+EXIT_CODE=0
+EXIT_SIGNAL=none

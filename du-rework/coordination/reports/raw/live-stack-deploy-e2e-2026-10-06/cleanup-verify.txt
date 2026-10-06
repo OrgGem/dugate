@@ -1,0 +1,5 @@
+﻿compose_ps_exit=0
+project_container_count=0
+project_volume_count=2
+project_volumes=pm-m02-verify-20261006-887_pgdata,pm-m02-verify-20261006-887_valkeydata
+unrelated_nginx_ui=nginx-ui Up 39 hours 0.0.0.0:8080->80/tcp, [::]:8080->80/tcp

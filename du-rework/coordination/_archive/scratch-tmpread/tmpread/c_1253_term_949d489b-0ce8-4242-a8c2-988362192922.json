@@ -1,0 +1,37 @@
+{
+  "id": "d91fa7ca-b965-4916-b26a-318189642cb5",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
+      "status": "running",
+      "tail": [
+        "  │ … +2 lines",
+        "  └",
+        "    CREATE TABLE IF NOT EXISTS operations (",
+        "    … +186 lines (ctrl + t to view transcript)",
+        "               JOIN tasks t ON t.id = w.task_id",
+        "               JOIN operations o ON o.id = t.operation_iding ing ing ng ng ng ng gg•gg••W•WW•WoWo•Wo40Wo•WorWorWor•WorkWork•WorkWorki•WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkngrkingrkingrkingking1kingkingingingingingngngnggg•g••W•WW•WoWoWo2•WoWor•WorWor•WorkWork•WorkWrki•WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrkingrkingrkingking3kingkingingingingingngngnggg•gg••W•WW•WoWo•Wo4Wor•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingkingking5kingkingingingingngngnggg•gg••W•WW•WoWoWo•Wo6Wor•WorWor•WorkWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinWorkinoringorkingorkingorkingrkingrkingrkingking7kingkingkingingingingngngngggg•g••W•WW•WoWo•Wo8Wor•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrkingking9kingkinginingingingingngngnggg•g••WW•WW•WoWo•Wo50Wor•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrkingrkingrkingking1kingkinginingingingngngnggg•g••W•WW•WoWoWo · Running hooksWo2 •Wo Wor •Wor Wor · 1 background terminal running · /ps to view ·… •WorWorkWork•Work",
+        "",
+        "• Ran Get-Content du-rework/coordination/reports/tester.md -Tail 95; rg -n",
+        "  │ \"^# .*PROGRESS|^# COMP-01-FILE-ADMISSION|^# \" du-rework/coordination/reports/",
+        "  │ tester.md | Select-Object -Last 12; git status --short",
+        "  └",
+        "    ## 3. Active rework input and upload path",
+        "    … +1374 lines (ctrl + t to view transcript)",
+        "    ?? du-rework/services/orchestrator/.cache/",
+        "    ?? du-rework/services/orchestrator/tests/__probe-c63.test.tsWork Wrk Worki •Worki Worki Worki Workin WorkinWorkinWorkinoringorkingorkingorkingrkingrkingrkingkingking3kingkingingingingngngngnggg•g••WW•WW•WoWo•Wo4Wor•WorWor•orkWork•WorkWork•WorkiWorkiWorkiWorkiWorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingrkigking5kingkingingingingngngnggg•gg••WW•WW•WoWo•Wo6Wor•WorWor•orWork•WorkWork•WorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigking7kingkingingingingingngngnggg•g••W•WW•WoWo•Wo8WoWor•WorWor•WorkWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingrkigking9kingkingingingingngngngngg•gg••W•WW•WoWo•Wo400Wo•WorWorWor•WorkWork•WorkWrk•WorkiWorkiWorkiWorkinWorkinWorkinWorinorkingorkingorkingrkingrkingrkingrkigking1kingkingingingingngngnggg•gg••W•WW•WoWo•Wo2WoWor•WorWor•WorkWork•WorkWorki•WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkngrkingrkingrkingking3kingkingingingingingngngnggg•g••WW•WW•WoWo•Wo4Wor•WorWor•orkWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinoringorkingorkingorkingrkingrkingrkingking5kingkinginingingingngngnggg•g••W•WW•WoWo•Wo6Wor•WorWor•orkWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingking7kingkinginingingingngngnggg•g••W•WW•WoWo•Wo8Wor•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingking9kingkingkiningingingngngnggg•g••W•WW•WoWo•Wo10Wor•WorWor•orkWork•WorkWork•WorkiWorkiWorkiWorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingking1kingkingkiningingingngngnggg•g••W•WW•WoWo•Wo2Wor•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingkingking3kingkingingingingngngnggg•gg••W•WW•WoWo•Wo4Wo•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingkigking5kingkingingingingngngnggg•gg••W•WW•WoWo•Wo6Wor•WorWor•WorWork•WorkWork•WorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigking7kingkingingingingngngnggg•gg••W•WW•WoWo•Wo8Wo•WorWor•WorWorkWork•Work•WorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigking9kingkingingingingngngnggg•gg••W•WW•WoWo•Wo20Wo•WorWorWor•WorkWork•WorkWorki•WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigking1kingkingingingingngngngngg•gg••WW•WWo•WoWo2•WoWor•WorWor•WorkWork•WorkWrki•WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkingking3kingkingingingingngngngnggg•g••WW•WWo•WoWo4•WoWor•WorWor•WorkWork•WorkWrki•WorkiWorkiWorkiWorkinWorkin"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "38647",
+      "nextCursor": "40647",
+      "latestCursor": "40647",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

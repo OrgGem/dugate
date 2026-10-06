@@ -1,0 +1,29 @@
+{
+  "groups": [
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6"
+  ],
+  "local_links_checked": 14,
+  "anchors_checked": 4,
+  "readonly_document_pins_checked": 4,
+  "checkboxes_added": 0,
+  "staged_query_argv": [
+    "git",
+    "diff",
+    "--cached",
+    "--name-only"
+  ],
+  "staged_query_exit": 0,
+  "staged_query_stdout": "",
+  "staged_query_stderr": "",
+  "source_drift_since_snapshot": [
+    "services/orchestrator/src/db/migrations.ts"
+  ],
+  "product_tests_run": false,
+  "receipt_sha256": "802877e6ac620f281bccf68fea14e5be61208a26d0fc8a6057f7d72061e4eaca",
+  "errors": []
+}

@@ -1,0 +1,37 @@
+{
+  "id": "cf1ce66f-6189-4790-bf08-fc0d1fcad269",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
+      "status": "running",
+      "tail": [
+        "  └",
+        "    du-rework\\coordination\\reports\\tester.md:12286:#",
+        "    … +134 lines (ctrl + t to view transcript)",
+        "",
+        "inging•ingng•ngngngg•g5g•g••WW•WW•WoWo•WoWorWorWororWorkWorkWorkWorkiWorkiWorki6WorkinWorkinWorkinWorinorkingorkingorkingrkingrkingrkingkingkingkingkin•inginging•ngng•ngng•g7g•g••WW•WWo•WoWo•WoWorWorWorWorkWorkWorkWrkiWorkiWorki8WorkiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkingkingkingkinging•inging•ngng•ngng•g9g•g••W•WW•WoWo•WoWorWorWororkWorkWorkWorkWorkiWorkiWorki100WorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingkingkingkingin•inging•ingng•ngng•g1g•g••W•WW•WoWo•WoWorWorWorWorWorkWorkWorkWorkiWorkiWorki2WorkinWorkinWorkinWorinorkingorkingorkingrkingrkingrkingkingkingkingkin•inging•ingng•ngng•ngg3•gg••WW•WW•WoWo•WoWorWorWorWorWorkWorkWorkWrkiWorkiWorki4WorkiWorkinWorkinWorkinoringorkingorkingorkingrkingrkingrkingkigkingkingkinging•inging•ngng•ngng•g5g•g••WW•WW•WoWo•WoWorWorWorWorkWorkWorkWorkWorkiWorkiWorki6WokiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigkingkingking•inging•ingng•ngng•ngg7•gg••WW•WWo•WoWo•WoWorWorWorWorkWorkWorkWorkWorkiWorkiWorki8WorkinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigkingkingkinging•inging•ingng•ngng•g9g•gg••WW•WWo•WoWo•WoWorWorWororkWorkWorkWorkWorkiWorkiWorki10WokinWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrkingkingkingkinging•inging•ingng•ngng•g1g•g••W•WW•WoWo•WoWorWorWororkWorkWorkWorkWorkiWorkiWorki2WorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingkingkingkingkin•inging•ingng•ngng•g3g•g••W•WW•WoWo•WoWorWorWororWorkWorkWorkWorkiWorkiWorki4WorkinWorkinWorkinWoringorkingorkingrkngrkingrkingrkingkingkingkinging•inging•ingng•ngng•g5g•g••WW•WW•WoWo•WoWorWorWorWorkWorkWorkWrkWorkiWorki6WorkiWorkinWorkinWorkinorkingorkingorkingorkngrkingrkingrkingkingkingkinging•inging•ingng•ngng•g7g•g••W•WW•WoWoWo•Wo Wor Wor WorWorWorkWorkWorkWorkiWorkiWorki8WorkinWorkinWorkinWoringorkingorkingorkingrkingrkingrkingkingkingkingin•inging•ingng•ngng•g9g•g••W•WW•WoWo•WoWorWorWorWorWorkWorkWorkWorkiWorkiWorki20WorkinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingkingkingkingkin•inging•ingng•ngng•g1g•gg••W•WW•WoWo•WoWorWorWorWorWorkWorkWorkWorkiWorkiWorki2WokinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigkingkingking•inging•ingng•ngng•ngg3g•g••WW•WWo•WoWo•WoWorWorWorWorkWorkWorkWorkiWorkiWorki4WokiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkigkingkingking•inging•ingng•ngngng•g5g•g••WW•WWo•WoWo•WoWorWorWorWorkWorkWorkWorkiWorkiWorki6WorkiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingrkingkingkingkinging•inging•ngng•ngng•g7g•g••WW•WWo•WoWo•WoWorWorWorWorkWorkWorkWorkWorkWorkiWorkiWorki8WorkinWorkinWorkinoringorkingorkingorkingrkingrkingrkingkingkingkinging•inging•ingngng•ngng•g9g•g••W•WW•WoWo•WoWoWorWorWorWorkWorkWorkWrki",
+        "",
+        "• Added the read-only file-admission comparison to du-rework/coordination/reports/",
+        "  tester.md:12286. It covers legacy validation order and both rework upload paths,  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome",
+        "  labels rework .docm acceptance and extension/MIME mismatch as MUST-NOT-REPLICATE,",
+        "  and confirms admission relies on metadata and hashes rather than magic-byte",
+        "  sniffing.",
+        "",
+        "  No source files or gates were changed, and I ran no tests.    • Working (11m 32s • esc to interrupt) · Running hooks  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome  •",
+        "",
+        "  Worked for 11m 32s · done 12:29 PM  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "38457",
+      "nextCursor": "40423",
+      "latestCursor": "40423",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

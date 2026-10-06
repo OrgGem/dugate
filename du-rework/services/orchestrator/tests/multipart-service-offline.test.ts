@@ -39,6 +39,35 @@ const DECLARED_SHA = wholeHash('whole-object');
 /** Signed §6 policy ceiling for one part (§6 user decision gate, Cycle A1). */
 const SIGNED_MAX_PART_BYTES = 64 * 1024 * 1024;
 
+/**
+ * SEC-ENC-05: these fixtures model non-real data, and the boot default is now
+ * real-data (persistence encryption required). The suite declares the explicit
+ * synthetic exemption and restores the environment afterwards so other files
+ * in an --runInBand worker are unaffected. RFX-03 keeps its own `withEnv`
+ * cases: synthetic mode still forces encryption for the s3 backend and for a
+ * malformed flag.
+ */
+const SEC_ENC_05_ENV = ['DU_DATA_MODE', 'DU_SYNTHETIC_DATA_ACK'] as const;
+const savedSecEnc05Env = SEC_ENC_05_ENV.map((key) => [key, process.env[key]] as const);
+
+beforeAll(() => {
+  process.env.DU_DATA_MODE = 'synthetic';
+  process.env.DU_SYNTHETIC_DATA_ACK = JSON.stringify({
+    mode: 'synthetic-data-exempt',
+    reason: 'offline multipart fixtures',
+    approvedBy: 'tester',
+    acknowledgedAt: '2026-10-06T00:00:00.000Z',
+    isolatedFromRealData: true,
+  });
+});
+
+afterAll(() => {
+  for (const [key, value] of savedSecEnc05Env) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
+
 async function opened(harness: MultipartHarness) {
   const ack = await harness.service.init(TASK_ID, initBody());
   const geometry = { partSizeBytes: ack.partSizeBytes, partCount: ack.partCount, sizeBytes: SIZE_70MIB };
@@ -210,13 +239,54 @@ describe('multipart part grant', () => {
     expect(harness.storage.presignCalls).toHaveLength(0);
   });
 
-  test('re-granting a part replaces the declared hash', async () => {
+  // RFX-07: a part number is ONE immutable declaration. The previous case here
+  // asserted "re-granting a part replaces the declared hash" — that WAS the
+  // defect. Two grants for the same part raced, the loser rewrote the winner's
+  // hash, and a client that uploaded per grant #1 then failed `complete` with
+  // CHECKSUM_MISMATCH against grant #2's declaration: a server race reported to
+  // the operator as a client error.
+  test('re-granting a part with a DIFFERENT hash is refused, not silently applied', async () => {
     const harness = createMultipartHarness();
     const { ack } = await opened(harness);
     await harness.service.grantPart(ack.artifactId, { leaseEpoch: LEASE_EPOCH, partNumber: 1, sha256: partHash(1) });
-    await harness.service.grantPart(ack.artifactId, { leaseEpoch: LEASE_EPOCH, partNumber: 1, sha256: partHash(2) });
-    expect(harness.db.ledgerOf(ack.artifactId).get(1)!.declaredSha256).toBe(partHash(2));
+
+    await expect(harness.service.grantPart(ack.artifactId, {
+      leaseEpoch: LEASE_EPOCH, partNumber: 1, sha256: partHash(2),
+    })).rejects.toMatchObject({ status: 409, code: 'PART_CONFLICT' });
+
+    // The FIRST declaration survives, and no URL was minted for the loser.
+    expect(harness.db.ledgerOf(ack.artifactId).get(1)!.declaredSha256).toBe(partHash(1));
+    expect(harness.storage.presignCalls).toHaveLength(1);
+  });
+
+  test('re-granting the SAME hash is a replay and succeeds', async () => {
+    const harness = createMultipartHarness();
+    const { ack } = await opened(harness);
+    const body = { leaseEpoch: LEASE_EPOCH, partNumber: 1, sha256: partHash(1) };
+    const first = await harness.service.grantPart(ack.artifactId, body);
+    const second = await harness.service.grantPart(ack.artifactId, body);
+
+    expect(second.partNumber).toBe(first.partNumber);
+    expect(second.sizeBytes).toBe(first.sizeBytes);
+    expect(harness.db.ledgerOf(ack.artifactId).get(1)!.declaredSha256).toBe(partHash(1));
     expect(harness.storage.presignCalls).toHaveLength(2);
+  });
+
+  test('complete verifies the hash of the grant that WON, after the other grant was refused', async () => {
+    const harness = createMultipartHarness();
+    const { ack, geometry } = await opened(harness);
+    await harness.service.grantPart(ack.artifactId, { leaseEpoch: LEASE_EPOCH, partNumber: 1, sha256: partHash(1) });
+    await expect(harness.service.grantPart(ack.artifactId, {
+      leaseEpoch: LEASE_EPOCH, partNumber: 1, sha256: partHash(2),
+    })).rejects.toMatchObject({ status: 409, code: 'PART_CONFLICT' });
+
+    const receipts = await uploadEveryPart(harness, ack.artifactId, geometry);
+    const done = await harness.service.complete(ack.artifactId, {
+      leaseEpoch: LEASE_EPOCH,
+      parts: receipts,
+      sha256: DECLARED_SHA,
+    });
+    expect(done).toMatchObject({ committed: true, replayed: false, sha256: DECLARED_SHA });
   });
 });
 
@@ -701,6 +771,132 @@ describe('complete body against the ingress JSON cap', () => {
       JSON.stringify({ leaseEpoch: LEASE_EPOCH, parts: receipts, sha256: 'b'.repeat(64) }),
     );
     expect(bytes).toBeLessThan(DEFAULT_MAX_JSON_BYTES);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* RFX-07 — the public branch enforces the same one-declaration-per-part  */
+/* ------------------------------------------------------------------ */
+
+describe('RFX-07 public branch: a part number carries one declaration', () => {
+  test('a second public grant with a DIFFERENT hash is a PART_CONFLICT', async () => {
+    const harness = createMultipartHarness();
+    const { ack } = await publicOpened(harness);
+    await harness.service.publicGrantPart(ack.artifactId, TENANT_ID, { partNumber: 1, sha256: partHash(1) });
+
+    await expect(harness.service.publicGrantPart(ack.artifactId, TENANT_ID, {
+      partNumber: 1, sha256: partHash(2),
+    })).rejects.toMatchObject({ status: 409, code: 'PART_CONFLICT' });
+
+    expect(harness.db.ledgerOf(ack.artifactId).get(1)!.declaredSha256).toBe(partHash(1));
+    expect(harness.storage.presignCalls).toHaveLength(1);
+  });
+
+  test('a second public grant with the SAME hash replays', async () => {
+    const harness = createMultipartHarness();
+    const { ack } = await publicOpened(harness);
+    const body = { partNumber: 1, sha256: partHash(1) };
+    const first = await harness.service.publicGrantPart(ack.artifactId, TENANT_ID, body);
+    const second = await harness.service.publicGrantPart(ack.artifactId, TENANT_ID, body);
+
+    expect(second.sizeBytes).toBe(first.sizeBytes);
+    expect(harness.db.ledgerOf(ack.artifactId).get(1)!.declaredSha256).toBe(partHash(1));
+    expect(harness.storage.presignCalls).toHaveLength(2);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* RFX-03 — public multipart is refused when encryption is required        */
+/* ------------------------------------------------------------------ */
+
+describe('RFX-03 public multipart is refused while artifact encryption is required', () => {
+  const ENV_KEYS = [
+    'ARTIFACT_STORAGE_BACKEND',
+    'DU_ENCRYPTION_METADATA_ENABLED',
+    'DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED',
+  ] as const;
+
+  function withEnv(values: Record<string, string | undefined>, body: () => Promise<void>): Promise<void> {
+    const saved = ENV_KEYS.map((k) => [k, process.env[k]] as const);
+    for (const [k, v] of Object.entries(values)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    return body().finally(() => {
+      for (const [k, v] of saved) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
+  }
+
+  test('publicInit is refused on an S3 deployment, before any row or provider upload exists', async () => {
+    await withEnv({ ARTIFACT_STORAGE_BACKEND: 's3' }, async () => {
+      const harness = createMultipartHarness();
+      await expect(harness.service.publicInit(TENANT_ID, publicInitBody())).rejects.toMatchObject({
+        status: 501,
+        code: 'PUBLIC_MULTIPART_UNAVAILABLE',
+      });
+      // Nothing was created: no session row, no provider multipart upload.
+      expect(harness.db.artifacts.size).toBe(0);
+      expect(harness.storage.createCalls).toHaveLength(0);
+    });
+  });
+
+  test('publicGrantPart is refused, so no plaintext presigned PUT URL is ever minted', async () => {
+    // Opened while encryption was still OFF, so this leg proves the GRANT is
+    // refused on an already-existing session rather than just that init is.
+    const harness = createMultipartHarness();
+    const { ack } = await publicOpened(harness);
+    const presignsBefore = harness.storage.presignCalls.length;
+
+    await withEnv({ ARTIFACT_STORAGE_BACKEND: 's3' }, async () => {
+      await expect(harness.service.publicGrantPart(ack.artifactId, TENANT_ID, {
+        partNumber: 1, sha256: partHash(1),
+      })).rejects.toMatchObject({ status: 501, code: 'PUBLIC_MULTIPART_UNAVAILABLE' });
+    });
+
+    expect(harness.storage.presignCalls).toHaveLength(presignsBefore);
+    expect(harness.db.ledgerOf(ack.artifactId).size).toBe(0);
+  });
+
+  test('publicComplete is refused, so a session opened earlier cannot be published in plaintext', async () => {
+    const harness = createMultipartHarness();
+    const { geometry, artifactId } = await publicOpened(harness);
+    const receipts = await uploadEveryPartPublic(harness, artifactId, TENANT_ID, geometry);
+
+    await withEnv({ ARTIFACT_STORAGE_BACKEND: 's3' }, async () => {
+      await expect(harness.service.publicComplete(artifactId, TENANT_ID, {
+        parts: receipts, sha256: PUBLIC_DECLARED_SHA,
+      })).rejects.toMatchObject({ status: 501, code: 'PUBLIC_MULTIPART_UNAVAILABLE' });
+    });
+
+    // Still STAGING: nothing was published into the encrypted bucket.
+    expect(harness.db.artifacts.get(artifactId)!.state).toBe('STAGING');
+  });
+
+  test('a MALFORMED encryption flag is read as required, never as "no encryption"', async () => {
+    // `readBoolean` throws on anything but true/false. Treating that as "off"
+    // would let a typo in the encryption surface open the plaintext path.
+    await withEnv({ ARTIFACT_STORAGE_BACKEND: 'postgres', DU_ENCRYPTION_METADATA_ENABLED: 'yes' }, async () => {
+      const harness = createMultipartHarness();
+      await expect(harness.service.publicInit(TENANT_ID, publicInitBody())).rejects.toMatchObject({
+        status: 501,
+        code: 'PUBLIC_MULTIPART_UNAVAILABLE',
+      });
+    });
+  });
+
+  test('the guard stays open on a postgres deployment with every flag off', async () => {
+    await withEnv(
+      { ARTIFACT_STORAGE_BACKEND: 'postgres', DU_ENCRYPTION_METADATA_ENABLED: 'false' },
+      async () => {
+        const harness = createMultipartHarness();
+        await expect(harness.service.publicInit(TENANT_ID, publicInitBody())).resolves.toMatchObject({
+          replayed: false,
+        });
+      },
+    );
   });
 });
 

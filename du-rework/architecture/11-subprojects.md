@@ -1,6 +1,6 @@
 # 11 — Cấu trúc subproject và dependency
 
-**Nguồn kiểm:** [pnpm workspace](../pnpm-workspace.yaml), `package.json` của từng subproject và cây `src/` ngày 2026-10-02. Đây là inventory code, không gán nhãn ACCEPTED cho từng package.
+**Nguồn kiểm:** [pnpm workspace](../pnpm-workspace.yaml), `package.json` của từng subproject và cây `src/` ngày 2026-10-04. Đây là inventory code, không gán nhãn ACCEPTED cho từng package.
 
 ## 1. Cây workspace
 
@@ -35,7 +35,7 @@ du-rework/
 
 | Service | Điểm vào / module quan trọng | Vai trò |
 |---|---|---|
-| [Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md) | `src/main.ts` → `createApp` trong `src/server.ts`; `src/modules/*`, `src/app/admin/*`, `src/compat/*`, `migrations/*` | API public/admin/runtime, lifecycle operation/task, registry/profile, artifact, queue, usage và audit. |
+| [Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md) | `src/main.ts` → `createApp` trong `src/server.ts` → `src/app/bootstrap/create-app.ts`; `src/http/routes/*`, `src/modules/*`, `src/app/admin/*`, `src/compat/*`, `migrations/*` | API public/admin/runtime, lifecycle operation/task, registry/profile, artifact, queue, usage và audit. |
 | [Connector](../services/connector/CODE-ARCHITECTURE.md) | `src/entrypoint.ts` → `src/composition.ts`; `src/http/server.ts`, `src/services.ts`, `src/invoke.ts`, `src/adapters/*`, `src/db/*` | Gateway provider với grant, identity, quota, revision/credential, invocation ledger và usage outbox. |
 
 Hai file liên kết ở trên có cây source chi tiết, mô tả từng module và sơ đồ riêng của service.
@@ -44,7 +44,7 @@ Hai file liên kết ở trên có cây source chi tiết, mô tả từng modul
 
 | Business | Cấu trúc code | Chức năng |
 |---|---|---|
-| [document-core](../businesses/document-core/README.md) | `src/manifest/`, `actions/`, `pipelines/`, `recipes/`, `validation/`, `types/`; `main.ts`/`worker.ts` | Sáu action `ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`; manifest khai báo variant và connector slots. Có workflow `disbursement` dùng continuation/fan-out/wait. |
+| [document-core](../businesses/document-core/README.md) | `src/manifest/`, `actions/`, `pipelines/`, `recipes/`, `validation/`, `types/`; `main.ts`/`worker.ts` | Sáu action `ingest`, `extract`, `analyze`, `transform`, `generate`, `compare` với 31 variant trong manifest và connector slots; có workflow `disbursement` và `doc-compare` riêng. |
 | [example-review](../businesses/example-review/README.md) | `manifest.ts`, `review.ts`, `worker.ts`, `main.ts`, `registry-tool.ts` | Business extension mẫu: review nhiều artifact, fan-out/join, optional human approval và optional reasoning connector. |
 | [lc-checker](../businesses/lc-checker/README.md) | `rules/`, `lc-checker.ts`, `fanout.ts`, `validation.ts`, `legacy-facade.ts`, `worker.ts`, `manifest.ts` | Kiểm tra bộ chứng từ Letter of Credit theo ruleset có version, OCR/fan-out và report gắn rule citation; domain rule còn cần sign-off theo README. |
 
@@ -55,8 +55,8 @@ Mỗi worker có manifest, queue/version và image riêng. Worker dùng `@du/wor
 | Package | Nội dung source chính | Consumer trực tiếp theo package manifests |
 |---|---|---|
 | [`@du/contracts`](../packages/contracts/src/) | `public-api.ts`, `runtime.ts`, `queue.ts`, `connector.ts`, `manifest.ts`, `sdk.ts`, usage/encryption/vault schemas. | Hai services, ba workers, worker SDK, connector client, egress. |
-| [`@du/worker-sdk`](../packages/worker-sdk/src/) | `worker.ts`, `runtime-client.ts`, `task-context.ts`, `connector-invoker.ts`, artifact/source helpers, fan-out. | Orchestrator (types/helpers) và ba workers. |
-| [`@du/connector-client`](../packages/connector-client/src/) | `client.ts`, `sdk-invoker.ts`, `transport.ts`, errors/types. | Package độc lập cho consumer; không là dependency trực tiếp của hai service trong manifest hiện tại. |
+| [`@du/worker-sdk`](../packages/worker-sdk/src/) | `worker.ts`, `runtime-client.ts`, `task-context.ts`, `connector-invoker.ts`, artifact/source helpers, fan-out. | Orchestrator dùng source-ingestion logic/types; ba workers dùng runtime SDK. |
+| [`@du/connector-client`](../packages/connector-client/src/) | `client.ts`, `sdk-invoker.ts`, `transport.ts`, errors/types. | Package độc lập; chưa có import trong source production của service hoặc business, worker SDK đang dùng invoker riêng. |
 | [`@du/document-kit`](../packages/document-kit/src/) | `parsers/`, `converters/`, `formats/`, `archives/`. | Ba workers. |
 | [`@du/egress`](../packages/egress/src/) | `pinned-fetch.ts` và exports: chính sách fetch/địa chỉ mạng. | Orchestrator, Connector, worker SDK. |
 | [`@du/observability`](../packages/observability/src/) | `logger.ts`, `context.ts`, `redaction.ts`, `metrics.ts`, Elasticsearch collector. | Orchestrator, Connector, worker SDK. |

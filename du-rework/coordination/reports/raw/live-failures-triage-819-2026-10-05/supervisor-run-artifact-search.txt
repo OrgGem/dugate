@@ -1,0 +1,5 @@
+﻿Supervisor 271/280 summary: only the durable summary in coordination/agent-watch-state.json:10131 was found.
+Raw supervisor command/output and exact run target: not found in this checkout.
+Reported arithmetic: 271 PASS + 7 FAIL = 278; 2 of 280 outcomes are unaccounted for (possibly skip/todo, not established).
+Exact names of the five passing suites: not present in the available durable summary.
+Current source test counts: admin-base-routes=7, admin-action-rbac-live=12, webhook-reclaim-fence=2.

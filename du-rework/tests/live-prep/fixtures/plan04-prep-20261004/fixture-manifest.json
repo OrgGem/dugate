@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "plan04-live-prep-v1",
+  "generatedAt": "2026-10-04T11:24:47.514Z",
+  "runId": "plan04-prep-20261004",
+  "tenantId": "6462d6a9-f3b9-4563-bd6c-4a5bb0c04c56",
+  "networkAccess": "none",
+  "input": {
+    "file": "input.pdf",
+    "contentType": "application/pdf",
+    "bytes": 694,
+    "sha256": "2db9b912aecadff76123a2db2f580e826a420567f09b47055d7206ce7f9f7ff0"
+  },
+  "expectedDownload": {
+    "file": "expected-output.txt",
+    "contentType": "text/plain; charset=utf-8",
+    "bytes": 119,
+    "sha256": "feb0c2279a19458988fa1a1418493643e02473db1ed37ac7ba8aa9fdf4fc424c"
+  },
+  "sentinel": {
+    "encoding": "utf8",
+    "sha256": "484075ec380c0419a8da400d396776304eb10d3afeacf5f1d210b9db984cf93d",
+    "rawValueIncluded": false
+  }
+}

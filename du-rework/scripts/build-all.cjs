@@ -2,16 +2,8 @@
 /**
  * build-all.cjs — Topological Dependency-Ordered Build Script for du-rework
  *
- * Builds all 9 packages/services in explicit dependency order:
- *   1. @du/contracts
- *   2. @du/observability
- *   3. @du/egress
- *   4. @du/document-kit
- *   5. @du/worker-sdk
- *   6. @du/connector-client
- *   7. @du/connector
- *   8. @du/orchestrator
- *   9. @du/document-core
+ * Builds canonical shared packages, services, Portal and three workers.
+ * Uses exact package directories to exclude migration-candidate duplicates.
  *
  * Post-build: Copies SQL migration files for connector into dist.
  */
@@ -23,15 +15,18 @@ const { execSync } = require('node:child_process');
 const WORKSPACE_ROOT = path.resolve(__dirname, '..');
 
 const BUILD_ORDER = [
-  { name: '@du/contracts', dir: 'packages/contracts', cmd: 'pnpm --filter @du/contracts build' },
-  { name: '@du/observability', dir: 'packages/observability', cmd: 'pnpm --filter @du/observability build' },
-  { name: '@du/egress', dir: 'packages/egress', cmd: 'pnpm --filter @du/egress build' },
-  { name: '@du/document-kit', dir: 'packages/document-kit', cmd: 'pnpm --filter @du/document-kit build' },
-  { name: '@du/worker-sdk', dir: 'packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },
-  { name: '@du/connector-client', dir: 'packages/connector-client', cmd: 'pnpm --filter @du/connector-client build' },
-  { name: '@du/connector', dir: 'services/connector', cmd: 'pnpm --filter @du/connector build' },
-  { name: '@du/orchestrator', dir: 'services/orchestrator', cmd: 'pnpm --filter @du/orchestrator build' },
-  { name: '@du/document-core', dir: 'businesses/document-core', cmd: 'pnpm --filter @du/document-core build' },
+  { name: '@du/contracts', dir: 'packages/contracts' },
+  { name: '@du/observability', dir: 'packages/observability' },
+  { name: '@du/egress', dir: 'packages/egress' },
+  { name: '@du/document-kit', dir: 'packages/document-kit' },
+  { name: '@du/worker-sdk', dir: 'packages/worker-sdk' },
+  { name: '@du/connector-client', dir: 'packages/connector-client' },
+  { name: '@du/connector', dir: 'services/connector' },
+  { name: '@du/orchestrator', dir: 'services/orchestrator' },
+  { name: '@du/admin-web', dir: 'apps/admin-web' },
+  { name: '@du/lc-checker', dir: 'businesses/lc-checker' },
+  { name: '@du/example-review', dir: 'businesses/example-review' },
+  { name: '@du/document-core', dir: 'businesses/document-core' },
 ];
 
 function log(msg, color = '\x1b[0m') {
@@ -65,8 +60,8 @@ async function main() {
 
     const stepStart = Date.now();
     try {
-      execSync(pkg.cmd, {
-        cwd: WORKSPACE_ROOT,
+      execSync('pnpm run build', {
+        cwd: path.join(WORKSPACE_ROOT, pkg.dir),
         stdio: 'pipe',
         env: { ...process.env, FORCE_COLOR: '1' }
       });

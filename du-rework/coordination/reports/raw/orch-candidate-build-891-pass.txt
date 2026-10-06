@@ -1,0 +1,2 @@
+tsc=D:\Git\dugate\du-rework\node_modules\.pnpm\typescript@5.9.3\node_modules\typescript\bin\tsc
+CANDIDATE_BUILD_OK

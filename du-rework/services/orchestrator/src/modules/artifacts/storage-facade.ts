@@ -44,7 +44,20 @@ export type ArtifactStorageErrorCode =
   | 'SIZE_MISMATCH'
   | 'CHECKSUM_MISMATCH'
   | 'INVALID_OBJECT_BODY'
-  | 'STORAGE_UNAVAILABLE';
+  | 'STORAGE_UNAVAILABLE'
+  | 'ENCRYPTION_UNAVAILABLE'
+  | 'ENCRYPTION_REQUIRED'
+  | 'ENVELOPE_INVALID';
+
+/** Server-mediated write of one Orchestrator-produced object (SEC-ENC-04). */
+export interface ServerObjectWriteInput {
+  readonly objectKey: string;
+  readonly tenantId: string;
+  readonly body: Buffer;
+  readonly contentType: string;
+  /** Object metadata (S3) — identity/marker keys for the canonical reader. */
+  readonly metadata?: Readonly<Record<string, string>>;
+}
 
 /** Stable storage failures keep provider exception text out of API responses and logs. */
 export class ArtifactStorageError extends Error {
@@ -72,4 +85,17 @@ export interface ArtifactStorageFacade {
   verifyAndPin(input: VerifyAndPinArtifactInput): Promise<StoredArtifactVersion>;
   openRead(version: Pick<StoredArtifactVersion, 'objectKey' | 'versionId'>): Promise<Readable>;
   delete(version: Pick<StoredArtifactVersion, 'objectKey' | 'versionId'>): Promise<void>;
+  /**
+   * SEC-ENC-04: server-mediated write of an object the Orchestrator itself
+   * produced (sealed artifact ciphertext or its manifest sidecar). Optional:
+   * a backend without this port cannot host server-sealed worker artifacts,
+   * and the artifact service fails closed rather than writing plaintext.
+   */
+  putServerObject?(input: ServerObjectWriteInput): Promise<{ versionId: string | null }>;
+  /**
+   * SEC-ENC-04: read one server-mediated object by key. Throws
+   * `OBJECT_NOT_FOUND` when the object (or sidecar) does not exist, so the
+   * caller can distinguish a legacy plaintext row from a sealed one.
+   */
+  readServerObject?(objectKey: string): Promise<Buffer>;
 }

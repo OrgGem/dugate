@@ -1,0 +1,46 @@
+﻿# cmd: npx jest tests/aweb0{2,4,5,6,7}-bff-*.test.ts tests/bff-connectors-actions.test.ts --runInBand
+# time: 2026-10-05T01:35:04.8328981+07:00
+
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.105Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"d9190097-d8e3-4f8c-8f69-7a44d6dbf5ae","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.158Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"cb9b51af-3ad2-47d0-a611-e84b87d0f115","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-04T18:35:09.165Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"fa6ac4ec-ab72-44c9-92f4-e85392383c7e","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+node.exe : PASS tests/bff-connectors-actions.test.ts
+At C:\nvm4w\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PASS tests/bff-...actions.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+PASS tests/aweb04-bff-profiles.test.ts
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.333Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"d58a20c0-0734-4d75-94c9-310c26facc50","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.469Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"ec84f067-44b0-4c16-9c7e-27b807ac2418","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+PASS tests/aweb02-bff-foundation.test.ts
+  ● Console
+
+    console.warn
+      dist bundle missing — hygiene scan skipped (run the admin-web build)
+
+      540 |     it('no admin/tenant token or cookie secret in the static bundle or shell HTML', async () => {
+      541 |       if (!fs.existsSync(path.join(DIST_DIR, 'index.html'))) {
+    > 542 |         console.warn('dist bundle missing — hygiene scan skipped (run the admin-web build)');
+          |                 ^
+      543 |         return;
+      544 |       }
+      545 |       const { files, indexHtml } = await readDistBundle();
+
+      at Object.<anonymous> (tests/aweb02-bff-foundation.test.ts:542:17)
+
+PASS tests/aweb06-bff-operations.test.ts
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.658Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"432e57f1-c2f3-4e14-8774-a98840476c8c","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.780Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"4c85ede2-a53b-489f-a9c7-a5b34cedfee8","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+PASS tests/aweb05-bff-reads.test.ts
+PASS tests/aweb07-bff-security.test.ts
+
+Test Suites: 6 passed, 6 total
+Tests:       76 passed, 76 total
+Snapshots:   0 total
+Time:        3.986 s, estimated 5 s
+Ran all test suites matching 
+tests/aweb02-bff-foundation.test.ts|tests/aweb04-bff-profiles.test.ts|tests/aweb05-bff-reads.test.ts|tests/aweb06-bff-operations.test.ts|tests/aweb07-bff-security.test.ts|tests/bff-connectors-actions.test.ts.
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:09.900Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"539b7b8a-75d0-4300-b4a5-a2b2e6367e13","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+JEST_EXIT=0

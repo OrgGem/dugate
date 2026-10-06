@@ -1,0 +1,91 @@
+{
+  "url": "http://localhost:4173/admin/web/api-docs",
+  "checks": [
+    {
+      "name": "document.title",
+      "value": "Orchestrator Portal",
+      "expected": "Orchestrator Portal",
+      "ok": true
+    },
+    {
+      "name": "api reference heading",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "operation rows (All)",
+      "value": 57,
+      "expected": 57,
+      "ok": true
+    },
+    {
+      "name": "family filters",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "public origin 3000 shown",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "internal origin 3002 shown",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "try-it-out disabled note",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "admin filter rows",
+      "value": 10,
+      "expected": 10,
+      "ok": true
+    },
+    {
+      "name": "search \"claim\" rows",
+      "value": 1,
+      "expected": ">= 1",
+      "ok": true
+    },
+    {
+      "name": "detail shows internal origin",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "detail shows required scope row",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "detail shows security",
+      "value": true,
+      "expected": true,
+      "ok": true
+    },
+    {
+      "name": "schemas heading",
+      "value": true,
+      "expected": true,
+      "ok": true
+    }
+  ],
+  "consoleErrors": [
+    "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "externalRequests": [],
+  "passed": true,
+  "failedResponses": [
+    "401 http://localhost:4173/admin/api/session"
+  ]
+}

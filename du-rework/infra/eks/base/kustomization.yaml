@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: du-platform
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - clustersecretstore.yaml
+  - externalsecret-orchestrator.yaml
+  - externalsecret-connector.yaml
+  - externalsecret-workers.yaml
+  - configmap-orchestrator.yaml
+  - configmap-connector.yaml
+  - configmap-workers.yaml
+  - job-migrate.yaml
+  - deployment-orchestrator.yaml
+  - service-orchestrator.yaml
+  - deployment-connector.yaml
+  - service-connector.yaml
+  - deployment-workers.yaml
+  - ingress-public.yaml
+  - ingress-portal.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+# Pin 5 image digests sau khi push ECR — không deploy bằng tag trôi.
+images:
+  - name: du-orchestrator
+    newName: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/du-orchestrator
+    newTag: RELEASE_TAG
+    digest: sha256:PIN_THE_DIGEST_HERE
+  - name: du-connector
+    newName: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/du-connector
+    newTag: RELEASE_TAG
+    digest: sha256:PIN_THE_DIGEST_HERE
+  - name: du-document-core
+    newName: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/du-document-core
+    newTag: RELEASE_TAG
+    digest: sha256:PIN_THE_DIGEST_HERE
+  - name: du-lc-checker
+    newName: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/du-lc-checker
+    newTag: RELEASE_TAG
+    digest: sha256:PIN_THE_DIGEST_HERE
+  - name: du-example-review
+    newName: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/du-example-review
+    newTag: RELEASE_TAG
+    digest: sha256:PIN_THE_DIGEST_HERE

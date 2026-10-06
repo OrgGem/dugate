@@ -1,0 +1,7 @@
+﻿CONTAINER=du-vfy-counter808-pg16-20261005
+IMAGE=postgres:16
+PORT=127.0.0.1:55489
+TMPFS=/var/lib/postgresql/data (disposable)
+SERVER_VERSION_NUM=160010
+LIVE_PROJECT_DB=NOT_USED
+VAULT=NOT_USED

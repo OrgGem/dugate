@@ -1,0 +1,170 @@
+tsc=D:\Git\dugate\du-rework\node_modules\.pnpm\typescript@5.9.3\node_modules\typescript\bin\tsc
+packages/connector-client/src/contracts.ts(25,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ readonly NEW: "pending"; readonly IN_FLIGHT: "pending"; readonly PENDING: "pending"; readonly SUCCEEDED: "completed"; readonly FAILED: "failed"; readonly UNKNOWN: "unknown"; readonly CANCELLED: "cancelled"; }'.
+packages/connector-client/src/transport.ts(152,15): error TS7006: Parameter 'issue' implicitly has an 'any' type.
+packages/contracts/src/connector-management.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/connector.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/connector.ts(26,90): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(26,100): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(52,17): error TS7006: Parameter 'input' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(52,24): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(53,56): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(53,61): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(57,46): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(162,17): error TS7006: Parameter 'claims' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(162,25): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(171,45): error TS7006: Parameter 'pin' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(175,104): error TS7006: Parameter 'id' implicitly has an 'any' type.
+packages/contracts/src/connector.ts(175,108): error TS7006: Parameter 'index' implicitly has an 'any' type.
+packages/contracts/src/encryption.ts(20,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/encryption.ts(154,4): error TS7006: Parameter 'm' implicitly has an 'any' type.
+packages/contracts/src/encryption.ts(157,4): error TS7006: Parameter 'm' implicitly has an 'any' type.
+packages/contracts/src/encryption.ts(291,12): error TS7006: Parameter 'e' implicitly has an 'any' type.
+packages/contracts/src/encryption.ts(295,12): error TS7006: Parameter 'e' implicitly has an 'any' type.
+packages/contracts/src/errors.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/identity.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/manifest-validator.ts(2,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/manifest-validator.ts(49,50): error TS7006: Parameter 'i' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(61,29): error TS7006: Parameter 'a' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(61,32): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(69,29): error TS7006: Parameter 'a' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(69,32): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(78,31): error TS7006: Parameter 's' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(78,34): error TS7006: Parameter 'si' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(98,29): error TS7006: Parameter 'a' implicitly has an 'any' type.
+packages/contracts/src/manifest-validator.ts(98,32): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+packages/contracts/src/manifest.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/manifest.ts(12,12): error TS7006: Parameter 's' implicitly has an 'any' type.
+packages/contracts/src/operations.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/operations.ts(217,4): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/operations.ts(268,19): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/operations.ts(268,26): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/pricing.ts(82,79): error TS7006: Parameter 'tier' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(82,85): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(101,85): error TS7006: Parameter 'tiers' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(101,92): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(103,18): error TS7006: Parameter 'tier' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(103,24): error TS7006: Parameter 'index' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(190,17): error TS7006: Parameter 'rate' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(190,23): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(252,79): error TS7006: Parameter 'rates' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(252,86): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(254,18): error TS7006: Parameter 'rate' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(254,24): error TS7006: Parameter 'index' implicitly has an 'any' type.
+packages/contracts/src/pricing.ts(299,33): error TS7006: Parameter 'rate' implicitly has an 'any' type.
+packages/contracts/src/profile-commands.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/profile-commands.ts(49,6): error TS7006: Parameter 'ref' implicitly has an 'any' type.
+packages/contracts/src/profile-commands.ts(53,6): error TS7006: Parameter 'ref' implicitly has an 'any' type.
+packages/contracts/src/profile-policy.ts(33,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/public-api.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/public-api.ts(219,16): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/queue.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/request-redaction.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/request-redaction.ts(7,26): error TS7006: Parameter 'rule' implicitly has an 'any' type.
+packages/contracts/src/request-redaction.ts(7,32): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/runtime.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/runtime.ts(450,17): error TS7006: Parameter 'request' implicitly has an 'any' type.
+packages/contracts/src/runtime.ts(450,26): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/contracts/src/sdk.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/settings.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/usage-budget.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/usage-budget.ts(53,12): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(90,54): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(95,60): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(161,17): error TS7006: Parameter 'window' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(161,25): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(243,12): error TS7006: Parameter 'amount' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(263,17): error TS7006: Parameter 'request' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(263,26): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(334,17): error TS7006: Parameter 'transition' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(334,29): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(372,17): error TS7006: Parameter 'reservation' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(372,30): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(416,79): error TS7006: Parameter 'evaluation' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(416,91): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(444,17): error TS7006: Parameter 'admission' implicitly has an 'any' type.
+packages/contracts/src/usage-budget.ts(444,28): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-metrics.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/usage-metrics.ts(69,4): error TS7006: Parameter 'metrics' implicitly has an 'any' type.
+packages/contracts/src/usage-metrics.ts(69,13): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-metrics.ts(122,4): error TS7006: Parameter 'view' implicitly has an 'any' type.
+packages/contracts/src/usage-metrics.ts(122,10): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-metrics.ts(258,17): error TS7006: Parameter 'event' implicitly has an 'any' type.
+packages/contracts/src/usage-metrics.ts(258,24): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/usage-reconciliation.ts(86,4): error TS7006: Parameter 'filter' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(86,12): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(132,26): error TS7006: Parameter 'query' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(132,33): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(191,26): error TS7006: Parameter 'page' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(191,32): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(232,12): error TS7006: Parameter 'dimensions' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(235,12): error TS7006: Parameter 'dimensions' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(235,45): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(235,52): error TS7006: Parameter 'index' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(269,101): error TS7006: Parameter 'metrics' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(269,110): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(296,26): error TS7006: Parameter 'metrics' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(296,35): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(305,59): error TS7053: Element implicitly has an 'any' type because expression of type '"totalTokens" | "costMicrousd" | "inputTokens" | "outputTokens" | "eventCount" | "uniqueOperations" | "invocations" | "attempts"' can't be used to index type '{}'.
+  Property 'totalTokens' does not exist on type '{}'.
+packages/contracts/src/usage-reconciliation.ts(310,52): error TS18046: 'total' is of type 'unknown'.
+packages/contracts/src/usage-reconciliation.ts(310,67): error TS18046: 'status' is of type 'unknown'.
+packages/contracts/src/usage-reconciliation.ts(321,60): error TS18046: 'values' is of type 'unknown'.
+packages/contracts/src/usage-reconciliation.ts(336,26): error TS7006: Parameter 'group' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(336,33): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(363,26): error TS7006: Parameter 'aggregation' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(363,39): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(419,30): error TS7006: Parameter 'group' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(422,44): error TS7006: Parameter 'total' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(422,51): error TS7006: Parameter 'group' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(457,17): error TS7006: Parameter 'summary' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(457,26): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/usage-reconciliation.ts(654,32): error TS2345: Argument of type 'MutableUsageMetrics | undefined' is not assignable to parameter of type 'MutableUsageMetrics'.
+  Type 'undefined' is not assignable to type 'MutableUsageMetrics'.
+packages/contracts/src/usage-reconciliation.ts(741,22): error TS2345: Argument of type 'MutableUsageMetrics | undefined' is not assignable to parameter of type 'MutableUsageMetrics'.
+  Type 'undefined' is not assignable to type 'MutableUsageMetrics'.
+packages/contracts/src/usage-reconciliation.ts(757,22): error TS2345: Argument of type 'MutableUsageMetrics | undefined' is not assignable to parameter of type 'MutableUsageMetrics'.
+  Type 'undefined' is not assignable to type 'MutableUsageMetrics'.
+packages/contracts/src/vault.ts(1,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+packages/contracts/src/vault.ts(191,15): error TS7006: Parameter 'source' implicitly has an 'any' type.
+packages/contracts/src/vault.ts(281,17): error TS7006: Parameter 'cfg' implicitly has an 'any' type.
+packages/contracts/src/vault.ts(281,22): error TS7006: Parameter 'ctx' implicitly has an 'any' type.
+packages/contracts/src/vault.ts(294,36): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+packages/contracts/src/vault.ts(316,16): error TS7006: Parameter 'i' implicitly has an 'any' type.
+packages/contracts/src/vault.ts(317,13): error TS7006: Parameter 'i' implicitly has an 'any' type.
+packages/worker-sdk/src/connector-session.ts(78,67): error TS2366: Function lacks ending return statement and return type does not include 'undefined'.
+packages/worker-sdk/src/task-context.ts(898,51): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+packages/worker-sdk/src/worker.ts(56,61): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+services/connector/src/composition.ts(86,5): error TS2353: Object literal may only specify known properties, and 'connectionString' does not exist in type 'PgConnectorOptions'.
+services/connector/src/contract-grants.ts(28,37): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+services/connector/src/contract-grants.ts(33,43): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+services/connector/src/contract-grants.ts(35,35): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+services/connector/src/db/pg-client.ts(1,77): error TS2307: Cannot find module 'pg' or its corresponding type declarations.
+services/orchestrator/src/app/admin/crypto-config-store.ts(9,37): error TS2307: Cannot find module 'pg' or its corresponding type declarations.
+services/orchestrator/src/db/db.ts(1,63): error TS2307: Cannot find module 'pg' or its corresponding type declarations.
+services/orchestrator/src/db/migrations.ts(89,32): error TS7006: Parameter 'r' implicitly has an 'any' type.
+services/orchestrator/src/modules/admin-actions/dispatcher.ts(1,33): error TS2307: Cannot find module 'pg' or its corresponding type declarations.
+services/orchestrator/src/modules/admin-actions/dispatcher.ts(757,57): error TS7006: Parameter 'issue' implicitly has an 'any' type.
+services/orchestrator/src/modules/admin-actions/dispatcher.ts(797,57): error TS7006: Parameter 'issue' implicitly has an 'any' type.
+services/orchestrator/src/modules/admin-actions/dispatcher.ts(835,57): error TS7006: Parameter 'issue' implicitly has an 'any' type.
+services/orchestrator/src/modules/admin-actions/dispatcher.ts(972,57): error TS7006: Parameter 'issue' implicitly has an 'any' type.
+services/orchestrator/src/modules/admin-acti

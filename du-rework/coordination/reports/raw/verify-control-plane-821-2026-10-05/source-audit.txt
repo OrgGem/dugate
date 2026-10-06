@@ -1,0 +1,369 @@
+﻿=== eight-site reader inventory ===
+services/orchestrator/src/modules/operations/mappers.ts-142-      op.result_ref == null
+services/orchestrator/src/modules/operations/mappers.ts-143-        ? undefined
+services/orchestrator/src/modules/operations/mappers.ts:144:        : await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto ?? undefined)).readStoredText(
+services/orchestrator/src/modules/operations/mappers.ts-145-            String(op.result_ref),
+services/orchestrator/src/modules/operations/mappers.ts-146-            { tenantId: String(op.tenant_id), slot: 'operations.result_ref', refId: String(op.id) },
+--
+services/orchestrator/src/http/routes/public.ts-536-        op.result_ref == null
+services/orchestrator/src/http/routes/public.ts-537-          ? undefined
+services/orchestrator/src/http/routes/public.ts:538:          : await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto)).readStoredText(
+services/orchestrator/src/http/routes/public.ts-539-              String(op.result_ref),
+services/orchestrator/src/http/routes/public.ts-540-              { tenantId: apiKey.tenantId, slot: 'operations.result_ref', refId: String(op.id) },
+--
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-701-    // (tenant, 'tasks.payload_ref', root task id). Open it under the SAME
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-702-    // binding before trusting the envelope; a plaintext row (pre-encryption
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:703:    // backfill window) passes through, mirroring the runtime's openMetadata
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-704-    // policy. A failed open is decided HERE, before any network or storage
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-705-    // work: a key-service outage is retryable, every other crypto failure is
+--
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-709-    if (metadataCrypto) {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-710-      try {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:711:        const opened = await metadataReader.readStored(parsedEnvelope, {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-712-          tenantId: record.tenantId,
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-713-          slot: 'tasks.payload_ref',
+--
+services/orchestrator/src/modules/runtime/runtime.ts-470- */
+services/orchestrator/src/modules/runtime/runtime.ts-471-/** Exported so the BA-01 text-envelope decode is directly testable. */
+services/orchestrator/src/modules/runtime/runtime.ts:472:export async function openMetadata(
+services/orchestrator/src/modules/runtime/runtime.ts-473-  seam: MetadataCrypto | MetadataReader | undefined,
+services/orchestrator/src/modules/runtime/runtime.ts-474-  value: unknown,
+--
+services/orchestrator/src/modules/runtime/runtime.ts-483-  const reader = isMetadataReader(seam) ? seam : compatibilityMetadataReader(seam);
+services/orchestrator/src/modules/runtime/runtime.ts-484-  if (typeof value === 'string') {
+services/orchestrator/src/modules/runtime/runtime.ts:485:    return reader.readStoredText(value, context);
+services/orchestrator/src/modules/runtime/runtime.ts-486-  }
+services/orchestrator/src/modules/runtime/runtime.ts:487:  return reader.readStored(value, context);
+services/orchestrator/src/modules/runtime/runtime.ts-488-}
+services/orchestrator/src/modules/runtime/runtime.ts-489-
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1062-            // idempotency contract has to be measured on the same value the
+services/orchestrator/src/modules/runtime/runtime.ts-1063-            // client sent.
+services/orchestrator/src/modules/runtime/runtime.ts:1064:            const storedPayload = await openMetadata(reader, row.payload_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts-1065-              tenantId: t.tenant_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-1066-              slot: 'tasks.payload_ref',
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1239-            r.result_ref === null
+services/orchestrator/src/modules/runtime/runtime.ts-1240-              ? null
+services/orchestrator/src/modules/runtime/runtime.ts:1241:              : ((await reader.readStoredText(
+services/orchestrator/src/modules/runtime/runtime.ts-1242-                  r.result_ref,
+services/orchestrator/src/modules/runtime/runtime.ts-1243-                  { tenantId: r.tenant_id, slot: 'tasks.result_ref', refId: r.id }
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1852-      s.result_ref === null
+services/orchestrator/src/modules/runtime/runtime.ts-1853-        ? null
+services/orchestrator/src/modules/runtime/runtime.ts:1854:        : ((await reader.readStoredText(
+services/orchestrator/src/modules/runtime/runtime.ts-1855-            s.result_ref,
+services/orchestrator/src/modules/runtime/runtime.ts-1856-            { tenantId: parent.tenant_id, slot: 'tasks.result_ref', refId: s.id }
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1864-  // join summary is merged back into it. Merging into the raw envelope would
+services/orchestrator/src/modules/runtime/runtime.ts-1865-  // nest one sealed blob inside another and the parent could never read it.
+services/orchestrator/src/modules/runtime/runtime.ts:1866:  const openParentPayload = (await openMetadata(reader, parent.payload_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts-1867-    tenantId: parent.tenant_id,
+services/orchestrator/src/modules/runtime/runtime.ts-1868-    slot: 'tasks.payload_ref',
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1932-        r.sessionRef === undefined || r.sessionRef === null
+services/orchestrator/src/modules/runtime/runtime.ts-1933-          ? null
+services/orchestrator/src/modules/runtime/runtime.ts:1934:          : await openMetadata(reader, r.sessionRef, {
+services/orchestrator/src/modules/runtime/runtime.ts-1935-              tenantId: t.tenant_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-1936-              slot: 'step_checkpoints.session_ref',
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1943-        r.outputRef === undefined || r.outputRef === null
+services/orchestrator/src/modules/runtime/runtime.ts-1944-          ? undefined
+services/orchestrator/src/modules/runtime/runtime.ts:1945:          : await openMetadata(reader, r.outputRef, {
+services/orchestrator/src/modules/runtime/runtime.ts-1946-              tenantId: t.tenant_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-1947-              slot: 'step_checkpoints.output_ref',
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1972-    // what make this a safe decrypt point: a payload_ref lifted from another
+services/orchestrator/src/modules/runtime/runtime.ts-1973-    // tenant fails with CONTEXT_MISMATCH rather than handing a worker foreign
+services/orchestrator/src/modules/runtime/runtime.ts:1974:    // input. openMetadata is fail-closed when the value is plaintext.
+services/orchestrator/src/modules/runtime/runtime.ts:1975:    resolvedInputRef: (await openMetadata(reader, t.input_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts-1976-      tenantId: t.tenant_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-1977-      slot: 'operations.input_ref',
+--
+services/orchestrator/src/modules/runtime/runtime.ts-2013-    taskKey: t.task_key as string,
+services/orchestrator/src/modules/runtime/runtime.ts-2014-    kind: t.kind as string,
+services/orchestrator/src/modules/runtime/runtime.ts:2015:    payloadRef: (await openMetadata(reader, t.payload_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts-2016-      tenantId: t.tenant_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-2017-      slot: 'tasks.payload_ref',
+=== strict false boundaries ===
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-50-  // P745-CARRIER-IMPL-A (Δ-PC-1): the sealed prompt-content carrier. A NEW
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-51-  // slot on purpose — the AAD's cross-column separation (above) must keep a
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-52-  // carrier envelope undecryptable if it is ever replayed into another
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-53-  // column, and an input_ref envelope must not open as a carrier.
+services/orchestrator/src/modules/runtime/metadata-crypto.ts:54:  'operations.prompt_overrides_ref',
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-55-  // ENCMETA-RESULTREF-IMPL (Option A): the terminal result pointer is
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-56-  // tenant/worker-supplied data resting in PostgreSQL. Two slots because the
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-57-  // same string is written to TWO rows — an envelope bound to (tenant,
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-58-  // 'tasks.result_ref', taskId) must fail CONTEXT_MISMATCH if replayed onto
+--
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-423-    // Not an envelope: keep it verbatim in the window, and never return an
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-424-    // unsealed value outside it.
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-425-    return allowPlaintext ? value : fail('NOT_SEALED', 'text metadata is stored as plaintext; backfill required');
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-426-  }
+services/orchestrator/src/modules/runtime/metadata-crypto.ts:427:  const opened = await crypto.readStored(parsed, context, false);
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-428-  if (typeof opened !== 'string') {
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-429-    fail('INVALID_INPUT', 'sealed text metadata did not open to a string');
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-430-  }
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-431-  return opened;
+--
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-83-  { slot: 'tasks.payload_ref', table: 'tasks', column: 'payload_ref', kind: 'jsonb', tenantExpr: 'o.tenant_id', refIdExpr: 't.id' },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-84-  { slot: 'human_waits.response_ref', table: 'human_waits', column: 'response_ref', kind: 'jsonb', tenantExpr: 'o.tenant_id', refIdExpr: 'w.wait_id' },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-85-  { slot: 'step_checkpoints.output_ref', table: 'step_checkpoints', column: 'output_ref', kind: 'text', tenantExpr: 'o.tenant_id', refIdExpr: "sc.task_id || ':' || sc.step_key" },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-86-  { slot: 'step_checkpoints.session_ref', table: 'step_checkpoints', column: 'session_ref', kind: 'jsonb', tenantExpr: 'o.tenant_id', refIdExpr: "sc.task_id || ':' || sc.step_key || ':' || sc.generation" },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:87:  { slot: 'operations.prompt_overrides_ref', table: 'operations', column: 'prompt_overrides_ref', kind: 'jsonb', tenantExpr: 'tenant_id', refIdExpr: 'id' },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-88-  { slot: 'tasks.result_ref', table: 'tasks', column: 'result_ref', kind: 'text', tenantExpr: 'o.tenant_id', refIdExpr: 't.id' },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-89-  { slot: 'operations.result_ref', table: 'operations', column: 'result_ref', kind: 'text', tenantExpr: 'tenant_id', refIdExpr: 'id' },
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-90-] as const;
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-91-
+--
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-285-      try {
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-286-        if (spec.kind === 'text') {
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-287-          await readStoredText(options.crypto, row.value, {
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-288-            tenantId: rowTenantId,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:289:            slot: spec.slot,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-290-            refId: String(row.ref_id),
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:291:          }, false);
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-292-        } else {
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-293-          await options.crypto.readStored(row.value, {
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-294-            tenantId: rowTenantId,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:295:            slot: spec.slot,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-296-            refId: String(row.ref_id),
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:297:          }, false);
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-298-        }
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-299-        counts.sealedValid += 1;
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-300-      } catch (err) {
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-301-        counts.shapePassAuthFail += 1;
+--
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-308-
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-309-    slotsScanned += 1;
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-310-    slots.push({
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-311-      ...counts,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:312:      slot: spec.slot,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-313-      table: spec.table,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-314-      column: spec.column,
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-315-      tenantIds: [...tenantIds].sort(),
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-316-    });
+--
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-335-    // below: same crypto, same binding, same error codes.
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-336-    raw = parsed;
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-337-  }
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-338-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:339:    throw new MetadataCryptoError('NOT_SEALED', 'dispatch sourceUrl is neither a string nor a sealed envelope');
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-340-  }
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-341-  if (!crypto) {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:342:    throw new MetadataCryptoError('KEY_PROVIDER_FAILED', 'dispatch sourceUrl is sealed but no metadata seam is configured');
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-343-  }
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-344-  const opened = await crypto.readStored(raw, {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-345-    tenantId: binding.tenantId,
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-346-    slot: 'tasks.payload_ref',
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-347-    refId: binding.taskId,
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:348:  }, false);
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-349-  if (typeof opened !== 'string' || opened.length === 0) {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:350:    throw new MetadataCryptoError('NOT_SEALED', 'dispatch sourceUrl did not open to a non-empty string');
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-351-  }
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-352-  return opened;
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-353-}
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-354-
+--
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-690-      if (err instanceof MetadataCryptoError && err.code === 'KEY_PROVIDER_FAILED') {
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-691-        if (row.attempts + 1 >= maxAttempts) return await escalate(row, err);
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-692-        return await retry(row);
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-693-      }
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:694:      return await escalate(row, permanentFailure('dispatch sourceUrl cannot be opened under its binding'));
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-695-    }
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-696-
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-697-    const rawEnvelope = record.payloadRef as Record<string, unknown> | string | null;
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-698-    const parsedEnvelope = typeof rawEnvelope === 'string' ? safeJson(rawEnvelope) : rawEnvelope;
+--
+services/orchestrator/src/modules/runtime/runtime.ts-353-): Promise<PinnedPromptOverride[] | null> {
+services/orchestrator/src/modules/runtime/runtime.ts-354-  if (raw === null || raw === undefined) return null;
+services/orchestrator/src/modules/runtime/runtime.ts-355-  function fail(message: string): never {
+services/orchestrator/src/modules/runtime/runtime.ts-356-    throw unprocessable('INVALID_SCHEMA', message, {
+services/orchestrator/src/modules/runtime/runtime.ts:357:      errors: [{ pointer: '/prompt_overrides_ref', message }],
+services/orchestrator/src/modules/runtime/runtime.ts-358-    });
+services/orchestrator/src/modules/runtime/runtime.ts-359-  }
+services/orchestrator/src/modules/runtime/runtime.ts-360-  if (!crypto) {
+services/orchestrator/src/modules/runtime/runtime.ts:361:    fail('operation prompt_overrides_ref is present but metadata encryption is not configured');
+services/orchestrator/src/modules/runtime/runtime.ts-362-  }
+services/orchestrator/src/modules/runtime/runtime.ts-363-  const opened = await crypto.readStored(
+services/orchestrator/src/modules/runtime/runtime.ts-364-    raw,
+services/orchestrator/src/modules/runtime/runtime.ts:365:    { tenantId: coords.tenantId, slot: 'operations.prompt_overrides_ref', refId: coords.operationId },
+services/orchestrator/src/modules/runtime/runtime.ts-366-    false
+services/orchestrator/src/modules/runtime/runtime.ts-367-  );
+services/orchestrator/src/modules/runtime/runtime.ts-368-  const parsed = PinnedPromptOverrideSchema.array().safeParse(opened);
+services/orchestrator/src/modules/runtime/runtime.ts-369-  if (!parsed.success) {
+services/orchestrator/src/modules/runtime/runtime.ts:370:    throw unprocessable('INVALID_SCHEMA', 'operation prompt_overrides_ref does not match the pinned carrier shape', {
+services/orchestrator/src/modules/runtime/runtime.ts-371-      errors: parsed.error.issues.slice(0, 50).map((i) => ({
+services/orchestrator/src/modules/runtime/runtime.ts:372:        pointer: '/prompt_overrides_ref/' + i.path.join('/'),
+services/orchestrator/src/modules/runtime/runtime.ts-373-        message: i.message,
+services/orchestrator/src/modules/runtime/runtime.ts-374-      })),
+services/orchestrator/src/modules/runtime/runtime.ts-375-    });
+services/orchestrator/src/modules/runtime/runtime.ts-376-  }
+--
+services/orchestrator/src/modules/runtime/runtime.ts-405-  }
+services/orchestrator/src/modules/runtime/runtime.ts-406-  const markers = parsePromptRevisionsPin(markerRaw);
+services/orchestrator/src/modules/runtime/runtime.ts-407-  const markerKeys = Object.keys(markers);
+services/orchestrator/src/modules/runtime/runtime.ts-408-  if (rows.length !== markerKeys.length) {
+services/orchestrator/src/modules/runtime/runtime.ts:409:    fail('operation prompt_overrides_ref and prompt_revisions_pin disagree on row count');
+services/orchestrator/src/modules/runtime/runtime.ts-410-  }
+services/orchestrator/src/modules/runtime/runtime.ts-411-  const seen = new Set<string>();
+services/orchestrator/src/modules/runtime/runtime.ts-412-  for (const row of rows) {
+services/orchestrator/src/modules/runtime/runtime.ts-413-    const key = `${row.connectionId}::${row.stepId}`;
+services/orchestrator/src/modules/runtime/runtime.ts-414-    if (seen.has(key)) {
+services/orchestrator/src/modules/runtime/runtime.ts:415:      fail('operation prompt_overrides_ref declares the same step twice');
+services/orchestrator/src/modules/runtime/runtime.ts-416-    }
+services/orchestrator/src/modules/runtime/runtime.ts-417-    seen.add(key);
+services/orchestrator/src/modules/runtime/runtime.ts-418-    const recomputed =
+services/orchestrator/src/modules/runtime/runtime.ts-419-      'sha256:' +
+services/orchestrator/src/modules/runtime/runtime.ts-420-      createHash('sha256').update(`${row.connectionId}|${row.stepId}|${row.promptOverride}`).digest('hex');
+services/orchestrator/src/modules/runtime/runtime.ts-421-    if (recomputed !== row.revision || markers[key] !== row.revision) {
+services/orchestrator/src/modules/runtime/runtime.ts:422:      fail('operation prompt_overrides_ref revision does not match its marker or its content');
+services/orchestrator/src/modules/runtime/runtime.ts-423-    }
+services/orchestrator/src/modules/runtime/runtime.ts-424-  }
+services/orchestrator/src/modules/runtime/runtime.ts-425-  return rows;
+services/orchestrator/src/modules/runtime/runtime.ts-426-}
+--
+services/orchestrator/src/modules/runtime/runtime.ts-442- */
+services/orchestrator/src/modules/runtime/runtime.ts-443-async function sealMetadata(
+services/orchestrator/src/modules/runtime/runtime.ts-444-  crypto: MetadataCrypto | undefined,
+services/orchestrator/src/modules/runtime/runtime.ts-445-  value: unknown,
+services/orchestrator/src/modules/runtime/runtime.ts:446:  context: { tenantId: string; slot: 'operations.input_ref' | 'tasks.payload_ref' | 'human_waits.response_ref' | 'step_checkpoints.output_ref' | 'step_checkpoints.session_ref' | 'operations.prompt_overrides_ref' | 'tasks.result_ref' | 'operations.result_ref'; refId: string },
+services/orchestrator/src/modules/runtime/runtime.ts-447-): Promise<unknown> {
+services/orchestrator/src/modules/runtime/runtime.ts-448-  if (!crypto) return value;
+services/orchestrator/src/modules/runtime/runtime.ts-449-  return crypto.seal(value, context);
+services/orchestrator/src/modules/runtime/runtime.ts-450-}
+--
+services/orchestrator/src/modules/runtime/runtime.ts-471-/** Exported so the BA-01 text-envelope decode is directly testable. */
+services/orchestrator/src/modules/runtime/runtime.ts-472-export async function openMetadata(
+services/orchestrator/src/modules/runtime/runtime.ts-473-  seam: MetadataCrypto | MetadataReader | undefined,
+services/orchestrator/src/modules/runtime/runtime.ts-474-  value: unknown,
+services/orchestrator/src/modules/runtime/runtime.ts:475:  context: { tenantId: string; slot: 'operations.input_ref' | 'tasks.payload_ref' | 'human_waits.response_ref' | 'step_checkpoints.output_ref' | 'step_checkpoints.session_ref' | 'operations.prompt_overrides_ref' | 'tasks.result_ref' | 'operations.result_ref'; refId: string },
+services/orchestrator/src/modules/runtime/runtime.ts-476-): Promise<unknown> {
+services/orchestrator/src/modules/runtime/runtime.ts-477-  // WRAPPER-FIX-812 (A15): the no-seam decision lives in ONE function, shared
+services/orchestrator/src/modules/runtime/runtime.ts-478-  // with the reader below. A sealed envelope read through this wrapper used
+services/orchestrator/src/modules/runtime/runtime.ts-479-  // to come back as raw JSON — the BA-02 guard was bypassed here — while the
+--
+services/orchestrator/src/modules/runtime/runtime.ts-547-          `SELECT t.*, o.tenant_id, o.business_id, o.business_version, o.action,
+services/orchestrator/src/modules/runtime/runtime.ts-548-                  o.input_ref, o.deadline_at, bv.digest as manifest_digest,
+services/orchestrator/src/modules/runtime/runtime.ts-549-                  o.profile_id, o.profile_revision, o.connector_bindings,
+services/orchestrator/src/modules/runtime/runtime.ts-550-                  o.profile_policy_snapshot, o.prompt_revisions_pin,
+services/orchestrator/src/modules/runtime/runtime.ts:551:                  o.prompt_overrides_ref,
+services/orchestrator/src/modules/runtime/runtime.ts-552-                  o.cancel_requested AS op_cancel_requested, o.state AS op_state
+services/orchestrator/src/modules/runtime/runtime.ts-553-           FROM tasks t
+services/orchestrator/src/modules/runtime/runtime.ts-554-           JOIN operations o ON o.id = t.operation_id
+services/orchestrator/src/modules/runtime/runtime.ts-555-           LEFT JOIN business_versions bv
+--
+services/orchestrator/src/modules/runtime/runtime.ts-1988-      promptRevisions: parsePromptRevisionsPin(t.prompt_revisions_pin),
+services/orchestrator/src/modules/runtime/runtime.ts-1989-      // P745-CARRIER-IMPL-A (Δ-PC-1): the sealed content carrier, opened HERE
+services/orchestrator/src/modules/runtime/runtime.ts-1990-      // (orchestrator-side key custody) and cross-checked against the markers
+services/orchestrator/src/modules/runtime/runtime.ts-1991-      // above; `null` when there is no carrier (never `[]`).
+services/orchestrator/src/modules/runtime/runtime.ts:1992:      promptOverrides: await openPromptCarrier(metadataCrypto, t.prompt_overrides_ref, t.prompt_revisions_pin, {
+services/orchestrator/src/modules/runtime/runtime.ts-1993-        tenantId: t.tenant_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-1994-        operationId: t.operation_id as string,
+services/orchestrator/src/modules/runtime/runtime.ts-1995-      }),
+services/orchestrator/src/modules/runtime/runtime.ts-1996-      connectorBindings: (t.connector_bindings as Record<string, string>) ?? {},
+=== gate production call sites ===
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts-213-}
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts-214-
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts:215:export async function countUnsealedWithAuth(options: {
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts-216-  readonly db: Db;
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts-217-  readonly crypto: MetadataCrypto | undefined;
+=== backfill implementations/scripts/callers ===
+services/orchestrator/src\http\routes\public.ts-533-      // wire shape does not change. No seam / legacy plaintext row → the
+services/orchestrator/src\http\routes\public.ts:534:      // historical verbatim value (the standard backfill-window convention).
+services/orchestrator/src\http\routes\public.ts-535-      const openedResultRef =
+--
+services/orchestrator/src\modules\runtime\runtime.ts-480-  // reader threw KEY_PROVIDER_FAILED for the same value. Both now answer
+services/orchestrator/src\modules\runtime\runtime.ts:481:  // identically. A value that was never sealed (a backfill's first copy, a
+services/orchestrator/src\modules\runtime\runtime.ts-482-  // plaintext deployment) is not envelope-shaped and still passes through.
+--
+services/orchestrator/src\modules\runtime\runtime.ts-1219-      // ENCMETA-RESULTREF R2: each child ref is opened under its OWN row
+services/orchestrator/src\modules\runtime\runtime.ts:1220:      // binding; a legacy plaintext value stays readable during the backfill
+services/orchestrator/src\modules\runtime\runtime.ts-1221-      // window (the same allowPlaintext convention the other slots use), and
+--
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-154- *
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:155: * The legitimate no-seam path is a value that was never sealed (a backfill
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-156- * feeding its first copy, a deployment with encryption simply off). That is
+--
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-241-   * A plaintext value is returned as-is only when `allowPlaintext` is set —
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:242:   * that flag exists for the ENC-09 backfill window and for the submit path
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-243-   * before a row is written. Every other caller must fail closed, so a
+--
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-375-      if (!allowPlaintext) {
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:376:        fail('NOT_SEALED', 'control-plane metadata is stored as plaintext; backfill required');
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-377-      }
+--
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-393- * throws); anything else is returned verbatim when `allowPlaintext` — the
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:394: * backfill window — and a non-JSON plaintext is never mistaken for an
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-395- * envelope. No seam → the stored value verbatim, as everywhere else.
+--
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-424-    // unsealed value outside it.
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:425:    return allowPlaintext ? value : fail('NOT_SEALED', 'text metadata is stored as plaintext; backfill required');
+services/orchestrator/src\modules\runtime\metadata-crypto.ts-426-  }
+--
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts-6- *
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts:7: * The shape-only counter (coordination/backfill-leftover-counter-803.sql) has a
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts-8- * false-pass: a broken envelope still satisfies the shape predicate, so a
+--
+services/orchestrator/src\modules\artifacts\storage-migration.ts-235-
+services/orchestrator/src\modules\artifacts\storage-migration.ts:236:/** Idempotently backfill verified PostgreSQL bytea blobs and retain every source row. */
+services/orchestrator/src\modules\artifacts\storage-migration.ts-237-export async function migrateLegacyArtifactBlobs(
+--
+services/orchestrator/src\modules\encryption\boot-options.ts-22-  type BoundedDualReadWindow,
+services/orchestrator/src\modules\encryption\boot-options.ts:23:} from './legacy-payload-migration';
+services/orchestrator/src\modules\encryption\boot-options.ts-24-import {
+--
+services/orchestrator/src\modules\encryption\boot-options.ts-274-      METADATA_READ_MODE_ENV + ' is required when metadata encryption is enabled; '
+services/orchestrator/src\modules\encryption\boot-options.ts:275:        + 'set it to window (while the ENC-09 backfill is running) or forbid',
+services/orchestrator/src\modules\encryption\boot-options.ts-276-    );
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-319-/**
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:320: * Idempotent, lock/CAS based backfill. A source is retained by contract;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-321- * implementations only switch the active reference after encrypted readback
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-323- */
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:324:export async function backfillLegacyPayloads(
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-325-  store: PayloadMigrationStore,
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-491-/** Legacy bytes can be retired only after an independently verified backup and zero references. */
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:492:export function canRetireLegacyPayloads(
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-493-  inventory: Pick<PayloadMigrationCounts, 'unresolvedReferences'>,
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-872-    if (!this.windowOpen(nowMs)) {
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:873:      throw new Error('bounded dual-read window is closed; refusing result_ref backfill');
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-874-    }
+--
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-6-} from '../runtime/metadata-crypto';
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:7:import { createBoundedDualReadWindow, type BoundedDualReadWindow } from './legacy-payload-migration';
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-8-
+--
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-18- * `createBoundedDualReadWindow` (which enforces `MAX_DUAL_READ_WINDOW_MS`,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:19: * 14 days) and `readDuringBoundedDualRead` live in `legacy-payload-migration`
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-20- * and are reused verbatim. This module only decides WHETHER the legacy lane
+--
+services/orchestrator/src\modules\operations\ingestion-consumer.ts-702-    // binding before trusting the envelope; a plaintext row (pre-encryption
+services/orchestrator/src\modules\operations\ingestion-consumer.ts:703:    // backfill window) passes through, mirroring the runtime's openMetadata
+services/orchestrator/src\modules\operations\ingestion-consumer.ts-704-    // policy. A failed open is decided HERE, before any network or storage
+--
+services/orchestrator/src\modules\operations\mappers.ts-23-   * have no seam keep compiling; when absent the projection falls back to the
+services/orchestrator/src\modules\operations\mappers.ts:24:   * stored value verbatim (the historical backfill-window convention).
+services/orchestrator/src\modules\operations\mappers.ts-25-   */
+--
+services/orchestrator/src\modules\operations\mappers.ts-139-    // id triple R1 uses; no seam (or a legacy plaintext row) keeps the stored
+services/orchestrator/src\modules\operations\mappers.ts:140:    // value verbatim, which is the backfill-window convention everywhere else.
+services/orchestrator/src\modules\operations\mappers.ts-141-    const openedResultRef =
+=== metrics/closure authorization symbols ===
+services/orchestrator/tests\admin-shell-platform-mount.test.ts:861:  it('GET /admin/connectors failure path (stub returns unauthorized) → 200 fail-closed pane', async () => {
+services/orchestrator/tests\admin-shell-platform-mount.test.ts:1088:  it('GET /admin/api-keys failure path (stub returns unauthorized) → 200 fail-closed pane', async () => {
+services/orchestrator/tests\admin-shell-server.test.ts:401:    it('renders the unauthorized pane (200, fail-closed at the section layer)', async () => {
+services/orchestrator/tests\admin-shell-server.test.ts:680:    it('renders the unauthorized pane (200, fail-closed at the section layer)', async () => {
+services/orchestrator/tests\admin-shell-server.test.ts:849:    it('renders the unauthorized pane (200, fail-closed at the section layer)', async () => {
+=== checklist-named test existence ===
+metadata-read-policy.test.ts=True
+metadata-read-policy-boot.test.ts=False
+metadata-read-wiring.test.ts=False
+backfill-metadata-cli.test.ts=False
+metadata-backfill-all-slots.test.ts=False
+metadata-read-observability.test.ts=False
+gate-authenticate-808.test.ts=True
+gate-authenticate-808-pg16.test.ts=True

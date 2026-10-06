@@ -1,0 +1,36 @@
+﻿# cmd: node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand --testNamePattern <two-target-cases> tests/admin-shell-session-lifecycle.test.ts
+{"subsystem":"admin-shell","event":{"kind":"auth.login_failed","reason":"invalid_token","method":"POST","pathname":"/admin/login"},"timestamp":"2026-10-04T19:03:14.065Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"4658105e-d277-4659-8705-9d21c4f89ae3","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+node.exe : FAIL tests/admin-shell-session-lifecycle.test.ts
+At line:5 char:10
++ $lines = & node node_modules/jest/bin/jest.js --config jest.unit.conf ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL tests/admi...fecycle.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  ● W-SEC-AUDIT-TAXONOMY-1 default console sink through the REAL shell listener › mount default: a bad token over the 
+socket logs exactly one parseable, sentinel-free security line
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      804 |     );
+      805 |     warn.mockRestore();
+    > 806 |     expect(lines).toHaveLength(1);
+          |                   ^
+      807 |     const first = lines[0];
+      808 |     if (!first) throw new Error('unreachable: length was asserted 1');
+      809 |     const payload = JSON.parse(String(first[1])) as AdminSecurityEvent;
+
+      at Object.<anonymous> (tests/admin-shell-session-lifecycle.test.ts:806:19)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 49 skipped, 1 passed, 51 total
+Snapshots:   0 total
+Time:        3.939 s, estimated 9 s
+Ran all test suites matching tests/admin-shell-session-lifecycle.test.ts with tests matching "mount default with the 
+knobs unset|mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line".
+
+literal_exit_code=1

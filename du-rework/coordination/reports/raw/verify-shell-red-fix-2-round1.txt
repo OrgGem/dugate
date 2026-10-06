@@ -1,0 +1,19 @@
+﻿# cmd: node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/admin-shell-session-lifecycle.test.ts tests/admin-shell-render.test.ts tests/admin-shell-auth.test.ts
+# env: NODE_ENV=test
+# round: 1
+# time: 2026-10-05T02:05:17.247+07:00
+node.exe : 
+At line:7 char:12
++   $lines = & node node_modules/jest/bin/jest.js --config jest.unit.co ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 3 passed, 3 total
+Tests:       103 passed, 103 total
+Snapshots:   0 total
+Time:        6.928 s
+Ran all test suites matching 
+tests/admin-shell-session-lifecycle.test.ts|tests/admin-shell-render.test.ts|tests/admin-shell-auth.test.ts.
+
+literal_exit_code=0

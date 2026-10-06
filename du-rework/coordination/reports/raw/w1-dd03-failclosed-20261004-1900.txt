@@ -1,0 +1,12 @@
+﻿node.exe : Test Suites: 1 passed, 1 total
+At C:\nvm4w\nodejs\pnpm.ps1:16 char:5
++     & "$basedir/node$exe"  "$basedir/node_modules/corepack/dist/pnpm. ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Test Suites: 1 passed, 1 total:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        4.9 s, estimated 5 s
+Ran all test suites matching tests/p730-legacy-snapshot-failclosed.test.ts.
+EXIT_CODE=0

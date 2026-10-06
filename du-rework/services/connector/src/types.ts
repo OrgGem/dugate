@@ -143,6 +143,14 @@ export interface InvocationRecord {
   result?: NormalizedProviderResult;
   errorCode?: ConnectorErrorCode;
   providerRequestId?: string;
+  /**
+   * CR06-04: provider-issued continuation session captured from an async 202
+   * accept body. Persisted while the invocation is PENDING/POLLING so the
+   * session survives the worker's pending-yield resume (the resume reuses the
+   * stable invocationId and this record replays the session to the provider).
+   * Never inferred or defaulted — absent means the provider offered none.
+   */
+  sessionRef?: string | null;
   nextPollAt?: string;
   providerPollAttempts?: number;
   pollLeaseToken?: string;
@@ -175,6 +183,13 @@ export interface InvocationLedger {
     pollLeaseToken?: string,
     quotaLease?: QuotaLease,
     providerPollAttempt?: boolean,
+    /**
+     * CR06-04: continuation session offered by the provider in the 202 body.
+     * Stored on the pending record; `undefined`/`null` keeps the existing
+     * value (COALESCE semantics) so a later poll that omits it cannot erase
+     * a session already captured.
+     */
+    sessionRef?: string | null,
   ): Promise<InvocationRecord>;
 }
 

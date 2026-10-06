@@ -1,0 +1,28 @@
+{
+  "id": "ccb1a001-3731-4dd1-b5a2-7f4121bfbe6c",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
+      "status": "running",
+      "tail": [
+        "    Gate giữ nguyên: G-ADMIN-OPS / G-SEC / G-COMP / G-DATA / G6 NO-GO.",
+        "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "* tiếp task_par00 tiếp theo đi",
+        "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "  ➜ dugate · git:(codex/fix-workflow-builder) · qwen3.8-max max · 1.0m Context 77.9% used",
+        "  YOLO mode (tab to cycle) · 26 tasks done"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "61859265",
+      "nextCursor": "61861265",
+      "latestCursor": "61861265",
+      "returnedLineCount": 6,
+      "source": "screen"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

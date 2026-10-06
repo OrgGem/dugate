@@ -1,0 +1,112 @@
+﻿46114B9FEF954FD9E082645F047F3DA550795BCDD37058E9852B420B65DC987D  services/orchestrator/src/modules/encryption/metadata-read-policy.ts
+B3CAEE6D00B54BBDF2284D1723E64DB5465BAF11CA59B250951CC44BA80E6230  services/orchestrator/tests/metadata-read-policy.test.ts
+EF16354D0988864A663AFF144E2B9972354032D8F7C883AFC55AF9D5A35DD32E  services/orchestrator/src/modules/encryption/legacy-payload-migration.ts
+DDDB574515F53CF31F1924E256E90255C794A9F8775C07AA67CDBF6951D9FE44  services/orchestrator/src/modules/encryption/boot-options.ts
+8F0A1DF9E66DCED687A4B88172E464E401948741D5C3EB566871A3EB0073215C  services/orchestrator/src/app/bootstrap/create-app.ts
+77D70C4CAF754741AEB36808CA2D9512757DCCD684ED41761F41BC7CCE895795  services/orchestrator/src/main.ts
+68B5EA105C32C6B66756231EC0AE8ACD58E6439F09FF9A51414B69D32D80E1BB  services/orchestrator/src/modules/encryption/metadata-auth-counter.ts
+D16EE71C062ED5E03CA8047D03C90E360B4DFAFF5E12266285999C3677E51495  services/orchestrator/src/modules/runtime/runtime.ts
+CD912689722585607DF6217E2F9FBA86C08B0F313312A45A44EF6C27D8236A9C  services/orchestrator/src/modules/runtime/metadata-crypto.ts
+94E6A6C94A52B5599D30FAFEDB2BE8CC9455FB483F59AB63D0DEE842E3FC4DFA  services/orchestrator/src/http/routes/public.ts
+35D77993690CDB154C0C76B2595761FD5B10D59E09503693339A1793A2D79B1A  services/orchestrator/src/modules/operations/mappers.ts
+1CEC0B063E3394D767E830DF1DFFCF111AD92E8FF4F6C915D218FDADB50ADBF8  services/orchestrator/src/modules/operations/ingestion-consumer.ts
+015C412D53545E3E37A8235C33B7DEB9D68918CB46E8C8C6420C77AD8F50F8A7  services/orchestrator/package.json
+16B28115515BBAEECBECC31372E3BA7895927D67ADB30820500C8859DB35BECA  services/orchestrator/tests/gate-authenticate-808.test.ts
+5D32526CE4CEE44E0D6165F42F69A25F29E6E0C2D6F85D8A42EFC3271EA0C6E9  services/orchestrator/tests/gate-authenticate-808-pg16.test.ts
+=== bounded window symbols ===
+services/orchestrator/src\modules\encryption\boot-options.ts-18-
+services/orchestrator/src\modules\encryption\boot-options.ts-19-import { VaultTransitProvider, type KeyProvider } from './vault-transit-provider';
+services/orchestrator/src\modules\encryption\boot-options.ts-20-import {
+services/orchestrator/src\modules\encryption\boot-options.ts:21:  createBoundedDualReadWindow,
+services/orchestrator/src\modules\encryption\boot-options.ts-22-  type BoundedDualReadWindow,
+services/orchestrator/src\modules\encryption\boot-options.ts-23-} from './legacy-payload-migration';
+services/orchestrator/src\modules\encryption\boot-options.ts-24-import {
+--
+services/orchestrator/src\modules\encryption\boot-options.ts-261- *
+services/orchestrator/src\modules\encryption\boot-options.ts-262- * | mode     | required env                | policy built |
+services/orchestrator/src\modules\encryption\boot-options.ts-263- * |----------|-----------------------------|--------------|
+services/orchestrator/src\modules\encryption\boot-options.ts:264: * | `window` | start + end (ISO or epoch)  | bounded window (<= 14 days, enforced by createBoundedDualReadWindow) |
+services/orchestrator/src\modules\encryption\boot-options.ts-265- * | `forbid` | none — carrying window vars is a refusal to boot (contradiction) | no window, `allowPlaintext()` always false |
+services/orchestrator/src\modules\encryption\boot-options.ts-266- *
+services/orchestrator/src\modules\encryption\boot-options.ts-267- * An inverted window, an over-cap window, or an unparseable instant becomes
+--
+services/orchestrator/src\modules\encryption\boot-options.ts-298-  const expiresAtMs = readInstantMs(env, METADATA_WINDOW_END_ENV);
+services/orchestrator/src\modules\encryption\boot-options.ts-299-  let window: BoundedDualReadWindow;
+services/orchestrator/src\modules\encryption\boot-options.ts-300-  try {
+services/orchestrator/src\modules\encryption\boot-options.ts:301:    window = createBoundedDualReadWindow(startsAtMs, expiresAtMs);
+services/orchestrator/src\modules\encryption\boot-options.ts-302-  } catch (error) {
+services/orchestrator/src\modules\encryption\boot-options.ts-303-    throw new EncryptionBootConfigError(
+services/orchestrator/src\modules\encryption\boot-options.ts-304-      METADATA_WINDOW_START_ENV + '/' + METADATA_WINDOW_END_ENV + ' is not a valid dual-read window: '
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-497-    && inventory.unresolvedReferences === 0;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-498-}
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-499-
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:500:export interface BoundedDualReadWindow {
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-501-  readonly startsAtMs: number;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-502-  readonly expiresAtMs: number;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:503:  allowsLegacyRead(nowMs?: number): boolean;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-504-}
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-505-
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-506-/** Construct an immutable, at-most-14-day legacy read window. */
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:507:export function createBoundedDualReadWindow(
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-508-  startsAt: Date | number,
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-509-  expiresAt: Date | number,
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-510-): BoundedDualReadWindow {
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-518-  return Object.freeze({
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-519-    startsAtMs,
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-520-    expiresAtMs,
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:521:    allowsLegacyRead(nowMs = Date.now()): boolean {
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-522-      return Number.isFinite(nowMs) && nowMs >= startsAtMs && nowMs < expiresAtMs;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-523-    },
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-524-  });
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-534-  readonly nowMs?: number;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-535-}): Promise<TRead> {
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-536-  if (input.isEncrypted(input.value)) return input.readEncrypted(input.value);
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:537:  if (!input.window.allowsLegacyRead(input.nowMs)) {
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-538-    throw new Error('legacy payload read is outside the bounded dual-read window');
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-539-  }
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-540-  return input.readLegacy(input.value);
+--
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-865-
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-866-  /** True when a bounded window was supplied and it has not yet expired. */
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-867-  windowOpen(nowMs = Date.now()): boolean {
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:868:    return this.options.window ? this.options.window.allowsLegacyRead(nowMs) : true;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-869-  }
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-870-
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts-871-  private assertWindowOpen(nowMs = Date.now()): void {
+--
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-4-  type MetadataContext,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-5-  type MetadataCrypto,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-6-} from '../runtime/metadata-crypto';
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:7:import { createBoundedDualReadWindow, type BoundedDualReadWindow } from './legacy-payload-migration';
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-8-
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-9-/**
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-10- * CONTROL-PLANE-IMPL-818: the ONE control point for `allowPlaintext`.
+--
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-15- * boot and injected, so the decision is made in one place and is visible.
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-16- *
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-17- * The window itself is NOT re-implemented here: `BoundedDualReadWindow`,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:18: * `createBoundedDualReadWindow` (which enforces `MAX_DUAL_READ_WINDOW_MS`,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-19- * 14 days) and `readDuringBoundedDualRead` live in `legacy-payload-migration`
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-20- * and are reused verbatim. This module only decides WHETHER the legacy lane
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-21- * is open and adapts the two readers to that decision.
+--
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-84-    window,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-85-    startedAtMs,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-86-    allowPlaintext(nowMs: number = Date.now()): boolean {
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:87:      return mode === 'window' && window !== null && window.allowsLegacyRead(nowMs);
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-88-    },
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-89-  });
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-90-}
+--
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-148-  nowMs: number = Date.now(),
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-149-  maxWindowMs: number = COMPATIBILITY_WINDOW_MS,
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-150-): MetadataReadPolicy {
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:151:  return createMetadataReadPolicy('window', createBoundedDualReadWindow(nowMs, nowMs + maxWindowMs), nowMs);
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-152-}
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-153-
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts-154-export function isMetadataReader(value: unknown): value is MetadataReader {
+=== current focused suite skip/pending matches ===
+NONE

@@ -4,6 +4,8 @@
 
 Queue root và child cùng business: `du-business-{businessId}-{exactVersion}`. Chỉ registered worker version đúng được consume. Redis ACL/provisioning theo queue prefix được kiểm chứng bằng integration test; service HTTP identity không tự bảo vệ Redis nếu cấp credential quá rộng.
 
+Topology freeze không đổi queue contract: mỗi Worker-template instance chạy cho một business/version đã đăng ký; nhiều replicas của đúng instance có thể cùng consume queue đó. Các worker source hiện ở một workspace chung chưa phải bằng chứng mỗi business đã thành repo/image/deployment độc lập.
+
 ```ts
 // Specification only; fields serialized as JSON.
 interface BusinessJobV1 {

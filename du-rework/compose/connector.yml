@@ -1,0 +1,36 @@
+services:
+  connector:
+    image: ${DU_IMAGE_PREFIX:-du}-connector:${DU_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: connector
+    environment:
+      PORT: '8080'
+      HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      REDIS_KEY_PREFIX: ${CONNECTOR_REDIS_PREFIX:-du:connector:}
+      DRAIN_TIMEOUT_MS: '30000'
+      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:?Set a base64 32-byte identity key}
+      INVOCATION_GRANT_SECRET: ${CONNECTOR_INVOCATION_GRANT_SECRET:?Set base64 of INVOCATION_GRANT_SECRET}
+      CONNECTOR_ENCRYPTION_KEY: ${CONNECTOR_ENCRYPTION_KEY:?Set a base64 32-byte encryption key}
+      PROVIDER_ALLOW_HOSTS: ${PROVIDER_ALLOW_HOSTS:-}
+      ALLOW_PRIVATE_PROVIDER_NETWORKS: ${ALLOW_PRIVATE_PROVIDER_NETWORKS:-false}
+      USAGE_SINK_URL: ${USAGE_SINK_URL:-}
+      USAGE_SINK_TOKEN: ${USAGE_SINK_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks: [du-platform-net, du-worker-net]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s

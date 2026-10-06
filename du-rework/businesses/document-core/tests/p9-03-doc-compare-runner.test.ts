@@ -11,6 +11,7 @@ import {
 import { advanceDocCompare, emptyDocCompareState, normalizeDocCompareInput, runChunkChildren, type DocCompareStep } from '../src/pipelines/workflows/doc-compare/doc-compare';
 import { extractSections, planChunks } from '../src/pipelines/workflows/doc-compare/chunking';
 import type { ChunkTaskSpec } from '../src/pipelines/workflows/doc-compare/primitives';
+import { STEP_KEYS } from '../src/recipes/step-keys';
 import type { ConnectorInvocationResult } from '../src/types/context';
 import type { DocumentSideInput, StructurePlan } from '../src/pipelines/workflows/doc-compare/types';
 
@@ -285,6 +286,42 @@ describe('D4 doc-compare production chunk runner', () => {
     it('parseStructureClaims and parseReferenceClaims reject a non-array', () => {
       expect(() => parseStructureClaims({})).toThrow(DocCompareChunkError);
       expect(() => parseReferenceClaims({})).toThrow(DocCompareChunkError);
+    });
+  });
+
+  describe('CR06-01 prompt wiring', () => {
+    it('stamps the stage promptStepId on every chunk invoke', async () => {
+      const rec = mockConnector((index) => ({
+        invocationId: 'p' + index,
+        status: 'SUCCESS',
+        data: index === 0 ? STRUCTURE_REPLY : REFERENCE_REPLY,
+      }));
+      const runtime = createDocCompareRuntime({ connector: rec.port });
+
+      await runtime.runChunk(specFor('compare-structure'));
+      await runtime.runChunk(specFor('compare-references'));
+
+      expect(rec.calls).toHaveLength(2);
+      expect((rec.calls[0]!.options as { promptStepId?: string }).promptStepId).toBe(
+        STEP_KEYS.DOC_COMPARE.COMPARE_STRUCTURE,
+      );
+      expect((rec.calls[1]!.options as { promptStepId?: string }).promptStepId).toBe(
+        STEP_KEYS.DOC_COMPARE.COMPARE_REFERENCES,
+      );
+    });
+
+    it('keeps the workflow stage key even when invocationOptions supplies another promptStepId', async () => {
+      const rec = mockConnector(() => ({ invocationId: 'p2', status: 'SUCCESS', data: STRUCTURE_REPLY }));
+      const runtime = createDocCompareRuntime({
+        connector: rec.port,
+        invocationOptions: { promptStepId: 'caller-supplied-key' },
+      });
+
+      await runtime.runChunk(specFor('compare-structure'));
+
+      expect((rec.calls[0]!.options as { promptStepId?: string }).promptStepId).toBe(
+        STEP_KEYS.DOC_COMPARE.COMPARE_STRUCTURE,
+      );
     });
   });
 

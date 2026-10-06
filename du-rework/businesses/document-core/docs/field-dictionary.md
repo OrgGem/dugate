@@ -1,6 +1,6 @@
 # Business Field Dictionary — document-core
 
-This dictionary defines canonical fields, data types, legacy aliases, validation constraints, and defaults for the `document-core` business across all 6 actions (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`) and 28 variants.
+This dictionary defines common fields, legacy aliases, and validation notes for the `document-core` business across all 6 actions (`ingest`, `extract`, `analyze`, `transform`, `generate`, `compare`) and 31 declared variants. The [manifest](../src/manifest/document-core.manifest.ts), [input normalizer](../src/validation/input-normalizer.ts), and [variant matrix](variant-matrix.md) define the current executable shapes where this older dictionary is less specific.
 
 ---
 
@@ -8,14 +8,14 @@ This dictionary defines canonical fields, data types, legacy aliases, validation
 
 | Canonical Field | Type | Legacy Alias | Description | Constraints & Validation | Default |
 |---|---|---|---|---|---|
-| `action` | string | `action` | Action name or subcase discriminator in `transform` | Required. For `transform`, values: `convert`, `translate`, `rewrite`, `redact`, `template`. Normalized internally to `variant`. | N/A |
+| `variant` | string | `action` | Subcase discriminator in `transform` | Values: `convert`, `translate`, `rewrite`, `redact`, `template`; legacy `action` is normalized to `variant`. | N/A |
 | `mode` | string | `mode` | Subcase discriminator in `ingest` and `compare` | For `ingest`: `parse`, `ocr`, `digitize`, `split`. For `compare`: `diff`, `semantic`, `version`. | N/A |
-| `type` | string | `type` | Subcase discriminator in `extract` | Values: `invoice`, `contract`, `receipt`, `table`, `custom`. | N/A |
-| `task` | string | `task` | Subcase discriminator in `analyze` and `generate` | For `analyze`: `classify`, `sentiment`, `compliance`, `quality`, `risk`. For `generate`: `summary`, `outline`, `report`, `email`, `minutes`, `qa`. | N/A |
-| `output_format` / `outputFormat` | enum | `output_format` | Desired output serialization | `['json', 'md', 'text', 'html', 'csv']`. Only subset valid per action variant. | `'json'` |
+| `type` | string | `type` | Subcase discriminator in `extract` | Values: `invoice`, `contract`, `id-card`, `receipt`, `table`, `custom`. | N/A |
+| `task` | string | `task` | Subcase discriminator in `analyze` and `generate` | For `analyze`: `classify`, `sentiment`, `compliance`, `fact-check`, `quality`, `risk`, `summarize-eval`. For `generate`: `summary`, `outline`, `report`, `email`, `minutes`, `qa`. | N/A |
+| `outputFormat` | enum | `output_format` | Desired output serialization | Input normalizer recognizes `json`, `md`/`markdown`, `text`/`txt`; action-specific converter formats have separate validation. | Action-specific |
 | `language` | string | `language` | Document source language | ISO 639-1 / BCP-47 code (e.g., `'vi'`, `'en'`, `'ja'`, `'zh'`). | Variant-specific / profile default |
-| `text` | string | `text`, `content` | Direct raw text payload | Non-empty string. Max length governed by profile quota (e.g. 1,000,000 chars). | `undefined` |
-| `artifact_ids` / `artifactIds` | array[string] | `artifact_ids`, `file_ids` | Staged artifact references | Array of valid UUIDs corresponding to tenant-authorized artifacts. | `[]` |
+| `text` | string | `text`, `content` | Direct raw text payload | Input normalizer caps text at 100,000 characters. | `undefined` |
+| `artifactIds` | array[string] | `artifact_ids`, `file_ids` | Staged artifact references | Input normalizer caps the array at 10; Orchestrator authorizes tenant ownership. | `[]` |
 
 ---
 
@@ -33,7 +33,7 @@ This dictionary defines canonical fields, data types, legacy aliases, validation
 
 | Field | Type | Legacy Alias | Used in Variants | Description & Constraints | Default |
 |---|---|---|---|---|---|
-| `type` | enum | `type` | All 5 | Discriminator: `'invoice'`, `'contract'`, `'receipt'`, `'table'`, `'custom'`. Required. | N/A |
+| `type` | enum | `type` | All 6 | Discriminator: `'invoice'`, `'contract'`, `'id-card'`, `'receipt'`, `'table'`, `'custom'`. Required. | N/A |
 | `fields` | array[string] \| string | `fields` | `custom` | Comma-separated or array of target property keys to extract. Max 100 items. | `undefined` |
 | `schema` | object \| string | `schema` | `custom` | JSON Schema (Draft 2020-12) defining the target structure. Must be valid JSON object with `properties` or `items`. Max depth 5, max properties 50. Rejects `$ref` over network. | `undefined` |
 
@@ -43,10 +43,10 @@ This dictionary defines canonical fields, data types, legacy aliases, validation
 
 | Field | Type | Legacy Alias | Used in Variants | Description & Constraints | Default |
 |---|---|---|---|---|---|
-| `task` | enum | `task` | All 5 | Discriminator: `'classify'`, `'sentiment'`, `'compliance'`, `'quality'`, `'risk'`. Required. | N/A |
+| `task` | enum | `task` | All 7 | Discriminator: `'classify'`, `'sentiment'`, `'compliance'`, `'fact-check'`, `'quality'`, `'risk'`, `'summarize-eval'`. Required. | N/A |
 | `categories` | array[string] \| string | `categories` | `classify` | Target classification taxonomy categories. Non-empty array or comma-separated string. Max 50 categories. | Required for `classify` |
-| `criteria` | string \| array[string] | `criteria` | `compliance`, `quality` | Specific audit/evaluation criteria or rule guidelines to check against document. | Required for `compliance` / `quality` |
-| `reference_data` / `referenceData` | object \| string | `reference_data` | `compliance` | Reference ground truth for cross-referencing discrepancies. | `undefined` |
+| `criteria` | string \| array[string] | `criteria` | `compliance`, `quality`, `summarize-eval` | Specific audit/evaluation criteria or rule guidelines to check against document. | Variant-specific |
+| `reference_data` / `referenceData` | object \| string | `reference_data` | `compliance`, `fact-check` | Reference ground truth for cross-referencing discrepancies; `fact-check` requires a non-empty value. | `undefined` except `fact-check` |
 
 ---
 

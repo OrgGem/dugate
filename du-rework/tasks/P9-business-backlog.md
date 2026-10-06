@@ -34,4 +34,6 @@ Status 2026-09-30: TODO / **thuộc scope trước cutover DUGate cũ** theo yê
 
 ## Migration boundary
 
-Nếu cần chuyển config/data từ DUGate cũ, tạo packet migration riêng với export schema, secret handling, dry-run, reconciliation, rollback và traffic switching. Không P9 task nào có quyền tự truy cập production data hay đổi traffic.
+Scope compatibility hiện tại bắt buộc kế hoạch continuity [CONT-00..05](PLAN-COMPLETION-2026-10-04.md#5-continuity-của-client-trước-cutover): API-key hash/identity hiện hữu, profile/prompt/connection/schemaSlug/assignment, operation IDs/cursor/download/HITL/idempotency và webhook/usage. P9-05 dùng cùng register và fixture COMP-10, không tạo facade hoặc migration owner thứ hai. Dry-run/import/reconciliation và coexistence/rollback rehearsal phải có receipt trước G-COMP/G6; không chỉ tạo key mới rồi chạy workflow xanh.
+
+Tool/rehearsal chạy trên synthetic fixture hoặc export được cấp quyền với namespace riêng. Export/import production và traffic switching là bước thực thi riêng; không P9 task nào tự truy cập production data, dùng DB legacy chung hay đổi traffic. P9 vẫn triển khai trước G6; pending continuity không chặn business/module implementation độc lập sau contract freeze.

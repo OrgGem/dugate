@@ -1,80 +1,32 @@
-# DUGate Rework — Hướng dẫn Khởi chạy & Quản lý Local Dev
+# Local development ? Orchestrator, Portal, Connector and workers
 
-Bộ script hỗ trợ khởi chạy, phát triển và dừng toàn bộ hệ thống `du-rework` trên môi trường local (Windows PowerShell / CMD / Bash), giả định đã có PostgreSQL và Redis đang chạy trên máy.
-
----
-
-## ⚡ 1. Khởi chạy nhanh toàn bộ hệ thống (Dev Mode - 1 lệnh duy nhất)
-
-Bạn có thể chạy toàn bộ hệ thống (Orchestrator API + Admin UI, Connector, Worker) trong **1 cửa sổ terminal duy nhất**:
+Run from `du-rework` with Node **>=24.21.0 <25** and pnpm **10.18.3**. Install dependencies with `pnpm install --frozen-lockfile`. PostgreSQL and Redis must already be running; configure their actual URLs, tokens and identity secrets in a private `.env.local` copied from `.env.local.sample`. The runner does not seed users or create infrastructure. Use the existing local-user bootstrap procedure; no default admin password is promised.
 
 ```powershell
+pnpm dev --help
+pnpm dev --check
 pnpm dev
-# hoặc
-npm run dev
-# hoặc
-.\scripts\dev.ps1
+pnpm dev --workers=document-core
+pnpm dev --workers=none
+pnpm dev --env-file=.env.local --skip-build --skip-migrate
 ```
 
-### ✨ Ưu điểm của Dev Mode:
-* **1 Terminal duy nhất**: Toàn bộ log của 3 service được gom về 1 màn hình với tiền tố màu sắc riêng biệt:
-  - `[orchestrator]` (Xanh dương - Port 3000 API, Port 3001 Admin UI)
-  - `[connector]` (Tím - Port 8088)
-  - `[worker]` (Vàng - Redis BullMQ Worker)
-* **Tự động hóa hoàn toàn**: Tự kiểm tra file `.env.local`, tự build nếu thiếu file `dist`, tự chạy migration database, tự dọn dẹp port bị kẹt trước khi start.
-* **Khởi động tuần tự thông minh**: Đợi Orchestrator lắng nghe và sẵn sàng rồi mới đăng ký Worker, tránh lỗi connection refused.
-* **Tắt 1 chạm (Ctrl+C)**: Chỉ cần nhấn `Ctrl+C` tại terminal, runner sẽ **tự động tắt sạch sẽ toàn bộ các process con**, không để sót bất kỳ tiến trình ngầm hay cổng bị chiếm dụng.
+`--check` validates Node, configuration and topology without builds, database writes or starting services. Fix an old `RUNTIME_URL` pointing to port 3000 before launch. Existing shell environment overrides the env file, matching Node env-file behavior. Custom env paths resolve relative to `du-rework`, including paths containing spaces or `=`.
 
----
+| Component | Host-process local address | Purpose |
+| --- | --- | --- |
+| Orchestrator Public | `http://127.0.0.1:3000` | Public business API |
+| Orchestrator Internal | `http://127.0.0.1:3002` | Authenticated admin/runtime API |
+| Orchestrator Portal + BFF | `http://127.0.0.1:3001/admin/web/` | React Portal; login at `/admin/login` |
+| Connector | `http://127.0.0.1:8088` | Signed internal service; root-path contract |
+| Workers | No public HTTP listener | document-core, lc-checker, example-review via Runtime and Redis |
 
-## 🛑 2. Cách tắt Server / Dừng toàn bộ Services
+The runner defaults to all three workers; `--workers=` selects a comma-separated subset. Ports remain configurable. Local defaults bind loopback; explicitly configured bind hosts remain operator-controlled. Connector local port 8088 differs from its container port 8080. Docker retains the Compose boundary: internal 3002 and Connector 8080 are not published by default; use `compose/local-debug.yml` for optional loopback debugging.
 
-Nếu bạn đang chạy server và muốn tắt:
+Each normal launch builds all canonical packages in dependency order, including Portal and three workers, from their exact directories (excluding migration-candidate duplicates). It applies Orchestrator migrations to the configured database, aborting on failure; Connector initializes its own schema during startup. Both backend and Connector readiness must pass before workers start. `--skip-migrate` is for a database already migrated; backend schema verification still applies. `--skip-build` uses existing outputs and checks required artifacts.
 
-### Cách 1: Tắt khi đang chạy Dev Mode
-Chỉ cần nhấn tổ hợp phím **`Ctrl + C`** tại terminal đang chạy `pnpm dev`. Hệ thống sẽ bắt tín hiệu và tự động tắt sạch sẽ toàn bộ các service trong 1 giây.
+Ctrl+C stops this runner's children. Occupied ports cause a clear startup failure, without killing other listeners. `pnpm stop` targets absolute Node entrypoints in this workspace, including all three workers; older manually launched relative entrypoints must be stopped from their original terminal.
 
-### Cách 2: Tắt bằng 1 lệnh duy nhất (Dù chạy ngầm hay chạy nhiều cửa sổ)
-Nếu bạn đã khởi chạy bằng `start-all.ps1`, đóng terminal hoặc service đang chạy ngầm, hãy mở terminal gõ:
+PowerShell/CMD/Bash `start-all` wrappers use this same runner. `dev-live.ps1` and `dev-live.sh` select `.env.live`: a normal launch migrates that configured database too; use `--check` to inspect without writes. No live environment is started by this documentation update.
 
-```powershell
-pnpm stop
-# hoặc
-npm run stop
-# hoặc
-.\scripts\stop-all.ps1
-```
-*(Hoặc click đúp chuột vào file [`scripts\stop-all.bat`](file:///D:/Git/dugate/du-rework/scripts/stop-all.bat))*
-
-Script `stop-all` sẽ:
-1. Quét các cổng `3000` (API), `3001` (Admin Shell), `8088` (Connector).
-2. Dò tìm process Document-Core Worker.
-3. Terminate an toàn các PID này và giải phóng cổng ngay lập tức.
-
----
-
-## 📁 Danh mục các file công cụ trong `scripts/`
-
-| File | Mục đích | Cách chạy |
-|---|---|---|
-| [`scripts/dev.cjs`](file:///D:/Git/dugate/du-rework/scripts/dev.cjs) | **Dev Runner All-in-One**: Chạy toàn bộ services trong 1 terminal, log màu, tắt bằng Ctrl+C | `pnpm dev` hoặc `node scripts/dev.cjs` |
-| [`scripts/dev.ps1`](file:///D:/Git/dugate/du-rework/scripts/dev.ps1) | PowerShell wrapper cho Dev Runner | `.\scripts\dev.ps1` |
-| [`scripts/dev.bat`](file:///D:/Git/dugate/du-rework/scripts/dev.bat) | Batch file click đúp chuột chạy Dev Runner | Click đúp chuột |
-| [`scripts/stop-all.cjs`](file:///D:/Git/dugate/du-rework/scripts/stop-all.cjs) | **Stop All Services**: Dừng sạch sẽ Orchestrator, Connector, Worker và giải phóng cổng | `pnpm stop` hoặc `node scripts/stop-all.cjs` |
-| [`scripts/stop-all.ps1`](file:///D:/Git/dugate/du-rework/scripts/stop-all.ps1) | PowerShell wrapper dừng server | `.\scripts\stop-all.ps1` |
-| [`scripts/stop-all.bat`](file:///D:/Git/dugate/du-rework/scripts/stop-all.bat) | Batch file click đúp chuột để dừng server | Click đúp chuột |
-| [`scripts/start-all.ps1`](file:///D:/Git/dugate/du-rework/scripts/start-all.ps1) | Mở 3 cửa sổ terminal riêng biệt cho 3 service (chế độ truyền thống) | `powershell -File scripts/start-all.ps1` |
-| [`scripts/build-all.cjs`](file:///D:/Git/dugate/du-rework/scripts/build-all.cjs) | Build toàn bộ monorepo theo đúng thứ tự phụ thuộc | `pnpm run build:all` |
-| [`scripts/migrate-local.cjs`](file:///D:/Git/dugate/du-rework/scripts/migrate-local.cjs) | Chạy các migrations database cho Orchestrator | `pnpm run migrate:local` |
-
----
-
-## 🌐 Các cổng & Endpoint sau khi khởi chạy
-
-* **Orchestrator Admin UI**: [http://localhost:3001/admin/login](http://localhost:3001/admin/login)
-  - Default Admin: Username `admin` / Password `Admin@123456`
-* **Orchestrator Public API**: [http://localhost:3000](http://localhost:3000)
-  - Health check: [http://localhost:3000/health](http://localhost:3000/health)
-* **Connector Service**: [http://localhost:8088](http://localhost:8088)
-  - Readiness check: [http://localhost:8088/health/ready](http://localhost:8088/health/ready)
-* **Worker Service**: Lắng nghe hàng đợi Redis BullMQ (`127.0.0.1:6380`)
+`--watch` watches compiled JavaScript; it does not compile TypeScript or provide Vite HMR. Rebuild source changes before using them. The Portal is built and served through the real BFF, preserving its session/CSRF behavior.

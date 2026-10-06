@@ -4,10 +4,13 @@
 
 ## Mục tiêu và ranh giới
 
+**Bổ sung 2026-10-04:** [PLAN04-01..05 / CONT-00..05](PLAN-COMPLETION-2026-10-04.md) cụ thể hóa secret/consumer/evidence và continuity trước cutover. CONT-00/01 là input COMP-00/02; CONT-04 là consumer proof COMP-10; CONT-05 là runbook/rehearsal COMP-11/P8-06. Không thêm gate hoặc tự mở production migration.
+
 - External client đang dùng sáu core API và workflow API phải tiếp tục chạy **không sửa client** trên các path legacy, kể cả polling/list/lifecycle/download cần để lấy kết quả. So sánh request, HTTP status/header, response JSON/binary, state, pagination, webhook và auth bằng golden fixture từ hệ cũ; `result.content`/`extracted_data` không được thay bằng `resultRef` trên wire legacy.
 - Giữ generic business API của rework như **internal/canonical implementation**, nhưng các method/path external **trùng thật** (`GET /api/v1/operations`, `GET/DELETE /api/v1/operations/{id}`, `POST .../cancel|resume`) phải trả legacy wire **mặc định**. Generic DTO cho method/path trùng cần URL/version mới hoặc opt-in media type do client **mới** chọn; `/api/v1/operations/{id}/result` là route rework riêng nên không cần đổi default. Không bắt client cũ thêm `Accept` hay đổi URL. Compatibility layer gọi **cùng** submission/runtime/storage services, không nhân đôi operation, queue hoặc worker.
 - Không tái hiện lỗi bảo mật của hệ cũ: `x-api-key-id`/`apiKeyId` từ request chỉ được đối chiếu với identity đã xác thực, không được chọn tenant/key; không admin-key fallback hoặc cross-tenant read. Nếu hardening làm một consumer cũ không hoạt động, đó là blocker migration cần thống kê và duyệt ngoại lệ/điều chỉnh ở `COMP-00`, không được âm thầm gọi là parity.
 - Phân biệt **wire parity** (path, field, status) với **semantic parity** (đúng variant, nội dung, progress, usage, lifecycle). Không đánh dấu hoàn thành khi chỉ đổi tên field.
+- **Client continuity:** key hiện hữu tiếp tục xác thực bằng hash/identity mapping đã validate; profile/connection/schemaSlug và operation/cursor/download/HITL đang sống có import hoặc coexistence strategy cụ thể. Fixture key mới không thay test client đã dùng hệ cũ. Không giữ ADMIN fallback hoặc identity do body/form quyết định để đạt continuity.
 
 ## Nguồn đối chiếu và mismatch đã thấy
 
@@ -40,7 +43,11 @@ Nguồn hành vi mong muốn: `docs/API_PROFILES_SPEC.md`, các route cũ và te
 4. **Lifecycle:** xác nhận cancel async của rework là intentional break hay thay đổi runtime an toàn để đạt terminal-immediate; không giả `CANCELLED`. Chốt phép map `{step,extracted_data}` → active wait/CAS và response resume. Chốt retention/soft delete và quyền xem sau DELETE.
 5. **Encryption:** `ENC-00/RESULT-WIRE-01` quyết policy server-side. Tenant/client legacy giữ response plaintext tương thích cho tới khi **admin và external consumer chủ động** bật/migrate recipient encryption; không tự đổi mặc định khi cutover. Khi bật, poll chứa result, `/result`, download và webhook không thể byte-identical với plaintext legacy; client phải nhận envelope/decrypt, API không có param/header bypass. Giải mã `delivery` phải thu được **toàn bộ** legacy result; outage/key mismatch fail closed, không fallback plaintext.
 
-`COMP-00` vẫn cần chốt URL generic mới, bounds result, lifecycle semantics và hardening exception; **không mở lại** quyết định legacy path/default hoặc bỏ workflow khỏi scope. Bảng theo từng route ghi consumer, path/method, auth, success/error status, body/header, encryption mode và golden fixture. Không implement path trùng trước khi bảng được duyệt.
+6. **Continuity CONT-00/01:** ký consumer/config/identity register, ID/hash mapping, key/grant lifecycle, operation ownership (drain/coexistence hoặc state migration đã chứng minh), cursor/download/resume/idempotency cũ và rollback cả work mới phát sinh. Không dùng lại production DB legacy; freeze versioned export/import schema và authorized source cho rehearsal.
+
+`COMP-00` vẫn cần chốt URL generic mới, bounds result, lifecycle semantics, hardening exception và continuity register; **không mở lại** quyết định legacy path/default hoặc bỏ workflow khỏi scope. Bảng theo từng route ghi consumer, path/method, auth, success/error status, body/header, encryption mode và golden fixture; liên kết CONT mapping thay vì tạo route matrix thứ hai. Không implement path trùng trước khi bảng được duyệt.
+
+**Acceptance bổ sung cho rows bên dưới:** COMP-00/02 nhận CONT-00/01 contract; COMP-10 kiểm CONT-04 với key synthetic có trước migration, config đã import và operation/cursor/download/HITL cũ qua owner routing; COMP-11/G-COMP cần CONT-00..05, independent receipt và review. PLAN04-01/02 no-secret snapshot + actual policy consumer là upstream của profile fixtures. Rehearsal đủ cho readiness; actual production migration/cutover vẫn riêng.
 
 ## Backlog theo phụ thuộc
 

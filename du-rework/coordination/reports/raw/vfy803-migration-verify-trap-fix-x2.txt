@@ -1,0 +1,13 @@
+﻿COMMAND: pnpm --filter @du/orchestrator test -- tests/migration-verify-trap-fix.test.ts
+RUN: 2
+LITERAL_EXIT_CODE: 0
+
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand "tests/migration-verify-trap-fix.test.ts"
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        2.394 s, estimated 3 s
+Ran all test suites matching tests/migration-verify-trap-fix.test.ts.

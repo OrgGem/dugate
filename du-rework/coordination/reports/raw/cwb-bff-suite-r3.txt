@@ -1,0 +1,39 @@
+﻿# cmd: npx jest tests/bff-connectors-actions.test.ts --runInBand
+# round 3
+# time: 2026-10-05T01:34:59.7562315+07:00
+
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:04.534Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"2cd619bd-1082-49ac-b20a-7b72b2f6d8c7","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:04.602Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0b40a903-672c-47e2-8712-510baad81b7b","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-04T18:35:04.608Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"88cd09ba-a5cc-4dcc-b602-c8137a1833b6","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+node.exe : PASS tests/bff-connectors-actions.test.ts
+At C:\nvm4w\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PASS tests/bff-...actions.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  CONNECTOR-WIRE-B BFF connector reads + actions
+    √ anonymous → 401 problem on both connector reads, zero upstream calls (18 ms)
+    √ viewer → 403 PERMISSION_DENIED, zero upstream calls (8 ms)
+    √ tenant operator with a CONFIGURED bearer is still refused locally (platform-only fence) (3 ms)
+    √ platform admin list → upstream truth, platform bearer, no params, no cookie relayed (17 ms)
+    √ platform admin capabilities → booleans relayed verbatim (false is not flattened) (3 ms)
+    √ upstream 5xx collapses to 502 UPSTREAM_ERROR with no upstream text (3 ms)
+    √ unreachable upstream → 503 UPSTREAM_UNAVAILABLE (9 ms)
+    √ wrong method → 405 on both connector reads, zero upstream calls (4 ms)
+    √ literal ".." connector segment still 404 before upstream (new routes do not shadow the fence) (3 ms)
+    √ GET /admin/api/actions → 405 (mutation surface only accepts POST) (1 ms)
+    √ anonymous / viewer / operator actions → 401 then 403, zero upstream calls (4 ms)
+    √ admin without CSRF proof → 403 CSRF_REJECTED before the dispatcher (2 ms)
+    √ malformed action envelope → 422 without upstream (9 ms)
+    √ connector.upsert → 201 wrapped in data, params verbatim, key clamped to 200 (10 ms)
+    √ connector.activate CAS loss → 409 STATE_CONFLICT, sanitised errors, raw body never echoed (9 ms)
+    √ connector.test / connector.activate happy path relay the dispatcher body (7 ms)
+    √ unknown connector action → upstream 404 ACTION_NOT_FOUND, detail dropped (9 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        3.533 s
+Ran all test suites matching tests/bff-connectors-actions.test.ts.
+JEST_EXIT=0

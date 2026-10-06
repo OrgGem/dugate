@@ -1,0 +1,40 @@
+VFY-801 independent static verification
+cwd=D:\Git\dugate\du-rework
+HEAD=b088eececcb5f3df0b4edbe073a29401dafda624
+Expected digest was verified pre-initial browser run; run raw mtime 2026-10-05T03:34:10+07:00.
+Expected JS index-CqyHzg0b.js SHA256=0b8ed8ed715bbd160bdd1a571927c1ff4848b2c55ab6beabe89251ccf8c40b3c
+Expected CSS index-HHyOtXdi.css SHA256=2edb802939854314a79f39b47024fa8831e823575e979e9007c7510ce313a0aa
+Current dist assets after later build:
+  index-BffJF1YL.css SHA256=baf331d4ea62f3274fc1ac9e83ea049787fc7f786fac6330fbf69de3457bf021 mtime=2026-10-05T03:49:43.6398123+07:00
+  index-VXqFDc-c.js SHA256=91323b349fc141758790908fe51c47723ac07ba637bd73674723ea33bde3250a mtime=2026-10-05T03:49:43.6398123+07:00
+Connectors source SHA256=755875b569b3f24044327519465985a2d9942ca6fd06ef04a4fb7d9f07464958
+Current bundle contains [Admin session unavailable]=True
+Current bundle contains [platform ledger]=True
+Current bundle contains [secret value is NOT part]=True
+Current bundle contains [writes ride the BFF]=True
+Browser raw coordination/reports/raw/verify-vfy801-stub-ext-x3.txt mtime=2026-10-05T03:34:10.4571289+07:00 SHA256=fd44b2cfd43a45a989aba63a163672ceb264f7ba8238a086cd87ecfe2c78d80d
+Browser raw coordination/reports/raw/verify-vfy801-stub-ext-current-dist-x3.txt mtime=2026-10-05T03:44:03.5609900+07:00 SHA256=e00a977dd85c739059b043e2108c090b8e77c48dcad8cfa40ee706a589723a47
+Browser raw coordination/reports/raw/verify-vfy801-stub-ext-current-dist-isolated-x3.txt mtime=2026-10-05T03:45:00.2182888+07:00 SHA256=7b2199d717c61f2024d9c2ca0ae327e32f094f3122f579aed261f0f6de823f9c
+Browser outcomes: expected-digest x3 15 passed/exit0; current-dist default-output diagnostic 13 pass + 2 teardown trace ENOENT/exit1; current-dist isolated-output x3 15 passed/exit0. Current dist hashes were identical before and after isolated x3. Both harness ports closed after shutdown.
+ENV code: services/orchestrator/src/modules/connector-credentials/compose.ts lines 35-41, 119-149: any non-empty env requests; OPTIONS+TOKEN required; INITIAL_BINDINGS optional, parsed if supplied. .env.example line 37 says all-or-nothing for trio, overstates requirement. Sample OPTIONS and BINDINGS JSON shape valid.
+PLAN-UPDATE-800 validator replay latest raw=coordination/reports/raw/verify-vfy801-plan-validator-latest.txt, exit 1 because later PLAN-805 changed rows/README; it reports added_task_rows=0.
+PLAN-UPDATE-805 current validation raw=coordination/reports/plan-update-805-2026-10-05.validation.raw.json: exit 0, errors 0, P763_offline_ticks=2, other_checkbox_changes=0, added_task_rows=0.
+Current plan-vs-pre-801 snapshot comparison: {"added_task_definition_ids": [], "checkbox_changes": {"P763-PROMPT-WIRING": [" ", "x"], "P763-W1C-COMPOSE": [" ", "x"]}, "removed_task_definition_ids": [], "task_definitions_before": 26, "task_definitions_current": 26}
+Current PLAN SHA256=cff3624a147d761dfdf830672052c30de21cb44eaf40d2a6c67a50c8745b88c1
+Current P763 anchors: line 275 P763-W1C-COMPOSE [x] offline-leg only; line 277 P763-PROMPT-WIRING [x] offline-leg only; parent/live gates remain open.
+TICK-PROPOSAL-2 current hashes:
+  services/orchestrator/tests/p730-acquire-composition.test.ts 86c463150802475d56297a2fb6da25884ab5d07d24b1aa774d6591165674f34d
+  services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts 4b0226c1fc9a09b17adae4807bcdceff15429da08ae64758a08628366b4947c3
+  services/orchestrator/src/modules/operations/ingestion-consumer.ts b737b5fab54a8bc396ef776df22888d37907c93db8307471926d0cd8f64467d1
+  businesses/document-core/src/worker.ts 9bce7694418bf0ef2dce77bd951bcf3d7044f9a86c8e380611a33a54f22abc37
+  businesses/document-core/src/actions/prompt-application.ts 261f395f820bb170796f71a88691ad78d27c10ca164031d9ad07d28b227dac21
+  businesses/document-core/tests/p745-carrier-impl-b2.test.ts 097dc9c948648a65a5f76398cb8e01c10c900c7ebc4f3ebdd9e20117cbf5dfef
+  businesses/document-core/tests/p745-session-capture-inject.test.ts 27d3d113fb5a33643b6f3e5da91c5c3d718830ecc5a97e2087bfc89f0d25c5d5
+  services/orchestrator/src/app/bootstrap/create-app.ts ca24177afff0b3207c9361f189617d352faf53a88247eeef3e93db758a6ad83a
+  businesses/document-core/tests/execution-pin.functional.test.ts 3082c47409e49cb7dab8462ccbc5cdc252f7f8f3408ffd891c737d1255bddeda
+create-app:64 import { createAcquisitionRefResolver } from '../../modules/operations/acquisition-ref-resolver';
+create-app:472   // W1C-COMPOSITION: the acquisition-time credential resolver, composed HERE
+create-app:478   const acquisitionRefResolver = createAcquisitionRefResolver({ db });
+create-app:500           // W1C-COMPOSITION: the resolver above, bound to the app's own db ???
+create-app:503           resolveSourceAuth: (coords) => acquisitionRefResolver.resolveSourceAuth(coords),
+TICK result: seven requested pins match. create-app advanced from TICK proposal current ae7e29 to RCR pin ca24177; W1C anchors remain. execution-pin current hash is the current-column value; older VERIFY-B2 pin has documented suffix transposition.

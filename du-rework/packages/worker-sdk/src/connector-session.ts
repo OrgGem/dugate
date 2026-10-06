@@ -34,6 +34,14 @@ import type { ConnectorInvokeInput, TaskContext } from './types';
  *    returns the result-side sessionRef so multi-turn provider sessions
  *    survive yields and process restarts.
  *
+ *    CR06-04: a provider may also offer a sessionRef in an async 202 body
+ *    (`pending-yield`). That value is carried on the pending outcome and on
+ *    `PendingInvocationError` (never dropped), and the connector ledger
+ *    keeps it on the pending record — the resume replays the same stable
+ *    invocationId, and the connector re-attaches the stored session to the
+ *    provider. No checkpoint is written on pending (the resume must
+ *    re-enter the step), so the typed error is the SDK-level carrier.
+ *
  * UNKNOWN classifies to `reconcile` (non-retryable): per docs 09 an
  * unknown invocation outcome is reconciled via the connector ledger
  * using the stable invocationId — never blind-retried.
@@ -58,6 +66,13 @@ export type InvocationOutcome =
       /** Delay hint for the runtime retry (from nextPollAt, clamped). */
       retryAfterMs: number;
       nextPollAt: string | null;
+      /**
+       * CR06-04: continuation session offered by the provider in the async
+       * accept response (top-level wire `sessionRef`), or null when absent.
+       * The connector pending record is the durable custodian; this field
+       * keeps the value visible to the yield path and the typed error.
+       */
+      sessionRef: string | null;
     }
   | {
       kind: 'failed';
@@ -85,7 +100,10 @@ export function classifyInvocation(response: InvocationResponse): InvocationOutc
         // contract violation; surface an empty object rather than crash.
         result: response.result ?? {},
         usage: response.usage ?? null,
-        sessionRef: response.result?.sessionRef ?? null,
+        // CR06-04: prefer the result-side session; fall back to the top-level
+        // continuation (the connector keeps the pending 202 session when the
+        // provider's final response omitted it).
+        sessionRef: response.result?.sessionRef ?? response.sessionRef ?? null,
       };
     case 'NEW':
     case 'IN_FLIGHT':
@@ -95,6 +113,8 @@ export function classifyInvocation(response: InvocationResponse): InvocationOutc
         invocationId: response.invocationId,
         retryAfterMs: pendingRetryDelayMs(response.nextPollAt ?? null),
         nextPollAt: response.nextPollAt ?? null,
+        // CR06-04: async providers may offer the session on the 202 body.
+        sessionRef: response.sessionRef ?? null,
       };
     case 'FAILED':
       return {
@@ -140,6 +160,12 @@ export function pendingRetryDelayMs(nextPollAt: string | null, now: number = Dat
  * the worker report `failTask(retryable: true, retryAfterMs)` → runtime
  * RETRY_PENDING → the slot is released and the task is redelivered later.
  * That is the yield: no polling loop, no held slot, no spin.
+ *
+ * CR06-04: `sessionRef` carries the provider's async acceptance session
+ * (when the connector response offered one). It is a property, NOT part of
+ * the message: the token must not leak into logs. The durable copy lives on
+ * the connector's pending record, so the resume keeps the session even when
+ * the redelivered handler does not (yet) know it.
  */
 export class PendingInvocationError extends Error {
   readonly code = 'PROVIDER_PENDING';
@@ -147,7 +173,8 @@ export class PendingInvocationError extends Error {
   constructor(
     readonly invocationId: string,
     readonly retryAfterMs: number,
-    readonly nextPollAt: string | null
+    readonly nextPollAt: string | null,
+    readonly sessionRef: string | null = null
   ) {
     super(
       `invocation ${invocationId} is pending; yielding slot for ${retryAfterMs}ms` +
@@ -218,7 +245,12 @@ export function assertInvocationResult(outcome: InvocationOutcome): InvocationRe
         sessionRef: outcome.sessionRef,
       };
     case 'pending-yield':
-      throw new PendingInvocationError(outcome.invocationId, outcome.retryAfterMs, outcome.nextPollAt);
+      throw new PendingInvocationError(
+        outcome.invocationId,
+        outcome.retryAfterMs,
+        outcome.nextPollAt,
+        outcome.sessionRef
+      );
     case 'failed':
       throw new ConnectorInvocationFailedError(
         outcome.invocationId,
@@ -284,6 +316,13 @@ export interface ConnectorStepResult extends InvocationResultPayload {}
  * the step and the connector ledger dedupes the provider call via the
  * stable invocationId. On success the checkpoint stores the full output
  * (RUN-04 no re-inference) plus the sent sessionRef for fast recovery.
+ *
+ * CR06-04: on pending the provider's async session (if any) is preserved on
+ * the connector's pending record and surfaced through PendingInvocationError.
+ * After resume, the provider continuation is the result-side sessionRef —
+ * the connector falls back to the stored pending session when the final
+ * provider response omits one, so the multi-turn session is not dropped by
+ * the yield.
  */
 export async function runConnectorStep(
   ctx: TaskContext,

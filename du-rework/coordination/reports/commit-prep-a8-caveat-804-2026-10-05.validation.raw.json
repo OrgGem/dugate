@@ -1,0 +1,11 @@
+{
+  "scope": "document-only, no GO decision/checkbox/source/commit change",
+  "authorized_replacements_only": true,
+  "A8_warning_sites": 3,
+  "six_group_rows": 6,
+  "local_links_checked": 14,
+  "anchors_checked": 4,
+  "headings_unchanged": true,
+  "diff_check_exit": 0,
+  "errors": []
+}

@@ -164,6 +164,7 @@ export class InMemoryInvocationLedger implements InvocationLedger {
     pollLeaseToken?: string,
     quotaLease?: import('./types').QuotaLease,
     providerPollAttempt = false,
+    sessionRef?: string | null,
   ): Promise<InvocationRecord> {
     const record = this.require(invocationId);
     this.assertMutationLease(record, pollLeaseToken);
@@ -172,6 +173,9 @@ export class InMemoryInvocationLedger implements InvocationLedger {
       state: 'PENDING' as const,
       nextPollAt,
       providerRequestId: providerRequestId ?? record.providerRequestId,
+      // CR06-04: first non-null provider session wins; a later poll that
+      // omits sessionRef must not erase one already captured.
+      sessionRef: sessionRef ?? record.sessionRef,
       pollLeaseToken: undefined,
       pollLeaseExpiresAt: undefined,
       quotaLease: quotaLease ?? record.quotaLease,

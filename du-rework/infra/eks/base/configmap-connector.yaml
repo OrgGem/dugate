@@ -1,0 +1,16 @@
+# Map 1:1 từ compose/connector.yml — chỉ biến không secret.
+# USAGE_SINK_URL mặc định TRỐNG (= tắt usage ingestion) như compose.
+# Bật: "http://orchestrator-internal:3002/api/runtime/v1/usage-events" + Secret USAGE_SINK_TOKEN.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: connector
+  namespace: du-platform
+data:
+  PORT: "8080"
+  HOST: "0.0.0.0"
+  REDIS_KEY_PREFIX: "du:connector:"
+  DRAIN_TIMEOUT_MS: "30000"
+  PROVIDER_ALLOW_HOSTS: ""
+  ALLOW_PRIVATE_PROVIDER_NETWORKS: "false"
+  USAGE_SINK_URL: ""

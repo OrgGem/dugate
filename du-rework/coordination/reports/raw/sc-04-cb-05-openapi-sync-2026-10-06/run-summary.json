@@ -1,0 +1,14 @@
+{
+  "cwd": "D:\\Git\\dugate\\du-rework",
+  "offline": true,
+  "artifactSha256": "7f0afb86c151e5ee204e82cc75c4dda3cfca1f14c51cf6ab403b51da26a46840",
+  "paths": 58,
+  "operations": 62,
+  "schemas": 51,
+  "generatorExit": 0,
+  "validatorExit": 0,
+  "structuralExit": 0,
+  "repeatUnchanged": true,
+  "droppedPaths": 0,
+  "droppedOperations": 0
+}

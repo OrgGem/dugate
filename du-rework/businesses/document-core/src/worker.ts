@@ -16,9 +16,12 @@ import {
   InvocationResponse,
   CONNECTOR_ARTIFACT_MAX_BYTES,
   InvocationArtifactContent,
+  type PinnedProfilePolicy,
+  type PinnedPromptOverride,
 } from '@du/contracts';
 import { DocumentFormatDetector } from '@du/document-kit';
 import { documentCoreManifest } from './manifest/document-core.manifest';
+import { STEP_KEYS } from './recipes/step-keys';
 import {
   ArtifactReadResult,
   ArtifactRef,
@@ -34,6 +37,7 @@ import { AnalyzeAction } from './actions/analyze';
 import { TransformAction } from './actions/transform';
 import { GenerateAction } from './actions/generate';
 import { CompareAction } from './actions/compare';
+import { applyPinnedStepPrompt, type PinnedPromptView } from './actions/prompt-application';
 import {
   advanceDisbursement,
   buildApprovalEvidence,
@@ -206,6 +210,35 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
   };
 
   const crypto = taskCrypto(ctx);
+  // P730-SDK-CONSUME (W1b): forward the pinned admission snapshot the SDK
+  // claim carried. Spread-guard (like crypto above) so internal/test contexts
+  // that never had a pin keep their existing shape; a null profilePolicy is
+  // FORWARDED as null (admitted-without-policy), only undefined is omitted.
+  const pin: {
+    profileRevision?: number;
+    promptRevisions?: Readonly<Record<string, string>>;
+    profilePolicy?: PinnedProfilePolicy | null;
+    promptOverrides?: readonly PinnedPromptOverride[] | null;
+    connectorBindings?: Readonly<Record<string, string>>;
+  } = {};
+  const sdkCtx = ctx as SdkTaskContext;
+  if (sdkCtx.profileRevision !== undefined) pin.profileRevision = sdkCtx.profileRevision;
+  if (sdkCtx.promptRevisions !== undefined) pin.promptRevisions = sdkCtx.promptRevisions;
+  if (sdkCtx.profilePolicy !== undefined) pin.profilePolicy = sdkCtx.profilePolicy;
+  // P745-CARRIER-IMPL-B2 (T6): forward the pinned prompt CONTENT rows with the
+  // same !== undefined guard as the fields above, so a context that never
+  // carried the field (pre-B1 wire shape) keeps its old shape. null is
+  // FORWARDED as null (no carrier), never coalesced.
+  if (sdkCtx.promptOverrides !== undefined) pin.promptOverrides = sdkCtx.promptOverrides;
+  if (sdkCtx.connectorBindings !== undefined) pin.connectorBindings = sdkCtx.connectorBindings;
+  // P745-CARRIER-IMPL-B2 (T7): view of the pinned prompt carrier for the
+  // adapter's final-text substitution (Δ-B2-2). Built from the SAME `pin` the
+  // context exposes, so adapter and action consumers cannot disagree.
+  const promptView: PinnedPromptView = {
+    promptOverrides: pin.promptOverrides,
+    profilePolicy: pin.profilePolicy,
+    connectorBindings: pin.connectorBindings,
+  };
   return {
     taskId: ctx.taskId,
     operationId: ctx.operationId,
@@ -215,6 +248,7 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
     // Undefined when the worker runs without a seam: encryption is opt-in, and
     // every consumer below falls back to the plaintext behaviour in that case.
     ...(crypto ? { crypto } : {}),
+    ...pin,
     signal: ctx.signal,
     deadlineAt: 'deadlineAt' in ctx ? ctx.deadlineAt : undefined,
     cancelRequested: 'cancelRequested' in ctx ? ctx.cancelRequested : undefined,
@@ -374,11 +408,22 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
           const extractedText = typeof obj['text'] === 'string'
             ? obj['text']
             : (payloadObj && typeof payloadObj['documentSnippet'] === 'string' ? (payloadObj['documentSnippet'] as string) : undefined);
-          const promptText = typeof obj['prompt'] === 'string'
+          const assembledPromptText = typeof obj['prompt'] === 'string'
             ? (obj['prompt'] as string)
             : (typeof obj['task'] === 'string'
                 ? `${obj['task']}: ${payloadObj && typeof payloadObj['promptText'] === 'string' ? payloadObj['promptText'] : JSON.stringify(obj['payload'] ?? '')}`
                 : JSON.stringify(obj));
+          // P745-CARRIER-IMPL-B2 (T7, Δ-B2-2): substitute the pinned step prompt
+          // for the assembled text (PC-2(a)). The caller must declare the stepId;
+          // without it the adapter SKIPs and the assembled text is used as-is.
+          const promptText =
+            options && typeof options.promptStepId === 'string' && options.promptStepId.trim().length > 0
+              ? applyPinnedStepPrompt(promptView, {
+                  slot,
+                  stepId: options.promptStepId,
+                  defaultText: assembledPromptText,
+                })
+              : assembledPromptText;
 
           const rawSchema = obj['outputSchema'] || obj['jsonSchema'] || payloadObj?.['schema'];
           input = {
@@ -397,7 +442,27 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
 
         let res: InvocationResponse;
         try {
-          res = await (ctx as SdkTaskContext).connector.invoke(slot, input, options as Record<string, unknown> | undefined);
+          // P745-SESSION-CONSUME: the caller's continuation session is passed
+          // through as the SDK's 4th arg (invokeOpts), so sessionRef lands on
+          // the wire AND inside the canonical inputHash. Omitted when the
+          // caller passes none -> the pre-P745 single-shot call is unchanged.
+          const invokeOpts =
+            options && options.sessionRef !== undefined
+              ? { sessionRef: options.sessionRef }
+              : undefined;
+          // Adapter metadata is consumed locally; strict provider options must
+          // not receive promptStepId or the top-level continuation session.
+          const providerOptions = options ? { ...options } : undefined;
+          if (providerOptions) {
+            delete providerOptions.promptStepId;
+            delete providerOptions.sessionRef;
+          }
+          res = await (ctx as SdkTaskContext).connector.invoke(
+            slot,
+            input,
+            providerOptions && Object.keys(providerOptions).length > 0 ? providerOptions : undefined,
+            invokeOpts
+          );
         } catch (err: unknown) {
           assertActive(ctx);
           if (err instanceof LeaseLostError || (err as { name?: string })?.name === 'LeaseLostError') {
@@ -448,15 +513,23 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
           rawText,
           usage,
           error,
+          // P745-SESSION-CONSUME: surface the provider-offered session so a
+          // step declaring `captureSession` can persist it for a later step.
+          sessionRef: res.result?.sessionRef ?? null,
         };
       },
     },
-    step: async <T>(stepKey: string, inputHash: string, fn: () => Promise<T>): Promise<T> => {
+    step: async <T>(
+      stepKey: string,
+      inputHash: string,
+      fn: () => Promise<T>,
+      options?: { sessionRef?: string | null }
+    ): Promise<T> => {
       assertActive(ctx);
       if (isInternal) {
-        return (ctx as TaskContext).step(stepKey, inputHash, fn);
+        return (ctx as TaskContext).step(stepKey, inputHash, fn, options);
       }
-      return (ctx as SdkTaskContext).step.run(stepKey, inputHash, fn);
+      return (ctx as SdkTaskContext).step.run(stepKey, inputHash, fn, options);
     },
     getCheckpoint: async (stepKey: string): Promise<StepCheckpointRecord | null> => {
       assertActive(ctx);
@@ -469,6 +542,10 @@ export function toInternalContext(ctx: SdkTaskContext | TaskContext): StreamingT
         stepKey: peeked.stepKey,
         inputHash: peeked.inputHash,
         output: null,
+        // P745-SESSION-CONSUME (CR06-03): surface the checkpoint row's stored
+        // sessionRef so the slot/inject resolver can read it without executing
+        // the step. Additive field; null when the row carried none.
+        sessionRef: peeked.sessionRef ?? null,
         savedAt: new Date().toISOString(),
       };
     },
@@ -874,7 +951,8 @@ function createDisbursementRuntime(
     task: string,
     prompt: string,
     payload: Record<string, unknown>,
-    outputSchema: Record<string, unknown>
+    outputSchema: Record<string, unknown>,
+    promptStepId: string
   ): Promise<unknown> => {
     const hash = stableJsonHash({ slot, task, payload });
     const result = await internal.step(`disbursement:connector:${stepName}`, hash, async () =>
@@ -883,7 +961,7 @@ function createDisbursementRuntime(
         prompt,
         ...payload,
         outputSchema,
-      }, { responseFormat: 'json', jsonSchema: outputSchema })
+      }, { responseFormat: 'json', jsonSchema: outputSchema, promptStepId })
     );
     return connectorResponseData(result, stepName);
   };
@@ -920,7 +998,8 @@ function createDisbursementRuntime(
             },
             required: ['logicalDocuments'],
             additionalProperties: false,
-          }
+          },
+          STEP_KEYS.DISBURSEMENT.CLASSIFY
         );
         return parseLogicalDocuments(response, request.fileName);
       },
@@ -955,7 +1034,8 @@ function createDisbursementRuntime(
             },
             required: ['records'],
             additionalProperties: false,
-          }
+          },
+          STEP_KEYS.DISBURSEMENT.EXTRACT
         );
         return parseExtractedRecords(response, request.fileName, request.logicalDocuments);
       },
@@ -987,7 +1067,8 @@ function createDisbursementRuntime(
             },
             required: ['findings', 'matchedCount', 'mismatchedCount'],
             additionalProperties: false,
-          }
+          },
+          STEP_KEYS.DISBURSEMENT.CROSSCHECK
         );
         return parseCrosscheck(response);
       },
@@ -1001,7 +1082,7 @@ function createDisbursementRuntime(
           internal.connector.invoke('report' as 'reasoning', {
             task: 'disbursement_report',
             prompt: `Prepare a report only from this approved evidence: ${JSON.stringify(request)}`,
-          }, { responseFormat: 'text' })
+          }, { responseFormat: 'text', promptStepId: STEP_KEYS.DISBURSEMENT.REPORT })
         );
         const response = connectorResponseData(result, 'report');
         const report = typeof response === 'string' ? response : isRecord(response) ? response.report : undefined;

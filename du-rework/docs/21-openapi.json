@@ -2,12 +2,31 @@
   "openapi": "3.0.3",
   "info": {
     "title": "DUGate rework API (code-derived, W40-CX)",
-    "version": "1.2.0",
-    "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
+    "version": "1.4.0",
+    "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
   },
   "servers": [
     {
-      "url": "http://localhost:2023"
+      "url": "http://localhost:3000",
+      "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+    }
+  ],
+  "tags": [
+    {
+      "name": "public",
+      "description": "Public JSON ingress, Orchestrator 3000."
+    },
+    {
+      "name": "admin",
+      "description": "Internal JSON ingress, Orchestrator 3002: admin/management routes."
+    },
+    {
+      "name": "runtime",
+      "description": "Internal JSON ingress, Orchestrator 3002: worker/service Runtime routes."
+    },
+    {
+      "name": "connector",
+      "description": "Connector service root-path contract, origin 8080."
     }
   ],
   "components": {
@@ -31,7 +50,15 @@
       },
       "Svc": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Connector HS256 service identity: aud=connector, exp, subject and required scopes claim. See x-required-service-scope on each operation."
+      },
+      "PortalSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "du_session",
+        "description": "Server-side Portal session; mutations additionally require x-csrf-token and platform admin."
       }
     },
     "schemas": {
@@ -700,6 +727,2897 @@
         },
         "additionalProperties": false,
         "description": "Which ledger clock answered the window, published rather than assumed. The route always sends order asc and timezone UTC (usage-reconciliation.ts UsageEventExportPageSchema)."
+      },
+      "SecretPurpose": {
+        "type": "string",
+        "enum": [
+          "connector.credential",
+          "connector.provider_header",
+          "profile.callback_header",
+          "profile.callback_oauth2_client_secret",
+          "oidc.client_secret",
+          "source.auth",
+          "generic"
+        ],
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretPurposeSchema"
+      },
+      "SecretService": {
+        "type": "string",
+        "enum": [
+          "orchestrator",
+          "connector"
+        ],
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretServiceSchema"
+      },
+      "SecretState": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "DISABLED",
+          "REVOKED"
+        ],
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretStateSchema"
+      },
+      "LiteralValueSource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "literal"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#LiteralValueSourceSchema"
+      },
+      "SecretRefValueSource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "secret_ref"
+            ]
+          },
+          "secretId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "kind",
+          "secretId"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretRefValueSourceSchema"
+      },
+      "ValueSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "literal"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "secret_ref"
+                ]
+              },
+              "secretId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "kind",
+              "secretId"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        },
+        "x-source": "packages/contracts/src/secret-catalog.ts#ValueSourceSchema"
+      },
+      "LiteralValueSourceRead": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "literal"
+            ]
+          },
+          "configured": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "configured"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#LiteralValueSourceReadSchema"
+      },
+      "SecretRefReadMetadata": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "secret_ref"
+            ]
+          },
+          "secretId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "DISABLED",
+              "REVOKED"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "kind",
+          "secretId",
+          "name",
+          "state",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretRefReadMetadataSchema"
+      },
+      "ValueSourceRead": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "literal"
+                ]
+              },
+              "configured": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "configured"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "secret_ref"
+                ]
+              },
+              "secretId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ACTIVE",
+                  "DISABLED",
+                  "REVOKED"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "kind",
+              "secretId",
+              "name",
+              "state",
+              "revision"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        },
+        "x-source": "packages/contracts/src/secret-catalog.ts#ValueSourceReadSchema"
+      },
+      "ManagedValueProvider": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "managed_value"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#ManagedValueProviderSchema"
+      },
+      "VaultVersionMode": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "pinned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "mode",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "latest"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "discriminator": {
+          "propertyName": "mode"
+        },
+        "x-source": "packages/contracts/src/secret-catalog.ts#VaultVersionModeSchema"
+      },
+      "VaultReferenceProvider": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "vault_reference"
+            ]
+          },
+          "connectionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "mount": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "path": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "version": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "pinned"
+                    ]
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "mode",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "latest"
+                    ]
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "discriminator": {
+              "propertyName": "mode"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "connectionId",
+          "mount",
+          "path",
+          "field",
+          "version"
+        ],
+        "additionalProperties": false,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/secret-catalog.ts#VaultReferenceProviderSchema"
+      },
+      "SecretProvider": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "managed_value"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "vault_reference"
+                ]
+              },
+              "connectionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "mount": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              "path": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              "namespace": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "version": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "pinned"
+                        ]
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "version"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "latest"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "mode"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "connectionId",
+              "mount",
+              "path",
+              "field",
+              "version"
+            ],
+            "additionalProperties": false,
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          }
+        ],
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretProviderSchema"
+      },
+      "SecretUsageReference": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "connector_credential",
+              "profile_callback",
+              "oidc_client",
+              "source_auth"
+            ]
+          },
+          "refId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "kind",
+          "refId"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretUsageReferenceSchema"
+      },
+      "SecretRotationMetadata": {
+        "type": "object",
+        "properties": {
+          "rotatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "intervalDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650,
+            "nullable": true
+          }
+        },
+        "required": [
+          "rotatedAt",
+          "intervalDays"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretRotationMetadataSchema"
+      },
+      "SecretCatalogEntry": {
+        "type": "object",
+        "properties": {
+          "catalogVersion": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "secretId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._/-]*$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "connector.credential",
+              "connector.provider_header",
+              "profile.callback_header",
+              "profile.callback_oauth2_client_secret",
+              "oidc.client_secret",
+              "source.auth",
+              "generic"
+            ]
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "orchestrator",
+                "connector"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 2
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "managed_value"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "vault_reference"
+                    ]
+                  },
+                  "connectionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "mount": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "field": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "version": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "pinned"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "latest"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "mode"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "connectionId",
+                  "mount",
+                  "path",
+                  "field",
+                  "version"
+                ],
+                "additionalProperties": false,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "DISABLED",
+              "REVOKED"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rotation": {
+            "type": "object",
+            "properties": {
+              "rotatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "intervalDays": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3650,
+                "nullable": true
+              }
+            },
+            "required": [
+              "rotatedAt",
+              "intervalDays"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "catalogVersion",
+          "secretId",
+          "tenantId",
+          "name",
+          "purpose",
+          "services",
+          "provider",
+          "state",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogEntrySchema"
+      },
+      "SecretCatalogEntryRead": {
+        "type": "object",
+        "properties": {
+          "catalogVersion": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "secretId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._/-]*$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "connector.credential",
+              "connector.provider_header",
+              "profile.callback_header",
+              "profile.callback_oauth2_client_secret",
+              "oidc.client_secret",
+              "source.auth",
+              "generic"
+            ]
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "orchestrator",
+                "connector"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 2
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "managed_value"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "vault_reference"
+                    ]
+                  },
+                  "connectionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "mount": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "field": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "version": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "pinned"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "latest"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "mode"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "connectionId",
+                  "mount",
+                  "path",
+                  "field",
+                  "version"
+                ],
+                "additionalProperties": false,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "DISABLED",
+              "REVOKED"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rotation": {
+            "type": "object",
+            "properties": {
+              "rotatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "intervalDays": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3650,
+                "nullable": true
+              }
+            },
+            "required": [
+              "rotatedAt",
+              "intervalDays"
+            ],
+            "additionalProperties": false
+          },
+          "valueConfigured": {
+            "type": "boolean"
+          },
+          "usageReferences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "connector_credential",
+                    "profile_callback",
+                    "oidc_client",
+                    "source_auth"
+                  ]
+                },
+                "refId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "kind",
+                "refId"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 64
+          }
+        },
+        "required": [
+          "catalogVersion",
+          "secretId",
+          "tenantId",
+          "name",
+          "purpose",
+          "services",
+          "provider",
+          "state",
+          "revision",
+          "valueConfigured",
+          "usageReferences"
+        ],
+        "additionalProperties": false,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogEntryReadSchema"
+      },
+      "SecretCatalogCreate": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._/-]*$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "connector.credential",
+              "connector.provider_header",
+              "profile.callback_header",
+              "profile.callback_oauth2_client_secret",
+              "oidc.client_secret",
+              "source.auth",
+              "generic"
+            ]
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "orchestrator",
+                "connector"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 2
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "managed_value"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "vault_reference"
+                    ]
+                  },
+                  "connectionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "mount": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "field": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "version": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "pinned"
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "latest"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "mode"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "connectionId",
+                  "mount",
+                  "path",
+                  "field",
+                  "version"
+                ],
+                "additionalProperties": false,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              }
+            ]
+          },
+          "value": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "literal"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "tenantId",
+          "name",
+          "purpose",
+          "services",
+          "provider"
+        ],
+        "additionalProperties": false,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogCreateSchema"
+      },
+      "SecretCatalogRotate": {
+        "type": "object",
+        "properties": {
+          "secretId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "value": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "literal"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "secretId",
+          "expectedRevision",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogRotateSchema"
+      },
+      "SecretCatalogDisable": {
+        "type": "object",
+        "properties": {
+          "secretId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "secretId",
+          "expectedRevision",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogDisableSchema"
+      },
+      "SecretCatalogListPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "catalogVersion": {
+                  "type": "number",
+                  "enum": [
+                    1
+                  ]
+                },
+                "secretId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._/-]*$"
+                },
+                "purpose": {
+                  "type": "string",
+                  "enum": [
+                    "connector.credential",
+                    "connector.provider_header",
+                    "profile.callback_header",
+                    "profile.callback_oauth2_client_secret",
+                    "oidc.client_secret",
+                    "source.auth",
+                    "generic"
+                  ]
+                },
+                "services": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "orchestrator",
+                      "connector"
+                    ]
+                  },
+                  "minItems": 1,
+                  "maxItems": 2
+                },
+                "provider": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "managed_value"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "vault_reference"
+                          ]
+                        },
+                        "connectionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "mount": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "field": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                        },
+                        "namespace": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "version": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pinned"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "version"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "latest"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ],
+                          "discriminator": {
+                            "propertyName": "mode"
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "connectionId",
+                        "mount",
+                        "path",
+                        "field",
+                        "version"
+                      ],
+                      "additionalProperties": false,
+                      "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                    }
+                  ]
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "ACTIVE",
+                    "DISABLED",
+                    "REVOKED"
+                  ]
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "rotation": {
+                  "type": "object",
+                  "properties": {
+                    "rotatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "intervalDays": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 3650,
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "rotatedAt",
+                    "intervalDays"
+                  ],
+                  "additionalProperties": false
+                },
+                "valueConfigured": {
+                  "type": "boolean"
+                },
+                "usageReferences": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "connector_credential",
+                          "profile_callback",
+                          "oidc_client",
+                          "source_auth"
+                        ]
+                      },
+                      "refId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "refId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 64
+                }
+              },
+              "required": [
+                "catalogVersion",
+                "secretId",
+                "tenantId",
+                "name",
+                "purpose",
+                "services",
+                "provider",
+                "state",
+                "revision",
+                "valueConfigured",
+                "usageReferences"
+              ],
+              "additionalProperties": false,
+              "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+            },
+            "maxItems": 200
+          },
+          "nextCursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogListPageSchema"
+      },
+      "CallbackMode": {
+        "type": "string",
+        "enum": [
+          "notification_only",
+          "notification_with_result"
+        ],
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackModeSchema"
+      },
+      "CallbackSecretRef": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "managed-secret"
+            ]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackSecretRefSchema"
+      },
+      "CallbackAuthMethod": {
+        "type": "string",
+        "enum": [
+          "none",
+          "configured_headers",
+          "oauth2_client_credentials"
+        ],
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackAuthMethodSchema"
+      },
+      "ConfiguredHeader": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+          },
+          "secretRef": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "managed-secret"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+              }
+            },
+            "required": [
+              "kind",
+              "ref"
+            ],
+            "additionalProperties": false
+          },
+          "prefix": {
+            "type": "string",
+            "maxLength": 64,
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          }
+        },
+        "required": [
+          "name",
+          "secretRef"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#ConfiguredHeaderSchema"
+      },
+      "ConfiguredHeadersAuth": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "configured_headers"
+            ]
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                },
+                "secretRef": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "managed-secret"
+                      ]
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "additionalProperties": false
+                },
+                "prefix": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                }
+              },
+              "required": [
+                "name",
+                "secretRef"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 8
+          }
+        },
+        "required": [
+          "method",
+          "headers"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#ConfiguredHeadersAuthSchema"
+      },
+      "AdditionalHeader": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#AdditionalHeaderSchema"
+      },
+      "OAuth2ClientCredentialsAuth": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "oauth2_client_credentials"
+            ]
+          },
+          "grantType": {
+            "type": "string",
+            "enum": [
+              "client_credentials"
+            ]
+          },
+          "tokenUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "clientSecretRef": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "managed-secret"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+              }
+            },
+            "required": [
+              "kind",
+              "ref"
+            ],
+            "additionalProperties": false
+          },
+          "clientAuthMethod": {
+            "type": "string",
+            "enum": [
+              "client_secret_basic",
+              "client_secret_post"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "audience": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1024,
+              "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+            },
+            "x-key-schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          },
+          "additionalHeaders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                }
+              },
+              "required": [
+                "name",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 8
+          },
+          "tokenLifetimeSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          }
+        },
+        "required": [
+          "method",
+          "grantType",
+          "tokenUrl",
+          "clientId",
+          "clientSecretRef",
+          "clientAuthMethod"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#OAuth2ClientCredentialsAuthSchema"
+      },
+      "CallbackAuth": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "none"
+                ]
+              }
+            },
+            "required": [
+              "method"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "configured_headers"
+                ]
+              },
+              "headers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                    },
+                    "secretRef": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "managed-secret"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "prefix": {
+                      "type": "string",
+                      "maxLength": 64,
+                      "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "secretRef"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 8
+              }
+            },
+            "required": [
+              "method",
+              "headers"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "oauth2_client_credentials"
+                ]
+              },
+              "grantType": {
+                "type": "string",
+                "enum": [
+                  "client_credentials"
+                ]
+              },
+              "tokenUrl": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048,
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              },
+              "clientId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "clientSecretRef": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "managed-secret"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "additionalProperties": false
+              },
+              "clientAuthMethod": {
+                "type": "string",
+                "enum": [
+                  "client_secret_basic",
+                  "client_secret_post"
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "audience": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "resource": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "extensions": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 1024,
+                  "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                },
+                "x-key-schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              },
+              "additionalHeaders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                    },
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 8
+              },
+              "tokenLifetimeSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "method",
+              "grantType",
+              "tokenUrl",
+              "clientId",
+              "clientSecretRef",
+              "clientAuthMethod"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "discriminator": {
+          "propertyName": "method"
+        },
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackAuthSchema",
+        "description": "Managed-secret opaque refs only; catalog secretId ValueSource and callback managed-secret ref formats are distinct until consumer mapping is implemented. OAuth2 lifetime absent means acquire per delivery; redirects denied."
+      },
+      "CallbackApprovedOrigin": {
+        "type": "string",
+        "format": "uri",
+        "maxLength": 2048,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackApprovedOriginSchema"
+      },
+      "CallbackDestinationAuthorization": {
+        "type": "object",
+        "properties": {
+          "approvedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048,
+              "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+            },
+            "minItems": 1,
+            "maxItems": 16
+          },
+          "allowedPathPrefixes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^\\/"
+            },
+            "maxItems": 16
+          }
+        },
+        "required": [
+          "approvedOrigins"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackDestinationAuthorizationSchema"
+      },
+      "CallbackResultOmitReason": {
+        "type": "string",
+        "enum": [
+          "OVERSIZED",
+          "EXPIRED",
+          "UNAVAILABLE",
+          "ENCRYPTED_ONLY"
+        ],
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackResultOmitReasonSchema"
+      },
+      "CallbackArtifactDescriptor": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "mimeType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "download": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^\\/api\\/v1\\/"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "path",
+              "expiresAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "artifactId",
+          "role",
+          "sizeBytes",
+          "download"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackArtifactDescriptorSchema"
+      },
+      "CallbackResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "projectionVersion": {
+            "type": "string",
+            "enum": [
+              "1"
+            ]
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "operation.succeeded",
+              "operation.failed",
+              "operation.cancelled",
+              "operation.timed-out"
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": {},
+            "x-key-schema": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "resultOmitted": {
+            "type": "string",
+            "enum": [
+              "OVERSIZED",
+              "EXPIRED",
+              "UNAVAILABLE",
+              "ENCRYPTED_ONLY"
+            ]
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "role": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "fileName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                },
+                "mimeType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "sizeBytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "download": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "pattern": "^\\/api\\/v1\\/"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "artifactId",
+                "role",
+                "sizeBytes",
+                "download"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 32
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": {},
+            "x-key-schema": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "projectionVersion",
+          "eventType",
+          "operationId",
+          "state",
+          "occurredAt",
+          "result",
+          "artifacts"
+        ],
+        "additionalProperties": false,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/profile-callback.ts#CallbackResultEnvelopeSchema",
+        "description": "Outgoing receiver body, not a new platform endpoint. Inline result <=256 KiB, whole delivery <=512 KiB, <=32 descriptors; null result requires explicit omission reason; never truncate or expose storage URLs. Retry replays the terminal snapshot; deduplicate x-du-delivery-id."
+      },
+      "ProfileCallbackPolicy": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "notification_only",
+              "notification_with_result"
+            ]
+          },
+          "auth": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "none"
+                    ]
+                  }
+                },
+                "required": [
+                  "method"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "configured_headers"
+                    ]
+                  },
+                  "headers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                        },
+                        "secretRef": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "managed-secret"
+                              ]
+                            },
+                            "ref": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256,
+                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "ref"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "prefix": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "secretRef"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "method",
+                  "headers"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "oauth2_client_credentials"
+                    ]
+                  },
+                  "grantType": {
+                    "type": "string",
+                    "enum": [
+                      "client_credentials"
+                    ]
+                  },
+                  "tokenUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "clientSecretRef": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "managed-secret"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "ref"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "clientAuthMethod": {
+                    "type": "string",
+                    "enum": [
+                      "client_secret_basic",
+                      "client_secret_post"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "audience": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "resource": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "extensions": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 1024,
+                      "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                    },
+                    "x-key-schema": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    },
+                    "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                  },
+                  "additionalHeaders": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024,
+                          "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 8
+                  },
+                  "tokenLifetimeSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 86400
+                  }
+                },
+                "required": [
+                  "method",
+                  "grantType",
+                  "tokenUrl",
+                  "clientId",
+                  "clientSecretRef",
+                  "clientAuthMethod"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "discriminator": {
+              "propertyName": "method"
+            },
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          },
+          "destination": {
+            "type": "object",
+            "properties": {
+              "approvedOrigins": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri",
+                  "maxLength": 2048,
+                  "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                },
+                "minItems": 1,
+                "maxItems": 16
+              },
+              "allowedPathPrefixes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "^\\/"
+                },
+                "maxItems": 16
+              }
+            },
+            "required": [
+              "approvedOrigins"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "forceReferenceOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "mode",
+          "auth"
+        ],
+        "additionalProperties": false,
+        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
+        "x-source": "packages/contracts/src/profile-callback.ts#ProfileCallbackPolicySchema",
+        "description": "Contract model; policy.callbackPolicy profile/admission plumbing is not implemented in the current router snapshot. Credential auth requires approved exact HTTPS destinations; no redirects. Endpoint policy > profile default > legacy notification_only. Runtime refinements reject reserved/duplicate headers and private destinations."
+      },
+      "ProfileCallbackPolicySnapshot": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "businessVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "profileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "endpointKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "profileRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "notification_only",
+                  "notification_with_result"
+                ]
+              },
+              "auth": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "none"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "method"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "configured_headers"
+                        ]
+                      },
+                      "headers": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128,
+                              "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                            },
+                            "secretRef": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "managed-secret"
+                                  ]
+                                },
+                                "ref": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 256,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "ref"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "prefix": {
+                              "type": "string",
+                              "maxLength": 64,
+                              "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "secretRef"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "minItems": 1,
+                        "maxItems": 8
+                      }
+                    },
+                    "required": [
+                      "method",
+                      "headers"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "oauth2_client_credentials"
+                        ]
+                      },
+                      "grantType": {
+                        "type": "string",
+                        "enum": [
+                          "client_credentials"
+                        ]
+                      },
+                      "tokenUrl": {
+                        "type": "string",
+                        "format": "uri",
+                        "maxLength": 2048,
+                        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                      },
+                      "clientId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "clientSecretRef": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "managed-secret"
+                            ]
+                          },
+                          "ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "ref"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "clientAuthMethod": {
+                        "type": "string",
+                        "enum": [
+                          "client_secret_basic",
+                          "client_secret_post"
+                        ]
+                      },
+                      "scope": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "audience": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "resource": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "extensions": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string",
+                          "maxLength": 1024,
+                          "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                        },
+                        "x-key-schema": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[a-z][a-z0-9_]*$"
+                        },
+                        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                      },
+                      "additionalHeaders": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128,
+                              "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1024,
+                              "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 8
+                      },
+                      "tokenLifetimeSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 86400
+                      }
+                    },
+                    "required": [
+                      "method",
+                      "grantType",
+                      "tokenUrl",
+                      "clientId",
+                      "clientSecretRef",
+                      "clientAuthMethod"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "method"
+                },
+                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+              },
+              "destination": {
+                "type": "object",
+                "properties": {
+                  "approvedOrigins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uri",
+                      "maxLength": 2048,
+                      "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  },
+                  "allowedPathPrefixes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512,
+                      "pattern": "^\\/"
+                    },
+                    "maxItems": 16
+                  }
+                },
+                "required": [
+                  "approvedOrigins"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "forceReferenceOnly": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "version",
+              "mode",
+              "auth"
+            ],
+            "additionalProperties": false,
+            "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+          }
+        },
+        "required": [
+          "tenantId",
+          "businessId",
+          "businessVersion",
+          "profileName",
+          "endpointKey",
+          "profileRevision",
+          "policy"
+        ],
+        "additionalProperties": false,
+        "x-source": "packages/contracts/src/profile-callback.ts#ProfileCallbackPolicySnapshotSchema"
+      },
+      "WebhookNotificationEnvelope": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Dispatcher-stamped stable delivery row identifier."
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "operation.succeeded",
+              "operation.failed",
+              "operation.cancelled",
+              "operation.timed-out"
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING_INGESTION",
+              "ACCEPTED",
+              "QUEUED",
+              "RUNNING",
+              "WAITING_CHILDREN",
+              "WAITING_INPUT",
+              "RETRY_PENDING",
+              "CANCEL_REQUESTED",
+              "SUCCEEDED",
+              "FAILED",
+              "CANCELLED",
+              "TIMED_OUT"
+            ]
+          },
+          "stateVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurredAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deliveryId",
+          "eventType",
+          "operationId",
+          "state",
+          "stateVersion",
+          "occurredAt"
+        ],
+        "additionalProperties": false,
+        "description": "Legacy notification_only canonical body; dispatcher additionally stamps stable deliveryId. Receiver must also deduplicate x-du-delivery-id.",
+        "x-source": "packages/contracts/src/public-api.ts#WebhookPayloadSchema"
       }
     }
   },
@@ -714,7 +3632,17 @@
           "503": {
             "description": "degraded"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/health": {
@@ -727,7 +3655,17 @@
           "503": {
             "description": "degraded"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/businesses/{id}/actions/{action}": {
@@ -742,17 +3680,31 @@
           "required": true,
           "content": {
             "application/json": {
-              "example": {
-                "input": {
-                  "type": "invoice"
+              "examples": {
+                "inline": {
+                  "value": {
+                    "input": {
+                      "type": "invoice"
+                    },
+                    "artifacts": [],
+                    "output": {
+                      "format": "json"
+                    }
+                  }
                 },
-                "artifacts": [],
-                "output": {
-                  "format": "json"
+                "iamS3Ingest": {
+                  "summary": "Use action=ingest; IAM role reads an allowed S3 object",
+                  "value": {
+                    "input": {
+                      "mode": "parse"
+                    },
+                    "sourceUrl": "s3://customer-documents/invoices/document.pdf"
+                  }
                 }
               }
             }
-          }
+          },
+          "description": "SubmissionSchema: sourceUrl optionally accepts HTTPS or s3://bucket/key?versionId=... (max 2048 characters). S3 source reads use the Orchestrator workload IAM identity, not caller credentials or presigned URLs. S3 artifact storage and trusted per-tenant DU_S3_SOURCE_RULES bucket/prefix/region/owner permissions are required. No source endpoint or role ARN override is accepted. HTTP 202 starts asynchronous ingestion."
         },
         "responses": {
           "202": {
@@ -760,8 +3712,42 @@
           },
           "200": {
             "description": "SubmitAck replayed=true"
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: S3 source bucket/prefix is not authorized for the authenticated tenant"
+          },
+          "422": {
+            "description": "INVALID_SCHEMA, profile policy denial, or UNSUPPORTED_STORAGE_BACKEND for sourceUrl with non-S3 artifact storage"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/operations": {
@@ -899,7 +3885,17 @@
           "422": {
             "description": "INVALID_SCHEMA on state, tenant, id, cursor or sort. A query key outside the allow-list is ignored, not 422. This route never returns 400."
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/operations/{id}": {
@@ -913,14 +3909,36 @@
         "parameters": [
           {
             "name": "wait",
-            "in": "query"
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Parsed as integer seconds and clamped to [0,30] by the poll handler."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OperationView"
+            "description": "OperationView with nullable startedAt/completedAt (historical unknown times stay null), retryOf and errorCode; updatedAt is not a completion time."
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/operations/{id}/result": {
@@ -954,7 +3972,27 @@
           "503": {
             "description": "TEMPORARY_UNAVAILABLE: encrypted delivery failed, including a revoked recipient key. The route does not fall back to the plain variant."
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/artifacts/{id}/download": {
@@ -994,7 +4032,27 @@
           "503": {
             "description": "TEMPORARY_UNAVAILABLE: encrypted delivery failed, including a revoked recipient key."
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/operations/{id}/cancel": {
@@ -1021,7 +4079,27 @@
           "200": {
             "description": "replayed"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/operations/{id}/resume": {
@@ -1050,7 +4128,27 @@
           "200": {
             "description": "replayed"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/usage/summary": {
@@ -1064,18 +4162,36 @@
         "parameters": [
           {
             "name": "from",
-            "in": "query"
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO time string; validated by the usage handler."
           },
           {
             "name": "to",
-            "in": "query"
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO time string; validated by the usage handler."
           }
         ],
         "responses": {
           "200": {
             "description": "UsageSummary"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/usage/events": {
@@ -1237,7 +4353,17 @@
           "422": {
             "description": "INVALID_SCHEMA for an unsupported or REPEATED parameter (the allow-list has no wildcard, so no arbitrary filter, content or credential can enter this boundary), a non-integer limit or profileRevision, a to that is not strictly after from, half a businessId+action or provider+model pair, or a missing tenantId under an admin bearer. Also INVALID_ARGUMENT when a cursor does not belong to this query. This route never returns 400."
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/connectors/{id}/test": {
@@ -1255,7 +4381,27 @@
           "502": {
             "description": "unhealthy/unavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
       }
     },
     "/api/v1/admin/audit": {
@@ -1361,7 +4507,17 @@
           "403": {
             "description": "tenant outside the credential scope; identical wording for foreign and unknown ids"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/v1/admin/businesses/{id}/versions/{version}/enable": {
@@ -1379,7 +4535,35 @@
           "202": {
             "description": "async"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/v1/admin/businesses/{id}/versions/{version}/activate": {
@@ -1397,7 +4581,35 @@
           "202": {
             "description": "async"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/v1/admin/businesses/{id}/versions/{version}/deactivate": {
@@ -1415,7 +4627,35 @@
           "202": {
             "description": "async"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/v1/admin/profile-bindings": {
@@ -1448,7 +4688,17 @@
           "201": {
             "description": "revision"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/v1/admin/operations/sweep-deadlines": {
@@ -1463,7 +4713,17 @@
           "200": {
             "description": "{timedOut}"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     },
     "/api/runtime/v1/usage-events": {
@@ -1487,7 +4747,17 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/businesses/{id}/versions/{version}": {
@@ -1511,7 +4781,35 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/workers/{id}/heartbeat": {
@@ -1535,7 +4833,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/claim": {
@@ -1559,7 +4877,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/heartbeat": {
@@ -1583,7 +4921,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/steps/{step}": {
@@ -1607,7 +4965,35 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "step",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/progress": {
@@ -1631,7 +5017,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/complete": {
@@ -1655,7 +5061,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/fail": {
@@ -1679,7 +5105,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/children": {
@@ -1703,7 +5149,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       },
       "get": {
         "summary": "Join view. server.ts:539",
@@ -1725,7 +5191,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/wait-input": {
@@ -1749,7 +5235,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/artifacts": {
@@ -1773,7 +5279,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/artifacts/{id}/finalize": {
@@ -1797,7 +5323,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/artifacts/{id}/access": {
@@ -1821,7 +5367,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/tasks/{id}/invocation-grants": {
@@ -1845,7 +5411,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/api/runtime/v1/artifacts/blob/{key}": {
@@ -1869,7 +5455,27 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       },
       "get": {
         "summary": "Blob get ?grant=. server.ts:432",
@@ -1891,50 +5497,79 @@
           "204": {
             "description": "no content"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "runtime"
+        ],
+        "x-api-family": "runtime"
       }
     },
     "/health/live": {
       "get": {
-        "summary": "Liveness. http/server.ts:80",
+        "summary": "Liveness",
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "201": {
-            "description": "created"
-          },
-          "202": {
-            "description": "accepted"
-          },
-          "204": {
-            "description": "no content"
+            "description": "live"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:212",
+        "security": [],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/health/ready": {
       "get": {
-        "summary": "Readiness. http/server.ts:81",
+        "summary": "Readiness, no provider call",
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ready"
           },
-          "201": {
-            "description": "created"
-          },
-          "202": {
-            "description": "accepted"
-          },
-          "204": {
-            "description": "no content"
+          "503": {
+            "description": "not ready"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:213",
+        "security": [],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/capabilities": {
       "get": {
-        "summary": "Catalog. http/server.ts:85",
+        "summary": "Adapter catalog (invocation scope)",
         "security": [
           {
             "Svc": []
@@ -1942,23 +5577,33 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "adapter catalog"
           },
-          "201": {
-            "description": "created"
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
-          "202": {
-            "description": "accepted"
-          },
-          "204": {
-            "description": "no content"
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:217",
+        "x-required-service-scope": "connector:invoke",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/connectors": {
       "get": {
-        "summary": "List redacted. http/server.ts:86",
+        "summary": "List redacted revisions",
         "security": [
           {
             "Svc": []
@@ -1966,21 +5611,162 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "redacted revisions"
           },
-          "201": {
-            "description": "created"
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
-          "202": {
-            "description": "accepted"
-          },
-          "204": {
-            "description": "no content"
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:218",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       },
       "post": {
-        "summary": "Create revision. http/server.ts:90",
+        "summary": "Create revision",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "redacted revision"
+          },
+          "422": {
+            "description": "invalid input"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:222",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/connectors/{id}/revisions": {
+      "post": {
+        "summary": "Create pending revision",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "pending revision"
+          },
+          "422": {
+            "description": "invalid input"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:256",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/connectors/{id}/revisions/bootstrap": {
+      "post": {
+        "summary": "Bootstrap bound chain",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "revision and replayed flag"
+          },
+          "422": {
+            "description": "invalid input"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:284",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/connectors/{id}/revisions/{revision}/activate": {
+      "post": {
+        "summary": "Activate revision with CAS",
         "security": [
           {
             "Svc": []
@@ -1988,23 +5774,214 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "activated"
           },
-          "201": {
-            "description": "created"
+          "409": {
+            "description": "CAS conflict"
           },
-          "202": {
-            "description": "accepted"
+          "422": {
+            "description": "invalid input"
           },
-          "204": {
-            "description": "no content"
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:309",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/connectors/{id}/revisions/{revision}/retire": {
+      "post": {
+        "summary": "Retire revision",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "retired"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:327",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/connectors/{id}/revisions/current": {
+      "get": {
+        "summary": "Read current redacted revision",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "redacted revision"
+          },
+          "404": {
+            "description": "no current revision"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:336",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/connectors/{id}/revisions/{revision}": {
+      "get": {
+        "summary": "Read redacted revision",
+        "security": [
+          {
+            "Svc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "redacted revision"
+          },
+          "404": {
+            "description": "revision absent"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:342",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/invocations": {
       "post": {
-        "summary": "Invoke 200|202. http/server.ts:122",
+        "summary": "Invoke",
         "security": [
           {
             "Svc": []
@@ -2012,23 +5989,36 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "201": {
-            "description": "created"
+            "description": "completed"
           },
           "202": {
-            "description": "accepted"
+            "description": "pending"
           },
-          "204": {
-            "description": "no content"
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:366",
+        "x-required-service-scope": "connector:invoke",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/invocations/{id}": {
       "get": {
-        "summary": "Query. http/server.ts:112",
+        "summary": "Query with x-invocation-grant",
         "security": [
           {
             "Svc": []
@@ -2036,95 +6026,196 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "state/result"
           },
-          "201": {
-            "description": "created"
+          "404": {
+            "description": "inaccessible or absent"
           },
-          "202": {
-            "description": "accepted"
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
           },
-          "204": {
-            "description": "no content"
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:353",
+        "x-required-service-scope": "connector:invoke",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-invocation-grant",
+            "in": "header",
+            "required": true,
+            "description": "Signed runtime grant bound to invocation and tenant; distinct from service identity.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/invocations/{id}/cancel": {
       "post": {
-        "summary": "Cancel 202. http/server.ts:130",
+        "summary": "Cancel with x-invocation-grant",
         "security": [
           {
             "Svc": []
           }
         ],
         "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "201": {
-            "description": "created"
-          },
           "202": {
-            "description": "accepted"
+            "description": "best-effort cancellation"
           },
-          "204": {
-            "description": "no content"
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:376",
+        "x-required-service-scope": "connector:invoke",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-invocation-grant",
+            "in": "header",
+            "required": true,
+            "description": "Signed runtime grant bound to invocation and tenant; distinct from service identity.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/connectors/{id}/credentials/rotate": {
       "post": {
-        "summary": "Rotate 204 write-only. http/server.ts:139",
+        "summary": "Rotate write-only credential",
         "security": [
           {
             "Svc": []
           }
         ],
         "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "201": {
-            "description": "created"
-          },
-          "202": {
-            "description": "accepted"
-          },
           "204": {
-            "description": "no content"
+            "description": "rotated"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:389",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/connectors/{id}/disable": {
       "post": {
-        "summary": "Disable 204. http/server.ts:148",
+        "summary": "Disable connector",
         "security": [
           {
             "Svc": []
           }
         ],
         "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "201": {
-            "description": "created"
-          },
-          "202": {
-            "description": "accepted"
-          },
           "204": {
-            "description": "no content"
+            "description": "disabled"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
-        }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:398",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
       }
     },
     "/connectors/{id}/test": {
       "post": {
-        "summary": "Self-test. http/server.ts:153",
+        "summary": "Provider test (distinct from readiness)",
         "security": [
           {
             "Svc": []
@@ -2132,18 +6223,723 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "provider test outcome"
+          },
+          "401": {
+            "description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"
+          },
+          "403": {
+            "description": "wrong audience or missing required service scope (BINDING_DENIED)"
+          }
+        },
+        "x-source": "du-rework/services/connector/src/http/server.ts:403",
+        "x-required-service-scope": "connector:manage",
+        "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:8080",
+            "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."
+          }
+        ],
+        "tags": [
+          "connector"
+        ],
+        "x-api-family": "connector"
+      }
+    },
+    "/api/v1/admin/actions": {
+      "post": {
+        "summary": "POST-only admin action dispatcher; other methods return 405. Bearer or shell session with server CSRF validation; action-specific RBAC and idempotency. operations.cancel stops a request; operations.retry is platform-admin-only, creates a fresh execution linked by retryOf, and rejects unavailable input with RETRY_INPUT_UNAVAILABLE. Terminal execution times remain immutable.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Idempotency key read from headers, not a body field."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "params": {
+                    "type": "object",
+                    "description": "Action-specific params; absent or non-object params normalize to an empty object."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result or idempotent replay"
           },
           "201": {
-            "description": "created"
+            "description": "Created action result"
           },
           "202": {
-            "description": "accepted"
+            "description": "Accepted action"
           },
-          "204": {
-            "description": "no content"
+          "401": {
+            "description": "Missing or invalid admin identity"
+          },
+          "403": {
+            "description": "RBAC, tenant or CSRF denied"
+          },
+          "404": {
+            "description": "Unknown action"
+          },
+          "405": {
+            "description": "Non-POST method"
+          },
+          "409": {
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "description": "Missing action or invalid params"
+          },
+          "503": {
+            "description": "Required management/workflow composition unavailable"
           }
-        }
+        },
+        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:324",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/v1/admin/connectors": {
+      "get": {
+        "summary": "Platform proxy: redacted Connector revision list.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{items: redacted revisions}"
+          },
+          "401": {
+            "description": "Missing or invalid admin identity"
+          },
+          "403": {
+            "description": "Admin scope denied"
+          },
+          "502": {
+            "description": "Invalid upstream response"
+          },
+          "503": {
+            "description": "Management store not composed or upstream unavailable"
+          }
+        },
+        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:543",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/v1/admin/connectors/capabilities": {
+      "get": {
+        "summary": "Platform composition-derived management capabilities; not the Connector adapter catalog.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booleans reflect injected composition; absent seams remain false.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "management",
+                    "credentialWorkflow",
+                    "test"
+                  ],
+                  "properties": {
+                    "management": {
+                      "type": "boolean"
+                    },
+                    "credentialWorkflow": {
+                      "type": "boolean"
+                    },
+                    "test": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid admin identity"
+          },
+          "403": {
+            "description": "Admin scope denied"
+          }
+        },
+        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:532",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/v1/admin/connectors/{id}/revisions/{rev}": {
+      "get": {
+        "summary": "Platform redacted revision read; latest/current select current when composed. Without the store or on upstream 503, a configured numeric/latest revision may return a disabled placeholder, not a live capability.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Connector id"
+          },
+          {
+            "name": "rev",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "latest/current or positive integer revision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Real redacted revision or disabled configured placeholder"
+          },
+          "401": {
+            "description": "Missing or invalid admin identity"
+          },
+          "403": {
+            "description": "Admin scope denied"
+          },
+          "404": {
+            "description": "Unconfigured connector or absent revision"
+          },
+          "502": {
+            "description": "Invalid upstream response"
+          }
+        },
+        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:570",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/secrets": {
+      "get": {
+        "summary": "Tenant-fenced metadata catalog proxy; no plaintext resolve/readback API.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing Portal session"
+          },
+          "403": {
+            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
+          },
+          "405": {
+            "description": "Method not allowed"
+          },
+          "422": {
+            "description": "Invalid JSON/schema; no offending secret value echoed"
+          },
+          "503": {
+            "description": "Admin upstream not configured/unavailable"
+          },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
+          "200": {
+            "description": "Contract projection if upstream is composed; not a claim of current upstream implementation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretCatalogListPage"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "portalSecretsGetSecrets",
+        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-implementation-status": "BFF only; upstream catalog API absent",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot."
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot."
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot."
+          }
+        ],
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      },
+      "post": {
+        "summary": "Create/link is unavailable: matcher selects list and method gate returns 405 before the create branch.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "BFF forwards a bounded key; upstream idempotency is not implemented here."
+          }
+        ],
+        "responses": {
+          "405": {
+            "description": "Current matcher makes create branch unreachable; SC owner must fix method dispatch"
+          }
+        },
+        "operationId": "portalSecretsPostSecrets",
+        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-implementation-status": "Unavailable: unconditional 405 at BFF method gate",
+        "x-planned-request-schema": "#/components/schemas/SecretCatalogCreate",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/secrets/{secretId}/rotate": {
+      "post": {
+        "summary": "Platform-admin + CSRF secret rotate proxy. Body secretId is supplied/overridden by path; upstream catalog API absent.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "secretId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "BFF forwards a bounded key; upstream idempotency is not implemented here."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "secretId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "value": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "literal"
+                        ]
+                      },
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 65536,
+                        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "value"
+                    ],
+                    "additionalProperties": false,
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "expectedRevision",
+                  "value"
+                ],
+                "additionalProperties": false,
+                "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogRotateSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing Portal session"
+          },
+          "403": {
+            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
+          },
+          "405": {
+            "description": "Method not allowed"
+          },
+          "422": {
+            "description": "Invalid JSON/schema; no offending secret value echoed"
+          },
+          "503": {
+            "description": "Admin upstream not configured/unavailable"
+          },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
+          }
+        },
+        "operationId": "portalSecretsPostRotate",
+        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-implementation-status": "BFF only; upstream catalog API absent",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/secrets/{secretId}/disable": {
+      "post": {
+        "summary": "Platform-admin + CSRF secret disable proxy. Body secretId is supplied/overridden by path; upstream catalog API absent.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "secretId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "BFF forwards a bounded key; upstream idempotency is not implemented here."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "secretId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "expectedRevision",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogDisableSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing Portal session"
+          },
+          "403": {
+            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
+          },
+          "405": {
+            "description": "Method not allowed"
+          },
+          "422": {
+            "description": "Invalid JSON/schema; no offending secret value echoed"
+          },
+          "503": {
+            "description": "Admin upstream not configured/unavailable"
+          },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
+          }
+        },
+        "operationId": "portalSecretsPostDisable",
+        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-implementation-status": "BFF only; upstream catalog API absent",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/admin/api/secrets/{secretId}/test": {
+      "post": {
+        "summary": "Platform-admin + CSRF secret test proxy. Body secretId is supplied/overridden by path; upstream catalog API absent.",
+        "security": [
+          {
+            "PortalSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "secretId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "BFF forwards a bounded key; upstream idempotency is not implemented here."
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing Portal session"
+          },
+          "403": {
+            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
+          },
+          "405": {
+            "description": "Method not allowed"
+          },
+          "422": {
+            "description": "Invalid JSON/schema; no offending secret value echoed"
+          },
+          "503": {
+            "description": "Admin upstream not configured/unavailable"
+          },
+          "404": {
+            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
+          },
+          "413": {
+            "description": "Bounded BFF body exceeded"
+          }
+        },
+        "operationId": "portalSecretsPostTest",
+        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-implementation-status": "BFF only; upstream catalog API absent",
+        "description": "Accepts a bounded JSON object and forwards {}; does not prove a live secret availability probe.",
+        "servers": [
+          {
+            "url": "http://localhost:3001",
+            "description": "Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
       }
     }
   },
@@ -2154,6 +6950,12 @@
     "POST /api/v1/artifacts",
     "GET /api/v1/artifacts/{id} metadata",
     "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay",
-    "GET /api/runtime/v1/tasks/{id}/context"
-  ]
+    "GET /api/runtime/v1/tasks/{id}/context",
+    "Secret catalog upstream /api/v1/admin/secrets* and any plaintext resolve endpoint",
+    "Profile/admission policy.callbackPolicy plumbing (contract models exist)"
+  ],
+  "x-contract-models": {
+    "secretCatalog": "Canonical models + existing BFF routes; /api/v1/admin/secrets upstream absent.",
+    "callbackPolicy": "Frozen contract models and offline dispatcher implementation; profile/admission policy.callbackPolicy and production resolver wiring absent. Not a new endpoint."
+  }
 }

@@ -1,0 +1,27 @@
+{
+  "project": "pm-m02-verify-20261006-887",
+  "phases": {
+    "manifest_copied": true,
+    "business_registered_enabled_activated": true,
+    "tenant_api_key_created": true,
+    "host_public_health": {
+      "http": 200,
+      "db": true,
+      "redis": true
+    },
+    "ingest_accepted": {
+      "http": 202,
+      "state": "ACCEPTED",
+      "hasOperationId": true
+    },
+    "operation_terminal": {
+      "state": "FAILED",
+      "done": true
+    }
+  },
+  "offlineOrLive": "live-local Docker/Postgres/Valkey/worker stack",
+  "operationId": "44059d94-d371-4eda-9dce-55ad1e0427e7",
+  "failurePhase": "poll_operation",
+  "failure": "operation_not_succeeded_FAILED",
+  "verdict": "FAIL or blocked"
+}

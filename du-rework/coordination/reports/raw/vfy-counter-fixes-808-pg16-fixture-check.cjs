@@ -1,0 +1,11 @@
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const name = 'du-vfy-counter808-pg16-20261005';
+const sql = "SELECT count(*) AS fixture_count, count(*) FILTER (WHERE attempts=0) AS attempts_unchanged FROM outbox WHERE delivery_id LIKE 'vfy-counter-808-%';";
+const args = ['exec', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'du_vfy808', '-c', sql];
+const r = spawnSync('docker', args, { encoding: 'utf8' });
+const code = typeof r.status === 'number' ? r.status : 1;
+const body = [`COMMAND=docker ${args.slice(0, -1).join(' ')} <count-only query>`, `STDOUT:\n${r.stdout ?? ''}`, `STDERR:\n${r.stderr ?? ''}`, `LITERAL_EXIT_CODE=${code}`].join('\n\n');
+fs.writeFileSync('coordination/reports/raw/vfy-counter-fixes-808-pg16-fixture-unchanged-check.txt', body, 'utf8');
+console.log(`fixture_unchanged_check_exit=${code}`);
+process.exitCode = code;

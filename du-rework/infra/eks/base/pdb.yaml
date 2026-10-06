@@ -1,0 +1,46 @@
+# Budgets tối thiểu. PDB không bảo vệ được "replica cuối của version còn wait/snapshot" —
+# scale-in version đó phải kiểm tra thủ công trước khi xóa (xem 19-eks-deployment §7).
+# Connector/example-review single-replica: minAvailable 0 để rollout/eviction không kẹt.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orchestrator
+  namespace: du-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orchestrator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: connector
+  namespace: du-platform
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: connector
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: document-core
+  namespace: du-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: document-core
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lc-checker
+  namespace: du-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lc-checker

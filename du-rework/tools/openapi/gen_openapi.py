@@ -21,8 +21,22 @@ existed in server.ts with a settled prose contract in docs/20, and the spec adve
 neither the path nor one of its schemas. The thirteen parameters are now derived from
 packages/contracts/src instead of retyped, and the guards below assert the written
 artifact kept them.
+
+SWAGGER-ORIGIN-DOCS-ALIGNMENT (2026-10-06): every operation is stamped with the origin of
+its PM-M02 ingress family instead of a single legacy "http://localhost:2023" default -
+public JSON (Orchestrator 3000), internal JSON for admin/management and runtime
+(Orchestrator 3002, unpublished by default), and the Connector service (8080, unpublished
+by default). Operations also carry tags/x-api-family so a Portal Swagger UI can filter
+Public/Admin/Runtime/Connector without guessing from prose. Deployments override the
+origins at generation time with DU_OPENAPI_PUBLIC_ORIGIN, DU_OPENAPI_INTERNAL_ORIGIN and
+DU_OPENAPI_CONNECTOR_ORIGIN; the artifact remains the single generated source of truth.
 """
-import base64, io, json, os, re, sys
+import base64, io, json, os, re, sys, subprocess
+from pathlib import Path
+
+# Resolve inputs from the script, so the documented command works in du-rework
+# as well as the parent repository. No dependence on the caller's cwd.
+os.chdir(Path(__file__).resolve().parents[3])
 
 ORCH = "du-rework/services/orchestrator/src/server.ts"
 CONN = "du-rework/services/connector/src/http/server.ts"
@@ -30,6 +44,41 @@ CONTRACT = "du-rework/packages/contracts/src/public-api.ts"
 METRICS = "du-rework/packages/contracts/src/usage-metrics.ts"
 RECON = "du-rework/packages/contracts/src/usage-reconciliation.ts"
 OUT = "du-rework/docs/21-openapi.json"
+
+# ---- PM-M02 ingress origins (SWAGGER-ORIGIN-DOCS-ALIGNMENT) ------------------
+# Public and internal JSON are separate listeners of the same Orchestrator
+# process; the Connector keeps its own service origin. Deployments set the
+# real front-door origins at generation time; the defaults match the native
+# PM-M02 host mapping (public bound to 127.0.0.1:3000, internal 3002 and
+# Connector 8080 unpublished unless the debug overlay is explicitly applied).
+def _origin(env_name, default):
+    value = os.environ.get(env_name, default).strip().rstrip("/")
+    assert value.startswith("http://") or value.startswith("https://"), (
+        "%s must be an http(s) origin, got %r" % (env_name, value))
+    return value
+
+PUBLIC_ORIGIN = _origin("DU_OPENAPI_PUBLIC_ORIGIN", "http://localhost:3000")
+INTERNAL_ORIGIN = _origin("DU_OPENAPI_INTERNAL_ORIGIN", "http://localhost:3002")
+CONNECTOR_ORIGIN = _origin("DU_OPENAPI_CONNECTOR_ORIGIN", "http://localhost:8080")
+PORTAL_ORIGIN = _origin('DU_OPENAPI_PORTAL_ORIGIN', 'http://localhost:3001')
+
+FAMILY_SERVERS = {
+    "public": [{"url": PUBLIC_ORIGIN,
+                "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."}],
+    "admin": [{"url": INTERNAL_ORIGIN,
+               "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."}],
+    "runtime": [{"url": INTERNAL_ORIGIN,
+                 "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Worker/service Runtime family; authorization is unchanged by the listener."}],
+    "connector": [{"url": CONNECTOR_ORIGIN,
+                   "description": "Internal Connector origin (unpublished by default); override for deployment. No /internal/v1 or /management prefix."}],
+}
+
+FAMILY_TAGS = [
+    {"name": "public", "description": "Public JSON ingress, Orchestrator 3000."},
+    {"name": "admin", "description": "Internal JSON ingress, Orchestrator 3002: admin/management routes."},
+    {"name": "runtime", "description": "Internal JSON ingress, Orchestrator 3002: worker/service Runtime routes."},
+    {"name": "connector", "description": "Connector service root-path contract, origin 8080."},
+]
 
 def op(summary, auth, req=None, resps=None, params=None):
     o = {"summary": summary}
@@ -465,6 +514,24 @@ paths = {}
 paths["/health"] = {"get": op("Liveness alias, no auth. server.ts:315.", None, None, {"200": {"description": "ok|degraded {status,db,redis,activeLeases}"}, "503": {"description": "degraded"}})}
 paths["/api/v1/health"] = {"get": op("Liveness alias, no auth. server.ts:315.", None, None, {"200": {"description": "ok|degraded"}, "503": {"description": "degraded"}})}
 paths["/api/v1/businesses/{id}/actions/{action}"] = {"post": op("Generic business submission. server.ts:559.", APIKEY, {"required": True, **ex({"input": {"type": "invoice"}, "artifacts": [], "output": {"format": "json"}})}, {"202": {"description": "SubmitAck, replayed=false"}, "200": {"description": "SubmitAck replayed=true"}})}
+_submission = paths["/api/v1/businesses/{id}/actions/{action}"]["post"]
+_submission["requestBody"]["description"] = (
+    "SubmissionSchema: sourceUrl optionally accepts HTTPS or s3://bucket/key?versionId=... "
+    "(max 2048 characters). S3 source reads use the Orchestrator workload IAM identity, "
+    "not caller credentials or presigned URLs. S3 artifact storage and trusted per-tenant "
+    "DU_S3_SOURCE_RULES bucket/prefix/region/owner permissions are required. "
+    "No source endpoint or role ARN override is accepted. HTTP 202 starts asynchronous ingestion."
+)
+_submission_json = _submission["requestBody"]["content"]["application/json"]
+_submission_json["examples"] = {
+    "inline": {"value": _submission_json.pop("example")},
+    "iamS3Ingest": {"summary": "Use action=ingest; IAM role reads an allowed S3 object", "value": {
+        "input": {"mode": "parse"}, "sourceUrl": "s3://customer-documents/invoices/document.pdf"}},
+}
+_submission["responses"].update({
+    "403": {"description": "PERMISSION_DENIED: S3 source bucket/prefix is not authorized for the authenticated tenant"},
+    "422": {"description": "INVALID_SCHEMA, profile policy denial, or UNSUPPORTED_STORAGE_BACKEND for sourceUrl with non-S3 artifact storage"},
+})
 
 # Six parameters, in OPERATIONS_LIST_QUERY_PARAMS order. The list itself is
 # asserted against the contract above, so a seventh contract parameter fails
@@ -533,7 +600,7 @@ paths["/api/v1/operations"] = {"get": op(
      "403": {"description": "tenant outside caller scope; a foreign tenant is a fence, not a widened view"},
      "422": {"description": "INVALID_SCHEMA on state, tenant, id, cursor or sort. A query key outside the allow-list is ignored, not 422. This route never returns 400."}},
     OPERATIONS_PARAMS)}
-paths["/api/v1/operations/{id}"] = {"get": op("Poll; ?wait seconds clamped [0,30]. server.ts:602 facade.ts:16.", APIKEY, None, {"200": {"description": "OperationView"}}, [{"name": "wait", "in": "query"}])}
+paths["/api/v1/operations/{id}"] = {"get": op("Poll; ?wait seconds clamped [0,30]. server.ts:602 facade.ts:16.", APIKEY, None, {"200": {"description": "OperationView with nullable startedAt/completedAt (historical unknown times stay null), retryOf and errorCode; updatedAt is not a completion time."}}, [{"name": "wait", "in": "query"}])}
 # Two variants on one status code, so the schema is the union and the description
 # carries the selection rule. Citation corrected: server.ts:619 is an abort-path
 # comment today; the handler is the block at server.ts:1724.
@@ -600,18 +667,243 @@ paths["/api/v1/admin/operations/sweep-deadlines"] = {"post": op("Deadline sweep 
 rt = [("post", "/api/runtime/v1/usage-events", "Usage ingest (usageToken). server.ts:348", USAGETOK), ("put", "/api/runtime/v1/businesses/{id}/versions/{version}", "Register version. server.ts:451", RUNTIME), ("put", "/api/runtime/v1/workers/{id}/heartbeat", "Worker heartbeat. server.ts:460", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/claim", "Claim. server.ts:467", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/heartbeat", "Heartbeat. server.ts:478", RUNTIME), ("put", "/api/runtime/v1/tasks/{id}/steps/{step}", "Save step. server.ts:489", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/progress", "Progress. server.ts:499", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/complete", "Complete. server.ts:509", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/fail", "Fail. server.ts:519", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/children", "Spawn children 202. server.ts:529", RUNTIME), ("get", "/api/runtime/v1/tasks/{id}/children", "Join view. server.ts:539", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/wait-input", "Human wait. server.ts:549", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/artifacts", "Upload grant 201. server.ts:388", RUNTIME), ("post", "/api/runtime/v1/artifacts/{id}/finalize", "Finalize. server.ts:399", RUNTIME), ("post", "/api/runtime/v1/artifacts/{id}/access", "Access grant. server.ts:408", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/invocation-grants", "Grant 201. server.ts:421", RUNTIME), ("put", "/api/runtime/v1/artifacts/blob/{key}", "Blob put 204 ?grant=. server.ts:432", RUNTIME), ("get", "/api/runtime/v1/artifacts/blob/{key}", "Blob get ?grant=. server.ts:432", RUNTIME)]
 for method, pth, summ, auth in rt:
     paths.setdefault(pth, {})[method] = op(summ, auth, None, {"200": {"description": "ok"}, "201": {"description": "created"}, "202": {"description": "accepted"}, "204": {"description": "no content"}})
-cp = [("get", "/health/live", "Liveness. http/server.ts:80", None), ("get", "/health/ready", "Readiness. http/server.ts:81", None), ("get", "/capabilities", "Catalog. http/server.ts:85", SVC), ("get", "/connectors", "List redacted. http/server.ts:86", SVC), ("post", "/connectors", "Create revision. http/server.ts:90", SVC), ("post", "/invocations", "Invoke 200|202. http/server.ts:122", SVC), ("get", "/invocations/{id}", "Query. http/server.ts:112", SVC), ("post", "/invocations/{id}/cancel", "Cancel 202. http/server.ts:130", SVC), ("post", "/connectors/{id}/credentials/rotate", "Rotate 204 write-only. http/server.ts:139", SVC), ("post", "/connectors/{id}/disable", "Disable 204. http/server.ts:148", SVC), ("post", "/connectors/{id}/test", "Self-test. http/server.ts:153", SVC)]
-for method, pth, summ, auth in cp:
-    paths.setdefault(pth, {})[method] = op(summ, auth, None, {"200": {"description": "ok"}, "201": {"description": "created"}, "202": {"description": "accepted"}, "204": {"description": "no content"}})
-doc = {"openapi": "3.0.3", "info": {"title": "DUGate rework API (code-derived, W40-CX)", "version": "1.2.0", "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."}, "servers": [{"url": "http://localhost:2023"}], "components": {"securitySchemes": {"ApiKey": {"type": "apiKey", "in": "header", "name": "x-api-key"}, "AdminBearer": {"type": "http", "scheme": "bearer"}, "RuntimeBearer": {"type": "http", "scheme": "bearer"}, "UsageBearer": {"type": "http", "scheme": "bearer"}, "Svc": {"type": "http", "scheme": "bearer"}}}, "paths": paths, "x-absent": ["GET /api/v1/businesses", "GET schema", "POST /docs/{action}", "POST /api/v1/artifacts", "GET /api/v1/artifacts/{id} metadata", "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay", "GET /api/runtime/v1/tasks/{id}/context"]}
+_connector_source = io.open(CONN, encoding="utf-8").read()
+assert "path.startsWith('/connectors') ? 'connector:manage' : 'connector:invoke'" in _connector_source, (
+    "Connector scope selection changed; review the documented auth matrix")
+
+def connector_line(fragment):
+    assert fragment in _connector_source, "Connector route absent: %s" % fragment
+    return _connector_source[:_connector_source.index(fragment)].count("\n") + 1
+
+# Root paths match the router and both clients. HTTP bearer security uses an
+# empty scope array; required service scopes are JWT claims, not OAuth scopes.
+cp = [
+    ("get", "/health/live", "Liveness", "method === 'GET' && path === '/health/live'", {"200": "live"}),
+    ("get", "/health/ready", "Readiness, no provider call", "method === 'GET' && path === '/health/ready'", {"200": "ready", "503": "not ready"}),
+    ("get", "/capabilities", "Adapter catalog (invocation scope)", "path === '/capabilities'", {"200": "adapter catalog"}),
+    ("get", "/connectors", "List redacted revisions", "path === '/connectors'", {"200": "redacted revisions"}),
+    ("post", "/connectors", "Create revision", "method === 'POST' && path === '/connectors'", {"201": "redacted revision", "422": "invalid input"}),
+    ("post", "/connectors/{id}/revisions", "Create pending revision", "const pending =", {"201": "pending revision", "422": "invalid input"}),
+    ("post", "/connectors/{id}/revisions/bootstrap", "Bootstrap bound chain", "const bootstrapped =", {"201": "revision and replayed flag", "422": "invalid input"}),
+    ("post", "/connectors/{id}/revisions/{revision}/activate", "Activate revision with CAS", "const activated =", {"200": "activated", "409": "CAS conflict", "422": "invalid input"}),
+    ("post", "/connectors/{id}/revisions/{revision}/retire", "Retire revision", "const retired =", {"204": "retired"}),
+    ("get", "/connectors/{id}/revisions/current", "Read current redacted revision", "const current =", {"200": "redacted revision", "404": "no current revision"}),
+    ("get", "/connectors/{id}/revisions/{revision}", "Read redacted revision", "const one =", {"200": "redacted revision", "404": "revision absent"}),
+    ("post", "/invocations", "Invoke", "method === 'POST' && path === '/invocations'", {"200": "completed", "202": "pending"}),
+    ("get", "/invocations/{id}", "Query with x-invocation-grant", "method === 'GET' && path.startsWith('/invocations/')", {"200": "state/result", "404": "inaccessible or absent"}),
+    ("post", "/invocations/{id}/cancel", "Cancel with x-invocation-grant", "path.endsWith('/cancel')", {"202": "best-effort cancellation"}),
+    ("post", "/connectors/{id}/credentials/rotate", "Rotate write-only credential", "path.endsWith('/credentials/rotate')", {"204": "rotated"}),
+    ("post", "/connectors/{id}/disable", "Disable connector", "path.endsWith('/disable')", {"204": "disabled"}),
+    ("post", "/connectors/{id}/test", "Provider test (distinct from readiness)", "path.endsWith('/test')", {"200": "provider test outcome"}),
+]
+for method, pth, summ, fragment, responses in cp:
+    scope = None if pth.startswith('/health/') else (
+        'connector:manage' if pth.startswith('/connectors') else 'connector:invoke')
+    response_docs = {code: {"description": description} for code, description in responses.items()}
+    if scope:
+        response_docs['401'] = {"description": "missing or invalid service identity signature/expiry (GRANT_INVALID)"}
+        response_docs['403'] = {"description": "wrong audience or missing required service scope (BINDING_DENIED)"}
+    operation = op(summ, SVC if scope else None, None, response_docs)
+    # The family stamping pass below assigns the Connector origin together
+    # with tags/x-api-family for every operation; a per-op literal here would
+    # be a second source of truth for the same constant.
+    operation['x-source'] = "%s:%d" % (CONN, connector_line(fragment))
+    if scope:
+        operation['x-required-service-scope'] = scope
+        operation['description'] = "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes %s." % scope
+    else:
+        operation['security'] = []
+    path_names = re.findall(r'\{([^}]+)\}', pth)
+    if path_names:
+        operation['parameters'] = [{"name": name, "in": "path", "required": True,
+            "schema": {"type": "integer", "minimum": 1} if name == 'revision' else {"type": "string"}}
+            for name in path_names]
+    if pth.startswith('/invocations/'):
+        operation.setdefault('parameters', []).append({"name": "x-invocation-grant", "in": "header", "required": True,
+            "description": "Signed runtime grant bound to invocation and tenant; distinct from service identity.", "schema": {"type": "string"}})
+    paths.setdefault(pth, {})[method] = operation
+
+# Reconstruct four Connector-related Platform entries missing from the old
+# generator. Source is the admin router, never the previous JSON artifact.
+_admin_file = 'du-rework/services/orchestrator/src/http/routes/admin.ts'
+_admin_source = io.open(_admin_file, encoding='utf-8').read()
+
+def admin_source(fragment):
+    assert fragment in _admin_source, 'Platform management route absent: %s' % fragment
+    return '%s:%d' % (_admin_file, _admin_source[:_admin_source.index(fragment)].count('\n') + 1)
+
+paths['/api/v1/admin/actions'] = {'post': op(
+    'POST-only admin action dispatcher; other methods return 405. Bearer or shell session with server CSRF validation; action-specific RBAC and idempotency. operations.cancel stops a request; operations.retry is platform-admin-only, creates a fresh execution linked by retryOf, and rejects unavailable input with RETRY_INPUT_UNAVAILABLE. Terminal execution times remain immutable.',
+    ADMIN, {'content': {'application/json': {'schema': {
+        'type': 'object', 'required': ['action'], 'properties': {
+            'action': {'type': 'string', 'minLength': 1},
+            'params': {'type': 'object', 'description': 'Action-specific params; absent or non-object params normalize to an empty object.'}}}}}},
+    {'200': {'description': 'Action result or idempotent replay'},
+     '201': {'description': 'Created action result'}, '202': {'description': 'Accepted action'},
+     '401': {'description': 'Missing or invalid admin identity'}, '403': {'description': 'RBAC, tenant or CSRF denied'},
+     '404': {'description': 'Unknown action'}, '405': {'description': 'Non-POST method'},
+     '409': {'description': 'State or idempotency conflict'}, '422': {'description': 'Missing action or invalid params'},
+     '503': {'description': 'Required management/workflow composition unavailable'}},
+    [{'name': 'idempotency-key', 'in': 'header', 'schema': {'type': 'string'},
+      'description': 'Idempotency key read from headers, not a body field.'}])}
+paths['/api/v1/admin/actions']['post']['x-source'] = admin_source("if (pathname === '/api/v1/admin/actions')")
+paths['/api/v1/admin/connectors'] = {'get': op('Platform proxy: redacted Connector revision list.', ADMIN, None,
+    {'200': {'description': '{items: redacted revisions}'}, '401': {'description': 'Missing or invalid admin identity'},
+     '403': {'description': 'Admin scope denied'}, '502': {'description': 'Invalid upstream response'},
+     '503': {'description': 'Management store not composed or upstream unavailable'}})}
+paths['/api/v1/admin/connectors']['get']['x-source'] = admin_source("method === 'GET' && pathname === '/api/v1/admin/connectors'")
+paths['/api/v1/admin/connectors/capabilities'] = {'get': op(
+    'Platform composition-derived management capabilities; not the Connector adapter catalog.', ADMIN, None,
+    {'200': {'description': 'Booleans reflect injected composition; absent seams remain false.',
+        'content': {'application/json': {'schema': {'type': 'object',
+            'required': ['management', 'credentialWorkflow', 'test'],
+            'properties': {name: {'type': 'boolean'} for name in ['management', 'credentialWorkflow', 'test']}}}}},
+     '401': {'description': 'Missing or invalid admin identity'}, '403': {'description': 'Admin scope denied'}})}
+paths['/api/v1/admin/connectors/capabilities']['get']['x-source'] = admin_source("pathname === '/api/v1/admin/connectors/capabilities'")
+paths['/api/v1/admin/connectors/{id}/revisions/{rev}'] = {'get': op(
+    'Platform redacted revision read; latest/current select current when composed. Without the store or on upstream 503, a configured numeric/latest revision may return a disabled placeholder, not a live capability.',
+    ADMIN, None, {'200': {'description': 'Real redacted revision or disabled configured placeholder'},
+        '401': {'description': 'Missing or invalid admin identity'}, '403': {'description': 'Admin scope denied'},
+        '404': {'description': 'Unconfigured connector or absent revision'}, '502': {'description': 'Invalid upstream response'}},
+    [{'name': name, 'in': 'path', 'required': True, 'schema': {'type': 'string'},
+      'description': 'Connector id' if name == 'id' else 'latest/current or positive integer revision'} for name in ['id', 'rev']])}
+paths['/api/v1/admin/connectors/{id}/revisions/{rev}']['get']['x-source'] = admin_source('const revSeg = decodeURIComponent(m[2]!);')
+
+# ---- SC-04 / CB-05: canonical models and existing Portal BFF routes ---------
+_projection = subprocess.run(
+    ['node', 'du-rework/tools/openapi/catalog_callback_schemas.cjs'],
+    capture_output=True, text=True, check=True)
+SCHEMAS.update(json.loads(_projection.stdout))
+_secret_file = 'du-rework/services/orchestrator/src/app/admin/bff/secrets.ts'
+_secret_source = io.open(_secret_file, encoding='utf-8').read()
+_secret_handle = io.open('du-rework/services/orchestrator/src/app/admin/bff/handle.ts', encoding='utf-8').read()
+assert 'matchSecretsRoute(relative)' in _secret_handle
+assert "if (relative === '/secrets') return { kind: 'list' }" in _secret_source
+assert '(rotate|disable|test)' in _secret_source
+_create_blocked = "route.kind === 'list' ? 'GET' : 'POST'" in _secret_source
+assert _create_blocked, 'Secret method routing changed: reconcile create availability before generating'
+_secret_security = {'PortalSession': []}
+_secret_errors = {
+    '401': {'description': 'Missing Portal session'},
+    '403': {'description': 'Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token'},
+    '405': {'description': 'Method not allowed'},
+    '422': {'description': 'Invalid JSON/schema; no offending secret value echoed'},
+    '503': {'description': 'Admin upstream not configured/unavailable'},
+    '404': {'description': 'Catalog upstream route absent in current snapshot; no metadata repository API is implemented'},
+}
+_portal_paths = set()
+
+def secret_operation(path, method, summary, request_schema=None, response_schema=None):
+    responses = dict(_secret_errors)
+    if response_schema:
+        responses['200'] = {'description': 'Contract projection if upstream is composed; not a claim of current upstream implementation',
+            'content': {'application/json': {'schema': {'$ref': '#/components/schemas/' + response_schema}}}}
+    params = []
+    if '{secretId}' in path:
+        params.append({'name': 'secretId', 'in': 'path', 'required': True, 'schema': {'type': 'string'}})
+    if method == 'post':
+        params += [{'name': 'x-csrf-token', 'in': 'header', 'required': True, 'schema': {'type': 'string'}},
+                   {'name': 'idempotency-key', 'in': 'header', 'schema': {'type': 'string', 'maxLength': 200},
+                    'description': 'BFF forwards a bounded key; upstream idempotency is not implemented here.'}]
+        responses['413'] = {'description': 'Bounded BFF body exceeded'}
+    request = None if not request_schema else {'required': True, 'content': {'application/json': {'schema': {'$ref': '#/components/schemas/' + request_schema}}}}
+    operation = op(summary, _secret_security, request, responses, params)
+    operation['operationId'] = 'portalSecrets' + method.title() + (path.rsplit('/', 1)[-1].strip('{}').title())
+    operation['x-source'] = _secret_file
+    operation['x-implementation-status'] = 'BFF only; upstream catalog API absent'
+    paths.setdefault(path, {})[method] = operation
+    _portal_paths.add(path)
+    return operation
+
+_list = secret_operation('/admin/api/secrets', 'get', 'Tenant-fenced metadata catalog proxy; no plaintext resolve/readback API.', response_schema='SecretCatalogListPage')
+_list['parameters'] = [{'name': name, 'in': 'query', 'schema': {'type': 'string'},
+    'description': 'Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot.'}
+    for name in ['tenantId', 'cursor', 'limit', 'state', 'purpose', 'sort']]
+_create = secret_operation('/admin/api/secrets', 'post', 'Create/link is unavailable: matcher selects list and method gate returns 405 before the create branch.')
+_create['responses'] = {'405': {'description': 'Current matcher makes create branch unreachable; SC owner must fix method dispatch'}}
+_create['x-implementation-status'] = 'Unavailable: unconditional 405 at BFF method gate'
+_create['x-planned-request-schema'] = '#/components/schemas/SecretCatalogCreate'
+for _action, _model in [('rotate', 'SecretCatalogRotate'), ('disable', 'SecretCatalogDisable'), ('test', None)]:
+    _operation = secret_operation('/admin/api/secrets/{secretId}/' + _action, 'post',
+        'Platform-admin + CSRF secret ' + _action + ' proxy. Body secretId is supplied/overridden by path; upstream catalog API absent.', _model)
+    if _action in ['rotate', 'disable']:
+        # BFF supplies the path identifier before parsing the canonical DTO.
+        _body = dict(SCHEMAS[_model])
+        _body['required'] = [key for key in _body['required'] if key != 'secretId']
+        _operation['requestBody']['content']['application/json']['schema'] = _body
+    else:
+        _operation['description'] = 'Accepts a bounded JSON object and forwards {}; does not prove a live secret availability probe.'
+
+# PM-M07 structural reconciliation: every template variable is an explicit
+# required path parameter; these are wire strings, not guessed UUID enums.
+for _path, _item in paths.items():
+    for _method, _operation in _item.items():
+        _parameters = _operation.setdefault('parameters', [])
+        for _name in re.findall(r'\{([^}]+)\}', _path):
+            if not any(p.get('in') == 'path' and p.get('name') == _name for p in _parameters):
+                _parameters.append({'name': _name, 'in': 'path', 'required': True, 'schema': {'type': 'string'}})
+        for _parameter in _parameters:
+            if 'schema' not in _parameter and 'content' not in _parameter:
+                assert (_path, _parameter['name']) in [('/api/v1/operations/{id}', 'wait'),
+                    ('/api/v1/usage/summary', 'from'), ('/api/v1/usage/summary', 'to')], 'Undocumented parameter type'
+                _parameter['schema'] = {'type': 'string'}
+                _parameter['description'] = ('Parsed as integer seconds and clamped to [0,30] by the poll handler.'
+                    if _parameter['name'] == 'wait' else 'ISO time string; validated by the usage handler.')
+        if not _parameters:
+            del _operation['parameters']
+
+# ---- PM-M02 family stamping -------------------------------------------------
+# Every operation gets the server origin, tag and x-api-family of its ingress
+# family. The Connector bucket is the root-path block added above; admin and
+# runtime are the internal-listener families; everything else is public API.
+CONNECTOR_PATHS = {pth for (_method, pth, _summary, _fragment, _responses) in cp}
+
+def _family_of(path):
+    if path in CONNECTOR_PATHS:
+        return "connector"
+    if path.startswith("/api/v1/admin/") or path in _portal_paths:
+        return "admin"
+    if path.startswith("/api/runtime/"):
+        return "runtime"
+    return "public"
+
+for _path, _item in paths.items():
+    _family = _family_of(_path)
+    for _method, _operation in _item.items():
+        if _method.startswith("x-"):
+            continue
+        _operation["servers"] = ([{'url': PORTAL_ORIGIN, 'description': 'Portal shell/BFF 3001; cookie session and mutation CSRF. Not internal JSON 3002.'}]
+                                 if _path in _portal_paths else [dict(_server) for _server in FAMILY_SERVERS[_family]])
+        _operation["tags"] = [_family]
+        _operation["x-api-family"] = _family
+doc = {"openapi": "3.0.3", "info": {"title": "DUGate rework API (code-derived, W40-CX)", "version": "1.3.0", "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."}, "servers": FAMILY_SERVERS["public"], "tags": FAMILY_TAGS, "components": {"securitySchemes": {"ApiKey": {"type": "apiKey", "in": "header", "name": "x-api-key"}, "AdminBearer": {"type": "http", "scheme": "bearer"}, "RuntimeBearer": {"type": "http", "scheme": "bearer"}, "UsageBearer": {"type": "http", "scheme": "bearer"}, "Svc": {"type": "http", "scheme": "bearer"}}}, "paths": paths, "x-absent": ["GET /api/v1/businesses", "GET schema", "POST /docs/{action}", "POST /api/v1/artifacts", "GET /api/v1/artifacts/{id} metadata", "admin /api/internal/v1 base + profiles/api-keys/connectors-CRUD/usage/replay", "GET /api/runtime/v1/tasks/{id}/context"]}
 
 # Attached after the literal so the schemas live under components, where the
 # OpenAPI specification and the RESULT-WIRE-01 guard below both look for them.
 doc["components"]["schemas"] = SCHEMAS
+doc['components']['securitySchemes']['PortalSession'] = {'type': 'apiKey', 'in': 'cookie', 'name': 'du_session',
+    'description': 'Server-side Portal session; mutations additionally require x-csrf-token and platform admin.'}
+doc['info']['version'] = '1.4.0'
+doc['x-contract-models'] = {'secretCatalog': 'Canonical models + existing BFF routes; /api/v1/admin/secrets upstream absent.',
+    'callbackPolicy': 'Frozen contract models and offline dispatcher implementation; profile/admission policy.callbackPolicy and production resolver wiring absent. Not a new endpoint.'}
+doc['x-absent'].extend(['Secret catalog upstream /api/v1/admin/secrets* and any plaintext resolve endpoint',
+                      'Profile/admission policy.callbackPolicy plumbing (contract models exist)'])
+doc["components"]["securitySchemes"]["Svc"].update({
+    "bearerFormat": "JWT", "description": "Connector HS256 service identity: aud=connector, exp, subject and required scopes claim. See x-required-service-scope on each operation."})
 
 before = set()
+before_operations = set()
 if os.path.exists(OUT):
-    before = set(json.load(io.open(OUT, encoding="utf-8")).get("paths", {}))
+    _previous_paths = json.load(io.open(OUT, encoding="utf-8")).get("paths", {})
+    before = set(_previous_paths)
+    before_operations = {(path, method) for path, item in _previous_paths.items()
+                         for method in item if method in ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']}
+assert not (before - set(paths)), "regeneration would drop documented paths; refusing write"
+_current_operations = {(path, method) for path, item in paths.items()
+                       for method in item if method in ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']}
+assert not (before_operations - _current_operations), 'regeneration would drop documented operations; refusing write'
+assert not any(p.startswith('/internal/v1') or p.startswith('/management/') for p in paths), (
+    "Connector aliases must not be invented by the generator")
 
 # CRLF, not LF: every other file under du-rework/docs is CRLF, and a deterministic
 # newline keeps "generate then diff" clean instead of churning the whole file.
@@ -629,17 +921,41 @@ assert [p["name"] for p in _written_ops["parameters"]] == QUERY_PARAMS, "operati
 assert _written_ops["parameters"][QUERY_PARAMS.index("sort")]["schema"]["enum"] == SORT_VALUES, "sort enum drifted from the contract"
 assert set(_written_ops["responses"]) == {"200", "401", "403", "422"}, "operations responses drifted"
 assert "/api/v1/admin/audit" in after, "admin audit surface missing"
+# SWAGGER-ORIGIN-DOCS-ALIGNMENT guard. The written artifact must never carry
+# the legacy 2023 origin, and each operation must point at the listener of its
+# own PM-M02 family with matching tags/x-api-family metadata. Checked on the
+# WRITTEN file so a hand-edit that reintroduces one global origin fails here.
+assert "localhost:2023" not in json.dumps(written), (
+    "legacy port 2023 leaked back into the artifact")
+_written_families = set()
+for _path, _item in written["paths"].items():
+    _family = _family_of(_path)
+    for _method, _operation in _item.items():
+        if _method.startswith("x-"):
+            continue
+        _written_families.add(_family)
+        assert _operation.get("x-api-family") == _family, (
+            "%s %s x-api-family drifted to %r"
+            % (_method, _path, _operation.get("x-api-family")))
+        assert _operation.get("tags") == [_family], (
+            "%s %s tags drifted to %r" % (_method, _path, _operation.get("tags")))
+        _urls = [s.get("url") for s in _operation.get("servers", [])]
+        assert _urls == ([PORTAL_ORIGIN] if _path in _portal_paths else [FAMILY_SERVERS[_family][0]["url"]]), (
+            "%s %s points at %r, not the %s origin %r"
+            % (_method, _path, _urls, _family, FAMILY_SERVERS[_family][0]["url"]))
+assert _written_families == {"public", "admin", "runtime", "connector"}, (
+    "an API family disappeared from the artifact: %r" % sorted(_written_families))
 # RESULT-WIRE-01 guard. The two delivery variants and the download route are what
 # a hand-edit drops first, so they are asserted on the WRITTEN file, not on the
 # dict this script assembled.
 _schemas = written["components"]["schemas"]
-assert sorted(_schemas) == ["ArtifactDownloadResponse", "ArtifactRef",
+assert set(["ArtifactDownloadResponse", "ArtifactRef",
                             "EncryptedArtifactDownload", "EncryptedResultEnvelope",
                             "RecipientDeliveryEnvelope", "ResultEnvelope",
                             "ResultResponse", "Usage", "UsageEventCursor",
                             "UsageEventExportPage", "UsageEventQuery",
                             "UsageLedgerEvent", "UsageLedgerUnits",
-                            "UsageTimeSemantics"], (
+                            "UsageTimeSemantics"]).issubset(_schemas), (
     "components.schemas drifted to %r" % (sorted(_schemas),))
 _result_200 = written["paths"]["/api/v1/operations/{id}/result"]["get"]["responses"]["200"]
 _result_schema = _result_200["content"]["application/json"]["schema"]
@@ -673,6 +989,12 @@ assert _schemas["UsageEventExportPage"]["properties"]["events"]["items"]["$ref"]
     "#/components/schemas/UsageLedgerEvent"), "usage event page lost its record schema"
 assert _schemas["UsageEventExportPage"]["additionalProperties"] is False, (
     "the export page is strict in the contract; do not publish it as open")
-print("OPENAPI-JSON path-count=%d operations-params=%d sort-values=%d usage-events-params=%d dropped-paths=%d schemas=%d"
+assert _schemas['SecretCatalogEntryRead']['additionalProperties'] is False
+assert 'value' not in _schemas['SecretCatalogEntryRead']['properties']
+assert _schemas['LiteralValueSource']['properties']['value']['writeOnly'] is True
+assert _schemas['CallbackMode']['enum'] == ['notification_only', 'notification_with_result']
+assert all(path in written['paths'] for path in _portal_paths)
+print('NO-DROP paths=%d operations=%d' % (len(before - after), len(before_operations - _current_operations)))
+print("OPENAPI-JSON path-count=%d operations-params=%d sort-values=%d usage-events-params=%d dropped-paths=%d schemas=%d origins=public:%s|internal:%s|connector:%s"
       % (len(after), len(QUERY_PARAMS), len(SORT_VALUES), len(USAGE_EVENT_QUERY_PARAMS),
-         len(dropped), len(_schemas)))
+         len(dropped), len(_schemas), PUBLIC_ORIGIN, INTERNAL_ORIGIN, CONNECTOR_ORIGIN))

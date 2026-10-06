@@ -1,0 +1,153 @@
+{
+  "captured_utc": "2026-10-04T20:33:08.634593+00:00",
+  "head": "b088eececcb5f3df0b4edbe073a29401dafda624",
+  "files": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "mtime_ns": "1791143153763647400",
+      "sha256": "ba29a87547e4dbed53851d8b29a57ae7ba583efe6199dccf10bc619414f55e6a",
+      "checkboxes": [
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/README.md": {
+      "mtime_ns": "1791143174629875500",
+      "sha256": "7b94c1175ce61799aa32b8b2ee70193f86a010db0218635f39533fb8c6fa60a0",
+      "checkboxes": [
+        "[~]",
+        "[ ]",
+        "[x]",
+        "[x]",
+        "[~]",
+        "[ ]",
+        "[~]",
+        "[x]",
+        "[~]",
+        "[ ]",
+        "[~]",
+        "[x]",
+        "[ ]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/ADMIN-WEB-DELIVERY-2026-10-04.md": {
+      "mtime_ns": "1791143190656802200",
+      "sha256": "754f7d67620b3a863b2752141761d197ca4276cbecc00703dd87b86fb0546ed8",
+      "checkboxes": [
+        "[x]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md": {
+      "mtime_ns": "1791143204252653200",
+      "sha256": "b15ce8fc3a7199618e8001c494aaa2cbe70f3c00fad6a400c6defa0c24c53aa1",
+      "checkboxes": [
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/LEGACY-PARITY-GAP-ADDENDUM-2026-10-03.md": {
+      "mtime_ns": "1791143190704740200",
+      "sha256": "3bb141cc27bdf020a293cdcc4818d9cbedcaaccc334f88d4c76362e684832336",
+      "checkboxes": [
+        "[x]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": [
+        "PAR-XA-01..05"
+      ]
+    },
+    "coordination/COORDINATION-TOPOLOGY.md": {
+      "mtime_ns": "1791143174591843800",
+      "sha256": "61c74b890df56feab57e565fc62c603f3626ef976892ff9b04245388c1e30698",
+      "checkboxes": [],
+      "PAR_XA": []
+    },
+    "tasks/ORCHESTRATOR-CONFIG-PROFILE-CONNECTOR-DETAIL-2026-10-02.md": {
+      "mtime_ns": "1791115337338853000",
+      "sha256": "e35edb80e2ee620deb7374ee30b88e3ea71b0ad17f0015bf8f8b1fd33fd3ec48",
+      "checkboxes": [
+        "[x]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": [
+        "PAR-XA-01..05",
+        "PAR-XA-03",
+        "PAR-XA-03",
+        "PAR-XA-01",
+        "PAR-XA-02"
+      ]
+    }
+  },
+  "coordinator_snapshot": {
+    "turn": 801,
+    "coordinator": "term_6904d82c-e563-416b-9cc2-8da4f7bc16b3",
+    "coordinator_handle": "term_6904d82c-e563-416b-9cc2-8da4f7bc16b3",
+    "coordinator_note_update_0310": "2026-10-05T03:12:58+07:00 dsh coordinator moi takeover run_069ecd6957cd gen2. (1) kiem ke 14 terminal: 13 agent lane + 1 shell; bo sung dsh_3 (term_273952b5) vao roster; roles.coordinator va workers_* chuan hoa theo terminal that; deactivated_roster ghi 10 lane offline. (2) Settle 7 task: STUB-EXT (delta source: connectors-screen.tsx bootstrap session/CSRF + build digest moi index-CqyHzg0b.js/0b8ed8ed715bbd16 => UI review CW-B cu STALE), LIVE-READY-PREP3, ENCMETA-BACKFILL-PREP (BLOCKER: thieu window switch runtime.ts:445), TICK-PROPOSAL-2, PLAN-UPDATE-800, RCR-HTTP (base cc_1 + residual Luna), RCR-RUNTIME (RELEASED 0 edits -> native Luna). (3) Reply + ack mail Luna packet (msg_29474381db7a, msg_d958e29cf365). (4) Adjudication: tick P763-PROMPT-WIRING offline-leg; P763-W1C-COMPOSE cho review ngan Claude truoc tick. (5) Wave 801 dispatch 11 lane: review Claude, plan codex_arch, 5 implement, 2 verify, UI re-review Antigravity.",
+    "coordinator_note_update_0330": "2026-10-05T03:27:54+07:00 vong 801 ket qua: (a) UI-REVIEW-CW-B-R2 da tra UI_APPROVED tren digest moi index-CqyHzg0b.js/0b8ed8ed715bbd16 -> A1 dong, slice UI CW-B da clear. (b) User packet RCR Luna HOAN TAT: RCR-01..06 da implement + release; verify doc lap 7 suite 229/229 exit 0, tsc 0, runtime.ts hash ACB476FD...; A2 dong. (c) Da bo sung V5 RCR backend review vao REVIEW-801 cua Claude; ACCEPTED chi khi APPROVED; live gates (PG/Vault/storage thu + restart + rollout migration 0032) van giu. (d) Lease moi cho A3 window switch cap khi co design receipt cua dsh_1 + verify-before-edit. (e) Mailbox Orca da ack sach; 12 packet wave 801 dang chay tren 12 lane. (f) 3 lane qwen nhan prompt qua terminal send vi qwen CLI khong injectable - da tao Dispatch khong inject de ledger trung thuc.",
+    "agent_inventory_0310": {
+      "captured_at": "2026-10-05T03:12:58+07:00",
+      "live_terminals": 14,
+      "agent_lanes": 13,
+      "plain_shell": 1,
+      "roster_live": [
+        "coordinator=term_6904d82c (dsh deepseek-v4.1-flash)",
+        "reviewer=term_19edcad8 (claude opus-4.8)",
+        "antigravity=term_ae2d7e42 (UI §5 + supervisor audit)",
+        "codex_arch=term_43f85ccc (gpt-6-luna; plan editor + user-facing lane)",
+        "qwen_1=term_7cb640ae",
+        "qwen_2=term_4bca69af",
+        "qwen_5=term_822128f8",
+        "codex_tester_offline=term_2ea0ce2e",
+        "codex_tester_live=term_3adb7228",
+        "codex_worker_1=term_37c6cebe",
+        "dsh_1=term_a85c47f2",
+        "dsh_2=term_bac0ad06",
+        "dsh_3=term_273952b5 (MOI)"
+      ]
+    }
+  }
+}

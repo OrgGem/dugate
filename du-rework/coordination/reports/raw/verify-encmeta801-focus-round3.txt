@@ -1,0 +1,13 @@
+﻿cwd=D:\Git\dugate\du-rework
+command=pnpm --filter @du/orchestrator test -- tests/encmeta-resultref-offline.functional.test.ts tests/enc-meta-sentinel-runtime-refs.test.ts
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand "tests/encmeta-resultref-offline.functional.test.ts" "tests/enc-meta-sentinel-runtime-refs.test.ts"
+
+System.Management.Automation.RemoteException
+Test Suites: 2 passed, 2 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        4.434 s, estimated 5 s
+Ran all test suites matching tests/encmeta-resultref-offline.functional.test.ts|tests/enc-meta-sentinel-runtime-refs.test.ts.
+literal_exit_code=0

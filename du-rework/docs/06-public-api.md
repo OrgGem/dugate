@@ -125,6 +125,8 @@ Mục này mô tả **hành vi đang triển khai** và được đồng bộ th
 
 ## Submission
 
+`sourceUrl` hỗ trợ HTTPS và `s3://bucket/key` (tuỳ chọn `?versionId=...`). Nguồn S3 dùng IAM role của Orchestrator qua AWS SDK, không cần presigned URL/access key trong request; bắt buộc deployment có S3 artifact backend và rule tenant/bucket/prefix/region/owner. Xem [S3 role source ingestion](s3-role-source-ingestion.md) cho cấu hình, quyền cross-account, giới hạn và trạng thái kiểm chứng.
+
 ```json
 {
   "input": { "type": "invoice", "language": "vi" },
@@ -207,3 +209,8 @@ Khi tenant bật `deliveryEncryptionEnabled` (Admin per-tenant toggle, mặc đ�
 - **Khong con 302.** Catalog o tren da doi tu 302 sang 200. Day chinh la **scope note** ma chinh receipt ghi (`docs/06-public-api.md still documents a 302 download`) — muc tai lieu nay la follow-up do chinh dispatch do dat ra.
 - Bang chung offline: `@du/contracts` build 0, test **19 suites / 427 tests** 0; `@du/orchestrator` `tests/delivery-encryption.test.ts` **22/22** 0; `tsc --noEmit` sach 0 cho ca hai package. Fixture route validate schema, noi artifact reference cua result da giai ma, roi **giai ma ben ngoai va so byte** payload that.
 - **Chua co independent receipt trong cay.** Mot lan verify doc lap co chay (coordinator log 3978: 64/64 = contracts 42/42 + delivery 22/22) nhung **khong append duoc** vao `tester.md` do byte 0x97 non-UTF8; receipt `V-OFFLINE-RESULT-WIRE-01-REVAL` duoc re-dispatch nhung **van chua co** trong tester.md — D-A37-3.
+
+
+## Portal request controls
+
+Operation views add nullable startedAt/completedAt, retryOf and errorCode. The admin detail also exposes safe task summaries. operations.retry is a platform-admin action; unavailable input returns 409 RETRY_INPUT_UNAVAILABLE. See [Portal request management](portal-request-management.md).

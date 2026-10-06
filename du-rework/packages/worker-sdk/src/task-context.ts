@@ -10,6 +10,8 @@ import {
   TaskDisposition,
   contentHash,
   hashInvocationInput,
+  type PinnedProfilePolicy,
+  type PinnedPromptOverride,
 } from '@du/contracts';
 import { Logger } from '@du/observability';
 import { MULTIPART_MAX_TOTAL_BYTES, MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts';
@@ -150,6 +152,13 @@ interface ClaimedTask {
   input: Record<string, unknown>;
   waitResponse?: unknown;
   connectorBindings: Record<string, string>;
+  // P730-SDK-CONSUME (W1b): the pinned admission snapshot the claim carried.
+  // Optional on the internal shape so pre-W1b test constructions still type-
+  // check; worker.ts always supplies them from claim.executionSnapshot.pinned.
+  profileRevision?: number;
+  promptRevisions?: Record<string, string>;
+  profilePolicy?: PinnedProfilePolicy | null;
+  promptOverrides?: PinnedPromptOverride[] | null;
   checkpointRefs: CheckpointRef[];
   cancelRequested: boolean;
 }
@@ -169,6 +178,10 @@ export class DefaultTaskContext implements TaskContext {
   readonly input: Record<string, unknown>;
   readonly waitResponse?: unknown;
   readonly connectorBindings: Readonly<Record<string, string>>;
+  readonly profileRevision: number | undefined;
+  readonly promptRevisions: Readonly<Record<string, string>> | undefined;
+  readonly profilePolicy: PinnedProfilePolicy | null | undefined;
+  readonly promptOverrides: readonly PinnedPromptOverride[] | null | undefined;
   readonly signal: AbortSignal;
 
   private readonly abortController: AbortController;
@@ -286,6 +299,22 @@ export class DefaultTaskContext implements TaskContext {
     this.input = task.input;
     this.waitResponse = task.waitResponse;
     this.connectorBindings = task.connectorBindings;
+    // P730-SDK-CONSUME (W1b): pass the pinned admission snapshot through
+    // exactly as the claim carried it — no live-profile read, no second
+    // policy merge. The claim is the sole authority for revisions.
+    this.profileRevision = task.profileRevision;
+    this.promptRevisions = task.promptRevisions;
+    // CR06-07 (tri-state discipline): straight pass-through. `undefined`
+    // (pre-pin / a context that never carried the pin) MUST stay `undefined`,
+    // `null` (admitted-without-policy) MUST stay `null`, and a populated policy
+    // must pass through untouched. The previous `?? null` silently collapsed the
+    // first two states into one, which is exactly the distinction a consumer
+    // needs in order to tell "no pin" from "pinned, and the pin says no".
+    this.profilePolicy = task.profilePolicy;
+    // P745-CARRIER-IMPL-B1 (Δ-PC-1): straight pass-through on purpose —
+    // `null` (no carrier) stays null, `undefined` (a context that never
+    // carried the pin) stays undefined. Neither is coalesced.
+    this.promptOverrides = task.promptOverrides;
     this.checkpointList = [...task.checkpointRefs];
     this.cancelFlag = task.cancelRequested;
 

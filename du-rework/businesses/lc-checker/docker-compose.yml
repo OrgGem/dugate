@@ -1,27 +1,6 @@
-# P9-02 LC checker worker.
-#
-# The worker only. The Orchestrator, Connector, PostgreSQL and Redis are the platform
-# stack and are supplied by the environment. This file deliberately does NOT pin platform
-# image digests, because a digest nobody measured is not evidence.
-#
-# Required: RUNTIME_URL, RUNTIME_TOKEN, CONNECTOR_URL, CONNECTOR_SERVICE_TOKEN, REDIS_URL.
-# ADMIN_TOKEN is only used by registerLcCheckerWorker(); the worker process never needs it.
 name: du-lc-checker
-
-services:
-  lc-checker-worker:
-    build:
-      context: ../..
-      dockerfile: businesses/lc-checker/Dockerfile
-    image: du-lc-checker:1.0.0
-    container_name: du-lc-checker-worker
-    environment:
-      RUNTIME_URL: ${RUNTIME_URL:?RUNTIME_URL is required}
-      RUNTIME_TOKEN: ${RUNTIME_TOKEN:?RUNTIME_TOKEN is required}
-      CONNECTOR_URL: ${CONNECTOR_URL:?CONNECTOR_URL is required}
-      CONNECTOR_SERVICE_TOKEN: ${CONNECTOR_SERVICE_TOKEN:?CONNECTOR_SERVICE_TOKEN is required}
-      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
-      CONCURRENCY: ${LC_CONCURRENCY:-4}
-      WORKER_INSTANCE_ID: ${WORKER_INSTANCE_ID:-worker-lc-checker-01}
-      MAX_ARTIFACT_BYTES: ${MAX_ARTIFACT_BYTES:-67108864}
-    restart: unless-stopped
+include:
+  - ../../compose/infra.yml
+  - ../../compose/orchestrator.yml
+  - ../../compose/connector.yml
+  - ../../compose/lc-checker.yml

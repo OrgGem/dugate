@@ -8,10 +8,25 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { Readable } from 'node:stream';
+import {
+  StorageChunkAadSchema,
+  StorageContextAadSchema,
+  StorageSingleShotAadSchema,
+} from '@du/contracts';
 import type { KeyProvider, WrappedDek } from './vault-transit-provider';
 
 export const CRYPTO_STORAGE_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 export const CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES = 5 * 1024 * 1024;
+/**
+ * RFX-08: hard ceiling on the plaintext one streaming decrypt may emit.
+ * Deliberately equal to MAX_DECRYPT_BYTES (server.ts) and to the ingress
+ * maxBytes cap the encrypted delivery path reads through, so an artifact the
+ * store is willing to hand back is never refused here, and one it is not can
+ * never grow this process' heap without bound. Callers that collect the whole
+ * artifact to serve it need the same cap: raising it here alone only moves the
+ * ceiling somewhere else.
+ */
+export const CRYPTO_STORAGE_MAX_DECRYPT_BYTES = 64 * 1024 * 1024;
 
 const VERSION = 1 as const;
 const ALGORITHM = 'aes-256-gcm' as const;
@@ -103,6 +118,13 @@ export interface EncryptedStorageStream {
 export interface CryptoStorageFacadeOptions {
   /** Bounds manifest size and total work. Defaults to 65,536 chunks. */
   readonly maxChunks?: number;
+  /**
+   * Bounds the plaintext one decryptStream call may emit. Defaults to
+   * CRYPTO_STORAGE_MAX_DECRYPT_BYTES. Read paths collect every chunk they are
+   * handed, so this is the bound that keeps one artifact from becoming one
+   * process' heap.
+   */
+  readonly maxPlaintextBytes?: number;
 }
 
 type CryptoKeyProvider = Pick<KeyProvider, 'wrapDek' | 'unwrapDek'>;
@@ -157,22 +179,25 @@ function validateEncryptContext(context: CryptoStorageEncryptContext): CryptoSto
 
 function contextAad(context: CryptoStorageContext): Buffer {
   const validated = validateContext(context);
-  return Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify(StorageContextAadSchema.parse({
     format: 'du-crypto-storage-v1',
     tenantId: validated.tenantId,
     artifactId: validated.artifactId,
     objectVersion: validated.objectVersion,
     purpose: validated.purpose,
-  }), 'utf8');
+  })), 'utf8');
 }
 
 function singleAad(context: CryptoStorageContext, sizeBytes: number, sha256: string): Buffer {
-  return Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify(StorageSingleShotAadSchema.parse({
     format: 'du-crypto-storage-single-v1',
-    context: JSON.parse(contextAad(context).toString('utf8')) as Record<string, unknown>,
+    context: StorageContextAadSchema.parse({
+      format: 'du-crypto-storage-v1',
+      ...validateContext(context),
+    }),
     sizeBytes,
     sha256,
-  }), 'utf8');
+  })), 'utf8');
 }
 
 function chunkAad(
@@ -181,13 +206,16 @@ function chunkAad(
   sizeBytes: number,
   sha256: string,
 ): Buffer {
-  return Buffer.from(JSON.stringify({
+  return Buffer.from(JSON.stringify(StorageChunkAadSchema.parse({
     format: 'du-crypto-storage-chunk-v1',
-    context: JSON.parse(contextAad(context).toString('utf8')) as Record<string, unknown>,
+    context: StorageContextAadSchema.parse({
+      format: 'du-crypto-storage-v1',
+      ...validateContext(context),
+    }),
     index,
     sizeBytes,
     sha256,
-  }), 'utf8');
+  })), 'utf8');
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -480,6 +508,7 @@ class CiphertextReader {
 export class CryptoStorageFacade {
   private readonly keyProvider: CryptoKeyProvider;
   private readonly maxChunks: number;
+  private readonly maxPlaintextBytes: number;
 
   public constructor(keyProvider: CryptoKeyProvider, options: CryptoStorageFacadeOptions = {}) {
     if (!keyProvider || typeof keyProvider.wrapDek !== 'function' || typeof keyProvider.unwrapDek !== 'function') {
@@ -489,8 +518,17 @@ export class CryptoStorageFacade {
     if (!Number.isSafeInteger(maxChunks) || maxChunks < 1 || maxChunks > DEFAULT_MAX_CHUNKS) {
       invalidInput('maxChunks must be between 1 and ' + DEFAULT_MAX_CHUNKS);
     }
+    const maxPlaintextBytes = options.maxPlaintextBytes ?? CRYPTO_STORAGE_MAX_DECRYPT_BYTES;
+    if (
+      !Number.isSafeInteger(maxPlaintextBytes)
+      || maxPlaintextBytes < 1
+      || maxPlaintextBytes > CRYPTO_STORAGE_MAX_DECRYPT_BYTES
+    ) {
+      invalidInput('maxPlaintextBytes must be between 1 and ' + CRYPTO_STORAGE_MAX_DECRYPT_BYTES);
+    }
     this.keyProvider = keyProvider;
     this.maxChunks = maxChunks;
+    this.maxPlaintextBytes = maxPlaintextBytes;
   }
 
   /** Encrypt one non-empty object up to the 5 MiB single-shot threshold. */
@@ -665,9 +703,22 @@ export class CryptoStorageFacade {
     if (!ciphertext || typeof ciphertext[Symbol.asyncIterator] !== 'function') invalidInput('An async ciphertext stream is required');
     const validatedContext = validateContext(context);
     const manifest = validateManifest(rawManifest, validatedContext, this.maxChunks);
+    // RFX-08: the manifest is the only thing that can tell us how much
+    // plaintext this call would hand over, and the read paths collect all of
+    // it. Refuse here, eagerly and synchronously, so an oversized artifact
+    // costs no Vault unwrap, no MAC computation and no plaintext buffer -
+    // exactly like the maxChunks refusal above.
+    if (manifest.totalSizeBytes > this.maxPlaintextBytes) {
+      throw new CryptoStorageError('SIZE_LIMIT', 'Artifact exceeds the plaintext decryption limit');
+    }
     const self = this;
     async function* decrypt(): AsyncGenerator<Buffer, void, void> {
-      yield* self.decryptChunkGenerator(ciphertext, manifest, validatedContext);
+      yield* self.decryptChunkGenerator(
+        ciphertext,
+        manifest,
+        validatedContext,
+        self.maxPlaintextBytes,
+      );
     }
     return Readable.from(decrypt(), {
       objectMode: false,
@@ -787,10 +838,33 @@ export class CryptoStorageFacade {
     }
   }
 
+  /**
+   * RFX-16 design rationale for the order below: the DEK is unwrapped BEFORE the
+   * manifest MAC is checked, and that ordering is mandatory rather than an
+   * oversight. The MAC key is derived FROM the DEK (manifestMacKey runs HKDF
+   * over it), so no MAC can be verified without first recovering the DEK; a
+   * MAC-first path would need a second key that authenticates the key, which
+   * this envelope does not have. The single-shot decrypt path unwraps AFTER its
+   * AAD check for the opposite reason - its AAD needs no key - which is why the
+   * two orders differ.
+   *
+   * The cost this ordering could otherwise expose is already spent before the
+   * generator runs: validateManifest rejects unknown fields, a foreign context
+   * AAD, wrong geometry, out-of-order or oversized chunks, a chunk total that
+   * disagrees with totalSizeBytes, and chunk counts over maxChunks; the RFX-08
+   * pre-check in decryptStream rejects an over-limit declared size. So an
+   * attacker-crafted manifest reaches the unwrap only when its shape and
+   * context are right, and the single Vault call is spent on a DEK-wrap this
+   * system itself wrote. It is still one call per request against Vault, so
+   * rate limit and backoff belong on the Vault caller if decrypt is ever
+   * abused. Keep "wrap is wrong" and "MAC is wrong" indistinguishable (both
+   * surface as AUTHENTICATION_FAILED) so the error path is not an oracle.
+   */
   private async *decryptChunkGenerator(
     ciphertext: AsyncIterable<Uint8Array>,
     manifest: EncryptedStorageManifest,
     context: CryptoStorageContext,
+    maxPlaintextBytes: number,
   ): AsyncGenerator<Buffer, void, void> {
     const dek = await this.unwrapDek(manifest.dek);
     const aad = contextAad(context);
@@ -830,10 +904,22 @@ export class CryptoStorageFacade {
           }
           totalHash.update(plaintext);
           totalSizeBytes += plaintext.length;
+          // RFX-08 backstop. The declared total was already refused upstream and
+          // validateManifest pins the chunk sizes to that total, so this can
+          // only fire if the two ever stop agreeing. It has to run BEFORE the
+          // yield: the caller keeps every chunk it is handed, so checking after
+          // the hand-off would let one more chunk through.
+          if (totalSizeBytes > maxPlaintextBytes) {
+            throw new CryptoStorageError('SIZE_LIMIT', 'Artifact exceeds the plaintext decryption limit');
+          }
           yield plaintext;
           plaintext = undefined;
-        } catch {
+        } catch (error) {
           plaintext?.fill(0);
+          // A size refusal is a policy decision, not an authentication verdict.
+          // Relabelling it here would tell the caller the artifact failed to
+          // authenticate when the only thing wrong was that it did not fit.
+          if (error instanceof CryptoStorageError && error.code === 'SIZE_LIMIT') throw error;
           throw new CryptoStorageError('AUTHENTICATION_FAILED', 'Ciphertext chunk authentication failed');
         } finally {
           encrypted.fill(0);

@@ -1,0 +1,31 @@
+﻿
+> @du/contracts@0.1.0 test D:\Git\dugate\du-rework\packages\contracts
+> jest --runInBand "--listTests"
+
+D:\Git\dugate\du-rework\packages\contracts\tests\vault-policies.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\usage-reconciliation.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\multipart-contract.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\usage-budget.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\pricing.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\usage-metrics.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\result-wire.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\vault-ref.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\dto.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\ingestion-receipt.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\profile-policy.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\hashing-errors.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\usage-event-export.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\manifest.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\p745-options-allowlist.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\oidc-claim-shapes.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\grant-encryption-envelope.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\profile-commands.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\operations-list-contract.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\encryption.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\usage-budget-reservation.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\queue.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\state-machine.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\invocation-hash.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\ip-policy.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\admin-resource-list-contract.test.ts
+D:\Git\dugate\du-rework\packages\contracts\tests\settings-prompt-slots-spec.test.ts

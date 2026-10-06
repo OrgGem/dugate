@@ -1,0 +1,19 @@
+﻿# cmd: npx jest tests/bff-connectors-actions.test.ts --runInBand
+# round: 1
+# time: 2026-10-05T01:43:52.620+07:00
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:43:52.300Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"bf9a900b-5fea-4f49-a9c8-7862d8bc03b1","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:43:52.364Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"5b5eef76-5ba3-4f81-aac4-f3d70be56f93","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-04T18:43:52.368Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"925109e0-b3c2-4ee3-bb60-edda15052230","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+npx.cmd : Test Suites: 1 passed, 1 total
+At line:6 char:12
++   $lines = & npx.cmd jest tests/bff-connectors-actions.test.ts --runI ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Test Suites: 1 passed, 1 total:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        4.172 s
+Ran all test suites matching tests/bff-connectors-actions.test.ts.
+
+JEST_EXIT=0

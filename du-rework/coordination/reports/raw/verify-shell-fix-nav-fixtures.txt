@@ -1,0 +1,17 @@
+﻿# cmd: node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/admin-p6-01-shell-fixtures.test.ts tests/admin-view-model.test.ts
+# env: NODE_ENV=test
+# time: 2026-10-05T02:32:43.091+07:00
+node.exe : 
+At line:4 char:10
++ $lines = & node node_modules/jest/bin/jest.js --config jest.unit.conf ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 2 passed, 2 total
+Tests:       235 passed, 235 total
+Snapshots:   0 total
+Time:        6.145 s
+Ran all test suites matching tests/admin-p6-01-shell-fixtures.test.ts|tests/admin-view-model.test.ts.
+
+literal_exit_code=0

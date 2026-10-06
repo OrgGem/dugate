@@ -95,6 +95,23 @@ Mô hình envelope encryption (ADR-18 §Baseline kỹ thuật):
 
 Cả hai backend (S3 production theo ADR-10, PG pilot ≤ 10 MB) đều nhận ciphertext đã bọc envelope — storage compromise không lộ plaintext.
 
+### ENC-META / ENC-09 — control-plane slots + backfill window (cập nhật 2026-10-05)
+
+Metadata/control-plane encryption giờ có **8 slot** được seal (`METADATA_SLOTS`, `services/orchestrator/src/modules/runtime/metadata-crypto.ts`): `operations.input_ref`, `tasks.payload_ref`, `human_waits.response_ref`, `step_checkpoints.output_ref`, **`step_checkpoints.session_ref`**, `operations.prompt_overrides_ref` (carrier Δ-PC-1) và **`tasks.result_ref` + `operations.result_ref`** (ENCMETA-RESULTREF, Option A — hai slot vì cùng một chuỗi nằm ở HAI row; AAD bind `(tenant, slot, refId)` nên replay chéo row ⇒ `CONTEXT_MISMATCH`).
+
+- **Cột TEXT:** `result_ref` là cột text (0001) — envelope được bọc dạng **JSON text** (cùng convention `input_ref`), không phải object thô; trong backfill window hiện tại, cả 4 call-site của `readStoredText` truyền `allowPlaintext=true`: reader mở được sealed envelope khi có seam phù hợp và đọc legacy plaintext verbatim (best-effort); legacy rows vẫn plaintext-readable. Fail-closed `NOT_SEALED` chỉ có hiệu lực sau window switch (A3/A2), chưa được enforce ở các call-site hiện tại (A8).
+
+**BẢO VỆ KHÔNG ĐƯỢC SUY RA TỪ HÌNH DẠNG (REVIEW-809 / A11 / A17):**
+
+- **Một envelope có hình dạng đúng KHÔNG phải bằng chứng đã được bảo vệ.** Hình dạng chỉ cho biết giá trị *trông* như envelope; nó không mã hóa và không mở được.
+- **Hàng có hình dạng nhưng CHƯA được AEAD mở vẫn là hàng đang đọc được ở dạng plaintext.** Nó nằm trong cửa sổ backfill, không phải trong trạng thái đã bảo vệ.
+- **Hàng sealed nhưng HỎNG là MẤT DỮ LIỆU cho xử lý** — không phải một khoảng trống trung tính. Phải có cảnh báo rõ ràng, không được im lặng.
+- **TUYỆT ĐỐI không dùng `GATE PASSES` của shape counter làm bằng chứng flip.** Shape gate chỉ đọc hình dạng; nó không giải mã. Flip cần cả hai cổng bằng 0 (xem `live-window-runbook-803` §A10/A12).
+- **ENC-09 backfill window:** trong cửa sổ migration, reader chạy `allowPlaintext=true` — row legacy plaintext đọc **verbatim, byte-identical**; đóng cửa sổ ⇒ plaintext không còn được nhận (`NOT_SEALED`, không auto-nhận plaintext). Quyết định đóng window thuộc owner migration.
+- **Chưa chạy backfill thật:** receipt hiện có là offline (seal 2 slot 10×3 + regression 61; wire-boundary guards 10×3, 0 product diff) — chưa có PG thật/Vault thật; cập nhật mục ENC-09 của docs 28/35 khi window thật bắt đầu. Không gate nào đổi (`G-ENC` vẫn NO-GO theo baseline).
+
+Bằng chứng: [encmeta-resultref-impl](../coordination/reports/encmeta-resultref-impl-2026-10-05.md), [encmeta-schema-impl](../coordination/reports/encmeta-schema-impl-2026-10-05.md).
+
 
 ## Artifact storage + ingestion wire (D-EVID-A29, offline VERIFIED)
 
@@ -107,6 +124,8 @@ Cả hai backend (S3 production theo ADR-10, PG pilot ≤ 10 MB) đều nhận c
 | **DATA-03** URL task chua READY thi khong chay duoc | [Qwen Platform Muc 22](../coordination/reports/qwen-platform.md#L2100) | document-core full **46 suites / 542 tests** + tsc 0; targeted 5/5 x3; worker-sdk regression 84/84 |
 
 **DATA-01 + DATA-02 — hai muc van la storage/upload wire, khong phai evidence lifecycle that.** DATA-01 receipt tu ghi “No live S3-compatible service or PostgreSQL database was used”; DATA-02 ghi “No live PostgreSQL, S3, Redis, or Vault infrastructure was exercised”.
+
+> **CẢNH BÁO SEED B (REVIEW-809):** trong `ingress-bounded.test.ts:244-261`, case oversize **không** chứng minh được blob auth như tài liệu cũ mô tả — nó fail vì **test-order contamination** (`before.rowCount = 0` do 2 PUT trước đã bị chặn, body-limit path chạy trước blob auth). Case đó **cần một seed blob ĐỘC LẬP** (Seed B) thì kết quả mới có nghĩa. Chi tiết: `docs/36-evidence-table-reconciliation.md:109`. Không đọc con số "3 blob PUT tests receive 403" như bằng chứng độc lập cho tới khi Seed B tồn tại.
 
 **DATA-03 — lo hong thật da tim va sua (Muc 22).** `IngestAction.prepareSources` chi kiem pin khi `artifactInputs.length > 0`, nen task URL chua materialize co 0 artifact thi pin khong duoc kiem; neu con mang `input.text` thi parse nhanh text do va bao thanh cong du chua tai byte nao. Da viet test truoc, chay, va no **DO tren code cu**. Sua 1 file: kiem pin khi pin co, phan biet `SOURCE_PIN_MISMATCH` (co artifact sai) va `INGESTION_SOURCE_UNRESOLVED` (chua READY), va `inlineText: pin ? undefined : input.text` de task co pin khong duoc thoa bang text noi tuyen. 5 test moi trong `tests/data-03-url-acq.test.ts`.
 
@@ -150,3 +169,8 @@ Cả hai backend (S3 production theo ADR-10, PG pilot ≤ 10 MB) đều nhận c
 **Gate POST la rao duy nhat truoc khi ghi:** form gui `csrf`; handler verify lai bang **constant-time compare**; sai hoac thieu — **403** va applier **khong bao gio chay** (test assert store + audit rong). Save dung **POST-redirect-GET** (302 + `Location`) nen reload khong re-submit. Test goc nhat la **end-to-end**: lay token RA khoi HTML da render, POST lai dung nhu trinh duyet, store cap nhat + 302 — chung minh token trong DOM **la** token ma POST gate chap nhan.
 
 **Phan CSRF — khong chung minh (Muc 27.7):** D112 **DONG o muc code + offline**; khong co HTTP qua socket that, khong browser, khong cookie do trinh duyet mint (test dung cookie ky that qua `signCookie` + derive that nen duong kiem la duong that, nhung chua di qua listener). **D110** van mo (webhook dispatcher chua theo policy). **D113** van mo (cong CSRF hien kiem session cookie + secret; voi OIDC session store phai noi `verifySessionCsrf`).
+
+
+## Portal execution timing
+
+Execution timestamps are lifecycle facts independent of artifact/cache maintenance. Retry creates a linked new operation instead of reopening a terminal one. See [Portal request management](portal-request-management.md).

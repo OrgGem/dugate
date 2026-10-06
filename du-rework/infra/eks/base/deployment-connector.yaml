@@ -1,0 +1,60 @@
+# Connector Service, map từ compose/connector.yml.
+# replicas: 1 MẶC ĐỊNH vì Connector hiện migrate lúc start — CHƯA scale multi-replica
+# an toàn cho tới khi có migration owner serialize. Mở rộng replicas chỉ sau mốc đó.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connector
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: connector
+    app.kubernetes.io/part-of: du-rework
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: connector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: connector
+        app.kubernetes.io/part-of: du-rework
+    spec:
+      serviceAccountName: connector
+      terminationGracePeriodSeconds: 60 # drain 30s (DRAIN_TIMEOUT_MS) + buffer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: connector
+          image: du-connector:local # pin digest trong kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          command: [node, dist/entrypoint.js]
+          ports:
+            - name: api
+              containerPort: 8080 # nội bộ; compose mặc định không publish, local-debug mới opt-in 127.0.0.1
+          envFrom:
+            - configMapRef: { name: connector }
+            - secretRef: { name: connector }
+          livenessProbe:
+            httpGet: { path: /health/live, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }

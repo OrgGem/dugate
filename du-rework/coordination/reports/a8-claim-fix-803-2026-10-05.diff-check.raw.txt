@@ -1,0 +1,5 @@
+command: git diff --check -- docs/04-data-state.md
+exit: 0
+stdout:
+
+stderr:

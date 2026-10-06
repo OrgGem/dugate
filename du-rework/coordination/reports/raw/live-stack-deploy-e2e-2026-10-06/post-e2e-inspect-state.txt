@@ -1,0 +1,7 @@
+﻿/pm-m02-verify-20261006-887-orchestrator-1|running|0|0|healthy
+/pm-m02-verify-20261006-887-connector-1|running|0|0|healthy
+/pm-m02-verify-20261006-887-postgres-1|running|0|0|healthy
+/pm-m02-verify-20261006-887-valkey-1|running|0|0|healthy
+/pm-m02-verify-20261006-887-document-core-1|running|0|0|no-healthcheck
+/pm-m02-verify-20261006-887-lc-checker-1|running|0|0|no-healthcheck
+/pm-m02-verify-20261006-887-example-review-1|running|0|0|no-healthcheck

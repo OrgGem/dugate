@@ -1,3 +1,4 @@
+import { createLogger, safeErrorForLog } from '@du/worker-sdk';
 import { parseWorkerConfig } from './config';
 import { startLcCheckerWorker } from './worker';
 
@@ -26,6 +27,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write('lc-checker worker failed to start: ' + String(error) + '\n');
+  createLogger({ service: 'lc-checker' }).error('lc-checker worker startup failed', { error: safeErrorForLog(error) });
   process.exit(1);
 });

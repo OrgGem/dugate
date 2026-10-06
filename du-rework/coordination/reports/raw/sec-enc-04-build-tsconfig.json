@@ -1,0 +1,21 @@
+{
+  "extends": "../../../services/orchestrator/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "./sec-enc-04-dist",
+    "baseUrl": "../../../services/orchestrator",
+    "paths": {
+      "@du/contracts": ["../../packages/contracts/dist/index.d.ts"]
+    }
+  },
+  "include": [
+    "../../../services/orchestrator/src/modules/artifacts/**/*.ts",
+    "../../../services/orchestrator/src/modules/encryption/crypto-storage-facade.ts",
+    "../../../services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts",
+    "../../../services/orchestrator/src/modules/encryption/boot-options.ts"
+  ]
+}

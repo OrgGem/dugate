@@ -1,0 +1,94 @@
+services:
+  migrate:
+    image: ${DU_IMAGE_PREFIX:-du}-orchestrator:${DU_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: orchestrator
+    command: [node, dist/migrate-cli.js, migrate]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [du-platform-net]
+    init: true
+    restart: 'no'
+  orchestrator:
+    image: ${DU_IMAGE_PREFIX:-du}-orchestrator:${DU_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: orchestrator
+    environment:
+      PORT: '3000'
+      ORCHESTRATOR_HOST: 0.0.0.0
+      ORCHESTRATOR_PORT: '3000'
+      ORCHESTRATOR_INTERNAL_HOST: 0.0.0.0
+      ORCHESTRATOR_INTERNAL_PORT: '3002'
+      ORCHESTRATOR_INTERNAL_BASE_URL: ${ORCHESTRATOR_INTERNAL_BASE_URL:-http://orchestrator:3002}
+      DU_S3_SOURCE_RULES: ${DU_S3_SOURCE_RULES:-}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+      RUNTIME_TOKEN: ${RUNTIME_TOKEN:?Set RUNTIME_TOKEN}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set a distinct ADMIN_TOKEN}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
+      INVOCATION_GRANT_SECRET: ${INVOCATION_GRANT_SECRET:?Set the raw 32-byte grant key}
+      DU_CONNECTOR_BASE_URLS: ${DU_CONNECTOR_BASE_URLS:-}
+      SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:-}
+      WORKER_IDENTITY_TOKENS_BY_BUSINESS: ${WORKER_IDENTITY_TOKENS_BY_BUSINESS:-}
+      TENANT_ADMIN_TOKENS_BY_TENANT: ${TENANT_ADMIN_TOKENS_BY_TENANT:-}
+      AUTO_MIGRATE: 'false'
+      ADMIN_SHELL_HOST: 0.0.0.0
+      ADMIN_SHELL_PORT: '3001'
+      ADMIN_SHELL_COOKIE_SECRET: ${ADMIN_SHELL_COOKIE_SECRET:?Set ADMIN_SHELL_COOKIE_SECRET}
+      DU_ADMIN_WEB: ${DU_ADMIN_WEB:-0}
+      DU_ADMIN_AUTH_MODE: ${DU_ADMIN_AUTH_MODE:-}
+      DU_ADMIN_TRUST_PROXY_PROTOCOL: ${DU_ADMIN_TRUST_PROXY_PROTOCOL:-false}
+      SHUTDOWN_TIMEOUT_MS: '30000'
+      ARTIFACT_STORAGE_BACKEND: ${ARTIFACT_STORAGE_BACKEND:-postgres}
+      ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-}
+      ARTIFACT_S3_REGION: ${ARTIFACT_S3_REGION:-}
+      ARTIFACT_S3_ENDPOINT: ${ARTIFACT_S3_ENDPOINT:-}
+      ARTIFACT_S3_FORCE_PATH_STYLE: ${ARTIFACT_S3_FORCE_PATH_STYLE:-false}
+      ARTIFACT_STORAGE_MIGRATION_WINDOW: ${ARTIFACT_STORAGE_MIGRATION_WINDOW:-false}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      DU_ENCRYPTION_METADATA_ENABLED: ${DU_ENCRYPTION_METADATA_ENABLED:-false}
+      DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED: ${DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED:-false}
+      DU_VAULT_TRANSIT_OPTIONS: ${DU_VAULT_TRANSIT_OPTIONS:-}
+      DU_VAULT_TRANSIT_ENC_TOKEN: ${DU_VAULT_TRANSIT_ENC_TOKEN:-}
+      DU_VAULT_TRANSIT_DEC_TOKEN: ${DU_VAULT_TRANSIT_DEC_TOKEN:-}
+      USAGE_TOKEN: ${USAGE_TOKEN:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      DU_ADMIN_WEB_ROUTES: ${DU_ADMIN_WEB_ROUTES:-}
+      DU_VAULT_KV_OPTIONS: ${DU_VAULT_KV_OPTIONS:-}
+      DU_VAULT_KV_TOKEN: ${DU_VAULT_KV_TOKEN:-}
+      DU_CONNECTOR_INITIAL_BINDINGS: ${DU_CONNECTOR_INITIAL_BINDINGS:-}
+      DU_ADMIN_OIDC_ISSUER: ${DU_ADMIN_OIDC_ISSUER:-}
+      DU_ADMIN_OIDC_CLIENT_ID: ${DU_ADMIN_OIDC_CLIENT_ID:-}
+      DU_ADMIN_OIDC_CLIENT_SECRET: ${DU_ADMIN_OIDC_CLIENT_SECRET:-}
+      DU_ADMIN_OIDC_REDIRECT_URI: ${DU_ADMIN_OIDC_REDIRECT_URI:-}
+      DU_ADMIN_OIDC_ALLOWED_ISSUERS: ${DU_ADMIN_OIDC_ALLOWED_ISSUERS:-}
+      DU_ADMIN_OIDC_PUBLIC_ORIGIN: ${DU_ADMIN_OIDC_PUBLIC_ORIGIN:-}
+      DU_ADMIN_OIDC_SESSION_BACKEND: ${DU_ADMIN_OIDC_SESSION_BACKEND:-}
+      DU_ADMIN_OIDC_PKCE_METHOD: ${DU_ADMIN_OIDC_PKCE_METHOD:-}
+    ports:
+      - '${BIND_ADDRESS:-127.0.0.1}:${ORCHESTRATOR_PORT:-3000}:3000'
+      - '${BIND_ADDRESS:-127.0.0.1}:${ADMIN_SHELL_PORT:-3001}:3001'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    networks: [du-platform-net, du-worker-net]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s

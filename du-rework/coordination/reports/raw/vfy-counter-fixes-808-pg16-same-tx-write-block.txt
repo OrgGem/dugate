@@ -1,0 +1,83 @@
+COMMAND=docker exec -i du-vfy-counter808-pg16-20261005 psql -v ON_ERROR_STOP=1 -U postgres -d du_vfy808 -f -
+
+STDOUT:
+BEGIN
+SET
+SET
+SET
+ transaction_read_only | read_only_proof  
+-----------------------+------------------
+ on                    | READ-ONLY PROVEN
+(1 row)
+
+DO
+         registered_slot         | coverage 
+---------------------------------+----------
+ human_waits.response_ref        | covered
+ operations.input_ref            | covered
+ operations.prompt_overrides_ref | covered
+ operations.result_ref           | covered
+ step_checkpoints.output_ref     | covered
+ step_checkpoints.session_ref    | covered
+ tasks.payload_ref               | covered
+ tasks.result_ref                | covered
+(8 rows)
+
+         slot         | total_rows | non_null | sealed | leftover_plaintext | empty_object 
+----------------------+------------+----------+--------+--------------------+--------------
+ operations.input_ref |          1 |        1 |      0 |                  1 |            1
+(1 row)
+
+       slot        | total_rows | non_null | sealed | leftover_plaintext | empty_object 
+-------------------+------------+----------+--------+--------------------+--------------
+ tasks.payload_ref |          5 |        5 |      0 |                  5 |            5
+(1 row)
+
+           slot           | total_rows | non_null | sealed | leftover_plaintext 
+--------------------------+------------+----------+--------+--------------------
+ human_waits.response_ref |          0 |        0 |      0 |                  0
+(1 row)
+
+            slot             | total_rows | non_null | sealed | leftover_plaintext 
+-----------------------------+------------+----------+--------+--------------------
+ step_checkpoints.output_ref |          0 |        0 |      0 |                  0
+(1 row)
+
+             slot             | total_rows | non_null | sealed | leftover_plaintext 
+------------------------------+------------+----------+--------+--------------------
+ step_checkpoints.session_ref |          0 |        0 |      0 |                  0
+(1 row)
+
+              slot               | total_rows | non_null | sealed | leftover_plaintext 
+---------------------------------+------------+----------+--------+--------------------
+ operations.prompt_overrides_ref |          1 |        0 |      0 |                  0
+(1 row)
+
+       slot       | total_rows | non_null | sealed | leftover_plaintext 
+------------------+------------+----------+--------+--------------------
+ tasks.result_ref |          5 |        5 |      4 |                  1
+(1 row)
+
+         slot          | total_rows | non_null | sealed | leftover_plaintext 
+-----------------------+------------+----------+--------+--------------------
+ operations.result_ref |          1 |        0 |      0 |                  0
+(1 row)
+
+                 slot                 | total_rows | job_envelope_rows | other_rows | shape_sealed | plaintext 
+--------------------------------------+------------+-------------------+------------+--------------+-----------
+ outbox.payload (NOT a metadata slot) |          2 |                 1 |          1 |            1 |         1
+(1 row)
+
+ total_leftover_plaintext | total_empty_object | actionable_leftover |                   flip_gate                   
+--------------------------+--------------------+---------------------+-----------------------------------------------
+                        7 |                  6 |                   1 | GATE FAILS - rows are still plaintext at rest
+(1 row)
+
+COMMIT
+
+
+STDERR:
+psql:<stdin>:58: NOTICE:  VFY808_SAME_TRANSACTION_WRITE_BLOCKED
+
+
+LITERAL_EXIT_CODE=0

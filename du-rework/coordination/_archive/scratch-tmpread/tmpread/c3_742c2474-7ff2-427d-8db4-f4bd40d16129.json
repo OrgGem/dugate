@@ -1,0 +1,37 @@
+{
+  "id": "9caf78a6-4750-4326-a6c6-cb98d333fec8",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_742c2474-7ff2-427d-8db4-f4bd40d16129",
+      "status": "running",
+      "tail": [
+        "    Đơn vị — và một chỗ dễ gộp nhầm",
+        "    Legacy A và B cùng đơn vị (USD doublePrecision float) ⇒ M-05 và M-04 là hai vấn đề khác nhau; M-04 là legacy↔rework, đừng gộp.",
+        "    Round-trip USD float ↔ microusd int không lossless nói chung: chính xác chỉ khi giá trị là bội nguyên của 10⁻⁶ và dưới 2⁵³ microusd (~9.0×10⁹ USD) — ngoài đó chính số nguyên đã vượt vùng an toàn của",
+        "    Number. Hướng an toàn duy nhất: giữ microusd int làm nguồn chân lý, chỉ quy đổi sang USD lúc hiển thị.",
+        "    Rework đã có nguyên tắc sẵn cho chính câu hỏi hòa giải này: projector không bịa trường thiếu (usage.ts:130-135) + tổng dedup theo `eventId` — tức đã chọn không bịa + dedup ở nguồn thay vì dựng cơ chế hòa",
+        "    giải.",
+        "    Đã giữ đúng ba hard check",
+        "    Không đề xuất tính balance từ usage tenant · không đề xuất biến totalUsed của một key thành tổng tenant · không bịa quy tắc reconcile. Read-only, không sửa source, không tick gate, không đề xuất tên",
+        "    field/DTO/URL mới.",
+        "    Gate giữ nguyên: G-ADMIN-OPS / G-SEC / G-COMP / G-DATA / G6 NO-GO.",
+        "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "* tiếp task_par00 tiếp theo đi",
+        "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "  ➜ dugate · git:(codex/fix-workflow-builder) · qwen3.8-max max · 1.0m Context 77.9% used",
+        "  YOLO mode (tab to cycle) · 26 tasks done"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "61859265",
+      "nextCursor": "61861265",
+      "latestCursor": "61861265",
+      "returnedLineCount": 15,
+      "source": "screen"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

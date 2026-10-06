@@ -143,6 +143,33 @@ function createMockSdkContext(overrides: Partial<SdkTaskContext> = {}): TestSdkT
 describe('Action-Level Document Parser Budgets & Completion Fencing (Wave 17-18, W18-A)', () => {
   let ctx: MockTaskContext;
 
+  // VFY-REG-FLAKE-FIX — de-flake, no assertion change.
+  //
+  // The first `safeParseBuffer` call in a worker process pays one-time parser
+  // initialisation (module load, parser selection, JIT warm-up). That cost used
+  // to land inside `enforces exact byte boundary` below, which works on a
+  // 100-byte buffer yet measured 456 ms and then 908 ms on two consecutive
+  // otherwise-idle runs — a 2x spread on identical code. Against Jest's 5 s
+  // timeout that left ~11x headroom only while the machine was quiet; under
+  // parallel suite load the init cost is what tipped it over (VFY-REG-refresh
+  // recorded two 5 s timeouts here).
+  //
+  // Pay it once, before any timed test, so per-test timing measures the
+  // product path rather than process warm-up. The warm-up runs on the same
+  // 100-byte code path the test below uses.
+  //
+  // The 30 s second argument scopes extra headroom to THIS hook only. Every
+  // test keeps Jest's default 5 s budget — nothing below is relaxed, and no
+  // assertion moved. If this hook itself ever fails, that is a real parser
+  // failure, not a budget.
+  beforeAll(async () => {
+    await ParserBudgetHelper.safeParseBuffer(
+      new MockTaskContext(),
+      Buffer.alloc(100, 'a'),
+      'test.txt',
+    );
+  }, 30_000);
+
   beforeEach(() => {
     ctx = new MockTaskContext();
   });

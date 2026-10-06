@@ -1,0 +1,82 @@
+{
+  "sourceInventoryFiles": 815,
+  "sourceDrift": [],
+  "files": [
+    {
+      "path": "scripts/export-orchestrator-candidate.cjs",
+      "sha256": "9f0a8718d16bdb19c8a896a3c6eb0a43a81113182fabaaca224be238eefe4684"
+    },
+    {
+      "path": "services/orchestrator/src/main.ts",
+      "sha256": "bacaa4d1139df43e5ea7bf7f59f63f72ca3ce011c0f5183bfb773db1c197b564"
+    },
+    {
+      "path": "services/orchestrator/src/server.ts",
+      "sha256": "e92c17210ab6e3fddb757c5c20114e6c5e407c3d0bf45641f01041666d11ca40"
+    },
+    {
+      "path": "services/orchestrator/src/http/routes/runtime.ts",
+      "sha256": "d9c2822b0f5accf01e5f035ee2c0c2fdac01fde3b54bdd68b789ff01df655790"
+    },
+    {
+      "path": "services/orchestrator/tests/runtime-grant-origin.test.ts",
+      "sha256": "fba02407b07099279e28c57d0d828aaa5988cd62244288545e47f094024a55a1"
+    },
+    {
+      "path": "services/orchestrator/tests/rfx11-12-route-hardening.test.ts",
+      "sha256": "a66dafa3a3b6a7e50f6031cbdab7108c607afc6a1da4b5d6f94b1ba4cc3e85dc"
+    },
+    {
+      "path": "businesses/document-core/src/worker.ts",
+      "sha256": "8a495b437b29509d5fc654c04def9acfda0524351554eee558a73297ba4ae37c"
+    },
+    {
+      "path": "businesses/document-core/tests/p745-session-capture-inject.test.ts",
+      "sha256": "05c00bfde90a23bfc4770b4a28c27aae54622384d4a6b9ebe8c531d4cc6ad4bc"
+    },
+    {
+      "path": "packages/worker-sdk/src/worker.ts",
+      "sha256": "bf963534c449082ade8747c8c93c5082cc842a489fed52f3d270603c818327fd"
+    },
+    {
+      "path": "compose/orchestrator.yml",
+      "sha256": "b3ce06fcaaf5bc0db68a1caf6750d06ca9f16535bbcb77bc57deb15cdade841b"
+    },
+    {
+      "path": ".env.docker.example",
+      "sha256": "bc0589445b812f21199d36a21b58035c223f2e256fb92c53d4a3299b3c260f25"
+    },
+    {
+      "path": "migration-candidates/orchestrator/Dockerfile",
+      "sha256": "b7cc2438f2d131d928c062c1276616c07e5d0423a66cb413cb45bc4153f23f54"
+    },
+    {
+      "path": "migration-candidates/orchestrator/package.json",
+      "sha256": "e90d80fe38df6a3fd9d74b32f2dac151b68fc94071117fbfce9ea5d41a14f586"
+    },
+    {
+      "path": "migration-candidates/orchestrator/pnpm-lock.yaml",
+      "sha256": "f77018636ddd5d8510139513fca1fcf17b47b23830e6cad416dc730be8c406d7"
+    },
+    {
+      "path": "migration-candidates/orchestrator/pnpm-workspace.yaml",
+      "sha256": "0a1218079acb19d7e8693fa7987b3e9612563ebaf2da2a55e28cebb69135794e"
+    },
+    {
+      "path": "migration-candidates/orchestrator/scripts/docker/build-runtime.cjs",
+      "sha256": "57ba9f03c7d73baedb80cc8afcac07c5ebb107d57f7ca119b384cc196b680ba3"
+    },
+    {
+      "path": "migration-candidates/orchestrator/scripts/verify-isolation.cjs",
+      "sha256": "4698ddc40798aebf5ceceeb6fcfe42ee716ca73d5b9c794c72c2d7d73bbdb2e3"
+    },
+    {
+      "path": "migration-candidates/orchestrator/scripts/build.cjs",
+      "sha256": "9114e5836644201fcc2cffadf6e3ddd732702f3c2baec36c6c36e4083e5b1d70"
+    },
+    {
+      "path": "migration-candidates/orchestrator/source-inventory-phase-b.json",
+      "sha256": "19caf5fd83a11c9d10afc1b4ae44e40cec3a592938a8c739846fc9b8c83c743a"
+    }
+  ]
+}

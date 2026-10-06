@@ -321,11 +321,14 @@ function succeeded(id = `inv-${randomUUID()}`, sessionRef: string | null = 'sess
   } as InvocationResponse;
 }
 
-function pending(id = `inv-${randomUUID()}`, nextPollAt?: string | null): InvocationResponse {
+function pending(id = `inv-${randomUUID()}`, nextPollAt?: string | null, sessionRef?: string): InvocationResponse {
   return {
     invocationId: id,
     state: 'PENDING',
     nextPollAt: nextPollAt === undefined ? new Date(Date.now() + 30_000).toISOString() : nextPollAt,
+    // CR06-04: async providers may offer the continuation session on the 202
+    // body (top-level wire sessionRef).
+    ...(sessionRef === undefined ? {} : { sessionRef }),
   } as InvocationResponse;
 }
 
@@ -381,6 +384,45 @@ describe('classifyInvocation', () => {
     expect(out.kind).toBe('pending-yield');
     if (out.kind !== 'pending-yield') return;
     expect(out.retryAfterMs).toBe(DEFAULT_PENDING_RETRY_MS);
+  });
+
+  it('carries the async 202 sessionRef on pending-yield (CR06-04)', () => {
+    const out = classifyInvocation(pending('inv-sess-pending', null, 'sess-async-1'));
+    expect(out.kind).toBe('pending-yield');
+    if (out.kind !== 'pending-yield') return;
+    expect(out.sessionRef).toBe('sess-async-1');
+    expect(out.nextPollAt).toBeNull();
+  });
+
+  it('normalizes a missing pending sessionRef to null (pre-CR06-04 wire)', () => {
+    const out = classifyInvocation(pending('inv-no-sess', null));
+    expect(out.kind).toBe('pending-yield');
+    if (out.kind !== 'pending-yield') return;
+    expect(out.sessionRef).toBeNull();
+  });
+
+  it('falls back to the top-level sessionRef when a SUCCEEDED result omits one (CR06-04)', () => {
+    const response = InvocationResponseSchema.parse({
+      invocationId: 'inv-top-level-session',
+      state: 'SUCCEEDED',
+      result: { content: 'complete' },
+      sessionRef: 'sess-top',
+    });
+    const out = classifyInvocation(response);
+
+    expect(out.kind).toBe('result');
+    if (out.kind !== 'result') return;
+    expect(out.sessionRef).toBe('sess-top');
+  });
+
+  it.each([42, false, {}, []])('rejects a malformed top-level sessionRef (%p)', (sessionRef) => {
+    const parsed = InvocationResponseSchema.safeParse({
+      invocationId: 'inv-malformed-top-session',
+      state: 'PENDING',
+      sessionRef,
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   it('maps FAILED with the error envelope passthrough', () => {
@@ -466,6 +508,18 @@ describe('assertInvocationResult', () => {
       expect(e.code).toBe('PROVIDER_PENDING');
       expect(e.retryable).toBe(true);
       expect(e.retryAfterMs).toBeGreaterThan(0);
+    }
+  });
+  it('PendingInvocationError carries the async sessionRef without leaking it into the message (CR06-04)', () => {
+    const out = classifyInvocation(pending('inv-sess', null, 'sess-secret-continuation'));
+    try {
+      assertInvocationResult(out);
+      throw new Error('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(PendingInvocationError);
+      const e = err as PendingInvocationError;
+      expect(e.sessionRef).toBe('sess-secret-continuation');
+      expect(e.message).not.toContain('sess-secret-continuation');
     }
   });
   it('throws the typed error for failed / reconcile / cancelled', () => {
@@ -604,6 +658,75 @@ describe('runConnectorStep — stable invocation + pending yield (acceptance)', 
     const out = await runConnectorStep(h.ctx, { stepKey: STEP_KEY, slot: SLOT, input: { prompt: 'x' } });
     expect(out.invocationId).toBe(invId);
     expect(h.payloads[0]!.deadlineAt).toBe(deadline);
+  });
+
+  it('async 202 sessionRef survives the pending yield and is checkpointed on resume (CR06-04)', async () => {
+    const ledger: GrantLedger = { hashes: new Map(), issued: [] };
+    const input = { prompt: 'async session turn' };
+
+    // Delivery 1: the provider accepts asynchronously and offers its session.
+    const h1 = makeHarness({
+      attempt: 1,
+      leaseEpoch: 1,
+      ledger,
+      responses: [pending(undefined, new Date(Date.now() + 30_000).toISOString(), 'sess-async-1')],
+    });
+    let thrown: unknown;
+    try {
+      await runConnectorStep(h1.ctx, { stepKey: STEP_KEY, slot: SLOT, input });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(PendingInvocationError);
+    expect((thrown as PendingInvocationError).sessionRef).toBe('sess-async-1');
+    // No checkpoint on pending: the resume must re-enter the step.
+    expect(h1.calls.filter((c) => c.method === 'PUT' && c.path.includes('/steps/'))).toHaveLength(0);
+
+    // Delivery 2 (fresh context, new lease): provider finished; the wire keeps
+    // the session top-level if the result itself omits it.
+    const h2 = makeHarness({
+      attempt: 2,
+      leaseEpoch: 2,
+      ledger,
+      responses: [
+        {
+          invocationId: ledger.issued[0]!.invocationId,
+          state: 'SUCCEEDED',
+          result: { content: 'provider output' },
+          sessionRef: 'sess-async-1',
+        } as InvocationResponse,
+      ],
+    });
+    const out = await runConnectorStep(h2.ctx, { stepKey: STEP_KEY, slot: SLOT, input });
+
+    expect(out.sessionRef).toBe('sess-async-1');
+    // Same logical step across the yield: one invocationId, one inputHash.
+    expect(ledger.issued).toHaveLength(2);
+    expect(ledger.issued[0]!.invocationId).toBe(ledger.issued[1]!.invocationId);
+    expect(ledger.issued[0]!.inputHash).toBe(ledger.issued[1]!.inputHash);
+    expect(h2.payloads[0]!.invocationId).toBe(h1.payloads[0]!.invocationId);
+    // The resume returns the session to the handler/result payload (the
+    // capture seam persists it for the next turn); the step checkpoint keeps
+    // only the session that was SENT on the wire (none here — the handler did
+    // not know the provider token on redelivery).
+    const save = h2.calls.find((c) => c.method === 'PUT' && c.path.includes('/steps/'))!;
+    expect(Object.keys(save.body as Record<string, unknown>)).not.toContain('sessionRef');
+  });
+
+  it('fails closed on a malformed top-level continuation token before checkpointing (CR06-04)', async () => {
+    const malformed = {
+      invocationId: 'inv-bad-top-session',
+      state: 'PENDING',
+      nextPollAt: null,
+      sessionRef: 42,
+    } as unknown as InvocationResponse;
+    const h = makeHarness({ responses: [malformed] });
+
+    await expect(
+      runConnectorStep(h.ctx, { stepKey: STEP_KEY, slot: SLOT, input: { prompt: 'x' } }),
+    ).rejects.toMatchObject({ name: 'ZodError' });
+    expect(h.invokeCount()).toBe(1);
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.path.includes('/steps/'))).toHaveLength(0);
   });
 });
 

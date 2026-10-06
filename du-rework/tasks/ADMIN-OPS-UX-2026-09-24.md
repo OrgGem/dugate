@@ -1,10 +1,12 @@
 # Admin UI vận hành: dễ theo dõi, ít cuộn, tìm kiếm/lọc và an toàn dữ liệu
 
-Trạng thái: **plan, chưa triển khai**. Đây là phần mở rộng nghiệm thu vận hành của P6-02..07 và P8, không thay các tick P6 lịch sử. `ADM-BASE-01..03`, `OIDC-*` và `VAULT-*` vẫn do [security plan](SEC-OIDC-VAULT-2026-09-24.md) sở hữu; không tạo lại auth, audit ledger hay Vault API trong backlog này. Giao diện chỉ được coi là dùng được khi chạy với dữ liệu thật, bản build hiện tại và các vai trò/tenant thật — không dùng catalog fixture làm bằng chứng đóng task.
+Trạng thái: **backlog nghiệm thu, có slice đã triển khai/kiểm thử theo từng row; toàn bộ plan chưa được chấp nhận**. Đây là phần mở rộng nghiệm thu vận hành của P6-02..07 và P8, không thay các tick P6 lịch sử. [Admin Web plan](ADMIN-WEB-DELIVERY-2026-10-04.md) sở hữu cách xây React/BFF cho màn mới; `ADM-UX` giữ UX và browser acceptance. `ADM-BASE-01..03`, `OIDC-*` và `VAULT-*` vẫn do [security plan](SEC-OIDC-VAULT-2026-09-24.md) sở hữu; không tạo lại auth, audit ledger hay Vault API trong backlog này. Giao diện chỉ được coi là dùng được khi chạy với dữ liệu thật, bản build hiện tại và các vai trò/tenant thật — không dùng catalog fixture làm bằng chứng đóng task.
 
 **Ops monitor và cost:** [Yêu cầu theo ca trực](../docs/admin-ops-monitoring-cost.md) bổ sung phân loại operation, token/chi phí, bảng giá có version và ngân sách. `ADM-UX-02..05/07` sở hữu phần list/query/overview/cockpit/browser đã có; `COST-01..04` trong đặc tả sở hữu delta usage ledger, pricing, đối soát và policy. (Tiến độ: COST-01 VERIFIED-OFFLINE; COST-02 VERIFIED-OFFLINE độc lập qua `tester.md#T-CODEX-OFFLINE-COST-02-INDEPENDENT`; COST-03 IMPLEMENTED; COST-04 VERIFIED-OFFLINE độc lập qua `tester.md#T-CODEX-OFFLINE-COST-04-INDEPENDENT` 20/20 contracts + 2/2 orchestrator suites pass, tsc clean). Các task COST giữ [~] chưa đóng P6 hoặc G-ADMIN-OPS cho đến khi có live aggregation/DB/alert.
 
 ## Hiện trạng làm căn cứ
+
+Các bullet dưới đây là **snapshot khi mở backlog ngày 2026-09-24**; nhiều điểm đã được sửa ở các packet/row phía dưới. Không dùng chúng làm hiện trạng 2026-10-04 nếu chưa đối chiếu source và receipt mới.
 
 - Banner kỹ thuật “What this turn proves” vẫn đứng trước nội dung mỗi section (`services/orchestrator/src/app/admin/shell-render.ts:150-162`); ảnh browser fixture `tests/browser/artifacts/overview-desktop.png` và `api-keys-mobile.png` cho thấy nội dung/hành động chính nằm sâu dưới viewport đầu.
 - CSS shell chỉ có nav rộng cố định, chưa có breakpoint/reflow cho bảng (`services/orchestrator/src/app/admin/shell-render.ts:403-425`); ảnh mobile API keys tràn ngang. `axe` pass không chứng minh tránh cuộn ngang hoặc ít cuộn dọc.

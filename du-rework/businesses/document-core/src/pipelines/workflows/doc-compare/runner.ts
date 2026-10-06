@@ -18,6 +18,7 @@
  */
 
 import type { ConnectorInvocationOptions, ConnectorInvocationResult } from '../../../types/context';
+import { STEP_KEYS } from '../../../recipes/step-keys';
 import { normalizeTitle } from './chunking';
 import {
   DOC_COMPARE_INPUT_VERSION,
@@ -372,7 +373,16 @@ export function createDocCompareRuntime(options: DocCompareRunnerOptions): DocCo
             task: isStructure ? binding.structureTask : binding.referenceTask,
             payload,
           },
-          { ...(options.invocationOptions ?? {}), responseFormat: 'json' },
+          {
+            ...(options.invocationOptions ?? {}),
+            responseFormat: 'json',
+            // CR06-01: the workflow stage key is authoritative — a caller's
+            // invocationOptions must not be able to drop or replace it, or the
+            // prompt-override wiring silently bypasses again.
+            promptStepId: isStructure
+              ? STEP_KEYS.DOC_COMPARE.COMPARE_STRUCTURE
+              : STEP_KEYS.DOC_COMPARE.COMPARE_REFERENCES,
+          },
         ),
         timeoutMs,
         chunkId,

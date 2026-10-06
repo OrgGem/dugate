@@ -1,5 +1,7 @@
 # Parallel implementation — assignment 2026-09-20
 
+> **Điều phối hiện hành (2026-10-04):** [AGENTS.md](../AGENTS.md) và `coordinator-state.json` xác nhận Command Code là coordinator/dispatcher; Claude Code không dispatch, Antigravity review phần Admin UI khi coordinator gọi theo [contract UI](../docs/admin-ui-development-contract.md). Việc người dùng giao trực tiếp cho một agent được theo dõi riêng. Roster, handle và phân quyền bên dưới là lịch sử các wave cũ, không dùng để dispatch hiện tại.
+
 > **Latest progress:** [2026-09-23 evening agent/task reconciliation](PROGRESS-RECONCILIATION-2026-09-23-EVENING.md). P0-P8 inventory: 46 marked done, 5 partial, 20 open. Release remains NOT READY; mismatch handling is record-only.
 
 > Latest code acceptance addendum: [2026-09-23 code review](CODE-REVIEW-2026-09-23.md) and [supplemental fix tasks](../tasks/REVIEW-FIXES-2026-09-23.md). Read alongside the current allocation; this adds fixes without redispatching active lanes.
@@ -21,7 +23,7 @@ User đã yêu cầu bắt đầu implementation và gửi việc tới ba agent
 ### Current direct-wave roster override
 
 Wave 38 uses five active lanes in the shared `D:/Git/dugate` checkout: Claude Code, OpenClaude, Command Code, Agent-6 Antigravity, and Codex. Codex is registered at `term_95378d30-e4fc-40f1-bc0c-e6256a71be91`; its current packet and ownership are defined in [`WAVE-38-DIRECT-ALLOCATION.md`](WAVE-38-DIRECT-ALLOCATION.md). This user-authorized roster supersedes the original three-agent/no-new-agent limit above for current direct waves.
-### Current roster -- Turn 202 (Coordinator: Claude Code)
+### Historical roster -- Turn 202 (Coordinator: Claude Code khi đó)
 
 Per coordinator-state.json Turn 202 (claude-code-session, Opus 4.8, schedule manual). OpenClaude is now a permanent active lane (user-authorized, term_851ead96, Claude Opus 4.8) alongside the Qwen lanes -- not a Wave-38 temporary.
 

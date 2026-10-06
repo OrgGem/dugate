@@ -1,0 +1,28 @@
+{
+  "id": "069783e9-327b-4ddf-a9d2-37b620318b55",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_27eb3380-f9c3-466a-8b4e-0b7fa0ad23fc",
+      "status": "running",
+      "tail": [
+        "──────────────────────────────────────────────────────────────────────────────────────",
+        "* COMP-05: gap analysis31 dong cua COMP-02",
+        "──────────────────────────────────────────────────────────────────────────────────────",
+        "  ➜ dugate · git:(codex/fix-workflow-builder) · qwen3.8-max max · 1.0m Context",
+        "  39.5% used",
+        "  YOLO mode (tab to cycle) · 1 task done"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "43935308",
+      "nextCursor": "43937308",
+      "latestCursor": "43937308",
+      "returnedLineCount": 6,
+      "source": "screen"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

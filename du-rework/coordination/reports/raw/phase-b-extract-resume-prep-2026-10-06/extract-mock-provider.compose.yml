@@ -1,0 +1,31 @@
+services:
+  extract-mock:
+    image: node:22-alpine
+    command: ['node', '/app/mock-provider.cjs']
+    volumes:
+      - ./coordination/reports/raw/phase-b-extract-resume-prep-2026-10-06/mock-provider.cjs:/app/mock-provider.cjs:ro
+    networks: [du-worker-net]
+    expose: ['8090']
+    read_only: true
+    tmpfs: ['/tmp']
+    user: '10001:10001'
+    pids_limit: 32
+    mem_limit: 64m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    init: true
+    restart: 'no'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8090/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+
+  connector:
+    environment:
+      PROVIDER_ALLOW_HOSTS: extract-mock
+      ALLOW_PRIVATE_PROVIDER_NETWORKS: 'true'
+    depends_on:
+      extract-mock:
+        condition: service_healthy

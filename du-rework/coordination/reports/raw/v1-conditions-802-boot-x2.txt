@@ -1,0 +1,16 @@
+V1-CONDITIONS-802 actual process boot trial 2
+timestamp=2026-10-04T21:07:59.755Z
+command=node services/orchestrator/dist/main.js (production entrypoint, rebuilt from current source)
+database=isolated disposable PostgreSQL tmpfs at 127.0.0.1:15432; schema pre-migrated; no live DB
+redis=isolated disposable Redis tmpfs at 127.0.0.1:16379
+artifact backend=s3; placeholder Vault config/tokens; no storage/Vault requests issued
+AUTO_MIGRATE=false; AUTO_DISPATCH=false; DU_SEED_DEV_FALLBACK=false
+ENCRYPTION_KEY=UNSET; NEXTAUTH_SECRET=UNSET
+processId=19672
+--- stdout/stderr ---
+{"subsystem":"main","metadata":true,"publicUpload":true,"timestamp":"2026-10-04T21:08:01.257Z","level":"info","service":"orchestrator","version":"unknown","environment":"prod","correlationId":"a912f8b7-4679-484e-aa5a-aece2dfb5ac5","operationId":null,"taskId":null,"invocationId":null,"message":"artifact encryption enabled"}
+{"subsystem":"main","address":32187,"timestamp":"2026-10-04T21:08:01.290Z","level":"info","service":"orchestrator","version":"unknown","environment":"prod","correlationId":"4ad4972d-edbb-453a-83ae-fea089916dfd","operationId":null,"taskId":null,"invocationId":null,"message":"orchestrator listening"}
+
+HARNESS_READY_SEEN=true
+EXIT_CODE=null
+EXIT_SIGNAL=SIGTERM

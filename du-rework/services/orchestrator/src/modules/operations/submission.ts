@@ -1,19 +1,33 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { authorizeS3Source, parseS3Source, type S3SourceRule } from './s3-source';
 import {
   BusinessManifest,
   OperationView,
+  PROFILE_JOB_PRIORITY_DEFAULT,
+  ProfilePolicySnapshotSchema,
+  findSecretParameterKeys,
   SubmissionSchema,
   canonicalRequestHash,
   normalizeRouteAction,
   adjudicateUrlDestination,
   withIngestionSource,
   type IngestionReceipt,
+  type ProfilePolicySnapshot,
+  type PromptOverrideRead,
+  type PinnedPromptOverride,
 } from '@du/contracts';
 import { normalizeCorrelationId } from '@du/observability';
-import type { MetadataCrypto } from '../runtime/metadata-crypto';
+import type { MetadataCrypto, MetadataSlot } from '../runtime/metadata-crypto';
 import { Db } from '../../db/db';
 import { RegistryService } from '../registry/registry';
-import { ProfileService, renderPinnedBindings } from '../profiles/profiles';
+import {
+  ProfileService,
+  renderPinnedBindings,
+  type EffectiveProfile,
+} from '../profiles/profiles';
+import { bullMqPriorityFor, extensionDeniedReason, fileUrlEntryName } from '../profiles/policy';
+import { fileUrlAuthConfigCarriesSecret } from '../profiles/file-url-auth';
+import type { PromptOverrideService } from '../profiles/prompt-overrides';
 import { HttpError, badRequest, conflict, notFound, unprocessable } from '../../http/errors';
 import type { DbClient } from '../webhooks/webhooks';
 import Ajv from 'ajv';
@@ -69,6 +83,17 @@ export interface SubmissionServiceOptions {
    * fail-closed: treated as non-s3.
    */
   storageBackend?: 'postgres' | 's3';
+  s3SourceRules?: readonly S3SourceRule[];
+
+  /**
+   * P745-PRODUCER (step 1, marker-only): the prompt-override bucket, read
+   * ONCE at admission for pinned-mode submissions. What lands on the row is
+   * non-secret revision markers only (per-step content digests) — the prompt
+   * content itself stays in `connector_prompt_overrides` until the phase-2
+   * sealed carrier (Δ-1). Absent = the historical NULL pin; the claim then
+   * keeps its zero-value `{}` map, so an unwired deployment is byte-identical.
+   */
+  promptOverrides?: PromptOverrideService;
 
   /**
    * CR28-04: seal `operations.input_ref` / `tasks.payload_ref` before the
@@ -105,23 +130,52 @@ const ARTIFACT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-
  * have. The duplication is three lines on purpose: if the two ever diverge,
  * the cross-check test in runtime-encryption-metadata.test.ts fails, because
  * an envelope written by one and opened by the other must still agree.
+ *
+ * CRX-01: the VALUE is sealed as given (an object for the control-plane JSON
+ * columns), not its pre-serialized text — an opened envelope then reproduces
+ * the exact JSON shape the plaintext column held (`operations.input_ref` /
+ * `tasks.payload_ref` read back as objects, which is what the execution
+ * snapshot the worker SDK parses requires). Sealing the JSON text instead
+ * made opened values come back as strings, a shape no reader of a jsonb
+ * object column expects.
  */
 export async function sealSubmitMetadata(
   crypto: MetadataCrypto | undefined,
-  value: string,
+  value: unknown,
   tenantId: string,
-  slot: 'operations.input_ref' | 'tasks.payload_ref',
+  slot: MetadataSlot,
   refId: string
 ): Promise<string> {
-  if (!crypto) return value;
-  // The COLUMN VALUE is returned ready to bind, not the envelope object. The
-  // caller passes the result straight through as a query parameter, and these
-  // are jsonb columns: jsonb needs a JSON text, so the envelope is serialised
-  // HERE. Doing it at the call site instead is what produced a double-encoded
-  // value when the seam is off (`JSON.stringify` applied to an already
-  // stringified envelope) - a silent change to the stored payload on exactly
-  // the deployments that never opted in.
+  // The return value is the COLUMN VALUE ready to bind: these are jsonb
+  // columns, so both branches produce the JSON text the driver binds. With no
+  // seam this is the historical serialization byte-for-byte (a string value is
+  // already text and is not double-encoded).
+  if (!crypto) return typeof value === 'string' ? value : JSON.stringify(value);
   return JSON.stringify(await crypto.seal(value, { tenantId, slot, refId }));
+}
+
+/**
+ * ENC-META-FIX-G1: the outbox dispatch payload carries the submission's
+ * sourceUrl so the ingestion gate can cross-check it against the task row.
+ * That copy is sealed with the SAME seam as the columns, under the SAME
+ * binding the root task payload uses (tenant + 'tasks.payload_ref' + root
+ * task id), so the pg `outbox.payload` row never holds the URL in plaintext
+ * while the sealed task row holds the same value: the gate opens BOTH copies
+ * with the one context it already builds. With no seam the value passes
+ * through as the historical plaintext string, byte-for-byte (the seam stays
+ * opt-in per deployment). Unlike `sealSubmitMetadata`, the result is the
+ * envelope OBJECT, not column text: this value is embedded inside the outbox
+ * payload JSON instead of bound to a jsonb column.
+ */
+async function sealOutboxSourceUrl(
+  crypto: MetadataCrypto | undefined,
+  sourceUrl: string | undefined,
+  tenantId: string,
+  rootTaskId: string
+): Promise<unknown> {
+  if (sourceUrl === undefined) return undefined;
+  if (!crypto) return sourceUrl;
+  return crypto.seal(sourceUrl, { tenantId, slot: 'tasks.payload_ref', refId: rootTaskId });
 }
 
 export function createSubmissionService(
@@ -139,6 +193,8 @@ export function createSubmissionService(
   const storageBackend = options.storageBackend ?? 'postgres';
   // CR28-04: optional seam; absent = plaintext, historical statements.
   const metadataCrypto = options.metadataCrypto;
+  // P745-PRODUCER (step 1): optional; absent = NULL pin, historical claims.
+  const promptOverrides = options.promptOverrides;
 
   return {
     async submit(ctx: SubmitContext): Promise<SubmitResult> {
@@ -152,53 +208,23 @@ export function createSubmissionService(
         });
       }
       const submission = parsed.data;
-      if (submission.sourceUrl && storageBackend !== 's3') {
-        // T180-D3 admission-time fail-closed: schema parsing above is
-        // pure, so this throws with ZERO database calls - no operation
-        // row, no task row, no outbox row, no parked PENDING_INGESTION
-        // that no consumer can ever open on a non-s3 backend.
-        throw unprocessable(
-          'UNSUPPORTED_STORAGE_BACKEND',
-          'URL ingestion requires an S3-compatible storage backend'
-        );
-      }
-      if (submission.sourceUrl) validateSourceUrl(submission.sourceUrl);
-      assertEmbeddedInputByteBudget(submission.input, maxBlobBytes);
-      const referencedArtifactIds = collectArtifactReferences(submission);
-      await assertReadyTenantArtifacts(
-        (ids, tenantId) => db.query<SubmissionArtifactRow>(ARTIFACT_REFERENCE_QUERY, [ids, tenantId]),
-        referencedArtifactIds,
-        ctx.tenantId
-      );
+      // RCR-03: the replay lookup is scoped by the CALLER (tenant, apiKeyId,
+      // route) and decided BEFORE any admission-policy read. A version that
+      // was deactivated, a profile edit, an artifact expiry, or the storage
+      // backend flipping since the ORIGINAL acceptance must not turn a
+      // same-key replay of an ACCEPTED operation into a 404/409 — T-SUB-04's
+      // own rationale ("a profile edit cannot break a replay") extended to
+      // every admission input. Current admission rules still apply to NEW
+      // requests, immediately below. The key/tenant fence is untouched: the
+      // lookup is scoped by (tenant, apiKeyId, routeAction).
       const correlationId = normalizeCorrelationId(ctx.correlationId);
       const canonicalAction = ctx.alias ?? ctx.action;
       const routeAction = normalizeRouteAction(ctx.businessId, ctx.action, ctx.alias);
-
-      // Resolve the registered+enabled version (slice submits against the
-      // single enabled version per business/action).
-      const enabled = await resolveEnabledVersion(db, ctx.businessId, canonicalAction);
-      const { version, manifest, digest, queue } = enabled;
-
-      // Profile pin (P2-02/R08-02): resolve the key's latest binding for this
-      // (business, version, action) and pin it onto the operation. 403 here
-      // (PRF-01) rejects before any row is written — nothing is enqueued.
-      const binding = await profiles.resolveBinding(ctx.apiKeyId, ctx.businessId, version, canonicalAction);
-
-      // Validate input against the action's inputSchema (422 on mismatch).
-      const actionDef = manifest.actions.find((a) => a.name === canonicalAction);
-      if (!actionDef) {
-        throw badRequest(`action ${canonicalAction} not declared by ${ctx.businessId}@${version}`);
-      }
-      const validate = ajv.compile(actionDef.inputSchema as object);
-      if (!validate(submission.input)) {
-        throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
-          errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
-            pointer: e.instancePath || '/',
-            message: e.message ?? 'invalid',
-          })),
-        });
-      }
-
+      // T-SUB-04: the idempotency hash stays on the RAW client input, never on
+      // the effective input. A profile edit between two retries of the same
+      // Idempotency-Key must replay the original operation, not a second one
+      // built from the new defaults — hashing the merged map would turn every
+      // admin edit into an IDEMPOTENCY_CONFLICT for in-flight clients.
       const requestHash = canonicalRequestHash({
         input: submission.input,
         artifacts: submission.artifacts,
@@ -228,12 +254,107 @@ export function createSubmissionService(
         }
       }
 
+      if (submission.sourceUrl && storageBackend !== 's3') {
+        // T180-D3 admission-time fail-closed: schema parsing above is
+        // pure, so this throws with ZERO database calls - no operation
+        // row, no task row, no outbox row, no parked PENDING_INGESTION
+        // that no consumer can ever open on a non-s3 backend.
+        throw unprocessable(
+          'UNSUPPORTED_STORAGE_BACKEND',
+          'URL ingestion requires an S3-compatible storage backend'
+        );
+      }
+      if (submission.sourceUrl) {
+        validateSourceUrl(submission.sourceUrl);
+        if (submission.sourceUrl.startsWith('s3://')) {
+          try { authorizeS3Source(submission.sourceUrl, ctx.tenantId, options.s3SourceRules ?? []); }
+          catch { throw new HttpError(403, 'PERMISSION_DENIED', 'S3 source is not allowed for this tenant'); }
+        }
+      }
+      assertEmbeddedInputByteBudget(submission.input, maxBlobBytes);
+      const referencedArtifactIds = collectArtifactReferences(submission);
+      await assertReadyTenantArtifacts(
+        (ids, tenantId) => db.query<SubmissionArtifactRow>(ARTIFACT_REFERENCE_QUERY, [ids, tenantId]),
+        referencedArtifactIds,
+        ctx.tenantId
+      );
+
+      // Resolve the registered+enabled version (slice submits against the
+      // single enabled version per business/action).
+      const enabled = await resolveEnabledVersion(db, ctx.businessId, canonicalAction);
+      const { version, manifest, digest, queue } = enabled;
+
+      const actionDef = manifest.actions.find((a) => a.name === canonicalAction);
+      if (!actionDef) {
+        throw badRequest(`action ${canonicalAction} not declared by ${ctx.businessId}@${version}`);
+      }
+
+      // PAR-XA-03: the ONE admission seam. T-SUB-01 — everything this call can
+      // refuse (profile disabled, profile unknown, unauthorized key, a locked
+      // parameter) is refused HERE, before the first `randomUUID` (:314) and therefore
+      // before the operations/tasks/submission_keys/outbox inserts. A denied
+      // submit leaves zero rows behind.
+      //
+      // T-SUB-02 note: the same call that authorizes the profile also returns
+      // the whole effective policy, so the snapshot below is a value we already
+      // hold rather than a second read that could disagree with the decision.
+      const profile = await profiles.resolveEffectiveProfile(
+        ctx.apiKeyId,
+        ctx.businessId,
+        version,
+        canonicalAction,
+        submission.input as Record<string, unknown>,
+        declaredParameterKeys(actionDef.inputSchema as object)
+      );
+      // The profile already split its managed keys from the rest; the merged
+      // result is what the worker runs, and AJV still judges the remainder.
+      const effectiveInput: Record<string, unknown> =
+        profile.mode === 'pinned' ? profile.effectiveInput : (submission.input as Record<string, unknown>);
+
+      // Validate the EFFECTIVE input (client values merged over profile
+      // defaults) against the action's inputSchema (422 on mismatch). Validating
+      // the merged map rather than the raw client body is a deliberate change:
+      // it is the map the worker will actually run, so a profile default that no
+      // longer satisfies the action schema fails here — at submit, with a 422
+      // the caller can act on — instead of surfacing as a worker error hours
+      // later. The two cases differ only when the client OMITTED a key, which
+      // is exactly the case where the default decides the outcome.
+      const validate = ajv.compile(actionDef.inputSchema as object);
+      if (!validate(effectiveInput)) {
+        throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+          errors: (validate.errors ?? []).slice(0, 50).map((e) => ({
+            pointer: e.instancePath || '/',
+            message: e.message ?? 'invalid',
+          })),
+        });
+      }
+
+      // T-SUB-04 note: the idempotency hash / replay lookup now run BEFORE
+      // admission (RCR-03) — see the top of submit(). Everything from here
+      // down applies to NEW requests only.
+
       const operationId = randomUUID();
       const rootTaskId = randomUUID();
       const deliveryId = randomUUID();
       const ttlSeconds = ctx.idempotencyTtlSeconds ?? 24 * 3600;
 
-      // CR28-04: seal BEFORE the writing transaction, not inside it. Two
+      // P745-CARRIER-IMPL-A (Δ-PC-1): resolve the override bucket ONCE here,
+      // at admission, and build BOTH pins from the same rows so they cannot
+      // disagree by construction. Caps are checked first: a 422 leaves zero
+      // rows and zero Vault calls behind. Markers stay exactly the phase-1
+      // shape (non-secret digests); the carrier (below) is the content.
+      const promptOverrideRows =
+        profile.mode === 'pinned' && promptOverrides
+          ? await promptOverrides.listFor(ctx.apiKeyId, canonicalAction, ctx.tenantId)
+          : [];
+      const promptRevisionsPin =
+        profile.mode === 'pinned' && promptOverrides
+          ? JSON.stringify(buildPromptRevisionsPin(promptOverrideRows))
+          : null;
+      const promptCarrierRows = buildPromptCarrier(promptOverrideRows);
+      assertPromptCarrierCaps(promptCarrierRows);
+
+      // CR28-04/CRX-01: seal BEFORE the writing transaction, not inside it. Two
       // reasons, both load-bearing:
       //  1. A key-provider failure must abort the submit with nothing written.
       //     Sealing inside the tx would still roll back, but it would hold a
@@ -241,23 +362,45 @@ export function createSubmissionService(
       //  2. The AAD binds each envelope to its OWN row (operationId for
       //     input_ref, rootTaskId for payload_ref), which is why these cannot
       //     be one shared value even though both derive from `submission`.
-      // The SEALED value replaces the plaintext string in the column, so the
-      // stored shape is unchanged for a reader that knows the seam is on: the
-      // jsonb column still holds JSON, just an envelope instead of the input.
-      const inputRefJson = JSON.stringify(submission.input);
-      const taskPayloadJson = JSON.stringify(
-        submission.sourceUrl
-          ? { input: submission.input, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' }
-          : submission.input
-      );
-      const sealedInputRef = await sealSubmitMetadata(metadataCrypto, inputRefJson, ctx.tenantId, 'operations.input_ref', operationId);
-      const sealedTaskPayload = await sealSubmitMetadata(metadataCrypto, taskPayloadJson, ctx.tenantId, 'tasks.payload_ref', rootTaskId);
+      // The sealed value replaces the plaintext in the column and opens back to
+      // the same JSON shape the plaintext had (object in, object out).
+      // T-SUB-02 / PRF-02: the sealed payload carries the EFFECTIVE input, the
+      // same map AJV validated above — not the raw client body. The profile's
+      // defaults are what the worker must run; storing the raw body would make
+      // the stored input disagree with the validated one and force the worker
+      // to re-derive (or ignore) the merge. The idempotency hash above is the
+      // deliberate exception: it stays on the raw body so an admin edit cannot
+      // turn a retry into IDEMPOTENCY_CONFLICT.
+      const taskPayloadValue = submission.sourceUrl
+        ? { input: effectiveInput, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' }
+        : effectiveInput;
+      const sealedInputRef = await sealSubmitMetadata(metadataCrypto, effectiveInput, ctx.tenantId, 'operations.input_ref', operationId);
+      const sealedTaskPayload = await sealSubmitMetadata(metadataCrypto, taskPayloadValue, ctx.tenantId, 'tasks.payload_ref', rootTaskId);
+      // P745-CARRIER-IMPL-A (Δ-PC-1): adjudication 1c — no seam OR no rows ⇒
+      // NULL carrier (markers stay; content never degrades to plaintext). The
+      // seal happens BEFORE the tx like input_ref: a key-provider failure must
+      // abort the submit with nothing written (CR28-04 reasons above).
+      const sealedPromptCarrier =
+        metadataCrypto && promptCarrierRows.length > 0
+          ? await sealSubmitMetadata(
+              metadataCrypto,
+              promptCarrierRows,
+              ctx.tenantId,
+              'operations.prompt_overrides_ref',
+              operationId
+            )
+          : null;
+      // ENC-META-FIX-G1: the outbox copy of the URL is sealed BEFORE the
+      // transaction for the same reason as the columns: a key-provider
+      // failure must abort the submit with nothing written, and no Vault call
+      // may sit inside the write tx.
+      const sealedOutboxSourceUrl = await sealOutboxSourceUrl(metadataCrypto, submission.sourceUrl, ctx.tenantId, rootTaskId);
 
       const created = await db.tx(async (client) => {
         // Recheck under row locks inside the write transaction so an artifact
         // cannot expire or leave READY between preflight validation and the
         // operation/outbox commit.
-        await assertReadyTenantArtifacts(
+        const lockedArtifacts = await assertReadyTenantArtifacts(
           (ids, tenantId) => client.query<SubmissionArtifactRow>(ARTIFACT_REFERENCE_QUERY, [ids, tenantId]),
           referencedArtifactIds,
           ctx.tenantId
@@ -281,12 +424,26 @@ export function createSubmissionService(
           }
         }
 
+        // T-SUB-03: the extension list, enforced AFTER the replay check so a
+        // same-key retry still replays its original operation even if an admin
+        // has since narrowed the profile, and BEFORE the first INSERT so a
+        // refused submission leaves zero rows behind.
+        if (profile.mode === 'pinned') {
+          assertProfileExtensionAllowed(
+            profile.policy.allowedFileExtensions,
+            lockedArtifacts,
+            effectiveInput,
+            submission.sourceUrl
+          );
+        }
+
         await client.query(
           `INSERT INTO operations
              (id, tenant_id, api_key_id, business_id, business_version, action, state, state_version,
               root_task_id, input_ref, correlation_id, callback_url,
-              profile_id, profile_revision, connector_bindings, submit_artifacts)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15)`,
+              profile_id, profile_revision, connector_bindings, submit_artifacts,
+              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
           [
             operationId,
             ctx.tenantId,
@@ -301,11 +458,11 @@ export function createSubmissionService(
             // P2-08: callback destination pinned at submit (docs 06). The
             // webhook scheduler reads this on the terminal transition.
             submission.callback?.url ?? null,
-            binding.mode === 'pinned' ? binding.profileId : null,
-            binding.mode === 'pinned' ? binding.revision : null,
+            profile.mode === 'pinned' ? profile.profileId : null,
+            profile.mode === 'pinned' ? profile.revision : null,
             // Post-pinned snapshot, not post-live: grants and claims read this
             // row; a revision change after submit affects new ops only.
-            binding.mode === 'pinned' ? JSON.stringify(renderPinnedBindings(binding.bindings)) : null,
+            profile.mode === 'pinned' ? JSON.stringify(renderPinnedBindings(profile.bindings)) : null,
             // CR-12/MM-02: the submission-declared artifact refs (top-level
             // [{artifactId, role}], docs 06) are otherwise discarded here —
             // only `input` reached input_ref. Storing them verbatim lets the
@@ -314,6 +471,28 @@ export function createSubmissionService(
             // the resolved action input). Migration 0009 defaults to '[]'
             // for pre-existing rows.
             JSON.stringify(submission.artifacts ?? []),
+            // T-SUB-02 / PRF-02: the admission-time policy record. NULL means
+            // "no profile policy applied" (legacy mode, or a pre-0026 row) and
+            // must never be coalesced into an empty policy by a consumer.
+            //
+            // PLAN04-01: this is the snapshot DTO, NOT the resolved
+            // `profile.policy`. `profile.policy.fileUrlAuthConfig` is DECRYPTED
+            // PLAINTEXT (profiles.ts decodePolicy), so serializing it here wrote
+            // a live token/header/query into a jsonb column that no encryption
+            // seam covers, and the claim then handed it to the worker. The
+            // builder drops the secret and keeps the immutable
+            // `(tenantId, profileId, profileRevision)` ref instead.
+            profile.mode === 'pinned'
+              ? JSON.stringify(
+                  buildProfilePolicySnapshot(profile, ctx.tenantId)
+                )
+              : null,
+            // P745-PRODUCER (step 1): the admission-time prompt-revision
+            // markers (non-secret digests). NULL for legacy mode / unwired.
+            promptRevisionsPin,
+            // P745-CARRIER-IMPL-A (Δ-PC-1): the sealed content carrier (JSON
+            // text of the ENC-META envelope), or NULL per adjudication 1c.
+            sealedPromptCarrier,
           ]
         );
 
@@ -350,8 +529,19 @@ export function createSubmissionService(
               action: canonicalAction,
               kind: manifest.runtime.handlerKinds.includes('root') ? 'root' : manifest.runtime.handlerKinds[0],
               correlationId,
+              // T-SUB-03: the BullMQ priority travels in the outbox row because
+              // the outbox is what actually enqueues (dispatcher.ts). Legacy
+              // mode has no profile priority, and legacy's
+              // `resolveBullPriority(undefined)` returned MEDIUM — so an
+              // unbound key keeps exactly the number it had before.
+              priority:
+                profile.mode === 'pinned'
+                  ? profile.bullMqPriority
+                  : bullMqPriorityFor(PROFILE_JOB_PRIORITY_DEFAULT),
               gate: submission.sourceUrl ? 'ingestion' : undefined,
-              sourceUrl: submission.sourceUrl,
+              // ENC-META-FIX-G1: sealed envelope (or the historical plaintext
+              // string when no seam is configured) - see sealOutboxSourceUrl.
+              sourceUrl: sealedOutboxSourceUrl,
             }),
           ]
         );
@@ -365,8 +555,199 @@ export function createSubmissionService(
   };
 }
 
+/**
+ * T-SUB-02 / PLAN04-01 — build the admission-time policy snapshot.
+ *
+ * The resolved `profile.policy` carries `fileUrlAuthConfig` as DECRYPTED
+ * PLAINTEXT. This builder is the single place that decides what leaves the
+ * process, and the decision is: keep the effective non-secret policy, replace
+ * the credential with a boolean plus an immutable ref to the pinned revision.
+ *
+ * `fileUrlAuthConfigCarriesSecret` is the same predicate the write path uses
+ * to decide whether a config is a credential at all; reusing it here means the
+ * snapshot cannot disagree with the encrypt path about what counts as a secret.
+ *
+ * Runtime-validated before it is written. A snapshot that does not satisfy the
+ * contract fails the SUBMIT (500) rather than being persisted and failing
+ * closed later at claim time — an admission record that cannot be read back
+ * is not an admission record.
+ */
+/** CR06-06: exported so the 422 sentinel is testable without a database. */
+export function buildProfilePolicySnapshot(
+  profile: Extract<EffectiveProfile, { mode: 'pinned' }>,
+  tenantId: string
+): ProfilePolicySnapshot {
+  // CR06-06: `parameters` is a passthrough bag, so a credential in it would be
+  // copied into the admission snapshot verbatim. Refuse the SUBMIT here — 422,
+  // caller-fixable — instead of letting the snapshot contract fail later as a
+  // 500. Only key NAMES are echoed back; values never leave this point.
+  const secretParameterKeys = findSecretParameterKeys(profile.policy.parameters);
+  if (secretParameterKeys.length > 0) {
+    throw new HttpError(
+      422,
+      'SECRET_IN_PARAMETERS',
+      'profile policy parameters must not carry credential keys',
+      {
+        errors: secretParameterKeys.map((key) => ({
+          pointer: '/profilePolicy/parameters/' + key,
+          message: 'parameter key must not carry a credential; configure it through the profile credential surface',
+        })),
+      }
+    );
+  }
+  const parsed = ProfilePolicySnapshotSchema.safeParse({
+    enabled: profile.policy.enabled,
+    parameters: profile.policy.parameters,
+    jobPriority: profile.policy.jobPriority,
+    allowedFileExtensions: profile.policy.allowedFileExtensions,
+    connectionsOverride: profile.policy.connectionsOverride,
+    fileUrlAuthConfigured: fileUrlAuthConfigCarriesSecret(profile.policy.fileUrlAuthConfig),
+    credentialRef: {
+      tenantId,
+      profileId: profile.profileId,
+      profileRevision: profile.revision,
+    },
+  });
+  if (!parsed.success) {
+    throw new HttpError(
+      500,
+      'INVALID_SCHEMA',
+      'resolved profile policy does not satisfy the snapshot contract',
+      {
+        errors: parsed.error.issues.slice(0, 50).map((i) => ({
+          pointer: '/profilePolicy/' + i.path.join('/'),
+          message: i.message,
+        })),
+      }
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * P745-PRODUCER (step 1, marker-only): the non-secret prompt-revision markers.
+ *
+ * One marker per override row that actually carries a prompt (named steps and
+ * `_default` alike). A cleared row (`promptOverride: null`) pins NOTHING: the
+ * effective prompt at that step is the default, and a marker would claim a
+ * revision that does not exist. The revision is a content digest scoped to
+ * its row identity; the prompt content itself never leaves
+ * `connector_prompt_overrides` in this phase (Δ-1 owns the sealed carrier).
+ * The array is sorted so two admissions of the same bucket pin byte-identical
+ * JSON regardless of row order.
+ */
+export interface PromptRevisionMarker {
+  connectionId: string;
+  stepId: string;
+  revision: string;
+}
+
+export function buildPromptRevisionsPin(
+  rows: readonly PromptOverrideRead[]
+): PromptRevisionMarker[] {
+  return rows
+    .filter((row) => typeof row.promptOverride === 'string' && row.promptOverride.length > 0)
+    .map((row) => ({
+      connectionId: row.connectionId,
+      stepId: row.stepId,
+      revision:
+        'sha256:' +
+        createHash('sha256')
+          .update(`${row.connectionId}|${row.stepId}|${row.promptOverride}`)
+          .digest('hex'),
+    }))
+    .sort((a, b) => {
+      if (a.connectionId !== b.connectionId) return a.connectionId < b.connectionId ? -1 : 1;
+      if (a.stepId !== b.stepId) return a.stepId < b.stepId ? -1 : 1;
+      return 0;
+    });
+}
+
+/**
+ * P745-CARRIER-IMPL-A (Δ-PC-1, adjudication 1d): the content-carrier caps.
+ * Exceeded ⇒ 422 `PROMPT_CARRIER_TOO_LARGE` BEFORE any seal or write, so an
+ * oversized bucket can never hold a submit transaction open against Vault
+ * (and can never silently truncate a prompt).
+ */
+export const PROMPT_CARRIER_LIMITS = {
+  maxRows: 64,
+  maxRowBytes: 16 * 1024,
+  maxTotalBytes: 256 * 1024,
+} as const;
+
+/**
+ * P745-CARRIER-IMPL-A (Δ-PC-1): the CONTENT carrier rows.
+ *
+ * Built from the SAME filtered/sorted row set as `buildPromptRevisionsPin`
+ * (content-bearing rows only; cleared rows pin nothing in either shape), so
+ * the claim's cross-check is an equality of two views of one list, not a
+ * reconciliation of two reads. The revision formula is identical to the
+ * marker's — phase 1 and phase 2 describe the same content with one hash.
+ */
+export function buildPromptCarrier(
+  rows: readonly PromptOverrideRead[]
+): PinnedPromptOverride[] {
+  return rows
+    .filter(
+      (row): row is PromptOverrideRead & { promptOverride: string } =>
+        typeof row.promptOverride === 'string' && row.promptOverride.length > 0
+    )
+    .map((row) => ({
+      connectionId: row.connectionId,
+      stepId: row.stepId,
+      promptOverride: row.promptOverride,
+      revision:
+        'sha256:' +
+        createHash('sha256')
+          .update(`${row.connectionId}|${row.stepId}|${row.promptOverride}`)
+          .digest('hex'),
+    }))
+    .sort((a, b) => {
+      if (a.connectionId !== b.connectionId) return a.connectionId < b.connectionId ? -1 : 1;
+      if (a.stepId !== b.stepId) return a.stepId < b.stepId ? -1 : 1;
+      return 0;
+    });
+}
+
+export function assertPromptCarrierCaps(rows: readonly PinnedPromptOverride[]): void {
+  const { maxRows, maxRowBytes, maxTotalBytes } = PROMPT_CARRIER_LIMITS;
+  if (rows.length > maxRows) {
+    throw unprocessable('PROMPT_CARRIER_TOO_LARGE', `prompt override bucket exceeds ${maxRows} rows`);
+  }
+  let total = 0;
+  for (const row of rows) {
+    const bytes = Buffer.byteLength(row.promptOverride, 'utf8');
+    if (bytes > maxRowBytes) {
+      throw unprocessable('PROMPT_CARRIER_TOO_LARGE', `a prompt override exceeds ${maxRowBytes} bytes`);
+    }
+    total += bytes;
+  }
+  if (total > maxTotalBytes) {
+    throw unprocessable('PROMPT_CARRIER_TOO_LARGE', `prompt override bucket exceeds ${maxTotalBytes} bytes in total`);
+  }
+}
+
+/**
+ * The parameter keys the action's inputSchema declares.
+ *
+ * These are the keys the profile is allowed to default or lock. Legacy
+ * `mergeParameters` walked the union of the manifest's declared keys and the
+ * DB profile's keys; the manifest half is what this extracts.
+ */
+export function declaredParameterKeys(inputSchema: object): string[] {
+  const properties = (inputSchema as { properties?: unknown }).properties;
+  if (typeof properties !== 'object' || properties === null || Array.isArray(properties)) {
+    return [];
+  }
+  return Object.keys(properties as Record<string, unknown>);
+}
+
 /** Validate URL syntax and the same outbound policy used by callback delivery. */
 export function validateSourceUrl(value: string): URL {
+  if (value.startsWith('s3://')) {
+    try { parseS3Source(value); return new URL(value); }
+    catch { throw unprocessable('INVALID_SCHEMA', 'sourceUrl must identify a valid S3 object'); }
+  }
   let parsed: URL;
   try {
     parsed = new URL(value);
@@ -463,11 +844,16 @@ export async function markIngestionReadyOn(
       // rowCount-guarded and will simply not fire; sealing under a guessed
       // identity would be worse than writing nothing.
       if (row) {
+        // CRX-01: seal the envelope VALUE (object), not its serialized text —
+        // an opened gate envelope then has the same JSON shape the plaintext
+        // column would have held, which is what the claim execution snapshot
+        // (executionSnapshot.payloadRef, parsed by the worker SDK) requires.
+        const readyEnvelope = withIngestionSource(input, receipt);
         sealedOperationInput = await sealSubmitMetadata(
-          metadataCrypto, envelope, row.tenant_id as string, 'operations.input_ref', operationId
+          metadataCrypto, readyEnvelope, row.tenant_id as string, 'operations.input_ref', operationId
         );
         sealedTaskPayload = await sealSubmitMetadata(
-          metadataCrypto, envelope, row.tenant_id as string, 'tasks.payload_ref', row.task_id as string
+          metadataCrypto, readyEnvelope, row.tenant_id as string, 'tasks.payload_ref', row.task_id as string
         );
       }
     }
@@ -522,10 +908,11 @@ interface SubmissionArtifactRow {
   id: string;
   state: string;
   expired: boolean;
+  fileName: string | null;
 }
 
 const ARTIFACT_REFERENCE_QUERY = `
-  SELECT id, state, (expires_at IS NOT NULL AND expires_at <= now()) AS expired
+  SELECT id, state, file_name AS "fileName", (expires_at IS NOT NULL AND expires_at <= now()) AS expired
   FROM artifacts
   WHERE id = ANY($1::uuid[]) AND tenant_id = $2
   ORDER BY id
@@ -541,8 +928,8 @@ async function assertReadyTenantArtifacts(
   lookup: ArtifactReferenceLookup,
   artifactIds: string[],
   tenantId: string
-): Promise<void> {
-  if (artifactIds.length === 0) return;
+): Promise<SubmissionArtifactRow[]> {
+  if (artifactIds.length === 0) return [];
   const result = await lookup(artifactIds, tenantId);
   const rowsById = new Map(result.rows.map((row) => [row.id, row]));
   for (const artifactId of artifactIds) {
@@ -554,6 +941,80 @@ async function assertReadyTenantArtifacts(
     }
     if (artifact.state !== 'READY') {
       throw conflict('STATE_CONFLICT', 'all submitted artifacts must be READY');
+    }
+  }
+  return result.rows;
+}
+
+/**
+ * T-SUB-03 — the profile's `allowedFileExtensions` enforced at the ONE point
+ * that knows which action (and therefore which profile) applies.
+ *
+ * Legacy enforced the same CSV in two places, both of which knew the endpoint:
+ * `saveUploadedFile` at submit (lib/pipelines/submit.ts:195) and
+ * `downloadAllFileUrls` at download (:278). du-rework's upload-init route
+ * (`POST /api/v1/uploads`) is deliberately NOT one of them: it carries no
+ * business/action, so the profile it would have to check is unknowable, and
+ * guessing would 422 a legitimate upload against the wrong action's policy.
+ * Submission is the gate; the download side is covered by the pinned snapshot
+ * the worker reads (T-SUB-04).
+ *
+ * Only the EFFECTIVE input's `fileUrls` are checked — the raw body's copy is
+ * what the idempotency hash covers, and a profile edit between two retries
+ * must not turn a replay into a 422.
+ */
+function assertProfileExtensionAllowed(
+  csv: string,
+  artifacts: readonly SubmissionArtifactRow[],
+  effectiveInput: Record<string, unknown>,
+  sourceUrl: string | undefined
+): void {
+  // PLAN04-01: the top-level `sourceUrl` is a source acquisition path like any
+  // other, and the plan names this gap explicitly. It is checked here rather
+  // than left to the acquisition leg because admission is the ONE point that
+  // knows which action (and therefore which profile) applies.
+  //
+  // The name comes from the URL path alone: this runs BEFORE any network call,
+  // so it is a policy check on caller-supplied metadata, not a conclusion
+  // about what the host will actually serve.
+  if (sourceUrl !== undefined) {
+    // `fileUrlEntryName` takes a `file_urls` ENTRY, not a bare string: it
+    // returns null for anything that is not an object. Wrapping keeps the
+    // extension resolution identical to the other two paths instead of
+    // re-implementing the pathname rule a second time.
+    const fileName = fileUrlEntryName({ url: sourceUrl });
+    if (fileName !== null) {
+      const reason = extensionDeniedReason(csv, fileName);
+      if (reason) {
+        throw unprocessable('PROFILE_EXTENSION_DENIED', `sourceUrl: ${reason}`, {
+          errors: [{ pointer: '/sourceUrl', message: reason }],
+        });
+      }
+    }
+  }
+
+  for (const artifact of artifacts) {
+    if (!artifact.fileName) continue;
+    const reason = extensionDeniedReason(csv, artifact.fileName);
+    if (reason) {
+      throw unprocessable('PROFILE_EXTENSION_DENIED', `artifact ${artifact.id}: ${reason}`, {
+        errors: [{ pointer: '/artifacts', message: reason }],
+      });
+    }
+  }
+
+  const fileUrls = effectiveInput.fileUrls;
+  if (!Array.isArray(fileUrls)) return;
+  for (const [index, entry] of fileUrls.entries()) {
+    // Legacy's own name resolution, minus Content-Disposition, which needs the
+    // HTTP response and therefore belongs to the download leg.
+    const fileName = fileUrlEntryName(entry);
+    if (fileName === null) continue;
+    const reason = extensionDeniedReason(csv, fileName);
+    if (reason) {
+      throw unprocessable('PROFILE_EXTENSION_DENIED', `file_urls[${index}]: ${reason}`, {
+        errors: [{ pointer: `/fileUrls/${index}`, message: reason }],
+      });
     }
   }
 }

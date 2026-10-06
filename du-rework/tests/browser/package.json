@@ -13,10 +13,10 @@
     "@axe-core/playwright": "4.10.0"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.4.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.21.0 <25"
   }
 }

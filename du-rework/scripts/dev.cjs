@@ -1,216 +1,107 @@
-/**
- * scripts/dev.cjs
- * Unified Dev Runner for DUGate Rework
- * Runs Orchestrator, Connector, and Worker in a single terminal with colored logs and single Ctrl+C shutdown.
- */
-
-const { spawn, execSync } = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const readline = require('readline');
-const os = require('os');
-
-const ROOT_DIR = path.resolve(__dirname, '..');
-const isWin = os.platform() === 'win32';
-
-// ── Colors ────────────────────────────────────────────────────────────────────
-const C = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  cyan: '\x1b[36m',
-  magenta: '\x1b[35m',
-  yellow: '\x1b[33m',
-  green: '\x1b[32m',
-  red: '\x1b[31m',
-  gray: '\x1b[90m'
-};
-
-async function waitForHttp(url, timeoutMs = 8000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(url);
-      if (res.status >= 200 && res.status < 500) return true;
-    } catch (e) {
-      // retry
-    }
-    await new Promise((r) => setTimeout(r, 250));
+#!/usr/bin/env node
+// Local host-process runner. Docker deployment uses compose/* instead.
+const { spawn, spawnSync } = require('node:child_process');
+const path = require('node:path');
+const fs = require('node:fs');
+const net = require('node:net');
+const readline = require('node:readline');
+const { parseEnv } = require('node:util');
+const ROOT = path.resolve(__dirname, '..');
+const ALL_WORKERS = ['document-core', 'lc-checker', 'example-review'];
+const children = [];
+let stopping = false;
+function shutdown(code = 0) {
+  if (stopping) return;
+  stopping = true;
+  for (const child of children) {
+    if (!child.pid || child.exitCode !== null) continue;
+    if (process.platform === 'win32') spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
+    else { try { process.kill(-child.pid, 'SIGTERM'); } catch {} }
   }
-  return false;
+  if (process.platform !== 'win32') {
+    // Let graceful handlers drain; force only our process groups if they hang.
+    setTimeout(() => {
+      for (const child of children) if (child.pid) {
+        try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+      }
+    }, 5000).unref();
+  }
+  process.exitCode = code;
 }
-
+function runNode(args) {
+  const result = spawnSync(process.execPath, args, { cwd: ROOT, stdio: 'inherit', env: process.env });
+  if (result.error || result.status !== 0) throw new Error('Prerequisite command failed; startup aborted');
+}
+async function available(port) {
+  await new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', () => reject(new Error(`Port ${port} is occupied; stop its owner or configure a different port`)));
+    server.listen(port, '127.0.0.1', () => server.close(resolve));
+  });
+}
+async function ready(url) {
+  const end = Date.now() + 30000;
+  while (!stopping && Date.now() < end) {
+    try { if ((await fetch(url, { signal: AbortSignal.timeout(1500) })).status === 200) return; } catch {}
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error('Service readiness failed; workers were not started');
+}
+function start(name, entry) {
+  const args = process.argv.includes('--watch') ? ['--watch', path.join(ROOT, entry)] : [path.join(ROOT, entry)];
+  const child = spawn(process.execPath, args, { cwd: ROOT, env: process.env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+  children.push(child);
+  for (const stream of [child.stdout, child.stderr]) readline.createInterface({ input: stream }).on('line', line => console.log(`[${name}] ${line}`));
+  child.once('error', () => { console.error(`[${name}] Failed to start`); shutdown(1); });
+  child.once('exit', (code, signal) => {
+    if (!stopping) { console.error(`[${name}] Exited (${code ?? signal}); stopping this dev session`); shutdown(code || 1); }
+  });
+}
 async function main() {
-  console.log(`${C.cyan}======================================================================${C.reset}`);
-  console.log(`${C.cyan}               DUGate Rework — Unified Dev Runner                     ${C.reset}`);
-  console.log(`${C.cyan}======================================================================${C.reset}\n`);
-
-  // ── 1. Kiểm tra cấu hình .env.local ─────────────────────────────────────────
-  let envFile = '.env.local';
-  const envLocalPath = path.join(ROOT_DIR, '.env.local');
-  const envSamplePath = path.join(ROOT_DIR, '.env.local.sample');
-
-  if (!fs.existsSync(envLocalPath)) {
-    if (fs.existsSync(path.join(ROOT_DIR, '.env'))) {
-      envFile = '.env';
-      console.log(`${C.green}[Env] Using existing .env file.${C.reset}`);
-    } else if (fs.existsSync(envSamplePath)) {
-      fs.copyFileSync(envSamplePath, envLocalPath);
-      console.log(`${C.green}[Env] Created .env.local from .env.local.sample${C.reset}`);
-    }
-  } else {
-    console.log(`${C.green}[Env] Using configuration: ${envFile}${C.reset}`);
+  const args = process.argv.slice(2);
+  if (args.includes('--help')) {
+    console.log('node scripts/dev.cjs [--env-file=PATH] [--workers=all|none|document-core,lc-checker,example-review] [--skip-build] [--skip-migrate] [--watch] [--check]');
+    return;
   }
-
-  // ── 2. Dọn dẹp port cũ nếu có tiến trình đang chiếm ──────────────────────────
-  try {
-    const stopScript = path.join(__dirname, 'stop-all.cjs');
-    const netstat = isWin ? execSync('netstat -ano', { encoding: 'utf8' }) : '';
-    const hasConflict = [3000, 3001, 8088].some((p) => netstat.includes(`:${p} `));
-    if (hasConflict) {
-      console.log(`${C.yellow}[Port] Detected existing services on DU ports. Cleaning up first...${C.reset}`);
-      execSync(`node "${stopScript}"`, { stdio: 'inherit' });
-    }
-  } catch (e) {
-    // ignore
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  if (major !== 24 || minor < 21) throw new Error('Use Node >=24.21.0 <25');
+  for (const arg of args) if (!['--skip-build', '--skip-migrate', '--watch', '--check'].includes(arg) && !arg.startsWith('--env-file=') && !arg.startsWith('--workers=')) throw new Error('Unknown dev option');
+  const explicit = args.find(arg => arg.startsWith('--env-file='));
+  const envFile = path.resolve(ROOT, explicit ? explicit.slice('--env-file='.length) : fs.existsSync(path.join(ROOT, '.env.local')) ? '.env.local' : '.env');
+  if (!fs.existsSync(envFile)) throw new Error('Copy .env.local.sample to .env.local and configure local infrastructure first');
+  // Match Node --env-file precedence: existing process environment wins.
+  const configured = { ...parseEnv(fs.readFileSync(envFile, 'utf8')), ...process.env };
+  Object.assign(process.env, configured);
+  const defaults = { ORCHESTRATOR_PORT: '3000', ORCHESTRATOR_INTERNAL_PORT: '3002', ADMIN_SHELL_PORT: '3001', CONNECTOR_PORT: '8088', ORCHESTRATOR_HOST: '127.0.0.1', ORCHESTRATOR_INTERNAL_HOST: '127.0.0.1', ADMIN_SHELL_HOST: '127.0.0.1', HOST: '127.0.0.1', DU_ADMIN_WEB: '1', DU_ADMIN_WEB_DIST: path.join(ROOT, 'apps/admin-web/dist') };
+  for (const [key, value] of Object.entries(defaults)) process.env[key] ??= value;
+  const ports = ['ORCHESTRATOR_PORT', 'ORCHESTRATOR_INTERNAL_PORT', 'ADMIN_SHELL_PORT', 'CONNECTOR_PORT'].map(key => Number(process.env[key]));
+  if (ports.some(port => !Number.isInteger(port) || port < 1 || port > 65535) || new Set(ports).size !== ports.length) throw new Error('Listener ports must be valid and distinct');
+  const [publicPort, internalPort, portalPort, connectorPort] = ports;
+  process.env.ORCHESTRATOR_INTERNAL_BASE_URL ??= `http://127.0.0.1:${internalPort}`;
+  process.env.RUNTIME_URL ??= `${process.env.ORCHESTRATOR_INTERNAL_BASE_URL}/api/runtime/v1`;
+  process.env.CONNECTOR_URL ??= `http://127.0.0.1:${connectorPort}`;
+  if (new URL(process.env.RUNTIME_URL).port === String(publicPort)) throw new Error('RUNTIME_URL points to Public ingress; use the Internal listener');
+  const selection = args.find(arg => arg.startsWith('--workers='))?.slice('--workers='.length) ?? 'all';
+  const workers = selection === 'all' ? ALL_WORKERS : selection === 'none' ? [] : selection.split(',');
+  if (new Set(workers).size !== workers.length || workers.some(worker => !ALL_WORKERS.includes(worker))) throw new Error('Invalid worker selection');
+  console.log(`Public API: http://127.0.0.1:${publicPort}\nInternal API: http://127.0.0.1:${internalPort}\nOrchestrator Portal: http://127.0.0.1:${portalPort}/admin/web/\nConnector: http://127.0.0.1:${connectorPort}\nWorkers: ${workers.join(', ') || 'none'}`);
+  if (args.includes('--check')) return; // No build, migrations, bind or process launch.
+  for (const port of ports) await available(port);
+  if (!args.includes('--skip-build')) runNode(['scripts/build-all.cjs']);
+  for (const entry of ['services/orchestrator/dist/main.js', 'services/connector/dist/entrypoint.js', 'apps/admin-web/dist/index.html', ...workers.map(worker => `businesses/${worker}/dist/main.js`)]) {
+    if (!fs.existsSync(path.join(ROOT, entry))) throw new Error(`Missing build artifact: ${entry}`);
   }
-
-  // ── 3. Kiểm tra Build ────────────────────────────────────────────────────────
-  const orchDist = path.join(ROOT_DIR, 'services/orchestrator/dist/main.js');
-  const connDist = path.join(ROOT_DIR, 'services/connector/dist/entrypoint.js');
-  const workDist = path.join(ROOT_DIR, 'businesses/document-core/dist/main.js');
-
-  if (!fs.existsSync(orchDist) || !fs.existsSync(connDist) || !fs.existsSync(workDist)) {
-    console.log(`${C.yellow}[Build] Pre-compiled binaries not found. Building services...${C.reset}`);
-    try {
-      execSync(`node "${path.join(__dirname, 'build-all.cjs')}"`, { stdio: 'inherit', cwd: ROOT_DIR });
-    } catch (err) {
-      console.error(`${C.red}[Build] Build failed. Aborting.${C.reset}`);
-      process.exit(1);
-    }
-  }
-
-  // ── 4. Chạy Migration ────────────────────────────────────────────────────────
-  try {
-    console.log(`${C.cyan}[Database] Checking & applying migrations...${C.reset}`);
-    execSync(`node "${path.join(__dirname, 'migrate-local.cjs')}"`, { stdio: 'inherit', cwd: ROOT_DIR });
-  } catch (err) {
-    console.warn(`${C.yellow}[Database] Migration check finished with warnings.${C.reset}`);
-  }
-
-  // ── 5. Setup Process Management & Shutdown ──────────────────────────────────
-  const isWatch = process.argv.includes('--watch');
-  const children = [];
-  let isShuttingDown = false;
-
-  function shutdown() {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    console.log(`\n${C.yellow}[Dev Manager] Stopping all DU services...${C.reset}`);
-
-    for (const child of children) {
-      if (child && child.pid) {
-        try {
-          if (isWin) {
-            execSync(`taskkill /F /T /PID ${child.pid}`, { stdio: 'ignore' });
-          } else {
-            process.kill(-child.pid, 'SIGKILL');
-          }
-        } catch (e) {}
-      }
-    }
-
-    try {
-      const stopScript = path.join(__dirname, 'stop-all.cjs');
-      execSync(`node "${stopScript}"`, { stdio: 'ignore' });
-    } catch (e) {}
-
-    console.log(`${C.green}✔ All services stopped cleanly. Goodbye!${C.reset}\n`);
-    process.exit(0);
-  }
-
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-  process.on('SIGHUP', shutdown);
-  process.on('exit', () => {
-    if (!isShuttingDown) shutdown();
-  });
-
-  console.log(`\n${C.green}======================================================================${C.reset}`);
-  console.log(`${C.green} Starting Services (Unified Logs) — Press Ctrl+C anytime to stop all   ${C.reset}`);
-  console.log(`${C.green}======================================================================${C.reset}`);
-  console.log(`  ${C.bright}Orchestrator API${C.reset}  : http://localhost:3000`);
-  console.log(`  ${C.bright}Admin Web Shell${C.reset}   : http://localhost:3001/admin/login`);
-  console.log(`  ${C.bright}Connector${C.reset}         : http://localhost:8088/health/ready`);
-  console.log(`  ${C.bright}Worker${C.reset}            : BullMQ Worker (Redis 6380)`);
-  console.log(`${C.green}======================================================================${C.reset}\n`);
-
-  function spawnService(svc) {
-    const args = [`--env-file=${envFile}`];
-    if (isWatch) {
-      args.push('--watch');
-    }
-    args.push(svc.entry);
-
-    const child = spawn(process.execPath, args, {
-      cwd: ROOT_DIR,
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-
-    children.push(child);
-
-    const rlOut = readline.createInterface({ input: child.stdout });
-    rlOut.on('line', (line) => {
-      console.log(`${svc.prefix}${line}`);
-    });
-
-    const rlErr = readline.createInterface({ input: child.stderr });
-    rlErr.on('line', (line) => {
-      console.error(`${svc.prefix}${C.red}${line}${C.reset}`);
-    });
-
-    child.on('close', (code) => {
-      if (!isShuttingDown && code !== 0) {
-        console.log(`${svc.prefix}${C.red}Process exited with code ${code}${C.reset}`);
-      }
-    });
-
-    child.on('error', (err) => {
-      console.error(`${svc.prefix}${C.red}Failed to start: ${err.message}${C.reset}`);
-    });
-
-    return child;
-  }
-
-  // 1. Start Orchestrator & Connector
-  spawnService({
-    name: 'orchestrator',
-    prefix: `${C.cyan}[orchestrator]${C.reset} `,
-    entry: 'services/orchestrator/dist/main.js'
-  });
-
-  spawnService({
-    name: 'connector',
-    prefix: `${C.magenta}[connector]   ${C.reset} `,
-    entry: 'services/connector/dist/entrypoint.js'
-  });
-
-  // 2. Wait for Orchestrator to be ready before starting worker
-  const orchReady = await waitForHttp('http://localhost:3000/health', 10000);
-  if (!orchReady) {
-    console.warn(`${C.yellow}[Dev Manager] Orchestrator took longer than expected to report healthy, launching worker now...${C.reset}`);
-  }
-
-  // 3. Start Document-Core Worker
-  spawnService({
-    name: 'worker',
-    prefix: `${C.yellow}[worker]      ${C.reset} `,
-    entry: 'businesses/document-core/dist/main.js'
-  });
+  if (!args.includes('--skip-migrate')) runNode(['scripts/migrate-local.cjs', `--env-file=${envFile}`]);
+  start('orchestrator', 'services/orchestrator/dist/main.js');
+  start('connector', 'services/connector/dist/entrypoint.js');
+  await Promise.all([ready(`http://127.0.0.1:${internalPort}/health`), ready(`http://127.0.0.1:${connectorPort}/health/ready`)]);
+  if (!stopping) for (const worker of workers) start(worker, `businesses/${worker}/dist/main.js`);
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+process.on('SIGINT', () => shutdown());
+process.on('SIGTERM', () => shutdown());
+main().catch(error => {
+  // Only runner-generated diagnostics are exposed; URL parsing errors may contain credentials.
+  const safe = ['Use Node', 'Unknown dev', 'Copy .env', 'Listener ports', 'RUNTIME_URL points', 'Invalid worker', 'Port ', 'Missing build', 'Prerequisite command', 'Service readiness'];
+  console.error('[dev] ' + (safe.some(prefix => error.message.startsWith(prefix)) ? error.message : 'Invalid configuration; credentials are not printed'));
+  shutdown(1);
 });

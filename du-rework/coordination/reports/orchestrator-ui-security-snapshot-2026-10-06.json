@@ -1,0 +1,22 @@
+﻿[
+    {
+        "Path":  "D:\\Git\\dugate\\du-rework\\pnpm-lock.yaml",
+        "Hash":  "74EB0F419D84E9F70F6242F2772C9F006A48AC0B01C1FCF48E26A84A633B4FCD"
+    },
+    {
+        "Path":  "D:\\Git\\dugate\\du-rework\\apps\\admin-web\\package.json",
+        "Hash":  "31B3DAEE5D7BD69C6B4AF2F272F7A6A8371EE3DA8C0C3F196AFA16B75364B488"
+    },
+    {
+        "Path":  "D:\\Git\\dugate\\du-rework\\services\\orchestrator\\package.json",
+        "Hash":  "D39968323E57031151656C6BDB0E21925A2C702CE31D1DF449C7C3C456BC3FD5"
+    },
+    {
+        "Path":  "D:\\Git\\dugate\\du-rework\\services\\orchestrator\\src\\app\\admin\\auth-dispatch.ts",
+        "Hash":  "FFC99EC1F6558B66F97B8A1E42645D3546B4723DE1EF3B1DEE8B03339E296AB8"
+    },
+    {
+        "Path":  "D:\\Git\\dugate\\du-rework\\apps\\admin-web\\dist\\index.html",
+        "Hash":  "D758D6372E315B66341D67266268C617FD6AED47C5FB918CAAEBB1878BE7CA26"
+    }
+]

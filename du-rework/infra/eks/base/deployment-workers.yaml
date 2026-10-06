@@ -1,0 +1,159 @@
+# 3 Business Workers, map từ compose/{document-core,lc-checker,example-review}.yml.
+# NGUYÊN TẮC GIỮ NGUYÊN:
+# - KHÔNG Service, KHÔNG Ingress, KHÔNG DATABASE_URL.
+# - RUNTIME_URL luôn là internal :3002; readiness = registration/heartbeat, không probe HTTP.
+# - example-review KHÔNG gọi Connector (compose không có CONNECTOR_URL/CONNECTOR_SERVICE_TOKEN)
+#   nên Deployment của nó không mount 2 biến đó.
+# - RUNTIME_TOKEN: compose cho phép override theo business
+#   (${DOCUMENT_CORE_RUNTIME_TOKEN:-${RUNTIME_TOKEN}}...); ở đây dùng chung Secret `workers`,
+#   override bằng Secret riêng khi cần rotation theo business.
+# - IMAGE_DIGEST là optional (compose default rỗng) nên không set ở đây.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-core
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: document-core
+    app.kubernetes.io/part-of: du-rework
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: document-core
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: document-core
+        app.kubernetes.io/part-of: du-rework
+    spec:
+      serviceAccountName: document-core
+      terminationGracePeriodSeconds: 30 # stop 15s (SHUTDOWN_GRACE_MS) + buffer; scale-in phải drain claim/checkpoint trước khi kill
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: document-core
+          image: du-document-core:local # pin digest trong kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          command: [node, dist/main.js]
+          # Không có ports: worker không serve HTTP.
+          envFrom:
+            - configMapRef: { name: workers-common }
+            - secretRef: { name: workers }
+          env:
+            - name: CONCURRENCY
+              value: "2" # như compose/document-core.yml
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            # Parser nặng chặn slots theo memory: slots <= floor((RAM - overhead)/peak RSS mỗi task).
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lc-checker
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: lc-checker
+    app.kubernetes.io/part-of: du-rework
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lc-checker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lc-checker
+        app.kubernetes.io/part-of: du-rework
+    spec:
+      serviceAccountName: lc-checker
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: lc-checker
+          image: du-lc-checker:local # pin digest trong kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          command: [node, dist/main.js]
+          envFrom:
+            - configMapRef: { name: workers-common }
+            - secretRef: { name: workers }
+          env:
+            - name: CONCURRENCY
+              value: "4" # như compose/lc-checker.yml (MAX_ARTIFACT_BYTES lấy từ workers-common)
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+---
+# example-review: KHÔNG env CONNECTOR_URL/CONNECTOR_SERVICE_TOKEN (giống compose).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-review
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: example-review
+    app.kubernetes.io/part-of: du-rework
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: example-review
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: example-review
+        app.kubernetes.io/part-of: du-rework
+    spec:
+      serviceAccountName: example-review
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: example-review
+          image: du-example-review:local # pin digest trong kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          command: [node, dist/main.js]
+          env:
+            - name: RUNTIME_URL
+              value: "http://orchestrator-internal:3002/api/runtime/v1"
+            - name: RUNTIME_TOKEN
+              valueFrom:
+                secretKeyRef: { name: workers, key: RUNTIME_TOKEN }
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef: { name: workers, key: REDIS_URL }
+            - name: CONCURRENCY
+              value: "2" # như compose/example-review.yml
+            - name: HEARTBEAT_INTERVAL_MS
+              value: "10000"
+            - name: SHUTDOWN_GRACE_MS
+              value: "15000"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }

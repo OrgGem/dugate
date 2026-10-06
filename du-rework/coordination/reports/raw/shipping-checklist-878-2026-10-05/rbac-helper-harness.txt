@@ -1,0 +1,11 @@
+﻿import assert from "node:assert/strict";
+import { canMutate, isAdmin } from "../../../../../lib/rbac";
+
+const actual = ["ADMIN", "USER", "VIEWER"].map((role) => ({ role, canMutate: canMutate(role), isAdmin: isAdmin(role) }));
+const expected = [
+  { role: "ADMIN", canMutate: true, isAdmin: true },
+  { role: "USER", canMutate: true, isAdmin: false },
+  { role: "VIEWER", canMutate: false, isAdmin: false },
+];
+assert.deepEqual(actual, expected);
+console.log(JSON.stringify({ actual, verdict: "PASS (pure role helpers only; route/session guards not exercised)" }, null, 2));

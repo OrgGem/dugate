@@ -3,6 +3,7 @@ import type { InvocationResponse, TaskDisposition } from '@du/contracts';
 import type { TaskContext as SdkTaskContext } from '@du/worker-sdk';
 import { documentCoreHandlers } from '../src/worker';
 import { DISBURSEMENT_INPUT_VERSION, DISBURSEMENT_RESUME_VERSION } from '../src/pipelines/workflows/disbursement';
+import { STEP_KEYS } from '../src/recipes/step-keys';
 
 type FakeCheckpoint = { inputHash: string; output: unknown };
 type FakeArtifact = { bytes: Buffer; fileName: string; mimeType: string; purpose?: string };
@@ -54,8 +55,12 @@ function createSdkContext(
   harness: HandlerHarness,
   input: Record<string, unknown>,
   taskKey = 'disbursement-root',
-  taskId = randomUUID(),
-  options: { missingSlot?: string } = {}
+  taskId: string = randomUUID(),
+  options: {
+    missingSlot?: string;
+    /** CR06-01: pinned prompt carrier forwarded exactly as the SDK claim would. */
+    pin?: { profilePolicy?: unknown; promptOverrides?: readonly unknown[] };
+  } = {}
 ): SdkTaskContext {
   const bindings: Record<string, string> = {
     classify: 'connector-classify@1',
@@ -81,6 +86,8 @@ function createSdkContext(
     cancelRequested: false,
     input,
     connectorBindings: bindings,
+    ...(options.pin?.profilePolicy !== undefined ? { profilePolicy: options.pin.profilePolicy } : {}),
+    ...(options.pin?.promptOverrides !== undefined ? { promptOverrides: options.pin.promptOverrides } : {}),
     checkpoints: () => [...harness.checkpoints.entries()].map(([stepKey, value]) => ({
       stepKey,
       generation: 0,
@@ -214,6 +221,17 @@ async function runChild(harness: HandlerHarness, child: SpawnCall['children'][nu
   );
 }
 
+/** CR06-01 helper: every parent/child turn carries the pinned prompt carrier. */
+const PIN_FIXTURE = {
+  profilePolicy: { enabled: true },
+  promptOverrides: [
+    { connectionId: 'connector-classify', stepId: STEP_KEYS.DISBURSEMENT.CLASSIFY, promptOverride: 'PINNED CLASSIFY' },
+    { connectionId: 'connector-extract', stepId: STEP_KEYS.DISBURSEMENT.EXTRACT, promptOverride: '   ' },
+    { connectionId: 'connector-crosscheck', stepId: '_default', promptOverride: 'PINNED CROSSCHECK DEFAULT' },
+    { connectionId: 'connector-report', stepId: STEP_KEYS.DISBURSEMENT.REPORT, promptOverride: 'PINNED REPORT' },
+  ],
+} as const;
+
 describe('document-core disbursement handler', () => {
   it('maps classify/extract fan-out, approval wait, and successful termination through SDK facades', async () => {
     const harness = createHarness();
@@ -333,5 +351,63 @@ describe('document-core disbursement handler', () => {
       code: 'APPROVAL_REJECTED',
       retryable: false,
     });
+  });
+
+  it('CR06-01: pinned prompt overrides reach every disbursement connector invoke', async () => {
+    const harness = createHarness();
+    const parentTaskId = randomUUID();
+    const input = validInput(harness.sourceArtifactId);
+    const contextFor = (taskInput: Record<string, unknown>, taskKey: string, taskId?: string) =>
+      createSdkContext(harness, taskInput, taskKey, taskId, { pin: PIN_FIXTURE });
+
+    await documentCoreHandlers.disbursement!(contextFor(input, 'disbursement-root', parentTaskId));
+    const classifyChild = harness.spawnCalls[0]!.children[0]!;
+    const classify = await documentCoreHandlers.disbursement!(contextFor(classifyChild.payload, classifyChild.taskKey));
+    expect(classify.kind).toBe('completed');
+    await documentCoreHandlers.disbursement!(contextFor({
+      continuationRef: harness.spawnCalls[0]!.continuationRef,
+      joinSummary: { 'classify:payment.pdf': classify.kind === 'completed' ? classify.resultRef : '' },
+    }, 'disbursement-root', parentTaskId));
+
+    const extractChild = harness.spawnCalls[1]!.children[0]!;
+    const extract = await documentCoreHandlers.disbursement!(contextFor(extractChild.payload, extractChild.taskKey));
+    expect(extract.kind).toBe('completed');
+    await documentCoreHandlers.disbursement!(contextFor({
+      continuationRef: harness.spawnCalls[1]!.continuationRef,
+      joinSummary: { 'extract:payment.pdf': extract.kind === 'completed' ? extract.resultRef : '' },
+    }, 'disbursement-root', parentTaskId));
+
+    const completed = await documentCoreHandlers.disbursement!(contextFor({
+      waitId: 'wait-disbursement-approval-v1',
+      resumeInput: { resumeSchemaVersion: DISBURSEMENT_RESUME_VERSION, approved: true, corrections: [] },
+    }, 'disbursement-root', parentTaskId));
+    expect(completed.kind).toBe('completed');
+
+    const prompts = new Map(
+      harness.connectorCalls.map((call) => [call.slot, (call.input as { prompt?: string }).prompt ?? '']),
+    );
+    expect(prompts.get('classify')).toBe('PINNED CLASSIFY');
+    expect(prompts.get('crosscheck')).toBe('PINNED CROSSCHECK DEFAULT');
+    expect(prompts.get('report')).toBe('PINNED REPORT');
+    // A cleared exact row (whitespace) falls through to the workflow's default text.
+    expect(prompts.get('extract')).toContain('Extract records only for the classified logical documents.');
+    expect(prompts.get('extract')).not.toContain('PINNED');
+  });
+
+  it('CR06-01: null profilePolicy keeps connector defaults (no guessed binding)', async () => {
+    const harness = createHarness();
+    const parentTaskId = randomUUID();
+    const pin = { profilePolicy: null, promptOverrides: PIN_FIXTURE.promptOverrides };
+    const contextFor = (taskInput: Record<string, unknown>, taskKey: string, taskId?: string) =>
+      createSdkContext(harness, taskInput, taskKey, taskId, { pin });
+
+    await documentCoreHandlers.disbursement!(contextFor(validInput(harness.sourceArtifactId), 'disbursement-root', parentTaskId));
+    const classifyChild = harness.spawnCalls[0]!.children[0]!;
+    const classify = await documentCoreHandlers.disbursement!(contextFor(classifyChild.payload, classifyChild.taskKey));
+    expect(classify.kind).toBe('completed');
+
+    const classifyPrompt = (harness.connectorCalls[0]!.input as { prompt?: string }).prompt ?? '';
+    expect(classifyPrompt).toContain('Classify the supplied source file.');
+    expect(classifyPrompt).not.toContain('PINNED CLASSIFY');
   });
 });

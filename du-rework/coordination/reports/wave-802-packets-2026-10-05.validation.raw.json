@@ -1,0 +1,45 @@
+{
+  "packets": [
+    "W802-01",
+    "W802-02",
+    "W802-03",
+    "W802-04",
+    "W802-05",
+    "W802-06",
+    "W802-07",
+    "W802-08"
+  ],
+  "checkbox_changes": 0,
+  "existing_sections_preserved": true,
+  "readonly_pins_checked": 5,
+  "local_links_checked": 115,
+  "anchors_checked": 6,
+  "diff_check_exit": 0,
+  "post_pins": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "sha256": "a4d805c84ad54610480672000322eefc6309fedb0e9141a6a30ff37f60bac8be",
+      "mtime_ns": "1791147318411597700"
+    },
+    "tasks/README.md": {
+      "sha256": "2d789ccfd4bb8f06ed5ba333e8b02f28cf99203b7a29f60cf6ee72dc35d1aead",
+      "mtime_ns": "1791146691037666900"
+    },
+    "coordination/COORDINATION-TOPOLOGY.md": {
+      "sha256": "61c74b890df56feab57e565fc62c603f3626ef976892ff9b04245388c1e30698",
+      "mtime_ns": "1791143174591843800"
+    },
+    "tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md": {
+      "sha256": "b15ce8fc3a7199618e8001c494aaa2cbe70f3c00fad6a400c6defa0c24c53aa1",
+      "mtime_ns": "1791143204252653200"
+    },
+    "tasks/ADMIN-WEB-DELIVERY-2026-10-04.md": {
+      "sha256": "754f7d67620b3a863b2752141761d197ca4276cbecc00703dd87b86fb0546ed8",
+      "mtime_ns": "1791143190656802200"
+    },
+    "tasks/LEGACY-PARITY-GAP-ADDENDUM-2026-10-03.md": {
+      "sha256": "3bb141cc27bdf020a293cdcc4818d9cbedcaaccc334f88d4c76362e684832336",
+      "mtime_ns": "1791143190704740200"
+    }
+  },
+  "errors": []
+}

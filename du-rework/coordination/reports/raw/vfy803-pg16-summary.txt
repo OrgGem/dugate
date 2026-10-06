@@ -1,0 +1,9 @@
+﻿container: new postgres:16 with tmpfs, task ownership label, loopback-only port
+fresh migrate: EXIT=0
+postgres: server_version_num=160010|32; fresh ledger count observed
+vfy803-pg16-verify-good.txt: EXIT=0; expected pattern matched
+vfy803-pg16-verify-count-mismatch.txt: EXIT=1; expected pattern matched
+vfy803-pg16-verify-orphan.txt: EXIT=1; expected pattern matched
+vfy803-pg16-verify-empty-ledger.txt: EXIT=1; expected pattern matched
+verified good, count/select mismatch, orphan and empty ledger outcomes on real PG16
+cleanup: task-owned container removed; tmpfs contents discarded

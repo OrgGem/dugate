@@ -1,0 +1,256 @@
+﻿=== eight original compatibility sites (current line map) ===
+services/orchestrator/src/modules/operations/mappers.ts:71:      ? await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto)).readStored(stored, {
+services/orchestrator/src/modules/operations/mappers.ts:144:        : await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto ?? undefined)).readStoredText(
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:703:    // backfill window) passes through, mirroring the runtime's openMetadata
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:711:        const opened = await metadataReader.readStored(parsedEnvelope, {
+services/orchestrator/src/http/routes/public.ts:538:          : await (ctx.metadataReader ?? compatibilityMetadataReader(ctx.metadataCrypto)).readStoredText(
+services/orchestrator/src/modules/runtime/runtime.ts:472:export async function openMetadata(
+services/orchestrator/src/modules/runtime/runtime.ts:485:    return reader.readStoredText(value, context);
+services/orchestrator/src/modules/runtime/runtime.ts:487:  return reader.readStored(value, context);
+services/orchestrator/src/modules/runtime/runtime.ts:1064:            const storedPayload = await openMetadata(reader, row.payload_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts:1241:              : ((await reader.readStoredText(
+services/orchestrator/src/modules/runtime/runtime.ts:1854:        : ((await reader.readStoredText(
+services/orchestrator/src/modules/runtime/runtime.ts:1866:  const openParentPayload = (await openMetadata(reader, parent.payload_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts:1934:          : await openMetadata(reader, r.sessionRef, {
+services/orchestrator/src/modules/runtime/runtime.ts:1945:          : await openMetadata(reader, r.outputRef, {
+services/orchestrator/src/modules/runtime/runtime.ts:1974:    // input. openMetadata is fail-closed when the value is plaintext.
+services/orchestrator/src/modules/runtime/runtime.ts:1975:    resolvedInputRef: (await openMetadata(reader, t.input_ref ?? {}, {
+services/orchestrator/src/modules/runtime/runtime.ts:2015:    payloadRef: (await openMetadata(reader, t.payload_ref ?? {}, {
+=== strict false arguments ===
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-347-    refId: binding.taskId,
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:348:  }, false);
+services/orchestrator/src/modules/operations/ingestion-consumer.ts-349-  if (typeof opened !== 'string' || opened.length === 0) {
+--
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-426-  }
+services/orchestrator/src/modules/runtime/metadata-crypto.ts:427:  const opened = await crypto.readStored(parsed, context, false);
+services/orchestrator/src/modules/runtime/metadata-crypto.ts-428-  if (typeof opened !== 'string') {
+--
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-290-            refId: String(row.ref_id),
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:291:          }, false);
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-292-        } else {
+--
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-296-            refId: String(row.ref_id),
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:297:          }, false);
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts-298-        }
+=== exclusive end implementation ===
+499-
+500-export interface BoundedDualReadWindow {
+501-  readonly startsAtMs: number;
+502-  readonly expiresAtMs: number;
+503:  allowsLegacyRead(nowMs?: number): boolean;
+504-}
+505-
+506-/** Construct an immutable, at-most-14-day legacy read window. */
+507:export function createBoundedDualReadWindow(
+508-  startsAt: Date | number,
+509-  expiresAt: Date | number,
+510-): BoundedDualReadWindow {
+511-  const startsAtMs = startsAt instanceof Date ? startsAt.getTime() : startsAt;
+--
+517-  }
+518-  return Object.freeze({
+519-    startsAtMs,
+520-    expiresAtMs,
+521:    allowsLegacyRead(nowMs = Date.now()): boolean {
+522-      return Number.isFinite(nowMs) && nowMs >= startsAtMs && nowMs < expiresAtMs;
+523-    },
+524-  });
+525-}
+--
+533-  readonly window: BoundedDualReadWindow;
+534-  readonly nowMs?: number;
+535-}): Promise<TRead> {
+536-  if (input.isEncrypted(input.value)) return input.readEncrypted(input.value);
+537:  if (!input.window.allowsLegacyRead(input.nowMs)) {
+538-    throw new Error('legacy payload read is outside the bounded dual-read window');
+539-  }
+540-  return input.readLegacy(input.value);
+541-}
+--
+864-  }
+865-
+866-  /** True when a bounded window was supplied and it has not yet expired. */
+867-  windowOpen(nowMs = Date.now()): boolean {
+868:    return this.options.window ? this.options.window.allowsLegacyRead(nowMs) : true;
+869-  }
+870-
+871-  private assertWindowOpen(nowMs = Date.now()): void {
+872-    if (!this.windowOpen(nowMs)) {
+=== policy production boot and injection ===
+services/orchestrator/src/app/bootstrap/create-app.ts-39-import { CryptoStorageFacade } from '../../modules/encryption/crypto-storage-facade';
+services/orchestrator/src/app/bootstrap/create-app.ts-40-import { adaptKeyProviderForMetadata } from '../../modules/encryption/metadata-key-adapter';
+services/orchestrator/src/app/bootstrap/create-app.ts-41-import { createMetadataCrypto } from '../../modules/runtime/metadata-crypto';
+services/orchestrator/src/app/bootstrap/create-app.ts:42:import { buildMetadataReadPolicy, METADATA_READ_MODE_ENV } from '../../modules/encryption/boot-options';
+services/orchestrator/src/app/bootstrap/create-app.ts-43-import {
+services/orchestrator/src/app/bootstrap/create-app.ts-44-  createCompatibilityMetadataReadPolicy,
+services/orchestrator/src/app/bootstrap/create-app.ts:45:  createMetadataReader,
+services/orchestrator/src/app/bootstrap/create-app.ts-46-  type MetadataReadPolicy,
+services/orchestrator/src/app/bootstrap/create-app.ts-47-} from '../../modules/encryption/metadata-read-policy';
+services/orchestrator/src/app/bootstrap/create-app.ts-48-import {
+--
+services/orchestrator/src/app/bootstrap/create-app.ts-326-  });
+services/orchestrator/src/app/bootstrap/create-app.ts-327-  // CONTROL-PLANE-IMPL-818: ONE plaintext-read policy, built once, plus ONE
+services/orchestrator/src/app/bootstrap/create-app.ts-328-  // reader every control-plane consumer shares. main.ts has already refused a
+services/orchestrator/src/app/bootstrap/create-app.ts:329:  // real boot that set a HALF-specified mode (buildMetadataReadPolicy inside
+services/orchestrator/src/app/bootstrap/create-app.ts-330-  // buildEncryptionBootOptions), so reaching here with the mode absent means
+services/orchestrator/src/app/bootstrap/create-app.ts-331-  // an in-process embedder/test boot — warn and fall back to the bounded
+services/orchestrator/src/app/bootstrap/create-app.ts-332-  // compatibility window, never to an unbounded literal `true`.
+services/orchestrator/src/app/bootstrap/create-app.ts-333-  const metadataReadPolicy: MetadataReadPolicy = (() => {
+services/orchestrator/src/app/bootstrap/create-app.ts:334:    const modeRaw = process.env[METADATA_READ_MODE_ENV];
+services/orchestrator/src/app/bootstrap/create-app.ts-335-    if (modeRaw === undefined || modeRaw.length === 0) {
+services/orchestrator/src/app/bootstrap/create-app.ts-336-      if (metadataCrypto) {
+services/orchestrator/src/app/bootstrap/create-app.ts-337-        logger.warn(
+services/orchestrator/src/app/bootstrap/create-app.ts-338-          'metadata plaintext read mode not declared; applying the bounded compatibility window until '
+services/orchestrator/src/app/bootstrap/create-app.ts:339:            + METADATA_READ_MODE_ENV + ' is set',
+services/orchestrator/src/app/bootstrap/create-app.ts-340-        );
+services/orchestrator/src/app/bootstrap/create-app.ts-341-      }
+services/orchestrator/src/app/bootstrap/create-app.ts-342-      return createCompatibilityMetadataReadPolicy();
+services/orchestrator/src/app/bootstrap/create-app.ts-343-    }
+services/orchestrator/src/app/bootstrap/create-app.ts-344-    // Present but invalid -> throw, exactly like the production boot.
+services/orchestrator/src/app/bootstrap/create-app.ts:345:    return buildMetadataReadPolicy(process.env);
+services/orchestrator/src/app/bootstrap/create-app.ts-346-  })();
+services/orchestrator/src/app/bootstrap/create-app.ts:347:  const metadataReader = createMetadataReader(metadataCrypto, metadataReadPolicy);
+services/orchestrator/src/app/bootstrap/create-app.ts-348-  const runtime = createRuntimeService(
+services/orchestrator/src/app/bootstrap/create-app.ts-349-    db,
+services/orchestrator/src/app/bootstrap/create-app.ts-350-    { getQueue: (name) => getQueue(name) },
+services/orchestrator/src/app/bootstrap/create-app.ts-351-    metadataCrypto,
+services/orchestrator/src/app/bootstrap/create-app.ts:352:    metadataReader,
+services/orchestrator/src/app/bootstrap/create-app.ts-353-  );
+services/orchestrator/src/app/bootstrap/create-app.ts-354-  const usage = createUsageService(db);
+services/orchestrator/src/app/bootstrap/create-app.ts-355-  // One facade instance serves both upload branches: the single-PUT grants
+--
+services/orchestrator/src/app/bootstrap/create-app.ts-532-          // CRX-01: the gate re-seals operations.input_ref / tasks.payload_ref
+services/orchestrator/src/app/bootstrap/create-app.ts-533-          // (READY envelope) and opens the submit-side sealed payload, both
+services/orchestrator/src/app/bootstrap/create-app.ts-534-          // with the ONE submit/runtime seam instance built above.
+services/orchestrator/src/app/bootstrap/create-app.ts:535:          ...(metadataCrypto ? { metadataCrypto, metadataReader } : {}),
+services/orchestrator/src/app/bootstrap/create-app.ts-536-          onGateOpened: () => {
+services/orchestrator/src/app/bootstrap/create-app.ts-537-            void dispatcher.dispatchOnce().catch(() => undefined);
+services/orchestrator/src/app/bootstrap/create-app.ts-538-          },
+--
+services/orchestrator/src/app/bootstrap/create-app.ts-739-        credentialWorkflow,
+services/orchestrator/src/app/bootstrap/create-app.ts-740-        connectorManagement,
+services/orchestrator/src/app/bootstrap/create-app.ts-741-        metadataCrypto,
+services/orchestrator/src/app/bootstrap/create-app.ts:742:        metadataReader,
+services/orchestrator/src/app/bootstrap/create-app.ts-743-        deliveryEncryption,
+services/orchestrator/src/app/bootstrap/create-app.ts-744-        cryptoConfig: cryptoConfig,
+services/orchestrator/src/app/bootstrap/create-app.ts-745-        config,
+--
+services/orchestrator/src/modules/encryption/boot-options.ts-33-export const METADATA_ENABLED_ENV = 'DU_ENCRYPTION_METADATA_ENABLED';
+services/orchestrator/src/modules/encryption/boot-options.ts-34-export const PUBLIC_UPLOAD_ENABLED_ENV = 'DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED';
+services/orchestrator/src/modules/encryption/boot-options.ts-35-// CONTROL-PLANE-IMPL-818: the one operator-facing switch for allowPlaintext.
+services/orchestrator/src/modules/encryption/boot-options.ts:36:// REQUIRED: an absent or unknown mode fails the boot (buildMetadataReadPolicy).
+services/orchestrator/src/modules/encryption/boot-options.ts:37:export const METADATA_READ_MODE_ENV = 'DU_METADATA_PLAINTEXT_READ_MODE';
+services/orchestrator/src/modules/encryption/boot-options.ts:38:// Required when METADATA_READ_MODE_ENV === 'window'; ignored for 'forbid'.
+services/orchestrator/src/modules/encryption/boot-options.ts-39-export const METADATA_WINDOW_START_ENV = 'DU_METADATA_PLAINTEXT_WINDOW_START';
+services/orchestrator/src/modules/encryption/boot-options.ts-40-export const METADATA_WINDOW_END_ENV = 'DU_METADATA_PLAINTEXT_WINDOW_END';
+services/orchestrator/src/modules/encryption/boot-options.ts-41-
+--
+services/orchestrator/src/modules/encryption/boot-options.ts-267- * An inverted window, an over-cap window, or an unparseable instant becomes
+services/orchestrator/src/modules/encryption/boot-options.ts-268- * `EncryptionBootConfigError` rather than a silently shifted window.
+services/orchestrator/src/modules/encryption/boot-options.ts-269- */
+services/orchestrator/src/modules/encryption/boot-options.ts:270:export function buildMetadataReadPolicy(env: EnvReader): MetadataReadPolicy {
+services/orchestrator/src/modules/encryption/boot-options.ts:271:  const rawMode = readOptional(env, METADATA_READ_MODE_ENV);
+services/orchestrator/src/modules/encryption/boot-options.ts-272-  if (rawMode === undefined) {
+services/orchestrator/src/modules/encryption/boot-options.ts-273-    throw new EncryptionBootConfigError(
+services/orchestrator/src/modules/encryption/boot-options.ts:274:      METADATA_READ_MODE_ENV + ' is required when metadata encryption is enabled; '
+services/orchestrator/src/modules/encryption/boot-options.ts-275-        + 'set it to window (while the ENC-09 backfill is running) or forbid',
+services/orchestrator/src/modules/encryption/boot-options.ts-276-    );
+services/orchestrator/src/modules/encryption/boot-options.ts-277-  }
+services/orchestrator/src/modules/encryption/boot-options.ts-278-  if (!isMetadataPlaintextReadMode(rawMode)) {
+services/orchestrator/src/modules/encryption/boot-options.ts-279-    throw new EncryptionBootConfigError(
+services/orchestrator/src/modules/encryption/boot-options.ts:280:      METADATA_READ_MODE_ENV + ' must be window or forbid, got ' + JSON.stringify(rawMode),
+services/orchestrator/src/modules/encryption/boot-options.ts-281-    );
+services/orchestrator/src/modules/encryption/boot-options.ts-282-  }
+services/orchestrator/src/modules/encryption/boot-options.ts-283-
+--
+services/orchestrator/src/modules/encryption/boot-options.ts-286-  if (rawMode === 'forbid') {
+services/orchestrator/src/modules/encryption/boot-options.ts-287-    if (hasWindowVars) {
+services/orchestrator/src/modules/encryption/boot-options.ts-288-      throw new EncryptionBootConfigError(
+services/orchestrator/src/modules/encryption/boot-options.ts:289:        METADATA_READ_MODE_ENV + '=forbid must not be combined with '
+services/orchestrator/src/modules/encryption/boot-options.ts-290-          + METADATA_WINDOW_START_ENV + '/' + METADATA_WINDOW_END_ENV
+services/orchestrator/src/modules/encryption/boot-options.ts-291-          + ' — forbid admits no window',
+services/orchestrator/src/modules/encryption/boot-options.ts-292-      );
+--
+services/orchestrator/src/modules/encryption/boot-options.ts-313-  const raw = readOptional(env, name);
+services/orchestrator/src/modules/encryption/boot-options.ts-314-  if (raw === undefined) {
+services/orchestrator/src/modules/encryption/boot-options.ts-315-    throw new EncryptionBootConfigError(
+services/orchestrator/src/modules/encryption/boot-options.ts:316:      name + ' is required when ' + METADATA_READ_MODE_ENV + '=window',
+services/orchestrator/src/modules/encryption/boot-options.ts-317-    );
+services/orchestrator/src/modules/encryption/boot-options.ts-318-  }
+services/orchestrator/src/modules/encryption/boot-options.ts-319-  if (/^-?\d+$/.test(raw)) {
+--
+services/orchestrator/src/main.ts-19-import { createLogger, safeErrorForLog } from '@du/observability';
+services/orchestrator/src/main.ts-20-import { installGracefulShutdown } from './shutdown';
+services/orchestrator/src/main.ts-21-import { buildOidcAdminComponents } from './app/admin/oidc-boot';
+services/orchestrator/src/main.ts:22:import { buildEncryptionBootOptions, buildMetadataReadPolicy, type EncryptionBootOptions } from './modules/encryption/boot-options';
+services/orchestrator/src/main.ts-23-
+services/orchestrator/src/main.ts-24-const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'main' } });
+services/orchestrator/src/main.ts-25-
+--
+services/orchestrator/src/main.ts-150-  // mode is the uncontrolled `allowPlaintext: true` this packet exists to
+services/orchestrator/src/main.ts-151-  // remove. Fail the boot HERE, in the production entrypoint, before
+services/orchestrator/src/main.ts-152-  // createApp can assemble readers over an undeclared policy.
+services/orchestrator/src/main.ts:153:  if (encryptionBoot.metadataEncryption) buildMetadataReadPolicy(process.env);
+services/orchestrator/src/main.ts-154-  if (encryptionBoot.metadataEncryption || encryptionBoot.publicUploadEncryption) {
+services/orchestrator/src/main.ts-155-    logger.info('artifact encryption enabled', {
+services/orchestrator/src/main.ts-156-      metadata: Boolean(encryptionBoot.metadataEncryption),
+=== production gate callers ===
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts:215:export async function countUnsealedWithAuth(options: {
+=== backfill source/package wiring ===
+services/orchestrator/src/modules/encryption/legacy-payload-migration.ts:320: * Idempotent, lock/CAS based backfill. A source is retained by contract;
+services/orchestrator/src/modules/encryption/legacy-payload-migration.ts:324:export async function backfillLegacyPayloads(
+services/orchestrator/src/modules/encryption/legacy-payload-migration.ts:492:export function canRetireLegacyPayloads(
+services/orchestrator/src/modules/encryption/legacy-payload-migration.ts:873:      throw new Error('bounded dual-read window is closed; refusing result_ref backfill');
+services/orchestrator/src\http\routes\public.ts:534:      // historical verbatim value (the standard backfill-window convention).
+services/orchestrator/src\modules\encryption\boot-options.ts:23:} from './legacy-payload-migration';
+services/orchestrator/src\modules\encryption\boot-options.ts:275:        + 'set it to window (while the ENC-09 backfill is running) or forbid',
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:320: * Idempotent, lock/CAS based backfill. A source is retained by contract;
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:324:export async function backfillLegacyPayloads(
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:492:export function canRetireLegacyPayloads(
+services/orchestrator/src\modules\encryption\legacy-payload-migration.ts:873:      throw new Error('bounded dual-read window is closed; refusing result_ref backfill');
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts:7: * The shape-only counter (coordination/backfill-leftover-counter-803.sql) has a
+services/orchestrator/src\modules\artifacts\storage-migration.ts:236:/** Idempotently backfill verified PostgreSQL bytea blobs and retain every source row. */
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:7:import { createBoundedDualReadWindow, type BoundedDualReadWindow } from './legacy-payload-migration';
+services/orchestrator/src\modules\encryption\metadata-read-policy.ts:19: * 14 days) and `readDuringBoundedDualRead` live in `legacy-payload-migration`
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:155: * The legitimate no-seam path is a value that was never sealed (a backfill
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:242:   * that flag exists for the ENC-09 backfill window and for the submit path
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:376:        fail('NOT_SEALED', 'control-plane metadata is stored as plaintext; backfill required');
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:394: * backfill window — and a non-JSON plaintext is never mistaken for an
+services/orchestrator/src\modules\runtime\metadata-crypto.ts:425:    return allowPlaintext ? value : fail('NOT_SEALED', 'text metadata is stored as plaintext; backfill required');
+services/orchestrator/src\modules\runtime\runtime.ts:481:  // identically. A value that was never sealed (a backfill's first copy, a
+services/orchestrator/src\modules\runtime\runtime.ts:1220:      // binding; a legacy plaintext value stays readable during the backfill
+services/orchestrator/src\modules\operations\ingestion-consumer.ts:703:    // backfill window) passes through, mirroring the runtime's openMetadata
+services/orchestrator/src\modules\operations\mappers.ts:24:   * stored value verbatim (the historical backfill-window convention).
+services/orchestrator/src\modules\operations\mappers.ts:140:    // value verbatim, which is the backfill-window convention everywhere else.
+=== metric/auth source symbols ===
+services/orchestrator/src\app\bootstrap\create-app.ts:42:import { buildMetadataReadPolicy, METADATA_READ_MODE_ENV } from '../../modules/encryption/boot-options';
+services/orchestrator/src\app\bootstrap\create-app.ts:334:    const modeRaw = process.env[METADATA_READ_MODE_ENV];
+services/orchestrator/src\app\bootstrap\create-app.ts:339:            + METADATA_READ_MODE_ENV + ' is set',
+services/orchestrator/tests\admin-shell-platform-mount.test.ts:861:  it('GET /admin/connectors failure path (stub returns unauthorized) → 200 fail-closed pane', async () => {
+services/orchestrator/tests\admin-shell-platform-mount.test.ts:1088:  it('GET /admin/api-keys failure path (stub returns unauthorized) → 200 fail-closed pane', async () => {
+services/orchestrator/tests\admin-shell-server.test.ts:401:    it('renders the unauthorized pane (200, fail-closed at the section layer)', async () => {
+services/orchestrator/tests\admin-shell-server.test.ts:680:    it('renders the unauthorized pane (200, fail-closed at the section layer)', async () => {
+services/orchestrator/tests\admin-shell-server.test.ts:849:    it('renders the unauthorized pane (200, fail-closed at the section layer)', async () => {
+services/orchestrator/src\modules\encryption\boot-options.ts:37:export const METADATA_READ_MODE_ENV = 'DU_METADATA_PLAINTEXT_READ_MODE';
+services/orchestrator/src\modules\encryption\boot-options.ts:38:// Required when METADATA_READ_MODE_ENV === 'window'; ignored for 'forbid'.
+services/orchestrator/src\modules\encryption\boot-options.ts:271:  const rawMode = readOptional(env, METADATA_READ_MODE_ENV);
+services/orchestrator/src\modules\encryption\boot-options.ts:274:      METADATA_READ_MODE_ENV + ' is required when metadata encryption is enabled; '
+services/orchestrator/src\modules\encryption\boot-options.ts:280:      METADATA_READ_MODE_ENV + ' must be window or forbid, got ' + JSON.stringify(rawMode),
+services/orchestrator/src\modules\encryption\boot-options.ts:289:        METADATA_READ_MODE_ENV + '=forbid must not be combined with '
+services/orchestrator/src\modules\encryption\boot-options.ts:316:      name + ' is required when ' + METADATA_READ_MODE_ENV + '=window',
+services/orchestrator/tests\metadata-read-policy.test.ts:24:  METADATA_READ_MODE_ENV,
+services/orchestrator/tests\metadata-read-policy.test.ts:178:    expect(() => buildMetadataReadPolicy({ [METADATA_READ_MODE_ENV]: 'Window' })).toThrow(EncryptionBootConfigError);
+services/orchestrator/tests\metadata-read-policy.test.ts:182:    const policy = buildMetadataReadPolicy({ [METADATA_READ_MODE_ENV]: 'forbid' });
+services/orchestrator/tests\metadata-read-policy.test.ts:186:      [METADATA_READ_MODE_ENV]: 'forbid',
+services/orchestrator/tests\metadata-read-policy.test.ts:193:      [METADATA_READ_MODE_ENV]: 'window',
+services/orchestrator/tests\metadata-read-policy.test.ts:201:      [METADATA_READ_MODE_ENV]: 'window',
+services/orchestrator/tests\metadata-read-policy.test.ts:209:    const base = { [METADATA_READ_MODE_ENV]: 'window' };
+services/orchestrator/tests\metadata-read-policy.test.ts:213:      [METADATA_READ_MODE_ENV]: 'window',
+services/orchestrator/tests\metadata-read-policy.test.ts:218:      [METADATA_READ_MODE_ENV]: 'window',
+services/orchestrator/tests\metadata-read-policy.test.ts:223:      [METADATA_READ_MODE_ENV]: 'window',
+=== test summary and skip mentions ===
+coordination\reports\raw\verify-control-plane-821-2026-10-05\pg16-gate-suite.log:1:node.exe : Test Suites: 1 passed, 1 total
+coordination\reports\raw\verify-control-plane-821-2026-10-05\pg16-gate-suite.log:5:    + CategoryInfo          : NotSpecified: (Test Suites: 1 passed, 1 total:String) [], RemoteException
+coordination\reports\raw\verify-control-plane-821-2026-10-05\pg16-gate-suite.log:8:Tests:       2 passed, 2 total
+coordination\reports\raw\verify-control-plane-821-2026-10-05\focused-suites.log:12:Test Suites: 8 passed, 8 total
+coordination\reports\raw\verify-control-plane-821-2026-10-05\focused-suites.log:13:Tests:       219 passed, 219 total

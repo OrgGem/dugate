@@ -1,0 +1,16 @@
+# Giá trị chung cho workers, map từ compose/{document-core,lc-checker,example-review}.yml.
+# RUNTIME_URL luôn là internal :3002 — không bao giờ dùng :3000.
+# (Lưu ý: .env.example còn ghi RUNTIME_URL ...:3000 là STALE — không copy từ đó.)
+# MAX_ARTIFACT_BYTES chỉ lc-checker đọc; hai worker còn lại bỏ qua.
+# CONCURRENCY và IMAGE_DIGEST riêng từng business đặt trong Deployment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workers-common
+  namespace: du-platform
+data:
+  RUNTIME_URL: "http://orchestrator-internal:3002/api/runtime/v1"
+  CONNECTOR_URL: "http://connector:8080"
+  HEARTBEAT_INTERVAL_MS: "10000"
+  SHUTDOWN_GRACE_MS: "15000"
+  MAX_ARTIFACT_BYTES: "67108864"

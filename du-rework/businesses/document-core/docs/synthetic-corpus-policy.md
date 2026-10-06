@@ -117,14 +117,14 @@ Coverage is structured into three distinct, non-overlapping verification layers:
    - Files: `tests/bounded-input.test.ts`, `tests/output-validation.test.ts`, `tests/checkpoint.test.ts`, `packages/document-kit/tests/limits-boundary.test.ts`, etc.
    - Corpus: Procedural fixtures with edge values (zero bytes, multi-byte UTF-8 diacritics, malformed payloads).
 
-2. **Deterministic Matrix Test (All 28 Canonical Variants)**:
+2. **Deterministic Matrix Test (31 Declared Variants)**:
    - File: `businesses/document-core/tests/all-variants-e2e.test.ts`
-   - Scope: Executes all 28 canonical variants (`DOC-01-v1..v4`, `DOC-02-v1..v5`, `DOC-03-v1..v5`, `DOC-04-v1..v5`, `DOC-05-v1..v6`, `DOC-06-v1..v3`) sequentially in-process.
+   - Scope: Current test source iterates the 31-entry `VARIANT_TRACEABILITY_MATRIX` (4 ingest, 6 extract, 7 analyze, 5 transform, 6 generate, 3 compare) in-process. The three additions are `extract/id-card`, `analyze/fact-check` and `analyze/summarize-eval`.
    - Execution: Fully offline with local mock provider responses; zero network or external database dependencies.
 
 3. **Cross-Service Process Integration Test (6 Canonical Representative Actions Only)**:
    - File: `businesses/document-core/tests/multi-container-e2e.integration.test.ts`
-   - Scope: Exactly **6 canonical representative actions** (one per action family), NOT all 28 variants:
+   - Scope: Exactly **6 canonical representative actions** (one per action family), not the full 31-variant matrix:
      - `DOC-01-v1` (`ingest/parse`): Native parsing, artifact creation, 0 provider usage.
      - `DOC-02-v1` (`extract/invoice`): Provider-backed extraction, structured JSON output, usage recording.
      - `DOC-03-v1` (`analyze/classify`): Provider-backed classification, category output, usage recording.
@@ -132,4 +132,4 @@ Coverage is structured into three distinct, non-overlapping verification layers:
      - `DOC-05-v1` (`generate/summary`): Provider-backed executive summary synthesis, usage recording.
      - `DOC-06-v1` (`compare/diff`): Native unified diff comparison, 0 provider usage.
    - Execution: Live multi-service test with real PostgreSQL, Redis, Orchestrator runtime HTTP API, and real Connector HTTP gateway.
-   - Note on Current State: Grant verification in Connector currently uses the temporary `pendingHashes` shim pending Claude's canonical hash implementation (W10-C1). All 28 variants are NOT tested in live cross-service E2E.
+   - Current source uses `hashInvocationInput` from `@du/contracts` through Connector's `hash.ts`; the old `pendingHashes` shim description is obsolete. This six-action scenario does not establish live cross-service coverage for all 31 variants.

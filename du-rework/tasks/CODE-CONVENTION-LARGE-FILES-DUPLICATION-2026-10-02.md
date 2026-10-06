@@ -1,6 +1,6 @@
 # Review convention, file lớn và logic lặp — 2026-10-02
 
-**Trạng thái:** `SPECIFIED`, chưa dispatch/chưa sửa production source. Khảo sát working tree tại `adec19e`; `server.ts`, `shell-router.ts` và `tasks/README.md` đang có thay đổi chưa commit từ trước. Đếm lại trước khi claim lease vì file đang được sửa song song. Không đánh dấu `IMPLEMENTED`/`VERIFIED`/`ACCEPTED` từ khảo sát tĩnh.
+**Trạng thái:** `SPECIFIED`, chưa dispatch/chưa sửa production source. Khảo sát working tree tại `adec19e`; `server.ts`, `shell-router.ts` và `tasks/README.md` đang có thay đổi chưa commit từ trước. Đếm lại trước khi claim lease vì file đang được sửa song song. Không đánh dấu `IMPLEMENTED`/`VERIFIED`/`ACCEPTED` từ khảo sát tĩnh. **S6/S7 2026-10-03:** số dòng trong bảng `:18` (vd `server.ts` 4.299) và guard `PLAN_BASELINE_COUNTS` (`tools/file-size-guard.cjs`) là snapshot `adec19e`, đã stale giữa CONV wave (`server.ts` đang split dở, `runtime.test.ts` đã split xong 1785 + 8 file mới) — KHÔNG đổi số baseline hay guard khi wave chưa chốt; đo lại và re-baseline một lần sau khi CONV wave đóng.
 
 ## Quy ước phải giữ khi refactor
 

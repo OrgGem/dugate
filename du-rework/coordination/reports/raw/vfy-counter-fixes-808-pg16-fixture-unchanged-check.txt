@@ -1,0 +1,14 @@
+COMMAND=docker exec du-vfy-counter808-pg16-20261005 psql -v ON_ERROR_STOP=1 -U postgres -d du_vfy808 -c <count-only query>
+
+STDOUT:
+ fixture_count | attempts_unchanged 
+---------------+--------------------
+             2 |                  2
+(1 row)
+
+
+
+STDERR:
+
+
+LITERAL_EXIT_CODE=0

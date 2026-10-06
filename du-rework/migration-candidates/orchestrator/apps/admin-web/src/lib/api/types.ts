@@ -1,0 +1,348 @@
+/**
+ * Typed Admin BFF wire types (AWEB-02).
+ *
+ * These mirror the Orchestrator BFF (`/admin/api/*`, see
+ * services/orchestrator/src/app/admin/bff/*). Browser-safe only: no token,
+ * no server view model, no DB shape.
+ */
+
+export interface AdminWebSession {
+  schemaVersion: string;
+  plane: 'oidc' | 'legacy';
+  role: 'admin' | 'operator' | 'viewer';
+  principal: {
+    kind: 'platform' | 'tenant_operator' | 'unscoped';
+    tenantId: string | null;
+  };
+  scope: { kind: 'platform' } | { kind: 'tenant'; tenantId: string } | null;
+  displayName: string;
+  /** Server-side CSRF proof; echo it in `X-CSRF-Token` on mutations. */
+  csrfToken: string;
+}
+
+/** problem+json shape shared with the platform JSON API (@du/contracts). */
+export interface AdminApiProblem {
+  type?: string;
+  title?: string;
+  status: number;
+  code?: string;
+  correlationId?: string;
+  errors?: { pointer: string; message: string }[];
+}
+
+export type AdminApiResult<T> =
+  | { ok: true; status: number; data: T }
+  | { ok: false; status: number; problem: AdminApiProblem };
+
+// ---------------------------------------------------------------------------
+// AWEB-05 wire shapes (BFF /admin/api/*)
+// ---------------------------------------------------------------------------
+
+export interface ApiKeyRow {
+  id: string;
+  tenantId: string;
+  prefix: string;
+  maskedHint: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Display-only projection of a profile binding (server stays authoritative). */
+export interface ApiKeyGrant {
+  businessId: string;
+  businessVersion: string;
+  action: string;
+  grantedAt: string;
+}
+
+export interface ApiKeyPage {
+  items: ApiKeyRow[];
+  nextCursor: string | null;
+  prevCursor: string | null;
+  total: number;
+  limit: number;
+  grants: ApiKeyGrant[];
+  /** Always null on reads; copy-once only ever rides the issue response. */
+  createCopyOnce: unknown;
+}
+
+/**
+ * Degraded read projection: the platform's honest answer when no connector
+ * management store is composed (endpoint-only placeholder). Kept as its own
+ * shape so the UI can tell it apart from a real ledger revision.
+ */
+export interface ConnectorRevision {
+  connectorId: string;
+  revision: number;
+  adapter: string;
+  endpoint: { kind: string; maskedHost: string };
+  capabilities: string[];
+  state: string;
+  createdAt: string;
+  updatedAt: string;
+  secretSlots: unknown[];
+  testResult: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// CONNECTOR-WIRE-B — connector management wire (BFF /admin/api/connectors*)
+// Browser-safe mirror of `@du/contracts` connector-management.ts. Redaction is
+// the wire contract: header VALUES arrive `[REDACTED]` from the connector and
+// no shape here carries credential material (write-only, rotate-owned).
+// ---------------------------------------------------------------------------
+
+export type ConnectorRevisionState = 'PENDING' | 'ACTIVE' | 'RETIRED';
+
+/** One real ledger revision as the platform republishes it. */
+export interface ConnectorManagementRevision {
+  connectorId: string;
+  revision: number;
+  adapter: string;
+  state: ConnectorRevisionState;
+  config: Record<string, unknown>;
+  /** Opaque credential slot label — never the value. */
+  credentialRef?: string;
+  /** Coordinates only (mount/path/account/…), never a secret. */
+  credentialSource?: Record<string, unknown>;
+  tenantId?: string;
+  accountId?: string;
+}
+
+/** `{ items }` from the platform list, plus how many rows the browser skipped. */
+export interface ConnectorListPage {
+  items: ConnectorManagementRevision[];
+  /** Rows the reader refused (unknown field / bad shape) — never invented. */
+  skipped: number;
+}
+
+/** Composition-derived advertisement (booleans only, never configuration). */
+export interface ConnectorCapabilities {
+  management: boolean;
+  credentialWorkflow: boolean;
+  test: boolean;
+}
+
+/**
+ * The revision read answers in exactly two honest shapes: a real management
+ * revision when the store is composed, the endpoint-only placeholder when it
+ * is not. The reader discriminates on the key set, never on a value.
+ */
+export type ConnectorRevisionRead =
+  | { kind: 'management'; revision: ConnectorManagementRevision }
+  | { kind: 'legacy'; revision: ConnectorRevision };
+
+/** `connector.upsert` params — discriminated write shapes (mirrors contracts). */
+export interface ConnectorCreateParams {
+  mode: 'create';
+  connectorId: string;
+  adapter: string;
+  config: Record<string, unknown>;
+  /** Opaque slot label; the value is written only by connectors.rotate_credential. */
+  credentialRef: string;
+  state?: 'ACTIVE' | 'PENDING';
+}
+
+export interface ConnectorRevisionCloneParams {
+  mode: 'revision';
+  connectorId: string;
+  credentialSource: Record<string, unknown>;
+  tenantId: string;
+  accountId: string;
+}
+
+export type ConnectorUpsertParams = ConnectorCreateParams | ConnectorRevisionCloneParams;
+
+export interface ConnectorActivateParams {
+  connectorId: string;
+  revision: number;
+  /** CAS guard: activation wins only while the ACTIVE head still matches. */
+  expectedCurrentRevision: number;
+}
+
+export interface ConnectorRevisionTarget {
+  connectorId: string;
+  revision: number;
+}
+
+/** Narrow probe result — the only keys the platform is willing to republish. */
+export interface ConnectorTestResult {
+  ok: boolean;
+  errorCode?: string;
+}
+
+// ---------------------------------------------------------------------------
+// AWEB-04 Profile wire — conformant with the FROZEN Phase-1 contract
+// (coordination/reports/profile-parity-phase1-2026-10-04.md §5/§7).
+// ---------------------------------------------------------------------------
+
+/** One parameter value; `isLocked` slots are display-only (server 400s any send). */
+export interface ProfileParameterValue {
+  value: unknown;
+  isLocked?: boolean;
+}
+
+export interface ConnectionStep {
+  slug: string;
+  stepId?: string;
+  captureSession?: boolean;
+  injectSession?: boolean;
+}
+
+/** WRITE-only (snake_case, legacy parity) — never returned by a read. */
+export interface FileUrlAuthConfigWrite {
+  type: 'none' | 'bearer' | 'header' | 'query';
+  token?: string;
+  header_name?: string;
+  header_value?: string;
+  query_key?: string;
+  query_value?: string;
+}
+
+/** READ policy — secret replaced by `fileUrlAuthConfigured`. */
+export interface RequestRedactionRule { pattern: string; flags?: string; replacement?: string }
+
+export interface ProfilePolicyRead {
+  enabled: boolean;
+  parameters: Record<string, ProfileParameterValue>;
+  jobPriority: 'LOW' | 'MEDIUM' | 'HIGH';
+  allowedFileExtensions: string;
+  fileUrlAuthConfigured: boolean;
+  connectionsOverride: ConnectionStep[];
+  requestRedaction?: RequestRedactionRule[];
+}
+
+export interface ProfileCapability {
+  connectorId: string;
+  capability: string;
+}
+
+export interface ProfileDetail {
+  businessId: string;
+  businessVersion: string;
+  profileName: string;
+  /** Real active revision (0 only if the backend has no pointer yet). */
+  revision: number;
+  currentValues: Record<string, unknown>;
+  policy: ProfilePolicyRead;
+  manifest: { actions: { name?: string; action?: string }[] };
+  capabilities: ProfileCapability[];
+  /**
+   * T-API-01 closure: the opaque API-key row id this profile belongs to. The
+   * detail read reveals it (never the hash) so the profile.* commands can
+   * address the profile; absent on the `/new` sentinel and on profiles that
+   * are not stored yet.
+   */
+  apiKeyId?: string;
+}
+
+export interface ProfileMutationResult {
+  revision?: number;
+  [key: string]: unknown;
+}
+
+/** The write identity every profile.* command must carry (Δ7-A). */
+export interface ApiKeyIdRef {
+  apiKeyId: string;
+}
+
+export interface PolicyUpsertBody {
+  expectedRevision?: number;
+  policy: Record<string, unknown>;
+  apiKey?: ApiKeyIdRef;
+}
+
+export interface ProfilePublishBody {
+  expectedRevision: number;
+  apiKey?: ApiKeyIdRef;
+}
+
+export interface ProfileRollbackBody {
+  targetRevision: number;
+  expectedRevision?: number;
+  apiKey?: ApiKeyIdRef;
+}
+
+// ---------------------------------------------------------------------------
+// AWEB-06 Operations / Usage / Business wire
+// ---------------------------------------------------------------------------
+
+export interface OperationWire {
+  id: string;
+  state: string;
+  tenantId: string | null;
+  businessId: string | null;
+  action: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  retryOf?: string | null;
+  errorCode?: string | null;
+  deadlineAt?: string | null;
+}
+
+export interface OperationsPage {
+  items: OperationWire[];
+  total: number;
+  limit: number;
+  nextCursor: string | null;
+  prevCursor: string | null;
+}
+
+export interface OperationArtifactWire {
+  role: string;
+  status: string;
+  downloadUrl: string | null;
+  contentType: string | null;
+}
+
+export interface OperationTaskWire { id: string; taskKey: string; kind: string; state: string; attempt: number; maxAttempts: number; errorCode: string | null; }
+
+export interface OperationDetail {
+  tasks?: OperationTaskWire[];
+  requestInput?: { data: unknown; status: 'REDACTED' | 'NO_RULES' | 'HIDDEN'; ruleCount: number };
+  operation: OperationWire | null;
+  resultSummary: string | null;
+  artifacts: OperationArtifactWire[];
+  serverNow: string | null;
+  raw: Record<string, unknown>;
+}
+
+export type UsageSummary = Record<string, unknown>;
+
+export interface BusinessRow {
+  businessId: string;
+  activeVersion: string | null;
+  version: string | null;
+  status: string;
+  updatedAt: string | null;
+}
+
+export interface BusinessPage {
+  items: BusinessRow[];
+  total: number;
+  limit: number;
+}
+
+export interface BusinessVersionRow {
+  version: string;
+  status: string;
+  isActive: boolean;
+  updatedAt: string | null;
+}
+
+export interface BusinessVersions {
+  businessId: string;
+  activeVersion: string | null;
+  rows: BusinessVersionRow[];
+}
+
+// ---------------------------------------------------------------------------
+// AWEB-07 Security wire
+// ---------------------------------------------------------------------------
+
+/** crypto-config view — refs/previews only, secrets never ride this wire. */
+export interface CryptoConfigView {
+  [key: string]: unknown;
+}

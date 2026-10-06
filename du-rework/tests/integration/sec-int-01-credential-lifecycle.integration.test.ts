@@ -123,6 +123,7 @@ describeLive('SEC-INT-01 rotation/revocation across orchestrator↔connector↔v
       } as never,
       capabilities: () => ({ adapters: ['openai-http'] }),
       ready: async () => true,
+      allowUnauthenticatedTestTraffic: true,
     });
     const connListen = await new Promise<AddressInfo>((resolve) => connServer.listen(0, '127.0.0.1', () => resolve(connServer.address() as AddressInfo)));
     connUrl = `http://127.0.0.1:${connListen.port}`;

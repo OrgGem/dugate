@@ -1,14 +1,14 @@
 # 12 — Luồng xử lý, dữ liệu và contract
 
-**Nguồn kiểm:** [Orchestrator route/composition](../services/orchestrator/src/server.ts), [platform migrations](../services/orchestrator/migrations/), [Connector HTTP/runtime](../services/connector/src/), [Connector migrations](../services/connector/src/db/migrations/) và [contracts](../packages/contracts/src/). Các đường tùy chọn phụ thuộc cấu hình runtime.
+**Nguồn kiểm:** [Orchestrator route dispatcher](../services/orchestrator/src/server.ts), [HTTP route groups](../services/orchestrator/src/http/routes/), [composition](../services/orchestrator/src/app/bootstrap/create-app.ts), [platform migrations](../services/orchestrator/migrations/), [Connector HTTP/runtime](../services/connector/src/), [Connector migrations](../services/connector/src/db/migrations/) và [contracts](../packages/contracts/src/). Các đường tùy chọn phụ thuộc cấu hình runtime.
 
 ## 1. Bề mặt API và danh tính
 
 | Bề mặt | Caller | Xác thực / quyền | Nơi xử lý |
 |---|---|---|---|
-| `/api/v1/*` | Client/tenant | `x-api-key`, tenant/profile policy và resource fencing; một số route admin có bearer/session riêng. | `orchestrator/src/server.ts` |
-| `/api/runtime/v1/*` | Worker/Connector | Worker identity theo business cho task route; token usage riêng cho Connector usage ingress. | `orchestrator/src/server.ts`, `modules/runtime/*`, `modules/usage/*` |
-| `/api/v1/admin/*`, admin shell | Operator | Đa số route admin JSON chỉ nhận **admin bearer token** (`assertAdminAuth` ở `server.ts:2840-2850` so `Bearer <adminToken>`, không có nhánh session; khi thiếu token thì fail-closed 401). Session/OIDC/local chỉ cấp quyền trên `POST /api/v1/admin/actions` qua `resolveAdminActionAuthAsync`, và admin action có RBAC/CSRF. | `server.ts`, `app/admin/*`, `modules/admin-actions/*` |
+| `/api/v1/*` | Client/tenant | `x-api-key`, tenant/profile policy và resource fencing; một số route admin có bearer/session riêng. | `http/routes/public.ts` |
+| `/api/runtime/v1/*` | Worker/Connector | Worker identity theo business cho task route; token usage riêng cho Connector usage ingress. | `http/routes/runtime.ts`, `modules/runtime/*`, `modules/usage/*` |
+| `/api/v1/admin/*`, admin shell | Operator | Đa số route admin JSON chỉ nhận **admin bearer token** (`assertAdminAuth` trong `http/routes/admin.ts` so `Bearer <adminToken>`, không có nhánh session; khi thiếu token thì fail-closed 401). Session/OIDC/local cấp quyền trên `POST /api/v1/admin/actions` qua `resolveAdminActionAuthAsync`, và admin action có RBAC/CSRF. | `http/routes/admin.ts`, `app/admin/*`, `modules/admin-actions/*` |
 | Connector `/connectors*`, `/invocations*` | Orchestrator/worker trusted caller | Service identity theo scope; invocation có signed grant, revision/tenant binding. | `connector/src/http/server.ts`, `services.ts` |
 
 Danh sách route, trạng thái implementation và wire shape cần đọc từ code + [Public API spec](../docs/06-public-api.md) + [legacy parity contract](../docs/39-legacy-parity-contract.md). `docs/21-openapi.json` là artifact do tooling sinh và catalog có thể chưa đủ route; không dùng một mình để kết luận route vắng mặt. `/api/v1/docs/{action}` hiện có mount compat trong source, nhưng việc khớp toàn bộ wire cũ vẫn là gate kiểm chứng riêng.

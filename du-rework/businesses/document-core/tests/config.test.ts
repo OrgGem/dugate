@@ -157,7 +157,7 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
 
       // Ensure no raw secret leaked in startup logs
       expect(logs.join('\n')).not.toContain('secret-bearer-token-12345');
-      expect(logs.join('\n')).toContain('[REDACTED]');
+      expect(logs.join('\n')).not.toContain('runtimeToken');
     });
 
     it('exits with status 1 on invalid environment configuration', async () => {

@@ -1,0 +1,20 @@
+[
+  {
+    "file": "docs/19-traceability-audit-matrix.md",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "warning: in the working copy of 'D:\\Git\\dugate\\du-rework\\docs\\19-traceability-audit-matrix.md', LF will be replaced by CRLF the next time Git touches it\n"
+  },
+  {
+    "file": "docs/28-test-inventory.md",
+    "exit": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "docs/35-acceptance-baseline.md",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "warning: in the working copy of 'D:\\Git\\dugate\\du-rework\\docs\\35-acceptance-baseline.md', LF will be replaced by CRLF the next time Git touches it\n"
+  }
+]

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { TaskHandler, TaskContext, TaskDisposition } from '@du/worker-sdk';
-import { LeaseLostError } from '@du/worker-sdk';
+import { createLogger, LeaseLostError } from '@du/worker-sdk';
 import { defaultParserFactory, DocumentFormatDetector } from '@du/document-kit';
 import type { FormatDetectionResult, ParseResult } from '@du/document-kit';
 import type {
@@ -30,7 +30,7 @@ type SafeReviewErrorCode =
   | 'REVIEW_RESUME_FAILED';
 
 function logRedactedReviewError(errorCode: SafeReviewErrorCode): void {
-  console.error('[example-review] review operation failed', {
+  createLogger({ service: 'example-review' }).error('[example-review] review operation failed', {
     errorCode,
     details: '[REDACTED]',
   });

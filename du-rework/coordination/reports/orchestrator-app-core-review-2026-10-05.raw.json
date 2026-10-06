@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-10-04T19:36:55.628Z",
+  "scope": "review probes; confirmed defects, not product acceptance",
+  "infrastructure": "offline; scripted DB; loopback child HTTP only",
+  "observations": [
+    {
+      "id": "RCR-01",
+      "observed": "raw unauthenticated HTTP Host:[ terminates child listener process with uncaught ERR_INVALID_URL",
+      "childExit": 1,
+      "limit": "exact production callback extracted by TS AST; local child, no full application boot or infrastructure"
+    },
+    {
+      "id": "RCR-02",
+      "observed": "expired RUNNING lease with matching epoch accepts new spawn and human wait",
+      "spawnWrites": 5,
+      "waitWrites": 3,
+      "limit": "scripted DB; verifies production code issues no lease-expiry predicate"
+    },
+    {
+      "id": "RCR-03",
+      "observed": "same submission/key fails 404 after active version disabled; existing idempotency record never queried",
+      "limit": "scripted DB holding a matching unexpired record; real submission source"
+    },
+    {
+      "id": "RCR-04",
+      "observed": "contract-valid omitted status is bound as undefined in explicit NOT NULL status column",
+      "expectedDefault": "SUCCEEDED",
+      "actualBoundStatus": "undefined (pg binds NULL)",
+      "limit": "scripted DB captures parameter; NOT NULL rejection follows from migration, no live PG used"
+    },
+    {
+      "id": "RCR-05",
+      "observed": "saveStep ignores provided sessionRef: absent from persisted SQL and parameters",
+      "limit": "scripted DB; claim projection independently checked in source"
+    },
+    {
+      "id": "RCR-06",
+      "observed": "mounted public legacy download drops loaded bytes and returns JSON {}",
+      "declaredContentLength": 49,
+      "actualJsonBytes": 2,
+      "limit": "real handlePublicRoutes -> legacy mount/host, scripted DB; listener serializer independently checked in source"
+    }
+  ],
+  "digests": {
+    "services/orchestrator/src/app/bootstrap/create-app.ts": "ae7e29ce64ed558c022be456bbabccecd59345962af789a32a898b18d939ed0e",
+    "services/orchestrator/src/modules/runtime/runtime.ts": "01ffff43cfd528e029c5d5107c63d92f686e5191175de3c22852f3fdd0d7d377",
+    "services/orchestrator/src/modules/operations/submission.ts": "bd8ca6a56986e64b2786412d7b96e9dfc996f8f7317f5ec7b76f58e18c6ce292",
+    "services/orchestrator/src/http/routes/runtime.ts": "ee76d9917eea237ce1168540e71fad12c42a7345264e2d07e5d56e64df8c2dce",
+    "services/orchestrator/migrations/0001_platform_v1.sql": "1dd3bac7a9f87f9dfa21cdb18352e18671fae3b1d1782e4212a93c60e1333973",
+    "packages/contracts/src/runtime.ts": "66656bd6cadfc79fa45bc2f91f089cbc94c4df6f29b6429045abe038a4fca53c",
+    "services/orchestrator/src/http/routes/public.ts": "5a6f9972c8299ebc655a5df61e4e43d5255699985026dd98ea054645c50082c4",
+    "services/orchestrator/src/compat/legacy-http-mount.ts": "c76f65647ff55cd249e07cabe3fe8119231ac17a2babdf6823c2b201bcc53e94",
+    "services/orchestrator/src/compat/legacy-host-adapter.ts": "3432dec7734c9219498f84d81e1b3e48f963c57b272c54292746635b0f19155b"
+  }
+}

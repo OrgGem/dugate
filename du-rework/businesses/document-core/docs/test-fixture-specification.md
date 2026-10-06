@@ -7,7 +7,7 @@ The Document Understanding Gateway (`DUGate`) processes a diverse spectrum of un
 This specification formalizes:
 1. **Zero-PII & Non-Sensitive Synthetic Fixture Policy**: Rules governing test data generation to ensure zero customer secrets or sensitive personal identifiable information (PII) enter source control or test runs.
 2. **Native Parser Expectations vs. LLM Provider Expectations**: Structural, behavioral, latency, and token consumption boundaries distinguishing local CPU-bound parsers (`@du/document-kit`) from upstream AI reasoning models (`@du/connector`).
-3. **Canonical 28-Variant Fixture Dictionary**: Exhaustive inventory of procedural synthetic inputs across all 28 business variants (`DOC-01-01` through `DOC-06-03`).
+3. **Original 28-Variant Fixture Dictionary**: Historical P0-05 synthetic inputs (`DOC-01-01` through `DOC-06-03`); the executable business matrix now declares 31 variants.
 4. **Machine-Derived Expected Result Corpus**: Explicit mapping to `tests/fixtures/expected-result-corpus.ts`, where 100% of expected output envelopes were derived by executing the real handlers rather than theoretical inference.
 
 ---
@@ -64,9 +64,9 @@ The platform strictly partitions processing responsibility between local native 
 
 ---
 
-## 4. Canonical 28-Variant Fixture Dictionary
+## 4. Original 28-Variant Fixture Dictionary (historical baseline)
 
-The synthetic test fixture dictionary covers all 28 canonical variants defined in the Business Requirements Document (BRD) and traceability matrix:
+The fixture examples below record the original 28-case P0-05 baseline. The executable matrix now has 31 entries, including `id-card`, `fact-check` and `summarize-eval`; use [variant-matrix.md](variant-matrix.md) and `tests/all-variants-e2e.test.ts` for the current inventory.
 
 ### Action 1: Ingest (`DOC-01`)
 - **`DOC-01-01` (parse)**:
@@ -199,7 +199,7 @@ The synthetic test fixture dictionary covers all 28 canonical variants defined i
 A foundational requirement of deliverable **P0-05** is the prohibition against hypothetical, fabricated, or guessed expected outputs.
 
 ### Derivation Execution Chain
-1. **Runner**: All 28 canonical test cases were fed through `documentCoreHandlers` instantiated with standard dependencies (`StubConnectorGateway`, `TestFixtures`).
+1. **Runner (original P0-05 baseline)**: The original 28 test cases were fed through `documentCoreHandlers` instantiated with standard dependencies (`StubConnectorGateway`, `TestFixtures`). Current source declares 31 cases; this historical derivation note is not a current test receipt.
 2. **Offline Mock Boundary**: The provider boundary returned deterministic mock envelopes strictly conforming to the action schemas.
 3. **Envelope Capture**: Real execution output envelopes—including exact structure, metadata, provenance objects, and warnings arrays—were captured directly into `tests/fixtures/expected-result-corpus.ts`.
 4. **Zero Hand Approximations**: Every field, nested object, and status attribute in `EXPECTED_RESULT_CORPUS` reflects the actual output produced by the codebase under test.
@@ -217,8 +217,8 @@ pnpm --filter @du/document-core run test:typecheck
 # 2. Verify synthetic fixtures standalone
 npx jest tests/helpers/synthetic-fixtures.test.ts
 
-# 3. Verify all 28 canonical variants run cleanly against mock boundary
+# 3. Verify the current 31-variant matrix against the mock boundary
 npx jest tests/all-variants-e2e.test.ts
 ```
 
-All 28 variants pass with zero database and zero Redis connections, validating acceptance criteria for **P0-05**.
+The earlier P0-05 evidence covered 28 variants. The current `all-variants-e2e.test.ts` source enumerates 31; run the command above and record its result before claiming current-build 31/31 verification. The offline suite does not use a real database or Redis.

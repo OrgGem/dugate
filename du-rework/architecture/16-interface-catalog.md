@@ -6,7 +6,7 @@ Ví dụ request/response theo router hiện tại: [Public API](17-public-api-e
 
 ## 1. Client ↔ Orchestrator Public API
 
-Base path `/api/v1`; client dùng `x-api-key` của tenant. Những nhóm sau có trong [router](../services/orchestrator/src/server.ts):
+Base path `/api/v1`; client dùng `x-api-key` của tenant. Những nhóm sau có trong [public routes](../services/orchestrator/src/http/routes/public.ts) và [health dispatcher](../services/orchestrator/src/server.ts):
 
 | Nhóm | Các route/khả năng chính | Module owner |
 |---|---|---|
@@ -37,15 +37,15 @@ Base path `/api/runtime/v1`; identity worker được ràng theo business, khôn
 
 Tên/path chính xác cho từng nhánh multipart và schema request phải lấy từ router/contracts khi viết client mới.
 
-**`GET /tasks/{id}/context` không tồn tại trong router.** Route này xuất hiện trong một số spec cũ ([docs/07](../docs/07-internal-api.md), OpenAPI artifact) nhưng `server.ts` không có matcher nào cho nó; bảng matcher runtime ở trên là danh sách đầy đủ. Không phải chờ config — đây là route chưa từng được cài. Client không được phụ thuộc vào nó.
+**`GET /tasks/{id}/context` không tồn tại trong router.** Route này xuất hiện trong một số spec cũ ([docs/07](../docs/07-internal-api.md), OpenAPI artifact) nhưng `http/routes/runtime.ts` không có matcher nào cho nó; bảng matcher runtime ở trên là danh sách đầy đủ. Không phải chờ config — đây là route chưa từng được cài. Client không được phụ thuộc vào nó.
 
-Ngoài các nhóm trên, router còn phục vụ `GET /tasks/{id}/children` (join visibility) và `GET /workspace-reference?workspacePath=<dir>&tenantId=<uuid>`; route thứ hai là integration phía writer duy nhất mà worker cần theo mô tả trong source.
+Ngoài các nhóm trên, router còn phục vụ `GET /tasks/{id}/children` (join visibility) và `GET /api/runtime/v1/workspace-reference?workspacePath=<dir>&tenantId=<uuid>`; route thứ hai là integration phía writer duy nhất mà worker cần theo mô tả trong source.
 
 ## 3. Operator ↔ Orchestrator Admin
 
-Admin JSON chủ yếu ở `/api/v1/admin/*`; rendered shell ở `/admin/*` khi cấu hình được cấp. API hiện có nhóm business/version, profile binding, connector management, API key listing, audit, crypto config, operations/deadline sweep và action dispatcher. Source tương ứng là [router](../services/orchestrator/src/server.ts), [admin shell](../services/orchestrator/src/app/admin/) và [admin actions](../services/orchestrator/src/modules/admin-actions/). Một số thao tác có UI/route nhưng còn phụ thuộc composition/config hoặc gate browser/security; xem [task board](../tasks/README.md).
+Admin JSON chủ yếu ở `/api/v1/admin/*`; rendered shell ở `/admin/*` khi cấu hình được cấp. API hiện có nhóm business/version, profile binding, connector management, API key listing, audit, crypto config, operations/deadline sweep và action dispatcher. Source tương ứng là [admin routes](../services/orchestrator/src/http/routes/admin.ts), [admin shell](../services/orchestrator/src/app/admin/) và [admin actions](../services/orchestrator/src/modules/admin-actions/). Một số thao tác có UI/route nhưng còn phụ thuộc composition/config hoặc gate browser/security; xem [task board](../tasks/README.md).
 
-**Connector mutation đi qua action dispatcher, không phải route `/admin/connectors`.** Router chỉ có `POST|GET /api/v1/admin/connectors/{id}/credentials` và `GET /api/v1/admin/connectors/{id}/revisions/{rev}`; các thao tác xoay vòng/thu hồi/kiểm credential chạy qua `POST /api/v1/admin/actions` với action `connectors.rotate_credential`, `connectors.revoke_credential`, `connectors.test_credential`. Trái với điều đó, admin shell hiện vẫn hướng dẫn operator gọi `POST /api/v1/admin/connector-bindings` — route này không có trong router; xem [CODE-FIX-01](../tasks/ARCHITECTURE-DOC-CODE-MISMATCH-2026-10-02.md) để quyết định sửa hướng dẫn hay bổ sung route.
+**Connector mutation đi qua action dispatcher, không phải route `/admin/connectors`.** Router chỉ có `POST|GET /api/v1/admin/connectors/{id}/credentials` và `GET /api/v1/admin/connectors/{id}/revisions/{rev}`; các thao tác xoay vòng/thu hồi/kiểm credential chạy qua `POST /api/v1/admin/actions` với action `connectors.rotate_credential`, `connectors.revoke_credential`, `connectors.test_credential`. CODE-FIX-01 đã chốt **phương án A** (sửa hướng dẫn, không bổ sung route) và phần code đã sửa: `app/admin/connector-section-renderer.ts` (`renderNotFound`) nay ghi rõ không có platform route tạo connector binding, connector đăng ký ở Connector service, còn đổi/thu hồi/kiểm credential thì qua `POST /api/v1/admin/actions`. `POST /api/v1/admin/connector-bindings` vẫn **không có** trong router (0 match `connector-bindings`) — đó là trạng thái đúng theo quyết định, không phải route đang chờ land.
 
 `docs/07-internal-api.md` có bảng mục tiêu `/api/internal/v1`; source hiện tại dùng nhiều route `/api/v1/admin/*`. Khi xây client/Admin automation, chọn path từ code/contract hiện hành thay vì suy `/api/internal/v1` đã được mount.
 

@@ -1,0 +1,27 @@
+{
+  "groups": [
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6"
+  ],
+  "local_links_checked": 20,
+  "anchors_checked": 4,
+  "readonly_document_pins_checked": 3,
+  "checkboxes_added": 0,
+  "staged_query_argv": [
+    "git",
+    "diff",
+    "--cached",
+    "--name-only"
+  ],
+  "staged_query_exit": 0,
+  "staged_query_stdout": "",
+  "staged_query_stderr": "",
+  "source_drift_since_snapshot": [],
+  "product_tests_run": false,
+  "receipt_sha256": "4cd2ef97c6c5241271e3eaf074d6d81df7551253abbe169f1a28afa8a979e931",
+  "errors": []
+}

@@ -1,0 +1,4 @@
+﻿COMMAND: docker exec psql: SELECT server_version_num and schema_migrations count only
+LITERAL_EXIT_CODE: 0
+
+160010|32

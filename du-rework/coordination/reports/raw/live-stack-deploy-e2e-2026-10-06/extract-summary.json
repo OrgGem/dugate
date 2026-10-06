@@ -1,0 +1,30 @@
+{
+  "project": "pm-m02-verify-20261006-887",
+  "phases": {
+    "apiKeyIssued": true,
+    "submit": {
+      "http": 202,
+      "state": "ACCEPTED",
+      "hasOperationId": true
+    },
+    "operation": {
+      "state": "FAILED",
+      "done": true,
+      "operationId": "ed836f95-0b79-46b4-b6d9-15096a9ff77f"
+    },
+    "db": {
+      "state": "FAILED",
+      "error_code": "HANDLER_ERROR",
+      "task_count": 1,
+      "checkpoint_count": 0
+    },
+    "connectorAvailability": {
+      "connectorRevisions": 0,
+      "profileBindings": 0
+    }
+  },
+  "connectorRevisionCount": 0,
+  "profileBindingCount": 0,
+  "verdict": "FAIL extract did not complete on the empty local Connector/profile setup",
+  "failurePhase": "poll_extract"
+}

@@ -1,0 +1,4 @@
+﻿COMMAND: node dist/migrate-cli.js verify (DATABASE_URL points only at this task-owned PostgreSQL 16 container)
+LITERAL_EXIT_CODE: 1
+
+{"subsystem":"migrations","error":{"kind":"UNEXPECTED_ERROR","message":"Unexpected error; details redacted."},"timestamp":"2026-10-04T21:53:37.796Z","level":"error","service":"orchestrator","version":"unknown","environment":"dev","correlationId":"df983647-1beb-43b4-887f-33b79701d38a","operationId":null,"taskId":null,"invocationId":null,"message":"migration command failed"}

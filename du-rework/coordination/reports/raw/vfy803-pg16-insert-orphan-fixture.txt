@@ -1,0 +1,4 @@
+﻿COMMAND: docker exec psql: insert one synthetic orphan ledger row into throwaway DB
+LITERAL_EXIT_CODE: 0
+
+INSERT 0 1

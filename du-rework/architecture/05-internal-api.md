@@ -2,13 +2,15 @@
 
 Đây là giao tiếp mục tiêu giữa các service, không cho phép truy cập bằng public API key. Catalog đầy đủ trong [Admin/Runtime spec](../docs/07-internal-api.md) và [Connector spec](../docs/08-connector-api.md). Các body dưới là ví dụ review; manifest và wire DTO phải qua contract gate trước tích hợp.
 
+> **Ingress/listener (PM-M02, đã materialize):** Orchestrator Backend chạy một process với hai JSON listener — Public `:3000` và Internal `:3002`; Orchestrator Portal/BFF giữ listener riêng `:3001`; Connector Service giữ `:8080` nội bộ. Public `:3000` chặn `/api/v1/admin*`, `/api/runtime*`, `/api/internal*` sớm bằng generic 404 (`services/orchestrator/src/http/ingress-guard.ts`), kể cả khi caller có credential hợp lệ; audience do listener quyết định, không lấy từ `Host`/forwarding headers. Internal `:3002` giữ route public/admin/runtime cho BFF/workers/services với auth đầy đủ. `compose/orchestrator.yml` chỉ map 3000/3001 qua `${BIND_ADDRESS:-127.0.0.1}`, không map 3002; `compose/connector.yml` không publish 8080; debug local chỉ opt-in qua `compose/local-debug.yml` bind literal `127.0.0.1`. Runtime URL mặc định của workers là `http://orchestrator:3002/api/runtime/v1`; Connector URL là `http://connector:8080`.
+
 ## Identity và base paths
 
-| Bề mặt | Base | Xác thực và quyền |
+| Bề mặt | Base và listener | Xác thực và quyền |
 |---|---|---|
-| Admin trên Orchestrator | `/api/internal/v1` | Session, RBAC admin/operator/viewer, CSRF cho cookie mutations |
-| Worker runtime trên Orchestrator | `/api/runtime/v1` | Service bearer identity, audience và business/version scopes |
-| Connector management/runtime | `/internal/v1` | Service auth; admin management scope tách invocation scope |
+| Admin trên Orchestrator Backend | `/api/v1/admin/*` + `POST /api/v1/admin/actions` (dispatcher) + shell `/admin/*`; phục vụ trên Internal `:3002`, **bị chặn trên Public `:3000`** | Đa số route admin JSON chỉ nhận admin bearer token (fail-closed 401 khi thiếu); session/OIDC/local chỉ cấp quyền trên `POST /api/v1/admin/actions` qua `resolveAdminActionAuthAsync`, có RBAC/CSRF. Source: `services/orchestrator/src/http/routes/admin.ts` |
+| Worker runtime trên Orchestrator Backend | `/api/runtime/v1` trên Internal `:3002` | Service bearer identity theo business cho task route; token usage riêng (`USAGE_TOKEN`) cho `POST /usage-events`. Không dùng public API key. Source: `services/orchestrator/src/http/routes/runtime.ts` |
+| Connector Service management/runtime | Root paths `/connectors*`, `/invocations*`, `/capabilities`, `/health/live`, `/health/ready` trên `:8080` nội bộ — **không có prefix `/internal/v1`** | Service auth; scope `connector:manage` tách `connector:invoke`; invocation cần thêm signed grant. Admin quản trị qua Orchestrator Backend proxy, không gọi trực tiếp từ browser. Source: `services/connector/src/http/server.ts` |
 
 Worker identity được provision lúc deploy, không tự lấy quyền bằng businessId trong request. Invocation cần thêm grant ngắn hạn do runtime ký, gắn operation/task/step/inputHash/binding revision/artifacts/deadline. Connector phải xác minh signature, issuer, audience, expiry và các binding; kiểm tra field đơn thuần không thay thế cryptographic verification.
 
@@ -53,7 +55,6 @@ Shape của limits/policy/bindings còn phải chốt, ví dụ thể hiện ý 
 |---|---|---|---|
 | POST `/tasks/{id}/claim` | deliveryId, workerInstanceId | 200 ClaimResult | 409 busy; 410 terminal |
 | POST `/tasks/{id}/heartbeat` | leaseEpoch | 200 leaseExpiresAt | 409 lease lost |
-| GET `/tasks/{id}/context` | leaseEpoch theo HTTP binding cần freeze | 200 snapshot + refs + cancel flag | 409 stale |
 | PUT `/tasks/{id}/steps/{stepKey}` | leaseEpoch, inputHash, outputRef, sessionRef? | 201 / 200 replay | 409 hash mismatch |
 | POST `/tasks/{id}/children` | leaseEpoch, children[], joinPolicy, continuationRef | 202 durable wait/dependencies | 422 handler không đăng ký |
 | POST `/tasks/{id}/wait-input` | leaseEpoch, waitKey, schema, uiSchema?, contextRef | 200 waitId | 409 state conflict |
@@ -85,15 +86,15 @@ Claim request và phần response trọng tâm:
 
 Snapshot trong ví dụ rút gọn; production cần input/artifact refs, resolved parameters, profile/schema/prompt/binding revisions. Queue chỉ chứa envelope versioned và IDs/refs, không chứa credentials, full PDF hay prompt nhạy cảm.
 
-## Connector invocation
+## Connector invocation (root paths trên `:8080`, không prefix `/internal/v1`)
 
 | Endpoint | Request | Response mục tiêu |
 |---|---|---|
-| POST `/internal/v1/invocations` | InvocationRequest | 200 completed / 202 pending |
-| GET `/internal/v1/invocations/{id}` | Scoped identity | 200 state/result/usage |
-| POST `/internal/v1/invocations/{id}/cancel` | reason | 202 best-effort |
-| GET `/internal/v1/capabilities` | Service auth | 200 adapter catalog |
-| GET `/internal/v1/health/live`, `/health/ready` | Probe identity/network policy | 200 / 503 |
+| POST `/invocations` | InvocationRequest + signed grant | 200 completed / 202 pending |
+| GET `/invocations/{id}` | Scoped identity + `x-invocation-grant` | 200 state/result/usage |
+| POST `/invocations/{id}/cancel` | reason | 202 best-effort |
+| GET `/capabilities` | Service auth | 200 adapter catalog |
+| GET `/health/live`, `/health/ready` | Probe (public) | 200 / 503 |
 
 ```json
 {

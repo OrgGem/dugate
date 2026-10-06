@@ -1,0 +1,53 @@
+{
+  "project": "arch-phase-b-20261006",
+  "connectorId": "arch-extract-mock-muw5dswt",
+  "phases": {
+    "connectorRevision": {
+      "created": true,
+      "revision": 1,
+      "adapter": "json-http",
+      "state": "ACTIVE"
+    },
+    "fixtureCredentialActive": true,
+    "profileBinding": {
+      "created": true,
+      "revision": 1,
+      "slot": "reasoning",
+      "connectorRevision": 1
+    },
+    "submit": {
+      "http": 202,
+      "accepted": true,
+      "operationId": "3191692e-ff4b-479d-9b7b-686e530ba45b"
+    },
+    "operation": {
+      "state": "SUCCEEDED",
+      "done": true
+    },
+    "database": {
+      "state": "SUCCEEDED",
+      "errorCode": null,
+      "taskCount": 1,
+      "checkpointCount": 3
+    },
+    "mockProvider": {
+      "calls": 1
+    },
+    "result": {
+      "http": 200,
+      "schemaVersion": "1",
+      "opaqueArtifactRef": true,
+      "outputArtifactMatched": true,
+      "downloadHttp": 200,
+      "fixtureInvoicePresent": true,
+      "fixtureTotalPresent": true
+    },
+    "apiKeyRevoked": true,
+    "connectorDisabled": true,
+    "networkCleanup": {
+      "mockSidecarStopped": true,
+      "connectorEgressPolicyRestored": true
+    }
+  },
+  "verdict": "PASS"
+}

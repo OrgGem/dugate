@@ -1,0 +1,37 @@
+{
+  "id": "854ff83c-9977-43d5-83f4-041694a21678",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_f1ed751c-4c2a-4563-9687-0a5b30c5900a",
+      "status": "running",
+      "tail": [
+        "      33: ALTER TABLE operations ADD COLUMN IF NOT EXISTS connector_bindings jsonb NULL;ing2 ing",
+        "",
+        "• Ran Get-Content lib/pipelines/submit.ts | Select-Object -Skip 365 -First 55 | ForEach-Object -Begin {$i=366} -Process { '{0,4}: {1}' -f $i++, $_ }",
+        "  └  366:     };",
+        "     367:   }",
+        "    … +25 lines (ctrl + t to view transcript)",
+        "     393: }",
+        "     394:ng1 runing · /ps to view · /stop to close ng",
+        "",
+        "• Ran rg --files lib | rg 'upload-helper|file-validation|file-url-downloader'; rg -n -C 5 'allowedExt|allowedFileExtensions|validateFileMetadata|extension' lib/upload-helper.ts lib/file-url-downloader.ts lib",
+        "  └ lib\\file-url-downloader.ts",
+        "    lib\\upload-helper.ts",
+        "    … +433 lines (ctrl + t to view transcript)",
+        "    lib\\parsers\\interface.ts-20-   */",
+        "extext•xtxt•tt•8C•CCo•CoComComCompCompaCompaCompacCompacCompactompactmpactimpactipactinpactingactingactingctingcting cting c9ing coing cong conng contg contg conte• contecontex•contexontext•ontextntext•ntexttext•textext•extxt•xtt•10s • esc to interupt)•CCo•CoComComompCompCompaCompaCompacCompacompactompactimpactimpatinpactinpactingactingctingctingting c1ting coing coing cong conng contg cont•g conte contecontex•contexontext•ontextntext•ntexttext•textext•xtxt•tt•2•CCo•CoComComCompCompCompaCompaCompacCompacompactompactmpactimpactipactinpactingactingactngctingcting cting c3ing coing cong conng contg contg conte• conte contex•contexcontext•ontextntext•ntexttext•textext•extxtxt•tt•4C•CCo•CoComComCompCompCompaCompacCompacComactompactompactimpactipactinpactinactingactingctingcting cting c5ting coing cong conng cong contg conte• conte contex•contexcontext•ontextontext•ntexttext•textext•extxt•xtt•t6C•CCo•CoComComCompCompaCompaCopacCompacCompactompactmpactimpactipactinpactingactingactingctingting cting c7ting coing cong conng cong contg conte• conte contex•contexcontext•ontextntext•ntexttext•textext•extxt•xtt•t8C•CCo•CoComCompCompCompaCompaCompacCompacompactompactmpactimpactinpactinpactingactingctingctingting c9ting coing coing conng conng contg contg conte• conte contex•contexontext•ontextntext•ntexttext•textext•xtxt•tt•20•CCo•CoComComCompCompCompaCompaCompacCompactompactompctimpactimpactinpactinactingactingctingcting cting c1ting coing coing conng cong contg cont• conte contex•contexcontext•ontextontext•ntexttext•textext•extxt•xtt•t2•CC•CoComComCompCompCompaCompaCompacCompacompactompactimpactimpactinpactinactingactingctingctingting c3ting coing coing conng cong contg cont• conte conte•contexcontext•ontextontext•ntexttext•textext•extxt•xtt•t4•CCCo•ComComCompCompCompaCompaCompacCompacompactompactmpactimpactinpactinpactingactingctingctingting c5ting cing coing conng conng contg cont• conte conte•contexcontext•ontextontext•ntextntext•textext•extxt•xttt•6C•CCo•CoComCompCompCmpaCompaCompacCompacompactompactmpactimpactinpactinpacingactingactingctingting c7ting cing coing conng conng contg cont• conte conte•contexcontex•ontextontext•ntextntexttext•extext•xtxt•tt•8C•CCo•CoComComCompCompaCompaCompacCompacompactompactmpactimpactipactinpactingactingactingctingting cting c9ing coing conng conng contg cont•g conte conte•contexcontexontext•ontextntext•ntettext•textext•xtxt•tt•30C•CCo•CoComComCompCompaCompaCompacCompacompactompactmpactimpactipactinpactingactingactingctingting cting c1ing coing conng conng contg cont•g conte conte•contexcontexontext•ontextntext•ntexttext•textext•xtxt•tt•2C•CCo•CoComComCompCompaCompaCompacCompacompactompactmpactimpactipactinpactingactingactingctingting cting c3ing coing cong conng contg cont•g conte contecontex•contexontext•ontextntext•ntexttext•textext•xtxt•tt•4C•CCo•CoComComCompCompCompaCompacCompacCompactompactmpactimpactipactinpactingactingactngctingcting cting c5ing coing cong conng contg contg conte• conte contex•contexontext•ontextntext•ntexttext•textext•extxt•tt•6C•CCo•CoComComCompCompCompaCompacCompacComactompactompactimpactipactinpactinactingactingctingcting cting c7ting coing cong conng cong contg conte• conte contex•contexcontext•ontextntext•ntexttext•textext•extxt•xtt•8•CCo•CoComComCompCompCompaCompaCompacCompactompactompctimpactimpactinpactinactingactingctingcting cting c9tin coing coing conng cong contg cont• conte contex•contexcontext•ontextontext•ntexttext•textext•extxt•xtt•t40•CC•CoComComCompCompCompaCompaCompacCompacompactompactimpactimpactinpactinpactingactingctingctingting c1ting coing coing conng conng contg cont• conte conte•contexcontext•ontextontext•ntextntext•textext•extxt•xtt•t2C•CCo•CoComCompCompCompaCompaCompacCompacompactompactmpactimpactinpactinpactingactingctingctingting c3ting coing coing conng conng contg cont• conte conte•contexcontext•ontextontext•ntextntext•textextext•xtxt•tt•4C•CCo•CoComCompCompCompaCompaCompacCompacompactompactmpactimpactinpactinpacingactingactingctingting c5ting c"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "2010",
+      "nextCursor": "3469",
+      "latestCursor": "3469",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

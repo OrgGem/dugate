@@ -1,0 +1,27 @@
+# Public ALB -> orchestrator-public:3000 DUY NHẤT (PM-M02).
+# Không target 3002/8080/3001 từ Ingress này. Thay host + cert ARN thật.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public
+  namespace: du-platform
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing # hoặc internal theo quyết định deployment owner
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT_ID:certificate/EXAMPLE
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-port: "3000"
+spec:
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orchestrator-public
+                port: { number: 3000 }

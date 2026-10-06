@@ -1,0 +1,5 @@
+﻿COMMAND: node -e direct createDb + verifyMigrations probe (DATABASE_URL points only at this task-owned PostgreSQL 16 container)
+LITERAL_EXIT_CODE: 1
+
+VERIFY_ERROR_NAME=Error
+VERIFY_ERROR_MESSAGE=schema_migrations records sequence(s) [9999] that have no migration file on disk: the ledger claims applied work the files cannot account for. Delete the stale ledger row(s) and re-run migrate after verifying the corresponding objects, e.g. DELETE FROM schema_migrations WHERE sequence IN (9999); — never trust verify past this point.

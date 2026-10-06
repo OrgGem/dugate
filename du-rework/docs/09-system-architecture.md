@@ -1,8 +1,8 @@
-# System architecture — đường dữ liệu đã hiện thực (ARCH-DOC-01, snapshot 2026-09-28)
+# System architecture — đường dữ liệu đã hiện thực (ARCH-DOC-01, snapshot 2026-09-28; cập nhật live-local 2026-10-06)
 
-> **Tài liệu này mới tạo trong cycle ARCH-DOC-01.** Số `09-` đã thuộc [09-queue-sdk.md](09-queue-sdk.md) (queue protocol + SDK interface); tên packet là `09-system-architecture.md`, **không có file đó trong cây**. Nội dung dưới đây là **đường dữ liệu đã materialize**, không lặp lại kiến trúc mục tiêu (xem [02-architecture.md](02-architecture.md)).
+> **Cập nhật 2026-10-06.** File tồn tại song song với [09-queue-sdk.md](09-queue-sdk.md) (queue protocol + SDK interface). Phần lớn bằng chứng dưới đây vẫn là **OFFLINE snapshot 2026-09-28/10-01**; ngoại lệ **live-local Docker** ngày 2026-10-06 được ghi rõ tại §2 và §6 (Ingest/Extract PASS trên namespace `arch-phase-b-20261006`). Không mục nào ở trạng thái ACCEPTED.
 >
-> **Mọi bằng chứng ở đây là OFFLINE.** Không có live S3 / PostgreSQL thật / Redis thật / Vault thật / browser thật. Không mục nào ở trạng thái ACCEPTED.
+> Tên chuẩn: **DU Platform**, **Orchestrator Portal**, **Orchestrator Backend**, **Connector Service**, **Business Workers** (chốt 2026-10-06).
 
 ## 0. Tổng quan 3 đường — submit / ingest / result-delivery
 
@@ -14,12 +14,12 @@ flowchart TB
     C1 --> SUB[Submission<br/>validate + pin revision<br/>422 UNSUPPORTED_STORAGE_BACKEND]
     SUB --> PG1[(PostgreSQL<br/>operation + outbox + audit)]
     PG1 --> Q[(Queue<br/>BullMQ / Valkey)]
-    Q --> W1[Business worker<br/>claim + leaseEpoch]
+    Q --> W1[Business Worker<br/>claim + leaseEpoch]
   end
-  subgraph Ingest["2 — Ingest (worker ↔ artifact)"]
+  subgraph Ingest["2 — Ingest (Business Worker ↔ artifact) — PASS Docker 2026-10-06"]
     W1 -->|artifact refs| S3B[(S3 bytes)]
     W1 -->|local| LP[Native parse / split]
-    W1 -->|reference| CX[Connector → OCR / vision / LLM]
+    W1 -->|reference| CX[Connector Service → OCR / vision / LLM]
     CX -.->|Δ48 fetch chưa CM| S3B
     W1 --> PG2[(PostgreSQL<br/>checkpoint + step state)]
   end
@@ -34,7 +34,7 @@ flowchart TB
   Submit --> Ingest --> Delivery
 ```
 
-> Đồng bộ với [02-architecture.md](02-architecture.md) (kiến trúc mục tiêu 3 tầng) và [12b-deployment-guide.md](12b-deployment-guide.md) (topology compose). Khi ADR HTTP/UI framework chốt, cả 02 và file này phải cập nhật cùng lúc — nếu không, ma trận mục 6 sẽ lại thành lịch sử.
+> Đồng bộ với [02-architecture.md](02-architecture.md) (kiến trúc mục tiêu 3 tầng) và [12b-deployment-guide.md](12b-deployment-guide.md) (topology compose). Listener/port: Public 3000, Internal 3002 (không publish host mặc định), Orchestrator Portal 3001, Connector Service 8080 (không publish host mặc định) — xem [12b §1.1](12b-deployment-guide.md#11-pm-m02-ingress-matrix). Khi ADR HTTP/UI framework chốt, cả 02 và file này phải cập nhật cùng lúc — nếu không, ma trận mục 6 sẽ lại thành lịch sử.
 
 ## 1. Đường submit: input từ client đến artifact durable
 
@@ -45,7 +45,7 @@ flowchart LR
   C -->|POST submit| SUB[Submission: validate + pin revision]
   SUB -->|operation + outbox| PG[(PostgreSQL: control plane)]
   PG --> Q[Queue]
-  Q --> W[Business worker]
+  Q --> W[Business Worker]
   W -->|claim task, leaseEpoch| PG
   W -->|artifact refs, KHONG co bytes| S3
 ```
@@ -59,14 +59,21 @@ flowchart LR
 
 | Đường | Chủ thể | Trạng thái |
 |---|---|---|
-| `parse` / `split` | **local trong document-core** | Không gọi Connector; không tính provider usage |
-| `ocr` / `vision` | **qua Connector** | Worker gửi artifact **reference**, không gửi bytes hay boolean placeholder |
+| `parse` / `split` | **local trong document-core** | Không gọi Connector Service; không tính provider usage |
+| `ocr` / `vision` | **qua Connector Service** | Worker gửi artifact **reference**, không gửi bytes hay boolean placeholder |
 
 **Pin gate (đã sửa ở [Qwen Platform Mục 22](../coordination/reports/qwen-platform.md#L2101)):** task có pin phải được kiểm khi **có pin**, phân biệt *artifact sai* (SOURCE_PIN_MISMATCH) và *chưa READY* (INGESTION_SOURCE_UNRESOLVED); task có pin **không được thỏa** bằng `input.text` nội tuyến. Đây là **TIGHTENING fail-closed**, breaking cho task URL dùng inline text (Δ52).
 
-**Mục 23 (W-DATA-03-ORCH-VERIFY) vừa bổ sung một lớp gate phía Orchestrator:** `claimTask` từ chễi `PENDING_INGESTION` là `STATE_CONFLICT` **trước khi cấp lease** — nên claim bị từ **không lấy lease, không tăng attempt, không ghi last_delivery_id**. Dispatcher không dispatch row gate-ingestion **không đủ là boundary** — cánh claim mới là ranh giới thật.
+**Live Docker (2026-10-06, namespace `arch-phase-b-20261006`):** Ingest và Extract đã PASS end-to-end trên stack Docker cô lập (PostgreSQL 16 + Valkey 8 + Orchestrator Backend + Connector Service + ba Business Workers):
 
-**Còn mở:** **Δ48** — connector chưa được chứng minh FETCH ĐƯỢC artifact và truyền bytes thật cho provider; **Δ53** — chưa có live multi-container. Document-core full **46 suites / 542 tests** Exit 0. **Mục 23 vừa bổ sung một lớp gate phía Orchestrator: `claimTask` từ chễi PENDING_INGESTION là STATE_CONFLICT **trước khi cấp lease** — nên claim bị từ chối không lấy lease, không tăng attempt, không ghi last_delivery_id. Cổ dispatcher không dispatch row gate-ingestion không đủ là boundary; cánh claim mới là ranh giới thật. ([Mục 21](../coordination/reports/qwen-platform.md#L2018), [Mục 22](../coordination/reports/qwen-platform.md#L2101)).
+| Luồng | Operation | Task / checkpoint | Kết quả |
+|---|---|---|---|
+| Ingest | `64edc168-c736-4e9f-aebb-71b5aed722cd` | 1 task / 2 checkpoints | SUCCEEDED; `/result` + download 200; replay 200 cùng operation ID |
+| Extract | `3191692e-ff4b-479d-9b7b-686e530ba45b` | 1 task / 3 checkpoints, 1 provider call (mock `json-http`) | SUCCEEDED; `/result` + download 200, fixture invoice/total khớp |
+
+Nguồn: [phase-b-live-summary](../coordination/reports/phase-b-live-summary-2026-10-06.json); [LIVE-STACK-DEPLOY-E2E follow-up](../coordination/reports/live-stack-deploy-e2e-2026-10-06.md#follow-up-live-extract-window---arch-phase-b-20261006); [run-summary](../coordination/reports/raw/phase-b-extract-resume-prep-2026-10-06/run-summary.json). Δ53 (“chưa có live multi-container”) nay **đã có live-local scoped evidence**; còn OPEN: real provider (Extract dùng mock), **Δ48** — Connector Service fetch artifact bytes cho provider chưa được chứng minh, negative/compatibility cases và production acceptance.
+
+**Claim gate (giữ nguyên, đã kiểm offline):** `claimTask` từ chối `PENDING_INGESTION` bằng `STATE_CONFLICT` **trước khi cấp lease** — claim bị từ chối không lấy lease, không tăng attempt, không ghi `last_delivery_id`; dispatcher không dispatch row gate-ingestion không đủ là boundary, cánh claim mới là ranh giới thật ([Mục 23](../coordination/reports/qwen-platform.md#L2184)).
 
 ## 3. Đường lưu trữ: S3 durable bytes và PostgreSQL metadata
 
@@ -112,7 +119,7 @@ flowchart LR
 | Artifact bytes S3 | S3 durable | Adapter + facade | [DATA-01](../coordination/reports/tester.md#L8350) 35/35 | Live S3 |
 | Public upload gateway | Mã hóa trước S3 | Có | [ENC-05](../coordination/reports/tester.md#L8102) 41/41 | Live S3/PG/Redis |
 | Worker streaming | Bounded + epoch fence | Có | [DATA-04](../coordination/reports/tester.md#L8438) 311/542 | Live storage, Redis |
-| Ingest reference | Worker gửi reference thật; task chưa READY không claim | Có, pin gate + **claim gate** | [INGEST-WIRE-01 Muc 21](../coordination/reports/qwen-platform.md#L2018) 542/542; [Mục 23](../coordination/reports/qwen-platform.md#L2184) | **Δ48** connector fetch, **Δ53** live |
+| Ingest reference | Worker gửi reference thật; task chưa READY không claim | Có, pin gate + **claim gate** | [INGEST-WIRE-01 Muc 21](../coordination/reports/qwen-platform.md#L2018) 542/542; [Mục 23](../coordination/reports/qwen-platform.md#L2184) | **Δ48** connector fetch; live-local Docker Ingest/Extract PASS 2026-10-06 (real-provider/negative OPEN) |
 | Storage envelope + Vault | AES-256-GCM + Transit | Có | [ENC-01/02/03](../coordination/reports/tester.md#L8350) | Vault thật |
 | Recipient delivery | Per-tenant public key | Có | [ENC-06](../coordination/reports/tester.md#L7875) 8/8, [ENC-07](../coordination/reports/tester.md#L7938) 22/22 | External decrypt thật |
 | Result wire | 200 JSON, không 302 | Có | [RESULT-WIRE-01](../coordination/reports/tester.md#L8245) | External client |
@@ -120,6 +127,8 @@ flowchart LR
 | Metadata encryption | Control plane mã hóa | Có | [ENC-META-01](../coordination/reports/tester.md#L7955) 23/23 | Live byte-scan |
 | Admin crypto config | UI + API + CSRF | Có, Δ112 đóng | [ENC-08 CSRF](../coordination/reports/qwen-admin.md#L3280) 47/47 + 79/79 | **Δ110**, **Δ113** |
 | Log schema | Shared JSON + redaction | Có | [LOG-01](../coordination/reports/tester.md#L8265) 23/23 + 21/21 | Live collector |
+
+**Live-local bổ sung 2026-10-06:** Ingest + Extract PASS trên Docker namespace `arch-phase-b-20261006` — chi tiết §2; không đóng các gate `G-DATA`/`G-ENC`/`G6`.
 
 **Gate `G-DATA`, `G-ENC`, `G6` đều NO-GO. Task row vẫn `[~]`.**
 

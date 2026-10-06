@@ -17,12 +17,45 @@
  */
 
 import { VaultTransitProvider, type KeyProvider } from './vault-transit-provider';
+import {
+  SyntheticDataExemptionSchema,
+  type SyntheticDataExemption,
+} from '@du/contracts';
+import {
+  createBoundedDualReadWindow,
+  type BoundedDualReadWindow,
+} from './legacy-payload-migration';
+import {
+  createMetadataReadPolicy,
+  isMetadataPlaintextReadMode,
+  type MetadataReadPolicy,
+} from './metadata-read-policy';
 
 export const VAULT_TRANSIT_OPTIONS_ENV = 'DU_VAULT_TRANSIT_OPTIONS';
 export const VAULT_ENCRYPT_TOKEN_ENV = 'DU_VAULT_TRANSIT_ENC_TOKEN';
 export const VAULT_DECRYPT_TOKEN_ENV = 'DU_VAULT_TRANSIT_DEC_TOKEN';
 export const METADATA_ENABLED_ENV = 'DU_ENCRYPTION_METADATA_ENABLED';
 export const PUBLIC_UPLOAD_ENABLED_ENV = 'DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED';
+/**
+ * SEC-ENC-05 mode switch. `real` (the DEFAULT when unset) requires persistence
+ * encryption across PG/S3 and every producer: a missing flag, partial surface
+ * or missing key refuses the boot. Only an explicit `synthetic` mode with a
+ * complete acknowledgement object may opt out — omission can never disable
+ * encryption.
+ */
+export const DATA_MODE_ENV = 'DU_DATA_MODE';
+/**
+ * Required with `DU_DATA_MODE=synthetic`; JSON matching the SEC-ENC-01
+ * explicit exemption (`reason`, `approvedBy`, `acknowledgedAt`,
+ * `isolatedFromRealData: true`). Real tenant data must not use it.
+ */
+export const SYNTHETIC_ACK_ENV = 'DU_SYNTHETIC_DATA_ACK';
+// CONTROL-PLANE-IMPL-818: the one operator-facing switch for allowPlaintext.
+// REQUIRED: an absent or unknown mode fails the boot (buildMetadataReadPolicy).
+export const METADATA_READ_MODE_ENV = 'DU_METADATA_PLAINTEXT_READ_MODE';
+// Required when METADATA_READ_MODE_ENV === 'window'; ignored for 'forbid'.
+export const METADATA_WINDOW_START_ENV = 'DU_METADATA_PLAINTEXT_WINDOW_START';
+export const METADATA_WINDOW_END_ENV = 'DU_METADATA_PLAINTEXT_WINDOW_END';
 
 const MAX_TOKEN_CHARS = 8192;
 
@@ -151,11 +184,58 @@ function parseConfig(raw: string): EncryptionBootConfig {
 }
 
 /**
- * True when this deployment must have a working Vault surface. `s3` implies it
- * because the encrypted upload gateway is the only artifact write path; the
- * enable flags cover the postgres backend where encryption is still opt-in.
+ * SEC-ENC-05 effective data mode. Default is `real`; the synthetic opt-out is
+ * only valid with the complete explicit acknowledgement object.
+ */
+export type DataMode = 'real' | 'synthetic';
+
+export interface EffectiveDataMode {
+  readonly mode: DataMode;
+  /** Present only in synthetic mode, after validation. */
+  readonly exemption?: SyntheticDataExemption;
+}
+
+export function resolveDataMode(env: EnvReader): EffectiveDataMode {
+  const raw = readOptional(env, DATA_MODE_ENV);
+  if (raw === undefined || raw === 'real') return { mode: 'real' };
+  if (raw !== 'synthetic') {
+    throw new EncryptionBootConfigError(
+      DATA_MODE_ENV + ' must be real or synthetic, got ' + JSON.stringify(raw),
+    );
+  }
+  const ackRaw = readOptional(env, SYNTHETIC_ACK_ENV);
+  if (ackRaw === undefined) {
+    throw new EncryptionBootConfigError(
+      'synthetic-data mode requires an explicit ' + SYNTHETIC_ACK_ENV
+        + ' acknowledgement; encryption cannot be disabled by an omitted flag',
+    );
+  }
+  let ack: unknown;
+  try {
+    ack = JSON.parse(ackRaw);
+  } catch {
+    throw new EncryptionBootConfigError(SYNTHETIC_ACK_ENV + ' must be valid JSON');
+  }
+  const parsed = SyntheticDataExemptionSchema.safeParse(ack);
+  if (!parsed.success) {
+    throw new EncryptionBootConfigError(
+      SYNTHETIC_ACK_ENV + ' must be a complete synthetic-data exemption'
+        + ' (mode, reason, approvedBy, acknowledgedAt, isolatedFromRealData)',
+    );
+  }
+  return { mode: 'synthetic', exemption: parsed.data };
+}
+
+/**
+ * True when this deployment must have a working encryption surface.
+ *
+ * SEC-ENC-05: real-data mode ALWAYS requires it, whatever the backend or the
+ * legacy enable flags say. Only an explicit, acknowledged synthetic mode may
+ * fall back to the previous rule (s3 implies it; the enable flags cover the
+ * postgres backend where encryption was historically opt-in).
  */
 export function encryptionIsRequired(env: EnvReader): boolean {
+  if (resolveDataMode(env).mode === 'real') return true;
   const backend = readOptional(env, 'ARTIFACT_STORAGE_BACKEND') ?? 'postgres';
   return backend === 's3' || readBoolean(env, METADATA_ENABLED_ENV) || readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV);
 }
@@ -204,15 +284,23 @@ function resolveEncryptionBoot(env: EnvReader): {
   // s3 is the encrypted-upload backend, so it turns on BOTH blocks: the artifact
   // write path and the control-plane columns. Leaving metadata off here is the
   // exact fail-open RV01-02 exists to close.
+  //
+  // SEC-ENC-05: real-data mode forces BOTH blocks regardless of backend/flags;
+  // only an explicit synthetic exemption keeps the historical opt-in shape.
+  const dataMode = resolveDataMode(env);
+  const forced = dataMode.mode === 'real';
   const s3 = backend === 's3';
-  const metadataEnabled = readBoolean(env, METADATA_ENABLED_ENV) || s3;
-  const publicUploadEnabled = readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV) || s3;
+  const metadataEnabled = forced || readBoolean(env, METADATA_ENABLED_ENV) || s3;
+  const publicUploadEnabled = forced || readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV) || s3;
   if (!metadataEnabled && !publicUploadEnabled) return { config: null, metadataEnabled, publicUploadEnabled };
 
   const raw = readOptional(env, VAULT_TRANSIT_OPTIONS_ENV);
   if (raw === undefined) {
     throw new EncryptionBootConfigError(
-      VAULT_TRANSIT_OPTIONS_ENV + ' is required when artifact encryption is enabled; refusing to store artifacts in plaintext',
+      VAULT_TRANSIT_OPTIONS_ENV + ' is required when artifact encryption is enabled'
+        + (forced ? ' (real-data mode; export ' + DATA_MODE_ENV + '=synthetic with an explicit '
+          + SYNTHETIC_ACK_ENV + ' only for isolated synthetic data)' : '')
+        + '; refusing to store artifacts in plaintext',
     );
   }
   const config = parseConfig(raw);
@@ -232,6 +320,85 @@ function readToken(env: EnvReader, name: string): string {
     throw new EncryptionBootConfigError(name + ' is longer than ' + MAX_TOKEN_CHARS + ' characters');
   }
   return value;
+}
+
+/**
+ * CONTROL-PLANE-IMPL-818: parse the operator's plaintext-read switch.
+ *
+ * REQUIRED whenever this deployment has a metadata seam — an absent or
+ * unknown mode fails the boot, so `allowPlaintext` can never again be an
+ * implicit, uncontrolled `true`. A deployment with no seam at all (postgres,
+ * every enable flag off) never parses it: there is no plaintext read to
+ * govern, `metadataCrypto` is undefined and the reader applies the no-seam
+ * rule.
+ *
+ * | mode     | required env                | policy built |
+ * |----------|-----------------------------|--------------|
+ * | `window` | start + end (ISO or epoch)  | bounded window (<= 14 days, enforced by createBoundedDualReadWindow) |
+ * | `forbid` | none — carrying window vars is a refusal to boot (contradiction) | no window, `allowPlaintext()` always false |
+ *
+ * An inverted window, an over-cap window, or an unparseable instant becomes
+ * `EncryptionBootConfigError` rather than a silently shifted window.
+ */
+export function buildMetadataReadPolicy(env: EnvReader): MetadataReadPolicy {
+  const rawMode = readOptional(env, METADATA_READ_MODE_ENV);
+  if (rawMode === undefined) {
+    throw new EncryptionBootConfigError(
+      METADATA_READ_MODE_ENV + ' is required when metadata encryption is enabled; '
+        + 'set it to window (while the ENC-09 backfill is running) or forbid',
+    );
+  }
+  if (!isMetadataPlaintextReadMode(rawMode)) {
+    throw new EncryptionBootConfigError(
+      METADATA_READ_MODE_ENV + ' must be window or forbid, got ' + JSON.stringify(rawMode),
+    );
+  }
+
+  const hasWindowVars = readOptional(env, METADATA_WINDOW_START_ENV) !== undefined
+    || readOptional(env, METADATA_WINDOW_END_ENV) !== undefined;
+  if (rawMode === 'forbid') {
+    if (hasWindowVars) {
+      throw new EncryptionBootConfigError(
+        METADATA_READ_MODE_ENV + '=forbid must not be combined with '
+          + METADATA_WINDOW_START_ENV + '/' + METADATA_WINDOW_END_ENV
+          + ' — forbid admits no window',
+      );
+    }
+    return createMetadataReadPolicy('forbid', null);
+  }
+
+  const startsAtMs = readInstantMs(env, METADATA_WINDOW_START_ENV);
+  const expiresAtMs = readInstantMs(env, METADATA_WINDOW_END_ENV);
+  let window: BoundedDualReadWindow;
+  try {
+    window = createBoundedDualReadWindow(startsAtMs, expiresAtMs);
+  } catch (error) {
+    throw new EncryptionBootConfigError(
+      METADATA_WINDOW_START_ENV + '/' + METADATA_WINDOW_END_ENV + ' is not a valid dual-read window: '
+        + (error instanceof Error ? error.message : String(error)),
+    );
+  }
+  return createMetadataReadPolicy('window', window, startsAtMs);
+}
+
+/** ISO-8601 instant or epoch milliseconds — both are unambiguous on the wire. */
+function readInstantMs(env: EnvReader, name: string): number {
+  const raw = readOptional(env, name);
+  if (raw === undefined) {
+    throw new EncryptionBootConfigError(
+      name + ' is required when ' + METADATA_READ_MODE_ENV + '=window',
+    );
+  }
+  if (/^-?\d+$/.test(raw)) {
+    const epochMs = Number(raw);
+    if (Number.isSafeInteger(epochMs)) return epochMs;
+    throw new EncryptionBootConfigError(name + ' must be an ISO-8601 instant or epoch milliseconds, got ' + JSON.stringify(raw));
+  }
+  const parsed = Date.parse(raw);
+  if (!Number.isFinite(parsed)) {
+    throw new EncryptionBootConfigError(name + ' must be an ISO-8601 instant or epoch milliseconds, got ' + JSON.stringify(raw));
+  }
+  return parsed;
 }
 
 /**
@@ -283,5 +450,36 @@ export function buildEncryptionBootOptions(env: EnvReader): EncryptionBootOption
           },
         }
       : {}),
+  };
+}
+
+/** SEC-ENC-05: content-free effective policy summary for logs and /health. */
+export interface EncryptionPolicySummary {
+  readonly dataMode: DataMode;
+  readonly syntheticReason?: string;
+  readonly metadataEncryption: boolean;
+  readonly publicUploadEncryption: boolean;
+  readonly metadataPlaintextReadMode: 'forbid' | 'window' | 'none';
+}
+
+/**
+ * Resolve the effective policy exactly as the boot would (same validation), so
+ * a health surface can never advertise a policy the boot refused. Content-free:
+ * no tokens, key material or Vault paths are ever part of this object.
+ */
+export function summarizeEncryptionPolicy(env: EnvReader): EncryptionPolicySummary {
+  const dataMode = resolveDataMode(env);
+  const { metadataEnabled, publicUploadEnabled } = resolveEncryptionBoot(env);
+  let readMode: 'forbid' | 'window' | 'none' = 'none';
+  if (metadataEnabled) {
+    const raw = readOptional(env, METADATA_READ_MODE_ENV);
+    if (raw === 'window' || raw === 'forbid') readMode = raw;
+  }
+  return {
+    dataMode: dataMode.mode,
+    ...(dataMode.exemption === undefined ? {} : { syntheticReason: dataMode.exemption.reason }),
+    metadataEncryption: metadataEnabled,
+    publicUploadEncryption: publicUploadEnabled,
+    metadataPlaintextReadMode: readMode,
   };
 }

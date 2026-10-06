@@ -1,19 +1,33 @@
 # Project structures và ownership
 
-Các thư mục dưới đây là cấu trúc mục tiêu. Workspace/package chính đã materialize và build; Admin shell đã mount trong orchestrator (`src/app/admin/`); artifact bytea và example-review có implementation partial. Dùng pnpm workspace độc lập trong `du-rework`; không sửa root package.json/lockfile của DUGate. Xem [review cấu trúc/code](../coordination/STRUCTURE-CODE-REVIEW-2026-09-21.md) cho các khác biệt cần xử lý.
+Tài liệu này đóng băng target repo/service đã được user chốt ngày 2026-10-05, rồi đối chiếu với source và Compose workspace hiện có. `du-rework/` có pnpm workspace riêng nhưng vẫn nằm trong Git root của DUGate; không xem workspace/build target là repo đã tách hoặc production deployment. Xem thêm [bản đồ Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md), [cấu trúc subproject](../architecture/11-subprojects.md) và [topology decision](40-du-platform-architecture.md).
 
-## Cấu trúc thực tế sau FIX-07
+## Topology freeze ngày 2026-10-05
 
-| Mục tiêu | Hiện trạng | Quyết định/task còn mở |
+Theo [quyết định repo/service](40-du-platform-architecture.md), mặc định có hai **loại repo**. Một repo Orchestrator giữ Admin Portal, Platform API + Orchestration Runtime (cùng process), và Connector source; Connector vẫn có process/service/image/config/scale riêng. Mỗi business dùng một instance/repo được tạo từ cùng loại Worker template và có build/deploy/scale độc lập. Repo Connector riêng là loại repo thứ ba tùy chọn, chưa được chọn làm mặc định. Không đổi tên Orchestrator thành `platform-api`/App Portal, không tách Runtime thành service riêng, và không nhúng Connector vào API process.
+
+| Đích đã chốt | Source hiện thấy trong workspace | Ranh giới build/runtime đích | Tình trạng chứng minh |
+|---|---|---|---|
+| Orchestrator repo — Portal | `apps/admin-web/` | UI bundle được đóng cùng image Orchestrator theo Docker build hiện có | Có source/build target; repo đích độc lập chưa được tạo |
+| Orchestrator repo — API + Runtime | `services/orchestrator/` | Một process/service/image Orchestrator; API routes và durable runtime cùng backend | Có source/service target; không chứng minh đã cutover production |
+| Orchestrator repo — Connector | `services/connector/` | Image/process/service Connector riêng, kết nối bằng service API và quyền riêng | Có source/service target trong cùng build workspace; không phải API process |
+| Worker template — mỗi business | `businesses/document-core/`, `businesses/example-review/`, `businesses/lc-checker/` | Mỗi business repo/image/version độc lập; replicas cùng business/version consume queue tương ứng | Ba source folder có mặt trong workspace chung; chưa phải ba Git repo tự đủ |
+| Connector repo tùy chọn | Chưa có path/repo được chọn | Có thể tách Connector source về loại repo thứ ba sau quyết định riêng; service/image boundary vẫn giữ | Chưa chọn/chưa triển khai |
+
+**Hiện trạng repository:** `git rev-parse --show-toplevel` trả về `D:/Git/dugate`; `du-rework/` là workspace con trong cùng Git repository, không phải nested repository. Vì vậy các folder/image target ở trên không được đọc thành bằng chứng về repo tách rời hoặc topology production đã deploy. `docs/40` là quyết định topology; phần cấu trúc bên dưới và deployment guide mô tả source/build hiện có, không tự nâng trạng thái SPECIFIED thành IMPLEMENTED/VERIFIED/ACCEPTED.
+
+## Cấu trúc source hiện tại
+
+| Thành phần | Hiện trạng source | Giới hạn cần phân biệt |
 |---|---|---|
-| Hai services, ba business độc lập, sáu shared packages | Đã đúng ở cấp workspace | Giữ dependency ownership; thêm automated boundary checks |
-| Orchestrator Next routes/Admin + server lifecycle | node:http trong `src/server.ts` (file lớn, `route(ctx)` + `createApp`); Admin shell **đã có** tại `src/app/admin/` (~30 file: api-key/audit/business/connector/crypto-config/operation/overview renderers, OIDC boot/flow, `shell-router.ts`) mount qua `attachAdminShell` trong `createApp` (`server.ts:714`, remount `:877`); `server.listen` chạy tại `server.ts:860`, start script `node dist/main.js` | Local/OIDC auth mode còn mở ở LOCAL-00..06; `LOCAL-R03` ghi `main.ts:105-129` chưa truyền `adminShellCookieSecret` |
-| PostgreSQL + Drizzle, one-shot migrations | raw pg; migrations chạy trong createApp; SQL ở migrations/ | ADR DB approach; mở lại P2-01 |
-| S3 artifact storage | PostgreSQL bytea tạm thời theo wave-05 | P2-03 hardening và P8 storage/deployment |
-| Connector src/modules | Domain files ở src root, có http/adapters/db | Khác tên thư mục không phải lỗi nếu giữ layering |
-| Full multi-service deployment | Compose mới có PG/Redis; một số worker/service có Dockerfile | P8-06 còn mở |
+| Workspace | Hai service, ba business độc lập, sáu shared package trong pnpm workspace | Đây là phân bố source; readiness theo task/gate riêng. |
+| Orchestrator HTTP và Admin | `node:http`; `server.ts` giữ `ServerConfig`, `createApp` và route dispatcher; `http/routes/{public,runtime,admin}.ts` giữ handler; `app/bootstrap/create-app.ts` lắp dependency, timer và Admin shell từ `app/admin/` | `main.ts` đọc env, bật shell khi có secret/token và gọi `listen()`; không dùng số dòng cũ của `server.ts` làm vị trí wiring. |
+| PostgreSQL | `pg` và SQL migration tại `services/orchestrator/migrations/`; boot mặc định kiểm schema, `autoMigrate` chỉ là opt-in | Production chạy migrate CLI riêng trước khi start; Drizzle chỉ còn trong thiết kế cũ. |
+| Artifact storage | Có backend PostgreSQL và S3, S3 facade, multipart và đường mã hóa theo cấu hình | Source có adapter không tự chứng minh deployment S3 hoặc acceptance gate. |
+| Connector | `composition.ts` lắp runtime, HTTP, DB và Redis; domain files chủ yếu ở `src/`, với `http/`, `adapters/`, `db/`, `vault/` | `SecretResolver` có module nhưng chưa được truyền vào runtime ở composition production. |
+| Triển khai | Có Dockerfile và nhiều Compose profile/test topology | Kiểm config và chạy live theo deployment guide trước khi công bố full stack. |
 
-Các khác biệt framework/DB cần quyết định kiến trúc rõ ràng; bảng này ghi hiện trạng, không tự thay thế kiến trúc mục tiêu phía dưới.
+Các khác biệt framework/DB so với đề xuất ban đầu được ghi rõ để không lẫn thiết kế mục tiêu với code đang chạy.
 
 ```text
 du-rework/
@@ -23,24 +37,29 @@ du-rework/
     openapi/                    # gen_openapi.py (code-derived docs/21 + path-loss guards), validate_openapi.py, probe_cases.js
   services/
     orchestrator/
-      src/server.ts             # long-running node:http server, route(ctx), createApp, background lifecycle
+      src/server.ts             # ServerConfig, createApp, health và route dispatcher
+      src/http/routes/          # public, runtime, admin HTTP handlers
+      src/app/bootstrap/        # dependency wiring, node:http, background lifecycle
       src/app/admin/            # Admin shell (renderers, view-models, shell-router, OIDC flow) via attachAdminShell
       src/modules/
         auth/ registry/ profiles/ operations/ runtime/
-        artifacts/ outbox/ usage/ webhooks/ audit/
+        artifacts/ queue/ usage/ webhooks/ audit/
+        admin-read/             # Admin list queries và projections
         admin-actions/          # Admin action dispatcher
-      src/db/                   # platform schema and migrations
+      src/db/                   # PG adapter và migration runner
+      migrations/               # platform SQL migrations
       tests/
     connector/
+      src/composition.ts        # HTTP/runtime/DB/Redis composition root
+      src/*.ts                  # grants, quota, ledger, config domain files
       src/http/                 # internal invocation + management API
-      src/modules/              # grants, quota, ledger, config
       src/adapters/             # multipart-http, json-http, mock
       src/db/                   # connector-owned schema/migrations
       tests/
   businesses/
     document-core/
       docs/                     # action BRDs, interfaces, case matrix
-      src/manifest/ src/actions/ src/pipelines/ src/prompts/
+      src/manifest/ src/actions/ src/pipelines/ src/recipes/ src/validation/
       src/worker.ts
       tests/fixtures/ tests/unit/ tests/e2e/
     example-review/
@@ -66,8 +85,8 @@ du-rework/
 |---|---|---|
 | contracts | Pure schemas/types | Next, DB, worker source, credentials |
 | observability | Logger/telemetry libraries | Business/platform internals |
-| orchestrator | contracts, observability | Business packages, parser/provider SDK |
-| connector | contracts, observability, adapter libraries | Business source, platform DB schema |
+| orchestrator | contracts, observability, egress, worker-sdk (source-ingestion logic/types hiện tại) | Business packages, parser/provider SDK |
+| connector | contracts, observability, egress, adapter libraries | Business source, platform DB schema |
 | worker-sdk | contracts, observability, BullMQ, HTTP client | Orchestrator source/DB |
 | connector-client | contracts, HTTP client | Connector source/DB |
 | document-kit | contracts artifact types, parser libraries | Next, platform DB, connector config |
@@ -76,12 +95,15 @@ du-rework/
 
 Package exports public interfaces rõ ràng. Alias `@/` chỉ nội bộ một subproject; shared imports dùng `@du/contracts`, `@du/worker-sdk`... Runtime packages có version; deployed service không yêu cầu mọi business nâng SDK cùng lúc nếu wire contract còn tương thích.
 
-## Build/deployment dự kiến
+## Build/deployment target và trạng thái hiện tại
 
-- Orchestrator: một image app+runtime; process lifecycle kiểm chứng ở P1.
-- Connector: một image Node HTTP service; Hono là lựa chọn đề xuất để gọn.
-- Mỗi business: một image, exact manifest version và image digest được đăng ký.
-- Node active LTS, TypeScript strict, PostgreSQL + Drizzle, BullMQ + Redis, S3-compatible. Phiên bản cụ thể phải pin và kiểm tra tương thích tại P1; không kế thừa mù phiên bản project cũ.
+Topology mục tiêu ở trên thay thế các giả định repo/service cũ. [Deployment guide](12b-deployment-guide.md) mô tả Docker/Compose stack trong workspace hiện tại; image target/source không chứng minh repo tự đủ hoặc production rollout.
+
+- Orchestrator: một image app/API/runtime với Admin Web bundle; API và Runtime cùng process.
+- Connector: image/service riêng dù source hiện ở cùng workspace/repo; không gọi trực tiếp DB nghiệp vụ của Orchestrator.
+- Mỗi business: Worker template cùng loại, image/release/version và triển khai độc lập; replicas chỉ cùng consume queue của business/version đã đăng ký.
+- Exact repository extraction, build context, image digest, deploy, rollback và live acceptance thuộc migration/rollout tasks riêng, không được kết luận từ Compose profile.
+- PostgreSQL + BullMQ/Valkey và storage/Vault adapters hiện có được map theo deployment/contract owner; không giả định các external service đã được provision chỉ từ việc có adapter/config.
 - Migrations do one-shot command riêng theo schema owner; không để tất cả replica tự migrate lúc boot.
 - CI phát hiện changed workspace; kiểm tra contracts làm trigger consumer compatibility suites.
 

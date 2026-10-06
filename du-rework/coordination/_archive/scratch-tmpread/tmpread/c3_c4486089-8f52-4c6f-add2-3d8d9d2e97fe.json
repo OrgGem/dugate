@@ -1,0 +1,37 @@
+{
+  "id": "20dde542-d193-4047-bd9d-a6893e79d3b5",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
+      "status": "running",
+      "tail": [
+        "  └  3625:   const read = (name: ApiKeyListQueryParam): string | null =>",
+        "    params.get(name);",
+        "    … +460 lines (ctrl + t to view transcript)",
+        "    du-rework/packages/contracts/src\\public-api.ts:584:    cursor:",
+        "    z.string().min(1).max(LIST_CURSOR_MAX_LEN).optional(),Workin Workin WorkinWorkinorkingorkingorkingorking1rkngrkngrkingrkingrkingkingkingkinginingingingngngngggg•g••WW2•WWWo•WoWo•WorWor•WorWork•WorkWork•WorkWorki•WorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkng3rkingrkingrkingkingkingkinginingingingngngngggg•g••WW4W•WWo•WoWo•WorWor•WorWork•WorkWork•WrkWorki•WorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkng5rkingrkingrkingkingkingkingingingingngngngngggg••W•W6W•WWo•WoWo•WorWor•WorWork•WorkWork•WrkWorki•WorkiWorkiWorkinWorkinWorkinorinorkingorkingorking7rkingrkingrkingkigkingkingkingingingingngngngngggg•••W8W•WWo•WoWo•WorWor•Woror•WorkWork•WorkWorki•WorkiWorkiWorkinWorkinWorkinWorkinorinorkingorkingorkingrkng9rkingrkingrkingkingkingkinginingingingngngngggg•g•W•W50W•WWo•WoWo•WorWor•WororWork•WorkWork•WrkWorki•WorkiWorkiWorkin · Running hooksWorkinWorkinWorkin Workin orin orking orking orking · 1 background terminal running · /ps to view ·…orking1rkingrkingrkingrking",
+        "",
+        "• Ran $p='du-rework/packages/contracts/src/public-api.ts'; foreach($range in",
+        "  │ @(@(1,100),@(190,260),@(270,455),@(460,560),@(570,600))){$s=$range[0];",
+        "  │ $e=$range[1];\"--- $p $s-$e ---\";$i=0;Get-Content $p|ForEach-Object{$i++;if($i",
+        "  │ … +1 lines",
+        "  └     1: import { z } from 'zod';",
+        "        2: import { OperationStateSchema } from './operations';",
+        "    … +490 lines (ctrl + t to view transcript)",
+        "      599:   grants: z.array(z.record(z.unknown())),",
+        "      600:   createCopyOnce: z.record(z.unknown()).nullable(),kig kigkingkingkinginingingingingngngngnggggg••W•W2W•WWo•WoWo•WorWor•WorWork•WorkWork•WrkWorki•WorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkng3rkingrkingrkingkingkingkingingingingngngngngggg•••WW4•WWWo•WoWo•WorWor•Woror•WorkWork•WorkWorki•WorkiWorkiWorkinWorkinWorkinWorkinorkingorkingorking5rkingrkingrkingkigkingkingkingingingingngngngggg•••WW6•WWo•WoWo•WoWor•WorWorWork•WorkWork•WrkWorki•WorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkng7rkingrkingrkingkingkingkingingingingngngngngggg••W•W8W•WWo•WoWo•WorWor•WorWork•WorkWork•WrkWorki•WorkiWorkiWorkinWorkinWorkinorkingorkingorkingorking9rkingrkingrkingkingkingkinginingingingngngngggg•g••WW300•WWo•WoWo•WoWor•WorWor•WorkWork•WorkWorkiWorki•WorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkng1rkingrkingrkingkingkingkingingingingngngngngggg••W•W2W•WWo•Wo"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "4924",
+      "nextCursor": "6924",
+      "latestCursor": "6924",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

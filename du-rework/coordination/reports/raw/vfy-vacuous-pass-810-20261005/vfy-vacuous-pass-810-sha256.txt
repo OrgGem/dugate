@@ -1,0 +1,14 @@
+c8d4603777628cab2c65eaa2da33253fddec930d32f669d543ed00fb86538eb9  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-pg16.tmp.test.ts
+d3df9dec8f5373b6d8e6624053e32890d3f6b81677b294db5d9bdc0bcde8314a  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-pg16-final-jest.txt
+7ab33cb59fb326ebb6e13bb9be15ade02ea514e00a3f5dca239261fd81a9515a  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-pg16-final-exit.txt
+ab336e1e5edc12e244aa01d94d69b7706454180ff050b7a3c93bbb2366b08fa7  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-pg16-version.txt
+950af38555cc56fa150e1dc9df1ab83292c0a8d53ecf41bdb988e557bae08152  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-container-scope.txt
+69bcfa04639cfa55fa6bd58ad9d0653681b8cafcdaf8ba1be1237f6291538083  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-bypass-fix-810-jest.txt
+7ab33cb59fb326ebb6e13bb9be15ade02ea514e00a3f5dca239261fd81a9515a  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-bypass-fix-810-exit.txt
+d713b0dbcdfbea588f89711c5f9f4570332ea28fff56bcb4a183afdea3f57974  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-gate-authenticate-808-jest.txt
+7ab33cb59fb326ebb6e13bb9be15ade02ea514e00a3f5dca239261fd81a9515a  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-gate-authenticate-808-exit.txt
+d5d86da84374e86c157e8f7c1f79c8e2aca77268ec9227e06918389666cf148a  coordination/reports/raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-cleanup.txt
+04b296a5fe1ee1c45de89e3bee99edb9cc7770da7f00c20693cf0db8a340fa83  services/orchestrator/src/modules/encryption/metadata-auth-counter.ts
+9d39e111c95cfd09ab8a54f1a3bebf62f28993b1bedc4f2ecd8c2f4e6a00f1a6  services/orchestrator/tests/bypass-fix-810.test.ts
+69b0c1be46ff32114dff8a86d2455dede44bf8b0e9c42a4e615f3fcdbb902737  services/orchestrator/tests/gate-authenticate-808.test.ts
+1dd3bac7a9f87f9dfa21cdb18352e18671fae3b1d1782e4212a93c60e1333973  services/orchestrator/migrations/0001_platform_v1.sql

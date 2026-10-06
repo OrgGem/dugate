@@ -4,28 +4,30 @@
 
 ```mermaid
 flowchart LR
-  Client[External services] --> O[Orchestrator API + Admin + Coordinator]
-  Admin[Operators] --> O
+  Client[External services] --> O[Orchestrator Backend<br/>Platform API + Orchestration Runtime — một process<br/>Public :3000 / Internal :3002]
+  Admin[Operators] -->|Orchestrator Portal :3001| O
   O --> P[(Platform PostgreSQL)]
   O --> Q[(Redis / BullMQ)]
   Q --> W[Document-core worker replicas]
   Q --> B[Other business worker replicas]
-  W -->|Runtime HTTPS| O
-  B -->|Runtime HTTPS| O
-  W --> C[Connector replicas]
+  W -->|Runtime HTTP — Internal :3002| O
+  B -->|Runtime HTTP — Internal :3002| O
+  W --> C[Connector Service replicas<br/>:8080 nội bộ, không publish mặc định]
   B --> C
   C --> D[(Connector PostgreSQL)]
   C --> L[External LLM / OCR providers]
   C -->|Usage events| O
-  O --- S[(S3 artifacts)]
+  O --- S[(Object storage)]
   W --- S
   B --- S
   C --- S
 ```
 
+Public JSON `:3000` chặn admin/runtime/internal sớm bằng generic 404 (`http/ingress-guard.ts`), kể cả khi caller có credential hợp lệ; audience do listener quyết định, không lấy từ `Host`/forwarding headers. Internal JSON `:3002` giữ route public/admin/runtime cho BFF/workers/services với auth/tenant/business policy đầy đủ. Orchestrator Portal/BFF giữ listener riêng `:3001` (UI/session/OIDC + BFF allowlist, không proxy tùy ý). Connector `:8080` không publish host mặc định; debug local chỉ opt-in qua `compose/local-debug.yml` bind literal `127.0.0.1`. Chi tiết ingress xem [deployment guide](../docs/12b-deployment-guide.md#11-pm-m02-ingress-matrix). `BIND_ADDRESS` mặc định `127.0.0.1` chỉ áp cho mapping 3000/3001.
+
 | Thành phần | Sở hữu | Không chịu trách nhiệm |
 |---|---|---|
-| Orchestrator | Auth, profile, registry, operation/task state, leases, checkpoint metadata, artifact ownership, outbox, coordinator, audit, usage projection | Parse tài liệu, prompt nghiệp vụ, gọi provider trực tiếp |
+| Orchestrator Backend | Auth, profile, registry, operation/task state, leases, checkpoint metadata, artifact ownership, outbox, generic coordinator module, audit, usage projection | Parse tài liệu, prompt nghiệp vụ, gọi provider trực tiếp |
 | Business worker | Recipe, business validation, prompts, xử lý bước, output schema, document-kit | Ghi platform DB, quản lý provider secrets, tự chọn queue của business khác |
 | Connector | Adapter/mapping, credential/config revision, invocation ledger, provider quota, usage events | Điều phối workflow, quyết định nghiệp vụ, cấp quyền client |
 | PostgreSQL | Trạng thái bền vững, constraints, transactions | Truyền file lớn |

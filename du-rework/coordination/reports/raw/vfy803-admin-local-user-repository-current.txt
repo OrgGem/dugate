@@ -1,0 +1,80 @@
+﻿COMMAND: pnpm --filter @du/orchestrator test -- tests/admin-local-user-repository.test.ts
+LITERAL_EXIT_CODE: 
+1
+
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand "tests/admin-local-user-repository.test.ts"
+
+FAIL tests/admin-local-user-repository.test.ts
+  ● admin local user repository › writes the user and its tenant-scoped audit row in one transaction without returning the hash
+System.Management.Automation.RemoteException
+    expect(received).toEqual(expected) // deep equality
+System.Management.Automation.RemoteException
+    - Expected  - 0
+    + Received  + 3
+System.Management.Automation.RemoteException
+      Array [
+        "c1aec1ae-1111-4111-8111-c1aec1aec1ae",
+        "admin-local-user-cli",
+    +   null,
+    +   null,
+    +   null,
+        "admin_local_user.create",
+        "admin_local_user:e3cfc3cf-3333-4333-8333-e3cfc3cfe3cf",
+        "success",
+        null,
+      ]
+System.Management.Automation.RemoteException
+      177 |     expect(insert?.sql).not.toMatch(/RETURNING[^;]*password_hash/i);
+      178 |     expect(audit?.via).toBe('tx');
+    > 179 |     expect(audit?.params).toEqual([
+          |                           ^
+      180 |       TENANT_A,
+      181 |       'admin-local-user-cli',
+      182 |       'admin_local_user.create',
+System.Management.Automation.RemoteException
+      at Object.<anonymous> (tests/admin-local-user-repository.test.ts:179:27)
+System.Management.Automation.RemoteException
+  ● admin local user repository › disables an account and exposes it as ineligible for a future verifier
+System.Management.Automation.RemoteException
+    expect(received).toBe(expected) // Object.is equality
+System.Management.Automation.RemoteException
+    Expected: true
+    Received: false
+System.Management.Automation.RemoteException
+      238 |     expect(update?.sql).toMatch(/WHERE tenant_id = \$1 AND id = \$2/);
+      239 |     expect(update?.params).toEqual([TENANT_A, USER_ID]);
+    > 240 |     expect(f.committed.some((statement) => statement.params[2] === 'admin_local_user.disable')).toBe(true);
+          |                                                                                                 ^
+      241 |   });
+      242 |
+      243 |   it('reset replaces the verifier and advances the account version without returning hash material', async () => {
+System.Management.Automation.RemoteException
+      at Object.<anonymous> (tests/admin-local-user-repository.test.ts:240:97)
+System.Management.Automation.RemoteException
+  ● admin local user repository › credential rotation replaces old material, bumps version, and records a distinct audit action
+System.Management.Automation.RemoteException
+    expect(received).toBe(expected) // Object.is equality
+System.Management.Automation.RemoteException
+    Expected: true
+    Received: false
+System.Management.Automation.RemoteException
+      271 |     const statement = f.attempted.find((item) => /SET password_hash = \$1/.test(item.sql));
+      272 |     expect(statement?.params).toEqual([rotatedHash, TENANT_A, USER_ID]);
+    > 273 |     expect(f.committed.some((item) => item.params[2] === 'admin_local_user.credentials_rotated')).toBe(true);
+          |                                                                                                   ^
+      274 |   });
+      275 |
+      276 |   it('fails closed for an unknown tenant or user on create, disable, reset, and rotation', async () => {
+System.Management.Automation.RemoteException
+      at Object.<anonymous> (tests/admin-local-user-repository.test.ts:273:99)
+System.Management.Automation.RemoteException
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 7 passed, 10 total
+Snapshots:   0 total
+Time:        3.671 s, estimated 4 s
+Ran all test suites matching tests/admin-local-user-repository.test.ts.
+D:\Git\dugate\du-rework\services\orchestrator:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/orchestrator@0.1.0 test: `jest --runInBand "tests/admin-local-user-repository.test.ts"`
+Exit status 1

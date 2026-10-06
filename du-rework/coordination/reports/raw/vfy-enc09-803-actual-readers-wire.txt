@@ -1,0 +1,14 @@
+VERIFY ENC09/R4 raw: actual result_ref readers + actual server route -> SDK probe
+cwd=D:\Git\dugate\du-rework\services\orchestrator
+command=node node_modules/jest/bin/jest.js --runInBand --runTestsByPath tests/vfy-enc09-803-reader.tmp.test.ts
+rounds=1
+===== ROUND 1 =====
+
+--- stderr ---
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        3.541 s
+Ran all test suites within paths "tests/vfy-enc09-803-reader.tmp.test.ts".
+EXIT_CODE=0
+EXIT_SIGNAL=none

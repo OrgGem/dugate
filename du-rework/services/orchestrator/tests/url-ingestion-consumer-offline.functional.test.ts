@@ -1,4 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
+import { Readable } from 'node:stream';
+import { createS3SourceAcquisition } from '../src/modules/operations/s3-source';
 import type { PinnedSourceStorage, SdkFetcher } from '@du/worker-sdk';
 import type { Db } from '../src/db/db';
 import {
@@ -12,6 +14,9 @@ import { markIngestionReady } from '../src/modules/operations/submission';
 import { createS3PinnedSourceStorage } from '../src/modules/operations/ingestion-storage-s3';
 import { createDispatcher } from '../src/modules/queue/dispatcher';
 import { createRuntimeService } from '../src/modules/runtime/runtime';
+import { createMetadataCrypto, type MetadataKeyProvider } from '../src/modules/runtime/metadata-crypto';
+import { adaptKeyProviderForMetadata } from '../src/modules/encryption/metadata-key-adapter';
+import type { KeyProvider, WrapDekInput, WrappedDek } from '../src/modules/encryption/vault-transit-provider';
 
 /**
  * W-DATA03-CONSUMER-JOIN-1 offline functional suite (Turn 160 audit HIGH 1).
@@ -194,6 +199,19 @@ function makeHarness(opts: HarnessOptions = {}) {
       const row = store.outbox.find((candidate) => candidate.id === params[0]);
       return { ...result(row ? [{ id: row.id }] : []), rowCount: row ? 1 : 0 };
     }
+    // CRX-01: the gate's bound-read when the metadata seam is configured — it
+    // returns the (tenant, root task id) pair the AAD binds, guarded on both
+    // rows still being PENDING_INGESTION exactly like the production SQL.
+    if (n.includes('SELECT o.tenant_id AS tenant_id, t.id AS task_id')) {
+      const op = store.ops.get(String(params[0]));
+      const task = [...store.tasks.values()].find(
+        (candidate) => candidate.operation_id === params[0] && candidate.task_key === 'root'
+      );
+      if (!op || !task || op.state !== 'PENDING_INGESTION' || task.state !== 'PENDING_INGESTION') {
+        return result([]);
+      }
+      return result([{ tenant_id: op.tenant_id, task_id: task.id }]);
+    }
     if (n.includes('SELECT t.id AS "taskId"')) {
       const task = [...store.tasks.values()].find(
         (candidate) => candidate.operation_id === params[0] && candidate.task_key === 'root'
@@ -227,7 +245,7 @@ function makeHarness(opts: HarnessOptions = {}) {
       }
       return result([]);
     }
-    if (n.includes('SELECT id, tenant_id, state, state_version, callback_url, updated_at FROM operations WHERE id=$1')) {
+    if (n.includes('SELECT id, tenant_id, state, state_version, callback_url,')) {
       const op = store.ops.get(String(params[0]));
       if (!op) return result([]);
       return result([{
@@ -559,6 +577,82 @@ function makeConsumer(h: Harness, fixture: StorageFixture, net: NetFixture, over
   return { consumer, kicks };
 }
 
+/* ---------------- CRX-01 metadata seam fixture ----------------------------- */
+
+const CRX01_KEY_REF = 'crx01-consumer-offline-v1';
+const CRX01_SENTINEL = 'CRX01-CONSUMER-SENTINEL-7f3a';
+const CRX01_HASH = String.fromCharCode(35);
+
+function crx01Keystream(seed: string, length: number): Buffer {
+  const out = Buffer.alloc(length);
+  let block = 0;
+  for (let offset = 0; offset < length; offset += 32) {
+    const digest = createHmac('sha256', 'crx01-consumer-double').update(seed + ':' + block).digest();
+    digest.copy(out, offset, 0, Math.min(32, length - offset));
+    block += 1;
+  }
+  return out;
+}
+
+function crx01Xor(data: Buffer, stream: Buffer): Buffer {
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i += 1) out[i] = (data[i] ?? 0) ^ (stream[i] ?? 0);
+  return out;
+}
+
+/** Reversible Vault Transit stand-in; `failWrap` models a key-service outage. */
+function crx01Provider(opts: { failWrap?: boolean } = {}): KeyProvider {
+  return {
+    async wrapDek(input: WrapDekInput): Promise<WrappedDek> {
+      if (opts.failWrap) throw new Error('vault transit unavailable');
+      const version = input.keyVersion ?? 1;
+      return {
+        keyRef: input.keyRef,
+        keyVersion: version,
+        ciphertext: crx01Xor(
+          Buffer.from(input.dek),
+          crx01Keystream(input.keyRef + CRX01_HASH + version, input.dek.length),
+        ).toString('base64'),
+      };
+    },
+    async unwrapDek(wrapped: WrappedDek): Promise<Buffer> {
+      const raw = Buffer.from(wrapped.ciphertext, 'base64');
+      return crx01Xor(raw, crx01Keystream(wrapped.keyRef + CRX01_HASH + wrapped.keyVersion, raw.length));
+    },
+    async rewrap(wrapped: WrappedDek): Promise<WrappedDek> {
+      return wrapped;
+    },
+  };
+}
+
+function crx01Crypto(provider: KeyProvider = crx01Provider()) {
+  return createMetadataCrypto(
+    adaptKeyProviderForMetadata(provider) as MetadataKeyProvider,
+    CRX01_KEY_REF,
+  );
+}
+
+/** The sentinel must not survive anywhere in a stored value (incl. base64). */
+function leaksSentinel(value: unknown, depth = 0): boolean {
+  if (depth > 12) return false;
+  if (typeof value === 'string') {
+    if (value.includes(CRX01_SENTINEL)) return true;
+    if (/^[A-Za-z0-9+/]+={0,2}$/.test(value) && value.length >= 8) {
+      try {
+        return Buffer.from(value, 'base64').toString('utf8').includes(CRX01_SENTINEL);
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+  if (Array.isArray(value)) return value.some((v) => leaksSentinel(v, depth + 1));
+  if (value && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).some((v) => leaksSentinel(v, depth + 1));
+  }
+  return false;
+}
+
 function ingestionRow(h: Harness): OutboxRow {
   const row = h.store.outbox.find((candidate) => candidate.payload.gate === 'ingestion');
   if (!row) throw new Error('no ingestion row');
@@ -582,6 +676,28 @@ function must<T>(value: T | undefined, what: string): T {
 /* ======================= tests ======================= */
 
 describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
+  it('IAM S3 source -> bounded acquisition -> immutable private artifact -> READY, without HTTP auth or fetch', async () => {
+    const h = makeHarness();
+    const fixture = makeStorageFixture();
+    const net = makeFetcher();
+    const send = jest.fn().mockResolvedValueOnce({ ContentLength: doc.length, ETag: 'etag', VersionId: 'source-v1' })
+      .mockResolvedValueOnce({ Body: Readable.from([doc]), ETag: 'etag', VersionId: 'source-v1' });
+    const rules = [{ tenantId: TENANT, bucket: 'customer-documents', prefix: 'invoices/', region: 'ap-southeast-1', expectedBucketOwner: '123456789012' }];
+    const resolveSourceAuth = jest.fn(async () => { throw new Error('S3 must not resolve HTTP credentials'); });
+    const { consumer } = makeConsumer(h, fixture, net, {
+      acquireS3FileForTenant: createS3SourceAcquisition(rules, () => ({ send }) as never), resolveSourceAuth,
+    });
+    h.seedGatedSubmission('s3://customer-documents/invoices/report.pdf');
+    await consumer.runOnce();
+    expect(h.store.ops.get(OP)?.state).toBe('QUEUED');
+    expect(h.store.tasks.get(TASK)?.state).toBe('READY');
+    expect([...h.store.artifacts.values()][0]?.sha256).toBe(docSha);
+    expect(fixture.versions).toHaveLength(1);
+    expect(readyRows(h)).toHaveLength(1);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(net.counter.fetches).toBe(0);
+    expect(resolveSourceAuth).not.toHaveBeenCalled();
+  });
   it('happy path: claim -> real acquire -> real ingestor -> real materialize -> gate opens QUEUED/READY with an artifactId pin', async () => {
     const h = makeHarness();
     const fixture = makeStorageFixture();
@@ -1329,6 +1445,130 @@ describe('W-DATA03-CONSUMER-JOIN-1 offline functional', () => {
     const envelope = parseEnvelope(raw);
     expect(envelope.source).toBeDefined();
     expect((envelope.source as { artifactId?: string }).artifactId).toBeTruthy();
+  });
+});
+
+/* ======================= CRX-01: metadata seam at the gate ================= */
+
+describe('CRX-01: the ingestion gate carries the metadata seam end to end', () => {
+  it('opens a submit-side sealed payload_ref and writes SEALED READY envelopes; replay rewrites nothing', async () => {
+    const h = makeHarness();
+    const fixture = makeStorageFixture();
+    const net = makeFetcher();
+    const crypto = crx01Crypto();
+    const { consumer } = makeConsumer(h, fixture, net, { metadataCrypto: crypto });
+    h.seedGatedSubmission();
+    const op = must(h.store.ops.get(OP), 'op');
+    const task = must(h.store.tasks.get(TASK), 'task');
+    // Replace the seeded plaintext rows with the SEALED shapes the submit path
+    // actually writes when the seam is on: one envelope per column, each bound
+    // to its OWN row identity (operation id / root task id).
+    const inbound = {
+      input: { url: 'inline-doc', secret: CRX01_SENTINEL },
+      sourceUrl: SOURCE_URL,
+      ingestionState: 'PENDING',
+    };
+    op.input_ref = await crypto.seal(
+      { url: 'inline-doc', secret: CRX01_SENTINEL },
+      { tenantId: TENANT, slot: 'operations.input_ref', refId: OP },
+    );
+    task.payload_ref = await crypto.seal(
+      inbound,
+      { tenantId: TENANT, slot: 'tasks.payload_ref', refId: TASK },
+    );
+
+    const sweep = await consumer.runOnce();
+    expect(sweep.opened).toBe(1);
+    expect(op.state).toBe('QUEUED');
+    expect(task.state).toBe('READY');
+    // The gate values are the envelope STRINGS sealSubmitMetadata binds.
+    expect(typeof op.input_ref).toBe('string');
+    expect(typeof task.payload_ref).toBe('string');
+    expect(leaksSentinel(op.input_ref)).toBe(false);
+    expect(leaksSentinel(task.payload_ref)).toBe(false);
+    const openedInput = await crypto.readStored(
+      JSON.parse(String(op.input_ref)),
+      { tenantId: TENANT, slot: 'operations.input_ref', refId: OP },
+      false,
+    );
+    const openedPayload = await crypto.readStored(
+      JSON.parse(String(task.payload_ref)),
+      { tenantId: TENANT, slot: 'tasks.payload_ref', refId: TASK },
+      false,
+    );
+    // The contract invariant: the same READY envelope opens from both columns.
+    expect(openedInput).toEqual(openedPayload);
+    const envelope = openedInput as Record<string, unknown>;
+    expect(envelope.url).toBe('inline-doc');
+    expect(envelope.secret).toBe(CRX01_SENTINEL); // survives INSIDE the sealed envelope
+    expect((envelope.source as { artifactId?: string }).artifactId).toBeTruthy();
+    const ready = readyRows(h);
+    expect(ready).toHaveLength(1);
+    expect(leaksSentinel(must(ready[0], 'ready row').payload)).toBe(false);
+
+    // Replay: the second sweep claims nothing and rewrites neither column.
+    const frozen = { input: op.input_ref, payload: task.payload_ref };
+    const second = await consumer.runOnce();
+    expect(second.claimed).toBe(0);
+    expect(op.input_ref).toBe(frozen.input);
+    expect(task.payload_ref).toBe(frozen.payload);
+    expect(readyRows(h)).toHaveLength(1);
+  });
+
+  it('a payload_ref sealed under another row fails closed before the network: TASK_INVALID, gate closed, nothing dispatched', async () => {
+    const h = makeHarness();
+    const fixture = makeStorageFixture();
+    const net = makeFetcher();
+    const crypto = crx01Crypto();
+    const { consumer } = makeConsumer(h, fixture, net, { metadataCrypto: crypto, maxAttempts: 1 });
+    h.seedGatedSubmission();
+    const op = must(h.store.ops.get(OP), 'op');
+    const task = must(h.store.tasks.get(TASK), 'task');
+    task.payload_ref = await crypto.seal(
+      { input: { url: 'inline-doc' }, sourceUrl: SOURCE_URL, ingestionState: 'PENDING' },
+      { tenantId: TENANT, slot: 'tasks.payload_ref', refId: '63000000-0000-4000-8000-000000000009' },
+    );
+
+    const sweep = await consumer.runOnce();
+    expect(sweep.escalated).toBe(1);
+    expect(net.counter.fetches).toBe(0);
+    expect(fixture.counter.puts).toBe(0);
+    expect(op.state).toBe('FAILED');
+    expect(op.error_code).toBe('TASK_INVALID');
+    expect(task.state).toBe('FAILED');
+    expect(readyRows(h)).toHaveLength(0);
+    expect(ingestionRow(h).dispatched_at).not.toBeNull();
+  });
+
+  it('a key-service outage at gate-seal time keeps the gate closed and dispatches nothing', async () => {
+    const h = makeHarness();
+    const fixture = makeStorageFixture();
+    const net = makeFetcher();
+    const { consumer } = makeConsumer(h, fixture, net, {
+      metadataCrypto: crx01Crypto(crx01Provider({ failWrap: true })),
+      maxAttempts: 1,
+    });
+    h.seedGatedSubmission();
+    const op = must(h.store.ops.get(OP), 'op');
+    const task = must(h.store.tasks.get(TASK), 'task');
+
+    const sweep = await consumer.runOnce();
+    expect(sweep.escalated).toBe(1);
+    // The acquisition ran (fetch + pin), so the failure is pinned at SEAL time,
+    // not earlier: the READY gate never opened, both columns keep the submitted
+    // plaintext (the inbound open tolerates the backfill window and never calls
+    // Vault), and no business dispatch row was ever written.
+    expect(net.counter.fetches).toBe(1);
+    expect(fixture.counter.puts).toBe(1);
+    expect(op.state).toBe('FAILED');
+    expect(task.state).toBe('FAILED');
+    expect(op.error_code).toBe('INGESTION_FAILED');
+    expect(op.input_ref).toEqual({ url: 'inline-doc' });
+    expect(task.payload_ref).toEqual({
+      input: { url: 'inline-doc' }, sourceUrl: SOURCE_URL, ingestionState: 'PENDING',
+    });
+    expect(readyRows(h)).toHaveLength(0);
+    expect(ingestionRow(h).dispatched_at).not.toBeNull();
   });
 });
 

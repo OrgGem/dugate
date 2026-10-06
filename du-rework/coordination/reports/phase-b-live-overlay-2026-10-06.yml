@@ -1,0 +1,7 @@
+services:
+  migrate:
+    image: du-phase-b-orchestrator:20261006
+  orchestrator:
+    image: du-phase-b-orchestrator:20261006
+  document-core:
+    image: du-phase-b-document-core:20261006

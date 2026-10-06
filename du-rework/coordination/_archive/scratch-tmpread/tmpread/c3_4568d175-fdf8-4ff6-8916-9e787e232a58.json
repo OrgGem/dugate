@@ -1,0 +1,37 @@
+{
+  "id": "1fc8ebe5-7225-4da5-9399-f6b3d04cf9b0",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_4568d175-fdf8-4ff6-8916-9e787e232a58",
+      "status": "running",
+      "tail": [
+        "    `.manifest.ts:181` |\\\\n| 29 | compare | diff | `mode` @`344` | `output_format` |",
+        "     YES `.manifest.ts:216` |\\\\n| 30 | compare | semantic | `mode` @`352` | `focus`",
+        "    | YES `.manifest.ts:216` |\\\\n| 31 | compare | version | `mode` @`361` |",
+        "    `output_format` | YES `.manifest.ts:216` |\\\\n\\\" })).output || 'm55-c4b';\"}",
+        "    Script error:",
+        "    expecting ','",
+        "        at exec.js:4:1355",
+        "  ⠋Defragmenting memories... both RAM and person (32m 59s · ↑ 9.6k tokens · esc to",
+        "                                                cancel)",
+        "──────────────────────────────────────────────────────────────────────────────────────",
+        "*   Type your message or @path/to/file",
+        "──────────────────────────────────────────────────────────────────────────────────────",
+        "  ➜ dugate · git:(codex/fix-workflow-builder) · qwen3.8-max max · 1.0m Context",
+        "  78.8% used",
+        "  Enter to steer · Ctrl+Q to queue · YOLO mode (tab to cycle) · 32 tasks done"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "69059141",
+      "nextCursor": "69061141",
+      "latestCursor": "69061141",
+      "returnedLineCount": 15,
+      "source": "screen"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

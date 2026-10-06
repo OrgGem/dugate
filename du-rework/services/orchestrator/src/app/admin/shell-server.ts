@@ -22,6 +22,9 @@ import {
   IncomingMessage,
   ServerResponse,
 } from 'node:http';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { extname, join, resolve as resolvePath, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { createLogger } from '@du/observability';
@@ -33,10 +36,15 @@ import type { ShellRuntimeConfig } from './shell-router';
 import { wrapTablesForReflow } from './shell-render';
 import { errorClassOf, safeTransportErrorText } from '../../http/errors';
 import type {
+  AdminCookieClaims,
   AdminShellRequest,
   AdminShellResponse,
 } from './shell-types';
 import { parseCookieHeader, parseFormBody, parseQueryString } from './shell-router';
+import { verifyCookie } from './shell-auth';
+import { liveSessionClaims } from './auth-dispatch';
+import { SESSION_COOKIE_NAME } from '../../modules/auth/session-store';
+import { handleBffRequest, isBffPath, type BffRuntimeConfig } from './bff/handle';
 import { fetchBusinessVersions } from './business-section-data';
 import { fetchProfileForm } from './profile-section-data';
 import { fetchConnectorConfig } from './connector-section-data';
@@ -116,6 +124,21 @@ export interface CreateAdminShellServerOptions {
   sectionFetchers?: ShellRuntimeConfig['sectionFetchers'];
   /** JSON API base URL for the default businesses fetcher. */
   jsonBaseUrl?: string;
+  /**
+   * AWEB-01: static Admin Web mount (Vite build) behind a per-route flag.
+   * Default OFF: when neither this option nor the `DU_ADMIN_WEB` env flag is
+   * set the route does not exist and the legacy rendered shell is untouched.
+   * Tests inject here; the platform uses the env flag
+   * (`DU_ADMIN_WEB=1` → `/admin/web`, or `DU_ADMIN_WEB=/path`).
+   */
+  adminWeb?: AdminWebMountOptions;
+  /**
+   * AWEB-02: per-tenant admin bearers (ServerConfig.tenantAdminTokens). The
+   * BFF uses them for tenant_operator sessions only; a session whose tenant
+   * has no entry fails closed (403 TENANT_SCOPE_UNAVAILABLE) instead of
+   * borrowing the platform token.
+   */
+  tenantAdminTokens?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +288,385 @@ function writeResponse(res: ServerResponse, payload: AdminShellResponse, correla
 }
 
 // ---------------------------------------------------------------------------
+// Admin Web static mount (AWEB-01) — per-route flag, default OFF
+// ---------------------------------------------------------------------------
+//
+// The React Admin Web build (du-rework/apps/admin-web/dist, Vite) is served by
+// this shell at one route prefix, after the SAME session gate the rendered
+// shell uses. The flag is env-driven (DU_ADMIN_WEB) or injected by tests; when
+// it is unset nothing changes for the legacy routes.
+//
+// Serving contract:
+//   - `/admin/web`, `/admin/web/`, and any non-asset deep link -> index.html,
+//     `cache-control: no-store`, strict CSP, and the session gate above.
+//   - `/admin/web/assets/<hashed-file>` -> immutable (max-age 1 year), a small
+//     content-type allow-list; a missing asset is a 404 (never the SPA HTML).
+//   - No session -> 302 to `/admin/login` (same destination as the rendered
+//     shell's protected-route gate).
+//   - Flag on but no bundle on disk -> 503 with a fixed message (never a
+//     silent fallback to the legacy page or a fabricated app).
+
+/** Options for the static Admin Web mount (Vite build served by this shell). */
+export interface AdminWebMountOptions {
+  /** URL path prefix. Default: `/admin/web`. */
+  path?: string;
+  /** Absolute directory holding the Vite build (index.html + assets/). */
+  distDir: string;
+}
+
+interface ResolvedAdminWebMount {
+  path: string;
+  distDir: string;
+  bundlePresent: boolean;
+  /**
+   * AWEB-08-prep per-route rollout allow-list (`DU_ADMIN_WEB_ROUTES`).
+   * `null` = unrestricted (absent env → today's behaviour: the whole SPA is
+   * served). An array (possibly empty) restricts every non-root SPA route:
+   * anything outside the list answers ONE consistent 404 document that points
+   * at the legacy renderer, which stays the default surface until a route is
+   * explicitly enabled.
+   */
+  routes: readonly string[] | null;
+}
+
+const DEFAULT_ADMIN_WEB_PATH = '/admin/web';
+
+/** The SPA route names the rollout flag understands (path segment = name). */
+const ADMIN_WEB_ROUTE_NAMES = [
+  'overview',
+  'profiles',
+  // Swagger UI surface. Recognised so a deployment can opt into
+  // /admin/web/api-docs via DU_ADMIN_WEB_ROUTES without the name being
+  // dropped as unknown (and the route answering the generic 404).
+  'api-docs',
+  'api-keys',
+  'connectors',
+  'operations',
+  'businesses',
+  'usage',
+  'security',
+  // SC-03: Secret catalog screen (list/create/link/rotate/disable).
+  'secrets',
+  'identity',
+  'settings',
+] as const;
+
+const ADMIN_WEB_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ');
+
+const INDEX_CONTENT_TYPE = 'text/html; charset=utf-8';
+
+const ADMIN_WEB_ASSET_TYPES: Record<string, string> = {
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
+};
+
+function normalizeAdminWebPath(value: string): string {
+  const trimmed = value.trim();
+  const withoutTrailing = trimmed.replace(/\/+$/, '');
+  if (withoutTrailing === '') return '/';
+  return withoutTrailing.startsWith('/') ? withoutTrailing : '/' + withoutTrailing;
+}
+
+function parseAdminWebFlag(raw: string | undefined): { enabled: boolean; path: string } {
+  const value = (raw ?? '').trim();
+  if (value === '') return { enabled: false, path: DEFAULT_ADMIN_WEB_PATH };
+  const lowered = value.toLowerCase();
+  if (lowered === '1' || lowered === 'true' || lowered === 'yes' || lowered === 'on') {
+    return { enabled: true, path: DEFAULT_ADMIN_WEB_PATH };
+  }
+  if (value.startsWith('/')) {
+    return { enabled: true, path: normalizeAdminWebPath(value) };
+  }
+  logger.warn('[admin-shell] DU_ADMIN_WEB ignored (expected 1/true or an absolute path)', {
+    value,
+  });
+  return { enabled: false, path: DEFAULT_ADMIN_WEB_PATH };
+}
+
+function resolveAdminWebDist(envValue: string | undefined): string {
+  const fromEnv = (envValue ?? '').trim();
+  if (fromEnv !== '') return resolvePath(fromEnv);
+  const candidates = [
+    resolvePath(process.cwd(), 'apps/admin-web/dist'),
+    resolvePath(__dirname, '../../../../../apps/admin-web/dist'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, 'index.html'))) return candidate;
+  }
+  // None present: return the cwd-relative default so the 503 message and the
+  // mount log point at the conventional location.
+  return candidates[0] ?? resolvePath(process.cwd(), 'apps/admin-web/dist');
+}
+
+/**
+ * Parse `DU_ADMIN_WEB_ROUTES` (comma-separated allow-list of SPA route names).
+ * Absent/blank → `null` (unrestricted: today's behaviour). Unknown names are
+ * dropped with a warning; a present list the operator emptied deliberately
+ * yields an empty allow-list (everything but the shell root is gated).
+ */
+function parseAdminWebRoutes(raw: string | undefined): readonly string[] | null {
+  const value = (raw ?? '').trim();
+  if (value === '') return null;
+  const known = new Set<string>(ADMIN_WEB_ROUTE_NAMES);
+  const allowed: string[] = [];
+  const unknown: string[] = [];
+  for (const token of value.split(',')) {
+    const name = token.trim();
+    if (name === '') continue;
+    if (!known.has(name)) {
+      unknown.push(name);
+      continue;
+    }
+    if (!allowed.includes(name)) allowed.push(name);
+  }
+  if (unknown.length > 0) {
+    logger.warn('[admin-shell] DU_ADMIN_WEB_ROUTES ignored unknown route names', { unknown });
+  }
+  return allowed;
+}
+
+function resolveAdminWebMount(
+  options: CreateAdminShellServerOptions,
+): ResolvedAdminWebMount | undefined {
+  const injected = options.adminWeb;
+  const envFlag = parseAdminWebFlag(process.env.DU_ADMIN_WEB);
+  if (!injected && !envFlag.enabled) return undefined;
+  const routePath = normalizeAdminWebPath(injected?.path ?? envFlag.path);
+  const distDir = injected?.distDir
+    ? resolvePath(injected.distDir)
+    : resolveAdminWebDist(process.env.DU_ADMIN_WEB_DIST);
+  const bundlePresent = existsSync(join(distDir, 'index.html'));
+  const routes = parseAdminWebRoutes(process.env.DU_ADMIN_WEB_ROUTES);
+  if (bundlePresent) {
+    logger.info('[admin-shell] admin web mount enabled', {
+      path: routePath,
+      distDir,
+      routes: routes === null ? 'all' : routes.join(',') || '(none)',
+    });
+  } else {
+    logger.warn('[admin-shell] admin web mount enabled but bundle is missing', {
+      path: routePath,
+      distDir,
+    });
+  }
+  return { path: routePath, distDir, bundlePresent, routes };
+}
+
+function isAdminWebPath(pathname: string, base: string): boolean {
+  return pathname === base || pathname.startsWith(base + '/');
+}
+
+/** Escape a URL-derived value before it lands in the gate's HTML document. */
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function setAdminWebHeaders(
+  res: ServerResponse,
+  cacheControl: string,
+  contentType: string,
+  correlationId: string,
+): void {
+  res.setHeader('content-type', contentType);
+  res.setHeader('cache-control', cacheControl);
+  res.setHeader('content-security-policy', ADMIN_WEB_CSP);
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('referrer-policy', 'no-referrer');
+  res.setHeader('x-correlation-id', correlationId);
+}
+
+function endAdminWebText(
+  res: ServerResponse,
+  status: number,
+  text: string,
+  correlationId: string,
+): void {
+  setAdminWebHeaders(res, 'no-store', 'text/plain; charset=utf-8', correlationId);
+  res.statusCode = status;
+  res.end(text);
+}
+
+/**
+ * Mirror of the rendered shell's protected-route gate (shell-router
+ * `dispatchShellRequestAsync`): a live opaque session wins; a legacy du_admin
+ * cookie is honored only when no du_session cookie is present at all; anything
+ * else is `null` -> redirect to the login form.
+ */
+async function resolveAdminWebClaims(
+  config: ShellRuntimeConfig,
+  request: AdminShellRequest,
+): Promise<AdminCookieClaims | null> {
+  const now = config.nowMs ? config.nowMs() : undefined;
+  if (config.oidcSessions) {
+    const live = await liveSessionClaims(config, request);
+    if (live) return live;
+    const sessionCookie = request.cookies[SESSION_COOKIE_NAME];
+    const legacy = request.cookies['du_admin'];
+    const hasSessionCookie = typeof sessionCookie === 'string' && sessionCookie.length > 0;
+    if (!hasSessionCookie && typeof legacy === 'string' && legacy.length > 0) {
+      return verifyCookie(config.cookieSecret, legacy, now);
+    }
+    return null;
+  }
+  const legacy = request.cookies['du_admin'];
+  return typeof legacy === 'string' && legacy.length > 0
+    ? verifyCookie(config.cookieSecret, legacy, now)
+    : null;
+}
+
+async function handleAdminWebRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string,
+  mount: ResolvedAdminWebMount,
+  config: ShellRuntimeConfig,
+  correlationId: string,
+): Promise<void> {
+  const method = (req.method ?? 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.setHeader('allow', 'GET, HEAD');
+    endAdminWebText(res, 405, 'Method not allowed', correlationId);
+    return;
+  }
+  if (!mount.bundlePresent) {
+    endAdminWebText(
+      res,
+      503,
+      'Admin Web bundle is not deployed on this instance.',
+      correlationId,
+    );
+    return;
+  }
+
+  const request = buildRequest(req, pathname, '', '');
+  const claims = await resolveAdminWebClaims(config, request);
+  if (!claims) {
+    res.statusCode = 302;
+    res.setHeader('location', '/admin/login');
+    res.setHeader('cache-control', 'no-store');
+    res.setHeader('content-type', INDEX_CONTENT_TYPE);
+    res.setHeader('x-correlation-id', correlationId);
+    res.end();
+    return;
+  }
+
+  const rawRelative = pathname.slice(mount.path.length).replace(/^\/+/, '');
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(rawRelative);
+  } catch {
+    endAdminWebText(res, 404, 'Not found', correlationId);
+    return;
+  }
+  if (decoded.includes('\\') || decoded.includes('\0')) {
+    endAdminWebText(res, 404, 'Not found', correlationId);
+    return;
+  }
+  const segments = decoded === '' ? [] : decoded.split('/');
+  if (segments.some((segment) => segment === '..' || segment === '')) {
+    endAdminWebText(res, 404, 'Not found', correlationId);
+    return;
+  }
+
+  const isAsset = decoded.startsWith('assets/');
+  if (isAsset) {
+    const type = ADMIN_WEB_ASSET_TYPES[extname(decoded).toLowerCase()];
+    if (!type) {
+      endAdminWebText(res, 404, 'Not found', correlationId);
+      return;
+    }
+    const target = join(mount.distDir, ...segments);
+    if (!target.startsWith(mount.distDir + sep)) {
+      endAdminWebText(res, 404, 'Not found', correlationId);
+      return;
+    }
+    let file: Buffer;
+    try {
+      file = await readFile(target);
+    } catch {
+      // A missing hashed asset must fail loudly (never the SPA HTML).
+      endAdminWebText(res, 404, 'Not found', correlationId);
+      return;
+    }
+    setAdminWebHeaders(res, 'public, max-age=31536000, immutable', type, correlationId);
+    res.statusCode = 200;
+    if (method === 'HEAD') res.end();
+    else res.end(file);
+    return;
+  }
+
+  // AWEB-08-prep: per-route rollout gate. When `DU_ADMIN_WEB_ROUTES` is set,
+  // every non-root SPA route outside the allow-list answers ONE consistent
+  // 404 document pointing at the legacy renderer (which stays the default
+  // surface until the route's cutover conditions are met). Absent env → this
+  // branch never runs and behaviour is exactly the pre-AWEB-08 one.
+  if (mount.routes !== null && decoded !== '') {
+    const segment = decoded.split('/')[0] ?? '';
+    if (segment !== '' && !mount.routes.includes(segment)) {
+      setAdminWebHeaders(res, 'no-store', INDEX_CONTENT_TYPE, correlationId);
+      res.statusCode = 404;
+      const body =
+        '<!doctype html><html lang="en"><meta charset="utf-8"><title>Route not enabled</title>' +
+        '<main><h1>Route not enabled on this deployment</h1>' +
+        `<p><code>${escapeHtmlText(segment)}</code> is outside this deployment's Admin Web rollout ` +
+        'allow-list (<code>DU_ADMIN_WEB_ROUTES</code>).</p>' +
+        '<p>The legacy renderer remains the default surface for it: ' +
+        '<a href="/admin">open the legacy shell</a>.</p></main></html>';
+      if (method === 'HEAD') res.end();
+      else res.end(body);
+      return;
+    }
+  }
+
+  // Shell document (and SPA deep-link fallback): always revalidate.
+  const indexPath = join(mount.distDir, 'index.html');
+  let indexHtml: Buffer;
+  try {
+    indexHtml = await readFile(indexPath);
+  } catch (err) {
+    logger.error('[admin-shell] admin web index unreadable', {
+      correlationId,
+      errorClass: errorClassOf(err),
+    });
+    endAdminWebText(res, 503, 'Admin Web bundle is not readable.', correlationId);
+    return;
+  }
+  setAdminWebHeaders(res, 'no-store', INDEX_CONTENT_TYPE, correlationId);
+  res.statusCode = 200;
+  if (method === 'HEAD') res.end();
+  else res.end(indexHtml);
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -387,6 +789,18 @@ export function createAdminShellServer(
     } : undefined,
   };
 
+  // AWEB-01: resolve the static Admin Web mount ONCE at mount time (env flag +
+  // bundle presence). Unset flag -> `undefined` -> the request path below is
+  // byte-for-byte the pre-AWEB-01 behaviour.
+  const adminWebMount = resolveAdminWebMount(options);
+  // AWEB-02: the BFF rides the same "new admin surface" switch as the static
+  // mount — flag off means `/admin/api/*` does not exist (legacy 404).
+  const bffRuntime: BffRuntimeConfig = {
+    adminToken: options.adminToken,
+    tenantAdminTokens: options.tenantAdminTokens,
+    jsonBaseUrl: options.jsonBaseUrl,
+  };
+
   let lastRouteId = 'unknown';
   const server = createServer(async (req, res) => {
     const rawCorrelationId = req.headers['x-correlation-id'];
@@ -397,6 +811,25 @@ export function createAdminShellServer(
       const qIdx = url.indexOf('?');
       const pathname = qIdx < 0 ? url : url.slice(0, qIdx);
       const query = qIdx < 0 ? '' : url.slice(qIdx + 1);
+      if (adminWebMount && isAdminWebPath(pathname, adminWebMount.path)) {
+        lastRouteId = 'admin-web';
+        await handleAdminWebRequest(req, res, pathname, adminWebMount, config, correlationId);
+        return;
+      }
+      if (adminWebMount && isBffPath(pathname)) {
+        lastRouteId = 'admin-bff';
+        const bffRequest = buildRequest(req, pathname, query, '');
+        await handleBffRequest(
+          req,
+          res,
+          bffRequest,
+          new URLSearchParams(query),
+          config,
+          bffRuntime,
+          correlationId,
+        );
+        return;
+      }
       const bodyText =
         (req.method ?? 'GET').toUpperCase() === 'POST' ? await readBody(req) : '';
       const request = buildRequest(req, pathname, query, bodyText);
@@ -512,6 +945,15 @@ export interface AdminShellAttachInput {
     adminOidcFlow?: OidcFlow;
     /** OIDC-02/CYCLE-101: the session store the gate resolves du_session against. */
     adminSessionStore?: AdminSessionStore;
+    /** AWEB-02: per-tenant admin bearers for the BFF tenant_operator path. */
+    tenantAdminTokens?: Record<string, string>;
+    /**
+     * SHELL-RED-FIX: optional legacy-plane cookie-policy override, read ONCE
+     * at mount. Absent keeps the env-derived default byte-identical; tests
+     * inject `{ requireSecure: false, trustProxyProtocol: false }` instead of
+     * mutating NODE_ENV/DU_ADMIN_COOKIE_SECURE.
+     */
+    cookiePolicy?: ShellRuntimeConfig['cookiePolicy'];
   };
 }
 
@@ -533,9 +975,11 @@ export async function attachAdminShell(
     host: input.config.adminShellHost ?? '127.0.0.1',
     cookieSecret: secret,
     adminToken,
+    cookiePolicy: input.config.cookiePolicy,
     jsonBaseUrl: input.config.jsonBaseUrl,
     oidcFlow: input.config.adminOidcFlow,
     oidcSessions: input.config.adminSessionStore,
+    tenantAdminTokens: input.config.tenantAdminTokens,
   });
   await handle.listen();
   return { handle, url: handle.url };

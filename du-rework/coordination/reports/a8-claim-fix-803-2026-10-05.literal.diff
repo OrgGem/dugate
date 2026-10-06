@@ -1,0 +1,11 @@
+--- coordination/reports/a8-claim-fix-803-2026-10-05.before.md
++++ docs/04-data-state.md
+@@ -99,7 +99,7 @@
+ 
+ Metadata/control-plane encryption giờ có **7 slot** được seal (`METADATA_SLOTS`, `services/orchestrator/src/modules/runtime/metadata-crypto.ts`): `operations.input_ref`, `tasks.payload_ref`, `human_waits.response_ref`, `step_checkpoints.output_ref`, `operations.prompt_overrides_ref` (carrier Δ-PC-1) và **`tasks.result_ref` + `operations.result_ref`** (ENCMETA-RESULTREF, Option A — hai slot vì cùng một chuỗi nằm ở HAI row; AAD bind `(tenant, slot, refId)` nên replay chéo row ⇒ `CONTEXT_MISMATCH`).
+ 
+-- **Cột TEXT:** `result_ref` là cột text (0001) — envelope được bọc dạng **JSON text** (cùng convention `input_ref`), không phải object thô; reader dùng `readStoredText` và **fail-closed** (`NOT_SEALED`) khi giá trị trông giống envelope mà thiếu seam/không mở được.
++- **Cột TEXT:** `result_ref` là cột text (0001) — envelope được bọc dạng **JSON text** (cùng convention `input_ref`), không phải object thô; trong backfill window hiện tại, cả 4 call-site của `readStoredText` truyền `allowPlaintext=true`: reader mở được sealed envelope khi có seam phù hợp và đọc legacy plaintext verbatim (best-effort); legacy rows vẫn plaintext-readable. Fail-closed `NOT_SEALED` chỉ có hiệu lực sau window switch (A3/A2), chưa được enforce ở các call-site hiện tại (A8).
+ - **ENC-09 backfill window:** trong cửa sổ migration, reader chạy `allowPlaintext=true` — row legacy plaintext đọc **verbatim, byte-identical**; đóng cửa sổ ⇒ plaintext không còn được nhận (`NOT_SEALED`, không auto-nhận plaintext). Quyết định đóng window thuộc owner migration.
+ - **Chưa chạy backfill thật:** receipt hiện có là offline (seal 2 slot 10×3 + regression 61; wire-boundary guards 10×3, 0 product diff) — chưa có PG thật/Vault thật; cập nhật mục ENC-09 của docs 28/35 khi window thật bắt đầu. Không gate nào đổi (`G-ENC` vẫn NO-GO theo baseline).
+ 

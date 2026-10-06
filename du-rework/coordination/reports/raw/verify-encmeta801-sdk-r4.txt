@@ -1,0 +1,12 @@
+﻿cwd=D:\Git\dugate\du-rework
+command=pnpm --filter @du/worker-sdk test -- tests/fan-out.test.ts
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\packages\worker-sdk
+> jest --runInBand "tests/fan-out.test.ts"
+
+Test Suites: 1 passed, 1 total
+Tests:       20 passed, 20 total
+Snapshots:   0 total
+Time:        2.034 s
+Ran all test suites matching tests/fan-out.test.ts.
+literal_exit_code=0

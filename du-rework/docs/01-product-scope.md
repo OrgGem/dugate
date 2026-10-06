@@ -1,5 +1,7 @@
 # Product scope và business requirements
 
+> **Admin operational scope 2026-10-04:** [CFGADM-00..11](../tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md) yêu cầu đủ hành trình quản trị đang hoạt động ở root DUGate, gồm mapping 17 settings và AI/prompts/S3 edit/test/apply/runtime-use/rollback. Đây là acceptance bổ sung BR-03/05/09/10 và G-ADMIN-OPS/P8-08/G6; không coi scaffold/unmanaged là parity. User/role/assignment và workflow mappings phải có UI/API/service thật; không sao chép helper đọc raw key hoặc workflow interpreter vào Orchestrator.
+
 ## Bài toán
 
 Ứng dụng bên ngoài cần một API ổn định để dùng năng lực xử lý tài liệu/LLM. Đội quản trị kiểm soát business, connector, model, prompt, giới hạn và quyền theo profile. Đội business phát triển worker riêng mà không bổ sung nhánh dispatch trong code platform.
@@ -63,9 +65,9 @@ UC-08: Provider đã nhận request nhưng worker mất response; trạng thái 
 
 ## Phạm vi release
 
-**Release đầu đầy đủ:** registry/profile/auth, connector multipart + JSON adapter và mock, artifact S3-compatible, SDK runtime, document-core sáu action, UI quản trị, sample business chứng minh mở rộng, reliability/load tests.
+**Scope release hiện tại (chốt 2026-09-30, bổ sung 2026-10-04):** registry/profile/auth, connector multipart + JSON adapter và mock, private artifact S3, SDK runtime, document-core sáu action/**31 variants**, Admin Web, extension proof và reliability/load/deploy tests. External sáu core + workflow giữ legacy path/default wire theo COMP; P9-01..05 và continuity CONT-00..05 bắt buộc trước G-COMP/G6.
 
-**Release sau có task riêng:** các business disbursement/lc-checker/doc-compare và schema-workflow độc lập. Không mặc định migrate dữ liệu hoặc port nguyên trạng workflow designer cũ.
+**Workflow bắt buộc trong scope hiện tại:** disbursement/lc-checker/doc-compare và schema-workflow qua public facade, theo [P9](../tasks/P9-business-backlog.md). [Bổ sung plan](../tasks/PLAN-COMPLETION-2026-10-04.md) yêu cầu key/config/operation continuity và rollback rehearsal trước G-COMP/G6. Actual production export/import/traffic switching là bước thực thi riêng; visual designer đầy đủ theo PAR-00 register, không tự trở thành điều kiện mọi workflow.
 
 **Ngoài phạm vi:** triển khai model inference, orchestration arbitrary cross-business DAG, Kafka/service mesh, plugin upload JavaScript vào Orchestrator, bảo đảm exactly-once ở provider không hỗ trợ, production cutover tự động.
 

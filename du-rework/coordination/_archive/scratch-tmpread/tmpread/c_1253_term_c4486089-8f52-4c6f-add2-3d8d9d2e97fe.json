@@ -1,0 +1,37 @@
+{
+  "id": "e92027f1-1217-4143-a6ff-d9542766c814",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
+      "status": "running",
+      "tail": [
+        "  └ node_modules/next/dist/server\\get-app-route-from-entrypoint.js.map",
+        "    node_modules/next/dist/server\\get-app-route-from-entrypoint.js",
+        "    … +108 lines (ctrl + t to view transcript)",
+        "    node_modules/next/dist/server\\image-optimizer.js:856:    if ((0,",
+        "    _sendpayload.sendEtagResponse)(req, res, etag)) { •   •W WW•WWoWoWoWoWorWorWororWorkWorkWork6WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingining•inging•ngng7•ngg•gg•g••W•WWWoWoWoWorWorWorWorWorkWorkWorkWorki8WorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrkingkig•kingking•kinging•inging•ngng•ng9ng•gg•g••W•WWWoWoWoWoWorWorWorWorkWorkWorkWorki40WorkiWorkiWokiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingking•kingking•ining•inging•ngng1•ngg•gg•••WW•WWoWoWoWoWorWorWorWorkWorkWorkWorki2WorkiWorkiWorkinWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingking•kingking•ining•inging•ngng•ng3ngg•gg•••WW•WWoWoWoWoWorWorWorWorWorkWorkWorkWrk4WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrkingrkingrking•kingkingking•kinging•inging•ngng•ng5ng•ggg•••WW•WWoWoWoWoWorWorWorWorWorkWorkWorkWrk6WorkiWorki · Running hooksWorkiWorkiWorkiWoki Workin Workin Workin orin · 1 background terminal running · /ps to view ·…orkingorking",
+        "",
+        "• Ran $p='node_modules/next/dist/server/send-response.js';$i=0;Get-Content $p|",
+        "  │ ForEach-Object{$i++;'{0,5}: {1}' -f $i,$_}; Write-Output '--- app route",
+        "  │ send-response call ---'; rg -n --glob '!*.map' \"sendResponse\\(|sendEtagResponse|",
+        "  │ … +3 lines",
+        "  └     1: \"use strict\";",
+        "        2: Object.defineProperty(exports, \"__esModule\", {",
+        "    … +48 lines (ctrl + t to view transcript)",
+        "       51: //# sourceMappingURL=send-response.js.map",
+        "    --- app route send-response call ---orkingrkngrkingrkingrkingkig•kingkingking · Running hooks•inining•ing inging•ngng•ng7ng•gg•g••WW•WWWoWoWoWorWorWorWorkWorkWorkWork8WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrkingking•kingking•kinging•inging•ngng•ng9ng•ggg•••WW•WWoWoWoWoWorWorWorWorkWorkWorkWrk50WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingkig•kingking•kinging•inging•ngng•ng1g•gg•g••W•WWWoWoWoWoWorWorWorWorkWorkWorkWrk2WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingng•ng3ng•gg•g••WW•WWoWoWoWorWorWororWorkWorkWork4WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kinging•inging•ingng•ng5ng•gg•g••W•WWWoWoWoWorWorWororWorkWorkWork6WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingng•ng7ng•gg•g••WW•WWoWoWoWoWorWorWorWorkWorkWorkWorki8WorkiWorkiWokiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingkig•kingking•kinging•inging•ngng•ng9ng•gg•g••W•WWWoWoWoWorWorWororWorkWorkWork400WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingng•ng1ng•ggg•••WW•WWoWoWoWoWorWorWororWorkWorkWork2WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingngng3•ngg•gg•••WW•WWoWoWoWorWorWorWorWorkWorkWorkWorki4WorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingng•ng5ngg•gg•••WW•WWoWoWoWorWorWororWorkWorkWorkWorki6WorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingining•ing•ingngng7•ngg•gg•••WW•WWoWoWoWorWorWororWorkWorkWorkWorki8WorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrkingking•kingking•ining•inging•ngng9•ngg•gg•••WW•WWoWoWoWoWorWorWorWorkWorkWorkWorki10WorkiWorkiWokiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingking•kingking•kinging•inging•ngng•ng1ng•gg•g••WW•WWoWoWoWorWorWororWorkWorkWork2WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingng•ng3ng•gg•g••WW•WWoWoWoWorWorWororWorkWorkWorkWorki4WorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingng•ng5ngg•gg•••WW•WWoWoWoWorWorWororWorkWorkWork6WorkiWorkiWorkiWorkinWorkinWorkinorinorkingorkingorkingrkingrkingrking•kingking•kingin•inging•ingngng7•ngg•gg•••WW•WWoWoWoWorWorWorWorWorkWorkWorkWorki8WorkiWorkiWokiWorkinWorkinWorkinorkingorkingorkingrkingrkingrkingking•kingking•ining•inging•ngng9•ngg•gg•••WW•WWWoWoWoWoWorWorWorWorkWorkWorkWrk20WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrking•kingking•kinging•inging•ngng•ng1ng•gg•g••WW•WWWoWoWoWorWorWorWorkWorkWorkWrk2WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrking•kingking•kinging•inging•ngng•ng3ng•gg•g••WW•WWWoWoWoWorWorWorWorkWorkWorkWrk4WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrking•kingking•kinging•inging•ngng•ng5ng•gg•g••WW•WWWoWoWoWorWorWorWorkWorkWorkWrk6WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrking•kingking•kinging•inging•ngng•ng7ng•gg•g••W•WWWoWoWoWorWorWororWorkWorkWork8WorkiWorkiWorkiWorkinWorkinWorkinorkingorkingorkingrkngrkingrkingrking•kingking•kingining•inging•ngng•ng9ng•gg•g••W•WWWoWoWoWorWor"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "5718",
+      "nextCursor": "7381",
+      "latestCursor": "7381",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

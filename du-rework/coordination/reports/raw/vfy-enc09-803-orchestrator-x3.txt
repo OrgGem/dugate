@@ -1,0 +1,39 @@
+VERIFY ENC09/R4 raw: orchestrator ENC09 suites x3
+cwd=D:\Git\dugate\du-rework\services\orchestrator
+command=node node_modules/jest/bin/jest.js --runInBand tests/encmeta-enc09-kind.test.ts tests/legacy-payload-migration.test.ts
+rounds=3
+===== ROUND 1 =====
+
+--- stderr ---
+
+Test Suites: 2 passed, 2 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        2.564 s, estimated 3 s
+Ran all test suites matching tests/encmeta-enc09-kind.test.ts|tests/legacy-payload-migration.test.ts.
+EXIT_CODE=0
+EXIT_SIGNAL=none
+
+===== ROUND 2 =====
+
+--- stderr ---
+
+Test Suites: 2 passed, 2 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        2.453 s, estimated 3 s
+Ran all test suites matching tests/encmeta-enc09-kind.test.ts|tests/legacy-payload-migration.test.ts.
+EXIT_CODE=0
+EXIT_SIGNAL=none
+
+===== ROUND 3 =====
+
+--- stderr ---
+
+Test Suites: 2 passed, 2 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        2.399 s, estimated 3 s
+Ran all test suites matching tests/encmeta-enc09-kind.test.ts|tests/legacy-payload-migration.test.ts.
+EXIT_CODE=0
+EXIT_SIGNAL=none

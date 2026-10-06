@@ -1,18 +1,22 @@
 # Kiến trúc mục tiêu
 
+> **Quyết định kiến trúc repo mới — 2026-10-05; tên chuẩn chốt 2026-10-06:** [DU Platform: repo và service](40-du-platform-architecture.md) chốt mặc định hai loại repo Orchestrator và Worker; Connector Service thuộc repo Orchestrator nhưng chạy service/image riêng, repo Connector riêng là tùy chọn thứ ba. Tên chuẩn: **DU Platform** (nhóm), **Orchestrator Portal** (UI/BFF, target folder `apps/orchestrator-portal/`), **Orchestrator Backend** (Platform API + Orchestration Runtime cùng process), **Connector Service**, **Business Workers**. [Plan migration](../tasks/DU-PLATFORM-MIGRATION-2026-10-05.md) giữ RPK sequencing và current release gates. Đây là target được người dùng chấp thuận, không phải bằng chứng source/deployment đã migrate; các snapshot dưới giữ provenance lịch sử.
+
 ## Ba tầng triển khai
 
 ```mermaid
 flowchart TB
-  Client[API Clients] --> O[Orchestrator: API + Admin + background runtime]
-  O --> Q[(Redis / BullMQ)]
-  Q --> D[Document Core Worker replicas]
+  Client[API Clients] -->|Public :3000| O
+  Admin[Người quản trị] -->|Orchestrator Portal :3001| O
+  O[Orchestrator Backend<br/>Platform API + Runtime — một process<br/>Public :3000 / Internal :3002]
+  O --> Q[(Queue: Valkey / BullMQ)]
+  Q --> D[Document Core — Business Worker replicas]
   Q --> B[New Business Worker replicas]
-  D --> C[Connector replicas]
+  D --> C[Connector Service replicas<br/>:8080 nội bộ, không publish mặc định]
   B --> C
   C --> P[External LLM / OCR / API]
-  D -->|Runtime HTTP| O
-  B -->|Runtime HTTP| O
+  D -->|Runtime HTTP — Internal :3002| O
+  B -->|Runtime HTTP — Internal :3002| O
   O --> DB[(PostgreSQL: platform)]
   C --> CD[(PostgreSQL: connector)]
   O --- S[(Object storage)]
@@ -23,8 +27,9 @@ flowchart TB
 
 Hai schema PostgreSQL có thể nằm cùng một instance, dùng DB role riêng. Worker không có credential PostgreSQL. Object storage được truy cập bằng scoped grant qua artifact API; không chia sẻ local path giữa container.
 
-## Orchestrator
+## Orchestrator Backend
 
+- **Orchestrator Portal** là frontend + session-facing BFF riêng (listener 3001): chỉ UI/session/OIDC và BFF allowlist, không giữ provider secret và không tự thực hiện nghiệp vụ platform; mọi quyền admin đi qua Backend.
 - Sở hữu tenant, profile, registry, operation, task, step checkpoint, artifact metadata, billing projection, outbox và audit.
 - Public/Admin/Runtime API là thin handlers; nghiệp vụ platform nằm trong module application/domain.
 - Generic coordinator làm dispatch, lease/reconciliation, dependency readiness, resume, deadline, webhook. Không import code document-core hoặc workflow ngành.
@@ -33,7 +38,7 @@ Hai schema PostgreSQL có thể nằm cùng một instance, dùng DB role riêng
 - Có thể cùng container/process ban đầu. Outbox/reconciliation dùng claim/lease PostgreSQL để nhiều replica không chạy hiệu ứng lặp. Không dùng singleton trong RAM như distributed lock.
 - P1 xác minh custom-server build/shutdown với phiên bản Next được pin. Tách background process cùng subproject nếu spike chứng minh cần; đó là thay đổi topology được ghi ADR, không thêm domain Coordinator.
 
-## Business Worker
+## Business Workers
 
 - Một business có image riêng và queue theo exact version; nhiều replica cùng consume queue đó.
 - Sở hữu code xử lý, pipeline definitions, prompt templates, business input/output schemas, resume semantics.
@@ -42,10 +47,10 @@ Hai schema PostgreSQL có thể nằm cùng một instance, dùng DB role riêng
 - Parallel child tasks consume queue của cùng business. Parent phải persist wait và trả slot, không block chờ child ở cùng pool.
 - V1 không cho business gọi trực tiếp public API của business khác để tránh vòng lặp, billing và quyền khó kiểm soát. Tái sử dụng document utilities qua package; cross-business composition là ADR tương lai.
 
-## Connector
+## Connector Service
 
 - Sở hữu connector revisions, adapter config, credentials, invocation ledger, provider quota state.
-- Admin quản lý qua Orchestrator proxy đến Connector management API. Orchestrator giữ metadata/binding references và schema config công khai; không đọc secret đã lưu.
+- Admin quản lý qua Orchestrator Backend proxy đến Connector Service management API. Orchestrator giữ metadata/binding references và schema config công khai; không đọc secret đã lưu.
 - Không có prompt nghiệp vụ, parser DOCX/XLSX, DAG hay tenant billing policy trong adapter.
 - Worker gửi logical binding và cấu hình đã pin được runtime cấp quyền; Connector xác minh invocation grant, resolve credential hiện hành được phép.
 - Provider-specific upload/poll/session protocol thuộc adapter. File parse nội bộ thuộc business.
@@ -61,6 +66,17 @@ Hai schema PostgreSQL có thể nằm cùng một instance, dùng DB role riêng
 6. Worker ghi step output đầy đủ và task completion qua runtime API. Transaction bảo vệ duplicate/stale completion.
 7. Runtime cập nhật operation hoặc enqueue continuation theo dependency đã lưu; webhook được dispatch riêng.
 8. Client polling operation, lấy artifact có quyền.
+
+### Trạng thái luồng trên Docker (2026-10-06)
+
+Ingest và Extract đã chạy **PASS end-to-end 100%** trên stack Docker cô lập `arch-phase-b-20261006` (PostgreSQL 16, Valkey 8, Orchestrator Backend, Connector Service, ba Business Workers):
+
+| Luồng | Operation | Kết quả |
+|---|---|---|
+| Ingest | `64edc168-c736-4e9f-aebb-71b5aed722cd` | 202 → SUCCEEDED, 1 task / 2 checkpoints, `/result` + download 200, replay 200 cùng operation ID |
+| Extract | `3191692e-ff4b-479d-9b7b-686e530ba45b` | 202 → SUCCEEDED, 1 task / 3 checkpoints, 1 provider call (mock `json-http`), `/result` + download 200 khớp fixture |
+
+Nguồn: [phase-b-live-summary](../coordination/reports/phase-b-live-summary-2026-10-06.json); [LIVE-STACK-DEPLOY-E2E follow-up](../coordination/reports/live-stack-deploy-e2e-2026-10-06.md#follow-up-live-extract-window---arch-phase-b-20261006); [run-summary](../coordination/reports/raw/phase-b-extract-resume-prep-2026-10-06/run-summary.json). Đây là scoped live-local evidence: Extract dùng provider mock; real-provider/negative/compatibility cases, PM-M02 full acceptance và production cutover còn OPEN. Listener/port: Public 3000, Internal 3002 (không publish host mặc định), Orchestrator Portal 3001, Connector Service 8080 (không publish host mặc định) — chi tiết [12b-deployment-guide.md](12b-deployment-guide.md#1-deployment-topology).
 
 ## Quy tắc consistency
 
@@ -79,7 +95,7 @@ Document worker riêng chỉ có lợi khi parse CPU/RAM thành bottleneck dùng
 
 ## Trạng thái kiến trúc đã hiện thực (ARCH-DOC-01, snapshot 2026-09-28, cập nhật 2026-10-01)
 
-> **Phần trên là `kiến trúc mục tiêu` — dung ở mức độ, KHÔNG phải mô tả thứ đã chạy.** Phần này ghi phần **đã materialize trên cây**, tách bạch bằng chứng offline và receipt đọc trực tiếp. **Mọi hàng `verified` dưới đây đều là OFFLINE; không hàng nào có live S3 / PostgreSQL thật / Redis thật / Vault thật / browser thật.**
+> **Phần trên là `kiến trúc mục tiêu` — dùng ở mức độ, KHÔNG phải mô tả thứ đã chạy.** Phần này ghi phần **đã materialize trên cây**, tách bạch bằng chứng offline và receipt đọc trực tiếp. **Mọi hàng `verified` dưới đây đều là OFFLINE snapshot 2026-09-28/10-01; không hàng nào có live S3 / PostgreSQL thật / Redis thật / Vault thật / browser thật.** Bằng chứng **live-local Docker** mới nhất (Ingest/Extract PASS ngày 2026-10-06) nằm ở mục “Trạng thái luồng trên Docker” phía trên; các hàng dưới giữ nguyên như lịch sử.
 
 ### 1. Native parse/split so với Connector OCR/vision
 
@@ -114,7 +130,7 @@ Document worker riêng chỉ có lợi khi parse CPU/RAM thành bottleneck dùng
 
 | Mảng | Hiện trạng trên cây | Bằng chứng / giới hạn |
 |---|---|---|
-| **Admin shell** | `services/orchestrator/src/app/admin/` (~30 file: `shell-router.ts`, `shell-server.ts`, per-section data/renderer/view-models, `crypto-config-api/store`, `oidc-boot/oidc-flow`), mount bằng `attachAdminShell` trong `createApp` (`server.ts:714`, remount `:877`); `server.listen` tại `server.ts:860` | Đã mount nhưng auth còn **token/OIDC**, chưa có local user — `LOCAL-R02/R03`; shell chỉ mount khi có `adminToken` (`server.ts:869`, `shell-server.ts:501`) |
+| **Admin shell (Orchestrator Portal)** | `services/orchestrator/src/app/admin/` (~30 file: `shell-router.ts`, `shell-server.ts`, per-section data/renderer/view-models, `crypto-config-api/store`, `oidc-boot/oidc-flow`), mount bằng `attachAdminShell` trong `createApp` (`server.ts:714`, remount `:877`); `server.listen` tại `server.ts:860` | Đã mount nhưng auth còn **token/OIDC**, chưa có local user — `LOCAL-R02/R03`; shell chỉ mount khi có `adminToken` (`server.ts:869`, `shell-server.ts:501`) |
 | **Shared egress** | `packages/egress/` — pinned DNS-rebinding-safe fetch: **một** resolution cấp cho cả policy lẫn socket | PR-Q3-03/09; mọi egress HTTP của orchestrator/worker đi qua package này, không tự `fetch` |
 | **OpenAPI generator** | `tools/openapi/gen_openapi.py` sinh `docs/21-openapi.json` **từ router + `@du/contracts`** (operations-list params, usage-events params, delivery schemas đều derive), kèm guard "không được mất path/schema đã có" (`validate_openapi.py`, `probe_cases.js`) | Generator chưa phủ đủ route admin/uploads/runtime ⇒ xem known gap ghi ở [docs/06](06-public-api.md); **không patch tay `docs/21`** (serialize-point) |
 | **Audit surface** | `GET /api/v1/admin/audit` với audit page + sortable allow-list riêng (vì `admin_audit_events` không có `updated_at`), chuyển sang executor keyset dùng chung | **Δ124:** cursor dialect đổi 3-slot `decodeListCursor` → **4-slot có mã sort** ⇒ client giữ token cũ **422** (Δ126 allow-list sort chưa đồng nhất giữa 4 list). Đây chính là lớp rủi ro mà COMP-06 phải xử lý cho cursor legacy |

@@ -1,0 +1,37 @@
+{
+  "id": "e4850007-6e5a-4626-92f6-20d7f7b14192",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
+      "status": "running",
+      "tail": [
+        "    … +54 lines (ctrl + t to view transcript)",
+        "    This comparison is limited to wire fields and control flow. It does not assess or reconcile stored-total versus query-time-sum accounting.",
+        "    ?? du-rework/coordination/reports/codex-billing-spending-wire-contract-2026-10-01.mdng •ng ng •ng g •g g  · Running hooks•8  •WWWWoWoWoWoWorWorWororWorkWorkWorkWorkWorkiWorkiWorkiWokinWorkinWorkinWorkin9orkingorkingorkingorkng•rkingrking•rkingking•kingking•inging•ingng•ngng•nggg•g•40•WWWWoWoWoWoWorWorWorWorkWorkWorkWrkWorkiWorkiWorkiWorkinWorkinWorkin1orkingorkingorkingorkng•rkingrking•rkingking•kingkingkin•inging•ingng•ngngng•gg•gg•2•WWWWWoWoWoWorWorWorWorkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkin3orkingorkingorkingorkng•rkingrking•rkingking•kingking•inging•inging•ngng•ngg•gg•4•WWWWWoWoWoWorWorWororkWorkWorkWorkWrkWorkiWorkiWorkiWorkinWorkinWorkin5Woringorkingorkingorking•rkingrking•rkingking•kingking",
+        "",
+        "• Completed the read-only billing and spending-limit characterization in the report (du-rework/coordination/reports/codex-billing-spending-wire-contract-2026-10-01.md).  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome",
+        "",
+        "  It documents the legacy balance and usage JSON, the 402 submit flow and totalUsed updates, and rework’s usage routes. Rework has no HTTP balance equivalent or submit-time spending-limit rejection; its internal",
+        "  budget reservation can return BLOCKED, but no current route or production caller invokes it. No source files were changed, and no tests were run.   • Working (9m 47s • esc to interrupt) · Running hooks  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome  •  W •W",
+        "",
+        "  Worked for 9m 47s · done 11:50 AM  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome",
+        "",
+        "─ Conversation recap ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "",
+        "  The wire-contract review is complete: the error-envelope matrix is settled, and billing and spending-limit behavior was characterized read-only in a report. The actual rework serial satisfied the hard check;",
+        "  no blocker or next step is recorded."
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "44363",
+      "nextCursor": "45358",
+      "latestCursor": "45358",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

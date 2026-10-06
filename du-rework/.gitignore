@@ -3,6 +3,12 @@ dist/
 *.tsbuildinfo
 coverage/
 .env
+.env.docker
+.env.docker.*
+.env.live
+.env.*.live
+.env.*.local
+!.env.docker.example
 uploads/
 outputs/
 data/

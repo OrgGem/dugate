@@ -44,6 +44,14 @@ export function toContractInvocationResponse(
     error?: { code: string; message: string; retryAfterMs?: number };
     nextPollAt?: string;
     providerRequestId?: string;
+    /**
+     * CR06-04: invocation continuation session. For PENDING responses this is
+     * the session captured from the provider's 202 body; for SUCCEEDED it is
+     * the result-side session (the pending session when the provider omitted
+     * one on completion). Carried top-level so a pending-yield resume does not
+     * lose the session.
+     */
+    sessionRef?: string | null;
   },
 ): InvocationResponse {
   const state = {
@@ -85,6 +93,9 @@ export function toContractInvocationResponse(
       }
       : undefined,
     nextPollAt: result.nextPollAt,
+    // CR06-04: top-level continuation session (pending → provider 202 value;
+    // completed → result-side value, falling back to the invocation record's).
+    sessionRef: result.sessionRef ?? result.result?.sessionRef,
   };
   return InvocationResponseSchema.parse(response);
 }

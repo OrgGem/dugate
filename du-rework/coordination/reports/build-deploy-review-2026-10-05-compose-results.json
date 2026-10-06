@@ -1,0 +1,94 @@
+[
+  {
+    "file": "docker-compose.yml",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "services.postgres conflicts with imported resource\n"
+  },
+  {
+    "file": "services/orchestrator/docker-compose.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "services/connector/docker-compose.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "businesses/document-core/docker-compose.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "businesses/lc-checker/docker-compose.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "businesses/example-review/docker-compose.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "infra/docker-compose.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "infra/docker-compose.live.yml",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "file": "services/orchestrator/docker-compose.yml",
+    "override": {
+      "ORCHESTRATOR_PORT": "3100"
+    },
+    "exit": 0,
+    "processPort": "3100",
+    "publishedPorts": [
+      {
+        "mode": "ingress",
+        "target": 3000,
+        "published": "3100",
+        "protocol": "tcp"
+      }
+    ],
+    "healthcheck": [
+      "CMD",
+      "node",
+      "-e",
+      "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+    ]
+  },
+  {
+    "file": "services/connector/docker-compose.yml",
+    "override": {
+      "CONNECTOR_PORT": "8188"
+    },
+    "exit": 0,
+    "processPort": "8188",
+    "publishedPorts": [
+      {
+        "mode": "ingress",
+        "target": 8080,
+        "published": "8188",
+        "protocol": "tcp"
+      }
+    ],
+    "healthcheck": [
+      "CMD",
+      "node",
+      "-e",
+      "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+    ]
+  }
+]

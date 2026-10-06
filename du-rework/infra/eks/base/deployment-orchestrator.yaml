@@ -1,0 +1,67 @@
+# Orchestrator Backend + Portal: MỘT Deployment, MỘT Pod phục vụ cả 3 listener
+# (Public JSON :3000, Internal JSON :3002, Portal/BFF :3001) — như compose hiện tại.
+# Không tách Runtime thành Deployment riêng.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: du-rework
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orchestrator
+        app.kubernetes.io/part-of: du-rework
+    spec:
+      serviceAccountName: orchestrator
+      terminationGracePeriodSeconds: 60 # drain 30s (SHUTDOWN_TIMEOUT_MS) + buffer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000 # image chạy USER node, như Dockerfile
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: orchestrator
+          image: du-orchestrator:local # pin digest trong kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          command: [node, dist/main.js]
+          ports:
+            - name: public
+              containerPort: 3000
+            - name: internal
+              containerPort: 3002 # có trong Pod nhưng KHÔNG publish ra ngoài; không Ingress/DNS
+            - name: portal
+              containerPort: 3001
+          envFrom:
+            - configMapRef: { name: orchestrator }
+            - secretRef: { name: orchestrator }
+          # Liveness = /health (dependency readiness PG+Redis; provider outage không được
+          # làm sập liveness — đúng phân biệt live/ready của source).
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet: { path: /api/v1/health, port: 3000 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            # Deployment owner chốt requests/limits theo sizing (xem 07-capacity).
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }

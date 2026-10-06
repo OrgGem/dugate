@@ -1,0 +1,101 @@
+{
+  "captured_utc": "2026-10-04T21:01:17.862309+00:00",
+  "head": {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit": 0,
+    "stdout": "b088eececcb5f3df0b4edbe073a29401dafda624\n",
+    "stderr": ""
+  },
+  "pins": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "sha256": "a4d805c84ad54610480672000322eefc6309fedb0e9141a6a30ff37f60bac8be",
+      "mtime_ns": "1791147318411597700"
+    },
+    "tasks/README.md": {
+      "sha256": "2d789ccfd4bb8f06ed5ba333e8b02f28cf99203b7a29f60cf6ee72dc35d1aead",
+      "mtime_ns": "1791146691037666900"
+    },
+    "coordination/reports/commit-plan-prep-2026-10-05.md": {
+      "sha256": "7c4f7bea25f22436690941bb04abbb15a6b87087b1b89f4a1eae8a3e8da5ef46",
+      "mtime_ns": "1791141860430064400"
+    },
+    "services/orchestrator/src/modules/runtime/runtime.ts": {
+      "sha256": "acb476fd3079e6f3fdbf4b81bb54f5fe0b5b2f07679bb72ab47c73664bc09138",
+      "mtime_ns": "1791144732453200900"
+    },
+    "services/orchestrator/src/http/routes/runtime.ts": {
+      "sha256": "8a4209f370b4bedca8c24c52ac5d1b08f7d5d59ee9ac72184f7c53d3a9ca5602",
+      "mtime_ns": "1791144601017259200"
+    },
+    "services/orchestrator/src/modules/runtime/metadata-crypto.ts": {
+      "sha256": "c614ecdcfda50eac79a29eac2098b92cb3bba77280d90ddec6f3a815a4a602a1",
+      "mtime_ns": "1791144548403905000"
+    },
+    "services/orchestrator/migrations/0032_checkpoint_session_ref.sql": {
+      "sha256": "69a9cc6bea5df9a999546ab5bb98a43ee1a1a0c3835be5d7e8c6aee72788e55e",
+      "mtime_ns": "1791144605532374600"
+    },
+    "services/orchestrator/src/http/routes/public.ts": {
+      "sha256": "422db30e924db063c30405b26be73ccc867ce4e4dede8e344b411a169cbb057c",
+      "mtime_ns": "1791143777644607600"
+    },
+    "services/orchestrator/src/modules/operations/mappers.ts": {
+      "sha256": "4d58cc2377521cb21b101c7fe0745891cb5447dd18f9c678d89d65a912ffc784",
+      "mtime_ns": "1791147220044900500"
+    },
+    "packages/worker-sdk/src/fan-out.ts": {
+      "sha256": "410ea97532106511f5a968a5a25b2cec1da637f85fb98c5f2ac9f371f66763fa",
+      "mtime_ns": "1791147602146306000"
+    }
+  },
+  "assets": {
+    "apps/admin-web/dist/assets/index-BffJF1YL.css": {
+      "sha256": "baf331d4ea62f3274fc1ac9e83ea049787fc7f786fac6330fbf69de3457bf021"
+    },
+    "apps/admin-web/dist/assets/index-Bs0p8VRI.js": {
+      "sha256": "8ccdbab15d44cca1886895475ef3a2ae4352304fa2dc235cf1b93c793348c1d7"
+    }
+  },
+  "staged_observation": {
+    "argv": [
+      "git",
+      "diff",
+      "--cached",
+      "--name-only"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "task_statuses": [
+    {
+      "id": "task_34af06b387a2",
+      "status": "completed"
+    },
+    {
+      "id": "task_3057f69f1012",
+      "status": "dispatched"
+    },
+    {
+      "id": "task_60c55b14b7d2",
+      "status": "dispatched"
+    },
+    {
+      "id": "task_aac120f86260",
+      "status": "completed"
+    },
+    {
+      "id": "task_b26e9232f603",
+      "status": "dispatched"
+    },
+    {
+      "id": "task_0f77d71cabd1",
+      "status": "ready"
+    }
+  ],
+  "task_query_exit": 0
+}

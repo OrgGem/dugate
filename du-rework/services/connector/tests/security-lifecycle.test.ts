@@ -266,6 +266,7 @@ function makeLifecycleComposition(
       },
       capabilities: () => ({}),
       ready: async () => true,
+      allowUnauthenticatedTestTraffic: true,
     },
     close,
   });

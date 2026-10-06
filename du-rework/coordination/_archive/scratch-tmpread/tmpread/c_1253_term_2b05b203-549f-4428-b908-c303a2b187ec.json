@@ -1,0 +1,37 @@
+{
+  "id": "0d22fd6d-99ae-4f50-9275-06438e741e54",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
+      "status": "running",
+      "tail": [
+        "• Ran Test-Path 'du-rework/coordination/reports/codex-result-delivery-encryption-wire-2026-10-01.md'; git status --short -- 'du-rework/coordination/reports/codex-result-delivery-encryption-wire-2026-10-01.md'",
+        "  │ 'app/api/v1/operations/[id]/route.ts' 'app/api/v1/operations/[id]/download/route.ts' 'lib/pipelines/format.ts' 'du-rework/services/orchestrator/src/server.ts' 'du-rework/services/orchestrator/src/modules/",
+        "  │ public-api/delivery-encryption.ts'; Get-Content 'du-rework/coordination/reports/codex-result-delivery-encryption-wire-2026-10-01.md' | Select-Object -Last 18",
+        "  └ True",
+        "    ?? du-rework/coordination/reports/codex-result-delivery-encryption-wire-2026-10-01.md",
+        "    … +22 lines (ctrl + t to view transcript)",
+        "    helper, and the artifact route likewise uses only the tenant policy (`:1990-1994,2054-2077`). No result/download query flag, request body field, or request header bypasses an enabled tenant policy. The Admin",
+        "    `deliveryEncryption` mutation is an authenticated control-plane configuration change, not a per-delivery request override (`:2613-2695`).•rking rking •rking king •kingkingkingin•inginging•ingng•ngng5•ngg•ggWWWWWoWoWoWorWorWorWorWorkWorkWorkWorki6WorkiWorkiWorkiWorkinWorkinWorkin•orkingorking•orkingrking•rkingrking•rkingking•kingking•inging•ingng•ngng7•ngg•ggWWWWoWoWoWorWorWorWorWorkWorkWorkWrki8WorkiWorkiWorkiWorkinWorkinWorkinoring•orkingorking•orkingrking•rkingrking•kingking•kingking•inginging•ingng•ng9ng•gg•gWWWWWoWoWoWorWorWororkWorkWorkWorkWorki50WorkiWorkiWorkinWorkinWorkinWoring•orkingorking•orkingrking•rkingrking•kingking•kingkin•inginging•ingng•ng1ng•gg•ggW",
+        "",
+        "• Completed the read-only report: Result-delivery encryption wire characterization (du-rework/coordination/reports/codex-result-delivery-encryption-wire-2026-10-01.md).  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome",
+        "",
+        "  It finds that legacy delivers results and files as plaintext at the application layer. Rework applies a per-tenant server-side policy to result JSON and artifact bytes; when enabled, recipient-key or crypto",
+        "  failures return 503 without plaintext fallback. No caller-controlled plaintext downgrade was found. No source files were changed, and no tests were run.     • Working (16m 55s • esc to interrupt) · Running hooks  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome   WWWW",
+        "",
+        "  Worked for 16m 55s · done 12:35 PM  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "44693",
+      "nextCursor": "45742",
+      "latestCursor": "45742",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

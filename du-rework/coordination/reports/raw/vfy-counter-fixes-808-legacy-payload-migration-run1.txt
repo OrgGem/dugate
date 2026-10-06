@@ -1,0 +1,18 @@
+COMMAND=pnpm --filter @du/orchestrator test -- tests/legacy-payload-migration.test.ts
+
+STDOUT:
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand "--" "tests/legacy-payload-migration.test.ts"
+
+
+
+STDERR:
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        2.435 s
+Ran all test suites matching tests/legacy-payload-migration.test.ts.
+
+
+LITERAL_EXIT_CODE=0

@@ -1,0 +1,1 @@
+﻿pnpm --filter @du/orchestrator exec jest --runInBand --runTestsByPath tests/enc-meta-sentinel-runtime-refs.test.ts tests/enc-meta-sentinel-outbox-source-url.test.ts tests/bypass-fix-810.test.ts tests/wrapper-fix-812.test.ts tests/p745-prompt-carrier-claim.test.ts

@@ -1,0 +1,7 @@
+﻿COMMAND: pnpm --filter @du/orchestrator build
+LITERAL_EXIT_CODE: 0
+
+
+> @du/orchestrator@0.1.0 build D:\Git\dugate\du-rework\services\orchestrator
+> tsc -p tsconfig.json
+

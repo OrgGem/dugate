@@ -1,0 +1,72 @@
+{
+  "docs_checked": 78,
+  "local_links_checked": 601,
+  "anchors_checked": 52,
+  "task_definitions": 65,
+  "duplicate_task_definitions": 0,
+  "acyclic_mermaid_graphs": 2,
+  "legacy_settings": 17,
+  "CFGADM_open_rows": 12,
+  "P730_open_rows": 6,
+  "P745_open_rows": 7,
+  "P763_offline_ticks": 2,
+  "other_checkbox_changes": 0,
+  "added_task_rows": 0,
+  "readonly_pins_checked": 5,
+  "historical_topology_members": 15,
+  "intake_agent_lanes": 13,
+  "suite_PAR_XA_tokens": 18,
+  "suite_bare_tokens": 0,
+  "fold_cycles": [
+    796,
+    797,
+    798,
+    799,
+    800,
+    801,
+    802
+  ],
+  "skeleton_cycles": [
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810
+  ],
+  "diff_check_exit": 0,
+  "staged_files_observed": [],
+  "post_pins": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "mtime_ns": "1791146798484392800",
+      "sha256": "cff3624a147d761dfdf830672052c30de21cb44eaf40d2a6c67a50c8745b88c1"
+    },
+    "tasks/README.md": {
+      "mtime_ns": "1791146691037666900",
+      "sha256": "2d789ccfd4bb8f06ed5ba333e8b02f28cf99203b7a29f60cf6ee72dc35d1aead"
+    },
+    "tasks/ADMIN-WEB-DELIVERY-2026-10-04.md": {
+      "mtime_ns": "1791143190656802200",
+      "sha256": "754f7d67620b3a863b2752141761d197ca4276cbecc00703dd87b86fb0546ed8"
+    },
+    "tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md": {
+      "mtime_ns": "1791143204252653200",
+      "sha256": "b15ce8fc3a7199618e8001c494aaa2cbe70f3c00fad6a400c6defa0c24c53aa1"
+    },
+    "tasks/LEGACY-PARITY-GAP-ADDENDUM-2026-10-03.md": {
+      "mtime_ns": "1791143190704740200",
+      "sha256": "3bb141cc27bdf020a293cdcc4818d9cbedcaaccc334f88d4c76362e684832336"
+    },
+    "coordination/COORDINATION-TOPOLOGY.md": {
+      "mtime_ns": "1791143174591843800",
+      "sha256": "61c74b890df56feab57e565fc62c603f3626ef976892ff9b04245388c1e30698"
+    },
+    "tasks/ORCHESTRATOR-CONFIG-PROFILE-CONNECTOR-DETAIL-2026-10-02.md": {
+      "mtime_ns": "1791115337338853000",
+      "sha256": "e35edb80e2ee620deb7374ee30b88e3ea71b0ad17f0015bf8f8b1fd33fd3ec48"
+    }
+  },
+  "errors": []
+}

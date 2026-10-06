@@ -1,0 +1,41 @@
+﻿import assert from "node:assert/strict";
+import schema from "../../../../../lib/workflow-builder/examples/schema-disbursement";
+import { runSchemaDag, validateSchema } from "../../../../../lib/workflow-builder/interpreter";
+
+async function main(): Promise<void> {
+  const leafCalls: Array<{ id: string; bindings: Record<string, unknown> }> = [];
+  const input = { resolution_data: { reference: "fixture-resolution" }, limit_amount: 5_000_000 };
+  const files = ["shipping-fixture.pdf"];
+  const results = await runSchemaDag({
+    schema, input, files,
+    exec: async (node, resolve) => {
+      const inputs = (node as { inputs?: Record<string, unknown> }).inputs ?? {};
+      const bindings = Object.fromEntries(Object.entries(inputs).map(([key, value]) => [key, resolve(value)]));
+      leafCalls.push({ id: node.id, bindings });
+      return { content: `${node.id}.fixture`, output: `${node.id}.fixture`, data: {} };
+    },
+  });
+  const diagnostic = {
+    schemaSlug: schema.slug,
+    validationErrors: validateSchema(schema),
+    declaredFlow: schema.flow,
+    resultNodes: Object.keys(results),
+    invokedConnectorNodes: leafCalls.map((call) => call.id),
+    classifyNodeOutput: results.classify?.output,
+    extractInputs: leafCalls.find((call) => call.id === "extract")?.bindings,
+    crosscheckInputs: leafCalls.find((call) => call.id === "crosscheck")?.bindings,
+    reportInputs: leafCalls.find((call) => call.id === "report")?.bindings,
+  };
+  console.log(JSON.stringify(diagnostic, null, 2));
+  assert.deepEqual(validateSchema(schema), []);
+  assert.deepEqual(Object.keys(results), ["classify", "extract", "human_review", "crosscheck", "report"]);
+  assert.deepEqual(leafCalls.map((call) => call.id), ["classify", "extract", "crosscheck", "report"]);
+  assert.deepEqual(leafCalls[0]?.bindings.file, files);
+  assert.equal(leafCalls[1]?.bindings.logical_docs, "classify.fixture");
+  assert.equal(leafCalls[2]?.bindings.text, "extract.fixture");
+  assert.deepEqual(leafCalls[2]?.bindings.reference, input.resolution_data);
+  assert.equal(leafCalls[2]?.bindings.limit, input.limit_amount);
+  assert.equal(leafCalls[3]?.bindings.text, "crosscheck.fixture");
+  assert.equal(results.human_review?.type, "human");
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });

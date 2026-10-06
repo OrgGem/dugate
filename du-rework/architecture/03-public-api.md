@@ -2,6 +2,8 @@
 
 **Contract mục tiêu, chưa phải API đang được chứng nhận hoạt động.** Base minh họa `https://du.example.com/api/v1`; `.example.com` không phải môi trường triển khai. UTF-8 JSON; file qua multipart/artifact. Tất cả endpoint trong tài liệu này cần `x-api-key`, kể cả đọc trạng thái và download.
 
+> **Ingress (PM-M02):** các route public dưới đây phục vụ trên cả Public `:3000` và Internal `:3002`; route admin (`/api/v1/admin*`), runtime (`/api/runtime*`) và internal (`/api/internal*`) **bị chặn trên Public `:3000`** bằng generic 404 (`services/orchestrator/src/http/ingress-guard.ts`), kể cả khi caller có credential hợp lệ. BFF/workers/services dùng Internal `:3002`.
+
 ## Headers và submission
 
 | Header | Yêu cầu | Ý nghĩa |
@@ -33,7 +35,7 @@ Không truyền `queue`, raw credentials, model tùy ý hay `_prompt` để vư�
 | POST `/docs/{action}` | JSON Submission hoặc multipart compatibility | 202 Operation | Sáu alias document-core; adapter cần test |
 | POST `/artifacts` | multipart `file` | 201 ArtifactRef | MIME signature/size/ownership checks |
 | GET `/artifacts/{id}` | path | 200 metadata | Không trả storage credentials |
-| GET `/artifacts/{id}/download` | path | 302 signed URL | 410 khi hết retention |
+| GET `/artifacts/{id}/download` | path | 200 raw bytes (plain) hoặc 200 JSON wrapper (encrypted) — **302 đã bị loại khỏi contract** | 410 khi hết retention |
 | GET `/operations` | cursor, limit, state | 200 cursor page | Scope theo key/tenant/policy |
 | GET `/operations/{id}` | path | 200 OperationDetail | 404 nếu không được xem |
 | GET `/operations/{id}/result` | path | 200 ResultEnvelope | 409 chưa SUCCEEDED; 410 kết quả expired |

@@ -1,0 +1,162 @@
+{
+  "captured_utc": "2026-10-04T21:16:47.525826+00:00",
+  "files": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "mtime_ns": "1791147318411597700",
+      "sha256": "a4d805c84ad54610480672000322eefc6309fedb0e9141a6a30ff37f60bac8be",
+      "checkboxes": [
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[x]",
+        "[ ]",
+        "[x]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/README.md": {
+      "mtime_ns": "1791146691037666900",
+      "sha256": "2d789ccfd4bb8f06ed5ba333e8b02f28cf99203b7a29f60cf6ee72dc35d1aead",
+      "checkboxes": [
+        "[~]",
+        "[ ]",
+        "[x]",
+        "[x]",
+        "[~]",
+        "[ ]",
+        "[~]",
+        "[x]",
+        "[~]",
+        "[ ]",
+        "[~]",
+        "[x]",
+        "[ ]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/ADMIN-WEB-DELIVERY-2026-10-04.md": {
+      "mtime_ns": "1791143190656802200",
+      "sha256": "754f7d67620b3a863b2752141761d197ca4276cbecc00703dd87b86fb0546ed8",
+      "checkboxes": [
+        "[x]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md": {
+      "mtime_ns": "1791143204252653200",
+      "sha256": "b15ce8fc3a7199618e8001c494aaa2cbe70f3c00fad6a400c6defa0c24c53aa1",
+      "checkboxes": [
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": []
+    },
+    "tasks/LEGACY-PARITY-GAP-ADDENDUM-2026-10-03.md": {
+      "mtime_ns": "1791143190704740200",
+      "sha256": "3bb141cc27bdf020a293cdcc4818d9cbedcaaccc334f88d4c76362e684832336",
+      "checkboxes": [
+        "[x]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": [
+        "PAR-XA-01..05"
+      ]
+    },
+    "coordination/COORDINATION-TOPOLOGY.md": {
+      "mtime_ns": "1791143174591843800",
+      "sha256": "61c74b890df56feab57e565fc62c603f3626ef976892ff9b04245388c1e30698",
+      "checkboxes": [],
+      "PAR_XA": []
+    },
+    "tasks/ORCHESTRATOR-CONFIG-PROFILE-CONNECTOR-DETAIL-2026-10-02.md": {
+      "mtime_ns": "1791115337338853000",
+      "sha256": "e35edb80e2ee620deb7374ee30b88e3ea71b0ad17f0015bf8f8b1fd33fd3ec48",
+      "checkboxes": [
+        "[x]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]",
+        "[ ]"
+      ],
+      "PAR_XA": [
+        "PAR-XA-01..05",
+        "PAR-XA-03",
+        "PAR-XA-03",
+        "PAR-XA-01",
+        "PAR-XA-02"
+      ]
+    }
+  },
+  "task_statuses": [
+    {
+      "id": "task_3057f69f1012",
+      "status": "completed"
+    },
+    {
+      "id": "task_aac120f86260",
+      "status": "completed"
+    },
+    {
+      "id": "task_b26e9232f603",
+      "status": "completed"
+    },
+    {
+      "id": "task_0f77d71cabd1",
+      "status": "dispatched"
+    },
+    {
+      "id": "task_476b4e7b83b9",
+      "status": "dispatched"
+    },
+    {
+      "id": "task_31b00c61a6c4",
+      "status": "ready"
+    },
+    {
+      "id": "task_f0e2aca7ae99",
+      "status": "ready"
+    },
+    {
+      "id": "task_42bb7c8166a1",
+      "status": "ready"
+    }
+  ],
+  "assets": {
+    "apps/admin-web/dist/assets/index-BffJF1YL.css": "baf331d4ea62f3274fc1ac9e83ea049787fc7f786fac6330fbf69de3457bf021",
+    "apps/admin-web/dist/assets/index-Bs0p8VRI.js": "8ccdbab15d44cca1886895475ef3a2ae4352304fa2dc235cf1b93c793348c1d7"
+  }
+}

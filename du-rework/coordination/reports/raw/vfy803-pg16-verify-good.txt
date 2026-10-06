@@ -1,0 +1,4 @@
+﻿COMMAND: node dist/migrate-cli.js verify (DATABASE_URL points only at this task-owned PostgreSQL 16 container)
+LITERAL_EXIT_CODE: 0
+
+{"subsystem":"migrations","timestamp":"2026-10-04T21:55:49.027Z","level":"info","service":"orchestrator","version":"unknown","environment":"dev","correlationId":"7179daa0-f12c-4dbe-885b-5c5847b88ba4","operationId":null,"taskId":null,"invocationId":null,"message":"schema verification passed"}

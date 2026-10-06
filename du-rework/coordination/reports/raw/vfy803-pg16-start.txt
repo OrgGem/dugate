@@ -1,0 +1,4 @@
+﻿COMMAND: docker run postgres:16, unique container, loopback-only port, tmpfs data, random throwaway password
+LITERAL_EXIT_CODE: 0
+
+a2b9a6587e61832e8101f9b114f95f41ef60c1339c852499b47f2f3b552225a9

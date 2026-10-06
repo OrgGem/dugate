@@ -1,3 +1,4 @@
+import { createLogger, safeErrorForLog } from '@du/worker-sdk';
 import { parseWorkerConfig } from './config';
 import { startExampleReviewWorker } from './worker';
 
@@ -25,8 +26,7 @@ export async function main(
 
 if (require.main === module) {
   main().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Example Review worker failed: ${message}`);
+    createLogger({ service: 'example-review' }).error('example-review worker startup failed', { error: safeErrorForLog(error) });
     process.exitCode = 1;
   });
 }

@@ -1,0 +1,37 @@
+{
+  "id": "a42b9521-b6ff-4f55-b64f-94e5a0956137",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_c4486089-8f52-4c6f-add2-3d8d9d2e97fe",
+      "status": "running",
+      "tail": [
+        "    … +2396 lines (ctrl + t to view transcript)",
+        "    du-rework/services/orchestrator/src\\app\\admin\\shell-server.ts:336:",
+        "    operations: (input) =>W Wo Wo Wo WoWor6WorWorWororWorkWorkWork•WorkiWorki•WorkiWorkin•WorkinWorkin•Workinorking•orkingorking•rkingrkingrking•kigking•king7king•inging•ingngngngggggWWWWWoWoWoWor8WorWororWorkWorkWork•WorkiWorki•WorkiWoki•WorkinWorkinWorkin•orkingorking•orkingrkng•rkingrking•rkingking•kingking9•kinging•ingingngngngggggWWWWoWoWoWoWor40WorWorWorkWorkWork•WorkiWorki•WorkiWoki•WorkinWorkin•Workinorking•orkingorking•rkingrking•rkingkig•kingking1•kinging•ingingngngngggggWWWWWoWoWoWor2WorWorWorkWorkWork•WorkiWorki•WorkiWoki•WorkinWorkin•Workinorking•orkingorking•rkingrkingrking•kigking•king3king•inging•ingngngngggggWWWWWoWoWoWor4WorWorWorkWorkWorkWrk•WorkiWorki•WorkiWorkin•WorkinWorkin•orkingorking•orkingrkng•rkingrking•rkingking•kingking5•inging•ingngngngggggWWWWWoWoWoWor6WorWorWorkWorkWorkWrk•WorkiWorki•WorkiWorkin•WorkinWorkin•orkingorking•orkingrkng•rkingrking•rkingking•kingking7•inging•ingngngngnggggWWWWoWoWoWor8WorWororWorkWorkWork•WorkiWorki•WorkiWorki•WorkinWorkin•Workinorkingorking",
+        "",
+        "• I stopped before editing: Orca reports this process no longer owns the dispatch and",
+        "  explicitly instructs me not to continue or send a completion message. The COMP-01c",
+        "  report was not completed.  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome   • Working (4m 49s • esc to interrupt) · Running hooks  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome    W",
+        "",
+        "  Worked for 4m 49s · done 11:36 AM  › Ask Codex to do anything   gpt-6-luna max · D:\\Git\\dugate · Report task outcome",
+        "",
+        "─ Conversation recap ─────────────────────────────────────────────────────────────────",
+        "",
+        "  The COMP-01b legacy workflow wire characterization is settled and passed your hard",
+        "  checks; Orca says this process no longer owns dispatch. The next step is for the",
+        "  current dispatch owner to continue COMP-01c."
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "4799",
+      "nextCursor": "6799",
+      "latestCursor": "6799",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

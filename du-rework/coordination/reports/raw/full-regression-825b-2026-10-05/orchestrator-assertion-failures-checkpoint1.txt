@@ -1,0 +1,179 @@
+﻿FAIL tests/admin-shell-session-lifecycle.test.ts (6.058 s)
+  ● W-SEC-AUDIT-TAXONOMY-1 default console sink through the REAL shell listener › mount default: a bad token over the 
+FAIL tests/artifact-read-authorization.test.ts
+  ● R1-A artifact read authorization and storage-facade boundary › does not grant reads for STAGING artifacts, even in 
+  ● R1-A artifact read authorization and storage-facade boundary › rejects expired and fenced requesters before 
+  ● R1-A artifact read authorization and storage-facade boundary › keeps writes producer-scoped and hides storage keys 
+  ● CR28-03 artifact read authorization: negatives and boundaries › declared references array › reports a state 
+  ● CR28-03 worker lease boundaries › prefers expiry over task state when both are wrong
+  ● CR28-03 worker lease boundaries › FINDING: the lease_active boolean collapses a missing expiry and a past one
+FAIL tests/migration-verify-trap-fix.test.ts
+  ● verifyMigrations: mismatch reports with real evidence › the table has MORE rows than the read registered -> throws 
+FAIL tests/migration-0032-rollback.test.ts
+  ● MIGRATION-0032: idempotent re-run on a fresh instance › two migrate() runs apply the DDL exactly once and leave 
+FAIL tests/wrapper-fix-812.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-recovery.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-hitl.test.ts
+  ● Test suite failed to run
+FAIL tests/rcr-luna-verification.test.ts
+  ● Test suite failed to run
+FAIL tests/p730-profile-snapshot.test.ts
+  ● Test suite failed to run
+FAIL tests/operations-list-cursor-sort-binding.test.ts
+  ● Test suite failed to run
+FAIL tests/operations-list-contract-conformance.test.ts
+  ● Test suite failed to run
+FAIL tests/metadata-read-policy.test.ts
+  ● Test suite failed to run
+FAIL tests/legacy-payload-migration.test.ts
+  ● Test suite failed to run
+FAIL tests/encmeta-resultref-offline.functional.test.ts
+  ● Test suite failed to run
+FAIL tests/enc-meta-sentinel-runtime-refs.test.ts
+  ● Test suite failed to run
+FAIL tests/enc-meta-sentinel-outbox-source-url.test.ts
+  ● Test suite failed to run
+FAIL tests/crx01-metadata-wiring.test.ts
+  ● Test suite failed to run
+FAIL tests/credworkflow-e2e-offline.functional.test.ts
+  ● Test suite failed to run
+FAIL tests/bypass-fix-810.test.ts
+  ● Test suite failed to run
+FAIL tests/br12-isolation-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-list-contract-conformance.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-base-routes.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-audit.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-audit-list-page.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-action-rbac-live.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime.test.ts
+  ● Test suite failed to run
+FAIL tests/artifact-grant-fencing.test.ts
+  ● Test suite failed to run
+FAIL tests/data-02-04-live-s3.test.ts
+  ● Test suite failed to run
+FAIL tests/usage-summary.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-webhook.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-facade.test.ts
+  ● Test suite failed to run
+FAIL tests/ingress-bounded.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-version-lifecycle.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-health.test.ts
+  ● Test suite failed to run
+FAIL tests/webhook-reclaim-fence.live.test.ts
+  ● Test suite failed to run
+FAIL tests/blob-wire-binary.test.ts
+  ● Test suite failed to run
+FAIL tests/operation-tenant-fence.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-admin-auth.test.ts
+  ● Test suite failed to run
+FAIL tests/workspace-reference.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-error-boundary.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-shell-live-pane.test.ts
+  ● Test suite failed to run
+FAIL tests/webhook-error-boundaries.boundary.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-operations-sql.test.ts
+  ● Test suite failed to run
+FAIL tests/delivery-encryption.test.ts
+  ● Test suite failed to run
+FAIL tests/public-upload-encryption-gateway.test.ts
+  ● Test suite failed to run
+FAIL tests/crx02-rfx05res-s3-read-guard.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-operations-sort-http-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/enc08-wire-enc07.test.ts
+  ● Test suite failed to run
+FAIL tests/url-ingestion-consumer-offline.functional.test.ts
+  ● Test suite failed to run
+FAIL tests/multipart-routes-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-operations-sort.test.ts
+  ● Test suite failed to run
+FAIL tests/request-redaction.test.ts
+  ● Test suite failed to run
+FAIL tests/p745-connector-boot-composition.test.ts
+  ● Test suite failed to run
+FAIL tests/rfx10-seed-gate.test.ts
+  ● Test suite failed to run
+FAIL tests/rcr-http-offline.functional.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-crypto-config-oidc.test.ts
+  ● Test suite failed to run
+FAIL tests/artifact-read-download-route.test.ts
+  ● Test suite failed to run
+FAIL tests/request-redaction-http.test.ts
+  ● Test suite failed to run
+FAIL tests/artifact-storage-service.test.ts
+  ● Test suite failed to run
+FAIL tests/rv01-loopback-http-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/p730-acquire-composition.test.ts
+  ● Test suite failed to run
+FAIL tests/usage-drilldown.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-sort-allowlist.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-crypto-config-wiring.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-crypto-config-shell.test.ts
+  ● Test suite failed to run
+FAIL tests/admin-audit-scope.test.ts
+  ● Test suite failed to run
+FAIL tests/rfx11-12-route-hardening.test.ts
+  ● Test suite failed to run
+FAIL tests/v1-boot-typed-denial.test.ts
+  ● Test suite failed to run
+FAIL tests/ba04-fix-811.test.ts
+  ● Test suite failed to run
+FAIL tests/fu-encmeta-admin-projection.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-encryption-metadata.test.ts
+  ● Test suite failed to run
+FAIL tests/p745-prompt-producer-impl.test.ts
+  ● Test suite failed to run
+FAIL tests/rv0104-live-encryption.test.ts
+  ● Test suite failed to run
+FAIL tests/runtime-lease-fencing-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/encryption-boot-options.test.ts
+  ● Test suite failed to run
+FAIL tests/mm05-queue-integrity-sweep.test.ts
+  ● Test suite failed to run
+FAIL tests/p745-prompt-carrier-claim.test.ts
+  ● Test suite failed to run
+FAIL tests/mm10-claim-cancel-flag-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/rcr-luna-http-encryption.test.ts
+  ● Test suite failed to run
+FAIL tests/p730-acquire-consumer-auth.test.ts
+  ● Test suite failed to run
+FAIL tests/encmeta-enc09-kind.test.ts
+  ● Test suite failed to run
+FAIL tests/mm10-heartbeat-cancel-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/p730-legacy-snapshot-failclosed.test.ts
+  ● Test suite failed to run
+FAIL tests/br08-cancel-resume-race-offline.test.ts
+  ● Test suite failed to run
+FAIL tests/crx01-creatapp-metadata-seam.test.ts
+  ● Test suite failed to run
+FAIL tests/aweb02b-tenant-token-env.test.ts
+  ● Test suite failed to run
+FAIL tests/multipart-service-offline.test.ts
+  ● Test suite failed to run

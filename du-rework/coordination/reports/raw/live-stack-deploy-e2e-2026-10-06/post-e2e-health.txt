@@ -1,0 +1,1 @@
+﻿host_http=200;db=True;redis=True

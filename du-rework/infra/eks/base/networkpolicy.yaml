@@ -1,0 +1,87 @@
+# PM-M02 trên EKS, lớp bổ sung sau route guard trong code (ingress-guard.ts).
+# Reachable không đồng nghĩa authorized — authorization trong route vẫn bắt buộc.
+# Thay 10.0.0.0/16 bằng VPC CIDR thật; thu hẹp về node/ALB subnets khi có thể.
+# Lưu ý kubelet: probes đi từ node IP, nên rule ALB cho phép VPC CIDR tới 3000/3001
+# cũng là đường cho kubelet healthcheck — không siết hẹp hơn node CIDR.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: du-platform
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# ALB (target-type ip) + kubelet -> 3000/3001. Không mở 3002/8080 từ ngoài Pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-alb-to-edge
+  namespace: du-platform
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: orchestrator
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: 3000
+        - port: 3001
+      from:
+        - ipBlock: { cidr: 10.0.0.0/16 } # placeholder: VPC CIDR thật
+---
+# Workers + Connector -> orchestrator-internal:3002. Không namespace/ingress nào khác.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-3002
+  namespace: du-platform
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: orchestrator
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: 3002
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: document-core
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: lc-checker
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: example-review
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: connector
+---
+# Workers + Orchestrator (management/probe) -> connector:8080.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-connector-8080
+  namespace: du-platform
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: connector
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: 8080
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: orchestrator
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: document-core
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: lc-checker
+# Egress lockdown (RDS 5432, ElastiCache 6379, S3 443, provider 443 + PROVIDER_ALLOW_HOSTS,
+# giữ UDP 53 cho DNS) do deployment owner siết thêm — sample này chưa chặn egress để
+# tránh chặn nhầm DNS/managed endpoints. Không coi allowlist ingress là đủ.

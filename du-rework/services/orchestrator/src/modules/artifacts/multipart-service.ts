@@ -19,6 +19,7 @@ import {
 import type { QueryResult, QueryResultRow } from 'pg';
 import type { Db } from '../../db/db';
 import { HttpError, conflict, forbidden, notFound, unprocessable, unavailable } from '../../http/errors';
+import { encryptionIsRequired } from '../encryption/boot-options';
 import type { ArtifactMultipartStorage, MultipartStoredPart } from './multipart-storage';
 import { multipartUploadHandle } from './multipart-storage';
 import { ArtifactStorageError } from './storage-facade';
@@ -45,6 +46,47 @@ import { ArtifactStorageError } from './storage-facade';
  * The provider upload id stays server-side; clients see only the derived
  * opaque `uploadHandle`. Presigned part URLs are never logged.
  */
+
+/**
+ * RFX-03 — is the PUBLIC multipart lifecycle available on this deployment?
+ *
+ * The public branch presigns client PUTs straight at the object store, so the
+ * bytes land exactly as the client sent them. The encrypted upload gateway is
+ * the only artifact write path boot accepts, and nothing refused this
+ * lifecycle when encryption was on: the result was plaintext at rest in the
+ * same bucket the gateway exists to protect — and, with
+ * `encryptionRequired`, an artifact that could never be read back.
+ *
+ * The direction chosen here is the reversible one: REFUSE, loudly, rather than
+ * grow a second write path with different encryption semantics. The server-side
+ * seal variant is recorded as a follow-up decision, not attempted.
+ *
+ * The predicate is deliberately `encryptionIsRequired` — the SAME function boot
+ * uses — rather than a second copy. boot-options already records that two
+ * copies of this decision drifted once and silently dropped a block while
+ * validation still demanded its key ref.
+ *
+ * A malformed flag makes that function throw. A throw is read as REQUIRED: a
+ * typo in the encryption surface must never be the reason the plaintext path
+ * opens.
+ */
+function publicMultipartBlockedByEncryption(): boolean {
+  try {
+    return encryptionIsRequired(process.env);
+  } catch {
+    return true;
+  }
+}
+
+function assertPublicMultipartAllowed(): void {
+  if (!publicMultipartBlockedByEncryption()) return;
+  throw new HttpError(
+    501,
+    'PUBLIC_MULTIPART_UNAVAILABLE',
+    'public multipart upload is not available while artifact encryption is required; ' +
+      'use the encrypted upload gateway (single PUT or multipart) instead',
+  );
+}
 
 const SESSION_SELECT = `
   SELECT id AS "artifactId", tenant_id AS "tenantId", operation_id AS "operationId",
@@ -160,6 +202,14 @@ export interface MultipartServiceOptions {
   sessionTtlMs?: number;
   partUrlTtlMs?: number;
   now?: () => number;
+  /**
+   * SEC-ENC-04: true when this deployment must not persist plaintext artifacts.
+   * The client-driven worker multipart lifecycle presigns part PUTs straight at
+   * the object store, so the Orchestrator cannot seal it; while this is true
+   * the worker branch refuses before a session, an upload or a presign exists.
+   * Defaults to the same boot predicate the public branch uses.
+   */
+  encryptionRequired?: boolean;
 }
 
 export interface MultipartSweepSummary {
@@ -213,6 +263,24 @@ function narrow(value: number, floor: number, ceiling: number, label: string): n
 export function createMultipartService(db: Db, options: MultipartServiceOptions = {}): MultipartService {
   const now = options.now ?? Date.now;
   const storage = options.storage;
+  const encryptionRequired = options.encryptionRequired ?? publicMultipartBlockedByEncryption();
+
+  /**
+   * SEC-ENC-04 (SD-03): the worker multipart branch writes client bytes
+   * directly to object storage, so it is a plaintext-at-rest bypass whenever
+   * this deployment requires encryption. Until a server-mediated sealed
+   * multipart writer exists, refusing before the session is created is the
+   * only fail-closed answer; `abort` stays open so an operator can clean up.
+   */
+  function assertWorkerMultipartSealingAvailable(): void {
+    if (!encryptionRequired) return;
+    throw new HttpError(
+      501,
+      'ENCRYPTED_MULTIPART_UNAVAILABLE',
+      'worker multipart uploads are disabled while artifact encryption is required; '
+        + 'use the server-mediated single upload path',
+    );
+  }
   const policy = {
     partSizeBytes: narrow(
       options.partSizeBytes ?? MULTIPART_FIXED_PART_BYTES,
@@ -396,7 +464,26 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     return taskId;
   }
 
-  /** Records the geometry and hash the server agreed to accept for one part. */
+  /**
+   * Records the geometry and hash the server agreed to accept for one part.
+   *
+   * A part row is a PROMISE, not a suggestion: once a grant exists for
+   * (artifact, partNumber), that grant is what the client is held to. The old
+   * `ON CONFLICT DO UPDATE` let a second, concurrent grant silently rewrite the
+   * first one's hash, so a client that uploaded per grant #1 failed `complete`
+   * with CHECKSUM_MISMATCH against grant #2's declaration — a server-side race
+   * surfaced to the operator as a client error.
+   *
+   * `DO NOTHING` plus an explicit read-back makes the promise one-way: the same
+   * hash is a legitimate replay of the same grant and succeeds; a different
+   * hash is a `PART_CONFLICT` naming the part.
+   *
+   * RFX-07 finding — why the session lock did not save this: BOTH grant paths
+   * already take `SELECT ... FOR UPDATE` on the session row inside the same
+   * transaction, so two concurrent grants WERE serialised. Blocking is not
+   * comparing. The overwrite was reachable precisely because nothing compared
+   * the two declarations once the loser held the lock.
+   */
   async function insertPartDeclaration(
     client: SqlClient,
     artifactId: string,
@@ -404,13 +491,36 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     declaredSha256: string,
     sizeBytes: number,
   ): Promise<void> {
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO artifact_multipart_parts (artifact_id, part_number, declared_sha256, size_bytes)
        VALUES ($1,$2,$3,$4)
-       ON CONFLICT (artifact_id, part_number) DO UPDATE
-         SET declared_sha256=EXCLUDED.declared_sha256, size_bytes=EXCLUDED.size_bytes`,
+       ON CONFLICT (artifact_id, part_number) DO NOTHING
+       RETURNING part_number`,
       [artifactId, partNumber, declaredSha256, sizeBytes],
     );
+    if (inserted.rowCount) return;
+
+    const existing = await client.query<{ declaredSha256: string; sizeBytes: number }>(
+      `SELECT declared_sha256 AS "declaredSha256", size_bytes::int AS "sizeBytes"
+         FROM artifact_multipart_parts
+        WHERE artifact_id=$1 AND part_number=$2`,
+      [artifactId, partNumber],
+    );
+    // The row can only disappear if another transaction removed it between the
+    // two statements. Refusing is the honest answer; re-inserting would
+    // resurrect a declaration nobody agreed to any more.
+    if (!existing.rowCount) {
+      throw conflict('PART_CONFLICT', `part ${partNumber} declaration is no longer present; re-initialise the upload`);
+    }
+    const row = existing.rows[0]!;
+    if (row.declaredSha256 !== declaredSha256 || Number(row.sizeBytes) !== sizeBytes) {
+      throw conflict(
+        'PART_CONFLICT',
+        `part ${partNumber} was already granted a different checksum; ` +
+          'a part number carries one declaration for the life of the session',
+      );
+    }
+    // Same hash and size: the same grant, asked for twice.
   }
 
   /** Presigns the server-fixed part size, binding the declared hash into the URL. */
@@ -665,6 +775,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     async init(taskId, body): Promise<MultipartInitAck> {
       const parsed = MultipartInitRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('init', parsed.error);
+      assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
       const backend = requireStorage();
       if (req.purpose === 'input') {
@@ -763,6 +874,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     async grantPart(artifactId, body): Promise<MultipartPartGrant> {
       const parsed = MultipartPartGrantRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('part grant', parsed.error);
+      assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
       const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);
@@ -786,6 +898,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     async complete(artifactId, body): Promise<MultipartCompleteAck> {
       const parsed = MultipartCompleteRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('complete', parsed.error);
+      assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
       const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);
@@ -906,6 +1019,8 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     },
 
     async publicInit(tenantId, body): Promise<MultipartInitAck> {
+      // RFX-03: refuse before a session row, a storage upload or a presign exists.
+      assertPublicMultipartAllowed();
       const parsed = PublicMultipartInitRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads init', parsed.error);
       const req = parsed.data;
@@ -993,6 +1108,8 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     },
 
     async publicGrantPart(artifactId, tenantId, body): Promise<MultipartPartGrant> {
+      // RFX-03: no presigned PUT URL is minted for a plaintext-at-rest path.
+      assertPublicMultipartAllowed();
       const parsed = PublicMultipartPartGrantRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads part grant', parsed.error);
       const req = parsed.data;
@@ -1010,6 +1127,9 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     },
 
     async publicComplete(artifactId, tenantId, body): Promise<MultipartCompleteAck> {
+      // RFX-03: a session opened before encryption was turned on must not be
+      // publishable through this branch either.
+      assertPublicMultipartAllowed();
       const parsed = PublicMultipartCompleteRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('uploads complete', parsed.error);
       const req = parsed.data;

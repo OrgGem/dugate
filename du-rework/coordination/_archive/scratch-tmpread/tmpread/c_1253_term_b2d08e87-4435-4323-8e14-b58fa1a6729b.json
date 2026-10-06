@@ -1,0 +1,37 @@
+{
+  "id": "0ed37fec-c09d-4e0c-8549-237e16e07ba4",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_b2d08e87-4435-4323-8e14-b58fa1a6729b",
+      "status": "running",
+      "tail": [
+        "",
+        "• Ran rg -n \"case .*operation|case .*artifact|operation\\.|artifact\\.|admin\\.operations|resource\" du-rework/services/orchestrator/src/modules/admin-actions/dispatcher.ts du-rework/services/orchestrator/src/",
+        "  │ modules/admin-actions/rbac.ts | Select-Object -First 180; Get-Content -LiteralPath 'du-rework/services/orchestrator/src/modules/admin-actions/rbac.ts' -Encoding utf8 | Select-Object -Skip 380 -First 38;",
+        "  │ Get-Content -LiteralPath 'du-rework/services/orchestrator/src/modules/artifacts/multipart-service.ts' -Encoding utf8 | Select-Object -Skip 850 -First 80; Get-Content -LiteralPath 'du-rework/services/",
+        "  │ … +1 lines",
+        "  └ du-rework/services/orchestrator/src/modules/admin-actions/rbac.ts:75:  resourceTenantId: string",
+        "    du-rework/services/orchestrator/src/modules/admin-actions/rbac.ts:80:  if (principal.role === 'tenant_operator' && resourceTenantId !== principal.tenantId) {",
+        "    … +199 lines (ctrl + t to view transcript)",
+        "      req: { purpose: string; mimeType: string; fileName?: string; sizeBytes: number; partSizeBytes?: number },",
+        "    ): void {Worki Worki WorkiWorkinWorkinWorkinWorkin3orkingorking · Running hooksorkingorkingrkng rking rking •rking kig •king king •king ing •inginging•ngngng•ngg•gg•4••WWWWoWoWoWoWorWorWorWorkWorkWorkWorkWorkiWorkiWorkiWokiWorkinWorkinWorkin5orkingorkingorkingrkingrking•rkingkig•kingking•kinging•inging•ngng•ngng•gg•g6••WWWWoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWokiWorkinWorkinWorkin7orkingorkingorkingrkngrking•rkingrking•kingking•kinging•inginging•ngngng•ngg•gg•8••WWWWWoWoWoWorWorWorWorkWorkWorkWrkWorkiWorkiWorkiWorkinWorkinWorkin9orkingorkingorkingrkingrking•rkingkig•kingking•kinging•inging•ngng•ngg•gg•g20••WWWWWoWoWoWorWorWororWorkWorkWorkWrkWorkiWorkiWorkiWorkinWorkinWorkin1orkingorkingorkingrkngrking•rkingrking•kingking•kinginging•inging•ngngng•ngg•gg•2••WWWWWoWoWoWoWorWor · Running hooksWor Wor WorkWorkWork · 1 background terminal running · /ps to view · /stop to close",
+        "",
+        "• Ran rg -n \"MULTIPART_SESSION_TTL_MS|MULTIPART_SWEEP|sweepInterval|recoveryInterval|sealed|sealArtifact|encrypt\" du-rework/services/orchestrator/src/modules/artifacts du-rework/services/orchestrator/src/",
+        "  │ server.ts du-rework/services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts du-rework/services/orchestrator/src/modules/artifacts/s3-storage-facade.ts du-rework/services/orchestrator/",
+        "  │ migrations",
+        "  └ (no output)Work Wrk WorkiWorkiWorkiWorkiWorkinWorkinWorkin3orinorkingorkingorkingorkingrking•rkingrking•kingkingking•ining•inging•ngng•ngg•gg•4••WWWWoWoWoWoWorWorWorWorkWorkWorkWorkWorkiWorkiWorkiWokiWorkinWorkinWorkin5orkingorkingorkingrkingrking•rkingkig•kingking•kinging•inging•ngng•ngng•gg•g6••WWWWoWoWoWoWorWorWorWorkWorkWorkWorkiWorkiWorkiWokiWorkinWorkinWorkin7orkingorkingorkingrkng"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "30077",
+      "nextCursor": "31155",
+      "latestCursor": "31155",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

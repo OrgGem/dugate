@@ -1,0 +1,33 @@
+{
+  "document_checks_only": true,
+  "checks": [
+    {
+      "file": "tasks/PLAN-COMPLETION-2026-10-04.md",
+      "checkbox_count": 26,
+      "checkbox_vector_unchanged": true
+    },
+    {
+      "file": "tasks/README.md",
+      "checkbox_count": 13,
+      "checkbox_vector_unchanged": true
+    }
+  ],
+  "documents_scanned": 96,
+  "local_links_checked": 662,
+  "anchors_checked": 55,
+  "graphs_checked": 8,
+  "task_definitions_checked": 65,
+  "duplicate_task_definitions": {},
+  "required_checkpoint_markers": 38,
+  "next_turns": [
+    806,
+    807,
+    808,
+    809,
+    810
+  ],
+  "checkbox_changes": 0,
+  "diff_check_exit": 0,
+  "head": "b088eececcb5f3df0b4edbe073a29401dafda624",
+  "errors": []
+}

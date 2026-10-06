@@ -1,0 +1,505 @@
+﻿captured_utc=2026-10-05T08:10:10Z head=b088eececcb5f3df0b4edbe073a29401dafda624 scoped_status_count=188 --- scoped git status ---
+ M pnpm-lock.yaml
+ M services/orchestrator/src/app/admin/api-key-section-data.ts
+ M services/orchestrator/src/app/admin/api-key-section-renderer.ts
+ M services/orchestrator/src/app/admin/crypto-config-api.ts
+ M services/orchestrator/src/app/admin/p6-01-shell-fixtures.ts
+ M services/orchestrator/src/app/admin/shell-server.ts
+ M services/orchestrator/src/app/admin/view-models.ts
+ M services/orchestrator/src/compat/legacy-http-mount.ts
+ M services/orchestrator/src/db/migrations.ts
+ M services/orchestrator/src/main.ts
+ M services/orchestrator/src/modules/admin-actions/dispatcher.ts
+ M services/orchestrator/src/modules/admin-actions/rbac.ts
+ M services/orchestrator/src/modules/artifacts/artifacts.ts
+ M services/orchestrator/src/modules/artifacts/integrity-scanner.ts
+ M services/orchestrator/src/modules/artifacts/multipart-service.ts
+ M services/orchestrator/src/modules/artifacts/storage-migration.ts
+ M services/orchestrator/src/modules/audit/audit.ts
+ M services/orchestrator/src/modules/auth/admin-local/repository.ts
+ M services/orchestrator/src/modules/auth/session-store.ts
+ M services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts
+ M services/orchestrator/src/modules/encryption/boot-options.ts
+ M services/orchestrator/src/modules/encryption/crypto-storage-facade.ts
+ M services/orchestrator/src/modules/encryption/legacy-payload-migration.ts
+ M services/orchestrator/src/modules/operations/ingestion-consumer.ts
+ M services/orchestrator/src/modules/operations/submission.ts
+ M services/orchestrator/src/modules/profiles/profiles.ts
+ M services/orchestrator/src/modules/public-api/delivery-encryption.ts
+ M services/orchestrator/src/modules/public-api/upload-encryption-gateway.ts
+ M services/orchestrator/src/modules/queue/dispatcher.ts
+ M services/orchestrator/src/modules/runtime/metadata-crypto.ts
+ M services/orchestrator/src/modules/runtime/runtime.ts
+ M services/orchestrator/src/server.ts
+ M services/orchestrator/tests/adm-base-03-safe-error-offline.functional.test.ts
+ M services/orchestrator/tests/admin-action-dispatcher.test.ts
+ M services/orchestrator/tests/admin-action-rbac-live.test.ts
+ M services/orchestrator/tests/admin-audit-list-page.test.ts
+ M services/orchestrator/tests/admin-base-routes.test.ts
+ M services/orchestrator/tests/admin-crypto-config.test.ts
+ M services/orchestrator/tests/admin-error-boundary-offline.test.ts
+ M services/orchestrator/tests/admin-local-user-repository.test.ts
+ M services/orchestrator/tests/admin-oidc04-claims-tenant-offline.test.ts
+ M services/orchestrator/tests/admin-p6-01-shell-fixtures.test.ts
+ M services/orchestrator/tests/admin-shell-platform-mount.test.ts
+ M services/orchestrator/tests/admin-shell-render.test.ts
+ M services/orchestrator/tests/admin-shell-router.test.ts
+ M services/orchestrator/tests/admin-shell-server.test.ts
+ M services/orchestrator/tests/admin-shell-session-lifecycle.test.ts
+ M services/orchestrator/tests/admin-view-model.test.ts
+ M services/orchestrator/tests/artifact-grant-fencing.test.ts
+ M services/orchestrator/tests/artifact-integrity-scanner.test.ts
+ M services/orchestrator/tests/artifact-read-decrypt-offline.test.ts
+ M services/orchestrator/tests/artifact-read-download-route.test.ts
+ M services/orchestrator/tests/artifact-storage-service.test.ts
+ M services/orchestrator/tests/artifact-submit-guards.test.ts
+ M services/orchestrator/tests/br12-isolation-offline.test.ts
+ M services/orchestrator/tests/connector-credentials-offline.functional.test.ts
+ M services/orchestrator/tests/delivery-encryption.test.ts
+ M services/orchestrator/tests/enc08-wire-enc07.test.ts
+ M services/orchestrator/tests/fixtures/multipart-offline-harness.ts
+ M services/orchestrator/tests/legacy-http-mount.test.ts
+ M services/orchestrator/tests/legacy-payload-migration.test.ts
+ M services/orchestrator/tests/migrations-ledger-guard.test.ts
+ M services/orchestrator/tests/multipart-routes-offline.test.ts
+ M services/orchestrator/tests/multipart-service-offline.test.ts
+ M services/orchestrator/tests/oidc02-multi-replica-offline.test.ts
+ M services/orchestrator/tests/p8-01-audit-entity-offline.test.ts
+ M services/orchestrator/tests/public-upload-encryption-gateway.test.ts
+ M services/orchestrator/tests/runtime-encryption-metadata.test.ts
+ M services/orchestrator/tests/runtime.test.ts
+ M services/orchestrator/tests/rv01-loopback-http-offline.test.ts
+ M services/orchestrator/tests/s3-storage-facade.test.ts
+ M services/orchestrator/tests/session-store.test.ts
+ M services/orchestrator/tests/storage-migration.test.ts
+ M services/orchestrator/tests/submission-metadata-crypto-e2e.test.ts
+ M services/orchestrator/tests/url-ingestion-backend-failclosed-offline.test.ts
+ M services/orchestrator/tests/url-ingestion-consumer-offline.functional.test.ts
+ M services/orchestrator/tests/url-ingestion-offline.functional.test.ts
+ M services/orchestrator/tests/webhook-delivery-encryption.test.ts
+?? services/orchestrator/src/app/admin/bff/body.ts
+?? services/orchestrator/src/app/admin/bff/context.ts
+?? services/orchestrator/src/app/admin/bff/envelope.ts
+?? services/orchestrator/src/app/admin/bff/handle.ts
+?? services/orchestrator/src/app/admin/bff/identity.ts
+?? services/orchestrator/src/app/admin/bff/operations.ts
+?? services/orchestrator/src/app/admin/bff/profiles.ts
+?? services/orchestrator/src/app/admin/bff/security.ts
+?? services/orchestrator/src/app/admin/bff/settings.ts
+?? services/orchestrator/src/app/admin/bff/types.ts
+?? services/orchestrator/src/app/admin/bff/upstream.ts
+?? services/orchestrator/src/app/bootstrap/create-app.ts
+?? services/orchestrator/src/app/bootstrap/crypto-wiring.ts
+?? services/orchestrator/src/http/route-context.ts
+?? services/orchestrator/src/http/routes/admin.ts
+?? services/orchestrator/src/http/routes/api-key-auth.ts
+?? services/orchestrator/src/http/routes/public-bounded-body.ts
+?? services/orchestrator/src/http/routes/public.ts
+?? services/orchestrator/src/http/routes/runtime.ts
+?? services/orchestrator/src/modules/admin-actions/profile-actions.ts
+?? services/orchestrator/src/modules/admin-read/api-key-list.ts
+?? services/orchestrator/src/modules/admin-read/audit-list.ts
+?? services/orchestrator/src/modules/admin-read/business-list.ts
+?? services/orchestrator/src/modules/admin-read/keyset.ts
+?? services/orchestrator/src/modules/admin-read/profile-detail.ts
+?? services/orchestrator/src/modules/connector-credentials/compose.ts
+?? services/orchestrator/src/modules/connector-credentials/vault-kv2-writer.ts
+?? services/orchestrator/src/modules/connectors/connector-management-store.ts
+?? services/orchestrator/src/modules/encryption/metadata-auth-counter.ts
+?? services/orchestrator/src/modules/encryption/metadata-read-policy.ts
+?? services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts
+?? services/orchestrator/src/modules/operations/list-query.ts
+?? services/orchestrator/src/modules/operations/mappers.ts
+?? services/orchestrator/src/modules/operations/request-redaction-worker.ts
+?? services/orchestrator/src/modules/operations/request-redaction.ts
+?? services/orchestrator/src/modules/profiles/file-url-auth.ts
+?? services/orchestrator/src/modules/profiles/policy.ts
+?? services/orchestrator/src/modules/profiles/prompt-overrides.ts
+?? services/orchestrator/src/modules/profiles/publish.ts
+?? services/orchestrator/tests/__probe-c63.test.ts
+?? services/orchestrator/tests/admin-local-user-role-policy.test.ts
+?? services/orchestrator/tests/audit-ext-2-offline.test.ts
+?? services/orchestrator/tests/aweb02-bff-foundation.test.ts
+?? services/orchestrator/tests/aweb02b-tenant-token-env.test.ts
+?? services/orchestrator/tests/aweb04-bff-profiles.test.ts
+?? services/orchestrator/tests/aweb05-bff-reads.test.ts
+?? services/orchestrator/tests/aweb06-bff-operations.test.ts
+?? services/orchestrator/tests/aweb07-bff-security.test.ts
+?? services/orchestrator/tests/aweb08-per-route-flag.test.ts
+?? services/orchestrator/tests/ba04-fix-811.test.ts
+?? services/orchestrator/tests/bff-connectors-actions.test.ts
+?? services/orchestrator/tests/bff-settings-identity.test.ts
+?? services/orchestrator/tests/business-contract-fix-820.test.ts
+?? services/orchestrator/tests/bypass-fix-810.test.ts
+?? services/orchestrator/tests/conv13-audit-wire-single-source.test.ts
+?? services/orchestrator/tests/credworkflow-compose.test.ts
+?? services/orchestrator/tests/credworkflow-e2e-offline.functional.test.ts
+?? services/orchestrator/tests/crx01-creatapp-metadata-seam.test.ts
+?? services/orchestrator/tests/crx01-metadata-wiring.test.ts
+?? services/orchestrator/tests/crx02-rfx05res-s3-read-guard.test.ts
+?? services/orchestrator/tests/crypto-storage-plaintext-bound.test.ts
+?? services/orchestrator/tests/enc-meta-sentinel-outbox-source-url.test.ts
+?? services/orchestrator/tests/enc-meta-sentinel-runtime-refs.test.ts
+?? services/orchestrator/tests/encmeta-enc09-kind.test.ts
+?? services/orchestrator/tests/encmeta-resultref-offline.functional.test.ts
+?? services/orchestrator/tests/fu-encmeta-admin-projection.test.ts
+?? services/orchestrator/tests/gate-authenticate-808-pg16.test.ts
+?? services/orchestrator/tests/gate-authenticate-808.test.ts
+?? services/orchestrator/tests/helpers/runtime-harness.ts
+?? services/orchestrator/tests/metadata-read-policy.test.ts
+?? services/orchestrator/tests/migration-0032-rollback.test.ts
+?? services/orchestrator/tests/migration-verify-trap-fix.test.ts
+?? services/orchestrator/tests/p730-acquire-composition.test.ts
+?? services/orchestrator/tests/p730-acquire-consumer-auth.test.ts
+?? services/orchestrator/tests/p730-acquire-ref-resolver.test.ts
+?? services/orchestrator/tests/p730-admin-mutate-offline.test.ts
+?? services/orchestrator/tests/p730-legacy-snapshot-failclosed.test.ts
+?? services/orchestrator/tests/p730-medium1-parameter-policy.test.ts
+?? services/orchestrator/tests/p730-medium1-write-validation.test.ts
+?? services/orchestrator/tests/p730-prof03-invariant1.test.ts
+?? services/orchestrator/tests/p730-prof03-publish-cas.test.ts
+?? services/orchestrator/tests/p730-profile-snapshot.test.ts
+?? services/orchestrator/tests/p745-connector-actions.test.ts
+?? services/orchestrator/tests/p745-connector-boot-composition.test.ts
+?? services/orchestrator/tests/p745-connector-management-proxy.test.ts
+?? services/orchestrator/tests/p745-prompt-carrier-claim.test.ts
+?? services/orchestrator/tests/p745-prompt-carrier-producer.test.ts
+?? services/orchestrator/tests/p745-prompt-producer-impl.test.ts
+?? services/orchestrator/tests/rcr-http-offline.functional.test.ts
+?? services/orchestrator/tests/rcr-luna-http-encryption.test.ts
+?? services/orchestrator/tests/rcr-luna-verification.test.ts
+?? services/orchestrator/tests/request-redaction-http.test.ts
+?? services/orchestrator/tests/request-redaction-persistence.test.ts
+?? services/orchestrator/tests/request-redaction.test.ts
+?? services/orchestrator/tests/rfx10-seed-gate.test.ts
+?? services/orchestrator/tests/rfx11-12-route-hardening.test.ts
+?? services/orchestrator/tests/runtime-admin-auth.test.ts
+?? services/orchestrator/tests/runtime-facade.test.ts
+?? services/orchestrator/tests/runtime-health.test.ts
+?? services/orchestrator/tests/runtime-hitl.test.ts
+?? services/orchestrator/tests/runtime-recovery.test.ts
+?? services/orchestrator/tests/runtime-version-lifecycle.test.ts
+?? services/orchestrator/tests/runtime-webhook.test.ts
+?? services/orchestrator/tests/tapi01-closure-offline.test.ts
+?? services/orchestrator/tests/v1-boot-typed-denial.test.ts
+?? services/orchestrator/tests/vault-kv2-writer-offline.functional.test.ts
+?? services/orchestrator/tests/vault-live.test.ts
+?? services/orchestrator/tests/w1-sub02-snapshot-secret.test.ts
+?? services/orchestrator/tests/w1-sub03-sourceurl-extension.test.ts
+?? services/orchestrator/tests/wrapper-fix-812.test.ts
+--- git diff --check ---
+warning: in the working copy of '.commandcode/taste/--writes-prompts-in-vietnamese,-expects-technical-work-in-english/taste.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.commandcode/taste/taste.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/doc-compare/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/doc-pipeline/components/Icons.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/.dockerignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/AGENTS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/architecture/10-current-system.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/architecture/11-subprojects.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/architecture/12-flows-and-data.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/architecture/16-interface-catalog.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/docs/compatibility-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/docs/field-dictionary.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/docs/synthetic-corpus-policy.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/docs/test-fixture-specification.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/docs/traceability-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/docs/workload-assumptions.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/document-core/src/main.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/example-review/src/main.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/example-review/src/review.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/businesses/lc-checker/src/main.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/coordinator-cycle-prompt.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/probe-agents.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/reports/claude.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/reports/qwen1.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/reports/tester.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/docs/00-business-analysis.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/docs/01-product-scope.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/docs/03-project-structure.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/docs/11-admin-ux.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/docs/12b-deployment-guide.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/docs/14-reference-compatibility.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/contracts/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/observability/src/elasticsearch-collector.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/observability/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/observability/src/logger.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/observability/src/redaction.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/observability/tests/elasticsearch-collector.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/observability/tests/observability.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/worker-sdk/src/crypto-storage.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/worker-sdk/src/fan-out.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/worker-sdk/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/packages/worker-sdk/tests/fan-out.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/pnpm-lock.yaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/scripts/dev.cjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/scripts/migrate-local.cjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/scripts/stop-all.cjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/CODE-ARCHITECTURE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/app/admin/crypto-config-api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/compat/legacy-http-mount.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/admin-actions/dispatcher.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/artifacts/integrity-scanner.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/artifacts/multipart-service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/artifacts/storage-migration.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/auth/admin-local/repository.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/auth/session-store.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/encryption/boot-options.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/encryption/crypto-storage-facade.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/encryption/legacy-payload-migration.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/operations/ingestion-consumer.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/profiles/profiles.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/public-api/delivery-encryption.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/public-api/upload-encryption-gateway.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/modules/runtime/metadata-crypto.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/src/server.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/adm-base-03-safe-error-offline.functional.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-action-dispatcher.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-action-rbac-live.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-crypto-config.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-error-boundary-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-local-user-repository.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-oidc04-claims-tenant-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-shell-render.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/admin-shell-session-lifecycle.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/artifact-integrity-scanner.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/artifact-read-decrypt-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/artifact-storage-service.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/artifact-submit-guards.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/br12-isolation-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/connector-credentials-offline.functional.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/delivery-encryption.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/enc08-wire-enc07.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/fixtures/multipart-offline-harness.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/legacy-http-mount.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/legacy-payload-migration.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/migrations-ledger-guard.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/multipart-routes-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/multipart-service-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/oidc02-multi-replica-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/p8-01-audit-entity-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/public-upload-encryption-gateway.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/runtime-encryption-metadata.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/rv01-loopback-http-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/s3-storage-facade.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/session-store.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/storage-migration.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/submission-metadata-crypto-e2e.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/url-ingestion-backend-failclosed-offline.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/url-ingestion-consumer-offline.functional.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/url-ingestion-offline.functional.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/services/orchestrator/tests/webhook-delivery-encryption.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/ADMIN-CONTROL-PLANE-UI-2026-10-02.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/ADMIN-LOCAL-AUTH-2026-09-30.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/ADMIN-OPS-UX-2026-09-24.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/API-COMPAT-DUGATE-2026-09-28.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/APP-ENCRYPTION-2026-09-27.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/CODE-CONVENTION-LARGE-FILES-DUPLICATION-2026-10-02.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/DETAILED-BUSINESS-VERIFICATION-2026-10-01.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/IMPLEMENTATION-FIRST-COORDINATION-2026-10-01.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/ORCH-PAR-00-INVENTORY-SURVEY-2026-10-01.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/ORCHESTRATOR-FEATURE-PARITY-BOUNDARIES-2026-10-01.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/ORCHESTRATOR-LEGACY-FEATURE-PARITY-2026-10-01.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/P6-admin.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/P8-release-readiness.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/P9-business-backlog.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'du-rework/tasks/README.md', LF will be replaced by CRLF the next time Git touches it
+du-rework/docs/28-test-inventory.md:6: trailing whitespace.
++**Lane:** Testing Lane (Antigravity-6)  
+du-rework/docs/28-test-inventory.md:7: trailing whitespace.
++**Scope:** `du-rework` entire test topology (businesses, services, packages, tests)  
+du-rework/services/orchestrator/src/modules/encryption/legacy-payload-migration.ts:955: new blank line at EOF.
+--- source/config sha256 count=188 ---
+74EB0F419D84E9F70F6242F2772C9F006A48AC0B01C1FCF48E26A84A633B4FCD  pnpm-lock.yaml
+8458B721F57857F336D6090BE0F330EF7BDA521B143DF19E636D465B48E3FA54  services/orchestrator/src/app/admin/api-key-section-data.ts
+62E043E5C6AD44A294B7CFF3E6534D95EC88A5BE7FA9EDD4FA71E6BF3D66687E  services/orchestrator/src/app/admin/api-key-section-renderer.ts
+0911C554F48611B2D9EC6CD1857512DCE28915AB5CFBA70755C6ED1835DFA55B  services/orchestrator/src/app/admin/crypto-config-api.ts
+7E5FA4E11B9C4A062E06B12E211F74FC4D8522294AD143AAF3B71C1440FDF590  services/orchestrator/src/app/admin/p6-01-shell-fixtures.ts
+A3261BA2E72DA28E03A64184A5DC0B623F0C25E32ABE76D2C6A31C575573BEB9  services/orchestrator/src/app/admin/shell-server.ts
+B3B91A3936947AFB84942C90CD16E18B66D0E4DD6C96FF8678ED0258D8FAB0E7  services/orchestrator/src/app/admin/view-models.ts
+4AEFF966CC382D982DBFCCEAC4BC6DFFE77EE9C4F7964DC4B2F36937C93940FD  services/orchestrator/src/compat/legacy-http-mount.ts
+593C7E80305979D354EBE5DAE01FA43ABEDE8D1C4338D03ABF12782AB807F217  services/orchestrator/src/db/migrations.ts
+77D70C4CAF754741AEB36808CA2D9512757DCCD684ED41761F41BC7CCE895795  services/orchestrator/src/main.ts
+9808D0DBCE80607C6511071CA37B5C2BCBD7F098096FE37E6CDD8331CF336B65  services/orchestrator/src/modules/admin-actions/dispatcher.ts
+55FE5EE47A97955BC99733BF9433B376D9727EE860B13A0D53E4C3129ECDA045  services/orchestrator/src/modules/admin-actions/rbac.ts
+C300297363D743D424E7EFF1EB5AC7DD511CC1E93076B8C278F44B3C46C72CFE  services/orchestrator/src/modules/artifacts/artifacts.ts
+9C552CD262411631881809497A0F2E32D2500F503CD95DA05A81783D182B6C08  services/orchestrator/src/modules/artifacts/integrity-scanner.ts
+EF223D765A9E6B60A235E10B77710C0E92A8C18DADECC280ADBA8A4F6D63C04C  services/orchestrator/src/modules/artifacts/multipart-service.ts
+A0AB34FDA66F769DFB3A5D980426BD4942FBB12B6ACDD71DB488A922224F11A9  services/orchestrator/src/modules/artifacts/storage-migration.ts
+1076E2B36956A4CC1FA6500E6098D435740CA854CAD7072E9246C1CA4B856080  services/orchestrator/src/modules/audit/audit.ts
+D510F51E7FA17BE93DE56B0F6A5F8FC7408A386E764B821C97786F48101D3328  services/orchestrator/src/modules/auth/admin-local/repository.ts
+7B64F1AD0B1821C7C467D8F1E6A14AADEDC20B8533700A997B91A8B36D1871D8  services/orchestrator/src/modules/auth/session-store.ts
+6C520F28B81C7314DAD93E76A66D8A845A4F7B9325D42A473D53B5B00A0366E2  services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts
+DDDB574515F53CF31F1924E256E90255C794A9F8775C07AA67CDBF6951D9FE44  services/orchestrator/src/modules/encryption/boot-options.ts
+7A87ACA7960D599603356ECD7F987CAEA0BBF7093983E95BB563F82091B0471F  services/orchestrator/src/modules/encryption/crypto-storage-facade.ts
+EF16354D0988864A663AFF144E2B9972354032D8F7C883AFC55AF9D5A35DD32E  services/orchestrator/src/modules/encryption/legacy-payload-migration.ts
+1CEC0B063E3394D767E830DF1DFFCF111AD92E8FF4F6C915D218FDADB50ADBF8  services/orchestrator/src/modules/operations/ingestion-consumer.ts
+8F7DA67223B02FC87C00EE75BD7464EACE089DEE95A6B1922880203435725725  services/orchestrator/src/modules/operations/submission.ts
+8CEDEE25A5390361E36561E1C8F259B71E94B20DE264429F2901B821C1AD0AB8  services/orchestrator/src/modules/profiles/profiles.ts
+49885B397E5B8C64EC9433CACAEBB94161CB416FFF94F188CDA8682D1EE53F44  services/orchestrator/src/modules/public-api/delivery-encryption.ts
+EF93EE426FBA4969D7DD0EF41A43CA32F1060CF573F2461B1177B289CE60C141  services/orchestrator/src/modules/public-api/upload-encryption-gateway.ts
+3715751DB581E95E8C88F363AF1828E53D70EFBF08B0719E0D40F646BC33D516  services/orchestrator/src/modules/queue/dispatcher.ts
+CD912689722585607DF6217E2F9FBA86C08B0F313312A45A44EF6C27D8236A9C  services/orchestrator/src/modules/runtime/metadata-crypto.ts
+D16EE71C062ED5E03CA8047D03C90E360B4DFAFF5E12266285999C3677E51495  services/orchestrator/src/modules/runtime/runtime.ts
+3F4D9759E5823E2617E92CA916342887FA8E7EC724FBEBCD8B0D106A6875292F  services/orchestrator/src/server.ts
+4329A55C265E0715D1F4935A6448B1EB6F0738285EEA806431F997E5A06A20E0  services/orchestrator/tests/adm-base-03-safe-error-offline.functional.test.ts
+8B4683166CFE0B7865C41E7A32084B116376DB00A3FA54B9E4FFC7875DFFA56A  services/orchestrator/tests/admin-action-dispatcher.test.ts
+D2B07B485C316382A7EDD8FC66B8ACE0DA6B3C1B974DE50CCC2D932EF3352A2D  services/orchestrator/tests/admin-action-rbac-live.test.ts
+9FC51BAC7CE6BFFEC143D7F971C1BC60B99E547F524ED51C2780CA270CF4A3A1  services/orchestrator/tests/admin-audit-list-page.test.ts
+F671B0B2B7926546817C9577A5C41BE018EDEFA880BFF606DD7907F9F2502032  services/orchestrator/tests/admin-base-routes.test.ts
+1D6639E078AC1DD3769A02336B30680191E41CCE3922913E7A6A586AC6372A26  services/orchestrator/tests/admin-crypto-config.test.ts
+AC311619C1FE0E9C60120DE37E1886677D6B9C73E1358B3BE1B5EB6C5E24C8B7  services/orchestrator/tests/admin-error-boundary-offline.test.ts
+2C07AE72215A3301994A8BDBF0E5B3FEA2555162A0AD03FD237BC4A2324C57A3  services/orchestrator/tests/admin-local-user-repository.test.ts
+A74BB3E8D73EBCD372BBAD05F922D42AFA7B73A6A493DFD560327C291E65B68F  services/orchestrator/tests/admin-oidc04-claims-tenant-offline.test.ts
+007D064F5AB5BB76D23F8611809B48D9964F47EB0BC72807EC86B52BC799AD7A  services/orchestrator/tests/admin-p6-01-shell-fixtures.test.ts
+E4ACFB07CBC1B83ACD7B4C4493518E76335C77371C1FA9388D30B7B34EAA5C5D  services/orchestrator/tests/admin-shell-platform-mount.test.ts
+57EF4AE596E47CA35FFE65A7C61460E0F7D325DAF5D9538B2731455C8CA3DF02  services/orchestrator/tests/admin-shell-render.test.ts
+73B252EA1B28B498A996CC5F4ECCD32185A7E8CB8D946A4804C36611C162AEEB  services/orchestrator/tests/admin-shell-router.test.ts
+2EB16AE63787FC0C8412B06C0456DD020A2DF1E7E7C645BC831E565DC93709C2  services/orchestrator/tests/admin-shell-server.test.ts
+13E2A19DB36AA932D17CF59B41D6C843B69C9967C6D24B66D9B1197044067720  services/orchestrator/tests/admin-shell-session-lifecycle.test.ts
+3A117D0D2B628B69418BC77327C21BF75F2C4B3B17BB61E96FE28625E6ECB1A2  services/orchestrator/tests/admin-view-model.test.ts
+804DEA0D3825A12216F7CD4A1C3D7B8554054BAFEB3D6B163DE16B4400A32397  services/orchestrator/tests/artifact-grant-fencing.test.ts
+4C6E4093E6358DEDDED2E522910D8D744586D24C2CBEB5E8CEA06AFA113ACE4A  services/orchestrator/tests/artifact-integrity-scanner.test.ts
+582F37822092C2B90CF1EBC02A900A740A57A5718167D38E85517289D1069872  services/orchestrator/tests/artifact-read-decrypt-offline.test.ts
+54DD814520AAEB750A0C035FA4EF360461724BD78831C5DF0FF62D99BD3AE10F  services/orchestrator/tests/artifact-read-download-route.test.ts
+FEDCDE1AB44672B8F868D354370A138C9ED958916A751A53ADEF2B92DC1474BC  services/orchestrator/tests/artifact-storage-service.test.ts
+E094044122FE19B17CD37E80D0D52801E02C391DC8037CAF427E53CEAA2541D7  services/orchestrator/tests/artifact-submit-guards.test.ts
+B1B7649F6E79C9EC111DE686DC6AA05222CE26754C682A65C270C9082F84407D  services/orchestrator/tests/br12-isolation-offline.test.ts
+1FE66AE9301825A8E1DF34F047D78E796738F896B6B07859F22F42788B8C68C7  services/orchestrator/tests/connector-credentials-offline.functional.test.ts
+1C6226310AA3AB0A5924B99180BE491F9BEB873892D21FC3EB465A92828B34E2  services/orchestrator/tests/delivery-encryption.test.ts
+EF3A1F3DAAADBA38B01CC1ABEC452E35BFE1F5F6C2622590D6D095433F521333  services/orchestrator/tests/enc08-wire-enc07.test.ts
+9CFE03A6C96BE861770AB2C4B64269345169708025888991C919AFC4FD33BC8E  services/orchestrator/tests/fixtures/multipart-offline-harness.ts
+A2423A216CF8A960F6625363D0FA4F028CD954F8BB37559E8A34D0D52D58391B  services/orchestrator/tests/legacy-http-mount.test.ts
+70A4D9750599651CA49989FEA2E6C7F9409E30350658A929F726199694ECD434  services/orchestrator/tests/legacy-payload-migration.test.ts
+107A827766A4DB48CD53F0D74E33DCC69B5EE33AE945B5390AA08A0678F63FF8  services/orchestrator/tests/migrations-ledger-guard.test.ts
+99C2599A2B966238123E6355D7CB68FDB2D369616DCB8B0B05CB829FD9D8B5AB  services/orchestrator/tests/multipart-routes-offline.test.ts
+67901B997C08605790A567012B67D1BF93B539EAA55EBD3B8ADD47404C069311  services/orchestrator/tests/multipart-service-offline.test.ts
+42914D9CC44B2540AA48A101D0B50488ED4AA10C02AD49023081C4A4BE95AD8A  services/orchestrator/tests/oidc02-multi-replica-offline.test.ts
+F29481D5D939C7EDFF52DB4B833BE967FF00AC8656F518F16E27B131936BAE92  services/orchestrator/tests/p8-01-audit-entity-offline.test.ts
+DAB379B1E23B8484735D849D1459AE0170AE88BECB639784162982F461F94B56  services/orchestrator/tests/public-upload-encryption-gateway.test.ts
+2A17E534C0AC8CC7E97FDE93FC64EF5E4F3B7F864569019C3FABF4C468A5D578  services/orchestrator/tests/runtime-encryption-metadata.test.ts
+DA62779AB1FA06ED9EC20421EE026230EED6B91D955B3783464819F2DD1036C7  services/orchestrator/tests/runtime.test.ts
+DFA64008A9D96686163224D8000E2E4F78239B7C168BE923770B492F7053EBC4  services/orchestrator/tests/rv01-loopback-http-offline.test.ts
+A35F4D75C36DEDD98FF55C69BB5687C4DFB47144F40141A8EC58D7D9A610684C  services/orchestrator/tests/s3-storage-facade.test.ts
+7A3DC22EDB7C24EA4EDDEBB2E42B32F9BB31FEA47B7248644364A8A856C9B2A3  services/orchestrator/tests/session-store.test.ts
+126A8FA04A941FDE89640366C0975CE7210962085FEBCF978120C6684E1ECEE4  services/orchestrator/tests/storage-migration.test.ts
+B94553059C5B85757B1F0931C0B657D406A3A6640FCC2755DE54C3E83AF4081B  services/orchestrator/tests/submission-metadata-crypto-e2e.test.ts
+4F87BEF5236060B88272BB67FCE511B06265CAA4A29C40C638BD39CF57E99600  services/orchestrator/tests/url-ingestion-backend-failclosed-offline.test.ts
+DBB7CB91E4DF9313EADE843EF097F974963C38CB93AED0A22FE0E6103E805A04  services/orchestrator/tests/url-ingestion-consumer-offline.functional.test.ts
+4F1394D16DEEBDB282587EFBCED9DA2689521B4880BA01798420ACD3B68789FD  services/orchestrator/tests/url-ingestion-offline.functional.test.ts
+46272A28CEA1378319E4AE8CE46BDAED8B910F5E93E06C1C2CB3C723ABB5D0D5  services/orchestrator/tests/webhook-delivery-encryption.test.ts
+2B83D99549EC3FD4C4F564E2A37C1A9A80B54565D2DA742C53989295D2BD5B7A  services/orchestrator/src/app/admin/bff/body.ts
+D15D651575D1E2F543C39DCA3D4B702BF27A9E693FBF58F936FADBC5A25AEEBD  services/orchestrator/src/app/admin/bff/context.ts
+FC7594DA5D0894D231EE9F8BAE9DC8F2CE744604ABAEBA9E7E23543C35E06EDB  services/orchestrator/src/app/admin/bff/envelope.ts
+07199A0B41D1AA702A02CFBF50C571DF3B7A85D821F99C213BD93A4FF14F84F8  services/orchestrator/src/app/admin/bff/handle.ts
+038234BF4025DFF218F93B16219C2FB363E725C1EFE67483C431D7FD30ECF47B  services/orchestrator/src/app/admin/bff/identity.ts
+2D9CA5DD198E54C4EA66CAD6787B373FE460CF212AD7CF28BE7ACB885446AB61  services/orchestrator/src/app/admin/bff/operations.ts
+BBB412C25EE803D0D829E756F99BBFE66535839FEC6AAC1959E8DA8DDAEF2ADF  services/orchestrator/src/app/admin/bff/profiles.ts
+67F1C2300B1708800C658FDAFB9D2AD8C5C0242EA3C2479CB827DE16562F84D1  services/orchestrator/src/app/admin/bff/security.ts
+72BBFD01F33F43B21718E63625FFEC9EEE9C9246A86D32C1B691487475545F8B  services/orchestrator/src/app/admin/bff/settings.ts
+BF204D7B6BD848E0447DA2023B2113310D146D7471E55821AA1085603AC39D7B  services/orchestrator/src/app/admin/bff/types.ts
+F951B3B37C5F1F52FD7723604309432E87C9341F7675AA92F20AE905EE5B4BEE  services/orchestrator/src/app/admin/bff/upstream.ts
+8F0A1DF9E66DCED687A4B88172E464E401948741D5C3EB566871A3EB0073215C  services/orchestrator/src/app/bootstrap/create-app.ts
+81D02D4FA6D8E352AD47ED72427E75853E6F598CFE2BE0707F7D62FB7943BE49  services/orchestrator/src/app/bootstrap/crypto-wiring.ts
+848EA3A1703A369053B1CADBAEB8B60F6A21E186BD1B7760E3337B917F2856DF  services/orchestrator/src/http/route-context.ts
+BF77179F29CB35925E4EC263EA503605A132A25C73CEDA66B88AB0E5617783AC  services/orchestrator/src/http/routes/admin.ts
+354B2FB62DD2B720F635569D778422B776F68FE2C313DDB3B200DCC78C30CD50  services/orchestrator/src/http/routes/api-key-auth.ts
+884937DEA358BCC331E8DDB4FC3737DAA40B3E8EB4D340DE74E45EF0B9BC34A0  services/orchestrator/src/http/routes/public-bounded-body.ts
+94E6A6C94A52B5599D30FAFEDB2BE8CC9455FB483F59AB63D0DEE842E3FC4DFA  services/orchestrator/src/http/routes/public.ts
+8A4209F370B4BEDCA8C24C52AC5D1B08F7D5D59EE9AC72184F7C53D3A9CA5602  services/orchestrator/src/http/routes/runtime.ts
+8BB9D69D7FBB4E0E7E886AEEDAD2895611CAB6EE7B77AA996935293774A9682B  services/orchestrator/src/modules/admin-actions/profile-actions.ts
+22AE48EC127724860A9BEFFD86F678B07CBE2D7A530ED0A6F4A2A4B6649450B1  services/orchestrator/src/modules/admin-read/api-key-list.ts
+76F8EBEACF1CA6A20C6F65A77BAB2C604628019537DECBF3B91522D4F626B7A3  services/orchestrator/src/modules/admin-read/audit-list.ts
+F76333C559D09B4F218D6105248B6B4B4758528D046FFDA97458B7A1754B4D72  services/orchestrator/src/modules/admin-read/business-list.ts
+B6EE666A5F02AB67E6D92FA297613417EBDD96D4F32E24CCD9ADA18BD2917E78  services/orchestrator/src/modules/admin-read/keyset.ts
+5B195A518CAE48D266EC95FA601185882164B796FD2BE61E97C1077937BEC5CD  services/orchestrator/src/modules/admin-read/profile-detail.ts
+401ABE6204045046B2E4997325DCE9A09A2D5769ABF8E4DD3B10B3B0D007A79F  services/orchestrator/src/modules/connector-credentials/compose.ts
+F0A2B721706C491FFEAE8DC39DF4ADE0830763FD4C1FAE9EC20821A319473DDB  services/orchestrator/src/modules/connector-credentials/vault-kv2-writer.ts
+ECED6192CFEF4C47BAF82CBC1661A693B1BAA66054F7B2E6F57A099A4AAC222A  services/orchestrator/src/modules/connectors/connector-management-store.ts
+68B5EA105C32C6B66756231EC0AE8ACD58E6439F09FF9A51414B69D32D80E1BB  services/orchestrator/src/modules/encryption/metadata-auth-counter.ts
+46114B9FEF954FD9E082645F047F3DA550795BCDD37058E9852B420B65DC987D  services/orchestrator/src/modules/encryption/metadata-read-policy.ts
+0D425D6D5263B3EA1F404BCC1A06C9BACD823E49BE71CDD86CA09ACFCB784750  services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts
+A2A1487BCBD91DF7C8498DE722743CD3E999BBC919BEDA94B4CD3FC3D4156800  services/orchestrator/src/modules/operations/list-query.ts
+35D77993690CDB154C0C76B2595761FD5B10D59E09503693339A1793A2D79B1A  services/orchestrator/src/modules/operations/mappers.ts
+3E5357C428524664928121EFAA216022C4A5B653B241272A7BB58CED186D4DDB  services/orchestrator/src/modules/operations/request-redaction-worker.ts
+9BB5E12B9931A519A32BCB331E52711568581777D2997FAE9F91AC353A2F192A  services/orchestrator/src/modules/operations/request-redaction.ts
+15CFBED3B44575F23CB286AA049FF0EB0A04E345BEBDE490F153B444B2875595  services/orchestrator/src/modules/profiles/file-url-auth.ts
+C1A4B262D7BCC98086AC5F14FFC7CB549DB92D69A2C37CD885EF21EC3844BEA2  services/orchestrator/src/modules/profiles/policy.ts
+CA2EC15C0BA3F482C7EA7CB81A5632A77C62701154A851CDAB122715393D5CD8  services/orchestrator/src/modules/profiles/prompt-overrides.ts
+AE76AC4BC2D6480BD88F0AB3004C60637DA1E755F9341164EE06133461E5B065  services/orchestrator/src/modules/profiles/publish.ts
+045AE26A6D2D127327E2E6AFAFC0671F6058BF4EA44D3ED03E1E63DDD82B9963  services/orchestrator/tests/__probe-c63.test.ts
+07EF93460F060952717F4DBAD39D0E902F0ED8D247A39DDB083F0BC6B8C4E919  services/orchestrator/tests/admin-local-user-role-policy.test.ts
+ED97514A0BC7DFCC0670113EE840555070CC3628F8695E52AA3C02184D3C1783  services/orchestrator/tests/audit-ext-2-offline.test.ts
+F1CA694C615EF83FE404B33CC18758EB6B8555514FAE099EB50AFFE286297D9F  services/orchestrator/tests/aweb02-bff-foundation.test.ts
+878DB47021D76D6074EC31841FD4EB08B5420337324F951010B859701A2AB087  services/orchestrator/tests/aweb02b-tenant-token-env.test.ts
+C41330253E987AD8B0E8CAB542DF6EE8D00257FCF126BE0624911994FC8F54A3  services/orchestrator/tests/aweb04-bff-profiles.test.ts
+67688CE4A0F9B2CF568FCB7FAB63C463EE83E0170888DB41E686A2247D698282  services/orchestrator/tests/aweb05-bff-reads.test.ts
+4F7EA50993E7945063E81EDE3B5B0DD35D0FC313BC29DA35D4C10AD81F0195EB  services/orchestrator/tests/aweb06-bff-operations.test.ts
+D959C8BAE17260FF8061CE27F8594EAB401B91267A8CE5898EEA6C7CADF35EF0  services/orchestrator/tests/aweb07-bff-security.test.ts
+98B8A389AE9BBFC708940E6EEB8D7B0DB33199D625E65C1888F1B8AE32FC3936  services/orchestrator/tests/aweb08-per-route-flag.test.ts
+B81852F039790537788B890D403143A2951202BEB3083E426A3CAEACF65C9150  services/orchestrator/tests/ba04-fix-811.test.ts
+F28C0B50E4620472581F52B2238720A8FEB74C156566EF1380B1F1A2EF7D9F86  services/orchestrator/tests/bff-connectors-actions.test.ts
+F7955AFAA86D7730BB85C64ABC82A789EF884E5B40458177930A5DD46CD2EF7A  services/orchestrator/tests/bff-settings-identity.test.ts
+A35BA8DAA7A15641CBB6B337606F3A825846E4642A71EB495F1BE4FBAD3C36A8  services/orchestrator/tests/business-contract-fix-820.test.ts
+AD3FF46CF80CB021E2DC9519AAB1F5AE728EB69021091E72102685276D0194FE  services/orchestrator/tests/bypass-fix-810.test.ts
+BF026AB7FE5F17852AC4A474A05E7B17C30D83EC3C738171B6BDFB549AD939EC  services/orchestrator/tests/conv13-audit-wire-single-source.test.ts
+B6047BE0F8ABD8FD8A1E440E74B1EBF1068A4BDE22B92811291DD253D9C97866  services/orchestrator/tests/credworkflow-compose.test.ts
+9FFDD4A1D4C0DDEAEC563F29FEE0C991D0B3C0D0A6976963D8C110B67DE78730  services/orchestrator/tests/credworkflow-e2e-offline.functional.test.ts
+E34E632EB7CD33779EC39174E63BC11D8A86637ED87CE5B0AC9A2BA8898AAF49  services/orchestrator/tests/crx01-creatapp-metadata-seam.test.ts
+FB5CC524E224E3EF10B289DD38EB7C5DB810AD90D82935261EA3958A7A49E353  services/orchestrator/tests/crx01-metadata-wiring.test.ts
+94BC338677FDCBDBC483EAB960339BEF4AFA5487E4B1EDB1320B62A5975C84FA  services/orchestrator/tests/crx02-rfx05res-s3-read-guard.test.ts
+862B5F457FE18227DE4827A4E1786E630774594C389FFB88183F61DD619736B7  services/orchestrator/tests/crypto-storage-plaintext-bound.test.ts
+9C5D1D59CF5B9056600BABF7BE1639D6309E242944C039A40960F961BDBFE5D5  services/orchestrator/tests/enc-meta-sentinel-outbox-source-url.test.ts
+F2B96E2E08E8FACF47A5875AEA47D16112787547F66714D2BF6143F6655C5C88  services/orchestrator/tests/enc-meta-sentinel-runtime-refs.test.ts
+FD433AF09AC863BE599B684080243FC1D17A8DF1504AF060744707A121D4061F  services/orchestrator/tests/encmeta-enc09-kind.test.ts
+6914E9B4C731A4E01AD1F290743051B892336498D5425F8B86A25C607AD2AF19  services/orchestrator/tests/encmeta-resultref-offline.functional.test.ts
+28BCB51B555D5436650A5D5617DC145556F831B0B8E2A90CCE8DCB7DED822C97  services/orchestrator/tests/fu-encmeta-admin-projection.test.ts
+5D32526CE4CEE44E0D6165F42F69A25F29E6E0C2D6F85D8A42EFC3271EA0C6E9  services/orchestrator/tests/gate-authenticate-808-pg16.test.ts
+16B28115515BBAEECBECC31372E3BA7895927D67ADB30820500C8859DB35BECA  services/orchestrator/tests/gate-authenticate-808.test.ts
+734B0C97B4E95B429AF73FD7796DB0B6C4A906207D455E9F94833B3BB2F5A5CA  services/orchestrator/tests/helpers/runtime-harness.ts
+B3CAEE6D00B54BBDF2284D1723E64DB5465BAF11CA59B250951CC44BA80E6230  services/orchestrator/tests/metadata-read-policy.test.ts
+3AC551BEDACCE1EF973A53061F74FDA3113AA79FAC91261F2E0D8D0F365626DB  services/orchestrator/tests/migration-0032-rollback.test.ts
+1A1EDF860375A2FB19798B1F8E5F1E8ABFFFB5B7B292F12EECFED62F10DF8B55  services/orchestrator/tests/migration-verify-trap-fix.test.ts
+869456F4166E56C15A214F7F72F6F4198A9EA100A89F8DF036A9511243AE16DC  services/orchestrator/tests/p730-acquire-composition.test.ts
+A8A419E7B11DC55F69A8A286ACE9D4D564065ED85420EEAC59E6B8CB8A08AD74  services/orchestrator/tests/p730-acquire-consumer-auth.test.ts
+2B0321D7B6DB063EE90CCAC79E76884ED57C1C369C305CE22A4412A0E31F097D  services/orchestrator/tests/p730-acquire-ref-resolver.test.ts
+785D9CE294C8936FF15C201655B69EC5280B68FB250AD7AC2D7611F2667D34F9  services/orchestrator/tests/p730-admin-mutate-offline.test.ts
+809F8D026A0B95C4E8AB1494FF3BFCAB591178A0414C8117A4F5A551B5C12C23  services/orchestrator/tests/p730-legacy-snapshot-failclosed.test.ts
+F294EA697B05424EDE4D6370530B8DFB9917580AFFECB96C94855F156EA5DED8  services/orchestrator/tests/p730-medium1-parameter-policy.test.ts
+4CE74B23AB6BED53DC3AF9E8E1CAA45ADC63BB95935D8DB825A01D0F16E70692  services/orchestrator/tests/p730-medium1-write-validation.test.ts
+F4B65D62FD3325ECF9819D2DD11161FAD70DFBF9E30E0ACD58E1D1C434A7E1B3  services/orchestrator/tests/p730-prof03-invariant1.test.ts
+F5EBE660DB556326B6FB03E1523854204FE5B2CF85B6F02D5B5E1ED5B8B1B867  services/orchestrator/tests/p730-prof03-publish-cas.test.ts
+42D8AA66DCEACF6796C519846867B3564A1CDD5A7A94ECA520B9FA52BE001770  services/orchestrator/tests/p730-profile-snapshot.test.ts
+F571865CBB57E6EA6C60023E45631AE55652A3E82D68D75DF25DAD907A8F5EAC  services/orchestrator/tests/p745-connector-actions.test.ts
+D2F304596C6344F4FD22B9DA9B6C8D48A9F4E582D3BE6D8986CACF34ACE50B29  services/orchestrator/tests/p745-connector-boot-composition.test.ts
+7C38D6A88E5A37C62EE2B367244A211B8E42324115D4B0E56F1F72A8BF32443E  services/orchestrator/tests/p745-connector-management-proxy.test.ts
+C78357567B4746519740F9DE1BF0D7E81014466C14D49A8C5612FAD4CB198A2D  services/orchestrator/tests/p745-prompt-carrier-claim.test.ts
+5691ACBA60F77502DAAF6C45BC0BE708E65118581E58C5385C91B254EFA22A52  services/orchestrator/tests/p745-prompt-carrier-producer.test.ts
+64B48771A768E5BD6165A7652403170DDA8F446B7A111BCA3B7E61A7EAB06016  services/orchestrator/tests/p745-prompt-producer-impl.test.ts
+06AFD8658BCBC77DFCB0D551BBC6965EF00270D3E6B16D5445FB54C0A8C49432  services/orchestrator/tests/rcr-http-offline.functional.test.ts
+1AD7EECD222368209F2D667A8BCB3CAF0C1AD48128023FB525D822BC33EFF758  services/orchestrator/tests/rcr-luna-http-encryption.test.ts
+C7B62AAEB4FF2FE1D131CF22C8858950CE35ED379AA3D278D4983C481DAA8B28  services/orchestrator/tests/rcr-luna-verification.test.ts
+DF6259FE403E7C176DDA99B11A763CCAF0EF0A93C480B3F4E77FDC43662480B5  services/orchestrator/tests/request-redaction-http.test.ts
+1492413CCE7FB25872F8998FEEB20C24741162258925C42EBA26C743692A55CD  services/orchestrator/tests/request-redaction-persistence.test.ts
+20F84F4B5D4C9F01FB784EFE3D8DFCA4E0B4725EEDDB3FA38B0359939C3DF488  services/orchestrator/tests/request-redaction.test.ts
+55A4F75582CDBC26AF5186FDAA4AA6054AEA4E8AD8572FCEB1F00B67B862DA34  services/orchestrator/tests/rfx10-seed-gate.test.ts
+B3103282CDB98987D28553AE44A97838E46CC158269A9D28B01F7F5D67C141F5  services/orchestrator/tests/rfx11-12-route-hardening.test.ts
+5F0814B34B4CBD6575746F17B2819F6E50E102EC1E6D1B1FE3FDD672BDF514BF  services/orchestrator/tests/runtime-admin-auth.test.ts
+0C93A997CA66CE405C22A6988BC7EBA9CADDE3DF247027ED6140A65D66DD464C  services/orchestrator/tests/runtime-facade.test.ts
+6AFD034204D4923A21322315AE8E2E157E29E766CA67BAC0567AF0D168534D48  services/orchestrator/tests/runtime-health.test.ts
+C770DEE84AB13EFEF9AB4E7242ADFBEF50E5D093A5894D5155ECD2618345D40D  services/orchestrator/tests/runtime-hitl.test.ts
+F15D38B6CF1F9106B8D3654E40B7E0244B44B58651AA4C3662BFD4D00AE2FEB2  services/orchestrator/tests/runtime-recovery.test.ts
+3F361172344EC187CDA22330C5E38A60F10559A8BF7D8586054947264E385203  services/orchestrator/tests/runtime-version-lifecycle.test.ts
+A4F169C95241D395DD9183D1D1A88931111C3C5C2D78F7795271785E3A35C048  services/orchestrator/tests/runtime-webhook.test.ts
+BE2EDE591E03618FA9C98ACC7C0478C27636C88410F38D4A829300A79A25CFBD  services/orchestrator/tests/tapi01-closure-offline.test.ts
+1F9953E0003BFA932F8E66C421B307AD417572CF354D5A63DF997DB54D0247BB  services/orchestrator/tests/v1-boot-typed-denial.test.ts
+C62B055588B0495FF42C7752BB074E8F7D952EC5928C50710BDA442B934D5C25  services/orchestrator/tests/vault-kv2-writer-offline.functional.test.ts
+16B57AA795B1554A3FD98D59FCE7508ECC93F229864C78206FB09645C7CC3079  services/orchestrator/tests/vault-live.test.ts
+D3B51AD2CBB49A7B49E3342EBAF9F2D774ECC42B9D4366B9F24AB083FF7C37B9  services/orchestrator/tests/w1-sub02-snapshot-secret.test.ts
+5EF1E24E0BC6A4B458CC64978AFE9AC06BBE867F5D1389EE1DC1ADE8CA504E05  services/orchestrator/tests/w1-sub03-sourceurl-extension.test.ts
+3424EAFEB6D8DFA311644F4B64D8F014074E32AB392727BD22383EBF9061B21E  services/orchestrator/tests/wrapper-fix-812.test.ts

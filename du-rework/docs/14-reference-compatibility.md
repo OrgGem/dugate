@@ -124,18 +124,21 @@ Ràng buộc đã chốt ở [API-COMPAT-DUGATE-2026-09-28](../tasks/API-COMPAT-
 
 | Feature | Release đầu | Release sau / ghi chú |
 |---|---|---|
-| Six `/api/v1/docs/*` action routes | Giữ path qua facade | Response canonical mới; legacy exact response có matrix riêng |
+| Six `/api/v1/docs/*` action routes | Giữ path và legacy wire mặc định qua facade, 31 variants | Canonical DTO trên surface/version riêng hoặc explicit opt-in cho client mới; COMP-02 freeze |
 | JSON/multipart, single/multi/source/target files | Hỗ trợ input normalization | Exact accepted fields P0 inventory |
 | sync=true | Bounded wait → 200/202 | Không blocking business execution tại API |
 | Profile routing/locked parameters | Bắt buộc | Prompt policy mới minh bạch, không raw `_prompt` |
-| Operations polling/cancel/resume | Canonical API | Legacy response fields chỉ thêm khi có consumer requirement |
+| Operations polling/list/cancel/resume/DELETE/download | Legacy default trên method/path cũ; continuity IDs/cursor/lifecycle | COMP-05..07 + CONT-03/04; canonical surface không thay default client cũ |
 | file_urls | Worker download theo allowlist và secret ref | Không mặc định chuyển arbitrary URLs đến provider |
-| `/docs/workflows` disbursement/lc-checker/doc-compare | Không nằm trong document-core | Các business deployment riêng ở P9 |
-| `/docs/workflows/schema`, workflow visual builder | Không thuộc release đầu | schema-workflow business + UI extension riêng nếu cần |
-| Billing balance/usage legacy | Usage projection/Admin v1 | Public legacy billing endpoints P9 inventory |
-| Data/credential migration | Không làm | Project mới độc lập; migration plan riêng |
+| `/docs/workflows` disbursement/lc-checker/doc-compare | Bắt buộc trước cutover qua COMP-09/P9 | Per-business deployment/queue; không alias sang sáu core action |
+| `/docs/workflows/schema` | Bắt buộc trước cutover, P9-04/COMP-09 | schemaSlug và config import/ownership theo CONT; không interpreter trong Orchestrator |
+| Workflow visual builder | Theo cutover register PAR-00 | Tách public schema execution bắt buộc khỏi phạm vi visual designer |
+| Billing balance/usage legacy | Parity nếu consumer inventory đang dùng, COMP-08 | Không suy balance từ tenant usage; retire chỉ sau approved consumer decision |
+| Data/credential continuity | CONT-00..05 planning/tool/rehearsal trước G-COMP/G6 | Project/DB mới độc lập; authorized export/import, giữ key hash/config/operations, rollback; production migration/traffic switch là bước riêng |
 
 Không tuyên bố drop-in replacement trước khi consumer compatibility matrix có fixture request/response thực tế được cấp quyền. Đầu ra lỗi/shape cũ cần characterization tests trước khi quyết định giữ hay sửa.
+
+[Bổ sung plan 2026-10-04](../tasks/PLAN-COMPLETION-2026-10-04.md) là acceptance continuity: fixture client/key có trước migration và operation/HITL/cursor/download còn sống phải tiếp tục hoạt động qua owner routing đã freeze; không chỉ key mới + happy-path submit. P9 → G-COMP → G6; actual production migration/cutover không được tự thực hiện từ tài liệu này.
 
 ## Known issues cần tránh mang sang
 

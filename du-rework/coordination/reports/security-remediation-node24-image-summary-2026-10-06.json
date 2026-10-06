@@ -1,0 +1,32 @@
+﻿[
+    {
+        "component":  "orchestrator",
+        "imageHashMatches":  true,
+        "High":  0,
+        "Critical":  0
+    },
+    {
+        "component":  "connector",
+        "imageHashMatches":  true,
+        "High":  0,
+        "Critical":  0
+    },
+    {
+        "component":  "document-core",
+        "imageHashMatches":  true,
+        "High":  0,
+        "Critical":  0
+    },
+    {
+        "component":  "lc-checker",
+        "imageHashMatches":  true,
+        "High":  0,
+        "Critical":  0
+    },
+    {
+        "component":  "example-review",
+        "imageHashMatches":  true,
+        "High":  0,
+        "Critical":  0
+    }
+]

@@ -32,10 +32,10 @@ Các [packet test riêng](DETAILED-BUSINESS-VERIFICATION-2026-10-01.md), không 
 
 ## 4. Một coordinator, một active ledger
 
-1. Claude Code phiên điều phối đang sống là **single dispatcher**; OpenClaude handle cũ đã đóng không được coi là active, Antigravity không tự dispatch. Không tạo scheduler/terminal điều phối thứ hai khi chưa xác minh cơ chế reuse-session và không có lịch trùng. Nhịp mục tiêu 10 phút chỉ được báo là tự động khi Orca/Task Scheduler thực sự có một lịch hoạt động.
+1. **Cập nhật handoff 2026-10-02:** Command Code coordinator là **single dispatcher** theo `coordination/coordinator-state.json`; Claude Code không còn quyền dispatch (vẫn có thể nhận việc trực tiếp từ người dùng), Antigravity không tự dispatch. Không tạo scheduler/terminal điều phối thứ hai khi chưa xác minh cơ chế reuse-session và không có lịch trùng. Nhịp mục tiêu 10 phút chỉ được báo là tự động khi Orca/Task Scheduler thực sự có một lịch hoạt động.
 2. Mỗi lượt: đối chiếu `orca terminal list` + Task/Dispatch + receipt; mỗi agent có tối đa một **packet thực thi active**; row cũ không có active attempt được chuyển `historical/stale` kèm bằng chứng, không xóa audit. `ready` trong registry không đồng nghĩa đang làm. Nếu terminal đã nhận prompt thủ công, ledger phải ghi `manual` và owner, tránh dispatch Orca lần hai.
 3. Báo cáo ngắn theo `IMPLEMENTED / VFY pending / ACCEPTED`, file lease, decision blocker, next owner. Ưu tiên giao code cho agent idle trước khi giao khảo sát hoặc viết thêm plan. Sau ba lượt không tiến triển, đọc log thật và nudge đúng packet theo `AGENTS.md`; không suy ra stuck chỉ từ thiếu receipt.
-4. Hai Codex Tester ưu tiên smoke cho diff vừa xong và chuẩn bị `VFY-*`; Claude review độc lập ở mốc module/rủi ro cao. Không dùng reviewer/coordinator để thay implementation capacity. Đóng/giải phóng lease ngay khi owner giao patch, không chờ VFY sâu.
+4. Hai Codex Tester ưu tiên smoke cho diff vừa xong và chuẩn bị `VFY-*`. Command Code coordinator gọi Antigravity review UI khi một chức năng hoặc nhóm chức năng `AWEB-*` đã có build/browser evidence; Claude Code review module/backend hoặc rủi ro cao theo yêu cầu. Không dùng reviewer/coordinator để thay implementation capacity. Đóng/giải phóng lease ngay khi owner giao patch, không chờ VFY sâu.
 
 ## 5. Exit của đợt tối ưu
 

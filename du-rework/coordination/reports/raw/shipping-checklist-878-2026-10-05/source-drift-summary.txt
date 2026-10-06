@@ -1,0 +1,6 @@
+﻿workspace source files: before=1093, final=1096, changed=1, added=3, removed=0
+DUGate root source files: before=536, final=536, changed=0, added=0, removed=0
+workspace changed: du-rework/services/orchestrator/src/http/routes/public.ts before=94E6A6C94A52B5599D30FAFEDB2BE8CC9455FB483F59AB63D0DEE842E3FC4DFA after=EF1F74714AA2F4B972AD6DB0BB4AAB62F6E0401FE9CFF2C943043989A7EEA97F
+workspace added: du-rework/tools/repo-migration/verify-inventory.cjs after=8B7A2E62315AC38D251E309ECB990A07D61128FB6EA33C39C8D7BA7E393C5181
+workspace added: du-rework/coordination/reports/plat-mig-02-pg-probe-2026-10-05.cjs after=6F131C1BEA7B56C4743FD2B997811DB3A224895E7E24E73077CAC9E53F88D8E7
+workspace added: du-rework/services/orchestrator/src/modules/connectors/probe-authorization.ts after=CDE6C9F1AB43CEA5EFDF266BDDC719BC8C06A61E3D7270DB2604B9FBAE7FC332

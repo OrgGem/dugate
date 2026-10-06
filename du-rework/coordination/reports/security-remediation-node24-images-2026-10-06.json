@@ -1,0 +1,32 @@
+﻿[
+    {
+        "component":  "orchestrator",
+        "image":  "du-security-node24-orchestrator:20261006",
+        "imageId":  "sha256:f5be4e60b5ab4f5205724a57268ffb83653dc7f503ff64ae3a19767b2844f6fb",
+        "node":  "v24.21.0"
+    },
+    {
+        "component":  "connector",
+        "image":  "du-security-node24-connector:20261006",
+        "imageId":  "sha256:a3cbe2e20d039b9230e1f39c660cfd11d93d360c88d7bcff37e0c142ed6abef6",
+        "node":  "v24.21.0"
+    },
+    {
+        "component":  "document-core",
+        "image":  "du-security-node24-document-core:20261006",
+        "imageId":  "sha256:a81e14da0463189ca96ce5fe25c77f57034be2d2b74815259ca04ef9b6192c74",
+        "node":  "v24.21.0"
+    },
+    {
+        "component":  "lc-checker",
+        "image":  "du-security-node24-lc-checker:20261006",
+        "imageId":  "sha256:85f4c96928711196786d0359c4a3327f59ecbc449bb5f85bf3d54d807dd174cb",
+        "node":  "v24.21.0"
+    },
+    {
+        "component":  "example-review",
+        "image":  "du-security-node24-example-review:20261006",
+        "imageId":  "sha256:794c4e3071163b5db8047d8612e4940bc2df3d1f6eb7d5471b7a10f2000fbff4",
+        "node":  "v24.21.0"
+    }
+]

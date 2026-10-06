@@ -1,0 +1,47 @@
+{
+  "project": "arch-phase-b-20261006",
+  "phases": {
+    "manifest_copied": true,
+    "business_registered_enabled_activated": true,
+    "tenant_api_key_created": true,
+    "host_public_health": {
+      "http": 200,
+      "db": true,
+      "redis": true
+    },
+    "ingest_accepted": {
+      "http": 202,
+      "state": "ACCEPTED",
+      "hasOperationId": true
+    },
+    "operation_terminal": {
+      "state": "SUCCEEDED",
+      "done": true
+    },
+    "result": {
+      "http": 200,
+      "schemaVersion": "1",
+      "artifactCount": 1,
+      "fixtureTextInResult": false
+    },
+    "result_download": {
+      "http": 200,
+      "contentType": "application/json",
+      "bytes": 508,
+      "fixtureTextPresent": true
+    },
+    "idempotency_replay": {
+      "http": 200,
+      "sameOperationId": true,
+      "replayed": true
+    },
+    "runtime_checkpoint_and_task_rows": {
+      "task_count": 1,
+      "task_succeeded": 1,
+      "checkpoint_count": 2
+    }
+  },
+  "offlineOrLive": "live-local Docker/Postgres/Valkey/worker stack",
+  "operationId": "64edc168-c736-4e9f-aebb-71b5aed722cd",
+  "verdict": "PASS ingest input -> public Orchestrator -> BullMQ worker -> task/checkpoints -> result output"
+}

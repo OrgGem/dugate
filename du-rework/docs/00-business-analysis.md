@@ -8,10 +8,10 @@
 
 ```mermaid
 flowchart LR
-  subgraph Core["document-core v1 (28 variants)"]
+  subgraph Core["document-core v1 (31 variants)"]
     I[ingest<br/>4 subcases]
-    E[extract<br/>5 subcases]
-    A[analyze<br/>5 subcases]
+    E[extract<br/>6 subcases]
+    A[analyze<br/>7 subcases]
     T[transform<br/>5 subcases]
     G[generate<br/>6 subcases]
     C[compare<br/>3 subcases]
@@ -28,14 +28,14 @@ flowchart LR
 | Business | Actions | Variants | Discriminator | Slot chính |
 |---|---|---|---|---|
 | `document-core` | ingest | 4 — `parse`, `ocr`, `digitize`, `split` | `mode` | `ocr` (scan), local parse |
-| `document-core` | extract | 5 — `invoice`, `contract`, `receipt`, `table`, `custom` | `type` | `reasoning` |
-| `document-core` | analyze | 5 — `classify`, `sentiment`, `compliance`, `quality`, `risk` | `task` | `reasoning` |
-| `document-core` | transform | 5 — `convert`, `translate`, `rewrite`, `redact`, `template` | `action` | `reasoning` / local |
+| `document-core` | extract | 6 — `invoice`, `contract`, `id-card`, `receipt`, `table`, `custom` | `type` | `reasoning` |
+| `document-core` | analyze | 7 — `classify`, `sentiment`, `compliance`, `fact-check`, `quality`, `risk`, `summarize-eval` | `task` | `reasoning` |
+| `document-core` | transform | 5 — `convert`, `translate`, `rewrite`, `redact`, `template` | `variant` (`action` là alias legacy) | `reasoning` / local |
 | `document-core` | generate | 6 — `summary`, `outline`, `report`, `email`, `minutes`, `qa` | `task` | `reasoning` |
 | `document-core` | compare | 3 — `diff`, `semantic`, `version` | `mode` | `reasoning` (+ `vision` opt.) |
 | `example-review` | review | 1+ | custom | parallel + HITL |
 
-Tổng **28 subcases** trong `document-core` (4+5+5+5+6+3). Con số 31 trong registry cũ (`lib/endpoints/registry.ts`) được ghi là inventory-only — không dùng làm chuẩn.
+Manifest hiện khai báo **31 variant** trong sáu action `document-core` (4+6+7+5+6+3), gồm cả `id-card`, `fact-check` và `summarize-eval`. Đây là inventory source; quyết định công bố phạm vi sản phẩm và mức parity vẫn cần acceptance riêng. Xem [manifest](../businesses/document-core/src/manifest/document-core.manifest.ts) và [variant matrix](../businesses/document-core/docs/variant-matrix.md).
 
 ---
 
@@ -87,7 +87,7 @@ Tổng **28 subcases** trong `document-core` (4+5+5+5+6+3). Con số 31 trong re
 
 ---
 
-## 4. Variant matrix (28 subcases)
+## 4. Variant matrix (31 subcases)
 
 | # | Action | Discriminator | Subcase | Capability yêu cầu | Artifact policy |
 |---|---|---|---|---|---|
@@ -105,11 +105,11 @@ Tổng **28 subcases** trong `document-core` (4+5+5+5+6+3). Con số 31 trong re
 | 12 | analyze | `task=compliance` | Compliance | `reasoning` | file hoặc text + criteria |
 | 13 | analyze | `task=quality` | Quality | `reasoning` | file hoặc text |
 | 14 | analyze | `task=risk` | Risk | `reasoning` | file hoặc text |
-| 15 | transform | `action=convert` | Convert | local (format matrix) | file |
-| 16 | transform | `action=translate` | Translate | `reasoning` | file hoặc text + targetLanguage |
-| 17 | transform | `action=rewrite` | Rewrite | `reasoning` | file hoặc text + style |
-| 18 | transform | `action=redact` | Redact | `reasoning` hoặc local | file hoặc text + rules |
-| 19 | transform | `action=template` | Template | local | file hoặc text + templateId |
+| 15 | transform | `variant=convert` | Convert | local (format matrix) | file |
+| 16 | transform | `variant=translate` | Translate | `reasoning` | file hoặc text + targetLanguage |
+| 17 | transform | `variant=rewrite` | Rewrite | `reasoning` | file hoặc text + style |
+| 18 | transform | `variant=redact` | Redact | `reasoning` hoặc local | file hoặc text + rules |
+| 19 | transform | `variant=template` | Template | local | file hoặc text + templateId |
 | 20 | generate | `task=summary` | Summary | `reasoning` | file hoặc text |
 | 21 | generate | `task=outline` | Outline | `reasoning` | file hoặc text |
 | 22 | generate | `task=report` | Report | `reasoning` | file hoặc text + audience |
@@ -119,8 +119,11 @@ Tổng **28 subcases** trong `document-core` (4+5+5+5+6+3). Con số 31 trong re
 | 26 | compare | `mode=diff` | Diff | local + `reasoning` opt. | source + target (mỗi side 1 file/text) |
 | 27 | compare | `mode=semantic` | Semantic | `reasoning` | source + target |
 | 28 | compare | `mode=version` | Version | `reasoning` | source + target |
+| 29 | extract | `type=id-card` | Identity document | `reasoning` (có thể kèm OCR) | file hoặc text |
+| 30 | analyze | `task=fact-check` | Fact check | `reasoning` | file hoặc text + referenceData |
+| 31 | analyze | `task=summarize-eval` | Summary evaluation | `reasoning` | file hoặc text + criteria tùy chọn |
 
-> Chi tiết field-level BRD cho từng action: `businesses/document-core/docs/{action}.md` (cần bổ sung — hiện mới có outline trong [10](10-document-core.md)).
+> Chi tiết input/output và test catalog của 31 variant: [variant matrix](../businesses/document-core/docs/variant-matrix.md). Bảng này giữ thứ tự 28 case ban đầu và thêm ba case mới ở cuối; không dùng thứ tự dòng làm ID contract.
 
 ---
 

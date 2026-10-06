@@ -1,0 +1,28 @@
+{
+  "id": "77d12adf-07b0-49f9-9243-8d9af74fb8a7",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_949d489b-0ce8-4242-a8c2-988362192922",
+      "status": "running",
+      "tail": [
+        "• Ran $p='lib/endpoints/registry.ts'; $lines=Get-Content -LiteralPath $p; for($i=260;$i -le 430;$i++){ '{0,4}: {1}' -f $i,$lines[$i-1] }",
+        "  └  260:         description: 'Viáº¿t láº¡i ná»™i dung báº±ng cÃ¢u chá»¯ khÃ¡c (Paraphrasing) nháº±m trÃ¡nh Ä‘áº¡o vÄƒn, tÃ³m gá»n Ã½ hoáº·c Ã©p vÄƒn báº£n theo má»™t phong cÃ¡ch cá»¥ thá»ƒ báº±ng tham sá»‘",
+        "    style=academic, formal, casual.',",
+        "    … +31 lines (ctrl + t to view transcript)",
+        "     429:",
+        "     430:g g•• · Running hooksWW•WWWoWoWoWorWorWorWororkWorkWork Work WorkWrkiWorki3WorkiWorkiWorkinWorkinWorkinWorkinorkingorkingorkingorkngrkingrking•rkingking•kingking•inging•inging•ngng•ng4g•ggg••W•WWWoWoWoWoWorWorWorWorkWorkWorkWrkiWorki5WorkiWorkiWorkinWorkinWorkinorkingorkingorkingorkingrking"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "37648",
+      "nextCursor": "38757",
+      "latestCursor": "38757",
+      "returnedLineCount": 6,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

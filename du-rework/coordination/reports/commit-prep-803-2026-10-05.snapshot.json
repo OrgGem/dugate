@@ -1,0 +1,134 @@
+{
+  "captured_utc": "2026-10-04T21:26:02.380792+00:00",
+  "head": {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit": 0,
+    "stdout": "b088eececcb5f3df0b4edbe073a29401dafda624\n",
+    "stderr": ""
+  },
+  "pins": {
+    "tasks/PLAN-COMPLETION-2026-10-04.md": {
+      "mtime_ns": "1791148729050568200",
+      "sha256": "81051c8ae7db3544f339eb0736548c934eeb46b0e42c1e2ef5460d4832a3c02a"
+    },
+    "tasks/README.md": {
+      "mtime_ns": "1791148781160725900",
+      "sha256": "15371224823774bfa5df67f879c07a91aba582faa60f471e734814aa371b708c"
+    },
+    "coordination/reports/commit-plan-prep-2026-10-05.md": {
+      "mtime_ns": "1791141860430064400",
+      "sha256": "7c4f7bea25f22436690941bb04abbb15a6b87087b1b89f4a1eae8a3e8da5ef46"
+    },
+    "coordination/reports/commit-prep-802-2026-10-05.md": {
+      "mtime_ns": "1791147902354112200",
+      "sha256": "4cd2ef97c6c5241271e3eaf074d6d81df7551253abbe169f1a28afa8a979e931"
+    },
+    "services/orchestrator/src/db/migrations.ts": {
+      "mtime_ns": "1790287385111655000",
+      "sha256": "2fde66b769e764c65424e4f73fe7121b765e74beca9fdfa63555fe06ae6f67e8"
+    },
+    "services/orchestrator/src/modules/auth/admin-local/repository.ts": {
+      "mtime_ns": "1790850881594658100",
+      "sha256": "8610fa9b25097f7ea5e2011f69b4384bd0d3e43a29f4c0551c15ffb264717bf8"
+    },
+    "services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts": {
+      "mtime_ns": "1791128040524224800",
+      "sha256": "4b0226c1fc9a09b17adae4807bcdceff15429da08ae64758a08628366b4947c3"
+    },
+    "services/orchestrator/src/modules/operations/ingestion-consumer.ts": {
+      "mtime_ns": "1791128057671844800",
+      "sha256": "b737b5fab54a8bc396ef776df22888d37907c93db8307471926d0cd8f64467d1"
+    },
+    "services/orchestrator/migrations/0032_checkpoint_session_ref.sql": {
+      "mtime_ns": "1791148715785698100",
+      "sha256": "69a9cc6bea5df9a999546ab5bb98a43ee1a1a0c3835be5d7e8c6aee72788e55e"
+    }
+  },
+  "task_query_exit": 0,
+  "active_and_ready_tasks": [
+    {
+      "id": "task_0b16a395e2af",
+      "status": "dispatched",
+      "spec": "Owner dsh_3 (term_273952b5, lane moi) - READ-ONLY, 0 source edit, no commit/tick. Spec day du: coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md muc 12.\nMap admin-web chua lane nao so huu: route trong apps/admin-web/src/router.tsx, screen duoi apps/admin-web/src/features/**, DTO/action/test state tung route, va trong 7 UI-missing row (CFGADM-01/02/03/04/06/08/09/11) sau wave 801 con row nao chua co owner.\nOutput: matrix route/DTO/action/owner/test + de xuat chia san wave 802 (khong ghi tick, khong dispatch). Receipt coordination/reports/adminweb-map-2026-10-05.md."
+    },
+    {
+      "id": "task_60c55b14b7d2",
+      "status": "dispatched",
+      "spec": "Owner dsh_1 - READ-ONLY design, 0 source edit, khong commit, khong tick. Spec day du: coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md muc 8. Blocker A3 theo encmeta-backfill-prep muc 0: khong ton tai window switch; openMetadata tai runtime.ts:445 hardcode readStored true va moi call-site readStoredText deu truyen true, nen backfill window mo vinh vien va bat metadata encryption khong fail-closed tren legacy plaintext.\nCong viec: (1) inventory chinh xac moi seam can sua, ghi file:line; (2) bang thiet ke flag/config surface + default + dieu kien fail-closed transition, tieu chi la zero unresolved refs; (3) timeline window + rollback + count-only safety; (4) test plan offline voi fake store + checklist live thuoc window, khong chay; (5) de xuat split nho nhat de owner native Luna lam duoc trong mot pass va khong cham file ngoai lease.\nDeliverable: coordination/reports/encmeta-window-design-2026-10-05.md. KHONG edit runtime.ts hay routes, do native Luna giu lease. Khong mo DB that."
+    },
+    {
+      "id": "task_0f77d71cabd1",
+      "status": "dispatched",
+      "spec": "Owner: implementation lane (coordinator gan). Ly do sinh task: CFGADM-UI-PORT-P1 (qwen_5) phat hien khong ton tai settings wire nao - grep Settings trong packages/contracts tra 0 match, khong co read DTO, khong co writer action. UI port settings (CFGADM-01/02/03/04) chi co the catalog + control disabled, nen UI khong the chay that.\nBuoc 1 (scope hep, khong pham vi rong): (1) contract DTO doc cho settings read: AI defaults provider/model/base URL; 5 prompt-default slots; S3 endpoint/bucket/secret presence/region/TTL; cache/retention - chi muc co gia tri that, KHONG ve secret value; (2) BFF read route GET /admin/api/settings theo dung pattern bff/handle.ts + capabilities gate + CSRF-before-role cho moi write, relay verbatim, 5xx -> 502 UPSTREAM_ERROR; (3) writer action contract + route o trang thai disabled/fail-closed kem capability that, khong invent storage; (4) ghi ro deployment adapter chua co trong tree (ACUI-M06/connectorBaseUrls he so) va de no la GAP ro, khong giai quyet o packet nay; (5) test offline: DTO validation, secret khong bao gio lo ra, cap gate 401/403, disabled-writer path.\nLease du kien: packages/contracts/src + services/orchestrator/src/http/bff va file admin lien quan + test moi. Khong chua lease nao dang chay tren cac file nay - xac nhan lai truocc khi sua. Offline, khong commit, khong tick. Receipt coordination/reports/settings-wire-base-2026-10-05.md."
+    },
+    {
+      "id": "task_b4b9f48619ae",
+      "status": "dispatched",
+      "spec": "Owner qwen_5. Nguon: REVIEW-801 V3 APPROVED-WITH-CONDITIONS, ba limits duoc giu nguyen: (a) timeout moi source-only - AbortController co trong code nhung test chi throw ECONNREFUSED + SENTINEL, chua co AbortSignal wait that; (b) override precedence moi source-only - code config wins tai create-app.ts:438-447 nhung chua co test ca injected config va env cung luc; (c) SQL capture vacuous - makeDb chi ghi SQL string, drop binds, nen sql rong va leaks(sql)==false chay tren empty list.\nCong viec: viet test that cho tung limit - (a) test timeout that: server treu, xac nhan AbortSignal that chay, do timeout va gan CLAIM/SENTINEL dung; (b) test precedence: injected config + env cung co, assert config thang; (c) sua capture de giu binds va assert forbidden-table tren SQL co that. Khong lam y leu source chua can fix - neu phat hien bug that thi report lai chu khong mo rong lease. Lease: tests/ cua CREDWORKFLOW + helper test; neu can sua source thi ghi ro file:line va de coordinator duyet. Chay focused x3 + tsc; receipt coordination/reports/cred-limits-801-2026-10-05.md. Offline, khong commit, khong tick."
+    },
+    {
+      "id": "task_476b4e7b83b9",
+      "status": "dispatched",
+      "spec": "Owner: codex_tester (phan bo khi lane trong). VERIFY doc lap cua HAI fix vua landing, KHONG sua source san pham.\n(1) ENCMETA-ENC09-KIND (qwen_1, receipt encmeta-enc09-kind-2026-10-05.md): chay encmeta-enc09-kind.test.ts + suite legacy-payload-migration x3; kiem bang chung chung minh operations.result_ref va tasks.result_ref co trong inventory; kiem seal context dung (tenant, slot, id) va envelope seal duoc runtime reader that mo - day la muc cao nhat, vi owner tu phat hien composite refId co the seal ra envelope khong reader nao mo duoc; kiem window dong thi store tu choi; kiem 2 bug owner bat (JOIN sai cot, composite refId) da that su bi sua va test co bao phu.\n(2) FU-ENCMETA-R4 (codex_worker_1, receipt encmeta-r4-sdk-fix-2026-10-05.md): chay fan-out suite x3; kiem contract test dung DTO shape that cua GET /api/runtime/v1/tasks/:id/children va ChildState.resultRef duoc parse dung tren payload that; kiem camelCase uu tien, snake_case van hoat dong.\n(3) Cross-check: voi R2 wire that, xac nhan SDK parse duoc mot response that SERVER sinh ra (neu co the, lay shape tu source route co that, khong dung fixture gia lap).\nGhi ro offline-provable vs live-only; neu gap nao con lai thi ghi ro chu mo fix. Receipt coordination/reports/tester.md section VFY-ENC09-803."
+    },
+    {
+      "id": "task_3a7f8821a404",
+      "status": "dispatched",
+      "spec": "Owner qwen_2 - DOC-ONLY. Muc tieu: dong lai bang chung wave 802 trong 3 doc trace (docs/19-traceability-audit-matrix.md, docs/28-test-inventory.md, docs/35-acceptance-baseline.md) sau khi co cac receipt moi, khong sua/xoa noi dung cu, chi append section moi.\nCan ghi moi: (1) FU-ENCMETA-R4 - SDK parseChildren uu tien camelCase resultRef + contract test that, fan-out 21/21 x3 (receipt encmeta-r4-sdk-fix-2026-10-05.md); (2) FU-ENCMETA-ADMIN - admin operation-detail projection mo envelope (receipt encmeta-admin-projection-fix-2026-10-05.md); (3) ENCMETA-ENC09-KIND - result_ref co trong inventory + PG store + codec, 23/23 x3, 2 bug that owner bat (receipt encmeta-enc09-kind-2026-10-05.md); (4) ENV-EXAMPLE-FIX - Vault bindings optional (receipt env-example-fix-2026-10-05.md); (5) CFGADM port P1 gap khong co settings wire + P2 identity + P3 workflows/docs; (6) WAVE-802-PACKETS 8 packet W802-01..08.\nQuy tac trung thuc: moi row ghi ro offline hay live; row ma ban KHONG tu chay thi ghi *owner* transcribed tu receipt; row ban tu chay moi ghi verified by qwen_2 this session; KHONG row nao nang len VERIFIED; live-admin-web.spec.ts ghi live-gated; KHONG cong fleet total. Receipt coordination/reports/trace-reconcile-802-2026-10-05.md. Khong commit, khong tick."
+    },
+    {
+      "id": "task_31b00c61a6c4",
+      "status": "ready",
+      "spec": "Owner dsh_2 (chu duy nhat cua apps/admin-web client/router theo A5). THU TU: chi lam sau khi task SETTINGS-WIRE-BASE da ghi receipt. L\u1ed7i UI \u00a75 CHANGES_REQUIRED: Test Workbench trong docs-screen.tsx POST /profiles/test-endpoint ma THIEU header X-CSRF-Token vi client.getSession() chua bootstrap (apps/admin-web/src/features/docs/docs-screen.tsx:22 va :66). Tren BFF that se tra 403 CSRF_REJECTED, nen man hinh /docs co duong dan user la vo dung.\nLam: bootstrap session/CSRF token dung pattern da xanh trong identity-api.ts (identity da duoc UI_APPROVED), gui X-CSRF-Token cho moi POST, va kiem tra cap quyen + fail-closed khi session/capability thieu; giu nguyen phan catalog endpoint. Kiem tra lai moi request co CSRF (khong chi POST nay). Lease: apps/admin-web/src/features/docs/** va file lien quan rut nhat, KHONG sua route khac. Cap nhat test neu co. Receipt coordination/reports/cfgadm-docs-csrf-fix-2026-10-05.md. Offline, khong commit, khong tick."
+    },
+    {
+      "id": "task_f0e2aca7ae99",
+      "status": "dispatched",
+      "spec": "Owner: implementation lane (coordinator gan) - UU TIEN CAO. Phat hien tu REVIEW-802 S3 dieu kien (2) va receipt P2 \u00a743: repo tao local-user hien fix role admin, nen lenh tao user co the cap ADMIN ma policy phai phia server quyet dinh - day la be mat privilege escalation. Browser khong duoc infer grants.\nCong viec: (1) tim chinh xac cho tao local-user va xac nhan co that khoi hardcode; (2) doi sang policy phia server: role den tu request trong allowlist ADMIN/USER/VIEWER nhung server phai ap rule: caller la ADMIN moi duoc tao ADMIN; USER/chi doc viewer thi khong duoc nang quyen; (3) tra loi fail-closed khi request mang role cao hon cap cua caller; (4) test offline: tao user voi role ADMIN boi caller ADMIN -> OK; boi caller USER/VIEWER -> tu choi voi ma loi ro rang; role ngoai allowlist -> tu choi; (5) KHONG sua UI va KHONG sua route registration, KHONG mo rong sang feature khac neu gap khac phat hien thi report lai. Lease: file repo/service tao local-user + test moi. Receipt coordination/reports/identity-role-policy-2026-10-05.md."
+    },
+    {
+      "id": "task_42bb7c8166a1",
+      "status": "ready",
+      "spec": "Owner dsh_2 (A5). Dieu kien cua REVIEW-802 S3 (1): CFGADM-08 chi dong khi 3 BFF routes duoc dang ky va co live CRUD proof. Can: GET danh sach user, POST tao user, PATCH cap nhat role/status voi expectedVersion CAS tra 409 khi lech, audit log, va tenant lay tu trusted session KHONG tu client. Dung pattern identity/capability/CSRF cua cac BFF route hien co; writer action phai fail-closed khi capabilities.userWriter false hoac auth mode khong phai local/both. Lease: services/orchestrator/src/http/bff + route admin lien quan + test; apps/admin-web CHI de ACK client/route sau khi backend co. Offline, khong commit, khong tick. Receipt coordination/reports/identity-bff-routes-2026-10-05.md."
+    },
+    {
+      "id": "task_602ccacaf42b",
+      "status": "dispatched",
+      "spec": "Owner claude - REVIEW/DECISION, 0 edit, offline. Vua co bang chung doc lap (V1-CONDITIONS-802): voi ca ENCRYPTION_KEY va NEXTAUTH_SECRET vang, entrypoint that van len (artifact encryption enabled -> orchestrator listening) tren ca 3 lan boot; chi khi TIEU THU cipher da cau hinh moi fail closed, nhung Error thuong khong code/status, typedSourceAuthDenial=false, va consumer map loi generic -> INGESTION_FAILED khong nam trong PERMANENT_CODES.\nCan quyet dinh va ghi ro: (1) policy dung cho startup: fail-fast bat buoc key, hay cho phep boot + typed denial khi thieu key, hay log canh bao? Nhuong cho chay 1 fail-fast co the lam ha deployment dang chay ma khong dung artifact encryption - danh gia tac dong that; (2) nen bo sung typed error code AUTH_DECRYPT_FAILED cho resolver + danh no vao PERMANENT_CODES de retry phan loai dung khong; (3) muc toan bo: thieu key co duoc phep tiep tuc phuc vu request khong can key, hay phai chan o tang request; (4) khoang cach sua nho nhat + tap tin - va cho ra danh sach file:line lien quan; (5) dieu kien test offline nao chung minh moi policy (boot voi key vang, consume cipher voi key vang, key hop le, ciphertext hong kem key); (6) dieu kien live con mo. Viet thanh decision record de implementer lam theo, kem o duong ngan nhat ban chon."
+    },
+    {
+      "id": "task_3af47864f554",
+      "status": "dispatched",
+      "spec": "Owner qwen_1. Phat hien tu MIGRATION-0032-ROLLBACK-PREP: verifyMigrations co false-green trap - co the bao migrate da xong trong khi chua that su ap dung, va khong co framework rollback cho migration 0032.\nCong viec: (1) xac dinh chinh xac false-green: dieu kien ket luoc nao co the true khi bang chieu row/ledger khong khop voi DB that; (2) sua de bao loi co bang chieu that: so row ledger phai khop bang select trong schema_migrations va dang ky duoc thu tu; (3) them test offline chung minh truoc-sau: bang chieu khop -> ok, lech -> bao loi ro rang, ledger rong -> bao loi; (4) ghi ro trong receipt rang khong co rollback framework va rollback that co the khong chay nguoc du lieu san xuat, nen rollback phai la restore tu backup + lenh don - KHONG tu invent rollback; (5) KHONG chay len DB that, khong sua migration khac. Lease: runner verifyMigrations + test offline moi. Receipt coordination/reports/migration-verify-trap-fix-2026-10-05.md."
+    },
+    {
+      "id": "task_f62d11bbc8fb",
+      "status": "dispatched",
+      "spec": "Owner codex_arch - DOC-ONLY, khong commit, khong tick. Lam moi commit-prep-802 cho trang thai moi nhat va ghi them cac quyet dinh moi: (1) V1 dieu kien (a) bi chung minh KHONG thoa - boot that van len khi ca ENCRYPTION_KEY va NEXTAUTH_SECRET vang; chi fail-closed khi TIEU THU cipher, error khong typed, consumer map INGESTION_FAILED khong nam PERMANENT_CODES; Claude dang ghi decision record policy startup/key nen ghi vao cot dieu kien truoc GO; (2) IDENTITY-ROLE-POLICY (hardcoded role admin khi tao local-user) la fix bao mat, phai co trong commit scope va khong gop nham voi nhom khac; (3) migration 0032 khong co rollback framework + false-green trap trong verifyMigrations da giao fix; (4) 5 task chay cua wave 803 + 3 task cho sanh. Voi moi nhom ghi ro phan offline da accept, con live-only, con UI verdict, va thu tu phu thuoc moi. Receipt coordination/reports/commit-prep-803-2026-10-05.md."
+    },
+    {
+      "id": "task_f05e8a1556af",
+      "status": "dispatched",
+      "spec": "Owner codex_tester_live - VERIFY doc lap, KHONG sua source san pham. Kiem tra claim cua plan-update-805b: doc tasks/PLAN-COMPLETION-2026-10-04.md + tasks/README.md va xac nhan bang chung co that: (1) ca 4 verdict REVIEW-802 + UI verdicts + 6 packet UI 803 + 4 task moi co that trong plan; (2) KHONG co checkbox nao khac bi tick so voi intake snapshot (so sanh plan.before.md voi plan hien tai, chi 2 P763 tick truoc do la da duoc uy quyen); (3) validator raw exit 0 va errors 0, khop voi receipt; (4) user-gated (commit go/no-go 1-6, 8 cau hoi live window, DEV-03) va A1-A6 con nguyen; (5) link/anchor khong hong. Ghi ro phan offline-provable. Receipt coordination/reports/tester.md section VFY-PLAN-805B."
+    }
+  ],
+  "staged_query": {
+    "argv": [
+      "git",
+      "diff",
+      "--cached",
+      "--name-only"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "assets": {
+    "apps/admin-web/dist/assets/index-BffJF1YL.css": "baf331d4ea62f3274fc1ac9e83ea049787fc7f786fac6330fbf69de3457bf021",
+    "apps/admin-web/dist/assets/index-Bs0p8VRI.js": "8ccdbab15d44cca1886895475ef3a2ae4352304fa2dc235cf1b93c793348c1d7"
+  }
+}

@@ -1,0 +1,1616 @@
+﻿ M ../.commandcode/taste/--writes-prompts-in-vietnamese,-expects-technical-work-in-english/taste.md
+ M ../.commandcode/taste/taste.md
+ M ../.gitignore
+ M ../app/doc-compare/page.tsx
+ M ../app/doc-pipeline/components/Icons.tsx
+ M .dockerignore
+ M .env.example
+ M .gitignore
+ M AGENTS.md
+ M README.md
+ M architecture/10-current-system.md
+ M architecture/11-subprojects.md
+ M architecture/12-flows-and-data.md
+ M architecture/16-interface-catalog.md
+ M businesses/document-core/Dockerfile
+ M businesses/document-core/docker-compose.yml
+ M businesses/document-core/docs/compatibility-matrix.md
+ M businesses/document-core/docs/field-dictionary.md
+ M businesses/document-core/docs/synthetic-corpus-policy.md
+ M businesses/document-core/docs/test-fixture-specification.md
+ M businesses/document-core/docs/traceability-matrix.md
+ M businesses/document-core/docs/workload-assumptions.md
+ M businesses/document-core/src/actions/analyze/index.ts
+ M businesses/document-core/src/actions/compare/index.ts
+ M businesses/document-core/src/actions/extract/index.ts
+ M businesses/document-core/src/actions/generate/index.ts
+ M businesses/document-core/src/actions/ingest/index.ts
+ M businesses/document-core/src/actions/transform/index.ts
+ M businesses/document-core/src/config.ts
+ M businesses/document-core/src/main.ts
+ M businesses/document-core/src/types/context.ts
+ M businesses/document-core/src/types/results.ts
+ M businesses/document-core/src/worker.ts
+ M businesses/document-core/tests/config.test.ts
+ M businesses/document-core/tests/execution-pin.functional.test.ts
+ M businesses/document-core/tests/parser-budgets.test.ts
+ M businesses/example-review/Dockerfile
+ M businesses/example-review/docker-compose.yml
+ M businesses/example-review/src/main.ts
+ M businesses/example-review/src/review.ts
+ M businesses/example-review/tests/r1-e-unreadable-evidence.test.ts
+ M businesses/lc-checker/Dockerfile
+ M businesses/lc-checker/docker-compose.yml
+ M businesses/lc-checker/src/main.ts
+ M coordination/README.md
+ M coordination/agent-watch-state.json
+ M coordination/coordinator-cycle-prompt.md
+ M coordination/coordinator-state.json
+ M coordination/probe-agents.py
+ M coordination/reports/claude.md
+ M coordination/reports/qwen1.md
+ M coordination/reports/qwen4.md
+ M coordination/reports/tester.md
+ M docker-compose.yml
+ M docs/00-business-analysis.md
+ M docs/01-product-scope.md
+ M docs/03-project-structure.md
+ M docs/04-data-state.md
+ M docs/11-admin-ux.md
+ M docs/12b-deployment-guide.md
+ M docs/14-reference-compatibility.md
+ M docs/19-traceability-audit-matrix.md
+ M docs/21-openapi.json
+ M docs/28-test-inventory.md
+ M docs/35-acceptance-baseline.md
+ M packages/contracts/src/connector.ts
+ M packages/contracts/src/index.ts
+ M packages/contracts/src/operations.ts
+ M packages/contracts/src/runtime.ts
+ M packages/observability/src/elasticsearch-collector.ts
+ M packages/observability/src/index.ts
+ M packages/observability/src/logger.ts
+ M packages/observability/src/redaction.ts
+ M packages/observability/tests/elasticsearch-collector.test.ts
+ M packages/observability/tests/observability.test.ts
+ M packages/worker-sdk/src/crypto-storage.ts
+ M packages/worker-sdk/src/fan-out.ts
+ M packages/worker-sdk/src/index.ts
+ M packages/worker-sdk/src/task-context.ts
+ M packages/worker-sdk/src/types.ts
+ M packages/worker-sdk/src/worker.ts
+ M packages/worker-sdk/tests/fan-out.test.ts
+ M pnpm-lock.yaml
+ M pnpm-workspace.yaml
+ M scripts/dev.cjs
+ M scripts/migrate-local.cjs
+ M scripts/stop-all.cjs
+ M services/connector/Dockerfile
+ M services/connector/docker-compose.yml
+ M services/connector/src/entrypoint.ts
+ M services/orchestrator/CODE-ARCHITECTURE.md
+ M services/orchestrator/Dockerfile
+ M services/orchestrator/docker-compose.yml
+ M services/orchestrator/src/app/admin/api-key-section-data.ts
+ M services/orchestrator/src/app/admin/api-key-section-renderer.ts
+ M services/orchestrator/src/app/admin/crypto-config-api.ts
+ M services/orchestrator/src/app/admin/p6-01-shell-fixtures.ts
+ M services/orchestrator/src/app/admin/shell-server.ts
+ M services/orchestrator/src/app/admin/view-models.ts
+ M services/orchestrator/src/compat/legacy-http-mount.ts
+ M services/orchestrator/src/db/migrations.ts
+ M services/orchestrator/src/main.ts
+ M services/orchestrator/src/modules/admin-actions/dispatcher.ts
+ M services/orchestrator/src/modules/admin-actions/rbac.ts
+ M services/orchestrator/src/modules/artifacts/artifacts.ts
+ M services/orchestrator/src/modules/artifacts/integrity-scanner.ts
+ M services/orchestrator/src/modules/artifacts/multipart-service.ts
+ M services/orchestrator/src/modules/artifacts/storage-migration.ts
+ M services/orchestrator/src/modules/audit/audit.ts
+ M services/orchestrator/src/modules/auth/admin-local/repository.ts
+ M services/orchestrator/src/modules/auth/session-store.ts
+ M services/orchestrator/src/modules/encryption/artifact-read-decrypt.ts
+ M services/orchestrator/src/modules/encryption/boot-options.ts
+ M services/orchestrator/src/modules/encryption/crypto-storage-facade.ts
+ M services/orchestrator/src/modules/encryption/legacy-payload-migration.ts
+ M services/orchestrator/src/modules/operations/ingestion-consumer.ts
+ M services/orchestrator/src/modules/operations/submission.ts
+ M services/orchestrator/src/modules/profiles/profiles.ts
+ M services/orchestrator/src/modules/public-api/delivery-encryption.ts
+ M services/orchestrator/src/modules/public-api/upload-encryption-gateway.ts
+ M services/orchestrator/src/modules/queue/dispatcher.ts
+ M services/orchestrator/src/modules/runtime/metadata-crypto.ts
+ M services/orchestrator/src/modules/runtime/runtime.ts
+ M services/orchestrator/src/server.ts
+ M services/orchestrator/tests/adm-base-03-safe-error-offline.functional.test.ts
+ M services/orchestrator/tests/admin-action-dispatcher.test.ts
+ M services/orchestrator/tests/admin-action-rbac-live.test.ts
+ M services/orchestrator/tests/admin-audit-list-page.test.ts
+ M services/orchestrator/tests/admin-base-routes.test.ts
+ M services/orchestrator/tests/admin-crypto-config.test.ts
+ M services/orchestrator/tests/admin-error-boundary-offline.test.ts
+ M services/orchestrator/tests/admin-local-user-repository.test.ts
+ M services/orchestrator/tests/admin-oidc04-claims-tenant-offline.test.ts
+ M services/orchestrator/tests/admin-p6-01-shell-fixtures.test.ts
+ M services/orchestrator/tests/admin-shell-platform-mount.test.ts
+ M services/orchestrator/tests/admin-shell-render.test.ts
+ M services/orchestrator/tests/admin-shell-router.test.ts
+ M services/orchestrator/tests/admin-shell-server.test.ts
+ M services/orchestrator/tests/admin-shell-session-lifecycle.test.ts
+ M services/orchestrator/tests/admin-view-model.test.ts
+ M services/orchestrator/tests/artifact-grant-fencing.test.ts
+ M services/orchestrator/tests/artifact-integrity-scanner.test.ts
+ M services/orchestrator/tests/artifact-read-decrypt-offline.test.ts
+ M services/orchestrator/tests/artifact-read-download-route.test.ts
+ M services/orchestrator/tests/artifact-storage-service.test.ts
+ M services/orchestrator/tests/artifact-submit-guards.test.ts
+ M services/orchestrator/tests/br12-isolation-offline.test.ts
+ M services/orchestrator/tests/connector-credentials-offline.functional.test.ts
+ M services/orchestrator/tests/delivery-encryption.test.ts
+ M services/orchestrator/tests/enc08-wire-enc07.test.ts
+ M services/orchestrator/tests/fixtures/multipart-offline-harness.ts
+ M services/orchestrator/tests/legacy-http-mount.test.ts
+ M services/orchestrator/tests/legacy-payload-migration.test.ts
+ M services/orchestrator/tests/migrations-ledger-guard.test.ts
+ M services/orchestrator/tests/multipart-routes-offline.test.ts
+ M services/orchestrator/tests/multipart-service-offline.test.ts
+ M services/orchestrator/tests/oidc02-multi-replica-offline.test.ts
+ M services/orchestrator/tests/p8-01-audit-entity-offline.test.ts
+ M services/orchestrator/tests/public-upload-encryption-gateway.test.ts
+ M services/orchestrator/tests/runtime-encryption-metadata.test.ts
+ M services/orchestrator/tests/runtime.test.ts
+ M services/orchestrator/tests/rv01-loopback-http-offline.test.ts
+ M services/orchestrator/tests/s3-storage-facade.test.ts
+ M services/orchestrator/tests/session-store.test.ts
+ M services/orchestrator/tests/storage-migration.test.ts
+ M services/orchestrator/tests/submission-metadata-crypto-e2e.test.ts
+ M services/orchestrator/tests/url-ingestion-backend-failclosed-offline.test.ts
+ M services/orchestrator/tests/url-ingestion-consumer-offline.functional.test.ts
+ M services/orchestrator/tests/url-ingestion-offline.functional.test.ts
+ M services/orchestrator/tests/webhook-delivery-encryption.test.ts
+ M tasks/ADMIN-CONTROL-PLANE-UI-2026-10-02.md
+ M tasks/ADMIN-LOCAL-AUTH-2026-09-30.md
+ M tasks/ADMIN-OPS-UX-2026-09-24.md
+ M tasks/API-COMPAT-DUGATE-2026-09-28.md
+ M tasks/APP-ENCRYPTION-2026-09-27.md
+ M tasks/CODE-CONVENTION-LARGE-FILES-DUPLICATION-2026-10-02.md
+ M tasks/DETAILED-BUSINESS-VERIFICATION-2026-10-01.md
+ M tasks/IMPLEMENTATION-FIRST-COORDINATION-2026-10-01.md
+ M tasks/ORCH-PAR-00-INVENTORY-SURVEY-2026-10-01.md
+ M tasks/ORCHESTRATOR-FEATURE-PARITY-BOUNDARIES-2026-10-01.md
+ M tasks/ORCHESTRATOR-LEGACY-FEATURE-PARITY-2026-10-01.md
+ M tasks/P6-admin.md
+ M tasks/P8-release-readiness.md
+ M tasks/P9-business-backlog.md
+ M tasks/README.md
+ M ../package-lock.json
+ M ../package.json
+ M ../tsconfig.json
+?? ../DUGATE_ADMIN_UI_FUNCTIONS.md
+?? ../components/ui/
+?? ../coordination/reports/commit-preflight-813-2026-10-05.md
+?? ../coordination/reports/control-plane-rollout-811-2026-10-05.md
+?? ../coordination/reports/docs-catalog-honesty-803-2026-10-05.md
+?? ../coordination/reports/gitignore-audit-820-2026-10-05.md
+?? ../coordination/reports/gitignore-audit-820-path-inventory.txt
+?? ../coordination/reports/shipping-checklist-817-2026-10-05.md
+?? ../coordination/reports/ui-acceptance-checklist-803-2026-10-05.md
+?? ../coordination/reports/uirev-docs-csrf-803-2026-10-05.md
+?? .env.docker.example
+?? .env.live
+?? .gitattributes
+?? Dockerfile
+?? apps/
+?? businesses/document-core/src/actions/prompt-application.ts
+?? businesses/document-core/src/actions/prompt-precedence.ts
+?? businesses/document-core/src/actions/session-seam.ts
+?? businesses/document-core/tests/p730-prefconsume.test.ts
+?? businesses/document-core/tests/p730-sdk-consume-forwarding.test.ts
+?? businesses/document-core/tests/p745-carrier-impl-b2.test.ts
+?? businesses/document-core/tests/p745-session-capture-inject.test.ts
+?? compose/
+?? coordination/COORDINATION-TOPOLOGY.md
+?? coordination/backfill-leftover-counter-803.sql
+?? coordination/dispatch-specs/2026-10-02-1421-VFY-REG-refresh.md
+?? coordination/dispatch-specs/2026-10-02-1421-fence-align-verify.md
+?? coordination/dispatch-specs/2026-10-02-1431-acui-dec-prep.md
+?? coordination/dispatch-specs/2026-10-02-1441-VFY-REG-flake-check.md
+?? coordination/dispatch-specs/2026-10-02-1444-WSD-SYNCPOST-verify.md
+?? coordination/dispatch-specs/2026-10-02-1501-VFY-REG-flake-fix.md
+?? coordination/dispatch-specs/2026-10-02-2330-RFX-CRYPTO.md
+?? coordination/dispatch-specs/2026-10-02-2330-RFX-DELIVERY.md
+?? coordination/dispatch-specs/2026-10-02-2330-RFX-GATEWAY.md
+?? coordination/dispatch-specs/2026-10-02-2330-RFX-MULTIPART.md
+?? coordination/dispatch-specs/2026-10-02-2340-RFX-STORAGE.md
+?? coordination/dispatch-specs/2026-10-02-2345-RFX-SCANNER.md
+?? coordination/dispatch-specs/2026-10-02-2350-RFX-GATEWAY-v2.md
+?? coordination/dispatch-specs/2026-10-02-2355-CONV05-admin-fetch.md
+?? coordination/dispatch-specs/2026-10-02-2355-CONV08-render-split.md
+?? coordination/dispatch-specs/2026-10-02-2355-RFX-SERVER.md
+?? coordination/dispatch-specs/2026-10-02-2358-CRX03-worker-seam.md
+?? coordination/dispatch-specs/2026-10-02-2358-CRX05-recipe-smoke.md
+?? coordination/dispatch-specs/2026-10-03-0005-CONV11-index.md
+?? coordination/dispatch-specs/2026-10-03-0005-PLAN-REGISTER.md
+?? coordination/dispatch-specs/2026-10-03-0005-RFX05-full.md
+?? coordination/dispatch-specs/2026-10-03-0015-CONV04-DEC.md
+?? coordination/dispatch-specs/2026-10-03-0015-CRX03-DESIGN.md
+?? coordination/dispatch-specs/2026-10-03-0015-P8-AUDIT.md
+?? coordination/dispatch-specs/2026-10-03-0015-RECON-A.md
+?? coordination/dispatch-specs/2026-10-03-0015-RECON-B.md
+?? coordination/dispatch-specs/2026-10-03-0015-RFX05-v2.md
+?? coordination/dispatch-specs/2026-10-03-0022-CRX01-metadata-seam.md
+?? coordination/dispatch-specs/2026-10-03-0022-DOC-SYNC.md
+?? coordination/dispatch-specs/2026-10-03-0022-RECON-C.md
+?? coordination/dispatch-specs/2026-10-03-0022-RECON-D.md
+?? coordination/dispatch-specs/2026-10-03-0022-RECON-E.md
+?? coordination/dispatch-specs/2026-10-03-0032-ENC-META-SCAN.md
+?? coordination/dispatch-specs/2026-10-03-0032-RECON-F.md
+?? coordination/dispatch-specs/2026-10-03-0032-RECON-G.md
+?? coordination/dispatch-specs/2026-10-03-0032-RFX08-parity.md
+?? coordination/dispatch-specs/2026-10-03-0044-CRX02-RFX05res.md
+?? coordination/dispatch-specs/2026-10-03-0044-ENC-META-sentinel.md
+?? coordination/dispatch-specs/2026-10-03-0044-RECON-H.md
+?? coordination/dispatch-specs/2026-10-03-0044-RECON-I.md
+?? coordination/dispatch-specs/2026-10-03-0055-RFX-crypto-verify.md
+?? coordination/dispatch-specs/2026-10-03-0102-CONV13-RFX15.md
+?? coordination/dispatch-specs/2026-10-03-0102-ENC-META-FIX-G1.md
+?? coordination/dispatch-specs/2026-10-03-0102-RFX-crypto-fix-f1.md
+?? coordination/dispatch-specs/2026-10-03-0112-CONV01-prep.md
+?? coordination/dispatch-specs/2026-10-03-0112-ENC-META-G2-DEC.md
+?? coordination/dispatch-specs/2026-10-03-0122-CONV01-stage1.md
+?? coordination/dispatch-specs/2026-10-03-0122-F1-caller.md
+?? coordination/dispatch-specs/2026-10-03-0122-TICK-PROPOSAL.md
+?? coordination/dispatch-specs/2026-10-03-0142-CONV02.md
+?? coordination/dispatch-specs/2026-10-03-0152-ADM-BASE-03-capture.md
+?? coordination/dispatch-specs/2026-10-03-0212-CONV03.md
+?? coordination/dispatch-specs/2026-10-03-0222-CONV07.md
+?? coordination/dispatch-specs/2026-10-03-1245-CONV-verify.md
+?? coordination/dispatch-specs/2026-10-03-1245-PAR00-register-draft.md
+?? coordination/dispatch-specs/2026-10-03-1245-PAR11-17-gapmap.md
+?? coordination/dispatch-specs/2026-10-03-1245-plan-markers-features.md
+?? coordination/dispatch-specs/2026-10-03-1320-WTV02-runtime-verify.md
+?? coordination/dispatch-specs/2026-10-03-1320-WTV08-rfx-gapcheck.md
+?? coordination/dispatch-specs/2026-10-03-1332-WTV01b-rfx-preserved.md
+?? coordination/dispatch-specs/2026-10-03-1352-WTV03-crypto-verify.md
+?? coordination/dispatch-specs/2026-10-03-1352-WTV05-crx-encmeta-verify.md
+?? coordination/dispatch-specs/2026-10-03-1401-WTV04-upload-storage-verify.md
+?? coordination/dispatch-specs/2026-10-03-1502-WTV06-prep.md
+?? coordination/dispatch-specs/2026-10-03-1502-corrections-s3-s4-g2.md
+?? coordination/dispatch-specs/2026-10-03-1602-debris-secret-scan.md
+?? coordination/dispatch-specs/2026-10-03-2252-legacy-parity-gap-supplement.md
+?? coordination/dispatch-specs/2026-10-04-0013-liv05-vault-live.md
+?? coordination/dispatch-specs/2026-10-04-0047-liv03-services-health.md
+?? coordination/dispatch-specs/2026-10-04-0047-liv05b-vault-scope.md
+?? coordination/dispatch-specs/2026-10-04-0047-liv07-10-browser.md
+?? coordination/dispatch-specs/2026-10-04-1105-AWEB00-admin-inventory.md
+?? coordination/dispatch-specs/2026-10-04-1115-AWEB01-admin-web-bootstrap.md
+?? coordination/dispatch-specs/2026-10-04-1142-AWEB01-verify.md
+?? coordination/dispatch-specs/2026-10-04-1142-AWEB02-bff-foundation.md
+?? coordination/dispatch-specs/2026-10-04-1142-AWEB03a-components.md
+?? coordination/dispatch-specs/2026-10-04-1153-AWEB01b-browser-evidence.md
+?? coordination/dispatch-specs/2026-10-04-1205-AWEB03b-overview-graft.md
+?? coordination/dispatch-specs/2026-10-04-1211-AWEB02-verify.md
+?? coordination/dispatch-specs/2026-10-04-1222-AWEB02b-tenant-token-env.md
+?? coordination/dispatch-specs/2026-10-04-1222-AWEB03c-fixes-ui-review.md
+?? coordination/dispatch-specs/2026-10-04-1222-AWEB05-api-keys-connectors.md
+?? coordination/dispatch-specs/2026-10-04-1231-AWEB04-profile-slice.md
+?? coordination/dispatch-specs/2026-10-04-1242-light-verify-02b-03c.md
+?? coordination/dispatch-specs/2026-10-04-1251-AWEB05-verify.md
+?? coordination/dispatch-specs/2026-10-04-1311-AWEB05-fix-dotsegment.md
+?? coordination/dispatch-specs/2026-10-04-1321-AWEB04-verify.md
+?? coordination/dispatch-specs/2026-10-04-1332-AWEB06-operations-business.md
+?? coordination/dispatch-specs/2026-10-04-1352-AWEB06-verify.md
+?? coordination/dispatch-specs/2026-10-04-1352-AWEB07-identity-security-settings.md
+?? coordination/dispatch-specs/2026-10-04-1412-AWEB-ui-review-2.md
+?? coordination/dispatch-specs/2026-10-04-1412-AWEB07-verify.md
+?? coordination/dispatch-specs/2026-10-04-1412-AWEB08prep-per-route-flag.md
+?? coordination/dispatch-specs/2026-10-04-1423-AWEB08-liveprep.md
+?? coordination/dispatch-specs/2026-10-04-1423-AWEB08prep-verify.md
+?? coordination/dispatch-specs/2026-10-04-1433-AWEB08-docs.md
+?? coordination/dispatch-specs/2026-10-04-1451-env-example-sync.md
+?? coordination/dispatch-specs/2026-10-04-1451-migrations-verify.md
+?? coordination/dispatch-specs/2026-10-04-1512-AWEB04-wire-conformance.md
+?? coordination/dispatch-specs/2026-10-04-1512-profile-phase1-verify.md
+?? coordination/dispatch-specs/2026-10-04-1532-FPP1-closure-reverify.md
+?? coordination/dispatch-specs/2026-10-04-1601-docs-ux-pointer.md
+?? coordination/dispatch-specs/2026-10-04-1631-AWEB08-legacy-inventory.md
+?? coordination/dispatch-specs/2026-10-04-1805-LIVE-prep-evidence-matrix.md
+?? coordination/dispatch-specs/2026-10-04-1805-PLAN05a-plan-graph-validation.md
+?? coordination/dispatch-specs/2026-10-04-1805-PLAN05b-receipt-status-inventory.md
+?? coordination/dispatch-specs/2026-10-04-1805-W1-admission-seam.md
+?? coordination/dispatch-specs/2026-10-04-1805-W2-producer-consumer-fixtures.md
+?? coordination/dispatch-specs/2026-10-04-1835-P730-ACQ-PREP.md
+?? coordination/dispatch-specs/2026-10-04-1835-P730-API-PREP.md
+?? coordination/dispatch-specs/2026-10-04-1835-P730-CURL-IMPORT.md
+?? coordination/dispatch-specs/2026-10-04-1835-P730-SDK-PREP.md
+?? coordination/dispatch-specs/2026-10-04-1840-CC1-PLAN-GRAPH-DELTA.md
+?? coordination/dispatch-specs/2026-10-04-1840-CFGADM-SCREEN-SPEC-REVIEW.md
+?? coordination/dispatch-specs/2026-10-04-1845-P730-CONT-PREP.md
+?? coordination/dispatch-specs/2026-10-04-1852-P730-PLAN-MERGE-FIX.md
+?? coordination/dispatch-specs/2026-10-04-1900-CFGADM-LPG-REGISTER-DELTA.md
+?? coordination/dispatch-specs/2026-10-04-1900-P730-W2-B.md
+?? coordination/dispatch-specs/2026-10-04-1900-W1-DD03-FAILCLOSED.md
+?? coordination/dispatch-specs/2026-10-04-1900-W1-RECEIPT-AUDIT.md
+?? coordination/dispatch-specs/2026-10-04-1901-W1-DESIGN-REVIEW-PART1.md
+?? coordination/dispatch-specs/2026-10-04-1901-W1-HANDOFF-RELEASE.md
+?? coordination/dispatch-specs/2026-10-04-1910-T-PROF-03-CLOSURE.md
+?? coordination/dispatch-specs/2026-10-04-1920-PLAN-MERGE-VERIFY-1.md
+?? coordination/dispatch-specs/2026-10-04-1920-REGISTER-DELTA-VERIFY.md
+?? coordination/dispatch-specs/2026-10-04-1930-DD05-INVARIANT1.md
+?? coordination/dispatch-specs/2026-10-04-1930-P730-ACQUIRE-W1C.md
+?? coordination/dispatch-specs/2026-10-04-1930-P730-ADMIN-MUTATE-W3.md
+?? coordination/dispatch-specs/2026-10-04-1935-CURL-UI-REVIEW.md
+?? coordination/dispatch-specs/2026-10-04-1935-LIVE-READY-PREP2.md
+?? coordination/dispatch-specs/2026-10-04-1935-P730-UI-INTEGRATE-P1.md
+?? coordination/dispatch-specs/2026-10-04-1935-W2B-P2-FIX.md
+?? coordination/dispatch-specs/2026-10-04-1938-PLAN-GRAPH-DELTA-2.md
+?? coordination/dispatch-specs/2026-10-04-1938-REGISTER-N-VERIFY.md
+?? coordination/dispatch-specs/2026-10-04-1945-PLAN-MERGE-FIX-2.md
+?? coordination/dispatch-specs/2026-10-04-1952-L2-CLOSURE-RECHECK.md
+?? coordination/dispatch-specs/2026-10-04-1952-PLAN-REFRESH-741-745.md
+?? coordination/dispatch-specs/2026-10-04-1952-W1-REVIEW-PART2.md
+?? coordination/dispatch-specs/2026-10-04-2010-ACQ-PREP-RECEIPT-AUDIT.md
+?? coordination/dispatch-specs/2026-10-04-2010-P730-SDK-CONSUME.md
+?? coordination/dispatch-specs/2026-10-04-2010-PLAN-MERGE-FIX-3.md
+?? coordination/dispatch-specs/2026-10-04-2030-P730-MEDIUM1-PREP.md
+?? coordination/dispatch-specs/2026-10-05-0305-WAVE-801.md
+?? coordination/evidence/aweb-run/
+?? coordination/evidence/aweb-ui-review-2/
+?? coordination/evidence/aweb01b/
+?? coordination/evidence/aweb03b/
+?? coordination/evidence/aweb04-wire/
+?? coordination/evidence/aweb04/
+?? coordination/evidence/aweb05/
+?? coordination/evidence/aweb06/
+?? coordination/evidence/aweb07/
+?? coordination/evidence/aweb08prep/
+?? coordination/evidence/cfgadm-port-p1/
+?? coordination/evidence/connector-wire-b-ui-2026-10-05/
+?? coordination/evidence/harness.json
+?? coordination/evidence/p745-ui-keys-journey/
+?? coordination/evidence/p745-ui-mask/
+?? coordination/evidence/stub-ext-2026-10-05/
+?? coordination/evidence/uirev-evidence/
+?? coordination/evidence/vfy802/
+?? coordination/reports/INDEX-REVIEWS.md
+?? coordination/reports/INDEX.md
+?? coordination/reports/a10-runbook-807-2026-10-05.md
+?? coordination/reports/a12-auth-gate-runbook-808-2026-10-05.md
+?? coordination/reports/a8-claim-fix-803-2026-10-05.before.md
+?? coordination/reports/a8-claim-fix-803-2026-10-05.diff-check.raw.txt
+?? coordination/reports/a8-claim-fix-803-2026-10-05.literal.diff
+?? coordination/reports/a8-claim-fix-803-2026-10-05.md
+?? coordination/reports/a8-claim-fix-803-2026-10-05.post-pins.json
+?? coordination/reports/a8-claim-fix-803-2026-10-05.validate.py
+?? coordination/reports/a8-claim-fix-803-2026-10-05.validation.raw.json
+?? coordination/reports/acq-prep-receipt-audit-2026-10-04.md
+?? coordination/reports/admin-ui-navigation-completion-2026-10-05.md
+?? coordination/reports/adminweb-map-2026-10-05.md
+?? coordination/reports/allowplaintext-control-plane-808-2026-10-05.md
+?? coordination/reports/artifact-grant-fencing-822-2026-10-05.md
+?? coordination/reports/audit-ext-2-2026-10-04.md
+?? coordination/reports/audit-ext-2026-10-04.md
+?? coordination/reports/aweb-ui-review-2-2026-10-04.md
+?? coordination/reports/aweb00-admin-inventory-2026-10-04.md
+?? coordination/reports/aweb01-admin-web-bootstrap-2026-10-04.md
+?? coordination/reports/aweb01-verify-2026-10-04.md
+?? coordination/reports/aweb01b-browser-evidence-2026-10-04.md
+?? coordination/reports/aweb02-bff-foundation-2026-10-04.md
+?? coordination/reports/aweb02-verify-2026-10-04.md
+?? coordination/reports/aweb02b-03c-verify-2026-10-04.md
+?? coordination/reports/aweb02b-tenant-token-env-2026-10-04.md
+?? coordination/reports/aweb03a-components-2026-10-04.md
+?? coordination/reports/aweb03b-overview-graft-2026-10-04.md
+?? coordination/reports/aweb03c-fixes-and-ui-review-2026-10-04.md
+?? coordination/reports/aweb04-profiles-slice-2026-10-04.md
+?? coordination/reports/aweb04-verify-2026-10-04.md
+?? coordination/reports/aweb04-wire-conformance-2026-10-04.md
+?? coordination/reports/aweb05-api-keys-connectors-2026-10-04.md
+?? coordination/reports/aweb05-fix-path-segment-2026-10-04.md
+?? coordination/reports/aweb05-verify-2026-10-04.md
+?? coordination/reports/aweb06-operations-business-2026-10-04.md
+?? coordination/reports/aweb06-verify-2026-10-04.md
+?? coordination/reports/aweb07-identity-security-settings-2026-10-04.md
+?? coordination/reports/aweb07-verify-2026-10-04.md
+?? coordination/reports/aweb08-docs-2026-10-04.md
+?? coordination/reports/aweb08-docs-ux-pointer-2026-10-04.md
+?? coordination/reports/aweb08-legacy-inventory-2026-10-04.md
+?? coordination/reports/aweb08-liveprep-2026-10-04.md
+?? coordination/reports/aweb08prep-per-route-flag-2026-10-04.md
+?? coordination/reports/aweb08prep-verify-2026-10-04.md
+?? coordination/reports/ba04-fix-811-2026-10-05.md
+?? coordination/reports/backfill-counter-fixes-807-2026-10-05.md
+?? coordination/reports/backfill-leftover-counter-803-2026-10-05.md
+?? coordination/reports/backfill-wiring-design-808-2026-10-05.md
+?? coordination/reports/bff-settings-identity-2026-10-05.md
+?? coordination/reports/bff-wiring-design-808-2026-10-05.md
+?? coordination/reports/br12-fix-2026-10-05.md
+?? coordination/reports/build-deploy-review-2026-10-05-compose-probe.py
+?? coordination/reports/build-deploy-review-2026-10-05-compose-results.json
+?? coordination/reports/build-deploy-review-2026-10-05-context.txt
+?? coordination/reports/build-digest-audit-803-2026-10-05.md
+?? coordination/reports/business-contract-fix-820-2026-10-05.md
+?? coordination/reports/bypass-audit-809-2026-10-05.crypto-open.raw.jsonl
+?? coordination/reports/bypass-audit-809-2026-10-05.intake.json
+?? coordination/reports/bypass-audit-809-2026-10-05.literal.diff
+?? coordination/reports/bypass-audit-809-2026-10-05.md
+?? coordination/reports/bypass-audit-809-2026-10-05.plaintext-policy.raw.jsonl
+?? coordination/reports/bypass-audit-809-2026-10-05.scan.py
+?? coordination/reports/bypass-audit-809-2026-10-05.sinks.raw.jsonl
+?? coordination/reports/bypass-audit-809-2026-10-05.slots.raw.jsonl
+?? coordination/reports/bypass-audit-809-2026-10-05.source-drift.json
+?? coordination/reports/bypass-audit-809-2026-10-05.sql-read.raw.jsonl
+?? coordination/reports/bypass-audit-809-2026-10-05.validate.py
+?? coordination/reports/bypass-audit-809-2026-10-05.validation.json
+?? coordination/reports/bypass-fix-810-2026-10-05.md
+?? coordination/reports/cc-conv01-stage1-2026-10-03.md
+?? coordination/reports/cc-conv02-2026-10-03.md
+?? coordination/reports/cc-conv03-2026-10-03.md
+?? coordination/reports/cc-conv04-decision-pack-2026-10-03.md
+?? coordination/reports/cc-conv05-admin-fetch-2026-10-02.md
+?? coordination/reports/cc-conv07-2026-10-03.md
+?? coordination/reports/cc-conv13-rfx15-2026-10-03.md
+?? coordination/reports/cc-crx01-metadata-seam-2026-10-03.md
+?? coordination/reports/cc-crx02-rfx05res-2026-10-03.md
+?? coordination/reports/cc-enc-meta-fix-g1-2026-10-03.md
+?? coordination/reports/cc-enc-meta-g2-decision-pack-2026-10-03.md
+?? coordination/reports/cc-enc-meta-sentinel-2026-10-03.md
+?? coordination/reports/cc-enc-meta-writer-scan-2026-10-03.md
+?? coordination/reports/cc-f1-caller-2026-10-03.md
+?? coordination/reports/cc-rfx-server-2026-10-02.md
+?? coordination/reports/cfgadm-docs-csrf-fix-2026-10-05.md
+?? coordination/reports/cfgadm-lpg-register-delta-2026-10-04.md
+?? coordination/reports/cfgadm-port-p1-2026-10-05.md
+?? coordination/reports/cfgadm-port-p2-2026-10-05.md
+?? coordination/reports/cfgadm-port-p3-2026-10-05.md
+?? coordination/reports/cfgadm-screen-spec-review-2026-10-04.md
+?? coordination/reports/cfgadm-ui-inventory-2026-10-05.md
+?? coordination/reports/codex-acui-decision-pack-2026-10-02.md
+?? coordination/reports/codex-crx03-seam-decision-pack-2026-10-03.md
+?? coordination/reports/codex-crx03-worker-seam-2026-10-02.md
+?? coordination/reports/codex-crx05-recipe-catalog-smoke-2026-10-02.md
+?? coordination/reports/codex-p8-open-audit-2026-10-03.md
+?? coordination/reports/codex-rfx-gateway-2026-10-02.md
+?? coordination/reports/codex-rfx-gateway-v2-2026-10-02.md
+?? coordination/reports/codex-rfx-scanner-2026-10-02.md
+?? coordination/reports/codex-rfx-storage-2026-10-02.md
+?? coordination/reports/codex-rfx05-full-2026-10-02.md
+?? coordination/reports/codex-rfx05-full-v2-2026-10-03.md
+?? coordination/reports/commit-boundary-811-2026-10-05.md
+?? coordination/reports/commit-plan-prep-2026-10-05.md
+?? coordination/reports/commit-preflight-813-2026-10-05.md
+?? coordination/reports/commit-prep-802-2026-10-05.md
+?? coordination/reports/commit-prep-802-2026-10-05.snapshot.json
+?? coordination/reports/commit-prep-802-2026-10-05.validate.py
+?? coordination/reports/commit-prep-802-2026-10-05.validation.raw.json
+?? coordination/reports/commit-prep-803-2026-10-05.md
+?? coordination/reports/commit-prep-803-2026-10-05.snapshot.json
+?? coordination/reports/commit-prep-803-2026-10-05.validate.py
+?? coordination/reports/commit-prep-803-2026-10-05.validation.raw.json
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.before.md
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.diff-check.raw.txt
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.literal.diff
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.md
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.post-pins.json
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.validate.py
+?? coordination/reports/commit-prep-a8-caveat-804-2026-10-05.validation.raw.json
+?? coordination/reports/connector-session-leg-2026-10-05.md
+?? coordination/reports/connector-wire-a-2026-10-05.md
+?? coordination/reports/connector-wire-b-bff-2026-10-05.md
+?? coordination/reports/connector-wire-b-ui-2026-10-05.md
+?? coordination/reports/control-plane-impl-818-2026-10-05.md
+?? coordination/reports/control-plane-policy-fix-822-2026-10-05.md
+?? coordination/reports/control-plane-verify-checklist-819-2026-10-05.md
+?? coordination/reports/conv010203-independent-verify-2026-10-03.md
+?? coordination/reports/corrections-s3-s4-g2-2026-10-03.md
+?? coordination/reports/cred-limits-801-2026-10-05.md
+?? coordination/reports/credworkflow-impl-2026-10-05.md
+?? coordination/reports/credworkflow-prep-2026-10-05.md
+?? coordination/reports/curl-spec-fix-2026-10-04.md
+?? coordination/reports/curl-ui-review-2026-10-04.md
+?? coordination/reports/debris-secret-scan-2026-10-03.md
+?? coordination/reports/deployment-adapter-design-803-2026-10-05.md
+?? coordination/reports/design-review-carrier-2026-10-04.md
+?? coordination/reports/doc-sync-tapi01-2026-10-05.md
+?? coordination/reports/docker-fix-all-2026-10-05-context.txt
+?? coordination/reports/docker-fix-all-2026-10-05-pnpm-deploy-source.txt
+?? coordination/reports/docker-fix-all-2026-10-05.md
+?? coordination/reports/docs-connector-wire-2026-10-05.md
+?? coordination/reports/docs-protection-820-2026-10-05.md
+?? coordination/reports/encmeta-admin-projection-fix-2026-10-05.md
+?? coordination/reports/encmeta-backfill-prep-2026-10-05.md
+?? coordination/reports/encmeta-enc09-kind-2026-10-05.md
+?? coordination/reports/encmeta-r4-sdk-fix-2026-10-05.md
+?? coordination/reports/encmeta-resultref-impl-2026-10-05.md
+?? coordination/reports/encmeta-resultref-prep-2026-10-05.md
+?? coordination/reports/encmeta-schema-impl-2026-10-05.md
+?? coordination/reports/encmeta-schema-prep-2026-10-05.md
+?? coordination/reports/encmeta-window-design-808-2026-10-05.md
+?? coordination/reports/env-example-admin-web-2026-10-04.md
+?? coordination/reports/env-example-fix-2026-10-05.md
+?? coordination/reports/env-examples-sync-2026-10-05.md
+?? coordination/reports/fix-prompt-slots-811-2026-10-05.md
+?? coordination/reports/fpp1-closure-verify-2026-10-04.md
+?? coordination/reports/full-regression-815-2026-10-05.md
+?? coordination/reports/gap-inventory-803-2026-10-05.md
+?? coordination/reports/gap-inventory-corrections-804-2026-10-05.md
+?? coordination/reports/gate-authenticate-808-2026-10-05.md
+?? coordination/reports/gate-coverage-817-2026-10-05.md
+?? coordination/reports/identity-role-policy-2026-10-05.md
+?? coordination/reports/impl-review-carrier-a-2026-10-04.md
+?? coordination/reports/l2-closure-recheck-2026-10-04.md
+?? coordination/reports/l2-final-recheck-2026-10-04.md
+?? coordination/reports/legacy-audit-test-fix-803-2026-10-05.md
+?? coordination/reports/legacy-parity-gap-supplement-2026-10-03.md
+?? coordination/reports/literal-audit-823-2026-10-05.md
+?? coordination/reports/liv03-services-health-2026-10-04.md
+?? coordination/reports/liv04-s3-live-verify-2026-10-04.md
+?? coordination/reports/liv05-vault-live-verify-2026-10-04.md
+?? coordination/reports/liv05b-vault-scope-2026-10-04.md
+?? coordination/reports/liv06-pipeline-e2e-verify-2026-10-04.md
+?? coordination/reports/liv07-10-browser-live-2026-10-04.md
+?? coordination/reports/liv11-reconciliation-2026-10-04.md
+?? coordination/reports/live-failures-triage-819-2026-10-05.md
+?? coordination/reports/live-plan-refresh-2026-10-05.md
+?? coordination/reports/live-ready-prep2-2026-10-04.md
+?? coordination/reports/live-ready-prep3-2026-10-05.md
+?? coordination/reports/live-spec-ext-2026-10-05.md
+?? coordination/reports/live-test-minio-vault-browser-receipt-2026-10-03.md
+?? coordination/reports/live-test-minio-vault-browser-receipt-2026-10-04.md
+?? coordination/reports/live-test-prep-2026-10-04.md
+?? coordination/reports/live-window-runbook-803-2026-10-05.md
+?? coordination/reports/live-window-runbook-819-2026-10-05.md
+?? coordination/reports/local-dev-docker-review-2026-10-05.md
+?? coordination/reports/medium-2-2026-10-05.md
+?? coordination/reports/migration-0032-restore-rehearsal-2026-10-05.md
+?? coordination/reports/migration-0032-rollout-prep-2026-10-05.md
+?? coordination/reports/migration-verify-trap-fix-2026-10-05.md
+?? coordination/reports/migrations-0026-0027-verify-2026-10-04.md
+?? coordination/reports/mismatch-settings-prompt-slots-2026-10-05.md
+?? coordination/reports/mutation-wrapper-814-2026-10-05.md
+?? coordination/reports/nav-dedupe-2026-10-05.md
+?? coordination/reports/orchestrator-app-core-review-2026-10-05.checks.txt
+?? coordination/reports/orchestrator-app-core-review-2026-10-05.md
+?? coordination/reports/orchestrator-app-core-review-2026-10-05.probe.cjs
+?? coordination/reports/orchestrator-app-core-review-2026-10-05.raw.json
+?? coordination/reports/p730-acquire-2026-10-04.md
+?? coordination/reports/p730-acquisition-prep-2026-10-04.md
+?? coordination/reports/p730-admin-mutate-2026-10-04.md
+?? coordination/reports/p730-api-audit-prep-2026-10-04.md
+?? coordination/reports/p730-continuity-schema-draft-2026-10-04.md
+?? coordination/reports/p730-curl-import-2026-10-04.md
+?? coordination/reports/p730-medium1-prep-2026-10-04.md
+?? coordination/reports/p730-prefconsume-2026-10-04.md
+?? coordination/reports/p730-sdk-consume-2026-10-04.md
+?? coordination/reports/p730-sdk-prep-2026-10-04.md
+?? coordination/reports/p730-ui-integrate-2026-10-04.md
+?? coordination/reports/p745-carrier-design-2026-10-04.md
+?? coordination/reports/p745-carrier-impl-a-2026-10-04.md
+?? coordination/reports/p745-carrier-impl-b1-2026-10-04.md
+?? coordination/reports/p745-carrier-impl-b2-2026-10-04.md
+?? coordination/reports/p745-connector-passthrough-2026-10-04.md
+?? coordination/reports/p745-connector-wire-prep-2026-10-04.md
+?? coordination/reports/p745-parameter-policy-2026-10-04.md
+?? coordination/reports/p745-producer-impl-2026-10-04.md
+?? coordination/reports/p745-prompt-producer-prep-2026-10-04.md
+?? coordination/reports/p745-session-consume-impl-2026-10-04.md
+?? coordination/reports/p745-session-consume-prep-2026-10-04.md
+?? coordination/reports/p745-ui-keys-2026-10-04.md
+?? coordination/reports/p745-ui-keys-journey-2026-10-05.md
+?? coordination/reports/p745-ui-mask-2026-10-04.md
+?? coordination/reports/p745-ui-mask-pw-2026-10-05.md
+?? coordination/reports/par00-cutover-register-draft-2026-10-03.md
+?? coordination/reports/par1117-code-state-gap-2026-10-03.md
+?? coordination/reports/plan-checkpoint-805-2026-10-05.1.before.md
+?? coordination/reports/plan-checkpoint-805-2026-10-05.2.before.md
+?? coordination/reports/plan-checkpoint-805-2026-10-05.diff-check.raw.txt
+?? coordination/reports/plan-checkpoint-805-2026-10-05.intake.json
+?? coordination/reports/plan-checkpoint-805-2026-10-05.literal.diff
+?? coordination/reports/plan-checkpoint-805-2026-10-05.md
+?? coordination/reports/plan-checkpoint-805-2026-10-05.post-pins.json
+?? coordination/reports/plan-checkpoint-805-2026-10-05.section.md
+?? coordination/reports/plan-checkpoint-805-2026-10-05.validate.py
+?? coordination/reports/plan-checkpoint-805-2026-10-05.validation.raw.json
+?? coordination/reports/plan-chkpt-750-2026-10-04.md
+?? coordination/reports/plan-graph-delta-2-2026-10-04.md
+?? coordination/reports/plan-graph-delta-2026-10-04.md
+?? coordination/reports/plan-graph-validation-2026-10-04.md
+?? coordination/reports/plan-merge-fix-2-2026-10-04.md
+?? coordination/reports/plan-merge-fix-2026-10-04.md
+?? coordination/reports/plan-merge-fix-3-2026-10-04.md
+?? coordination/reports/plan-merge-verify-1-2026-10-04.md
+?? coordination/reports/plan-open-task-register-2026-10-03.md
+?? coordination/reports/plan-refresh-736-740-2026-10-04.md
+?? coordination/reports/plan-refresh-741-745-2026-10-04.md
+?? coordination/reports/plan-refresh-746-750-2026-10-04.md
+?? coordination/reports/plan-review-730-2026-10-04.md
+?? coordination/reports/plan-update-763-2026-10-04.md
+?? coordination/reports/plan-update-770-2026-10-04.md
+?? coordination/reports/plan-update-780-2026-10-05.md
+?? coordination/reports/plan-update-795-2026-10-05.md
+?? coordination/reports/plan-update-800-2026-10-05.md
+?? coordination/reports/plan-update-805-2026-10-05.diff-check.raw.txt
+?? coordination/reports/plan-update-805-2026-10-05.intake.json
+?? coordination/reports/plan-update-805-2026-10-05.literal.diff
+?? coordination/reports/plan-update-805-2026-10-05.md
+?? coordination/reports/plan-update-805-2026-10-05.plan.before.md
+?? coordination/reports/plan-update-805-2026-10-05.post-pins.json
+?? coordination/reports/plan-update-805-2026-10-05.readme.before.md
+?? coordination/reports/plan-update-805-2026-10-05.validate.py
+?? coordination/reports/plan-update-805-2026-10-05.validation.raw.json
+?? coordination/reports/plan-update-805b-2026-10-05.diff-check.raw.txt
+?? coordination/reports/plan-update-805b-2026-10-05.intake.json
+?? coordination/reports/plan-update-805b-2026-10-05.literal.diff
+?? coordination/reports/plan-update-805b-2026-10-05.md
+?? coordination/reports/plan-update-805b-2026-10-05.plan.before.md
+?? coordination/reports/plan-update-805b-2026-10-05.post-pins.json
+?? coordination/reports/plan-update-805b-2026-10-05.readme.before.md
+?? coordination/reports/plan-update-805b-2026-10-05.validate.py
+?? coordination/reports/plan-update-805b-2026-10-05.validation.raw.json
+?? coordination/reports/profile-parity-analysis-2026-10-04.md
+?? coordination/reports/profile-parity-phase1-2026-10-04.md
+?? coordination/reports/profile-parity-plan-self-review-2026-10-04.md
+?? coordination/reports/profile-phase1-verify-2026-10-04.md
+?? coordination/reports/profile-request-redaction-2026-10-05.md
+?? coordination/reports/qwen-admbase03-capture-2026-10-03.md
+?? coordination/reports/qwen-conv01-prep-2026-10-03.md
+?? coordination/reports/qwen-conv08-render-split-2026-10-02.md
+?? coordination/reports/qwen-conv11-index-2026-10-02.md
+?? coordination/reports/qwen-docsync-2026-10-03.md
+?? coordination/reports/qwen-rfx-crypto-2026-10-02.md
+?? coordination/reports/qwen-rfx-crypto-fix-f1-2026-10-03.md
+?? coordination/reports/qwen-rfx-delivery-2026-10-02.md
+?? coordination/reports/qwen-rfx-multipart-2026-10-02.md
+?? coordination/reports/qwen-rfx08-parity-2026-10-03.md
+?? coordination/reports/qwen-vfy-reg-flake-fix-2026-10-02.md
+?? coordination/reports/raw/cwb-bff-regression.txt
+?? coordination/reports/raw/cwb-bff-standing-red-shell.txt
+?? coordination/reports/raw/cwb-bff-suite-r3.txt
+?? coordination/reports/raw/cwb-bff-tsc.txt
+?? coordination/reports/raw/full-regression-815-2026-10-05/
+?? coordination/reports/raw/full-regression-825b-2026-10-05/
+?? coordination/reports/raw/live-failures-triage-819-2026-10-05/
+?? coordination/reports/raw/navdedupe-3suite-r1.txt
+?? coordination/reports/raw/navdedupe-3suite-r2.txt
+?? coordination/reports/raw/navdedupe-3suite-r3.txt
+?? coordination/reports/raw/navdedupe-6suite-r1.txt
+?? coordination/reports/raw/navdedupe-6suite-r2.txt
+?? coordination/reports/raw/navdedupe-6suite-r3.txt
+?? coordination/reports/raw/navdedupe-final.txt
+?? coordination/reports/raw/navdedupe-run0.txt
+?? coordination/reports/raw/navdedupe-sessionlifecycle-r1.txt
+?? coordination/reports/raw/navdedupe-sessionlifecycle-r2.txt
+?? coordination/reports/raw/navdedupe-sweep.txt
+?? coordination/reports/raw/navdedupe-tsc.txt
+?? coordination/reports/raw/p2-verify-dd03.txt
+?? coordination/reports/raw/p2-verify-profile-run1.txt
+?? coordination/reports/raw/p2-verify-profile-run2.txt
+?? coordination/reports/raw/p730-w2-b-orchestrator.txt
+?? coordination/reports/raw/p730-w2-b-worker-sdk.txt
+?? coordination/reports/raw/plane-a-20261004/
+?? coordination/reports/raw/shell-red-fix-2-baseline.txt
+?? coordination/reports/raw/srf-3suite-final.txt
+?? coordination/reports/raw/srf-3suite-r1.txt
+?? coordination/reports/raw/srf-3suite-r2.txt
+?? coordination/reports/raw/srf-3suite-r3.txt
+?? coordination/reports/raw/srf-5suite-r1.txt
+?? coordination/reports/raw/srf-5suite-r2.txt
+?? coordination/reports/raw/srf-5suite-r3.txt
+?? coordination/reports/raw/srf-6suite-r1.txt
+?? coordination/reports/raw/srf-6suite-r2.txt
+?? coordination/reports/raw/srf-6suite-r3.txt
+?? coordination/reports/raw/srf-extra-baseline.txt
+?? coordination/reports/raw/srf-fix-run0.txt
+?? coordination/reports/raw/srf-red-baseline.txt
+?? coordination/reports/raw/srf-regression-final.txt
+?? coordination/reports/raw/srf-regression.txt
+?? coordination/reports/raw/srf-render-head-probe.txt
+?? coordination/reports/raw/srf-sessionlifecycle-nodeenvtest.txt
+?? coordination/reports/raw/srf-tsc-final.txt
+?? coordination/reports/raw/srf-tsc.txt
+?? coordination/reports/raw/v1-boot-typed-denial-2026-10-05.txt
+?? coordination/reports/raw/v1-conditions-802-boot-x1.txt
+?? coordination/reports/raw/v1-conditions-802-boot-x2.txt
+?? coordination/reports/raw/v1-conditions-802-boot-x3.txt
+?? coordination/reports/raw/v1-conditions-802-migrate.txt
+?? coordination/reports/raw/v1-conditions-802-resolver-no-key.txt
+?? coordination/reports/raw/verify-b2-b2-round1.txt
+?? coordination/reports/raw/verify-b2-b2-round2.txt
+?? coordination/reports/raw/verify-b2-b2-round3.txt
+?? coordination/reports/raw/verify-b2-delta-a.txt
+?? coordination/reports/raw/verify-b2-focused-round1.txt
+?? coordination/reports/raw/verify-b2-focused-round2.txt
+?? coordination/reports/raw/verify-b2-focused-round3.txt
+?? coordination/reports/raw/verify-b2-tsc.txt
+?? coordination/reports/raw/verify-capfix-T2.txt
+?? coordination/reports/raw/verify-capfix-focused-round1.txt
+?? coordination/reports/raw/verify-capfix-focused-round2.txt
+?? coordination/reports/raw/verify-capfix-focused-round3.txt
+?? coordination/reports/raw/verify-capfix-tsc.txt
+?? coordination/reports/raw/verify-composition-round1-acquire.txt
+?? coordination/reports/raw/verify-composition-round1-composition.txt
+?? coordination/reports/raw/verify-composition-round1-url.txt
+?? coordination/reports/raw/verify-composition-round2-acquire.txt
+?? coordination/reports/raw/verify-composition-round2-composition.txt
+?? coordination/reports/raw/verify-composition-round2-url.txt
+?? coordination/reports/raw/verify-composition-round3-acquire.txt
+?? coordination/reports/raw/verify-composition-round3-composition.txt
+?? coordination/reports/raw/verify-composition-round3-url.txt
+?? coordination/reports/raw/verify-control-plane-821-2026-10-05/
+?? coordination/reports/raw/verify-credworkflow-20261005/
+?? coordination/reports/raw/verify-cw-a-new-round1.txt
+?? coordination/reports/raw/verify-cw-a-new-round2.txt
+?? coordination/reports/raw/verify-cw-a-new-round3.txt
+?? coordination/reports/raw/verify-cw-a-regression.txt
+?? coordination/reports/raw/verify-cw-a-typecheck-contracts.txt
+?? coordination/reports/raw/verify-cw-a-typecheck-orchestrator.txt
+?? coordination/reports/raw/verify-cw-b-bff-round1.txt
+?? coordination/reports/raw/verify-cw-b-bff-round2.txt
+?? coordination/reports/raw/verify-cw-b-bff-round3.txt
+?? coordination/reports/raw/verify-cw-b-bff-standing-red-shell.txt
+?? coordination/reports/raw/verify-cw-b-bff-tsc.txt
+?? coordination/reports/raw/verify-encmeta-focused-round1.txt
+?? coordination/reports/raw/verify-encmeta-focused-round2.txt
+?? coordination/reports/raw/verify-encmeta-focused-round3.txt
+?? coordination/reports/raw/verify-encmeta-regression.txt
+?? coordination/reports/raw/verify-encmeta-schema-round1.txt
+?? coordination/reports/raw/verify-encmeta-schema-round2.txt
+?? coordination/reports/raw/verify-encmeta-schema-round3.txt
+?? coordination/reports/raw/verify-encmeta-tsc.txt
+?? coordination/reports/raw/verify-encmeta-wrong-row-control.txt
+?? coordination/reports/raw/verify-encmeta801-focus-round1.txt
+?? coordination/reports/raw/verify-encmeta801-focus-round2.txt
+?? coordination/reports/raw/verify-encmeta801-focus-round3.txt
+?? coordination/reports/raw/verify-encmeta801-sdk-r4.txt
+?? coordination/reports/raw/verify-impl-a-T1.txt
+?? coordination/reports/raw/verify-impl-a-T2.txt
+?? coordination/reports/raw/verify-impl-a-focused-round1.txt
+?? coordination/reports/raw/verify-impl-a-focused-round2.txt
+?? coordination/reports/raw/verify-impl-a-focused-round3.txt
+?? coordination/reports/raw/verify-producer-regression11.txt
+?? coordination/reports/raw/verify-producer-round1.txt
+?? coordination/reports/raw/verify-producer-round2.txt
+?? coordination/reports/raw/verify-producer-round3.txt
+?? coordination/reports/raw/verify-shell-fix-nav-fixtures.txt
+?? coordination/reports/raw/verify-shell-fix-round1.txt
+?? coordination/reports/raw/verify-shell-fix-round2.txt
+?? coordination/reports/raw/verify-shell-fix-round3.txt
+?? coordination/reports/raw/verify-shell-red-fix-2-round1.txt
+?? coordination/reports/raw/verify-shell-red-fix-2-round2.txt
+?? coordination/reports/raw/verify-shell-red-fix-2-round3.txt
+?? coordination/reports/raw/verify-t5-connector-round1.txt
+?? coordination/reports/raw/verify-t5-connector-round2.txt
+?? coordination/reports/raw/verify-t5-connector-round3.txt
+?? coordination/reports/raw/verify-t5-contracts-round1.txt
+?? coordination/reports/raw/verify-t5-contracts-round2.txt
+?? coordination/reports/raw/verify-t5-contracts-round3.txt
+?? coordination/reports/raw/verify-t5-typecheck-connector.txt
+?? coordination/reports/raw/verify-t5-typecheck-contracts.txt
+?? coordination/reports/raw/verify-t5-typecheck-worker-sdk.txt
+?? coordination/reports/raw/verify-t5-worker-sdk-round1.txt
+?? coordination/reports/raw/verify-t5-worker-sdk-round2.txt
+?? coordination/reports/raw/verify-t5-worker-sdk-round3.txt
+?? coordination/reports/raw/verify-tapi01-codex3-round1.txt
+?? coordination/reports/raw/verify-tapi01-codex3-round2.txt
+?? coordination/reports/raw/verify-tapi01-codex3-round3.txt
+?? coordination/reports/raw/verify-vfy-plan-805b-claims.txt
+?? coordination/reports/raw/verify-vfy-plan-805b-consistency.txt
+?? coordination/reports/raw/verify-vfy-plan-805b-validator.txt
+?? coordination/reports/raw/verify-vfy801-plan-validator-latest.txt
+?? coordination/reports/raw/verify-vfy801-plan-validator.txt
+?? coordination/reports/raw/verify-vfy801-static.txt
+?? coordination/reports/raw/verify-vfy801-stub-ext-current-dist-isolated-x3.txt
+?? coordination/reports/raw/verify-vfy801-stub-ext-current-dist-x3.txt
+?? coordination/reports/raw/verify-vfy801-stub-ext-x3.txt
+?? coordination/reports/raw/verify-vfy802-admin-route-rerun.txt
+?? coordination/reports/raw/verify-vfy802-admin-route.ts
+?? coordination/reports/raw/verify-vfy802-admin-route.txt
+?? coordination/reports/raw/verify-vfy802-admin-web-browser-rerun.txt
+?? coordination/reports/raw/verify-vfy802-admin-web-browser.mjs
+?? coordination/reports/raw/verify-vfy802-admin-web-browser.txt
+?? coordination/reports/raw/verify-vfy802-admin-web-build.txt
+?? coordination/reports/raw/verify-vfy802-fu-encmeta-admin-run1.txt
+?? coordination/reports/raw/verify-vfy802-fu-encmeta-admin-run2.txt
+?? coordination/reports/raw/verify-vfy802-fu-encmeta-admin-run3.txt
+?? coordination/reports/raw/verify-vfy802-resultref-cross-context.txt
+?? coordination/reports/raw/verify-w1c-pc-20261004/
+?? coordination/reports/raw/verify-w3-admin-shell-session-lifecycle-ab.txt
+?? coordination/reports/raw/verify-w3-admin-shell-session-lifecycle.txt
+?? coordination/reports/raw/verify-w3-contracts-round1.txt
+?? coordination/reports/raw/verify-w3-contracts-round2.txt
+?? coordination/reports/raw/verify-w3-contracts-round3.txt
+?? coordination/reports/raw/verify-w3-orch-round1.txt
+?? coordination/reports/raw/verify-w3-orch-round2.txt
+?? coordination/reports/raw/verify-w3-orch-round3.txt
+?? coordination/reports/raw/vfy-bypass-fix-811-20261005/
+?? coordination/reports/raw/vfy-counter-fixes-808-allowplaintext-ast-audit.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-allowplaintext-ast-audit.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-gate-authenticate-808-run1.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-gate-authenticate-808-run2.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-gate-authenticate-808-run3.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-hash-manifest.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-legacy-payload-migration-run1.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-legacy-payload-migration-run2.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-legacy-payload-migration-run3.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-offline-x3-run1.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-offline-x3-run2.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-offline-x3-run3.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-outbox-writer-suite.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-outbox-writer-suite.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-auth-suite.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-auth-suite.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-cleanup.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-exact-sql.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-fixture-check.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-fixture-unchanged-check.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-same-tx-write-block.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-seed-fixtures.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-setup.txt
+?? coordination/reports/raw/vfy-counter-fixes-808-pg16-sql-harness.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-readonly-instrumented.sql
+?? coordination/reports/raw/vfy-counter-fixes-808-run-tests.cjs
+?? coordination/reports/raw/vfy-counter-fixes-808-sha256.txt
+?? coordination/reports/raw/vfy-enc09-803-actual-readers-wire.txt
+?? coordination/reports/raw/vfy-enc09-803-orchestrator-x3.txt
+?? coordination/reports/raw/vfy-enc09-803-worker-sdk-x3.txt
+?? coordination/reports/raw/vfy-vacuous-pass-810-20261005/
+?? coordination/reports/raw/vfy803-admin-local-user-repository-current.txt
+?? coordination/reports/raw/vfy803-admin-local-user-repository-x2.txt
+?? coordination/reports/raw/vfy803-admin-local-user-repository-x3.txt
+?? coordination/reports/raw/vfy803-credworkflow-compose-x1.txt
+?? coordination/reports/raw/vfy803-credworkflow-compose-x2.txt
+?? coordination/reports/raw/vfy803-credworkflow-compose-x3.txt
+?? coordination/reports/raw/vfy803-credworkflow-e2e-x1.txt
+?? coordination/reports/raw/vfy803-credworkflow-e2e-x2.txt
+?? coordination/reports/raw/vfy803-credworkflow-e2e-x3.txt
+?? coordination/reports/raw/vfy803-identity-role-policy-probe.cjs
+?? coordination/reports/raw/vfy803-identity-role-policy-probe.txt
+?? coordination/reports/raw/vfy803-identity-role-policy-x1.txt
+?? coordination/reports/raw/vfy803-identity-role-policy-x2.txt
+?? coordination/reports/raw/vfy803-identity-role-policy-x3.txt
+?? coordination/reports/raw/vfy803-identity-task-diff.txt
+?? coordination/reports/raw/vfy803-migration-verify-trap-fix-x1.txt
+?? coordination/reports/raw/vfy803-migration-verify-trap-fix-x2.txt
+?? coordination/reports/raw/vfy803-migration-verify-trap-fix-x3.txt
+?? coordination/reports/raw/vfy803-orchestrator-build.txt
+?? coordination/reports/raw/vfy803-pg16-cleanup.txt
+?? coordination/reports/raw/vfy803-pg16-empty-ledger-fixture.txt
+?? coordination/reports/raw/vfy803-pg16-harness.ps1
+?? coordination/reports/raw/vfy803-pg16-insert-orphan-fixture.txt
+?? coordination/reports/raw/vfy803-pg16-install-adversarial-view.txt
+?? coordination/reports/raw/vfy803-pg16-migrate-fresh.txt
+?? coordination/reports/raw/vfy803-pg16-restore-table.txt
+?? coordination/reports/raw/vfy803-pg16-start.txt
+?? coordination/reports/raw/vfy803-pg16-summary.txt
+?? coordination/reports/raw/vfy803-pg16-verify-count-mismatch.txt
+?? coordination/reports/raw/vfy803-pg16-verify-empty-ledger.txt
+?? coordination/reports/raw/vfy803-pg16-verify-good.txt
+?? coordination/reports/raw/vfy803-pg16-verify-orphan.txt
+?? coordination/reports/raw/vfy803-pg16-version-and-ledger-count.txt
+?? coordination/reports/raw/vfy803-sha256.txt
+?? coordination/reports/raw/vfy803-vault-http-timeout.mjs
+?? coordination/reports/raw/vfy803-vault-http-timeout.txt
+?? coordination/reports/raw/vfy803-vault-kv2-writer-x1.txt
+?? coordination/reports/raw/vfy803-vault-kv2-writer-x2.txt
+?? coordination/reports/raw/vfy803-vault-kv2-writer-x3.txt
+?? coordination/reports/raw/w1-dd03-failclosed-20261004-1900.txt
+?? coordination/reports/raw/w2-phase-a-baseline-20261004-1812-profile-policy.txt
+?? coordination/reports/rcr-http-2026-10-05.md
+?? coordination/reports/rcr-http-luna-2026-10-05.md
+?? coordination/reports/rcr-luna-user-packet-2026-10-05.md
+?? coordination/reports/rcr-luna-verification-2026-10-05.md
+?? coordination/reports/rcr-luna-verification-baseline-2026-10-05.raw.txt
+?? coordination/reports/rcr-luna-verification-candidate-2026-10-05.raw.txt
+?? coordination/reports/rcr-luna-verification-candidate-tsc-2026-10-05.raw.txt
+?? coordination/reports/rcr-runtime-2026-10-05.md
+?? coordination/reports/rcr-runtime-luna-2026-10-05.md
+?? coordination/reports/readstored-callsite-inventory-807-2026-10-05.md
+?? coordination/reports/receipt-status-inventory-2026-10-04.md
+?? coordination/reports/recon-old-plans-a-2026-10-03.md
+?? coordination/reports/recon-old-plans-b-2026-10-03.md
+?? coordination/reports/recon-old-plans-c-2026-10-03.md
+?? coordination/reports/recon-old-plans-e-2026-10-03.md
+?? coordination/reports/recon-old-plans-f-2026-10-03.md
+?? coordination/reports/recon-old-plans-g-2026-10-03.md
+?? coordination/reports/recon-old-plans-h-2026-10-03.md
+?? coordination/reports/recon-old-plans-i-2026-10-03.md
+?? coordination/reports/register-delta-verify-2026-10-04.md
+?? coordination/reports/register-n-verify-2026-10-04.md
+?? coordination/reports/review-plan-adjust-2026-10-03.md
+?? coordination/reports/settings-wire-base-2026-10-05.md
+?? coordination/reports/settings-writer-design-2026-10-05.md
+?? coordination/reports/shell-red-fix-2-2026-10-05.md
+?? coordination/reports/shell-red-fix-2026-10-05.md
+?? coordination/reports/skipped-tests-triage-816-2026-10-05.md
+?? coordination/reports/stub-ext-2026-10-05.md
+?? coordination/reports/supervisor-audit.md
+?? coordination/reports/tapi01-closure-2026-10-04.md
+?? coordination/reports/tester-fence-align-verify-2026-10-02.md
+?? coordination/reports/tester-off.md
+?? coordination/reports/tester-rfx-crypto-verify-2026-10-03.md
+?? coordination/reports/tester-vfy-reg-flake-check-2026-10-02.md
+?? coordination/reports/tester-vfy-reg-refresh-2026-10-02.md
+?? coordination/reports/tester-wsd-syncpost-verify-2026-10-02.md
+?? coordination/reports/tick-proposal-2-2026-10-05.md
+?? coordination/reports/tick-proposal-2026-10-03.md
+?? coordination/reports/trace-reconcile-802-2026-10-05.md
+?? coordination/reports/trace-reconcile-803-2026-10-05.1.before.md
+?? coordination/reports/trace-reconcile-803-2026-10-05.2.before.md
+?? coordination/reports/trace-reconcile-803-2026-10-05.3.before.md
+?? coordination/reports/trace-reconcile-803-2026-10-05.append.py
+?? coordination/reports/trace-reconcile-803-2026-10-05.diff-check.raw.txt
+?? coordination/reports/trace-reconcile-803-2026-10-05.intake.json
+?? coordination/reports/trace-reconcile-803-2026-10-05.literal.diff
+?? coordination/reports/trace-reconcile-803-2026-10-05.md
+?? coordination/reports/trace-reconcile-803-2026-10-05.post-pins.json
+?? coordination/reports/trace-reconcile-803-2026-10-05.validate.py
+?? coordination/reports/trace-reconcile-803-2026-10-05.validation.raw.json
+?? coordination/reports/trace-reconcile-803-2026-10-05.worktree-diff-check.raw.txt
+?? coordination/reports/trace-sync-801-2026-10-05.md
+?? coordination/reports/ui-backlog-803-2026-10-05.md
+?? coordination/reports/ui-browser-env-2026-10-04.md
+?? coordination/reports/ui-contract-matrix-803-2026-10-05.md
+?? coordination/reports/uirev-cfgadm-port-2026-10-05.md
+?? coordination/reports/uirev-cw-b-r2-2026-10-05.md
+?? coordination/reports/uirev-cw-b-ui-2026-10-05.md
+?? coordination/reports/uirev-fullpage-planea-2026-10-05.md
+?? coordination/reports/uirev-p745-ui-keys-2026-10-04.md
+?? coordination/reports/uirev-p745-ui-mask-2026-10-04.md
+?? coordination/reports/v1-boot-denial-decision-2026-10-05.md
+?? coordination/reports/v1-boot-typed-denial-2026-10-05.md
+?? coordination/reports/verifier-wrapper-fix-813-2026-10-05.md
+?? coordination/reports/verify-control-plane-821-2026-10-05.md
+?? coordination/reports/verify-policy-fix-824-2026-10-05.md
+?? coordination/reports/verify-refresh-746-750-2026-10-04.md
+?? coordination/reports/verify-window-doc-817-2026-10-05.md
+?? coordination/reports/w1-receipt-audit-2026-10-04.md
+?? coordination/reports/w1-review-b2-2026-10-05.md
+?? coordination/reports/w1-review-part1-2026-10-04.md
+?? coordination/reports/w1-review-part2-2026-10-04.md
+?? coordination/reports/w1-review-part3-2026-10-04.md
+?? coordination/reports/w1-review-part4-2026-10-04.md
+?? coordination/reports/wave-802-packets-2026-10-05.diff-check.raw.txt
+?? coordination/reports/wave-802-packets-2026-10-05.intake.json
+?? coordination/reports/wave-802-packets-2026-10-05.literal.diff
+?? coordination/reports/wave-802-packets-2026-10-05.md
+?? coordination/reports/wave-802-packets-2026-10-05.plan.before.md
+?? coordination/reports/wave-802-packets-2026-10-05.post-pins.json
+?? coordination/reports/wave-802-packets-2026-10-05.validate.py
+?? coordination/reports/wave-802-packets-2026-10-05.validation.raw.json
+?? coordination/reports/wave-commit-plan-809-2026-10-05.md
+?? coordination/reports/wrapper-fix-812-2026-10-05.md
+?? coordination/reports/wtv01b-rfx-preserved-2026-10-03.md
+?? coordination/reports/wtv02-runtime-split-verify-2026-10-03.md
+?? coordination/reports/wtv03-crypto-verify-2026-10-03.md
+?? coordination/reports/wtv04-upload-storage-verify-2026-10-03.md
+?? coordination/reports/wtv05-crx-encmeta-verify-2026-10-03.md
+?? coordination/reports/wtv06-prep-2026-10-03.md
+?? coordination/reports/wtv08-rfx-gapcheck-2026-10-03.md
+?? coordination/requests/user-directive-coordination-operating-rules-1758.md
+?? coordination/requests/user-directive-coordination.md
+?? coordination/reviews/2026-10-02-1422-coordinator.md
+?? coordination/reviews/2026-10-02-1431-coordinator.md
+?? coordination/reviews/2026-10-02-1444-coordinator.md
+?? coordination/reviews/2026-10-02-1451-coordinator.md
+?? coordination/reviews/2026-10-02-1501-coordinator.md
+?? coordination/reviews/2026-10-02-1511-coordinator.md
+?? coordination/reviews/2026-10-02-1522-coordinator.md
+?? coordination/reviews/2026-10-02-1531-coordinator.md
+?? coordination/reviews/2026-10-02-1541-coordinator.md
+?? coordination/reviews/2026-10-02-1551-coordinator.md
+?? coordination/reviews/2026-10-02-1601-coordinator.md
+?? coordination/reviews/2026-10-02-1611-coordinator.md
+?? coordination/reviews/2026-10-02-1621-coordinator.md
+?? coordination/reviews/2026-10-02-1631-coordinator.md
+?? coordination/reviews/2026-10-02-1641-coordinator.md
+?? coordination/reviews/2026-10-02-1651-coordinator.md
+?? coordination/reviews/2026-10-02-1701-coordinator.md
+?? coordination/reviews/2026-10-02-1711-coordinator.md
+?? coordination/reviews/2026-10-02-1722-coordinator.md
+?? coordination/reviews/2026-10-02-1731-coordinator.md
+?? coordination/reviews/2026-10-02-1741-coordinator.md
+?? coordination/reviews/2026-10-02-1751-coordinator.md
+?? coordination/reviews/2026-10-02-1801-coordinator.md
+?? coordination/reviews/2026-10-02-1811-coordinator.md
+?? coordination/reviews/2026-10-02-1821-coordinator.md
+?? coordination/reviews/2026-10-02-1831-coordinator.md
+?? coordination/reviews/2026-10-02-1841-coordinator.md
+?? coordination/reviews/2026-10-02-1851-coordinator.md
+?? coordination/reviews/2026-10-02-1901-coordinator.md
+?? coordination/reviews/2026-10-02-1911-coordinator.md
+?? coordination/reviews/2026-10-02-1921-coordinator.md
+?? coordination/reviews/2026-10-02-1931-coordinator.md
+?? coordination/reviews/2026-10-02-1941-coordinator.md
+?? coordination/reviews/2026-10-02-1951-coordinator.md
+?? coordination/reviews/2026-10-02-2001-coordinator.md
+?? coordination/reviews/2026-10-02-2011-coordinator.md
+?? coordination/reviews/2026-10-02-2021-coordinator.md
+?? coordination/reviews/2026-10-02-2031-coordinator.md
+?? coordination/reviews/2026-10-02-2041-coordinator.md
+?? coordination/reviews/2026-10-02-2051-coordinator.md
+?? coordination/reviews/2026-10-02-2101-coordinator.md
+?? coordination/reviews/2026-10-02-2111-coordinator.md
+?? coordination/reviews/2026-10-02-2121-coordinator.md
+?? coordination/reviews/2026-10-02-2132-coordinator.md
+?? coordination/reviews/2026-10-02-2141-coordinator.md
+?? coordination/reviews/2026-10-02-2151-coordinator.md
+?? coordination/reviews/2026-10-02-2201-coordinator.md
+?? coordination/reviews/2026-10-02-2211-coordinator.md
+?? coordination/reviews/2026-10-02-2221-coordinator.md
+?? coordination/reviews/2026-10-02-2231-coordinator.md
+?? coordination/reviews/2026-10-02-2241-coordinator.md
+?? coordination/reviews/2026-10-02-2251-coordinator.md
+?? coordination/reviews/2026-10-02-2301-coordinator.md
+?? coordination/reviews/2026-10-02-2311-coordinator.md
+?? coordination/reviews/2026-10-02-2321-coordinator.md
+?? coordination/reviews/2026-10-02-2327-coordinator.md
+?? coordination/reviews/2026-10-02-2341-coordinator.md
+?? coordination/reviews/2026-10-02-2345-coordinator.md
+?? coordination/reviews/2026-10-02-2350-coordinator.md
+?? coordination/reviews/2026-10-02-2355-coordinator.md
+?? coordination/reviews/2026-10-03-0000-coordinator.md
+?? coordination/reviews/2026-10-03-0002-coordinator.md
+?? coordination/reviews/2026-10-03-0013-coordinator.md
+?? coordination/reviews/2026-10-03-0022-coordinator.md
+?? coordination/reviews/2026-10-03-0032-coordinator.md
+?? coordination/reviews/2026-10-03-0042-coordinator.md
+?? coordination/reviews/2026-10-03-0052-coordinator.md
+?? coordination/reviews/2026-10-03-0102-coordinator.md
+?? coordination/reviews/2026-10-03-0112-coordinator.md
+?? coordination/reviews/2026-10-03-0122-coordinator.md
+?? coordination/reviews/2026-10-03-0132-coordinator.md
+?? coordination/reviews/2026-10-03-0142-coordinator.md
+?? coordination/reviews/2026-10-03-0151-coordinator.md
+?? coordination/reviews/2026-10-03-0201-coordinator.md
+?? coordination/reviews/2026-10-03-0212-coordinator.md
+?? coordination/reviews/2026-10-03-0222-coordinator.md
+?? coordination/reviews/2026-10-03-0231-coordinator.md
+?? coordination/reviews/2026-10-03-0241-coordinator.md
+?? coordination/reviews/2026-10-03-0251-coordinator.md
+?? coordination/reviews/2026-10-03-0301-coordinator.md
+?? coordination/reviews/2026-10-03-0311-coordinator.md
+?? coordination/reviews/2026-10-03-0321-coordinator.md
+?? coordination/reviews/2026-10-03-0331-coordinator.md
+?? coordination/reviews/2026-10-03-0341-coordinator.md
+?? coordination/reviews/2026-10-03-0351-coordinator.md
+?? coordination/reviews/2026-10-03-0401-coordinator.md
+?? coordination/reviews/2026-10-03-0411-coordinator.md
+?? coordination/reviews/2026-10-03-0421-coordinator.md
+?? coordination/reviews/2026-10-03-0431-coordinator.md
+?? coordination/reviews/2026-10-03-0441-coordinator.md
+?? coordination/reviews/2026-10-03-0451-coordinator.md
+?? coordination/reviews/2026-10-03-0501-coordinator.md
+?? coordination/reviews/2026-10-03-0511-coordinator.md
+?? coordination/reviews/2026-10-03-0521-coordinator.md
+?? coordination/reviews/2026-10-03-0531-coordinator.md
+?? coordination/reviews/2026-10-03-0541-coordinator.md
+?? coordination/reviews/2026-10-03-0551-coordinator.md
+?? coordination/reviews/2026-10-03-0601-coordinator.md
+?? coordination/reviews/2026-10-03-0611-coordinator.md
+?? coordination/reviews/2026-10-03-0621-coordinator.md
+?? coordination/reviews/2026-10-03-0631-coordinator.md
+?? coordination/reviews/2026-10-03-0641-coordinator.md
+?? coordination/reviews/2026-10-03-0651-coordinator.md
+?? coordination/reviews/2026-10-03-0701-coordinator.md
+?? coordination/reviews/2026-10-03-0711-coordinator.md
+?? coordination/reviews/2026-10-03-0721-coordinator.md
+?? coordination/reviews/2026-10-03-0731-coordinator.md
+?? coordination/reviews/2026-10-03-0741-coordinator.md
+?? coordination/reviews/2026-10-03-0751-coordinator.md
+?? coordination/reviews/2026-10-03-0801-coordinator.md
+?? coordination/reviews/2026-10-03-0811-coordinator.md
+?? coordination/reviews/2026-10-03-0821-coordinator.md
+?? coordination/reviews/2026-10-03-0831-coordinator.md
+?? coordination/reviews/2026-10-03-0841-coordinator.md
+?? coordination/reviews/2026-10-03-0851-coordinator.md
+?? coordination/reviews/2026-10-03-0901-coordinator.md
+?? coordination/reviews/2026-10-03-0911-coordinator.md
+?? coordination/reviews/2026-10-03-0921-coordinator.md
+?? coordination/reviews/2026-10-03-0931-coordinator.md
+?? coordination/reviews/2026-10-03-0941-coordinator.md
+?? coordination/reviews/2026-10-03-0951-coordinator.md
+?? coordination/reviews/2026-10-03-1001-coordinator.md
+?? coordination/reviews/2026-10-03-1011-coordinator.md
+?? coordination/reviews/2026-10-03-1021-coordinator.md
+?? coordination/reviews/2026-10-03-1031-coordinator.md
+?? coordination/reviews/2026-10-03-1041-coordinator.md
+?? coordination/reviews/2026-10-03-1051-coordinator.md
+?? coordination/reviews/2026-10-03-1101-coordinator.md
+?? coordination/reviews/2026-10-03-1111-coordinator.md
+?? coordination/reviews/2026-10-03-1121-coordinator.md
+?? coordination/reviews/2026-10-03-1131-coordinator.md
+?? coordination/reviews/2026-10-03-1141-coordinator.md
+?? coordination/reviews/2026-10-03-1151-coordinator.md
+?? coordination/reviews/2026-10-03-1201-coordinator.md
+?? coordination/reviews/2026-10-03-1211-coordinator.md
+?? coordination/reviews/2026-10-03-1221-coordinator.md
+?? coordination/reviews/2026-10-03-1231-coordinator.md
+?? coordination/reviews/2026-10-03-1241-coordinator.md
+?? coordination/reviews/2026-10-03-1245-coordinator.md
+?? coordination/reviews/2026-10-03-1256-coordinator.md
+?? coordination/reviews/2026-10-03-1301-coordinator.md
+?? coordination/reviews/2026-10-03-1311-coordinator.md
+?? coordination/reviews/2026-10-03-1322-coordinator.md
+?? coordination/reviews/2026-10-03-1332-coordinator.md
+?? coordination/reviews/2026-10-03-1342-coordinator.md
+?? coordination/reviews/2026-10-03-1352-coordinator.md
+?? coordination/reviews/2026-10-03-1401-coordinator.md
+?? coordination/reviews/2026-10-03-1411-coordinator.md
+?? coordination/reviews/2026-10-03-1421-coordinator.md
+?? coordination/reviews/2026-10-03-1431-coordinator.md
+?? coordination/reviews/2026-10-03-1441-coordinator.md
+?? coordination/reviews/2026-10-03-1451-coordinator.md
+?? coordination/reviews/2026-10-03-1502-coordinator.md
+?? coordination/reviews/2026-10-03-1511-coordinator.md
+?? coordination/reviews/2026-10-03-1521-coordinator.md
+?? coordination/reviews/2026-10-03-1531-coordinator.md
+?? coordination/reviews/2026-10-03-1541-coordinator.md
+?? coordination/reviews/2026-10-03-1551-coordinator.md
+?? coordination/reviews/2026-10-03-1602-coordinator.md
+?? coordination/reviews/2026-10-03-1611-coordinator.md
+?? coordination/reviews/2026-10-03-1621-coordinator.md
+?? coordination/reviews/2026-10-03-1631-coordinator.md
+?? coordination/reviews/2026-10-03-1641-coordinator.md
+?? coordination/reviews/2026-10-03-1651-coordinator.md
+?? coordination/reviews/2026-10-03-1701-coordinator.md
+?? coordination/reviews/2026-10-03-1711-coordinator.md
+?? coordination/reviews/2026-10-03-1721-coordinator.md
+?? coordination/reviews/2026-10-03-1731-coordinator.md
+?? coordination/reviews/2026-10-03-1741-coordinator.md
+?? coordination/reviews/2026-10-03-1751-coordinator.md
+?? coordination/reviews/2026-10-03-1801-coordinator.md
+?? coordination/reviews/2026-10-03-1811-coordinator.md
+?? coordination/reviews/2026-10-03-1821-coordinator.md
+?? coordination/reviews/2026-10-03-1831-coordinator.md
+?? coordination/reviews/2026-10-03-1841-coordinator.md
+?? coordination/reviews/2026-10-03-1851-coordinator.md
+?? coordination/reviews/2026-10-03-1901-coordinator.md
+?? coordination/reviews/2026-10-03-1911-coordinator.md
+?? coordination/reviews/2026-10-03-1921-coordinator.md
+?? coordination/reviews/2026-10-03-1931-coordinator.md
+?? coordination/reviews/2026-10-03-1941-coordinator.md
+?? coordination/reviews/2026-10-03-1951-coordinator.md
+?? coordination/reviews/2026-10-03-2001-coordinator.md
+?? coordination/reviews/2026-10-03-2011-coordinator.md
+?? coordination/reviews/2026-10-03-2021-coordinator.md
+?? coordination/reviews/2026-10-03-2031-coordinator.md
+?? coordination/reviews/2026-10-03-2041-coordinator.md
+?? coordination/reviews/2026-10-03-2051-coordinator.md
+?? coordination/reviews/2026-10-03-2101-coordinator.md
+?? coordination/reviews/2026-10-03-2111-coordinator.md
+?? coordination/reviews/2026-10-03-2121-coordinator.md
+?? coordination/reviews/2026-10-03-2131-coordinator.md
+?? coordination/reviews/2026-10-03-2141-coordinator.md
+?? coordination/reviews/2026-10-03-2151-coordinator.md
+?? coordination/reviews/2026-10-03-2201-coordinator.md
+?? coordination/reviews/2026-10-03-2211-coordinator.md
+?? coordination/reviews/2026-10-03-2221-coordinator.md
+?? coordination/reviews/2026-10-03-2231-coordinator.md
+?? coordination/reviews/2026-10-03-2241-coordinator.md
+?? coordination/reviews/2026-10-03-2246-coordinator.md
+?? coordination/reviews/2026-10-03-2256-coordinator.md
+?? coordination/reviews/2026-10-03-2307-coordinator.md
+?? coordination/reviews/2026-10-03-2311-coordinator.md
+?? coordination/reviews/2026-10-03-2321-coordinator.md
+?? coordination/reviews/2026-10-03-2331-coordinator.md
+?? coordination/reviews/2026-10-03-2336-coordinator.md
+?? coordination/reviews/2026-10-03-2340-coordinator.md
+?? coordination/reviews/2026-10-03-2341-coordinator.md
+?? coordination/reviews/2026-10-03-2349-coordinator.md
+?? coordination/reviews/2026-10-03-2351-coordinator.md
+?? coordination/reviews/2026-10-04-0005-coordinator.md
+?? coordination/reviews/2026-10-04-0013-coordinator.md
+?? coordination/reviews/2026-10-04-0023-coordinator.md
+?? coordination/reviews/2026-10-04-0031-coordinator.md
+?? coordination/reviews/2026-10-04-0041-coordinator.md
+?? coordination/reviews/2026-10-04-0048-coordinator.md
+?? coordination/reviews/2026-10-04-0051-coordinator.md
+?? coordination/reviews/2026-10-04-0102-coordinator.md
+?? coordination/reviews/2026-10-04-0111-coordinator.md
+?? coordination/reviews/2026-10-04-0121-coordinator.md
+?? coordination/reviews/2026-10-04-0131-coordinator.md
+?? coordination/reviews/2026-10-04-0141-coordinator.md
+?? coordination/reviews/2026-10-04-0151-coordinator.md
+?? coordination/reviews/2026-10-04-0201-coordinator.md
+?? coordination/reviews/2026-10-04-0211-coordinator.md
+?? coordination/reviews/2026-10-04-0221-coordinator.md
+?? coordination/reviews/2026-10-04-0231-coordinator.md
+?? coordination/reviews/2026-10-04-0241-coordinator.md
+?? coordination/reviews/2026-10-04-0251-coordinator.md
+?? coordination/reviews/2026-10-04-0301-coordinator.md
+?? coordination/reviews/2026-10-04-0311-coordinator.md
+?? coordination/reviews/2026-10-04-0321-coordinator.md
+?? coordination/reviews/2026-10-04-0331-coordinator.md
+?? coordination/reviews/2026-10-04-0341-coordinator.md
+?? coordination/reviews/2026-10-04-0351-coordinator.md
+?? coordination/reviews/2026-10-04-0401-coordinator.md
+?? coordination/reviews/2026-10-04-0411-coordinator.md
+?? coordination/reviews/2026-10-04-0421-coordinator.md
+?? coordination/reviews/2026-10-04-0431-coordinator.md
+?? coordination/reviews/2026-10-04-0441-coordinator.md
+?? coordination/reviews/2026-10-04-0451-coordinator.md
+?? coordination/reviews/2026-10-04-0501-coordinator.md
+?? coordination/reviews/2026-10-04-0511-coordinator.md
+?? coordination/reviews/2026-10-04-0521-coordinator.md
+?? coordination/reviews/2026-10-04-0531-coordinator.md
+?? coordination/reviews/2026-10-04-0541-coordinator.md
+?? coordination/reviews/2026-10-04-0551-coordinator.md
+?? coordination/reviews/2026-10-04-0601-coordinator.md
+?? coordination/reviews/2026-10-04-0611-coordinator.md
+?? coordination/reviews/2026-10-04-0621-coordinator.md
+?? coordination/reviews/2026-10-04-0631-coordinator.md
+?? coordination/reviews/2026-10-04-0641-coordinator.md
+?? coordination/reviews/2026-10-04-0651-coordinator.md
+?? coordination/reviews/2026-10-04-0701-coordinator.md
+?? coordination/reviews/2026-10-04-0711-coordinator.md
+?? coordination/reviews/2026-10-04-0721-coordinator.md
+?? coordination/reviews/2026-10-04-0731-coordinator.md
+?? coordination/reviews/2026-10-04-0741-coordinator.md
+?? coordination/reviews/2026-10-04-0751-coordinator.md
+?? coordination/reviews/2026-10-04-0801-coordinator.md
+?? coordination/reviews/2026-10-04-0811-coordinator.md
+?? coordination/reviews/2026-10-04-0821-coordinator.md
+?? coordination/reviews/2026-10-04-0831-coordinator.md
+?? coordination/reviews/2026-10-04-0841-coordinator.md
+?? coordination/reviews/2026-10-04-0851-coordinator.md
+?? coordination/reviews/2026-10-04-0901-coordinator.md
+?? coordination/reviews/2026-10-04-0911-coordinator.md
+?? coordination/reviews/2026-10-04-0921-coordinator.md
+?? coordination/reviews/2026-10-04-0931-coordinator.md
+?? coordination/reviews/2026-10-04-0941-coordinator.md
+?? coordination/reviews/2026-10-04-0951-coordinator.md
+?? coordination/reviews/2026-10-04-1001-coordinator.md
+?? coordination/reviews/2026-10-04-1011-coordinator.md
+?? coordination/reviews/2026-10-04-1021-coordinator.md
+?? coordination/reviews/2026-10-04-1031-coordinator.md
+?? coordination/reviews/2026-10-04-1041-coordinator.md
+?? coordination/reviews/2026-10-04-1051-coordinator.md
+?? coordination/reviews/2026-10-04-1101-coordinator.md
+?? coordination/reviews/2026-10-04-1103-coordinator.md
+?? coordination/reviews/2026-10-04-1110-coordinator.md
+?? coordination/reviews/2026-10-04-1112-coordinator.md
+?? coordination/reviews/2026-10-04-1115-coordinator.md
+?? coordination/reviews/2026-10-04-1121-coordinator.md
+?? coordination/reviews/2026-10-04-1131-coordinator.md
+?? coordination/reviews/2026-10-04-1143-coordinator.md
+?? coordination/reviews/2026-10-04-1153-coordinator.md
+?? coordination/reviews/2026-10-04-1205-coordinator.md
+?? coordination/reviews/2026-10-04-1211-coordinator.md
+?? coordination/reviews/2026-10-04-1222-coordinator.md
+?? coordination/reviews/2026-10-04-1231-coordinator.md
+?? coordination/reviews/2026-10-04-1234-coordinator.md
+?? coordination/reviews/2026-10-04-1241-coordinator.md
+?? coordination/reviews/2026-10-04-1251-coordinator.md
+?? coordination/reviews/2026-10-04-1301-coordinator.md
+?? coordination/reviews/2026-10-04-1311-coordinator.md
+?? coordination/reviews/2026-10-04-1321-coordinator.md
+?? coordination/reviews/2026-10-04-1323-coordinator.md
+?? coordination/reviews/2026-10-04-1331-coordinator.md
+?? coordination/reviews/2026-10-04-1341-coordinator.md
+?? coordination/reviews/2026-10-04-1352-coordinator.md
+?? coordination/reviews/2026-10-04-1401-coordinator.md
+?? coordination/reviews/2026-10-04-1412-coordinator.md
+?? coordination/reviews/2026-10-04-1423-coordinator.md
+?? coordination/reviews/2026-10-04-1433-coordinator.md
+?? coordination/reviews/2026-10-04-1441-coordinator.md
+?? coordination/reviews/2026-10-04-1451-coordinator.md
+?? coordination/reviews/2026-10-04-1501-coordinator.md
+?? coordination/reviews/2026-10-04-1512-coordinator.md
+?? coordination/reviews/2026-10-04-1521-coordinator.md
+?? coordination/reviews/2026-10-04-1532-coordinator.md
+?? coordination/reviews/2026-10-04-1541-coordinator.md
+?? coordination/reviews/2026-10-04-1551-coordinator.md
+?? coordination/reviews/2026-10-04-1601-coordinator.md
+?? coordination/reviews/2026-10-04-1611-coordinator.md
+?? coordination/reviews/2026-10-04-1621-coordinator.md
+?? coordination/reviews/2026-10-04-1631-coordinator.md
+?? coordination/reviews/2026-10-04-1641-coordinator.md
+?? coordination/reviews/2026-10-04-1651-coordinator.md
+?? coordination/reviews/2026-10-04-1701-coordinator.md
+?? coordination/reviews/2026-10-04-1703-verify-user-msg.md
+?? coordination/reviews/2026-10-04-1712-note-implementation-provenance.md
+?? coordination/reviews/2026-10-04-1718-user-directive-coordination-topology.md
+?? coordination/reviews/2026-10-04-1725-coordinator-topology-setup.md
+?? coordination/reviews/2026-10-04-1732-coordinator.md
+?? coordination/reviews/2026-10-04-1810-coordinator.md
+?? coordination/reviews/2026-10-04-1820-coordinator.md
+?? coordination/reviews/2026-10-04-1830-coordinator.md
+?? coordination/reviews/2026-10-04-1836-coordinator.md
+?? coordination/reviews/2026-10-04-1840-coordinator.md
+?? coordination/reviews/2026-10-04-1845-coordinator.md
+?? coordination/reviews/2026-10-04-1855-coordinator.md
+?? coordination/reviews/2026-10-04-1900-coordinator.md
+?? coordination/reviews/2026-10-04-1905-coordinator.md
+?? coordination/reviews/2026-10-04-1910-coordinator.md
+?? coordination/reviews/2026-10-04-1920-coordinator.md
+?? coordination/reviews/2026-10-04-1930-coordinator.md
+?? coordination/reviews/2026-10-04-1935-coordinator.md
+?? coordination/reviews/2026-10-04-1940-coordinator.md
+?? coordination/reviews/2026-10-04-1945-coordinator.md
+?? coordination/reviews/2026-10-04-1955-coordinator.md
+?? coordination/reviews/2026-10-04-2015-coordinator.md
+?? coordination/reviews/2026-10-04-2025-coordinator.md
+?? coordination/reviews/2026-10-04-2033-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2037-coordinator.md
+?? coordination/reviews/2026-10-04-2043-coordinator.md
+?? coordination/reviews/2026-10-04-2052-coordinator.md
+?? coordination/reviews/2026-10-04-2102-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2105-coordinator.md
+?? coordination/reviews/2026-10-04-2112-coordinator.md
+?? coordination/reviews/2026-10-04-2123-coordinator.md
+?? coordination/reviews/2026-10-04-2134-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2136-coordinator.md
+?? coordination/reviews/2026-10-04-2149-coordinator.md
+?? coordination/reviews/2026-10-04-2153-coordinator.md
+?? coordination/reviews/2026-10-04-2203-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2206-coordinator.md
+?? coordination/reviews/2026-10-04-2215-coordinator.md
+?? coordination/reviews/2026-10-04-2225-coordinator.md
+?? coordination/reviews/2026-10-04-2233-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2237-coordinator.md
+?? coordination/reviews/2026-10-04-2248-coordinator.md
+?? coordination/reviews/2026-10-04-2258-coordinator.md
+?? coordination/reviews/2026-10-04-2304-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2312-coordinator.md
+?? coordination/reviews/2026-10-04-2313-coordinator.md
+?? coordination/reviews/2026-10-04-2325-coordinator.md
+?? coordination/reviews/2026-10-04-2335-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-04-2336-coordinator.md
+?? coordination/reviews/2026-10-04-2344-coordinator.md
+?? coordination/reviews/2026-10-04-2356-coordinator.md
+?? coordination/reviews/2026-10-05-0004-coordinator-nudge-response.md
+?? coordination/reviews/2026-10-05-0014-coordinator.md
+?? coordination/reviews/2026-10-05-0024-coordinator.md
+?? coordination/reviews/2026-10-05-0036-coordinator.md
+?? coordination/reviews/2026-10-05-0044-coordinator.md
+?? coordination/reviews/2026-10-05-0112-coordinator.md
+?? coordination/reviews/2026-10-05-0122-coordinator.md
+?? coordination/reviews/2026-10-05-0125-coordinator.md
+?? coordination/reviews/2026-10-05-0145-coordinator.md
+?? coordination/reviews/2026-10-05-0200-coordinator.md
+?? coordination/reviews/2026-10-05-0206-coordinator.md
+?? coordination/reviews/2026-10-05-0218-coordinator.md
+?? coordination/reviews/2026-10-05-0230-coordinator.md
+?? coordination/reviews/2026-10-05-0236-coordinator.md
+?? coordination/reviews/2026-10-05-0244-coordinator.md
+?? coordination/reviews/2026-10-05-0248-coordinator.md
+?? coordination/reviews/2026-10-05-0250-coordinator.md
+?? coordination/scripts/notify-coordinator-claude-delegation.py
+?? coordination/scripts/nudge-dispatched-workers.py
+?? coordination/scripts/run-browser-harness.ps1
+?? coordination/scripts/send-claude-task.py
+?? coordination/scripts/supervisor-audit.py
+?? docs/admin-ui-development-contract.md
+?? docs/profile-request-redaction.md
+?? infra/docker-compose.live.yml
+?? infra/scripts/init-live-infra.ps1
+?? infra/scripts/init-live-infra.sh
+?? packages/contracts/src/connector-management.ts
+?? packages/contracts/src/identity.ts
+?? packages/contracts/src/profile-commands.ts
+?? packages/contracts/src/profile-policy.ts
+?? packages/contracts/src/request-redaction.ts
+?? packages/contracts/src/settings.ts
+?? packages/contracts/tests/p745-options-allowlist.test.ts
+?? packages/contracts/tests/profile-commands.test.ts
+?? packages/contracts/tests/profile-policy.test.ts
+?? packages/contracts/tests/settings-prompt-slots-spec.test.ts
+?? packages/observability/src/log-events.ts
+?? packages/observability/src/log-metadata.ts
+?? packages/observability/tests/payload-privacy.test.ts
+?? packages/worker-sdk/tests/crypto-storage-plaintext-bound.test.ts
+?? packages/worker-sdk/tests/p730-pinned-policy.test.ts
+?? packages/worker-sdk/tests/p730-sdk-consume-pin-passthrough.test.ts
+?? packages/worker-sdk/tests/p745-carrier-sdk-forward.test.ts
+?? packages/worker-sdk/tests/p745-options-passthrough.test.ts
+?? scripts/dev-live.ps1
+?? scripts/dev-live.sh
+?? scripts/docker/
+?? services/connector/tests/p745-options-passthrough.test.ts
+?? services/connector/tests/p745-session-leg.test.ts
+?? services/orchestrator/coordination/
+?? services/orchestrator/migrations/0025_artifact_manifest_version.sql
+?? services/orchestrator/migrations/0026_profile_policy.sql
+?? services/orchestrator/migrations/0027_profile_active_pointer.sql
+?? services/orchestrator/migrations/0028_profile_name.sql
+?? services/orchestrator/migrations/0029_audit_actor_principal.sql
+?? services/orchestrator/migrations/0030_prompt_revisions_pin.sql
+?? services/orchestrator/migrations/0031_prompt_overrides_ref.sql
+?? services/orchestrator/migrations/0032_checkpoint_session_ref.sql
+?? services/orchestrator/migrations/0033_profile_request_redaction.sql
+?? services/orchestrator/opt-perf-01b-ingress-concat-bench.cjs
+?? services/orchestrator/opt-perf-02-crypto-chunk-bench.cjs
+?? services/orchestrator/src/app/admin/bff/
+?? services/orchestrator/src/app/bootstrap/
+?? services/orchestrator/src/http/route-context.ts
+?? services/orchestrator/src/http/routes/
+?? services/orchestrator/src/modules/admin-actions/profile-actions.ts
+?? services/orchestrator/src/modules/admin-read/
+?? services/orchestrator/src/modules/connector-credentials/compose.ts
+?? services/orchestrator/src/modules/connector-credentials/vault-kv2-writer.ts
+?? services/orchestrator/src/modules/connectors/connector-management-store.ts
+?? services/orchestrator/src/modules/encryption/metadata-auth-counter.ts
+?? services/orchestrator/src/modules/encryption/metadata-read-policy.ts
+?? services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts
+?? services/orchestrator/src/modules/operations/list-query.ts
+?? services/orchestrator/src/modules/operations/mappers.ts
+?? services/orchestrator/src/modules/operations/request-redaction-worker.ts
+?? services/orchestrator/src/modules/operations/request-redaction.ts
+?? services/orchestrator/src/modules/profiles/file-url-auth.ts
+?? services/orchestrator/src/modules/profiles/policy.ts
+?? services/orchestrator/src/modules/profiles/prompt-overrides.ts
+?? services/orchestrator/src/modules/profiles/publish.ts
+?? services/orchestrator/tests/__probe-c63.test.ts
+?? services/orchestrator/tests/admin-local-user-role-policy.test.ts
+?? services/orchestrator/tests/audit-ext-2-offline.test.ts
+?? services/orchestrator/tests/aweb02-bff-foundation.test.ts
+?? services/orchestrator/tests/aweb02b-tenant-token-env.test.ts
+?? services/orchestrator/tests/aweb04-bff-profiles.test.ts
+?? services/orchestrator/tests/aweb05-bff-reads.test.ts
+?? services/orchestrator/tests/aweb06-bff-operations.test.ts
+?? services/orchestrator/tests/aweb07-bff-security.test.ts
+?? services/orchestrator/tests/aweb08-per-route-flag.test.ts
+?? services/orchestrator/tests/ba04-fix-811.test.ts
+?? services/orchestrator/tests/bff-connectors-actions.test.ts
+?? services/orchestrator/tests/bff-settings-identity.test.ts
+?? services/orchestrator/tests/business-contract-fix-820.test.ts
+?? services/orchestrator/tests/bypass-fix-810.test.ts
+?? services/orchestrator/tests/conv13-audit-wire-single-source.test.ts
+?? services/orchestrator/tests/credworkflow-compose.test.ts
+?? services/orchestrator/tests/credworkflow-e2e-offline.functional.test.ts
+?? services/orchestrator/tests/crx01-creatapp-metadata-seam.test.ts
+?? services/orchestrator/tests/crx01-metadata-wiring.test.ts
+?? services/orchestrator/tests/crx02-rfx05res-s3-read-guard.test.ts
+?? services/orchestrator/tests/crypto-storage-plaintext-bound.test.ts
+?? services/orchestrator/tests/enc-meta-sentinel-outbox-source-url.test.ts
+?? services/orchestrator/tests/enc-meta-sentinel-runtime-refs.test.ts
+?? services/orchestrator/tests/encmeta-enc09-kind.test.ts
+?? services/orchestrator/tests/encmeta-resultref-offline.functional.test.ts
+?? services/orchestrator/tests/fu-encmeta-admin-projection.test.ts
+?? services/orchestrator/tests/gate-authenticate-808-pg16.test.ts
+?? services/orchestrator/tests/gate-authenticate-808.test.ts
+?? services/orchestrator/tests/helpers/runtime-harness.ts
+?? services/orchestrator/tests/metadata-read-policy.test.ts
+?? services/orchestrator/tests/migration-0032-rollback.test.ts
+?? services/orchestrator/tests/migration-verify-trap-fix.test.ts
+?? services/orchestrator/tests/p730-acquire-composition.test.ts
+?? services/orchestrator/tests/p730-acquire-consumer-auth.test.ts
+?? services/orchestrator/tests/p730-acquire-ref-resolver.test.ts
+?? services/orchestrator/tests/p730-admin-mutate-offline.test.ts
+?? services/orchestrator/tests/p730-legacy-snapshot-failclosed.test.ts
+?? services/orchestrator/tests/p730-medium1-parameter-policy.test.ts
+?? services/orchestrator/tests/p730-medium1-write-validation.test.ts
+?? services/orchestrator/tests/p730-prof03-invariant1.test.ts
+?? services/orchestrator/tests/p730-prof03-publish-cas.test.ts
+?? services/orchestrator/tests/p730-profile-snapshot.test.ts
+?? services/orchestrator/tests/p745-connector-actions.test.ts
+?? services/orchestrator/tests/p745-connector-boot-composition.test.ts
+?? services/orchestrator/tests/p745-connector-management-proxy.test.ts
+?? services/orchestrator/tests/p745-prompt-carrier-claim.test.ts
+?? services/orchestrator/tests/p745-prompt-carrier-producer.test.ts
+?? services/orchestrator/tests/p745-prompt-producer-impl.test.ts
+?? services/orchestrator/tests/rcr-http-offline.functional.test.ts
+?? services/orchestrator/tests/rcr-luna-http-encryption.test.ts
+?? services/orchestrator/tests/rcr-luna-verification.test.ts
+?? services/orchestrator/tests/request-redaction-http.test.ts
+?? services/orchestrator/tests/request-redaction-persistence.test.ts
+?? services/orchestrator/tests/request-redaction.test.ts
+?? services/orchestrator/tests/rfx10-seed-gate.test.ts
+?? services/orchestrator/tests/rfx11-12-route-hardening.test.ts
+?? services/orchestrator/tests/runtime-admin-auth.test.ts
+?? services/orchestrator/tests/runtime-facade.test.ts
+?? services/orchestrator/tests/runtime-health.test.ts
+?? services/orchestrator/tests/runtime-hitl.test.ts
+?? services/orchestrator/tests/runtime-recovery.test.ts
+?? services/orchestrator/tests/runtime-version-lifecycle.test.ts
+?? services/orchestrator/tests/runtime-webhook.test.ts
+?? services/orchestrator/tests/tapi01-closure-offline.test.ts
+?? services/orchestrator/tests/v1-boot-typed-denial.test.ts
+?? services/orchestrator/tests/vault-kv2-writer-offline.functional.test.ts
+?? services/orchestrator/tests/vault-live.test.ts
+?? services/orchestrator/tests/w1-sub02-snapshot-secret.test.ts
+?? services/orchestrator/tests/w1-sub03-sourceurl-extension.test.ts
+?? services/orchestrator/tests/wrapper-fix-812.test.ts
+?? tasks/ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md
+?? tasks/ADMIN-SYSTEM-OPERATIONS-SUPERSET-2026-10-05.md
+?? tasks/ADMIN-WEB-DELIVERY-2026-10-04.md
+?? tasks/LEGACY-PARITY-GAP-ADDENDUM-2026-10-03.md
+?? tasks/LIVE-TEST-PLAN-MINIO-VAULT-BROWSER-2026-10-03.md
+?? tasks/ORCHESTRATOR-CONFIG-PROFILE-CONNECTOR-DETAIL-2026-10-02.md
+?? tasks/PLAN-COMPLETION-2026-10-04.md
+?? tasks/SCALE-HA-2026-10-05.md
+?? tasks/SHARED-PACKAGES-REDISTRIBUTION-2026-10-05.md
+?? tasks/WORKTREE-VERIFY-COMMIT-2026-10-03.md
+?? tests/browser/admin-web/
+?? tests/browser/test-results-navigation-completion/
+?? tests/browser/test-results-request-redaction-final/
+?? tests/browser/test-results-request-redaction/
+?? tests/browser/test-results-ui-review-antigravity/
+?? tests/browser/tests/live-admin-e2e.spec.ts
+?? tests/deployment/
+?? tests/e2e/
+?? tests/fixtures/
+?? tests/harness/w2-profile-policy-prompt-override.md
+?? tests/integration/live-pipeline-e2e.integration.test.ts
+?? tests/live-prep/
+?? ../lib/utils.ts
+?? ../scratch/coord-update-0001.js
+?? ../scratch/coord-update-0004.js
+?? ../scratch/coord-update-0012.js
+?? ../scratch/coord-update-0015.js
+?? ../scratch/coord-update-0025.js
+?? ../scratch/coord-update-0028.js
+?? ../scratch/coord-update-0036.js
+?? ../scratch/coord-update-0044.js
+?? ../scratch/coord-update-0055.js
+?? ../scratch/coord-update-0100.js
+?? ../scratch/coord-update-0106.js
+?? ../scratch/coord-update-0112.js
+?? ../scratch/coord-update-0125.js
+?? ../scratch/coord-update-0126.js
+?? ../scratch/coord-update-0128.js
+?? ../scratch/coord-update-0137.js
+?? ../scratch/coord-update-0145.js
+?? ../scratch/coord-update-0148.js
+?? ../scratch/coord-update-0202.js
+?? ../scratch/coord-update-0206.js
+?? ../scratch/coord-update-0218.js
+?? ../scratch/coord-update-0230.js
+?? ../scratch/coord-update-0236.js
+?? ../scratch/coord-update-0239.js
+?? ../scratch/coord-update-0244.js
+?? ../scratch/coord-update-0248.js
+?? ../scratch/coord-update-0250.js
+?? ../scratch/coord-update-1805.js
+?? ../scratch/coord-update-1820.js
+?? ../scratch/coord-update-1830.js
+?? ../scratch/coord-update-1836.js
+?? ../scratch/coord-update-1840.js
+?? ../scratch/coord-update-1845.js
+?? ../scratch/coord-update-1855.js
+?? ../scratch/coord-update-1900.js
+?? ../scratch/coord-update-1905.js
+?? ../scratch/coord-update-1910.js
+?? ../scratch/coord-update-1920.js
+?? ../scratch/coord-update-1930.js
+?? ../scratch/coord-update-1935.js
+?? ../scratch/coord-update-1940.js
+?? ../scratch/coord-update-1945.js
+?? ../scratch/coord-update-1955.js
+?? ../scratch/coord-update-2005.js
+?? ../scratch/coord-update-2010.js
+?? ../scratch/coord-update-2015.js
+?? ../scratch/coord-update-2025.js
+?? ../scratch/coord-update-2030.js
+?? ../scratch/coord-update-2035.js
+?? ../scratch/coord-update-2043.js
+?? ../scratch/coord-update-2052.js
+?? ../scratch/coord-update-2101.js
+?? ../scratch/coord-update-2105.js
+?? ../scratch/coord-update-2113.js
+?? ../scratch/coord-update-2123.js
+?? ../scratch/coord-update-2133.js
+?? ../scratch/coord-update-2137.js
+?? ../scratch/coord-update-2149.js
+?? ../scratch/coord-update-2155.js
+?? ../scratch/coord-update-2202.js
+?? ../scratch/coord-update-2205.js
+?? ../scratch/coord-update-2215.js
+?? ../scratch/coord-update-2225.js
+?? ../scratch/coord-update-2233.js
+?? ../scratch/coord-update-2238.js
+?? ../scratch/coord-update-2248.js
+?? ../scratch/coord-update-2258.js
+?? ../scratch/coord-update-2305.js
+?? ../scratch/coord-update-2312.js
+?? ../scratch/coord-update-2313.js
+?? ../scratch/coord-update-2325.js
+?? ../scratch/coord-update-2335.js
+?? ../scratch/coord-update-2340.js
+?? ../scratch/coord-update-2348.js
+?? ../scratch/coord-update-2350.js
+?? ../scratch/coord-update-2352.js
+?? ../scratch/coord-update-2356.js
+?? ../scratch/fix-state.js
+?? ../scratch/patch-1825.js
+?? ../scratch/verify-780-pins.js

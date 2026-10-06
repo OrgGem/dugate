@@ -1,0 +1,37 @@
+{
+  "id": "edfd08f4-fd7b-4e49-94bb-b8ca9cc748f4",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_2b05b203-549f-4428-b908-c303a2b187ec",
+      "status": "running",
+      "tail": [
+        "        ic-api/delivery-encryption.ts:187-210` |",
+        "    48 +| Invalid/unusable registered key material or crypto operation failure | Delivery encryption throws a crypto failure, translated to HTTP 503. Unsupported HPKE also throws rather than returning plaintext.",
+        "         | `src/modules/public-api/delivery-encryption.ts:214-220,226-264`; `services/orchestrator/src/server.ts:1870-1874,1908-1914` |",
+        "    49 +",
+        "    50 +The service constructs AES-256-GCM ciphertext and wraps its fresh DEK using the registered recipient public key (`src/modules/public-api/delivery-encryption.ts:222-258`). If the registry instead contains",
+        "         a syntactically usable but unintended public key, the server has no recipient private key with which to detect that mismatch; it encrypts to the registered public key, so the intended receiver may be un",
+        "        able to decrypt. That case is not a plaintext downgrade.",
+        "    51 +",
+        "    52 +## Caller-controlled downgrade check",
+        "    53 +",
+        "    54 +No legacy result-encryption toggle exists, so there is no legacy crypto mode for a caller to downgrade. In rework, the `ServerConfig` contract states this is platform configuration, never caller input, a",
+        "        nd explicitly says a client cannot select plaintext, key ID, or key version (`services/orchestrator/src/server.ts:370-378`). The result route passes only tenant ID and serialized result to the policy hel",
+        "        per, and the artifact route likewise uses only the tenant policy (`:1990-1994,2054-2077`). No result/download query flag, request body field, or request header bypasses an enabled tenant policy. The Admi",
+        "        n `deliveryEncryption` mutation is an authenticated control-plane configuration change, not a per-delivery request override (`:2613-2695`).",
+        "    55 +•Workin3 W W •Wo Wo Wo Wor Wor Wor Wor Work Work Work Worki Worki WorkiWorkinWorkinWorkinWorkinorkingorking4orkingorkingrkingrkingrkingking•kingking•inging•inging•ngngng•gg•gg••5W•WW•WWoWoWoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorking6orkingorkngrkingrkingrkingking•kingking•inging•ingng•ngng•ngg•gg••7•WW•WWoWoWoWoWorWorWorWorkWorkWorkWorkiWorkiWorkiWokiWorkinWorkinWorkinWorinorking8orkingorkingrkingrkingrkingking•kingking•kining•inging•ngng•ngg•gg••9•WW•WWoWoWoWorWorWororWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWoringorking300orkingorkingrkingrkingrkingking•kingking•kining•inging•ngng•ngg•ggg••1W•WW•WoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorking2orkingrkingrkingrkingkingking•king•kininging•ingng•ngng•gg•gg••3W•WW•WoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorking4orkingrkingrkingrkingking•kingking•kining•ingingng•ngng•gg•gg••5W•WW•WoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorinorking6orkingorkingrkingrkingrkingking•kingking•kining•inging•ngngng•gg•gg••7W•WW•WoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorking8orkingrkingrkingrkingkingking•kingking•inging•ingng•ngng•gg•gg••9W•WW•WoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWokiWorkinWorkinWorkinorkingorking10orkingrkingrkingrkingrkingkingking•kingking•inging•inging•ngng•ngg•gg••W1•WW•WWoWoWoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinorkingorking2orkingorkingrkingrkingrkingking•kingking•inging•inging•ngng•ngg•gg••W3•WW•WWoWoWoWorWorWororkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinorkingorking4orkingorkingrkingrkingrkingking•kingking•inging•inging•ngng•ngg•gg••W5•WW•WWoWoWoWorWorWorWorkWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinorkingorking6orkingorkingrkingrkingrkingking•kingking•inging•inging•ngng•ngg•gg••7•WW•WWoWoWoWorWorWororWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWoringorking8orkingorkingrkingrkingrkingking•kingking•kining•inging•ngng•ngg•gg••9W•WW•WoWoWoWorWorWorWorWorkWorkWorkWorkiWorkiWorkiWorkinWorkinWorkinWorkinorkingorking20orkingrkingrkingrkingkingking•kingkin•inging•ingng•ngng•gg•gg••1W•WW•WoWoWoWoWorWorWorWorkWorkWorkWorkiWorkiWorkiWokinWorkinWorkinWorkinorkingorking2orkingrkingrkingrkingrkigking•kingking•inging•ingng•ngng•ngg•gg••3W•WW•WoWoWoWoWorWorWorWorkWorkWorkWrkiWorkiWorkiWorkiWorkiWorkinWorkinWorkinorkingorking4orkingrkingrkingrkingrkingking•kingking•inging•ingng•ngng•ngg•gg••W5•WW•WWoWoWoWorWorWorWorkWorkWorkWrkWorkiWorkiWorkiWorkinWorkinWorkinorkingorking6orkingorkngrkingrkingrkingking•kingking•inging•inging•ngng•ngg•gg••W7•WW•WWoWoWoWorWorWororWorkWorkWorkWorkiWorki"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "44597",
+      "nextCursor": "45603",
+      "latestCursor": "45603",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

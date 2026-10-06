@@ -752,3 +752,58 @@ khoá `export`). document-core KHÔNG đổi một dòng — kiểm chứng thi�
 
 **Kết luận: PASS (văn bản)** — adjudication đã ghi nhận; next owner không đổi so với §15.5
 (Tester live window §9; coordinator ký §6).
+
+---
+
+## W2B-P2 FIX — claim tu choi credentialRef sai tuple (finding P730-W2-B-01) — 2026-10-04
+
+- **Packet:** W2B-P2-FIX (reassigned tu qwen_1), task task_6d21a84909fd, spec `coordination/dispatch-specs/2026-10-04-1935-W2B-P2-FIX.md`. Nguon finding: `coordination/reports/tester.md:12560` (P730-W2-B-01, P2).
+- **Lease:** `services/orchestrator/src/modules/runtime/runtime.ts` (claim validation path). KHONG sua test lane khac (`tests/p730-profile-snapshot.test.ts` giu nguyen 0 diff).
+- **Ranh gioi:** khong commit/push, khong tick, khong mo cua so DB/Redis, offline.
+
+### 1. Fix
+
+`parsePinnedProfilePolicy` truoc day chi shape-check (`PinnedProfilePolicySchema.safeParse`). Mot credentialRef **structurally valid** nhung tro (tenant, profileId, profileRevision) KHAC identity ma operation row pin van di qua va duoc tra ve trong claim — acquisition consumer (W1c) se giai ma nham ciphertext cua identity khac.
+
+Thay doi (chi file lease):
+1. Ham nhan them `identity: { tenantId, profileId, profileRevision }` doc tu chinh row `t.tenant_id / t.profile_id / t.profile_revision` (call site trong `buildClaimResult`).
+2. Sau shape-parse: so khop ca 3 thanh phan tuple. Mismatch -> `unprocessable('INVALID_SCHEMA', ...)` **giu nguyen cung status+code family** nhu loc shape (spec de xuat giu 422 INVALID_SCHEMA — da chon, ghi ro o day). Thong diep tinh, **khong dua gia tri tuple len wire** (chi pointer `/profile_policy_snapshot/credentialRef`).
+3. Vi throw xay ra **bên trong** `db.tx` cua `claimTask` (buildClaimResult duoc goi trong tx), lease + operation-state updates cung rollback — day la rollback ma su dung hien co cua harness, khong them co che moi.
+
+### 2. Bang chung chay (literal exit codes, wrapper tra ve)
+
+| Lenh | Ket qua | Exit Code |
+|---|---|---|
+| `npx tsc --noEmit -p tsconfig.json` (orchestrator) | sach | `Exit Code: 0` |
+| `npx jest tests/p730-profile-snapshot.test.ts --runInBand` | **11 passed, 11 total** (3 truoc do do) | `SUITE_EXIT=0` |
+| `npx jest tests/p730-legacy-snapshot-failclosed.test.ts` | 2 passed, 2 total | `SUITE_EXIT=0` |
+| `npx jest tests/w1-sub02-snapshot-secret.test.ts` | 10 passed, 10 total | `SUITE_EXIT=0` |
+| `npx jest tests/w1-sub03-sourceurl-extension.test.ts` | 6 passed, 6 total | `SUITE_EXIT=0` |
+| `npx jest tests/p730-pinned-policy.test.ts` (worker-sdk) | 3 passed, 1 todo, 4 total | `SUITE_EXIT=0` |
+| `p730-profile-snapshot` chay lap lai 3 lan | 11/11 ca 3 lan | `RUN_EXIT=0` x3 |
+
+3 case do chuyen xanh **bang chinh fix product** (khong sua test): moi case kiem `claimFailed: true`, `committedWrites: 0`, `returnedRef: undefined` — tuc la ca fail-closed LANH khong commit lease/state. Suite `p730-legacy-snapshot-failclosed` (lane khac, 0 diff) cung xanh: `transactionRollbacks=1` va committed task van `READY/attempt 0/lease 0` — rollback duoc ching o ca hai harness doc lap.
+
+### 3. Ghi chu trung thuc ve hien trang file (shared checkout)
+
+Truoc khi toi sua, `runtime.ts` **da co san** khoi T-SUB-04 o working tree (41 dong insert so voi HEAD `b088eec`: import `PinnedProfilePolicySchema`, ham parse shape-only, cot `o.profile_policy_snapshot` trong SELECT claim, call site). Do chinh la pham vi finding P730-W2-B-01 mo ta (shape-only, chua so tuple) — **khong phai do toi them**. Fix cua toi nam de len no (signature + tuple check). Toi khong commit, khong revert; `runtime.ts` la hot file trong topology (Claude Phase 2) — coordinator can biet no gio dang mang 41 dong + tuple check chua commit.
+
+### 4. Phan live (con mo, KHONG phai bang chung cua receipt nay)
+
+- Offline bang chung dung o muc jest + fake db tx (rollback la staging model cua harness, khong phai PG thật).
+- Can Tester mot cua so PG that: chen operations co `profile_policy_snapshot.credentialRef` lech `operations.profile_id`/`profile_revision`/`tenant_id`, claim phai 422 va `tasks.lease_epoch/state` + `operations.state` khong doi (SELECT lai sau rollback).
+- Test cua toi neu can them se o file RIENG (`tests/w2b-p2-credential-ref-claim.test.ts`) — chua can: 3 case cua W2-B da phu du va da xanh.
+
+### 5. Trang thai 4 muc
+
+- **IMPLEMENTED** — fix product trong lease.
+- **VERIFIED offline** — 5 suite exit 0 + 3x lap lai + tsc 0 (literal o muc 2).
+- **KHONG accepted** — live PG window chua chay (muc 4); gate/tick thuoc coordinator/Reviewer.
+- **Δ-DEVIATION: khong co.** Khong them file, khong vuot lease, khong doi test lane khac.
+
+### 6. Su co ghi chu ve ghi file - minh bach
+
+- Khi append receipt, toi lay ket qua read_file (ban CAT vi file vuot gioi han dung luong) lam base roi ghi lai. Working tree bi cat con 400 dong.
+- KHAC PHUC: khoi dung dung HEAD, lenh git show 17e96b9:du-rework/coordination/reports/qwen4.md. Receipt duoc gan phia sau 754 dong day du.
+- Bang chung lossless: git status luc dau phien 2026-10-04 trong prompt khoi dong KHONG liet ke file nay o nhom modified, vay working tree trung HEAD truoc khi toi cham.
+- Ket luan: khong that thoat noi dung cu. Sai sot thuoc ve qui trinh ghi: file dai KHONG dung read_file lam base append, dung git show hoac append byte-level.

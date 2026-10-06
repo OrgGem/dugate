@@ -1,0 +1,77 @@
+﻿=== strict false/static invariants in tests ===
+services/orchestrator/tests\admin-shell-server.test.ts:548:            { name: 'strict', required: false, widget: 'boolean' },
+services/orchestrator/tests\bypass-fix-810.test.ts:122:    const fromCounter = await readStoredText(crypto, textColumn, CTX, false);
+services/orchestrator/tests\enc-meta-sentinel-outbox-source-url.test.ts:401:      crypto.readStored(envelope, { tenantId: TENANT, slot: 'tasks.payload_ref', refId: 'some-other-task' }, false),
+services/orchestrator/tests\enc-meta-sentinel-outbox-source-url.test.ts:417:  it('G1e: the consumer seam opens the captured dispatch sourceUrl back to the exact URL', async () => {
+services/orchestrator/tests\enc-meta-sentinel-runtime-refs.test.ts:300:      crypto.readStored(taskEnvelope, { tenantId: TENANT, slot: 'tasks.result_ref', refId: 'task-1' }, false),
+services/orchestrator/tests\enc-meta-sentinel-runtime-refs.test.ts:303:      crypto.readStored(opEnvelope, { tenantId: TENANT, slot: 'operations.result_ref', refId: 'op-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:210:      crypto.readStored(taskEnvelope, { tenantId: TENANT, slot: 'tasks.result_ref', refId: 'task-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:213:      crypto.readStored(opEnvelope, { tenantId: TENANT, slot: 'operations.result_ref', refId: 'op-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:229:      crypto.readStored(taskEnvelope, { tenantId: TENANT, slot: 'operations.result_ref', refId: 'op-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:232:      crypto.readStored(opEnvelope, { tenantId: TENANT, slot: 'tasks.result_ref', refId: 'task-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:235:      crypto.readStored(taskEnvelope, { tenantId: 'other-tenant', slot: 'tasks.result_ref', refId: 'task-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:240:      crypto.readStored(payloadEnvelope, { tenantId: TENANT, slot: 'tasks.result_ref', refId: 'task-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:247:      crypto.readStored(plaintext, { tenantId: TENANT, slot: 'tasks.result_ref', refId: 'task-1' }, false),
+services/orchestrator/tests\encmeta-resultref-offline.functional.test.ts:286:    const opened = (await crypto.readStored(outer, { tenantId: TENANT, slot: 'tasks.payload_ref', refId: 'parent-1' }, false)) as {
+services/orchestrator/tests\gate-authenticate-808.test.ts:108:  await expect(crypto.readStored(valid, ctx, false)).resolves.toBe('artifact://valid');
+services/orchestrator/tests\legacy-wire-decoders.test.ts:153:    expect(decoded.presence.sourceUrl).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:78:    expect(policy.allowPlaintext(NOW)).toBe(true);
+services/orchestrator/tests\metadata-read-policy.test.ts:79:    expect(policy.allowPlaintext(NOW + DAY_MS)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:80:    expect(policy.allowPlaintext(NOW + 2 * DAY_MS)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:87:    expect(policy.allowPlaintext(NOW)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:94:    expect(policy.allowPlaintext(NOW)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:95:    expect(policy.allowPlaintext(NOW + 365 * DAY_MS)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:144:    await expect(closed.readStored('plain', ctx)).resolves.toEqual({ opened: 'plain', allowPlaintext: false });
+services/orchestrator/tests\metadata-read-policy.test.ts:160:    expect(policy.allowPlaintext(NOW)).toBe(true);
+services/orchestrator/tests\metadata-read-policy.test.ts:161:    expect(policy.allowPlaintext(NOW + 14 * DAY_MS)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:184:    expect(policy.allowPlaintext(NOW)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:197:    expect(iso.allowPlaintext(NOW)).toBe(true);
+services/orchestrator/tests\metadata-read-policy.test.ts:198:    expect(iso.allowPlaintext(NOW + DAY_MS)).toBe(false);
+services/orchestrator/tests\metadata-read-policy.test.ts:205:    expect(epoch.allowPlaintext(NOW)).toBe(true);
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:112:    prompt_overrides_ref: options.carrier ?? null,
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:177:  async function sealedRows(list: PinnedPromptOverride[] = rows, slot: 'operations.prompt_overrides_ref' | 'operations.input_ref' = 'operations.prompt_overrides_ref') {
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:236:      carrier: await crypto.seal(tooManyRows, { tenantId: TENANT_ID, slot: 'operations.prompt_overrides_ref', refId: OPERATION_ID }),
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:247:      carrier: await crypto.seal(oversizeRow, { tenantId: TENANT_ID, slot: 'operations.prompt_overrides_ref', refId: OPERATION_ID }),
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:258:      carrier: await crypto.seal(oversizeTotal, { tenantId: TENANT_ID, slot: 'operations.prompt_overrides_ref', refId: OPERATION_ID }),
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:270:      carrier: await crypto.seal(tooManyRows, { tenantId: TENANT_ID, slot: 'operations.prompt_overrides_ref', refId: OPERATION_ID }),
+services/orchestrator/tests\p745-prompt-carrier-claim.test.ts:304:      carrier: await crypto.seal(secretRows, { tenantId: TENANT_ID, slot: 'operations.prompt_overrides_ref', refId: OPERATION_ID }),
+services/orchestrator/tests\p745-prompt-carrier-producer.test.ts:18: * content carrier (`prompt_overrides_ref`) whose envelope is bound to
+services/orchestrator/tests\p745-prompt-carrier-producer.test.ts:19: * (tenant, `operations.prompt_overrides_ref`, operationId). With no seam or no
+services/orchestrator/tests\p745-prompt-carrier-producer.test.ts:250:      { tenantId: TENANT, slot: 'operations.prompt_overrides_ref', refId: String(mustCall(calls, /INSERT INTO operations/i).params[0]) }
+services/orchestrator/tests\p745-prompt-carrier-producer.test.ts:363:      { tenantId: TENANT, slot: 'operations.prompt_overrides_ref', refId: String(mustCall(first.calls, /INSERT INTO operations/i).params[0]) }
+services/orchestrator/tests\rcr-luna-verification.test.ts:57:    prompt_overrides_ref: null,
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:230:    await expectCryptoError(() => crypto.readStored(SENSITIVE, CTX, false), 'NOT_SEALED');
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:277:      'operations.prompt_overrides_ref',
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:435:      crypto.readStored(opEnvelope, { tenantId: TENANT, slot: 'operations.input_ref', refId: OPERATION_ID }, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:438:      crypto.readStored(taskEnvelope, { tenantId: TENANT, slot: 'tasks.payload_ref', refId: TASK_ID }, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:441:      crypto.readStored(opEnvelope, { tenantId: TENANT, slot: 'tasks.payload_ref', refId: TASK_ID }, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:551://   decryptStoredArtifact -> readStored(value, ctx, /* allowPlaintext */ false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:616:// In Muc 33 I flipped `openMetadata`'s `readStored(value, ctx, true)` to `false`
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:782:      crypto.readStored(broken, CTX2, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:792:      crypto.readStored(wrong, CTX2, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:795:    await expect(crypto.readStored(sealed, CTX2, false)).resolves.toBeDefined();
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:820:      crypto.readStored(sealed, { ...CTX2, slot: 'tasks.payload_ref' }, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:824:      crypto.readStored(sealed, { ...CTX2, refId: 'op-bnd-999' }, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:828:      crypto.readStored(sealed, { ...CTX2, tenantId: 'tenant-other' }, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:857:      bad.crypto.readStored(sealed, CTX2, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:866:      down.crypto.readStored(sealed, CTX2, false)
+services/orchestrator/tests\runtime-encryption-metadata.test.ts:1170:      await expectCryptoError(() => crypto.readStored(legacy, CTX, false), 'NOT_SEALED');
+services/orchestrator/tests\url-ingestion-backend-failclosed-offline.test.ts:114:    expect('sourceUrl' in payload).toBe(false);
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:438:      s.h.crypto.readStored(JSON.parse(bad), { tenantId: TENANT, slot: 'operations.input_ref', refId: s.operationId }, false),
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:458:      s.h.crypto.readStored(JSON.parse(bad), { tenantId: TENANT, slot: 'operations.input_ref', refId: s.operationId }, false),
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:476:      h.crypto.readStored(mixed, { tenantId: TENANT, slot: 'operations.input_ref', refId: operationId }, false),
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:492:      s.h.crypto.readStored(stored, { tenantId: TENANT, slot: 'operations.input_ref', refId: s.operationId }, false),
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:614:      h.crypto.readStored(JSON.parse(stored), { tenantId: TENANT, slot: 'operations.input_ref', refId: String(op.params[0]) }, false),
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:635:    await expect(s.h.crypto.readStored(JSON.parse(s.inputRef), ctx as never, false))
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:651:      s.h.crypto.readStored(env, { tenantId: TENANT, slot: 'operations.input_ref', refId: s.operationId }, false),
+services/orchestrator/tests\submission-metadata-crypto-e2e.test.ts:666:    await expect(s.h.crypto.readStored(JSON.parse(s.inputRef), ctx as never, false))
+services/orchestrator/tests\wrapper-fix-812.test.ts:11: * The strict reader (`readStoredText(..., false)`) already refused every bad
+=== source-url/outbox census paths ===
+services/orchestrator/tests\bypass-fix-810.test.ts:6:import { countUnsealedWithAuth } from '../src/modules/encryption/metadata-auth-counter';
+services/orchestrator/tests\bypass-fix-810.test.ts:161:    const full = (await import('../src/modules/encryption/metadata-auth-counter')).METADATA_AUTH_SLOT_SPECS;
+services/orchestrator/tests\enc-meta-sentinel-outbox-source-url.test.ts:7: * into the `outbox.payload` column. That column is a durable control-plane
+services/orchestrator/tests\enc-meta-sentinel-outbox-source-url.test.ts:30: *      is the PG `outbox.payload` column, not Redis job data.
+services/orchestrator/tests\gate-authenticate-808-pg16.test.ts:7:import { countUnsealedWithAuth } from '../src/modules/encryption/metadata-auth-counter';
+services/orchestrator/tests\gate-authenticate-808.test.ts:8:} from '../src/modules/encryption/metadata-auth-counter';
+=== production counter caller count ===
+services/orchestrator/src\modules\encryption\metadata-auth-counter.ts:215:export async function countUnsealedWithAuth(options: {

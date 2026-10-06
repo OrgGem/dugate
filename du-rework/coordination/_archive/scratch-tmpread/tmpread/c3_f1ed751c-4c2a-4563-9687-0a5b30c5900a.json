@@ -1,0 +1,37 @@
+{
+  "id": "06e1da4d-61ff-4c6d-857f-91a38bb4a748",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_f1ed751c-4c2a-4563-9687-0a5b30c5900a",
+      "status": "running",
+      "tail": [
+        "        96-114; lib/file-url-downloader.ts:25-32; lib/endpoints/runner.ts:231-240; lib/pipelines/submit.ts:273-279,344-350 |",
+        "    21  | allowedFileExtensions | Nullable comma-separated extension allow-list. Upload and downloaded-file validation lowercases and checks the configured values; absent config uses the global defaults. | lib/d",
+        "        b/schema.ts:131; app/api/internal/profile-endpoints/route.ts:155-156; lib/endpoints/runner.ts:231-240; lib/upload.ts:26-48,78-92; lib/file-url-downloader.ts:194-199,248-253 |",
+        "       ⋮",
+        "    57  - Ordinary locked form fields are rejected even if the submitted value equals the stored value: the branch tests presence and lock state, not equality (profile-resolver.ts:74-87).",
+        "    58 -- _workflowPrompts.isLocked is not passed through mergeParameters; the separate workflow worker reads _workflowPrompts.value directly. Treat that marker as unenforced on this path (lib/pipelines/workflow",
+        "        -engine.ts:363-368).",
+        "    58 +**MUST-NOT-REPLICATE — workflow prompt lock marker is ignored.** _workflowPrompts.isLocked is not passed through mergeParameters; the workflow worker reads _workflowPrompts.value directly without checkin",
+        "        g the lock marker (lib/pipelines/workflow-engine.ts:363-368).",
+        "    59  - A profile can include _prompt in its parameters even though it is not a registry parameter. If that key is left unlocked (or has no isLocked marker), the normal runner accepts a client form value for i",
+        "        t; prompt-resolver then gives variables._prompt precedence over a matched ExternalApiOverride.promptOverride. This is conditional on the profile defining that key, not a general request field (profile-re",
+        "        solver.ts:65-90; prompt-resolver.ts:30-35).",
+        "    60 +- The merged profile value for output_format does not set the operation's top-level outputFormat: the runner reads the raw form field or uses json after merging parameters (lib/endpoints/runner.ts:195-19",
+        "        8,225-226). The value may therefore differ between connector variables and the operation field.",
+        "    61Wor Wor Wor ork Work Work Work Worki Worki Worki •Worki Workin •Workin Workin7 •Workin orking •orking orking •rking rking •rking rking •king king •king ing •ing ing •ng ng ng ng g g g 8   W W W W Wo Wo Wo Wor Wor Wor Work Work Work Wrki Worki •Worki Worki •Workin Workin •Workin9 orking •orking orking •rkng rking •rking rking •king king •king ing •ing ing •ng ng ng ng g g g 400    WWWWoWoWoWorWorWororWorkWorkWorkWorki•WorkiWorkiWokin•WorkinWorkin1•Workinorking•orkingorking•rkingrking•rkingrkig•kingking•kinging•inging•ngngnggggg2WWWWoWoWoWoWorWorWororkWorkWorkWorkWorki•WorkiWorki•WorkinWorkin•Workin3Woring•orkingorking•orkingrkingrking•rkingking•kingking•ining•inging•ngngngggg4W"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "2602",
+      "nextCursor": "3952",
+      "latestCursor": "3952",
+      "returnedLineCount": 15,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

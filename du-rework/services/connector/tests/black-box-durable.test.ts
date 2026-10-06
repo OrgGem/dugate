@@ -12,6 +12,11 @@ import {
   hashInvocationInput,
   type LocalInvocationRequest,
 } from '../src';
+import {
+  createInvocationFieldCrypto,
+  createLocalInvocationKekProvider,
+  parseLocalInvocationKekConfig,
+} from '../src/db/invocation-crypto';
 
 const enabled = process.env.CONNECTOR_INTEGRATION === '1';
 const databaseUrl = process.env.CONNECTOR_DATABASE_URL ?? 'postgres://du:du-test-only@127.0.0.1:5433/du_orchestrator_test';
@@ -59,6 +64,20 @@ function listen(server: Server): Promise<number> {
     deadlineAt: '2099-01-01T00:00:00.000Z',
   };
 
+  // SEC-ENC-02: the durable ledger seals request/result/session before SQL.
+  // One deterministic key config is shared by the composition and the direct
+  // ledger probes so a row written by the service opens in the test process.
+  const invocationStorageCrypto = (() => {
+    const parsed = parseLocalInvocationKekConfig(JSON.stringify({
+      keyRef: 'black-box-invocation-v1',
+      activeVersion: 1,
+      keys: { '1': randomBytes(32).toString('base64') },
+    }))!;
+    return {
+      fieldCrypto: createInvocationFieldCrypto(createLocalInvocationKekProvider(parsed), parsed.keyRef),
+    };
+  })();
+
   const startComposition = async (): Promise<void> => {
     composition = createConnectorComposition({
       port: 0,
@@ -68,6 +87,7 @@ function listen(server: Server): Promise<number> {
       grantVerifier: new ContractSignedGrantVerifier(new HmacSignedGrantSource(grantSecret)),
       credentialCipher: new AesCredentialCipher(encryptionKey),
       providerAllowHosts: ['127.0.0.1'],
+      invocationStorageCrypto,
     });
     await composition.start();
   };
@@ -246,7 +266,7 @@ function listen(server: Server): Promise<number> {
       input: { text: 'first-claim-race' },
     };
     const ledgerDatabase = new PgSqlClient({ connectionString: databaseUrl });
-    const ledger = new PostgresInvocationLedger(ledgerDatabase);
+    const ledger = new PostgresInvocationLedger(ledgerDatabase, invocationStorageCrypto);
     try {
       const inputHash = hashInvocationInput(local);
       const claims = await Promise.all([
@@ -275,7 +295,7 @@ function listen(server: Server): Promise<number> {
       input: { text: 'cancelled-replay' },
     };
     const ledgerDatabase = new PgSqlClient({ connectionString: databaseUrl });
-    const ledger = new PostgresInvocationLedger(ledgerDatabase);
+    const ledger = new PostgresInvocationLedger(ledgerDatabase, invocationStorageCrypto);
     try {
       await ledger.claim(local, hashInvocationInput(local));
       await ledger.cancel(local.invocationId);
@@ -308,7 +328,7 @@ function listen(server: Server): Promise<number> {
       input: { text: 'lease-expiry-b' },
     };
     const ledgerDatabase = new PgSqlClient({ connectionString: databaseUrl });
-    const ledger = new PostgresInvocationLedger(ledgerDatabase);
+    const ledger = new PostgresInvocationLedger(ledgerDatabase, invocationStorageCrypto);
     try {
       const accepted = await sendInvocation(tenantA);
       expect(accepted.status).toBe(202);
@@ -353,7 +373,7 @@ function listen(server: Server): Promise<number> {
       input: { text: 'crash-window' },
     };
     const ledgerDatabase = new PgSqlClient({ connectionString: databaseUrl });
-    const ledger = new PostgresInvocationLedger(ledgerDatabase);
+    const ledger = new PostgresInvocationLedger(ledgerDatabase, invocationStorageCrypto);
     let releaseProviderPoll = () => {};
     try {
       const accepted = await sendInvocation(local);
@@ -429,7 +449,7 @@ function listen(server: Server): Promise<number> {
       input: { text: 'tenant-b-sync' },
     };
     const ledgerDatabase = new PgSqlClient({ connectionString: databaseUrl });
-    const ledger = new PostgresInvocationLedger(ledgerDatabase);
+    const ledger = new PostgresInvocationLedger(ledgerDatabase, invocationStorageCrypto);
     try {
       const revisions = new PostgresConnectorConfigRepository(ledgerDatabase);
       await revisions.createRevision({

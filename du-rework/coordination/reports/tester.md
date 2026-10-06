@@ -12417,3 +12417,1315 @@ Rework has no corresponding operation `steps_json` or percent column in the oper
 **MUST-NOT-REPLICATE:** The active rework operation view’s hardcoded `percent: 0` (`services/orchestrator/src/modules/operations/facade.ts:45`; `modules/operations/submission.ts:715`) and the non-persisting progress endpoint (`modules/runtime/runtime.ts:489-492`) are observed parity blockers. This report makes no replacement or implementation proposal.
 
 Result: progress production and polling behavior characterized. No source edits, test runs, gate ticks, or COMP row changes were made.
+
+## W2 — Phase-2 test suites readiness receipt
+
+- Status: `READY / AWAITING_DISPATCH` — available to receive W2 from the current Coordinator after W1 freeze.
+- Task/test ID: `W2` (Phase-2 test suites).
+- Scope named in the assignment: `tests/profile-policy.test.ts`, `tests/prompt-override.test.ts`.
+- Timestamp: 2026-10-04 17:53:32 +07:00 (Asia/Bangkok).
+- Environment: Windows PowerShell; offline tester role. No database, Redis, S3, or Vault was accessed.
+- Working directory for this readiness check: `D:\Git\dugate`.
+- Command: none; the W2 packet has not been dispatched and W1 freeze is not confirmed here.
+- Commit/build digest: not captured; no test run or build performed.
+- Results: passed 0, failed 0, skipped 0; execution is pending, not a test verdict.
+- Exit code: N/A.
+- Raw test output: none.
+- Changes: readiness receipt only; no source or test files changed.
+
+## W2 Phase A — Receipt 01 (fixture + focused baseline)
+
+- Packet: `W2 Phase A`; task `task_1b422867dd49`; run `run_069ecd6957cd`; dispatch context `ctx_99b1be23659a`.
+- Spec: `coordination/dispatch-specs/2026-10-04-1805-W2-producer-consumer-fixtures.md`.
+- Timestamp: 2026-10-04 18:24 +07:00 (Asia/Bangkok).
+- Working directory: `D:\Git\dugate\du-rework`.
+- Environment: Windows PowerShell, Node `v22.16.0`, pnpm `10.18.3`; offline-only. No PostgreSQL, Redis, S3, or Vault was accessed; no loopback provider was started.
+- HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`. The shared worktree is dirty and contains parallel W1 work; this hash does not identify the local test/source contents. No build or typecheck was run.
+
+### Fixture/harness prepared
+
+- Added `tests/fixtures/w2-profile-policy-prompt-override.json`: immutable tenant/profile/revision and credential reference; synthetic bearer/header/query canaries; eight no-secret sink IDs; F-PP1 priority cases; prompt source precedence and `_default`; authored step overrides and revisioned connection bindings; deny-before-provider cases; upload, top-level `sourceUrl`, `file_urls`, and Test Endpoint extension vectors; CSV parsing semantics; credential fail-closed cases; revision continuity; producer/consumer path; mock-provider observation metadata.
+- Added `tests/harness/w2-profile-policy-prompt-override.md`: reuse plan for the existing recursive sentinel scanner and loopback `MockProviderServer`; correlation and safe evidence rules. Provider observation is designed but not run.
+- Static fixture check: PowerShell `Get-Content -Raw | ConvertFrom-Json` plus canary search; **Exit Code 0**, expected non-secret snapshot contained 0/3 credential canaries. No production source or W1 leased test file was changed by this tester.
+
+### Focused baseline
+
+- Requested paths resolve to `packages/contracts/tests/profile-policy.test.ts`; no standalone `prompt-override.test.ts` exists. The combined suite contains four prompt-override cases (key-4 default, UUID validation, active default, and precedence).
+- Command at 18:12 +07:00: `pnpm --filter @du/contracts exec jest --runInBand tests/profile-policy.test.ts`.
+- Result: **Exit Code 0**; 1 suite passed; 27 tests passed, 0 failed, 0 skipped; 0 snapshots.
+- Raw output: `coordination/reports/raw/w2-phase-a-baseline-20261004-1812-profile-policy.txt`.
+- The PowerShell wrapper displayed Jest's summary as a native-command stderr diagnostic, while the recorded process exit code was 0.
+- Scope: current focused contracts baseline only; this is not PLAN04-01/02 producer-consumer acceptance or a coverage verdict.
+
+### Δ-DEVIATION / limitation
+
+The packet asks for a pre-W1 baseline. The baseline suite file timestamp was 2026-10-04 15:24 +07:00, before this 18:07 dispatch, but the shared worktree was already dirty and W1 was active. No pristine pre-W1 commit/worktree was available, so this receipt records the exact current-worktree baseline and does not claim a clean pre-W1 source snapshot. Re-run against an agreed frozen snapshot if the Coordinator needs that stronger comparison.
+
+- Phase B: waiting for Coordinator's `W1 CHECKPOINT (a)/(b)`.
+- Questions: none. The missing standalone prompt-override path is recorded above; its existing cases ran as part of the combined suite.
+
+## W1-DD03 FAIL-CLOSED offline claim test — receipt
+
+- Packet: `W1-DD03 FAIL-CLOSED`, task `task_95b56abe6d0e`, dispatch `ctx_e1c76f69d00d`, run `run_069ecd6957cd`.
+- Test ID: `P730-LEGACY-SNAPSHOT-FAILCLOSED`.
+- Timestamp: 2026-10-04 19:03 +07:00 (Asia/Bangkok; raw output file written at 19:03:23).
+- Scope: test-only, offline. Added `services/orchestrator/tests/p730-legacy-snapshot-failclosed.test.ts`; no product source changed.
+- Workdir: `D:\Git\dugate\du-rework`.
+- Environment: Windows PowerShell, Node `v22.16.0`, pnpm `10.18.3`, Jest via `@du/orchestrator`; `DU_LIVE_INFRA=0`. The test injects a fake `Db` transaction and uses no socket or live-service client.
+- HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`. The shared worktree is dirty and includes concurrent W1 source edits, including the claim parser under test; this HEAD alone is not the implementation digest. The test is against current shared working-tree files.
+
+### Cases and assertions
+
+1. Legacy operation fixture contains an old `fileUrlAuthConfig.token` plaintext sentinel and has neither `fileUrlAuthConfigured` nor `credentialRef`. A new-delivery `runtime.claimTask()` reaches the real `buildClaimResult()` parser. It throws typed `HttpError` with status `422`, code `INVALID_SCHEMA`, and the fixed shape-error message. The serialized problem contains no sentinel, no claim result is returned, and the transaction fake discards the staged task/operation lease updates (task remains `READY`, epoch `0`, operation remains `QUEUED`). The test also confirms the claim tried the transactional update path before parsing, so the check is not schema-only.
+2. Negative control uses the valid non-secret snapshot shape with `fileUrlAuthConfigured=true` and a tenant/profile/revision credential reference. Claim succeeds, returns that snapshot unchanged (including its non-empty ref), and commits the staged task and operation to `RUNNING` with lease epoch `1`.
+
+The valid and invalid fixtures are synthetic. The literal plaintext sentinel is only in the test fixture; Jest output and this receipt do not print it. This covers fail-closed claim behavior for an old row shape and rules out fallback-to-default in this offline fixture. It does **not** prove that a real database contains or does not contain such rows, nor does the transaction fake replace PostgreSQL rollback evidence.
+
+### Literal execution and results
+
+Final captured invocation:
+
+```powershell
+$env:DU_LIVE_INFRA='0'
+pnpm --filter @du/orchestrator exec jest tests/p730-legacy-snapshot-failclosed.test.ts --runInBand
+```
+
+- Cwd: `D:\Git\dugate\du-rework`.
+- Jest: 1 suite passed; 2 tests passed; 0 failed; 0 skipped; 0 snapshots.
+- Literal Jest/pnpm process exit code: `0` (`EXIT_CODE=0`).
+- Raw output: `coordination/reports/raw/w1-dd03-failclosed-20261004-1900.txt` (SHA-256 `6a38619aa884b952f7bce14bb70a541ff8364f71749fb7612404aefec515cdf3`). PowerShell surfaced Jest's summary line as a native-command stderr diagnostic; the process exit remained `0`.
+- The same focused command was first run once with the same `2/2, exit 0` result, but a path typo in the wrapper prevented saving that first output. The command was rerun only to capture the raw log at the correct path. This is not independent coverage; count the two unique test cases once.
+- `Δ-DEVIATION: YES` for the raw-output capture retry only. No deviation from offline/test-only scope. No commit, push, or reset.
+
+### Live-only unknown and safe window check
+
+Offline cannot tell whether PostgreSQL has an operation row written under the old shape. In an approved window, first use a read-only DB role, an explicit read-only transaction, a short statement timeout, and return counts only. Do not select, print, export, or log snapshot values or operation IDs. Example structural/candidate scan:
+
+```sql
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL statement_timeout = '5s';
+WITH legacy AS (
+  SELECT o.id, o.state, o.profile_policy_snapshot,
+         (
+           NULLIF(o.profile_policy_snapshot #>> '{fileUrlAuthConfig,token}', '') IS NOT NULL OR
+           NULLIF(o.profile_policy_snapshot #>> '{fileUrlAuthConfig,header_value}', '') IS NOT NULL OR
+           NULLIF(o.profile_policy_snapshot #>> '{fileUrlAuthConfig,query_value}', '') IS NOT NULL
+         ) AS has_nonempty_legacy_credential_field
+  FROM operations o
+  WHERE o.profile_policy_snapshot IS NOT NULL
+)
+SELECT
+  count(*) FILTER (
+    WHERE profile_policy_snapshot ? 'fileUrlAuthConfig'
+  ) AS legacy_config_field_rows,
+  count(*) FILTER (
+    WHERE has_nonempty_legacy_credential_field
+  ) AS rows_with_nonempty_legacy_credential_fields,
+  count(*) FILTER (
+    WHERE NOT (profile_policy_snapshot ?& ARRAY['fileUrlAuthConfigured', 'credentialRef'])
+  ) AS missing_new_shape_candidate_rows,
+  count(*) FILTER (
+    WHERE (profile_policy_snapshot ? 'fileUrlAuthConfig'
+           OR NOT (profile_policy_snapshot ?& ARRAY['fileUrlAuthConfigured', 'credentialRef']))
+      AND state NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT')
+      AND EXISTS (
+        SELECT 1 FROM tasks t
+        WHERE t.operation_id = legacy.id
+          AND t.state NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+      )
+  ) AS nonterminal_legacy_candidates
+FROM legacy;
+ROLLBACK;
+```
+
+These counts identify rows with the old field names or incomplete new-shape markers; they are candidates, not a complete Zod-schema verdict or proof that a credential is plaintext. If any count is nonzero, keep those operations out of worker claims and ask the implementation/data owner for a separately reviewed rewrite/backfill packet. Do not inspect values ad hoc or delete rows. If an exact schema census is needed, a reviewed read-only verifier must parse rows in process and emit only total/invalid counts, with no row content, IDs, or issue values.
+
+Suggested receipt for that separate live check: record DB alias/namespace, transaction mode, command, timestamp, row counts, exit code, query output path and verifier build digest; never record snapshot JSON. Live row existence and actual PostgreSQL rollback remain unverified by this packet.
+
+## P730-W2-B — Phase B receipt 02
+
+- Packet: `P730-W2-B PHASE B`, task `task_f7c9fa06fb1b`, dispatch `ctx_1078e574397a`, run `run_069ecd6957cd`.
+- Timestamp: 2026-10-04 19:20 +07:00 (Asia/Bangkok).
+- Scope: Added only `services/orchestrator/tests/p730-profile-snapshot.test.ts` and `packages/worker-sdk/tests/p730-pinned-policy.test.ts` as test files. No product source or any of the five W1 leased test files was edited. No commit, push, or reset.
+- Environment: Windows PowerShell, Node `v22.16.0`, pnpm `10.18.3`, Jest `29.7.0`. All database behavior is an in-memory fake transaction; no PostgreSQL, Redis, S3, Vault, or real provider was contacted. URL extension cases inspect caller metadata and make no outbound request.
+- HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`. At 2026-10-04 19:23:27 +07:00, the shared worktree was not pristine and had 1,236 status entries, including concurrent work. Worktree status-list SHA-256 (`git status --porcelain=v1 -uall`, UTF-8, LF): `cb73325612465f6cbf9024995d5c757d61d1a3f567d1154615c62250329e51f0`.
+- Phase B evidence-manifest SHA-256: `e07d7d06b851067e6e42e526db673afb726e6d4569533a8b11202188c4f42e4f`, computed from HEAD, the ordered SHA-256 hashes of the two new tests and two raw logs below, and the status-list digest above.
+
+### Coverage and findings
+
+- The orchestrator test injects three redactor-invisible canaries into the resolved bearer/header/query auth config, positive-controls the scanner against those values, then scans submit SQL parameters, the operation policy snapshot, task payload, outbox payload, actual claim response, and captured stdout/stderr. No canary was found in those sinks. The written snapshot retained only `fileUrlAuthConfigured: true` and the expected tenant/profile/revision reference.
+- F-PP1 remained in the expected direction: `LOW → 20`, `MEDIUM → 10`, `HIGH → 1`, and the HIGH submit wrote outbox priority `1`.
+- Extension checks exercise effective `fileUrls` declared filenames, READY submitted artifact filenames from the artifact lookup, top-level `sourceUrl` path extensions, and query-string exclusion. Denied names stop before INSERT; allowed `.pdf` URL paths submit. No response `Content-Disposition` case was fabricated because W1c acquisition is absent.
+- Strict unknown outer/nested snapshot keys and structurally malformed refs fail closed at claim with `422 INVALID_SCHEMA`; the fake transaction commits no lease updates for these rejects. SDK `RuntimeClient.claimTask()` preserves a valid policy/ref DTO and rejects legacy plaintext/unknown fields and a malformed revision.
+- **Finding P730-W2-B-01 — P2:** Runtime claim accepts a structurally valid `credentialRef` whose `tenantId`, `profileId`, or `profileRevision` differs from the operation’s pinned identity. All three cases returned the mismatched ref in the claim and committed both lease/state updates in the transaction fake. The current runtime parser applies the strict shape schema but does not compare the ref tuple with the operation row. This must be resolved before a credential acquisition consumer uses the pointer; this packet made no product-source fix.
+- **GAP — SDK-CONSUME:** `RuntimeClient` parses and returns the claim DTO, but `DefaultTaskContext`/`document-core` does not yet consume the pinned profile policy. The SDK suite records this as one `test.todo`, not a simulated failure.
+- **GAP — W1c:** Credential lookup/decryption at source acquisition is not implemented in this slice. The tests verify only producer snapshot, claim DTO, and admission-time extension metadata paths; they make no claim about credential fetch, provider observation, or response-header filename enforcement.
+
+### Literal execution and results
+
+Orchestrator command, cwd `D:\Git\dugate\du-rework\services\orchestrator`:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/p730-profile-snapshot.test.ts
+```
+
+- Result: 1 suite; 8 passed, 3 failed, 11 total; 0 snapshots. The three failures are the semantic ref-tuple finding above.
+- Literal process exit code: `1`.
+- Raw output: `coordination/reports/raw/p730-w2-b-orchestrator.txt` (SHA-256 `05b9654c7dda742e95b15de03848640d7429c0aef96bbc15065e8c81a1571495`).
+
+Worker SDK command, cwd `D:\Git\dugate\du-rework\packages\worker-sdk`:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/p730-pinned-policy.test.ts
+```
+
+- Result: 1 suite; 3 passed, 1 todo (not executed), 4 total; 0 snapshots.
+- Literal process exit code: `0`.
+- Raw output: `coordination/reports/raw/p730-w2-b-worker-sdk.txt` (SHA-256 `8ee71d7d59d21840c1ec254286f6ff7b4fb8817cfd003023bec1e0f04ce08378`).
+
+Test file SHA-256 values: orchestrator `42d8aa66dceacf6796c519846867b3564a1cdd5a7a94eca520b9fa52be001770`; worker SDK `2703c7f79597d2295f2122da7ff8bcffa9f29d5bc303adbfd604aa3debcd73b0`. Jest/ts-jest compiled the focused tests; no broader build or typecheck was run. `Δ-DEVIATION: NO` from the test-only/offline scope.
+
+## P2-VERIFY — independent rerun receipt 03
+
+- Packet: `P2-VERIFY`, coordinator dispatch at 2026-10-04 21:33 +07:00.
+- Captured: 2026-10-04 21:34 +07:00 (Asia/Bangkok), Windows PowerShell, Node `v22.16.0`, pnpm `10.18.3`.
+- Scope: independent source review and offline reruns only. No test or product source file was changed. The P730 test SHA-256 remains `42d8aa66dceacf6796c519846867b3564a1cdd5a7a94eca520b9fa52be001770`, matching the Phase B receipt.
+- Source digest reviewed: `services/orchestrator/src/modules/runtime/runtime.ts` SHA-256 `34c5f1e5f881081d9cdbcd8f454c210ffb96fc35f22cde797a957970671fe27f`.
+
+### Source and rollback verification
+
+- `parsePinnedProfilePolicy` first validates the strict `PinnedProfilePolicySchema`, then compares `credentialRef.tenantId`, `.profileId`, and `.profileRevision` to the operation identity. Any mismatch throws `unprocessable('INVALID_SCHEMA', ...)` with a static message and no identity values. See `services/orchestrator/src/modules/runtime/runtime.ts` at `parsePinnedProfilePolicy` (around lines 208–243).
+- The claim SELECT projects `o.tenant_id`, `o.profile_id`, and `o.profile_revision`. `buildClaimResult` passes all three row values to the parser (around line 1646).
+- The new-lease path calls `buildClaimResult` after the task lease and operation state UPDATEs, still inside the same `db.tx` callback (`claimTask`, around lines 330–404). `createDb().tx` catches a thrown error, issues `ROLLBACK`, then rethrows (`services/orchestrator/src/db/db.ts`, lines 24–34). Thus an `INVALID_SCHEMA` mismatch rejects the claim and rolls back both writes.
+- The rerun’s three negative cells each assert `claimFailed === true`, `committedWrites === 0`, and `returnedRef === undefined`; all passed twice. These are offline fake-transaction assertions. The source rollback branch was reviewed directly; no real PostgreSQL transaction was opened.
+
+### Literal commands, output, and exit codes
+
+First P730 run, cwd `D:\Git\dugate\du-rework\services\orchestrator`:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/p730-profile-snapshot.test.ts
+```
+
+Literal summary: `Test Suites: 1 passed, 1 total`; `Tests: 11 passed, 11 total`; `Snapshots: 0 total`; `literal_exit_code=0`.
+Raw output: `coordination/reports/raw/p2-verify-profile-run1.txt` (SHA-256 `ef998d1f4270d9136f28784bbc0b9f99174dc6c603726eb5e2959d5b99e77dba`).
+
+Independent P730 rerun, same cwd:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand --verbose tests/p730-profile-snapshot.test.ts
+```
+
+Literal summary: `Test Suites: 1 passed, 1 total`; `Tests: 11 passed, 11 total`; `Snapshots: 0 total`; `literal_exit_code=0`.
+Raw output: `coordination/reports/raw/p2-verify-profile-run2.txt` (SHA-256 `821933d14375182bf8bf56f6b23c44064b064693b55c465b9d86b11fbe9cb265`). The passing suite includes the valid submit/claim sentinel control and all three mismatched-ref cells.
+
+DD03 controls, same cwd:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/p730-legacy-snapshot-failclosed.test.ts
+```
+
+Literal summary: `Test Suites: 1 passed, 1 total`; `Tests: 2 passed, 2 total`; `Snapshots: 0 total`; `literal_exit_code=0`. This covers both legacy plaintext snapshot rejection with rollback and the valid-ref control claimed unchanged.
+Raw output: `coordination/reports/raw/p2-verify-dd03.txt` (SHA-256 `46f8a3beb3411bd99788f07d918194143fc5dc8f2a04a72aa7513f733a22e5a5`).
+
+DD03 test file SHA-256: `809f8d026a0b95c4e8ab1494ff3bfcab591178a0414c8117a4f5a551b5c12c23`. No live services were used. `Δ-DEVIATION: NO`.
+
+## VERIFY-W3 — independent verification receipt 04
+
+- Packet: `VERIFY-W3`, coordinator dispatch 2026-10-04 22:36 +07:00.
+- Captured: 2026-10-04 22:40 +07:00 (Asia/Bangkok), Windows PowerShell, Node `v22.16.0`, npm `10.9.2`, pnpm `10.18.3`.
+- Repository HEAD observed: `b088eececcb5f3df0b4edbe073a29401dafda624`.
+- Scope: reran the exact W3 focused contract/orchestrator set three consecutive rounds; source/migration review; lifecycle standing-red spot-check. No test or product-source files were edited.
+
+### Focused reruns (three consecutive rounds)
+
+Contracts cwd `D:\Git\dugate\du-rework\packages\contracts`:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/profile-commands.test.ts tests/profile-policy.test.ts
+```
+
+Orchestrator cwd `D:\Git\dugate\du-rework\services\orchestrator`:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/p730-admin-mutate-offline.test.ts tests/admin-mutation-atomicity.test.ts tests/admin-action-dispatcher.test.ts tests/session-store.test.ts tests/admin-idempotency.test.ts tests/oidc03-role-action-tenant-offline.test.ts tests/admin-oidc04-claims-tenant-offline.test.ts tests/admin-api-keys.test.ts tests/aweb04-bff-profiles.test.ts
+```
+
+Each command was run once per round, sequentially. Literal Jest summary lines and process exit codes:
+
+| Round | Contracts literal output | Contracts exit | Orchestrator literal output | Orchestrator exit |
+|---|---|---:|---|---:|
+| 1 | `Test Suites: 2 passed, 2 total`; `Tests: 39 passed, 39 total`; `Snapshots: 0 total` | `0` | `Test Suites: 9 passed, 9 total`; `Tests: 215 passed, 215 total`; `Snapshots: 0 total` | `0` |
+| 2 | `Test Suites: 2 passed, 2 total`; `Tests: 39 passed, 39 total`; `Snapshots: 0 total` | `0` | `Test Suites: 9 passed, 9 total`; `Tests: 215 passed, 215 total`; `Snapshots: 0 total` | `0` |
+| 3 | `Test Suites: 2 passed, 2 total`; `Tests: 39 passed, 39 total`; `Snapshots: 0 total` | `0` | `Test Suites: 9 passed, 9 total`; `Tests: 215 passed, 215 total`; `Snapshots: 0 total` | `0` |
+
+Raw logs (SHA-256):
+
+- `coordination/reports/raw/verify-w3-contracts-round1.txt` — `bfdcc144aa5ffc1768609ce157ff7c0e488ff1ad7ab2cf9f637894bfcf649578`
+- `coordination/reports/raw/verify-w3-orch-round1.txt` — `95b8dc190c651ae89c3c4a5f6d9c1e50a66e43faa397a50d6256e1c5da8d3ef4`
+- `coordination/reports/raw/verify-w3-contracts-round2.txt` — `0971b8b987f167a3a79c25f910627e07ba7bb332eeae5615162939e00d8a4e3c`
+- `coordination/reports/raw/verify-w3-orch-round2.txt` — `d9e6e5f03b70966098def349aa60ac608fcb94ba58f5e69c02bef54221b19578`
+- `coordination/reports/raw/verify-w3-contracts-round3.txt` — `bf5351763b1566ba7d816e6fe1ba6c4816191fe27879877af53217534779f4f7`
+- `coordination/reports/raw/verify-w3-orch-round3.txt` — `e52936e90c56cf0f325142acebc05c6f2cd31911ec0856e2eeb0910392e995ac`
+
+### Source and migration review
+
+- `services/orchestrator/src/modules/admin-actions/profile-actions.ts`: `runProfileUpsert` resolves the active API key, applies the tenant fence, then `ensureProfileId` resolves/inserts the registry mapping and returns the profile ID before calling `createRevision`. `assertUpsertCas` locks `profile_active_revisions` with `FOR UPDATE`; a new profile accepts only absent/zero `expectedRevision`, and an existing profile requires the supplied expected revision to match the active pointer. Publish resolves the existing registry mapping and moves the pointer to latest under CAS. For a rollback whose composite-FK target is unknown, the `23503` is translated to `404 NOT_FOUND` in the rollback catch. The explicit `23503` mapping is the invalid rollback-target case; it is not a separate publish error translation.
+- `services/orchestrator/src/modules/profiles/profiles.ts` plus `migrations/0004_profile_bindings.sql` and `0027_profile_active_pointer.sql`: `createRevision` computes `max(revision)+1`, inserts the new immutable `(profile_id, revision)` row, then re-pins the active pointer on the same transaction client. The W3 offline suite contains second-save and CAS cases that append revision 2.
+- `services/orchestrator/src/modules/admin-actions/rbac.ts` keeps `principalId?` and `issuer?` optional on cookie auth. `modules/auth/session-store.ts::sessionToActionAuth` adds these from the server-held session (`sub` and `issuer`); legacy callers can omit them.
+- `services/orchestrator/src/modules/audit/audit.ts::record` inserts exactly nine columns and nine values: `tenant_id, actor, actor_issuer, actor_sub, actor_role, action, resource, severity, correlation_id`; it accepts the caller's executor so a mutation and audit write share a transaction.
+- `packages/contracts/src/profile-commands.ts::ApiKeyRefSchema` retains strict `apiKeyId` UUID and `apiKeyHash` 64-hex wire arms, then transforms them to tagged `{kind:'id', id}` / `{kind:'hash', hash}`. `packages/contracts/tests/profile-commands.test.ts` confirms `parse` of both old wire shapes and both `safeParse` acceptances.
+- `services/orchestrator/migrations/0028_profile_name.sql` puts the unique identity key only on `profile_names(tenant_id, api_key_id, business_id, business_version, action, profile_name)`. It does not add that name uniqueness to `profile_bindings`. `profile_bindings` keeps primary key `(profile_id, revision)`; therefore registry-name uniqueness prevents duplicate identities while leaving revision N+1 insertable for the same profile. The migration comment documents this append-only invariant.
+
+### Lifecycle standing-red spot-check
+
+Full-suite command, cwd `services/orchestrator`:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/admin-shell-session-lifecycle.test.ts
+```
+
+Literal output: `Test Suites: 1 failed, 1 total`; `Tests: 1 failed, 50 passed, 51 total`; `Snapshots: 0 total`; `literal_exit_code=1`. The sole failure is `mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line`: expected one `console.warn` line, received zero (test line 806). In this default Jest environment the legacy-mint case passes.
+
+Controlled two-case spot-check, cwd `services/orchestrator`, with `$env:NODE_ENV = 'production'` set for the command:
+
+```powershell
+node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand --testNamePattern 'mount default with the knobs unset|mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line' tests/admin-shell-session-lifecycle.test.ts
+```
+
+Literal output: `Test Suites: 1 failed, 1 total`; `Tests: 2 failed, 49 skipped, 51 total`; `Snapshots: 0 total`; `literal_exit_code=1`. The two failures are exactly the named legacy-mint case (no `du_admin` cookie because production enforces Secure-cookie policy) and default-console-sink case above. `oidc-boot.ts::parseCookieSecurePolicy` derives `requireSecure=true` from `NODE_ENV=production`; the lifecycle tests clear the DU_ADMIN knobs but do not pin `NODE_ENV` for that case.
+
+This reproduces the two red cells in the W3 §8.2 A/B report under the same production environment. The pre-existing attribution is corroborated by that report's documented four-file swap to HEAD and hash-verified restore (`RESTORED_ALL_MATCH=True`); I did not repeat that source swap in this verification. Default-environment full-suite result is recorded separately because it shows only one failure.
+
+Raw lifecycle logs (SHA-256): `coordination/reports/raw/verify-w3-admin-shell-session-lifecycle.txt` — `46fb0a296b6dd39f3a20eae2bf32f18be25416ec290a5afd49d8ea91114837fd`; production selected pair: `coordination/reports/raw/verify-w3-admin-shell-session-lifecycle-ab.txt` — `f2c2893e22c4823126a1e70de403cf1f7ddd8c3a1064703ddc7db68121db389b`.
+
+### Reviewed source digests
+
+- `services/orchestrator/src/modules/admin-actions/profile-actions.ts` — `8bb9d69d7fbb4e0e7e886aeedad2895611cab6ee7b77aa996935293774a9682b`
+- `services/orchestrator/src/modules/admin-actions/rbac.ts` — `55fe5ee47a97955bc99733bf9433b376d9727ee860b13a0d53e4c3129ecda045`
+- `services/orchestrator/src/modules/auth/session-store.ts` — `7b64f1ad0b1821c7c467d8f1e6a14aadedc20b8533700a997b91a8b36d1871d8`
+- `services/orchestrator/src/modules/audit/audit.ts` — `1076e2b36956a4cc1fa6500e6098d435740ca854cad7072e9246c1ca4b856080`
+- `services/orchestrator/src/modules/profiles/profiles.ts` — `153965d7e20aa30bbeec3b2cabb0aab2c63011dd39d372fcb888167058a2cb05`
+- `services/orchestrator/src/modules/profiles/publish.ts` — `ae76ac4bc2d6480bd88f0ab3004c60637da1e755f9341164ee06133461e5b065`
+- `packages/contracts/src/profile-commands.ts` — `908b870b62792a51804ff08f4a53174c0add0fda09f157516a92756e426d1aaf`
+- `services/orchestrator/migrations/0028_profile_name.sql` — `5289210ac79726cc5f02a7095a65db8c23d66de65bcbb4772f29d200e51c206b`
+
+`DEVIATION: NO` for the focused green sets and source/migration review. The lifecycle suite is a separately requested standing-red spot-check and is reported with its literal nonzero exits above.
+
+## VERIFY-W1C-PC — offline independent verification receipt
+
+- Packet: `VERIFY-W1C-PC`; Coordinator dispatch header: 2026-10-04 22:47 +07; run `run_069ecd6957cd`.
+- Verification date: 2026-10-04 (Asia/Bangkok); local runner recorded 22:43–22:46 +07 during this verification.
+- Scope: independently rerun W1c acquisition resolver/consumer tests and URL-ingestion regressions, then rerun PREFCONSUME plus execution-pin, forwarding, and manifest suites. Read current resolver/prompt-precedence source and test semantics.
+- Worktree: `D:\Git\dugate\du-rework`; Windows PowerShell 5.1; Node `v22.16.0`; Jest invoked via local `npx`/workspace installation. HEAD `b088eececcb5f3df0b4edbe073a29401dafda624` is the shared base only; the worktree is dirty with the landed slices. Current W1c resolver/consumer/test hashes match `p730-acquire-2026-10-04.md`; PREFCONSUME resolver/test hashes match `p730-prefconsume-2026-10-04.md`.
+- Offline boundary: W1c tests use a fake DB and injected fetcher; URL-ingestion suites use fake DB/storage and a fetch seam; PREFCONSUME/execution-pin/forwarding/manifest are local tests. No PostgreSQL, Redis, MinIO, Vault, live application, external provider, or network endpoint was contacted. No test or product source was edited by this verifier; only raw-output artifacts and this receipt were written. No commit/push/reset.
+
+### Literal commands and results
+
+All commands were run in-band. PowerShell printed its usual `NativeCommandError` wrapper for native stderr from `npx.ps1`; the Jest summaries passed, and each literal Jest process exit was captured as `JEST_EXIT=0` in its raw log.
+
+| Slice | Cwd | Command | Result | Exit | Raw output |
+|---|---|---|---|---:|---|
+| W1c focused | `D:\Git\dugate\du-rework\services\orchestrator` | `npx jest --runInBand tests/p730-acquire-ref-resolver.test.ts tests/p730-acquire-consumer-auth.test.ts` | 2 suites passed; 26 tests passed; 0 failed; 0 skipped; 0 snapshots. | `0` | `coordination/reports/raw/verify-w1c-pc-20261004/w1c-acquire-focused.txt` (SHA-256 `274109044de89de22b61ff450a2fe8a5cf95d8442ded8fe597db02700b2d3983`) |
+| W1c URL regression | `D:\Git\dugate\du-rework\services\orchestrator` | `npx jest --runInBand tests/url-ingestion-consumer-offline.functional.test.ts tests/url-ingestion-offline.functional.test.ts tests/url-ingestion-backend-failclosed-offline.test.ts` | 3 suites passed; 45 tests passed; 0 failed; 0 skipped; 0 snapshots. | `0` | `coordination/reports/raw/verify-w1c-pc-20261004/w1c-url-ingestion-regression.txt` (SHA-256 `0036a2c8e019437fd89dc171a8fcd5c9f0ec869173a3c6a74bd4aa2c0f74738b`) |
+| PREFCONSUME + DELTA-A regression + forwarding + manifest | `D:\Git\dugate\du-rework\businesses\document-core` | `npx jest --runInBand tests/p730-prefconsume.test.ts tests/execution-pin.functional.test.ts tests/p730-sdk-consume-forwarding.test.ts tests/manifest.test.ts` | 4 suites passed; 45 tests passed; 0 failed; 0 skipped; 0 snapshots. | `0` | `coordination/reports/raw/verify-w1c-pc-20261004/prefconsume-focused.txt` (SHA-256 `d2dc03620c9977a030589c4cf1e2eef6967eda31d88514e77d6d9471bf10e832`) |
+
+**Totals:** 9 suites; 116 passed; 0 failed; 0 skipped. Live tests invoked: 0; live exit code/raw path: N/A. No typecheck/lint was included in this verification packet.
+
+### Independent source/test inspection
+
+**W1c / P730-ACQUIRE.** `acquisition-ref-resolver.ts` queries the operation snapshot under `(operationId, tenantId)`, reads `profile_bindings` by the pinned `(profile_id, revision)` pair, checks the binding tenant against the pinned tenant, and decrypts that row's cipher. It does not resolve a latest/current profile revision. Query auth throws typed `QUERY_AUTH_FORBIDDEN`; wrong key or tampered ciphertext/tag returns typed `AUTH_DECRYPT_FAILED`; foreign ref/binding tenant returns `REF_TENANT_MISMATCH`; missing pinned revision returns `REF_NOT_FOUND`. The consumer awaits `resolveSourceAuth` before constructing the source ingestor/fetch path and classifies these deterministic codes as permanent. The consumer test directly asserts zero fetch calls for the query-denial case; the other denial classes are typed resolver tests, with pre-network ordering established by the shared call path rather than a separate fetch-spy case per denial.
+
+The tests assert denial text omits credential material, and the consumer test asserts the resolved credential is not present in persisted statements. `withSourceAuth` pins the first URL origin and invokes the fetcher without credential headers when a later hop has another origin; the cross-origin redaction test passes. Same-origin forwarding and fetch-init preservation are also covered. This is offline fake-DB/fetcher evidence, not proof against live PostgreSQL rows, the MinIO fetch path, or full composition; those live gaps remain open.
+
+**PREFCONSUME.** Source and tests confirm the six requested semantic vectors:
+
+1. Frozen precedence is `code > profile > connector`; trim-empty code content is absent.
+2. Profile selection chooses the exact `(connectionId, stepId)` row, then that connection's `_default`; another connection is ignored.
+3. `null`, empty, and whitespace-only override content normalize to cleared/absent.
+4. A cleared exact row short-circuits `_default`, then falls through to the existing connector prompt.
+5. `profilePolicy === null` skips profile rows; `undefined` pre-pin policy has the same behavior and is not coalesced to an empty policy.
+6. Connector default is labeled only (`apply:false`); the resolver does not invent or apply it, and the caller keeps its existing prompt byte-identically.
+
+DELTA-A's `execution-pin.functional.test.ts` was not edited. Its SHA-256 before and after the run is identical: `4b721dca6513859d6c493cbf8a66bd9f329b1d3150e91e21f848acbf45114565`. The wider receipt limitation still applies: `prompt-precedence.ts` has no production action call-site while the prompt content carrier/wiring decision (`Δ-PC-1`) is open. These passing offline semantics do not establish prompt substitution on a provider request or complete PREFCONSUME acceptance. The owner receipt also records a pre-existing `test:typecheck` failure outside these files; it was not rerun here.
+
+### Verdict / deviation
+
+The requested focused suites reproduce the reported green counts on the current shared worktree, and the inspected resolver/prompt semantics match the packet. **Offline verification PASS for the stated scope only.** The carrier/wiring blocker, the noted per-denial fetch-spy limitation, and the live-only evidence remain open; this receipt does not mark either slice live-verified or accepted. `Δ-DEVIATION: NO` for the packet boundary; no source/test changes and no live window were used.
+
+Clock note: coordinator header time and PowerShell host wall-clock time were not synchronized (the runner displayed several minutes earlier). The command sequence in this receipt was executed after this packet arrived in the conversation; do not infer task ordering from the host clock alone.
+
+## VERIFY-COMPOSITION — independent offline rerun receipt
+
+- Packet: `VERIFY-COMPOSITION`, coordinator dispatch 2026-10-04 23:23 +07:00; producer receipt `coordination/reports/p730-acquire-2026-10-04.md` §6.
+- Captured: 2026-10-04 23:30:19 +07:00 (Asia/Bangkok), Windows PowerShell 5.1.19041.6456, Node `v22.16.0`.
+- Shared worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`.
+- No test or product-source files were edited by this verification. Only raw logs and this receipt section were written.
+
+### Focused reruns
+
+Cwd for all commands: `D:\Git\dugate\du-rework\services\orchestrator`. Each group ran in-band once per round, rounds 1 through 3 in order.
+
+Acquire group:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/p730-acquire-ref-resolver.test.ts tests/p730-acquire-consumer-auth.test.ts
+```
+
+Composition group:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/p730-acquire-composition.test.ts
+```
+
+URL-ingestion regression group:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/url-ingestion-consumer-offline.functional.test.ts tests/url-ingestion-offline.functional.test.ts tests/url-ingestion-backend-failclosed-offline.test.ts
+```
+
+Literal Jest summaries and captured process exit codes:
+
+| Round | Acquire (2 suites) | Exit | Composition (1 suite) | Exit | URL ingestion (3 suites) | Exit |
+|---|---|---:|---|---:|---|---:|
+| 1 | `Test Suites: 2 passed, 2 total`; `Tests: 26 passed, 26 total`; `Snapshots: 0 total` | `0` | `Test Suites: 1 passed, 1 total`; `Tests: 5 passed, 5 total`; `Snapshots: 0 total` | `0` | `Test Suites: 3 passed, 3 total`; `Tests: 45 passed, 45 total`; `Snapshots: 0 total` | `0` |
+| 2 | `Test Suites: 2 passed, 2 total`; `Tests: 26 passed, 26 total`; `Snapshots: 0 total` | `0` | `Test Suites: 1 passed, 1 total`; `Tests: 5 passed, 5 total`; `Snapshots: 0 total` | `0` | `Test Suites: 3 passed, 3 total`; `Tests: 45 passed, 45 total`; `Snapshots: 0 total` | `0` |
+| 3 | `Test Suites: 2 passed, 2 total`; `Tests: 26 passed, 26 total`; `Snapshots: 0 total` | `0` | `Test Suites: 1 passed, 1 total`; `Tests: 5 passed, 5 total`; `Snapshots: 0 total` | `0` | `Test Suites: 3 passed, 3 total`; `Tests: 45 passed, 45 total`; `Snapshots: 0 total` | `0` |
+
+Each round totals 6 suites / 76 tests passed. The PowerShell raw composition logs prefix the suite summary with `node.exe :` (native stderr formatting); the underlying Jest summary is `1 passed, 1 total`, and the separately captured native process exit is `0`.
+
+Raw logs (SHA-256):
+
+- `coordination/reports/raw/verify-composition-round1-acquire.txt` — `39db0c9275cc80689e71f1039864e52827777f47d2efcfd7978823f21e4e2696`
+- `coordination/reports/raw/verify-composition-round1-composition.txt` — `118966b630c8eb2e6711565727b8a36f15872dd942550ed826609851a533f1e1`
+- `coordination/reports/raw/verify-composition-round1-url.txt` — `991d6499e578e643d9c73d80bf2f08b5ba36154ac3fa998d9a46920d054e64d3`
+- `coordination/reports/raw/verify-composition-round2-acquire.txt` — `286fcf9f8807f8f7249c337f5f0c871537e762ded5d47e87fc1f08619cd97795`
+- `coordination/reports/raw/verify-composition-round2-composition.txt` — `739e29f4da333b9f296c60d8861538a808f1038b8bd591e5237570dcee664e97`
+- `coordination/reports/raw/verify-composition-round2-url.txt` — `616527f91cfb384ae95c8c89cb8fdec885fbde1dc308fd6dc3cb74b28a1469c5`
+- `coordination/reports/raw/verify-composition-round3-acquire.txt` — `b315b18fd4cf5784bd826e41c4e76ab3e9c342b774fbe4dedd71db87945a98c1`
+- `coordination/reports/raw/verify-composition-round3-composition.txt` — `03e4c425a3fde94b8a8431b71b3885d1f5d1410a712650354e06d8e614929d1d`
+- `coordination/reports/raw/verify-composition-round3-url.txt` — `53d3f34b3c8b2080bc32713f3721511375121a8238316d1f05c89d1ca0069de8`
+
+### `create-app.ts` composition and fallback review
+
+- Producer §6.2 records the three intended composition hunks (resolver import, `createAcquisitionRefResolver({ db })`, and forwarding `resolveSourceAuth` into the S3 ingestion consumer). The current `services/orchestrator/src/app/bootstrap/create-app.ts` has these exact additions: the resolver receives the app's existing `db`; the `createIngestionConsumer` branch remains conditional on `s3Client && storageConfig.backend === 's3'`; the resolver callback is only supplied on that S3 consumer. The published post-compose file SHA-256 matches the producer pin (`5913db5ea93148ee93a9ef4de969ac5f13ed8b539b2f59cc902785b8792c539d`). This file is untracked in the shared worktree, so `git diff` does not render it against HEAD; I compared the live hunks to the producer's recorded patch and verified the final file digest instead. Producer records the pre-compose digest prefix `b55c5706…`.
+- Missing seam remains compatible: `ingestion-consumer.ts` resolves absent `options.resolveSourceAuth` to `{ kind: 'none' }`; `p730-acquire-consumer-auth.test.ts` has the passing `without the resolver seam ... historical unauthenticated fetch` case. On a Postgres-only boot, the consumer factory is not called; the composition suite asserts `app.ingestionConsumer` is undefined.
+- Missing encryption environment remains non-fatal when auth is not configured: resolver construction uses `options.env ?? process.env` but does not read the key at construction; a NULL snapshot or `fileUrlAuthConfigured: false` returns `{ kind: 'none' }` before cipher decryption/binding lookup. The composition test pins NULL-snapshot behavior and no binding-table read. When a configured cipher exists but the deployment key is absent/wrong, decryption is expected to fail closed (`AUTH_DECRYPT_FAILED`), not silently proceed unauthenticated. Note: the composition suite's `beforeAll` sets `ENCRYPTION_KEY` for its encrypted-bearer cases, so absence of that env variable was assessed by code path rather than a separate full composition run with the variable removed.
+- Composition suite behavior reviewed: same app `db` is passed into the S3 consumer; legacy NULL snapshot resolves to none; pinned bearer uses deployment `process.env`; query credential is denied; missing cipher, wrong-tenant ref, and missing operation retain typed denials. The consumer test separately pins deny-before-fetch and credential header behavior.
+
+### Hash continuity
+
+Current hashes match the W1c/W1c-composition producer pins where available. I captured the source/test set before the reruns and rehashed it after all nine commands; every digest remained identical.
+
+| File | SHA-256 |
+|---|---|
+| `services/orchestrator/src/app/bootstrap/create-app.ts` | `5913db5ea93148ee93a9ef4de969ac5f13ed8b539b2f59cc902785b8792c539d` |
+| `services/orchestrator/tests/p730-acquire-composition.test.ts` | `86c463150802475d56297a2fb6da25884ab5d07d24b1aa774d6591165674f34d` |
+| `services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts` | `4b0226c1fc9a09b17adae4807bcdceff15429da08ae64758a08628366b4947c3` |
+| `services/orchestrator/src/modules/operations/ingestion-consumer.ts` | `b737b5fab54a8bc396ef776df22888d37907c93db8307471926d0cd8f64467d1` |
+| `services/orchestrator/tests/p730-acquire-ref-resolver.test.ts` | `2b0321d7b6db063ee90ccac79e76884ed57c1c369c305ce22a4412a0e31f097d` |
+| `services/orchestrator/tests/p730-acquire-consumer-auth.test.ts` | `a8a419e7b11dc55f69a8a286ace9d4d564065ed85420eeac59e6b8cb8a08ad74` |
+| `services/orchestrator/tests/url-ingestion-consumer-offline.functional.test.ts` | `dbb7cb91e4df9313eade843ef097f974963c38cb93aed0a22fe0e6103e805a04` |
+| `services/orchestrator/tests/url-ingestion-offline.functional.test.ts` | `4f1394d16deebdb282587efbced9da2689521b4880ba01798420acd3b68789fd` |
+| `services/orchestrator/tests/url-ingestion-backend-failclosed-offline.test.ts` | `4f87bef5236060b88272bb67fce511b06265caa4a29c40c638bd39cf57e99600` |
+| `packages/worker-sdk/src/source-acquisition.ts` (producer no-touch pin) | `be7ac23af99e63916bfbfd4d1314f0d7d9eb04fe00703f3aec94cf9571563e1e` |
+| `packages/worker-sdk/src/source-ingestion.ts` (producer no-touch pin) | `8e13f361ff50a7ca068570ac9f97e74d2db93140fd73f2feeb4009fd6b54fde8` |
+
+`DEVIATION: NO` for requested offline scope. No live PG, Redis, S3/MinIO, Transit, or external endpoint was used; no typecheck was requested in this packet.
+### §VERIFY-TAPI01 — Independent closure verification (Codex 3, 2026-10-04)
+
+**Verdict: PASS (offline).** Independent rerun and read-only source/test review; this verifier made no source or test edits.
+
+Regression command, working directory `services/orchestrator`:
+
+```text
+npx jest --runInBand --config jest.unit.config.cjs --runTestsByPath tests/tapi01-closure-offline.test.ts tests/p730-admin-mutate-offline.test.ts tests/aweb04-bff-profiles.test.ts tests/admin-audit-list-page.test.ts tests/admin-mutation-atomicity.test.ts tests/admin-action-dispatcher.test.ts
+```
+
+| Run | Suites | Tests | Exit | Jest time |
+|---:|---:|---:|---:|---:|
+| 1 | 6 passed | 134 passed | 0 | 11.487 s |
+| 2 | 6 passed | 134 passed | 0 | 5.678 s |
+| 3 | 6 passed | 134 passed | 0 | 5.658 s |
+
+Raw outputs: `coordination/reports/raw/verify-tapi01-codex3-round1.txt` (SHA-256 `25a6db952b2c53303faf641331972ee1d0216eddd24210bcf87e5b1cfc1aa0eb`), round 2 (`0d9112fe171d0340a20af7087be5b34f392fd9f68c79334cebfd03255a006ee6`), round 3 (`174c16c6a69db7e853bd4d9ac2a179f3cd67eacacc3f82165ed8fd6b003a5650`). Jest also logged the non-fatal `admin web mount enabled but bundle is missing` warning on each run; all Jest summaries and process exit codes were green.
+
+Contracts command, working directory `packages/contracts`:
+
+```text
+npx jest --runInBand --config jest.config.cjs --runTestsByPath tests/profile-policy.test.ts tests/profile-commands.test.ts
+```
+
+Result: **2 suites / 40 tests passed, exit 0**. The detail schema test pins both wire directions: the pre-closure response without `apiKeyId` still parses, and a UUID `apiKeyId` parses; malformed IDs and an undeclared `apiKeyHash` sibling are rejected by the strict schema.
+
+Read-only checks:
+
+- `services/orchestrator/src/http/routes/admin.ts:419-508`: the stored-profile path calls `loadProfileDetail`, returns `detail.row.revision`, mapped `currentValues` and read policy, and returns only `apiKeyId`. Missing active pointer is 404. `revision: 0` / `currentValues: {}` remains only in `/new` and named-but-not-stored compatibility branches; it is not used for a stored profile.
+- `services/orchestrator/src/modules/admin-read/profile-detail.ts`: lookup joins the registry, active pointer and pinned binding; the read shape reports auth-configured status without decrypting or returning the cipher.
+- `services/orchestrator/tests/tapi01-closure-offline.test.ts:303-416`: detail starts at revision 2; its `apiKeyId` drives `profile.upsert`; response is revision 3; registry name count stays 1; re-read returns revision 3 and carries forward `jobPriority: HIGH` plus configured file URL auth. The initial wire explicitly excludes the cipher text and `fileUrlAuthCipher`; the re-read is parsed through the strict detail schema, which also rejects undeclared cipher/hash fields.
+
+Scope limit: these checks use the offline stateful fake DB; no live PostgreSQL or browser/UI journey was run.
+
+Run-output note: `npx.ps1` surfaced native Jest stderr through PowerShell as `NativeCommandError`; each Jest summary remained green and each process exit code was 0.
+
+## VERIFY-PRODUCER — independent verification receipt
+
+- Packet: `VERIFY-PRODUCER`, coordinator dispatch 2026-10-04 23:48 +07:00; producer receipt `coordination/reports/p745-producer-impl-2026-10-04.md`.
+- Captured: 2026-10-04 23:53 +07:00 (Asia/Bangkok), Windows PowerShell 5.1, Node `v22.16.0`.
+- Shared worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`.
+- No test or product-source files were edited by this verification. I wrote only raw logs and this receipt.
+
+### Focused test reruns: 17/17 × 3
+
+Cwd: `D:\Git\dugate\du-rework\services\orchestrator`.
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/p745-prompt-producer-impl.test.ts
+```
+
+Each of three sequential runs returned the following literal Jest result: `Test Suites: 1 passed, 1 total`; `Tests: 17 passed, 17 total`; `Snapshots: 0 total`; native process exit `0`.
+
+| Run | Literal exit | Raw log SHA-256 |
+|---|---:|---|
+| 1 | `0` | `coordination/reports/raw/verify-producer-round1.txt` — `4178d5a1f75f71abf8dd77dd8086ea9d227ef56b302bd7226a8508058c681d6a` |
+| 2 | `0` | `coordination/reports/raw/verify-producer-round2.txt` — `6cb37dd9b053cc585f559d8408840aa0053c67464c93dd445ce8c67f8452ac6e` |
+| 3 | `0` | `coordination/reports/raw/verify-producer-round3.txt` — `70e09e7164b90f1c5abe4ebab81d5d23235f2a417832a49457017c47798a21d0` |
+
+PowerShell's native stderr adapter prefixes the suite-summary line with `node.exe :` and emits `NativeCommandError` metadata in these logs. The Jest suite/test summaries are green and the captured native exit code is `0` on all three runs.
+
+### Producer, migration, and claim-map inspection
+
+- `services/orchestrator/migrations/0030_prompt_revisions_pin.sql` is additive: `ALTER TABLE operations ADD COLUMN IF NOT EXISTS prompt_revisions_pin jsonb NULL`. It is nullable, has no default and no backfill. The migration notes that legacy/pre-migration operations retain NULL and consumers interpret it as the historical empty map.
+- `submission.ts::buildPromptRevisionsPin` keeps only rows whose `promptOverride` is a non-empty string, emits markers `{connectionId, stepId, revision}`, and computes `revision` as `sha256:` plus lowercase hex SHA-256 of the exact string `connectionId|stepId|promptOverride`. It sorts markers by connection ID then step ID. The submit path writes the serialized marker array on the operation; legacy mode and a missing `promptOverrides` seam keep the pin SQL parameter NULL and do not read the override service.
+- `runtime.ts::parsePromptRevisionsPin` maps NULL/undefined to `{}`. Present data must be an array. Each marker must be a non-array object with non-empty string `connectionId` and `stepId`, plus a `sha256:` followed by 64 lowercase hex characters. It always uses `${connectionId}::${stepId}` as the key (including `_default`), and rejects duplicate composite keys with `INVALID_SCHEMA`. The claim snapshot calls this parser for `t.prompt_revisions_pin`.
+- The 17-case suite directly pins both dimensions: six malformed inputs (non-array; non-object marker; missing fields; invalid revision format; empty connection ID; duplicate composite key) each throw `INVALID_SCHEMA`; two connections using the same step produce distinct keys; NULL and undefined parse to `{}`; legacy submit and pinned submit without the seam retain NULL and skip override lookup. Producer marker tests also assert the digest formula and deterministic sorted serialization.
+
+### Eleven-suite regression and BR-12 attribution
+
+Regression command, same cwd:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand tests/w1-sub02-snapshot-secret.test.ts tests/w1-sub03-sourceurl-extension.test.ts tests/artifact-submit-guards.test.ts tests/public-upload-encryption-gateway.test.ts tests/url-ingestion-offline.functional.test.ts tests/url-ingestion-consumer-offline.functional.test.ts tests/url-ingestion-backend-failclosed-offline.test.ts tests/p730-profile-snapshot.test.ts tests/p730-legacy-snapshot-failclosed.test.ts tests/mm10-claim-cancel-flag-offline.test.ts tests/br12-isolation-offline.test.ts
+```
+
+Literal result: `Test Suites: 1 failed, 10 passed, 11 total`; `Tests: 1 failed, 137 passed, 138 total`; `Snapshots: 0 total`; `literal_exit_code=1`. The sole failing test is `BR-12 offline business isolation › rejects cross-business binding use before creating an operation, task, or outbox row`: expected `HttpError`, received `TypeError`, at `br12-isolation-offline.test.ts:329`. The fixture manifest at line 296 is `{ actions: [{ name: 'extract' }] }` without `inputSchema`; current submission processing calls `declaredParameterKeys(actionDef.inputSchema)` before the transaction seam, matching the producer receipt's explanation.
+
+The producer receipt §2.3 records its A/B: reverse the submission/create-app edits to byte-exact pre-edit hashes (`1655be49…` and `29fcbbbf…`), rerun BR-12 with that pre-edit code, and reproduce the same constructor mismatch; both files were then hash-restored. This verification independently reproduced the same BR-12 failure in the 11-suite set and checked that recorded A/B evidence. I did not repeat the source swap under this packet.
+
+Regression raw log SHA-256: `coordination/reports/raw/verify-producer-regression11.txt` — `2f900f3332091711a1b4663f3da2b3d054eba6615485abf8ee18735de77c2e75`.
+
+### Hash continuity and scope note
+
+The migration (`3709a5d4df0e3f8bf3021aca39ebe84f9818118af1c418490f095f67b2016625`) and new test (`64b48771a768e5bd6165a7652403170dda8f446b7a111bca3b7e61a7eab06016`) match the producer receipt's full SHA-256 pins. The pre-run and post-run hashes were identical for all four reviewed implementation/test files, so these verification runs did not alter them.
+
+The current full-file hashes for `submission.ts` (`19b04ac516dd34cfdc42f548ad43a217a46d0248f3ddc1a9f0a8cb66afef32af`) and `runtime.ts` (`89e6acc5b89ec7a23860f2f3d3a68fef5a6bad0ba2c62bebbdea554fe4381c8a`) do not match the step-1 producer receipt pins (`3007bcfa…` and `c4c7ff41…`). The current files contain additional `P745-CARRIER-IMPL-A` content-carrier paths beyond marker-only step 1. I verified the requested marker builder/parser behavior in these current files and the pinned test passed, but full-file hash continuity to the producer-impl snapshot is not established for those two files; attribution of those later edits is outside this packet.
+
+`DEVIATION: SOURCE_HASH_DRIFT` (submission/runtime full files differ from the producer step-1 pins; migration and producer test match). Focused producer tests: PASS ×3. Regression: 10 suites PASS; one documented BR-12 standing-red; exit `1`. No typecheck or live service was requested or used.
+## VERIFY-IMPL-A — independent verification receipt
+
+- Packet: `VERIFY-IMPL-A`, coordinator dispatch 2026-10-05 00:00 +07:00.
+- Captured: 2026-10-05 00:08 +07:00, Windows PowerShell, Node `v22.16.0`.
+- Shared worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`.
+- Scope: no product source or test file was edited by this verification. I wrote only the requested receipt and five raw test logs.
+
+### Literal focused reruns
+
+Cwd: `D:\Git\dugate\du-rework\services\orchestrator`. Commands used the installed Jest executable directly (`node node_modules/jest/bin/jest.js --runInBand ...`), no network or live services.
+
+| Run | Literal Jest summary | Literal process exit | Raw log SHA-256 |
+|---|---|---:|---|
+| T1 `p745-prompt-carrier-producer.test.ts` | 1 suite; 7 passed / 7 total; 4.963 s | `0` | `verify-impl-a-T1.txt` — `615140b3a0ee8ebbabbba382746e168542df7c6493261864cc07a2a7e0e1fcab` |
+| T2 `p745-prompt-carrier-claim.test.ts` | 1 suite; 7 passed / 7 total; 4.758 s | `0` | `verify-impl-a-T2.txt` — `937eab2dd482b053e80b5a1a382fbe10fc55b9a638796bf56f6040a5925d0bfb` |
+| Focused round 1 | 11 suites; 115 passed / 115 total; 4.773 s | `0` | `verify-impl-a-focused-round1.txt` — `a7fe4aada9a33cbc1dd37b5f0f4b856ff0d84f20efb3589ac3806c035d7d2b8f` |
+| Focused round 2 | 11 suites; 115 passed / 115 total; 4.734 s | `0` | `verify-impl-a-focused-round2.txt` — `2bdb21dc859d8a90c45f8c22268cffaf5a7dcf20eb79ff0cd3620fa5e872365b` |
+| Focused round 3 | 11 suites; 115 passed / 115 total; 5.517 s | `0` | `verify-impl-a-focused-round3.txt` — `eef84290d26e022bf7de88ad634c6daf2d254b8608eb4f813e0e4f8e4cd2b9e0` |
+
+The three-round focused command contained these 11 files: `p745-prompt-carrier-producer`, `p745-prompt-carrier-claim`, `p745-prompt-producer-impl`, `w1-sub02-snapshot-secret`, `w1-sub03-sourceurl-extension`, `p730-profile-snapshot`, `p730-legacy-snapshot-failclosed`, `mm10-claim-cancel-flag-offline`, `url-ingestion-offline.functional`, `url-ingestion-consumer-offline.functional`, and `url-ingestion-backend-failclosed-offline` (all `.test.ts`). Every raw log ends with the captured literal `literal_exit_code=0`.
+
+### Independent implementation and negative-cell inspection
+
+- Producer caps pass: `submission.ts` defines 64 rows, 16 KiB UTF-8 per prompt, and 256 KiB total. `assertPromptCarrierCaps` runs before sealing and before the submit write transaction, raising `PROMPT_CARRIER_TOO_LARGE`. T1 covers too many rows, an oversized row, and oversized aggregate content; it asserts no relevant INSERT for row-count and aggregate overflow, while the oversized-row case asserts the error code.
+- Claim caps do not pass inspection: `openPromptCarrier` parses with `PinnedPromptOverrideSchema.array()` and then checks row/marker count, duplicate composite keys, and revision/content equality. The schema has no array `.max()`, `promptOverride` only has `.min(1)`, and `parsePromptRevisionsPin` loops the supplied marker array without a count or byte limit. I found no claim-side enforcement of 64 rows / 16 KiB per row / 256 KiB total, so the requested two-ended cap is not established.
+- Sentinel sink check passes: the T1 sentinel helper recursively inspects every recorded DB call's bound `call.params`; it also decodes base64-looking strings and scans the decoded text. The sentinel is allowed only in the sealed carrier, not in other bound values.
+- Authentication negative cell passes for a tampered ciphertext: T2 changes the ciphertext and asserts `AUTHENTICATION_FAILED` plus zero committed writes. The requested case wording says tampered tag; the test does not mutate the envelope's `tag` field directly. `metadata-crypto.ts` maps authenticated-decryption failure to `AUTHENTICATION_FAILED`, but a direct tag-byte negative test is not present in T2.
+- Marker drift cell passes for count mismatch: T2 adds a ghost marker and asserts `INVALID_SCHEMA` plus zero committed writes. The claim code also compares each marker revision with the row revision and recomputes the content hash, but this fixture does not exercise a same-count wrong-revision case.
+- Wrong-slot control passes: an envelope sealed for `operations.input_ref` produces `CONTEXT_MISMATCH` and zero committed writes. A present carrier with no crypto seam produces `INVALID_SCHEMA` and zero committed writes.
+- Plaintext policy and transaction boundary pass by inspection: the carrier-specific `readStored` call passes `false`; generic `openMetadata` passes `true` for legacy refs and has no current carrier call site. `claimTask` performs the lease/state updates and `buildClaimResult` within one `db.tx`; `db.tx` issues `ROLLBACK` on a thrown claim error. T2's fake transaction only promotes pending writes to `committedWrites` after the callback resolves, and the negative cells assert that collection is empty.
+
+### Existing vault-policies attribution and hash continuity
+
+I did not rerun `packages/contracts/tests/vault-policies.test.ts` or repeat its source swap, as directed. `coordination/reports/p745-carrier-impl-a-2026-10-04.md` section 4 documents the byte-exact pre-edit A/B: the same `toThrowError is not a function` failure reproduced with the pre-edit contracts source (2 failed / 60 passed), then source hash was restored.
+
+Current SHA-256 pins after the reruns: migration `0031_prompt_overrides_ref.sql` `3bd0abe39f69fa2cdab2ed52b9c85378fc1fda18c25cde3962000635e5b26ec5`; `metadata-crypto.ts` `4cd9db049a124ad262ea6a6beb2645d25b804fcd42af3d8c18d7adaa829dd30f`; `submission.ts` `19b04ac516dd34cfdc42f548ad43a217a46d0248f3ddc1a9f0a8cb66afef32af`; `runtime.ts` `89e6acc5b89ec7a23860f2f3d3a68fef5a6bad0ba2c62bebbdea554fe4381c8a`; T1 test `5691acba60f77502daaf6c45bc0be708e65118581e58c5385c91b254efa22a52`; T2 test `eeb9b7bf6b9a075002e2d4c6beb8aa6abed98d95de1f27649e54dfbf1c1395fd`.
+
+Shared-worktree drift note: the owner receipt pins `packages/contracts/src/runtime.ts` at `c527b56646581c6b90643cd93e6c07f47193213731cb6bf1517a4356935daa5f`; its final observed hash here is `66656bd6cadfc79fa45bc2f91f089cbc94c4df6f29b6429045abe038a4fca53c`. The file's last-write time was 2026-10-05 00:02:43 +07:00, before the first raw test log at 00:02:47. Attribution is unknown; I did not edit it. The carrier row schema still has no maximum lengths/count in the inspected version.
+
+**Disposition:** T1/T2 and all three focused regression rounds are green. I cannot sign off the full requested checklist: claim-side size caps are absent, and T2's authentication and marker-drift fixtures cover ciphertext corruption and count drift rather than direct tag mutation and same-count revision drift. These are verification gaps/findings only; no source/test edits were made.
+## PLANE-A-RUN — Admin Web harness seam browser evidence
+
+- Packet: `PLANE-A-RUN`, Coordinator dispatch `2026-10-04 23:52` (+07), run `run_069ecd6957cd`.
+- Receipt prepared: 2026-10-05 00:12 +07 (Asia/Bangkok); execution crossed midnight.
+- Spec/runbook: `coordination/reports/ui-browser-env-2026-10-04.md`, read §§4–5 before execution.
+- Workdir/build target: `D:\Git\dugate\du-rework`; Windows PowerShell 5.1; Node `v22.16.0`, pnpm `10.18.3`, Playwright `1.63.0`; HEAD `b088eececcb5f3df0b4edbe073a29401dafda624` (shared base, dirty worktree).
+- Scope: build Admin Web, start the local Plane A Admin Shell + scripted stub, run all current tests in the six specified browser spec files, and retain screenshots. No live DB/Redis/MinIO/Vault or provider was used. No test/source files were edited; no commit/push/reset.
+
+### Build and harness lifecycle
+
+Build command from `du-rework`:
+
+```powershell
+pnpm --filter @du/admin-web build
+```
+
+Result: TypeScript check passed; Vite `6.4.3` transformed 2,665 modules; `dist/index.html` and hashed CSS/JS assets emitted; `✓ built in 10.85s`; literal `BUILD_EXIT=0`. Raw output: `coordination/reports/raw/plane-a-20261004/admin-web-build.txt` (SHA-256 `3d4a993c19fee22763c90f9814121017209e6a3af132c232f1e802b142a558ec`).
+
+`coordination/scripts/run-browser-harness.ps1` named by the runbook example is not present in this worktree, so I used the manual Terminal 1/2 sequence in §5.2 and stopped the interactive harness with Ctrl+C. The first boot omitted the required `NODE_ENV=test`; its startup log reported `environment=dev`, so I stopped it before any test and verified its two listeners and harness process were gone. The corrected boot set `NODE_ENV=test` and reported:
+
+```text
+HARNESS_READY http://127.0.0.1:57022 stub=http://127.0.0.1:57021 dist=D:\Git\dugate\du-rework\apps\admin-web\dist
+```
+
+The harness has in-memory `StubState`, operator/viewer sessions and tenant/API-key/audit/profile fixtures as described by §4.1; required fields were present in the generated harness descriptor. No seed/stub blocker. After the browser run I sent Ctrl+C; the interactive tool session returned `1` on interruption, then process inspection showed `HARNESS_LISTENERS=0` and `HARNESS_PROCESSES=0` for ports `57022/57021` and the harness command. The earlier `NODE_ENV=dev` attempt also left `0` listeners/processes.
+
+The generated `coordination/evidence/harness.json` remains from the manual runbook path; it contains only the harness's synthetic local token/session/tenant values. An attempt to remove that exact generated file was rejected by the automatic command policy as `blocked by policy`; I left it in place and did not try another deletion route. No live credential is in it.
+
+### Plane A execution and exact counts
+
+Environment was populated from the harness descriptor without printing values: `AWEB01B_URL`, `AWEB01B_TOKEN`, `AWEB01B_EVIDENCE`, `AWEB03B_STUB`, `AWEB03B_OPERATOR`, `AWEB03B_VIEWER`, and `AWEB03B_TENANT`. Evidence target: `coordination/evidence/aweb-run/`.
+
+The literal test invocation from `D:\Git\dugate\du-rework\tests\browser` used the runbook config and restricted collection to the six Plane A spec files (excluding static-only specs and Plane B live tests):
+
+```powershell
+npx playwright test --config admin-web/playwright.config.ts admin-web/admin-web.spec.ts admin-web/overview.spec.ts admin-web/profiles.spec.ts admin-web/api-keys-connectors.spec.ts admin-web/operations-business.spec.ts admin-web/identity-security-settings.spec.ts
+```
+
+Observed output: `Running 43 tests using 1 worker`; final `43 passed (45.9s)`; literal `PLAYWRIGHT_EXIT=0`. Per-file counts were parsed from the individual `ok` lines in the raw list output:
+
+| Spec | Packet/runbook expected | Collected and passed |
+|---|---:|---:|
+| `admin-web.spec.ts` | 6 | 6 |
+| `overview.spec.ts` | 7 | 7 |
+| `profiles.spec.ts` | 8 | 9 |
+| `api-keys-connectors.spec.ts` | 9 | 8 |
+| `operations-business.spec.ts` | 8 | 7 |
+| `identity-security-settings.spec.ts` | 8 | 6 |
+| **Total** | **46** | **43** |
+
+All tests currently collected from those six files ran and passed; none was skipped. The mismatch comes from current spec contents versus the requested `6+7+8+9+8+8` breakdown. I did not add, disable, or omit any test to force a total of 46. Raw output: `coordination/reports/raw/plane-a-20261004/playwright-plane-a-run.txt` (SHA-256 `0def07146bd34456117f57c0cb9951f30e2663d8d1b720b1094d58b9f6f335a6`).
+
+One initial CLI attempt used `--reporter=list,json`; Playwright 1.63 treated that as the module name `list json` and failed before collection with `Cannot find module 'list json'`, literal `PLAYWRIGHT_EXIT=1`, 0 tests started. The successful rerun used the config's `list` reporter. The initial attempt is retained at `coordination/reports/raw/plane-a-20261004/playwright-plane-a.txt` (SHA-256 `13438266bdad96a63cfa10bc14509c21a0d69a23927104c160716b0760dca0c2`). The successful run also printed a non-fatal Node warning that `NO_COLOR` is ignored because `FORCE_COLOR` is set.
+
+### PNG evidence
+
+`coordination/evidence/aweb-run/` contains 53 `.png` files; all 53 have the PNG signature. Names:
+
+```text
+01-unauth-login.png
+02-login-rendered.png
+03-reload.png
+04-01-placeholder-honest.png
+04-02-writer-missing-draft-kept.png
+04-03-saved-revision-persisted.png
+04-04-conflict-draft-kept.png
+04-05-locked-field-400.png
+04-06-bulk-partial.png
+04-07-viewer-denied.png
+04-08-test-endpoint-unshipped.png
+04-09-profiles-320px.png
+04-320px-reflow.png
+05-01-keys-ready.png
+05-02-copy-once.png
+05-03-copy-once-hidden-after-reload.png
+05-04-revoke-confirm.png
+05-05-revoked.png
+05-06-keys-empty.png
+05-07-keys-error.png
+05-08-keys-recovered.png
+05-09-keys-denied.png
+05-10-connector-unavailable.png
+05-11-connector-ready-disabled-actions.png
+05-12-keys-320px.png
+05-keyboard-focus.png
+06-01-operations-ready.png
+06-02-operation-detail-artifacts.png
+06-03-operations-empty.png
+06-04-operations-error.png
+06-05-operations-operator-tenant.png
+06-06-businesses-operator-denied.png
+06-07-businesses-versions.png
+06-08-business-enable-action.png
+06-09-businesses-recovered.png
+06-10-usage-ready.png
+06-11-operations-320px.png
+06-theme-light.png
+07-01-security-ready.png
+07-02-security-unconfigured.png
+07-03-security-denied.png
+07-04-identity.png
+07-05-settings.png
+07-06-security-320px.png
+07-theme-dark.png
+overview-00-unauth-login.png
+overview-01-ready.png
+overview-02-empty.png
+overview-03-error.png
+overview-04-error-retried.png
+overview-05-denied.png
+overview-06-session-401.png
+overview-07-320px.png
+```
+
+### Verdict / Δ-DEVIATION
+
+Plane A harness evidence is green for the **43 tests present and collected** in the six requested files; build and final Playwright exits are both `0`; harness processes/listeners were absent after shutdown. `Δ-DEVIATION: YES` — packet/runbook expected 46, but current collection ran 43 with the per-file differences above. The runner script path documented in §5.2 is absent, so its manual §5.2 startup/shutdown procedure was used. No gate was ticked and this is not Plane B/live evidence.
+
+## VERIFY-CAPFIX — independent verification receipt
+
+- Packet: `VERIFY-CAPFIX`, coordinator dispatch 2026-10-05 00:26 +07:00.
+- Captured: 2026-10-05 00:27 +07:00, Windows PowerShell, Node `v22.16.0`.
+- Shared worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`.
+- No source or test files were edited by this verification. Only this receipt and raw logs were written.
+
+### Literal reruns
+
+Cwd: `D:\Git\dugate\du-rework\services\orchestrator`.
+
+| Run | Literal result | Exit | Raw log SHA-256 |
+|---|---|---:|---|
+| T2 `p745-prompt-carrier-claim.test.ts` | 1 suite passed; 9 tests passed / 9 total; 2.684 s | `0` | `verify-capfix-T2.txt` — `17e21f8d87dbb1d3db41f1453d502378e5f523a25ba6d1ecf85f85bef5ec6495` |
+| Focused round 1 | 11 suites passed; 117 tests passed / 117 total; 4.596 s | `0` | `verify-capfix-focused-round1.txt` — `fc4da1d53a34d69beb4e879df50e9803fe447482c6a1d58d9160a2013297e4a4` |
+| Focused round 2 | 11 suites passed; 117 tests passed / 117 total; 3.872 s | `0` | `verify-capfix-focused-round2.txt` — `4c1a6ab0d9a7bab022dceec1aad45fffe989ec6cb977c1ff53dfdc617625c93e` |
+| Focused round 3 | 11 suites passed; 117 tests passed / 117 total; 3.958 s | `0` | `verify-capfix-focused-round3.txt` — `81c3558e5bb0d8e00b31638a3bbc58823d34c587f8e25978e9631569ba7f42f7` |
+| Orchestrator typecheck: `node .\node_modules\typescript\bin\tsc --noEmit -p .\tsconfig.json` | no diagnostics | `0` | `verify-capfix-tsc.txt` — `17bc6e920b35f3fa41cce7b91b7327513640596bbe97934be0d676731f828e67` |
+
+The focused set is the same 11 suites listed in `VERIFY-IMPL-A`; every raw log records `literal_exit_code=0`. PowerShell 5.1 captures Jest's stderr summary for T2 as a `NativeCommandError` record (`Test Suites: 1 passed, 1 total`); the actual Node process exit captured after each invocation is 0. The tsc run emitted no diagnostics and its recorded process exit is 0.
+
+### CAPFIX inspection
+
+- Claim cap ordering passes: in `runtime.ts::openPromptCarrier`, `PinnedPromptOverrideSchema.array().safeParse(opened)` completes first (around line 360); after successful shape parse, `parsed.data` is checked for size (lines 369-397); only after those checks does marker parsing/cross-check start at line 398. Oversized payloads therefore return the size error before marker drift can mask it.
+- The claim-side constants are `maxRows: 64`, `maxRowBytes: 16 * 1024`, `maxTotalBytes: 256 * 1024`, matching producer `submission.ts::PROMPT_CARRIER_LIMITS` exactly. Both sides measure each prompt using `Buffer.byteLength(value, 'utf8')` and use the total of prompt bytes. Claim overflow raises `PROMPT_CARRIER_TOO_LARGE` through `unprocessable`.
+- T2's CAPFIX case checks 65 rows, one prompt at 16 KiB + 1 byte, and 17 prompts at 16 KiB each (272 KiB total). All expect `PROMPT_CARRIER_TOO_LARGE` and zero committed writes. Its precedence subcase pairs an oversized carrier with drifted markers and still expects the size error plus zero writes.
+- The single-bucket invariant passes: claim opens one `prompt_overrides_ref` envelope, obtains one `rows` array, and reconciles that carrier against its one `prompt_revisions_pin` marker set. CAPFIX adds bounds to that opened list and does not introduce another carrier/bucket source.
+- The real tag-tamper case passes: T2 changes the first base64 character of `envelope.tag`, leaves `ciphertext` untouched, then asserts `AUTHENTICATION_FAILED` and `committedWrites` length 0. This is separate from the existing ciphertext-tamper case in the same suite.
+
+Current post-run hashes (also equal to the hashes captured before the test commands): `submission.ts` `19b04ac516dd34cfdc42f548ad43a217a46d0248f3ddc1a9f0a8cb66afef32af`; CAPFIX `runtime.ts` `52effa490a13298d3cc6601a31463854154352828290e6ab7dda79a0afcccb1e`; T2 test `c78357567b4746519740f9de1bf0d7e81014466c14d49a8c5612fad4cb198a2d`.
+
+**Disposition:** PASS for requested CAPFIX verification. T2 is 9/9, focused regression is 117/117 in all three rounds, typecheck is exit 0, claim caps match producer and execute before marker cross-check, single-bucket behavior is preserved, and direct tag corruption fails closed without committed writes.
+### §VERIFY-T5 — Independent connector passthrough verification (Codex worker_1, 2026-10-05)
+
+**Verdict: PASS (offline).** I ran the three new test files three times each and typechecked all three packages. I made no test or source edits; only this receipt and raw command outputs were written.
+
+#### Literal test reruns
+
+Commands, each run once per round for rounds 1, 2, and 3:
+
+```text
+pnpm --filter @du/contracts test -- tests/p745-options-allowlist.test.ts
+pnpm --filter @du/worker-sdk test -- tests/p745-options-passthrough.test.ts
+pnpm --filter @du/connector test -- tests/p745-options-passthrough.test.ts
+```
+
+| Round | Contracts | Worker SDK | Connector | Exit codes |
+|---:|---:|---:|---:|---:|
+| 1 | 1 suite / 18 tests passed | 1 suite / 2 tests passed | 1 suite / 5 tests passed | `0 / 0 / 0` |
+| 2 | 1 suite / 18 tests passed | 1 suite / 2 tests passed | 1 suite / 5 tests passed | `0 / 0 / 0` |
+| 3 | 1 suite / 18 tests passed | 1 suite / 2 tests passed | 1 suite / 5 tests passed | `0 / 0 / 0` |
+
+Raw outputs: `coordination/reports/raw/verify-t5-{contracts,worker-sdk,connector}-round{1,2,3}.txt`.
+
+#### Typecheck
+
+- `pnpm --filter @du/contracts lint` — exit `0` (`tsc --noEmit -p tsconfig.json`).
+- `pnpm --filter @du/worker-sdk lint` — exit `0` (`tsc --noEmit -p tsconfig.json`).
+- `pnpm --filter @du/connector typecheck` — exit `0` (`tsc --noEmit -p tsconfig.json`).
+
+Raw outputs: `coordination/reports/raw/verify-t5-typecheck-{contracts,worker-sdk,connector}.txt`. PowerShell emitted `NativeCommandError` wrappers for Jest's stderr summaries; each Jest process exit was `0` and all summaries passed. Typechecks emitted no diagnostics.
+
+#### Contract and four-point chain inspection
+
+- `packages/contracts/src/connector.ts::InvocationOptionsSchema` is a closed `.strict()` schema. It accepts typed keys `temperature`, `model`, `maxTokens` plus `responseFormat: 'json' | 'text'` and record-shaped `jsonSchema`. `systemPrompt` is absent from the wire schema; the contracts test explicitly rejects it. Repository search found only its declaration in the document-core context type, no caller.
+- Unknown keys fail at the shared schema. `connector-invoker.ts` parses `InvocationRequestSchema` before `fetch`; Connector inbound `parseContractInvocationRequest` uses that same schema. Tests pin rejection before SDK HTTP dispatch and on Connector inbound parse.
+- The provider adapters copy the accepted options unchanged into the JSON request body and multipart `options` field. The canonical hash includes options via the shared `@du/contracts` hash implementation; tests pin both digest sensitivity and parity.
+
+| Chain point | SHA-256 | Verification |
+|---|---|---|
+| `packages/contracts/src/connector.ts` | `859979838c36763104497cfdc0fb402826daaa096c1e27ee6899482fc11359d2` | Changed contract allowlist; matches owner receipt. |
+| `packages/worker-sdk/src/connector-invoker.ts` | `a6f8d54cbd813dd9c9e0bed79b7d46ee73641fbdbf2cf04c53ee641574f1ef88` | Unchanged; matches pre-write and post-write pins. |
+| `services/connector/src/adapters/http.ts` | `8df114af9959f825efe3b03536f9f749c11426f9b1dfdebb8c852ff85626cf6f` | Unchanged; matches pre-write and post-write pins. |
+| `services/connector/src/hash.ts` | `9b88d361bc758318f4ef48b7ae423c4e5410654627bd9e36bb8c4d010e5c8ac2` | Unchanged; matches pre-write and post-write pins. |
+
+The three new test-file SHA-256 values also match the owner receipt: contracts `aaa70ee25d6042a923a943f42064d225ef3f8af33d43ebb2f73b9d80d37e6098`; worker-sdk `10e4d3b71bebafd59f705801763223b54bb46cec0bdb0b9c34e7acfed27bd698`; Connector `0d82c3057939adc7ccc365cee9e11bfa345006a07c46d2eba5244e3bedb11729`.
+
+#### Existing `vault-policies` failure attribution
+
+I did not rerun the source swap. The existing A/B is documented in `coordination/reports/p745-connector-passthrough-2026-10-04.md` §5.4: byte-exact HEAD `connector.ts` and the packet version both produce the same two `toThrowError is not a function` failures (`2 failed / 60 passed`); the packet source was hash-restored. The suite imports Vault modules rather than `connector.ts`, supporting the pre-existing attribution.
+
+**Disposition:** requested focused suites pass in all three literal rounds, all three package typechecks pass, the allowlist rejects undeclared options at schema parse, and the SDK/HTTP/hash points are unchanged by this packet. No live provider was used.
+
+### §VERIFY-CW-A — Independent Connector wire backend verification (Codex worker_1, 2026-10-05)
+
+**Verdict: PASS (offline).** No source or test edits were made by this verifier. Only this receipt and raw outputs were written.
+
+#### New suites ×3
+
+Cwd `du-rework`; each round ran the same command literally:
+
+```text
+pnpm --filter @du/orchestrator test -- tests/p745-connector-management-proxy.test.ts tests/p745-connector-actions.test.ts tests/p745-connector-boot-composition.test.ts
+```
+
+| Round | Result | Exit |
+|---:|---|---:|
+| 1 | 3 suites / 23 tests passed | `0` |
+| 2 | 3 suites / 23 tests passed | `0` |
+| 3 | 3 suites / 23 tests passed | `0` |
+
+Raw logs and SHA-256: `verify-cw-a-new-round1.txt` `a16ed35d81bd5917b061981fe89a01d505d6c3d35100e910d79188136e4e7ca8`; round 2 `160f8889035deb30a646b7fb59793453a62446ae50476067c277a363e40ce5df`; round 3 `d9d174619047e6d5d466906296409a94a51d2e067878ae25e07991f9770c0b5c` (all under `coordination/reports/raw/`). PowerShell surfaced `pnpm` stderr via `NativeCommandError`; Jest summaries and process exits were green.
+
+#### Regression and typecheck
+
+Regression command ran with `DU_LIVE_INFRA=0` so the live-only suite could not start PostgreSQL/Redis:
+
+```text
+pnpm --filter @du/orchestrator test -- tests/crx01-creatapp-metadata-seam.test.ts tests/crx02-rfx05res-s3-read-guard.test.ts tests/enc-meta-sentinel-outbox-source-url.test.ts tests/admin-actions-vault04-offline.functional.test.ts tests/connector-revision-http-offline.functional.test.ts tests/connector-credentials-offline.functional.test.ts tests/admin-base-routes.test.ts
+```
+
+Result: **6 suites passed / 66 tests passed; 1 suite skipped / 7 tests skipped; exit 0**. The skipped suite is `admin-base-routes.test.ts`, guarded by `DU_LIVE_INFRA=1`.
+
+- `pnpm --filter @du/contracts lint` — `tsc --noEmit -p tsconfig.json`, exit `0`.
+- `pnpm --filter @du/orchestrator lint` — `tsc --noEmit -p tsconfig.json`, exit `0`.
+
+Raw logs: `verify-cw-a-regression.txt` (`d9002c09be5b954f46a4591bb80276a7b45e185d6988fb480b08e6b08a4bdc30`), `verify-cw-a-typecheck-contracts.txt` (`68c0d838a743c622a9acd4a6a53d80c6d8831819d8ebd78fd7eda0a9ccb571b4`), and `verify-cw-a-typecheck-orchestrator.txt` (`a069b2aa8fc283153f54fc633af1cac52a99a7a7503074e9fdd65977a2e8c1e4`).
+
+#### Independent behavior inspection
+
+- `ADMIN_ACTIONS` grants all five actions (`connector.upsert`, `activate`, `disable`, `retire`, `test`) only to platform bearers and admin cookies. `dispatchAdminAction` calls the gate before computing idempotency metadata or entering any action case. In the gate, cookie CSRF is checked before cookie role. Tests cover anonymous/viewer/operator denial with zero store calls and a CSRF-less cookie denial.
+- Each of the five action cases checks for `connectorManagement` before `executeIdempotent`, `db.tx`, audit or store operation; absent store returns `503 TEMPORARY_UNAVAILABLE`. The offline test sends valid params to each case and asserts the 503 result.
+- Replay test sends the same upsert twice with one idempotency key: second response equals the first; `store.create` and `audit.record` are each called once. Reusing the key with a different payload returns `409 IDEMPOTENCY_CONFLICT`.
+- `activate` returning `false` is mapped to `409 STATE_CONFLICT` before opening the audit transaction; the test asserts no audit call. The winning CAS branch records the audit.
+- Boot test proves no `connectorBaseUrls` leaves `app.connectorManagement` undefined; configured URLs compose the store, route list/test through the configured base, and retain redaction. Named unknown connectors return 404 rather than selecting an arbitrary proxy.
+- Without the composed store, the route keeps the honest legacy placeholder; with the store it reads the real ledger. I compared the 28-line fallback projection block (`const baseUrls` through the returned object) against `HEAD:du-rework/services/orchestrator/src/server.ts`; the blocks are identical after normalizing line endings. The configured-endpoint/no-secret shape remains pinned by the pre-existing `admin-base-routes` test, while the new offline test checks the degraded adapter/state/capabilities. The live-gated suite was deliberately skipped; no live DB was used. The `createdAt`/`updatedAt` values continue to be generated per request, as in the original block.
+
+**Disposition:** requested suites, regression set and typechecks pass. Admin-only/CSRF ordering, idempotency, CAS no-audit, missing-store fail-closed and boot composition are pinned. The uncomposed placeholder implementation matches the old route block.
+
+## VERIFY-B2 — independent verification receipt
+
+- Packet: `VERIFY-B2`, coordinator dispatch 2026-10-05 01:24 +07:00; owner implementation receipt: `coordination/reports/p745-carrier-impl-b2-2026-10-04.md` §§5-9.
+- Date: 2026-10-05. The local `Get-Date` value observed after the runs was behind the dispatch timestamp, so I do not assert a capture wall time.
+- Shared worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`.
+- No source or test files were edited by this verification. Only this receipt and raw logs were written.
+
+### Literal reruns
+
+Cwd: `D:\Git\dugate\du-rework\businesses\document-core`; Jest and TypeScript executables were taken from this workspace's installed `node_modules`.
+
+| Run | Literal result | Exit | Raw log SHA-256 |
+|---|---|---:|---|
+| B2 round 1, `p745-carrier-impl-b2.test.ts` | 1 suite / 17 passed; 1.915 s | `0` | `verify-b2-b2-round1.txt` — `b1829e01a54d9b1077d0c313ed5b447d6df9c3767cb45915d1cc8059365efbd7` |
+| B2 round 2 | 1 suite / 17 passed; 1.823 s | `0` | `verify-b2-b2-round2.txt` — `79c5eab3bfa2a81ea644953036b7b93df9f8b7daacd09406cad0512a7a29baf4` |
+| B2 round 3 | 1 suite / 17 passed; 1.660 s | `0` | `verify-b2-b2-round3.txt` — `9e9bf40b959278c20cf49fc052a668fa71a3c4983d9544faab8474b973dd4dc6` |
+| Focused round 1: B2 + session + execution-pin | 3 suites / 38 passed; 1.855 s | `0` | `verify-b2-focused-round1.txt` — `7f9c8ace2286beb244cd748d2a48441c7ec9f650b3432e5a98edd5b1b0b06892` |
+| Focused round 2 | 3 suites / 38 passed; 1.848 s | `0` | `verify-b2-focused-round2.txt` — `b6b6bea2eab346a07e2a20064d356786708c165afbeabb7b188d8adcdca1d0d4` |
+| Focused round 3 | 3 suites / 38 passed; 1.984 s | `0` | `verify-b2-focused-round3.txt` — `47ea4507e97b6267c48dd816ff8ffb7d84196f8833775584a251e424d42c37ba` |
+| DELTA-A standalone: `execution-pin.functional.test.ts` | 1 suite / 10 passed; 1.875 s | `0` | `verify-b2-delta-a.txt` — `9e2e124f9141f5beabbf3a4460cfdeb5d97c471d4799f964ccd833d858c6fde6` |
+| `tsc --noEmit -p tsconfig.json` | no diagnostics | `0` | `verify-b2-tsc.txt` — `17bc6e920b35f3fa41cce7b91b7327513640596bbe97934be0d676731f828e67` |
+
+The focused command included exactly `tests/p745-carrier-impl-b2.test.ts`, `tests/p745-session-capture-inject.test.ts`, and `tests/execution-pin.functional.test.ts`. Every raw log records `literal_exit_code=0`. PowerShell records Jest's stderr suite summary for the standalone B2 and DELTA-A runs as `NativeCommandError` metadata; the Node process exit captured immediately after each command is 0.
+
+### Adapter and step-key inspection
+
+- At `businesses/document-core/src/worker.ts::toInternalContext` (current adapter branch around lines 410-425), the non-internal connector path assembles the default prompt text first. A non-empty `options.promptStepId` calls `applyPinnedStepPrompt` with the same slot and assembled text; when absent/empty the ternary returns `assembledPromptText` unchanged. The adapter test also asserts the no-stepId case remains exactly `extract_invoice: DEFAULTPY`.
+- Static inspection confirms the 10 B2-WIRING declarations match their enclosing `StepCheckpointManager.executeWithCheckpoint` step key: ingest OCR/digitize (2), analyze fact-check extract/verify plus the selected `stepKey` (3), generate inference (1), compare semantic/version (2), and transform translate/rewrite (2). Each uses the corresponding `STEP_KEYS` value or the same `stepKey` variable passed to the checkpoint. The earlier extract connector-inference declaration remains as the original B2 representative, so the current source has 11 promptStepId declarations total when that pre-existing site is included.
+- The B2 suite's runtime declaration assertions cover representative handler paths (extract, generate, analyze classification, transform translate, compare semantic), while the inspection above checks the full 10-site B2-WIRING set, including both ingest calls and the additional branch sites. The adapter's explicit absent-stepId test verifies skip/retain behavior.
+- The execution-pin diff contains exactly two removals: `promptOverrides` from the two typed `PIN_PROFILES` literals at the formerly reported lines 35 and 56. No assertion or test logic changed. The pinned-variant and required-slot assertions remain, as do the adversarial profile/payload override assertions. DELTA-A independently passes 10/10 and also passes in all three focused rounds.
+
+### Scope and hash record
+
+- Provider-side status is **LIVE-ONLY**. These offline tests stop at the mocked `ctx.connector.invoke`/adapter boundary; no provider endpoint or live Connector was called. They do not establish provider-side prompt application or provider session behavior.
+- Current post-run SHA-256: `worker.ts` `9bce7694418bf0ef2dce77bd951bcf3d7044f9a86c8e380611a33a54f22abc37`; `prompt-application.ts` `261f395f820bb170796f71a88691ad78d27c10ca164031d9ad07d28b227dac21`; B2 test `097dc9c948648a65a5f76398cb8e01c10c900c7ebc4f3ebdd9e20117cbf5dfef`; session test `27d3d113fb5a33643b6f3e5da91c5c3d718830ecc5a97e2087bfc89f0d25c5d5`; execution-pin test `3082c47409e49cb7dab8462ccbc5cdc252f7f8f3408ffd891c737d1255bdedda`.
+
+**Disposition:** PASS for requested offline B2 verification: 17/17 x3, focused 38/38 x3, DELTA-A 10/10, and typecheck exit 0. All 10 new B2-WIRING source call sites use their own step key; an absent step ID keeps the assembled prompt unchanged. Provider-side remains a separate live-only verification.
+## VERIFY-ENCMETA — independent result_ref metadata verification (2026-10-05)
+
+**Verdict: PASS (offline).** Packet VERIFY-ENCMETA, dispatch 2026-10-05 01:34 +07. Worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`. The verifier changed no source or test files; only this receipt and raw command logs were written. The three-file Δ-LEASE (`src/http/routes/public.ts`, `src/http/route-context.ts`, `src/app/bootstrap/create-app.ts`) is accepted as ratified per the coordinator packet and was inspected here.
+
+### Literal test runs
+
+Cwd for all commands: `D:\Git\dugate\du-rework`. `pnpm --filter @du/orchestrator test` invokes Jest `--runInBand` in `services/orchestrator`.
+
+| Run | Literal result | Exit | Raw log SHA-256 |
+|---|---|---:|---|
+| Focused rounds 1-3: `encmeta-resultref-offline.functional.test.ts` (6) + `enc-meta-sentinel-runtime-refs.test.ts` (4) | Each round: 2 suites / 10 tests passed | `0` each | `verify-encmeta-focused-round1.txt` `64e9ac3f86f75a49d0d65003e681e91992dee05505db6d93d5748fa0101ce69d`; round 2 `5b9f185c4438fea5fa30923073ef1c89a3c14d5d94c9a34c21b8579a0ae6335e`; round 3 `b8b8364f6eff8329e1d2892f20863fc2ff6606dd46e50f4318bba82f431d7209` |
+| Regression: `runtime-lease-fencing-offline`, `crx01-creatapp-metadata-seam`, `crx02-rfx05res-s3-read-guard`, `enc-meta-sentinel-outbox-source-url`, `p730-profile-snapshot`, `p730-legacy-snapshot-failclosed` | 6 suites / 61 tests passed | `0` | `verify-encmeta-regression.txt` `a50ed5da89f5a6e8cb06864a8bbdf698ec3bc592d3c6fbedf00b6cb09247120d` |
+| Typecheck: `pnpm --filter @du/orchestrator lint` (`tsc --noEmit -p tsconfig.json`) | No diagnostics | `0` | `verify-encmeta-tsc.txt` `c9416096c22872bfe1d498a433ed7d4bd192b6cb304cc2a579d82b00f4d78f7f` |
+| Wrong-row control: `runtime-encryption-metadata.test.ts -t 'refuses a different ROW'` | 1 passed, 104 skipped (name-filtered) | `0` | `verify-encmeta-wrong-row-control.txt` `a90e1c892096bb121b233746c21441fde3a97735020ddd23c92e1e68b53e1666` |
+
+The regression run printed Jest's open-handle notice after its 61 passing tests; the process still exited `0`. PowerShell also rendered pnpm/Jest stderr summaries as `NativeCommandError` metadata in some captured output; each raw file records the native process exit explicitly as `literal_exit_code=0`.
+
+### Independent implementation and behavior inspection
+
+- `metadata-crypto.ts` declares both `tasks.result_ref` and `operations.result_ref` in `METADATA_SLOTS`. `deriveAad` hashes `tenantId|slot|refId`; `open` checks that binding and returns `CONTEXT_MISMATCH` before decrypting on a different tenant, slot, or row. The focused G3 test rejects cross-slot, cross-tenant, and `tasks.payload_ref`-as-result replay. A separate existing same-slot/different-row control passed (the generic `tasks.payload_ref` slot). The named result-ref suite does not add a dedicated same-slot/different-row assertion for `result_ref` itself.
+- In `RuntimeService.completeTask`, the tenant is selected with the task/operation row inside `db.tx`; the task-slot and operation-slot envelopes are both sealed and JSON-stringified before the first `UPDATE`. Their AAD refs are respectively `taskId` and `operation_id`; the later operations update uses its separately sealed binding. Without the seam, the code preserves the legacy plaintext window.
+- R1 `/api/v1/operations/:id/result` opens `operations.result_ref` with the API-key tenant and operation id, then returns the same opaque ref string. The test checks the exact ref, null projection (`data: {}`), and no-seam legacy behavior. Route seam wiring is present through `route-context.ts` and `create-app.ts`.
+- R2 `getChildren` selects each child tenant and opens each non-null ref under `tasks.result_ref` plus that child id; the test covers sealed, legacy plaintext, and null. R3 opens all child refs before creating the summary, opens the parent payload, merges plaintext refs, then seals the parent payload once. G5 opens the written parent envelope and checks `{ a: 'ref-a', b: 'ref-b' }` plus no nested `aes-256-gcm` envelope marker.
+- `readStoredText` preserves non-JSON plaintext and valid JSON that is not recognized as an envelope byte-for-byte in the allowed window; with `allowPlaintext=false` these branches return `NOT_SEALED`. A recognized envelope is passed to `readStored(..., false)`, so malformed required fields, wrong AAD, provider/decrypt errors propagate instead of falling back to plaintext. The named suites cover plaintext-window and wrong-binding behavior; there is no direct malformed text-envelope case in those suites.
+- The flipped detector recursively scans both result-ref UPDATE parameters, including nested values and base64-decoded strings. Both task and operation refs are sealed, both retain their positive round-trip controls, and the sentinel checks return false.
+- Current SHA-256 matches the implementation receipt's post-edit pins: `metadata-crypto.ts` `3e6ee2a76c8d682e40f0d015fe4c5d1e943a58e65b067e59b8a845a0938ce7b0`; `runtime.ts` `01ffff43cfd528e029c5d5107c63d92f686e5191175de3c22852f3fdd0d7d377`; `route-context.ts` `ee3997d4d339d2b3261e8e091dd535340d5c2b6ee7e4e7055ef15dfb3e8d89d6`; `public.ts` `5a6f9972c8299eBC655a5df61e4e43d5255699985026dd98ea054645c50082c4`; `create-app.ts` `ae7e29ce64ed558c022be456bbabccecd59345962af789a32a898b18d939ed0e`; focused tests `c516d4da620f19a209dac59faf4458c6e1150cf410c434e9d29b10df73d5e7e3` and `bcc081a2e4ba9d7c7dd3796e7be142483272f27818db15d135cb6fd53ffacb32`.
+
+The full legacy `runtime-encryption-metadata.test.ts` suite was not run: it still asserts at lines 603-617 that the slot inventory contains only four entries and excludes `tasks.result_ref`, which conflicts with the implementation under verification. Only its independent row-binding test was selected and passed. All evidence above is offline (scripted PostgreSQL and deterministic crypto provider); no live PostgreSQL, Vault, or external provider was used.
+
+**Disposition:** requested focused suites pass 3/3 rounds (30/30 aggregate test executions), the six-suite regression passes 61/61, typecheck exits `0`, both result_ref bindings and read paths match the requested inspection, and sentinel assertions stay at zero.
+## VERIFY-CREDWORKFLOW - independent offline verification receipt
+
+- Packet: VERIFY-CREDWORKFLOW; coordinator dispatch 2026-10-05 01:23 +07:00.
+- Capture time: 2026-10-05 01:32:39 +07:00 (2026-10-04 18:32:39 UTC).
+- Cwd: D:/Git/dugate/du-rework/services/orchestrator.
+- Shared worktree HEAD: b088eececcb5f3df0b4edbe073a29401dafda624. The worktree was already dirty; hashes below identify the tested snapshot.
+- Scope: independent offline rerun and inspection only. No test/source files edited, no commit/push, and no live Vault, PostgreSQL, Redis, or connector was used. Vault/connector calls used scripted fetches; the e2e boot test uses a scripted pg module and fake revision/audit stores.
+- Runtime: Node v22.16.0, pnpm 10.18.3, workspace Jest 29.7.0, TypeScript 5.9.3.
+
+### Literal commands and results
+
+The initial pnpm exec jest command resolved ambient Jest 30.2.0 despite the workspace lock specifying 29.7.0. Those preliminary outputs are retained in the raw directory but are not credited. An initial PowerShell array-argument attempt also passed three paths as one path and collected zero tests; its arg-error logs are likewise not credited. Authoritative runs below invoke the locked Jest 29.7.0 package directly via jest-cli.run, bypassing the ambient Jest installation.
+
+Jest invocation, from the cwd above, repeated once per R1-R3:
+    node -e "process.env.NODE_ENV='test';require('../../node_modules/.pnpm/jest-cli@29.7.0_@types+node@20.19.43/node_modules/jest-cli').run()" dummy --runInBand --runTestsByPath tests/vault-kv2-writer-offline.functional.test.ts tests/credworkflow-compose.test.ts tests/credworkflow-e2e-offline.functional.test.ts
+
+| Run | Literal Jest result | Exit | Raw output |
+|---|---|---:|---|
+| R1 | 3 suites passed; 12 tests passed; 10.055 s | 0 | coordination/reports/raw/verify-credworkflow-20261005/locked-new-suites-R1.log |
+| R2 | 3 suites passed; 12 tests passed; 4.020 s | 0 | coordination/reports/raw/verify-credworkflow-20261005/locked-new-suites-R2.log |
+| R3 | 3 suites passed; 12 tests passed; 4.354 s | 0 | coordination/reports/raw/verify-credworkflow-20261005/locked-new-suites-R3.log |
+
+Regression used the same locked Jest invocation and --runTestsByPath with these nine paths: tests/crx01-creatapp-metadata-seam.test.ts, tests/crx02-rfx05res-s3-read-guard.test.ts, tests/enc-meta-sentinel-outbox-source-url.test.ts, tests/admin-actions-vault04-offline.functional.test.ts, tests/connector-revision-http-offline.functional.test.ts, tests/connector-credentials-offline.functional.test.ts, tests/p745-connector-management-proxy.test.ts, tests/p745-connector-actions.test.ts, tests/p745-connector-boot-composition.test.ts. Result: 9 suites passed, 89 tests passed, 9.777 s; exit 0. Raw output: coordination/reports/raw/verify-credworkflow-20261005/locked-regression-9.log.
+
+Typecheck command, from the same cwd:
+    node ../../node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+Result: no diagnostics; exit 0. Raw output is empty: coordination/reports/raw/verify-credworkflow-20261005/locked-typecheck.log.
+
+Jest raw logs include Node deprecation/experimental warnings (DEP0025 and WASI); all listed test exits are 0. Literal exit files are locked-new-suites-R1.exit, locked-new-suites-R2.exit, locked-new-suites-R3.exit, locked-regression-9.exit, and locked-typecheck.exit; each contains 0.
+
+### Independent inspection
+
+- Writer: the test pins the KV2 POST URL, x-vault-token/content-type headers, literal data body, CAS options, and omission of options without CAS. Its status matrix covers 412/CAS_CONFLICT, 403/CAPABILITY_DENIED, 401/VAULT_NO_TOKEN, 500 and 429 retryable VAULT_SERVER_ERROR, 400/VAULT_WRITE_FAILED, and 200 with missing version. It also covers a thrown network error and missing/throwing token supplier; the metadata test checks GET, PREFIX_DENIED, and invalid metadata. Source inspection confirms fixed value-free error messages and AbortController timeout mapping through the retryable fetch-failure catch (vault-kv2-writer.ts:72, 93, 106, 139-160). Coverage limit: despite the test title saying timeout, no test actually waits for or asserts an AbortSignal timeout; the retryability of an actual timeout is source-inspected, not dynamically exercised.
+- Compose: unit coverage confirms absent env -> undefined, partial/bad options -> CredentialWorkflowBootError, and complete config -> a working fake-Vault rotation with canonical path/CAS/version pin and no secret in the result. Vault-down maps to 503 with zero createPending calls. The createApp e2e boot test checks workflow undefined with env absent and defined with complete env. Source inspection confirms explicit config.credentialWorkflow is retained and composition runs only when it is falsy (create-app.ts:438-447); the rerun set has no dedicated assertion of this override precedence.
+- E2E: the sentinel scanner recursively scans response bodies, all audit mock arguments, connector-service request bodies, and captured SQL strings, including base64 decoding. It asserts the sentinel only in the positive-control fake Vault write, the five audit actions in exact order (upsert, bootstrap, credential_rotate, activate, disable), and no occurrence of operations, connector_bindings, or profile_policy_snapshot in captured SQL text. Vault-down asserts 503, createPending not called, no connector revision request, and no audit call.
+- SQL evidence limit: makeDb in credworkflow-e2e-offline.functional.test.ts:87 records only the SQL string argument and would drop bind parameters. In this scenario audit.record is a mock, no idempotency key is supplied, and revision/connector stores are fakes, so no SQL statement reaches the captured list; the forbidden-table assertion at line 213 therefore runs over an empty list. This is consistent with the offline harness but does not prove behavior against a real DB or scan SQL bind values. No actual SQL or real DB was used.
+
+### Snapshot pins
+
+SHA-256:
+- src/modules/connector-credentials/vault-kv2-writer.ts: F0A2B721706C491FFEAE8DC39DF4ADE0830763FD4C1FAE9EC20821A319473DDB
+- src/modules/connector-credentials/compose.ts: 401ABE6204045046B2E4997325DCE9A09A2D5769ABF8E4DD3B10B3B0D007A79F
+- src/modules/connector-credentials/workflow.ts: 496C08CFB83DCF3670CFD53D9C3700BCFE4BD6504C9D3CA586F6C0E699B42974
+- src/app/bootstrap/create-app.ts: AE7E29CE64ED558C022BE456BBABCCECD59345962AF789A32A898B18D939ED0E
+- src/modules/admin-actions/dispatcher.ts: 9808D0DBCE80607C6511071CA37B5C2BCBD7F098096FE37E6CDD8331CF336B65
+- tests/vault-kv2-writer-offline.functional.test.ts: 1F1E57A8D36E47B7A86EF76EC470D84A69C4A16D11DEE5EE343189FF5236C3C8
+- tests/credworkflow-compose.test.ts: B6047BE0F8ABD8FD8A1E440E74B1EBF1068A4BDE22B92811291DD253D9C97866
+- tests/credworkflow-e2e-offline.functional.test.ts: C880D5CAB530CB9691117E95FBD21AAC4332EA94B664203B5803D4239EECD217
+
+Raw-log SHA-256:
+- locked-new-suites-R1.log: D44036F181E1D16EDEFF091300C7A1E8FC55342C655979007EDFEE1B9ACAE0C7
+- locked-new-suites-R2.log: 97E78C00EAB0B5781344ACFD7303266D2EA1FD2F254B9C8762F3D43BE947CE40
+- locked-new-suites-R3.log: 3C1F7B36C7AFD7A116BC3C6E7B011689327796394ECF97B32F2A8DD84D35A94A
+- locked-regression-9.log: 93779B7B8571425B0CB82E6482757F0E0EEA7EFE749209A8C4403C33212AF663
+- locked-typecheck.log: E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855
+
+Disposition: PASS for the requested offline reruns and source inspection on the locked workspace toolchain. Keep real Vault and real DB behavior for their separately opened live window; retain the SQL-capture and timeout/override coverage limits above.
+## VERIFY-CW-B-BFF — independent verification (2026-10-05)
+
+**Disposition: PASS** for the CW-B-BFF offline checks. Worktree HEAD: \`b088eececcb5f3df0b4edbe073a29401dafda624\`. Cwd for the focused runs: \`D:\Git\dugate\du-rework\services\orchestrator\`. The implementation source and new test hashes match the implementation receipt prefixes. This verification changed no test or source files; it added this receipt and raw logs only.
+
+### Literal reruns and typecheck
+
+The implementation receipt identifies one new BFF suite, \`tests/bff-connectors-actions.test.ts\` (17 tests); I reran that suite three times.
+
+| Run | Result | Exit | Raw log SHA-256 |
+|---|---|---:|---|
+| 1 | 1 suite / 17 passed | 0 | \`verify-cw-b-bff-round1.txt\` — \`3e60a3b40944692d3c3cd855134a1b932b6b8e9b5ccf660ee465c135817fd711\` |
+| 2 | 1 suite / 17 passed | 0 | \`verify-cw-b-bff-round2.txt\` — \`8a8735fd23a6c197c16fd8153b4c20884370d058a40759bccb6640b8a8e55d25\` |
+| 3 | 1 suite / 17 passed | 0 | \`verify-cw-b-bff-round3.txt\` — \`312df0721a6eb5d62f22c0a8c8ae473b0a98735969913a6c2db398cfd305efbd\` |
+| \`npx tsc --noEmit -p tsconfig.json\` | no diagnostics | 0 | \`verify-cw-b-bff-tsc.txt\` — \`58283559d0ecebd4de79239edc8d1d31d36fe1b6d4fed0ed05c974899e77e8fe\` |
+
+### Independent behavior inspection
+
+- Connector list/capabilities gate requires both \`role === 'admin'\` and a platform principal before using \`runtime.adminToken\` or calling upstream. Tests configure a tenant bearer and prove tenant operator receives 403 with zero upstream requests. The list builds a fixed upstream path and does not forward query parameters; the adversarial \`?evil=dropme\` request arrives upstream without a query. \`callUpstream\` constructs only authorization, accept, correlation ID, and applicable JSON/idempotency headers, so browser cookie/authorization/CSRF headers do not cross the hop. The list response retains \`config.headers.authorization: "[REDACTED]"\` unchanged. Capabilities are relayed with the exact booleans, including \`false\`.
+- Error and method checks pass: upstream 5xx becomes sanitized 502 \`UPSTREAM_ERROR\`; unreachable upstream becomes 503 \`UPSTREAM_UNAVAILABLE\`; wrong methods return 405 without upstream calls.
+- The raw-socket dot-segment request \`/admin/api/connectors/../revisions/1\` returns 404 with zero upstream calls. The connector revision matcher can see the literal \`..\` segment, but \`decodePathSegment\` rejects decoded dot segments.
+- Actions require platform admin and validate CSRF before reading the body or calling the upstream dispatcher. The tests prove missing CSRF yields 403 and zero upstream requests; upsert forwards \`{action, params}\` intact, clamps a 260-character idempotency key to 200, and preserves status 201. CAS loss returns 409 \`STATE_CONFLICT\`; upstream detail and raw body are not echoed, and the field-error list is sanitized.
+
+Relevant code/test pins: \`handle.ts\` SHA-256 \`ccd5c762cbf65c72199887c6f1330088d4d1c17db66b9b850993e83782e542cc\`; \`bff-connectors-actions.test.ts\` SHA-256 \`f28c0b50e4620472581f52b2238720a8feb74c156566ef1380b1f1a2ef7d9f86\`.
+
+### Standing admin-shell failures attribution
+
+I reran \`npx jest tests/admin-shell-router.test.ts tests/admin-shell-server.test.ts tests/admin-shell-platform-mount.test.ts --runInBand\`: 3 suites failed, 16 failed / 102 passed / 118 total, exit 1. Raw log: \`verify-cw-b-bff-standing-red-shell.txt\`, SHA-256 \`0c50df859d0b07efbe1329bdd8b30b6d762f93983ad586febaaef6d1cc08859c\`.
+
+The count differs from the implementation receipt’s earlier 18 failed / 100 passed, but the current failures are still in the independent shell router role expectation and HTML routes \`/admin/profiles\` and \`/admin/connectors\`. CW-B-BFF adds only \`/admin/api/connectors*\` and uses \`/admin/api/actions\`; shell-server dispatches only \`/admin/api/*\` into the BFF. The failing HTML requests and router unit assertion do not traverse those BFF routes. I therefore attribute these standing-red failures to the admin-shell/router behavior, not CW-B-BFF.
+
+**Verifier result:** requested BFF suite 17/17 ×3 and typecheck pass; all listed connector gates, response handling, actions, and route fences are pinned by the tests and source inspection.
+
+## VERIFY-SCHEMA-IMPL — independent verification (2026-10-05)
+
+**Verdict: PASS for the requested offline checks, with the schema boundary limit below.** Packet VERIFY-SCHEMA-IMPL, dispatch 2026-10-05 02:05 +07. Worktree HEAD: `b088eececcb5f3df0b4edbe073a29401dafda624`. The verifier changed no source or test files; only this receipt and raw logs were written.
+
+### Detector rerun ×3
+
+Cwd: `D:\Git\dugate\du-rework`. Literal command each round: `pnpm --filter @du/orchestrator test -- tests/enc-meta-sentinel-runtime-refs.test.ts`.
+
+| Round | Result | Literal exit | Raw log SHA-256 |
+|---:|---|---:|---|
+| 1 | 1 suite / 10 passed | `0` | `verify-encmeta-schema-round1.txt` — `4165f47c5ee5a5c2675bed2e460c131f62fb43a0b875213ba6ee20a03a201f7a` |
+| 2 | 1 suite / 10 passed | `0` | `verify-encmeta-schema-round2.txt` — `ed2c56a7321fc4fcef908fc4268901cf8775b472d9f847bf0e52014d7c9368a9` |
+| 3 | 1 suite / 10 passed | `0` | `verify-encmeta-schema-round3.txt` — `0fb846d5ecb6525af2ec275e8e2b1f7a343d5e5fa5795e293900fa3937593d0d` |
+
+The updated test 3 is explicitly `DOCUMENTED ACCEPTANCE`: it still writes the sentinel in `ui_schema` and `context_ref`, asserts both remain in their database parameters, and keeps the `input_schema` control sentinel-free. The separate RED detector for `result_ref` passes with both result rows sealed. The resume control remains green: `response_ref` and resumed `payload_ref` are sealed, and the outbox carries references only. No source behavior was changed by this schema packet.
+
+### Wire and slot-boundary inspection
+
+- `toOperationView` constructs an explicit projection and omits both `uiSchema`/`ui_schema` and `contextRef`/`context_ref`. The public GET operation route currently returns that projector directly (`public.ts:409`). The test feeds sentinel-bearing fields to the projector and confirms they do not occur in the serialized view.
+- `ResultEnvelopeSchema` is `.strict()` and rejects top-level `uiSchema` or `contextRef`; `OperationViewSchema` strips unknown top-level `uiSchema`; `HumanWaitViewSchema` strips unknown `contextRef`. The end-to-end fixture writes through `waitInput` and confirms the current operation projection contains no sentinel.
+- Scope limit: `HumanWaitViewSchema` explicitly allows optional `uiSchema`, and `OperationDetailSchema` allows an optional `wait` containing that schema (`packages/contracts/src/operations.ts:232-241`). The current public operation route does not project `wait`, so the inspected route remains closed today. The new tests do not make a future `wait.uiSchema` projection fail automatically; the documented conditional-acceptance trigger requires such a future change to seal the field or re-justify the exemption. The end-to-end test calls the projector rather than issuing an HTTP request, consistent with the implementation receipt's limitation.
+- The slot regression guard passes: `human_waits.response_ref` and `tasks.payload_ref` remain sealable; `human_waits.input_schema`, `ui_schema`, and `context_ref` remain outside the metadata seal map. `input_schema` stays structural, and the resume path retains its existing response/payload sealing.
+
+### Source continuity and attribution
+
+- `metadata-crypto.ts` SHA-256 is unchanged from VERIFY-ENCMETA: `3e6ee2a76c8d682e40f0d015fe4c5d1e943a58e65b067e59b8a845a0938ce7b0`. `git diff HEAD --numstat` remains `48 / 0`. Direct diff inspection shows the additions include the separate P745 `operations.prompt_overrides_ref` slot, the two `result_ref` slots, and `readStoredText`; the existing `tasks.payload_ref` and `human_waits.response_ref` entries are not altered. Thus the +48 total is stable, though not all 48 added lines are exclusively the result_ref implementation.
+- Runtime hash also remains unchanged from the preceding receipt: `runtime.ts` `01ffff43cfd528e029c5d5107c63d92f686e5191175de3c22852f3fdd0d7d377`. `facade.ts` `34ea47ad07fa53d74a88ae3dcc9bc09314121e94c59175018c9f7c7fcb1d5957` and `packages/contracts/src/operations.ts` `34454dd2ab549a47d7732dde6ed81e187eec94c61199963b417f743edc803817` have no content diff against HEAD (`git diff --quiet` exit `0`). The detector test hash is `0f07594177992bdbdf04e302f0638bc604daca0c3d94347365b8448b5472bc0c`, matching qwen_1's implementation receipt.
+
+**Disposition:** detector is green 10/10 in all three runs; test 3 documents the plaintext exemption; the result_ref RED detector and wait/resume controls remain green; current operation wire projection excludes the sentinel. The optional `wait.uiSchema` schema allowance and the absence of a direct HTTP route test remain the stated boundary limits. No live infrastructure was used.
+
+## VERIFY-SHELL-FIX — independent verification (2026-10-05)
+
+**Disposition: PASS.** Worktree HEAD b088eececcb5f3df0b4edbe073a29401dafda624. This verification changed no source or test files; only this receipt and raw logs were written.
+
+### Requested repeated runs
+
+Cwd: D:\Git\dugate\du-rework\services\orchestrator. Set NODE_ENV=test for each run.
+
+Command:
+
+    node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/admin-shell-session-lifecycle.test.ts tests/admin-shell-render.test.ts tests/admin-shell-auth.test.ts
+
+| Round | Result | Exit | Raw log SHA-256 |
+|---|---|---:|---|
+| 1 | 3 suites / 103 passed | 0 | raw/verify-shell-fix-round1.txt — ecec94bfa1b9e33fb6f181d64e9af43c1336c9d54da7455dfcda8194d1cff09c |
+| 2 | 3 suites / 103 passed | 0 | raw/verify-shell-fix-round2.txt — dcd56f3e8d1c1eaaa2180c1c10dc9f2c7cfb08ba93c3ca162e730a7328099439 |
+| 3 | 3 suites / 103 passed | 0 | raw/verify-shell-fix-round3.txt — a8798abf36006ea209e8e4c5831a6cc6e5f69f865a6a3fa8e9c9fde9deeb336a |
+
+P6-01 fixture and nav projection control:
+
+    node node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/admin-p6-01-shell-fixtures.test.ts tests/admin-view-model.test.ts
+
+Result: 2 suites / 235 passed, exit 0. Raw log: raw/verify-shell-fix-nav-fixtures.txt — SHA-256 814626ad37b2e3cc67409bf500ff76e245e764475bb7ae50db97dd0244311e98.
+
+### Independent inspection
+
+- FIX-2 test at session-lifecycle line 559 sets NODE_ENV=test in the cookie-policy describe setup while clearing DU_ADMIN_TRUST_PROXY_PROTOCOL and DU_ADMIN_COOKIE_SECURE; afterAll restores the environment captured before the suite. The default-policy case passes no cookiePolicy override to createAdminShellServer and still sends x-forwarded-proto=https, then asserts the legacy cookie has no Secure attribute. It therefore still tests the unset-knob default path; pinning NODE_ENV removes only ambient-environment nondeterminism.
+- The security-event case creates the real listener without injecting securityAudit, captures process.stdout (the default @du/observability consoleSink output), requires exactly one parseable “[admin-shell] security event” JSON line, checks the exact auth.login_failed event fields, and checks the full line for the planted sentinel. This observes the production default sink rather than bypassing it with an injected test sink.
+- view-models.ts imports getCanonicalNavItems and defines ALL_NAV_ITEMS directly as its returned array. p6-01-shell-fixtures.ts owns the sole seven-item list: businesses, operations and overview require viewer; profiles, connectors, grants and api-keys require admin. The view-model test asserts both deep equality and reference identity between ALL_NAV_ITEMS and getCanonicalNavItems(), and role projections assert viewer/operator see the three viewer-tier entries while admin sees all seven. The P6-01 fixture suite and these projection assertions pass in the recorded run.
+
+Observed hashes: session-lifecycle test 13e2a19db36aa932d17cf59b41d6c843b69c9967c6d24b66d9b1197044067720 (matches FIX-2 receipt); view-models.ts b3b91a3936947afb84942c90cd16e18b66d0e4dd6c96ff8678ed0258d8fab0e7; p6-01-shell-fixtures.ts 7e5fa4e11b9c4a062e06b12e211f74fc4d8522294ad143aaf3b71c1440fdf590.
+
+**Verifier result:** requested three-suite set passes 103/103 ×3; the P6-01 fixtures and explicit nav single-source identity/value controls pass.
+
+## VFY-ENCMETA-801 — independent ENCMETA verification (2026-10-05)
+
+**Verdict:** the requested offline RESULTREF and SCHEMA suites pass in three consecutive rounds, and the named R1/R2/R3 paths behave as tested. Independent code review found two additional reader gaps: the R4 SDK parser does not match the actual R2 camelCase wire shape, and the Admin operation-detail projection returns the stored envelope without opening it. A3 is confirmed: runtime metadata readers have no switch to close the plaintext backfill allowance, so this is a completed verification with outstanding findings, not full reader acceptance.
+
+Packet VFY-ENCMETA-801, dispatch task_793fb952ec41 / ctx_bcb31a81def4. Snapshot: 2026-10-05 03:38 +07. Cwd for Jest commands: D:\Git\dugate\du-rework. Worktree HEAD: b088eececcb5f3df0b4edbe073a29401dafda624. Source/test files were not edited by this verifier. Four raw logs were added under coordination/reports/raw; no live PostgreSQL, Vault, Redis, MinIO, or provider was used; no commit, push, stage, tick, or reset was performed.
+
+### Literal test runs
+
+The focused rounds exercise the six RESULTREF cases and the ten SCHEMA detector/boundary cases together:
+
+    pnpm --filter @du/orchestrator test -- tests/encmeta-resultref-offline.functional.test.ts tests/enc-meta-sentinel-runtime-refs.test.ts
+
+| Round | Result | Literal exit | Raw log SHA-256 |
+|---:|---|---:|---|
+| 1 | 2 suites / 16 passed (RESULTREF 6, SCHEMA 10) | 0 | raw/verify-encmeta801-focus-round1.txt — FB182C0851F195520C826320031D50B24E186508C8918575C23891828D80E96D |
+| 2 | 2 suites / 16 passed (RESULTREF 6, SCHEMA 10) | 0 | raw/verify-encmeta801-focus-round2.txt — 07F335DE6C3F4FD3A6BDED9DF159E7F669609B625E53C73553FE082CCE21E8E7 |
+| 3 | 2 suites / 16 passed (RESULTREF 6, SCHEMA 10) | 0 | raw/verify-encmeta801-focus-round3.txt — E500CF4CDA48E3A68F684176F1E866BB1A26C6B718C1C21285DEFB12A80021EC |
+
+The R4 SDK fan-out parser suite was run separately:
+
+    pnpm --filter @du/worker-sdk test -- tests/fan-out.test.ts
+
+Result: 1 suite / 20 passed, literal exit 0. Raw log: raw/verify-encmeta801-sdk-r4.txt — E5306DCCF046ACA9615A6CB04B316C9837139E3C4BB0FCAD8A97F9F614378CAE. The PowerShell-captured orchestrator logs contain one RemoteException record from child stderr; each log also records Jest's 16/16 summary and literal native exit 0.
+
+### RESULTREF writer and R1/R2/R3/R4 paths
+
+- Source search found one non-null writer: RuntimeService.completeTask (runtime.ts:802-846). It seals the worker ref twice under tenant + tasks.result_ref/taskId and tenant + operations.result_ref/operationId, JSON-stringifies each envelope for the TEXT columns, and computes both values before either UPDATE. Without a configured metadataCrypto seam it intentionally retains the historical plaintext behavior.
+- R1 GET /api/v1/operations/:id/result (http/routes/public.ts:531-546) calls readStoredText with the API-key tenant, operations.result_ref, and operation id. The six-test suite asserts exact equality of the returned opaque ref, not the envelope; null still projects to an empty data object.
+- R2 getChildren (runtime.ts:1169-1212) opens each non-null child result under that row's tenant, tasks.result_ref slot, and child id; null stays null. The test covers sealed, legacy-window, and null cases.
+- R3 reconcileParentJoin (runtime.ts:1805-1833) awaits opening all child refs before inserting them in joinSummary, opens the parent payload before merging, then seals the merged parent payload. The round-trip test confirms the summary contains opened refs and no nested envelope.
+- Cross-slot replay and cross-tenant AAD mismatch reject with CONTEXT_MISMATCH; a tasks.payload_ref envelope cannot be used as tasks.result_ref. Plaintext passed directly to readStored with allowPlaintext=false rejects with NOT_SEALED. These are deterministic offline crypto/code-path results.
+- R4 is not a second crypto-open implementation: the SDK consumes the child-list wire that R2 already opened. However, the wire names the value resultRef: getChildren declares camelCase (runtime.ts:1169-1170), and the runtime GET route returns that object directly (http/routes/runtime.ts:457-463). Worker-SDK parseChildren reads only row.result_ref (packages/worker-sdk/src/fan-out.ts:590-605); its passing fixtures use snake_case result_ref (tests/fan-out.test.ts:398-410). On the actual camelCase response the SDK therefore sets ChildState.resultRef to null. This is an offline-proven consumer mismatch, not ciphertext leakage; the 20 passing tests do not exercise the server's actual response shape.
+- Additional unlisted reader: admin-bearer GET /api/v1/operations/:id routes to buildAdminOperationDetail (http/routes/public.ts:455). That projection copies op.result_ref directly into result.data.resultRef (modules/operations/mappers.ts:38-94), while getOperation returns SELECT * from operations (runtime.ts:1656-1659); it does not call readStoredText. With the encryption seam active this response carries the serialized envelope rather than the original opaque pointer. The route is distinct from the passing /result endpoint and was not covered by the focused suites; owner review/follow-up is needed.
+
+### SCHEMA detector and slot accounting
+
+- The detector's test 3 is DOCUMENTED ACCEPTANCE: it deliberately keeps ui_schema/context_ref sentinel assertions as evidence of the approved plaintext exemption, with the conditional trigger documented. It is not counted as a leak regression failure.
+- Each round passes all ten schema cases: projector omission, strict ResultEnvelope rejection, OperationView/HumanWaitView stripping, end-to-end wire boundary, and the slot-boundary regression. Structural input_schema and exempted ui_schema/context_ref remain outside the seal map; human_waits.response_ref and tasks.payload_ref remain accepted slots.
+- metadata-crypto.ts has four slot names at HEAD and eight in the current worktree. The four added names are step_checkpoints.session_ref (RCR/A2), operations.prompt_overrides_ref (P745), tasks.result_ref and operations.result_ref (this result-ref implementation). Thus RESULTREF contributes exactly two slots; the file's complete HEAD diff is 50 insertions / 1 deletion (EOF newline normalization), also including readStoredText and unrelated slot work. The current 50/1 diff must not be attributed wholly to ENCMETA-RESULTREF.
+
+### A3 — no runtime window switch
+
+- openMetadata(runtime.ts:447-453) accepts no policy/config argument and passes the literal true to crypto.readStored. All result_ref text readers also pass true: R1 (public.ts:538-544), R2 (runtime.ts:1202-1208), and R3 (runtime.ts:1814-1820). No runtime config or environment switch is read at those seams.
+- A separate createBoundedDualReadWindow/readDuringBoundedDualRead helper exists in modules/encryption/legacy-payload-migration.ts, but repository search finds it only in that module and its tests; the runtime metadata paths above do not call it. It is not an A3 switch.
+- Exact consequence: after metadata encryption is enabled, an old plaintext control-plane value still passes through these readers indefinitely. A migration/backfill may seal existing rows, but the runtime has no code path to close compatibility after the last unresolved reference or to fail closed if plaintext remains; a zero count elsewhere cannot change the hardcoded true. This blocks claiming that the metadata backfill window has closed and keeps legacy rows readable if any remain.
+
+### Offline-provable versus live-only
+
+Offline-provable here: test assertions and source paths above, using scripted PostgreSQL/fake key provider and Jest stubs; schema wire guards; R4's parser/response key mismatch; and A3's literal call arguments. Live-only: actual PostgreSQL row inventory and persisted envelope values, deployment wiring of metadataCrypto and its key provider, real backfill completion/remaining legacy rows, and behavior against live service configuration. No database query or live service call was made.
+
+Relevant current source/test SHA-256 pins:
+
+| File | SHA-256 |
+|---|---|
+| services/orchestrator/src/modules/runtime/runtime.ts | ACB476FD3079E6F3FDBF4B81BB54F5FE0B5B2F07679BB72AB47C73664BC09138 |
+| services/orchestrator/src/modules/runtime/metadata-crypto.ts | C614ECDCFDA50EAC79A29EAC2098B92CB3BBA77280D90DDEC6F3A815A4A602A1 |
+| services/orchestrator/src/http/routes/public.ts | 422DB30E924DB063C30405B26BE73CCC867CE4E4DEDE8E344B411A169CBB057C |
+| services/orchestrator/src/http/routes/runtime.ts | 8A4209F370B4BEDCA8C24C52AC5D1B08F7D5D59EE9AC72184F7C53D3A9CA5602 |
+| services/orchestrator/src/modules/operations/mappers.ts | 8C536C2C5757E2C7CEB51519CF2AAB2C58053D016EEF65E2FB851F1317C1B9EA |
+| services/orchestrator/tests/encmeta-resultref-offline.functional.test.ts | C516D4DA620F19A209DAC59FAF4458C6E1150CF410C434E9D29B10DF73D5E7E3 |
+| services/orchestrator/tests/enc-meta-sentinel-runtime-refs.test.ts | 0F07594177992BDBDF04E302F0638BC604DACA0C3D94347365B8448B5472BC0C |
+| packages/worker-sdk/src/fan-out.ts | E894C3844AABFA701BB3B46A6DAB59192AED45575F06E1A023FFA931FD0E694E |
+| packages/worker-sdk/tests/fan-out.test.ts | E6E73CCB4BCBE4C53CD383939470C8386BB2B8411E43267F1DE5AEFA419FEBC3 |
+
+## VFY-801 - independent offline verification (2026-10-05)
+
+**Verdict:** The STUB-EXT connector cases, including the management journey, passed 15/15 on both the initially pinned build and the later current build. The requested `index-CqyHzg0b.js` digest matched before the first run, but a later rebuild replaced it; current assets still pass the isolated browser rerun. The Vault example has one semantics wording mismatch, and the historical PLAN-800 validator now reports expected drift because PLAN-805 superseded that snapshot.
+
+Packet task `task_fdb2d8dc32d6`, dispatch `ctx_ef0b304b8519`, run `run_069ecd6957cd`. Cwd `D:\Git\dugate\du-rework`; HEAD `b088eececcb5f3df0b4edbe073a29401dafda624`. No product source or test files were edited. Changes by this verifier are this receipt and raw logs under `coordination/reports/raw/`; no commit, stage, push, tick, live resource, or worker-control operation was performed.
+
+### STUB-EXT browser harness and source inspection
+
+From `tests/browser/admin-web`, command:
+
+    ..\node_modules\.bin\playwright.cmd test api-keys-connectors.spec.ts --config playwright.config.ts --grep 'connectors:' --repeat-each=3
+
+The five `connectors:` cases (6-10), including case 9 management journey and case 10 cURL secret/path exclusion, ran three times: **15 passed, literal exit 0**. Raw log `raw/verify-vfy801-stub-ext-x3.txt` SHA-256 `fd44b2cfd43a45a989aba63a163672ceb264f7ba8238a086cd87ecfe2c78d80d`.
+
+At the first check, `apps/admin-web/dist/assets/index-CqyHzg0b.js` was SHA-256 `0b8ed8ed715bbd160bdd1a571927c1ff4848b2c55ab6beabe89251ccf8c40b3c` (requested prefix `0b8ed8ed715bbd16`) and `index-HHyOtXdi.css` was `2edb802939854314a79f39b47024fa8831e823575e979e9007c7510ce313a0aa` (requested prefix `2edb802939854314`). Both matched the packet pin during the first 15/15 run. The first run raw log timestamp is 03:34 +07; the dist was rebuilt later at 03:42 +07. Current assets are `index-VXqFDc-c.js` SHA-256 `91323b349fc141758790908fe51c47723ac07ba637bd73674723ea33bde3250a` and `index-BffJF1YL.css` SHA-256 `baf331d4ea62f3274fc1ac9e83ea049787fc7f786fac6330fbf69de3457bf021`. Therefore the requested digest is verified for the first run but is no longer the current dist name/hash.
+
+A current-dist rerun using Playwright's shared default output had 13 passes and two teardown failures (`browserContext.close` trace/zip `ENOENT`), literal exit 1. Repeating x3 with a unique `--output` directory passed **15/15, literal exit 0**; before/after JS and CSS hashes were identical, and the bundle contains the session-unavailable, platform-ledger, secret-omission, and BFF-write strings. Raw diagnostic logs: `raw/verify-vfy801-stub-ext-current-dist-x3.txt` SHA-256 `e00a977dd85c739059b043e2108c090b8e77c48dcad8cfa40ee706a589723a47`; isolated passing run `raw/verify-vfy801-stub-ext-current-dist-isolated-x3.txt` SHA-256 `7b2199d717c61f2024d9c2ca0ae327e32f094f3122f579aed261f0f6de823f9c`. The harness was stopped after each run; both listener ports were closed.
+
+Source review agrees with the bootstrap intent: `connectors-screen.tsx:118-143` calls `getSession()` before capabilities/list, and on session failure sets the fail-closed error state and returns before those reads. `client.ts:221-224` stores the returned CSRF token; `client.ts:156,205-209` sends it on the action request with its idempotency key. The stable screen client is at `connectors-screen.tsx:84-86`. The secret-value and local file-path mapper is `features/connectors/state.ts:304-323,326-330`; management facts render labels/keys only (`connectors-screen.tsx:745-787`). Browser assertions at `api-keys-connectors.spec.ts:289-301` prove the mutation payload excludes the synthetic secret and local path while retaining public endpoint/header shape. Current `connectors-screen.tsx` SHA-256 remains `755875b569b3f24044327519465985a2d9942ca6fd06ef04a4fb7d9f07464958`.
+
+### ENV-EXAMPLES-SYNC
+
+The three commented variables are present at `.env.example:38-40`; their sample OPTIONS and binding JSON shapes are valid. In `services/orchestrator/src/modules/connector-credentials/compose.ts:35-41,115-149`, any non-empty variable requests the workflow, but both `DU_VAULT_KV_OPTIONS` and `DU_VAULT_KV_TOKEN` are the required pair. `DU_CONNECTOR_INITIAL_BINDINGS` is optional and is parsed only when supplied. Thus `.env.example:37` wording that implies the full trio is required is stricter than actual compose semantics; options plus token with no initial bindings is supported. No documentation/source edit was made. This establishes code/config semantics offline, not connectivity or authorization against a live Vault.
+
+### PLAN-UPDATE-800 and current PLAN state
+
+I replayed the Python validator embedded in `plan-update-800-2026-10-05.md` against the current checkout. Latest replay: 77 docs, 590 local links, 52 anchors, 65 definitions, 0 duplicates, `added_task_rows=0`, `P763_open_rows=0`, literal exit **1**. Its errors are historical-baseline drift: PLAN checkbox/open-row expectations and the PLAN/README current notice were superseded by PLAN-805. Raw `raw/verify-vfy801-plan-validator-latest.txt` SHA-256 `65e4646b8fdd102cd8ab42c7f8a03dfae53ecc83b7f43e487bb74288e47f5251`.
+
+Independent comparison against the preserved PLAN-805 pre-update snapshot found 26 task definitions before and after, no added/removed definition IDs, and exactly two checkbox changes: `P763-PROMPT-WIRING` and `P763-W1C-COMPOSE`, both `[ ]` to `[x]`. These are the two authorized offline-leg ticks in PLAN-805, not unapproved changes. The PLAN-UPDATE-805 receipt reports validator exit 0; its `plan-update-805-2026-10-05.validation.raw.json` has `errors=[]`, 0 added task rows, 2 P763 offline ticks, and 0 other checkbox changes. The raw JSON SHA-256 is `1f52bdec60c38ef00a7fa8d4ca587cb0927c4720d03f7d2a83cfc0b4e8f89af8`. Current anchors `tasks/PLAN-COMPLETION-2026-10-04.md:275` and `:277` both carry explicit offline-only scope; parent/provider-use/live gates remain open. Current PLAN SHA-256: `cff3624a147d761dfdf830672052c30de21cb44eaf40d2a6c67a50c8745b88c1`.
+
+### TICK-PROPOSAL-2 hashes and anchors
+
+All seven unchanged pins match their cited prefixes: composition test `86c46315`, acquisition-ref-resolver `4b0226c1`, ingestion-consumer `b737b5fa`, document-core worker `9bce7694`, prompt-application `261f395f`, carrier-impl-b2 test `097dc9c9`, and session-capture-inject test `27d3d113`. Full current hashes are in `raw/verify-vfy801-static.txt`.
+
+The `create-app.ts` row has moved again since TICK-PROPOSAL-2's current pin `ae7e29ce`: current SHA-256 is `ca24177afff0b3207c9361f189617d352faf53a88247eeef3e93db758a6ad83a`, matching later RCR receipts. The W1C composition remains at `create-app.ts:64,472-478,500-503`. `execution-pin.functional.test.ts` current SHA-256 is `3082c47409e49cb7dab8462ccbc5cdc252f7f8f3408ffd891c737d1255bddeda`; TICK-PROPOSAL-2 already identifies the transposed suffix in the older VERIFY-B2 pin as a receipt transcription nit, not source drift.
+
+### Offline and live boundary
+
+Offline-provable: both browser runs used the local admin-shell server, scripted upstream stub, and real headless Chromium; code ordering and payload assertions; static env parsing/compose semantics; PLAN validator outputs and preserved-snapshot comparison; asset/source hashes and line anchors. Live-only and not exercised: deployed cookie/proxy/origin CSRF behavior, real connector ledger persistence/CAS, Vault authentication/write, external provider effects, real PG/MinIO cells, and live-window flows.
+
+Raw static evidence `raw/verify-vfy801-static.txt` SHA-256 `ae5374c5960cb4754b1ea1406a128134e0e503c2d372b411eed90ea8bce4ae5a` records full asset/source hashes, seven TICK hashes, current PLAN anchors, plan comparison, and harness shutdown. The historical PLAN-800 validator first replay log is retained at `raw/verify-vfy801-plan-validator.txt`; the latest replay is listed above.
+
+## V1-CONDITIONS-802 - independent offline verification (2026-10-05)
+
+**Dispatch:** `task_5dba9335a8ca` / `ctx_166bbe357c25` / `run_069ecd6957cd`. **Scope:** REVIEW-801 V1 missing-key boot and P763 tick-note checks only. No product source or test file was edited; the orchestrator package was built to refresh `dist` for the actual-entrypoint boot. The boot requirement is **NOT SATISFIED as stated**: all three production-entrypoint runs listened successfully with `ENCRYPTION_KEY` absent. The plan-note/hash check passes and both rows remain offline-leg ticks only; this does not close the live gates or full V1 acceptance.
+
+### (a) Actual boot with profile encryption keys absent
+
+Command under test was `node services/orchestrator/dist/main.js` (built from current source), `NODE_ENV=production`, `ARTIFACT_STORAGE_BACKEND=s3`, valid-shaped placeholder Vault transit options/tokens, `AUTO_MIGRATE=false`, `AUTO_DISPATCH=false`, and `DU_SEED_DEV_FALLBACK=false`. The child environment explicitly omitted both `ENCRYPTION_KEY` and `NEXTAUTH_SECRET`. It used a newly created disposable PostgreSQL 16 and Redis 7 pair with tmpfs-only storage; no stopped project/live container or live service was contacted. Vault/S3 endpoints and credentials were placeholders, and no Vault/S3/fetch request was issued. Each trial logged `artifact encryption enabled` followed by `orchestrator listening`; the harness sent SIGTERM after readiness, so the logged `EXIT_CODE=null / EXIT_SIGNAL=SIGTERM` is harness termination, not a startup failure.
+
+Literal result: trials 1, 2, and 3 each had `HARNESS_READY_SEEN=true`; no `orchestrator startup failed` event occurred. The expected clear startup failure with the key absent was therefore **not observed**. The throwaway DB had `tenants=0; api_keys=0; operations=0; profile_bindings=0; admin_audit_events=0; schema_migrations=32` both before and after all boots. The 32 migration ledger rows were created by the explicit one-time fixture migration before boot; boot had `AUTO_MIGRATE=false` and added no business rows. No profile-auth snapshot/cipher existed in that DB, so this startup test does not assert the behavior of consuming a configured profile cipher.
+
+A separate direct resolver probe used the real compiled resolver and a scripted DB adapter returning an encrypted bearer cipher while both key variables were absent. It rejected with plain `Error`, message `ENCRYPTION_KEY (or NEXTAUTH_SECRET) is not set...`, no `code` or `status`, `typedSourceAuthDenial=false`, and `networkCalls=0`; the sentinel credential was absent from output. This confirms no silent unauthenticated fall-through when the configured cipher is consumed, but the missing-key result is not the typed `AUTH_DECRYPT_FAILED` denial: `resolveProfileCryptoKey()` throws before the decrypt helper's catch, and source inspection shows the consumer maps generic errors to `INGESTION_FAILED`, which is not in `PERMANENT_CODES`. Treat the retry classification as a code-path inference, not a full ingestion-consumer run. This gap is why the boot condition remains open.
+
+Raw boot logs:
+
+| Trial | Raw | SHA-256 |
+|---|---|---|
+| 1 | `raw/v1-conditions-802-boot-x1.txt` | `8895310fd5eaa54da9b219b732a3688115f010d4b284a7d58ff89dacc2d69b3c` |
+| 2 | `raw/v1-conditions-802-boot-x2.txt` | `b9b685cdb12235530400cad284f43e3f6ef7144d2693097153d963252eab797e` |
+| 3 | `raw/v1-conditions-802-boot-x3.txt` | `15175d2420963e2b44be8944a69d1194dcc36a88f7ea10069ccc5e0b109c4c55` |
+
+Resolver probe raw `raw/v1-conditions-802-resolver-no-key.txt`, SHA-256 `36c398a40a21e37824c086a80ed7b9a2fbd50238c26715d1d7622aa16446f4c6`. Fixture migration raw `raw/v1-conditions-802-migrate.txt`, SHA-256 `c26d86fd5005b0fe626e96e289a4e4405752bfcc2b76077b6d30814d5f13ff99`.
+
+### (b) PLAN tick-note and digest anchors
+
+`tasks/PLAN-COMPLETION-2026-10-04.md:275` is `[x] P763-W1C-COMPOSE`; its note contains the requested wording `verified at 5913db5e; hunk additive W1C ... preserved at ae7e29ce` and explicitly limits the tick to the offline leg. The producer receipt `coordination/reports/p730-acquire-2026-10-04.md:86` records full SHA-256 `5913db5ea93148ee93a9ef4de969ac5f13ed8b539b2f59cc902785b8792c539d`. `coordination/reports/tick-proposal-2-2026-10-05.md:32` records the later `ae7e29ce64ed558c022be456bbabccecd59345962af789a32a898b18d939ed0e` digest and the additive drift, while retaining W1C at `create-app.ts:64,472-478,500-503`. I inspected those current hunks; current `create-app.ts` SHA-256 is `ca24177afff0b3207c9361f189617d352faf53a88247eeef3e93db758a6ad83a`, reflecting still-later additive changes, with the W1C import, same-db resolver, and S3-only callback still present.
+
+`tasks/PLAN-COMPLETION-2026-10-04.md:277` is `[x] P763-PROMPT-WIRING`; its note says A4 is ticked only for the offline leg and leaves parent T-PROM-02/live evidence open. Thus both P763 rows are ticked at offline scope only; neither row represents live completion. Current PLAN SHA-256 is `a4d805c84ad54610480672000322eefc6309fedb0e9141a6a30ff37f60bac8be`.
+
+### Offline-provable versus live-only
+
+Offline-provable: the real orchestrator entrypoint's x3 startup behavior against isolated disposable services; unchanged business-row counts; the configured-cipher resolver rejection/no-fetch/no-secret probe using a scripted DB adapter; PLAN note text, cited historical digests, current W1C code anchors, and offline-only tick scope. Live-only and not run: real PG/MinIO/S3 cells, deployment profile rows and key configuration, actual upstream fetch/header observation, Vault/service authentication, and provider-side prompt use. These remain reserved for a user-approved live window.
+
+## VFY-802 - independent offline verification (2026-10-05)
+
+**Dispatch:** `task_70057e75f3f6` / `ctx_8c7098a38743` / `run_069ecd6957cd`. **Verdict:** both requested slices pass offline verification. No product source or test source was edited; changes from this verifier are this receipt, raw verification helpers/logs, and two screenshots. No live database, Vault, Redis, or provider was contacted.
+
+### FU-ENCMETA-ADMIN
+
+Focused command `pnpm --filter @du/orchestrator test -- tests/fu-encmeta-admin-projection.test.ts` was run three times: **1 suite / 5 tests passed each time; literal exit codes 0, 0, 0**. Assertions cover sealed envelope + seam ON returning the opaque ref with no `__sealed` marker in serialized output; seam absent preserving a legacy plaintext ref verbatim; seam ON preserving plaintext during the backfill window; nonterminal result null; and null `result_ref` projecting an empty data object. Raw logs are `raw/verify-vfy802-fu-encmeta-admin-run1.txt`, `run2.txt`, and `run3.txt` (with the `verify-vfy802-fu-encmeta-admin-` prefix).
+
+I also invoked the actual `handlePublicRoutes` route handler with `GET /api/v1/operations/op-vfy802` and a platform admin bearer. The evidence-only route probe passes seam ON and OFF: the ON response contains the opaque pointer, not the serialized envelope; the seam receives `{ tenantId: tenant-vfy802, slot: operations.result_ref, refId: op-vfy802 }` and `readStored(..., allowPlaintext=false)`; the OFF response keeps the legacy plaintext value verbatim. This isolates route wiring and projection with a faithful seam stub; the separate RESULTREF suite below supplies real metadata-crypto AAD behavior. Final raw `raw/verify-vfy802-admin-route-rerun.txt` has literal exit 0. The first probe attempt (`raw/verify-vfy802-admin-route.txt`, exit 1) exposed a TSX CommonJS/top-level-await constraint in my helper and was corrected by wrapping its async entrypoint.
+
+Code-path inspection confirms `create-app.ts` supplies `metadataCrypto` to `RouteContext`, `public.ts` passes that context through the admin-bearer detail branch, and `mappers.ts` calls `readStoredText` using the R1 binding. This is an offline route-handler check, not a request against a live orchestrator or persisted row.
+
+Regression command `pnpm --filter @du/orchestrator test -- tests/encmeta-resultref-offline.functional.test.ts`: **1 suite / 6 tests passed, literal exit 0**. G3 refuses cross-row-slot, cross-tenant, and `tasks.payload_ref`-as-result-ref replay with `CONTEXT_MISMATCH`; G6/R1 asserts a sealed `operations.result_ref` at `/api/v1/operations/:id/result` returns the identical opaque ref, with null and no-seam legacy paths unchanged. Raw: `raw/verify-vfy802-resultref-cross-context.txt`.
+
+### CFGADM-UI-PORT-P3
+
+The target route modules exist at `apps/admin-web/src/routes/workflows.tsx` and `routes/docs.tsx`; `router.tsx` imports them and registers `workflows` and `docs` paths. `workflows-screen.tsx` renders the disabled deployment-policy reason (Δ-DEV-03) and explicitly says it reads or mutates no workflow data. `docs-screen.tsx` renders the endpoint catalog and opens the Test Workbench with business/profile/endpoint/url fields; its test endpoint call is an explicit action and no secret/token/password field is rendered.
+
+`pnpm --filter @du/admin-web build` passed typecheck + Vite build, **literal exit 0** (assets `index-Bs0p8VRI.js` and `index-BffJF1YL.css`); raw: `raw/verify-vfy802-admin-web-build.txt`. The offline shell harness and installed Playwright 1.63 Chromium were available, so I ran a browser probe through the real local shell mount at `127.0.0.1` with the scripted upstream stub. Final probe **PASS, literal exit 0**: `/admin/web/workflows` displayed its disabled reason and made 0 `/admin/api/*` requests; `/admin/web/docs` displayed the catalog and workbench, exposed only the five business/profile/url inputs, contained none of the harness secret sentinels, and made 0 `/admin/api/*` requests while rendering/opening. Screenshots: `evidence/vfy802/vfy802-workflows-disabled.png` and `evidence/vfy802/vfy802-docs-workbench.png`. Raw final run: `raw/verify-vfy802-admin-web-browser-rerun.txt`. The initial probe log `raw/verify-vfy802-admin-web-browser.txt` has exit 1 because my selector assumed the modal lived under `#root`; the component portals it outside, so the probe was corrected to inspect the document and rerun successfully.
+
+### Offline-provable versus live-only
+
+Offline-provable: three focused admin projection runs; the actual route-handler branch with admin bearer and optional seam; exact metadata binding passed to the seam; current R1 route regression; cryptographic tenant/slot AAD refusal; route registration and production build; and headless rendering/no-wire/secret-sentinel assertions against the scripted local harness. Live-only and not run: contents of real PostgreSQL operation rows, deployment metadata-seam/key-provider wiring, cross-tenant persisted ciphertext behavior in the deployed service, live login/session/proxy policy, and any real workflows or test-endpoint backend capability. Browser evidence used the local session-gated harness and fake upstream only.
+
+Raw helpers retained for reproducibility: `raw/verify-vfy802-admin-route.ts` and `raw/verify-vfy802-admin-web-browser.mjs`. No commit, push, reset, live test window, or persistent harness process remains.
+
+## VFY-PLAN-805B - independent document verification (2026-10-05)
+
+**Dispatch:** `task_f05e8a1556af` / `ctx_81eb88d806ab` / `run_069ecd6957cd`. **Verdict:** PLAN-UPDATE-805b claims verified against the intake snapshot and current documents. This verifier edited only this receipt and raw evidence; it did not edit PLAN, README, product source, or run any live service.
+
+### Fold contents
+
+PLAN §19.1 contains all four REVIEW-802 verdicts: S1/S2 APPROVED and S3/S4 APPROVED-WITH-CONDITIONS. UI verdicts are scoped to the pinned `index-Bs0p8VRI.js` / `8ccdbab15d44cca1` build: identity, workflows-disabled, and settings-catalog UI_APPROVED; docs CHANGES_REQUIRED for missing session/CSRF bootstrap. §19.3 contains exactly six rows, 803-01 through 803-06. §19.4 contains the four newly created coordinator tasks and IDs: IDENTITY-ROLE-POLICY `task_f0e2aca7ae99`, IDENTITY-BFF-ROUTES `task_42bb7c8166a1`, CFGADM-DOCS-CSRF-FIX `task_31b00c61a6c4`, and VFY-ENC09-803 `task_476b4e7b83b9`. SETTINGS-WIRE-BASE `task_0f77d71cabd1` is also listed there as a pre-existing task, not one of those four new tasks.
+
+### Snapshot and checkbox audit
+
+Independent comparison of `plan-update-805b-2026-10-05.plan.before.md` with current PLAN found 26 checkbox tokens in each and an identical ordered vector. Both P763 rows were already `[x]` in the intake snapshot and remain so: P763-W1C-COMPOSE and P763-PROMPT-WIRING. PLAN-UPDATE-805b changed zero checkboxes and added zero task rows; the two earlier P763 ticks are the authorized A4 offline-leg ticks recorded by PLAN-UPDATE-805. The six A1-A6 adjudication rows are also byte-for-byte equal to the intake snapshot. Raw comparison: `raw/verify-vfy-plan-805b-claims.txt` and `raw/verify-vfy-plan-805b-consistency.txt`.
+
+### Validator, links, and gates
+
+Re-ran `python coordination/reports/plan-update-805b-2026-10-05.validate.py`: **literal exit 0, errors `[]`**, matching the producer receipt. It checked 84 documents, 621 local links, 56 anchors, 65 task definitions with no duplicates, four acyclic Mermaid graphs, and 17 settings keys; it reports 0 checkbox changes, 0 added task rows, diff-check exit 0, and no staged files. The validator raw JSON, literal diff, and diff-check artifact hashes exactly match the SHA-256 values recorded in the producer receipt: `e446cdee8785a58355d34c47873d7caf312fc88c48dc621f8a334e880a579998`, `5ecfa3fdff2bde75be08bb0bb0efeaf098c3fb54786d0c67b82afb4233c5bf6b`, and `c8e527e10882a41bf010ed0edca9d3656a5e706b572b78fb13d9851f931a6506`. Raw rerun: `raw/verify-vfy-plan-805b-validator.txt`; receipt-hash comparison: `raw/verify-vfy-plan-805b-consistency.txt`.
+
+Current PLAN §19.5 and the README current notice retain A1-A6, commit go/no-go 1→6, eight live-window questions, and DEV-03 as user-gated. A4 remains limited to the two P763 offline ticks; parent T-PROM-02, provider-use, and live evidence remain open. Both the plan and README checks find the go/no-go, eight-question, and DEV-03 markers. The rerun's link and anchor scan found no broken local links or anchors.
+
+### Offline-provable versus live-only
+
+Offline-provable: current markdown rows/verdicts, exact checkbox and A1-A6 comparisons to the captured intake PLAN, task IDs, README/PLAN gate wording, validator results, artifact hashes, and local link/anchor integrity. Live-only and not run: whether coordinator tasks later settle, actual deployment/user decisions, live-window readiness or service evidence, and any production behavior. These doc checks do not close those external gates.
+
+## VFY-ENC09-803 - independent ENC09/R4 verification (2026-10-05)
+
+**Dispatch:** `task_476b4e7b83b9` / `ctx_c9b8138ee993` / `run_069ecd6957cd`. **Verdict:** both targeted fixes pass their offline checks, including an additional actual-route/reader interoperability probe. No product source or persistent test file was edited; the one-off probe test was deleted after it passed. Live PostgreSQL and live Vault/key-provider behavior remain unverified.
+
+### ENC09 kind registration, context, and window
+
+Ran `tests/encmeta-enc09-kind.test.ts` plus `tests/legacy-payload-migration.test.ts` three times from `services/orchestrator`; each run passed **2 suites / 23 tests, literal exit 0**. The new suite registers both `operations.result_ref` and `tasks.result_ref` in `ENC09_PAYLOAD_KINDS` and `RESULT_REF_PAYLOAD_KINDS`, checks that inventory does not mark either kind uncovered, and asserts each payload kind matches its metadata slot.
+
+The seal binding fix is present in `legacy-payload-migration.ts`: tenant comes from the operation row (`o.tenant_id`, including the `tasks t JOIN operations o ON o.id = t.operation_id` query because `tasks` has no `tenant_id` column); slot is the exact payload kind; `refId` is the underlying row UUID. The composite `kind:rowId` value remains only the migration-store address; the payload and seal context use `row.id`. The task query locks `FOR UPDATE OF t`. The new tests check the exact select shape, inventory/context behavior, and wrong-tenant/slot/ref rejection.
+
+The suite uses a fake sealer for its focused migration-store cases, so I also ran a one-off integration probe with the actual `createMetadataCrypto` AES-GCM envelope implementation and a deterministic offline key provider. The probe backfilled both operation and task rows, then passed the resulting stored `operations.result_ref` through the real public R1 `/result` handler and the stored `tasks.result_ref` through the real runtime R2 GET-children reader; both opened and returned the original opaque reference, while the envelope did not contain the sentinel plaintext. A wrong row UUID failed with `CONTEXT_MISMATCH`. The probe used a scripted in-memory DB adapter, not PostgreSQL.
+
+The closed-window case returns `state=incomplete` with `MIGRATION_STORE_UNAVAILABLE` and asserts **zero writes**; the open-window control completes and writes. The 14-day maximum is also covered. These are store-level guarantees. Source search found no production caller of `ResultRefPgMigrationStore` / `backfillLegacyPayloads`, so no deployed/scheduled caller currently supplies and enforces that bounded window; the store guard itself is verified, but production backfill/window wiring remains open. Runtime `readStoredText` callers still pass `allowPlaintext=true` for the legacy compatibility path, which likewise needs an approved live-window policy before claiming expiry behavior end to end.
+
+### FU-ENCMETA-R4 SDK and actual server response
+
+Ran `packages/worker-sdk/tests/fan-out.test.ts` three times; each run passed **1 suite / 21 tests, literal exit 0**. The contract test uses the server's camelCase children DTO (`taskId`, `taskKey`, `kind`, `state`, `resultRef`, `errorCode`) and checks `ChildState.resultRef`. Existing snake_case test inputs continue to pass. `parseChildren` uses `row.resultRef ?? row.result_ref` (and camelCase-first equivalents for the other aliases), so camelCase wins when present and snake_case remains a fallback.
+
+For a non-fixture cross-check, the one-off probe called actual `handleRuntimeRoutes` backed by the real `RuntimeService.getChildren`, serialized that route body into the response consumed by `waitForChildren`, and asserted the SDK's parsed child had the original result reference. This proves offline server-route/SDK shape agreement; its DB/auth dependencies were scripted and local.
+
+### Raw evidence and offline/live boundary
+
+Literal command results: orchestrator focused suites **0 / 0 / 0**; worker SDK fan-out suite **0 / 0 / 0**; actual-reader + actual-runtime-route-to-SDK probe **0** (1 suite / 1 test). Raw logs and SHA-256:
+
+| Evidence | SHA-256 |
+|---|---|
+| `raw/vfy-enc09-803-orchestrator-x3.txt` | `1f8208f4029187ed6bb42e2294966d31655e8be97f1cadff835181dc7bf7dfbd` |
+| `raw/vfy-enc09-803-worker-sdk-x3.txt` | `133cfa8282ae7590abe1a5ac27ca53644e82cf655045f5dc3113f3bd992a9623` |
+| `raw/vfy-enc09-803-actual-readers-wire.txt` | `4cfcd18f59e6ae9d894d7fd8d7dfd76d52e205bf0cdb588103e21063ce7d4a0c` |
+
+Offline-provable: inventory membership; row-vs-composite context selection; actual crypto envelope open through local R1/R2 readers; closed-window no-write behavior; SDK camelCase and snake_case mapping; and the actual server route DTO consumed by the SDK under a scripted DB. Live-only and not run: PostgreSQL schema/query/transaction behavior against real rows, deployed key-provider/Vault unwrap/authentication, production backfill invocation and bounded-window wiring/expiry, and live service/API behavior. These gaps remain open; this verification does not authorize or substitute for a live window.
+
+## VFY-803 - independent execution verification (2026-10-05)
+
+**Dispatch:** `task_a02a97db2a6e` / `ctx_2d81165c7bf5` / `run_069ecd6957cd`. **Scope:** three requested slices plus independent review of the existing admin-local-user repository suite after the coordinator addendum. No product source or test source was edited; generated raw logs and harnesses are under `raw/vfy803-*`.
+
+### MIGRATION-VERIFY-TRAP-FIX
+
+`pnpm --filter @du/orchestrator test -- tests/migration-verify-trap-fix.test.ts` passed **8/8 tests, literal exit 0 in each of three runs**. The suite asserts count/read mismatch, sequence-key collapse, non-numeric sequence, orphan, empty ledger, missing table, matching ledger, and no-write behavior.
+
+I also built the current orchestrator (`pnpm --filter @du/orchestrator build`, exit 0) and exercised its migration runner against a **new task-owned PostgreSQL 16 container** with tmpfs data and a loopback-only port. Fresh `migrate` applied 32 migrations and its built-in verify passed; `server_version_num=160010`; direct CLI verify on the matching physical ledger exited 0. An adversarial, task-local view made the actual `SELECT count(*)` see 32 rows while the following ledger SELECT saw 0; `verifyMigrations` rejected it with the expected “ledger is not readable as recorded” error, literal exit 1. A physical orphan row 9999 and an emptied ledger also each failed with the expected orphan/missing-migrations error, literal exit 1. The container was removed and its tmpfs discarded. The schema’s sequence primary key prevents a duplicate physical key; key-collapse behavior is covered by the suite’s database adapter returning the duplicate rows while the count reports both.
+
+### IDENTITY-ROLE-POLICY and repository regression addendum
+
+`pnpm --filter @du/orchestrator test -- tests/admin-local-user-role-policy.test.ts` passed **5/5 tests, literal exit 0 in each of three runs**. It covers USER and VIEWER upward assignment to ADMIN returning `ROLE_ESCALATION_DENIED` before any recorded DB/audit query, a requested role outside the allowlist returning `INVALID_ROLE` before effects, and USER mapping to stored `operator`. An additional compiled-code probe covered the cases absent from that focused suite: an invalid caller role returns `INVALID_CALLER_ROLE` with zero query and transaction calls; ADMIN creates both USER/`operator` and VIEWER/`viewer`; each role is supplied as the fourth SQL bind (`$4`) rather than interpolated; successful creates record audit rows. Probe exit 0.
+
+I independently ran `pnpm --filter @du/orchestrator test -- tests/admin-local-user-repository.test.ts` three times: **7/10 passed and the same 3 failed each run; literal exit 1 each run**. The failures are at assertions in the unchanged legacy test (lines 179, 240, 273): line 179 expects the prior six-value audit parameter array but receives three new `null` actor issuer/sub/role binds before action; lines 240 and 273 expect the action at `params[2]`, while the current audit writer puts it at `params[5]`. The captured task diff adds role-policy helpers and `createUser()` in `repository.ts`; it does not modify `createAdmin`, `disableAdmin`, `rotateCredentials`, or the legacy test file (`git diff --exit-code` for that test is 0). The separate `audit.ts` diff adds `actor_issuer`, `actor_sub`, and `actor_role` and shifts the audit SQL placeholders. These 3 failures therefore are **not caused by the IDENTITY-ROLE-POLICY slice**; they are stale assertions against the separate audit writer change, demonstrated by the assertion values and source diff, not assumed from the owner’s note.
+
+### CRED-LIMITS-801
+
+Three focused suites were run three times each: Vault KV2 writer **6/6 per run**, credential-workflow composition **4/4 per run**, and credential-workflow e2e **5/5 per run**; all nine commands exited 0. The Vault writer suite’s timeout test passes an abort-aware hanging fetch stub and checks the 60 ms timeout, typed retryable `VAULT_UNAVAILABLE`, and no sentinel in the error. To verify transport cancellation independently, I also ran the compiled writer through native `fetch` against a deliberately delayed local HTTP server: one POST reached the loopback server, the real `AbortSignal` fired, elapsed time was 95 ms for an 80 ms timeout, result was `VaultKv2WriterError / VAULT_UNAVAILABLE / retryable=true`, and the sentinel was absent from the error (exit 0). The local stub received the synthetic sentinel in the expected Vault request body; this was a disposable local test value.
+
+The e2e suite confirms an injected `config.credentialWorkflow` wins over a complete environment configuration. Its SQL-capture test records three nonempty SQL statements and their actual bind arrays; the forbidden-table filter catches the two statements naming `connector_bindings` and `operations`, while sparing the `api_keys` control. This validates that the capture/filter assertion is load-bearing, though that particular test feeds SQL through its scripted DB adapter rather than PostgreSQL.
+
+### Offline-provable versus live-only
+
+Offline-provable: all focused test outcomes and repeats; policy errors, no-side-effect counters, role parameter binding, audit-writer diff attribution; the compiled verifier’s outcomes on the new disposable PG16; native HTTP abort behavior against a delayed loopback server; config precedence; and the nonempty SQL/bind capture control. **Live-only and not run:** deployed database ledger contents, concurrency/replica behavior on an operator database, persisted identity/audit transactions with actual roles, real Vault identity/policy and provider latency, and any production credential write. No live test window was opened or contacted.
+
+Full SHA-256 values for **all 38 raw logs and evidence harnesses** are in [`raw/vfy803-sha256.txt`](raw/vfy803-sha256.txt); the manifest SHA-256 is `77239e1a01851900bbdf746bc1f4c43f406e7090cafe3327bbec29ee81684ffd`. Key artifacts: `raw/vfy803-pg16-summary.txt`, `raw/vfy803-pg16-verify-count-mismatch.txt`, `raw/vfy803-identity-task-diff.txt`, `raw/vfy803-vault-http-timeout.txt`, and the per-run Jest logs. No commit, stage, push, or reset was performed.
+
+## VFY-COUNTER-FIXES-808 - independent verification (2026-10-05)
+
+**Task:** `task_e857b41870f3`. **Scope:** verification only; no product source or test source edits. **Verdict:** the transaction-level guard in the current backfill SQL is real, the outbox classifier runs and distinguishes top-level shape from plaintext, and every production metadata-reader call passes a literal boolean. The read-only proof applies to the SQL census; do not generalize it to the separate runtime auth-counter helper (limitation below).
+
+### Executed checks
+
+- `pnpm --filter @du/orchestrator test -- tests/gate-authenticate-808.test.ts`: **1 suite / 5 tests passed, exit 0 in each of 3 runs**.
+- `pnpm --filter @du/orchestrator test -- tests/legacy-payload-migration.test.ts`: **1 suite / 9 tests passed, exit 0 in each of 3 runs**. Its fixture declares `outbox_payload` as a covered payload kind; the SQL integration check below independently exercises the table classifier.
+- `tests/gate-authenticate-808-pg16.test.ts` against a new task-owned PostgreSQL 16 container (server_version_num 160010): **1 suite / 1 test passed, exit 0**. It authenticated valid and deliberately broken/context-mismatched synthetic envelopes against the actual PG schema using a deterministic local key-provider double; no Vault was used.
+- Ran the exact current `coordination/backfill-leftover-counter-803.sql` against that disposable schema: **exit 0**. The output from inside its `BEGIN`/local-setting scope was `transaction_read_only=on`, `READ-ONLY PROVEN`. I also ran a test-only instrumented copy with an `UPDATE` inserted after that proof and before the same transaction's coverage query; PostgreSQL rejected the write with SQLSTATE 25006, the harness caught it and emitted `VFY808_SAME_TRANSACTION_WRITE_BLOCKED`, and the script committed with exit 0. A follow-up count-only check reported two fixture rows and both still at attempts=0.
+- The SQL's outbox section on synthetic rows reported `total_rows=2, job_envelope_rows=1, other_rows=1, shape_sealed=1, plaintext=1`. It never selected or printed payload values. This is a **top-level shape classifier, not decryption**: a normal BusinessJobV1 outer object counts as `plaintext` even if a nested field such as `sourceUrl` is separately sealed. The SQL marks outbox as outside the metadata-slot flip gate.
+
+An initial combined Jest invocation passed both paths as one pattern and correctly returned no tests found (exit 1); that launcher output is retained as `raw/vfy-counter-fixes-808-offline-x3-run{1,2,3}.txt`. The corrected, separate invocations above then passed all three runs.
+
+### `allowPlaintext` call-site audit
+
+A TypeScript AST scan of all **156** production `services/orchestrator/src` TypeScript files found 11 `readStored`/`readStoredText` calls: **6 literal `true`, 5 literal `false`, 0 dynamic/missing arguments**. The six plaintext-tolerant call sites are `http/routes/public.ts:538`, `modules/operations/mappers.ts:103`, `modules/operations/ingestion-consumer.ts:660`, and `modules/runtime/runtime.ts:453,1202,1814`. In particular, `openMetadata` itself hardcodes `true`; no runtime environment or config value chooses the boolean. The authenticated counter uses literal `false` at both reader branches (`metadata-auth-counter.ts:191,197`). Raw AST output: `raw/vfy-counter-fixes-808-allowplaintext-ast-audit.txt`.
+
+### Limits and follow-up evidence
+
+The tested SQL file opens a transaction, applies `SET LOCAL transaction_read_only = on`, reads that setting in the same transaction, and is enforced by PostgreSQL as shown above. A separate implementation, `countUnsealedWithAuth()`, calls `options.db.query()` directly for each slot; `Db.query` delegates to `pool.query`, and that helper has no `BEGIN`/`SET LOCAL` transaction guard (its unit fake explicitly throws if `tx` is called). It issues SELECTs and returns only counts/error codes, but it is **not** proven server-enforced read-only as a transaction. If the read-only claim was intended to include this helper, that part remains unverified and needs separate handling.
+
+As an ancillary probe, `tests/enc-meta-sentinel-outbox-source-url.test.ts` failed **5/6** (exit 1) before the outbox assertions. The scripted PG adapter returns ledger rows for any `FROM schema_migrations` query (`tests/enc-meta-sentinel-outbox-source-url.test.ts:147-149`) but does not return a `count` field for the new `count(*)` query; `verifyMigrations` consequently reads zero (`src/db/migrations.ts:153-156`) against 32 listed rows. This identifies a test-fixture mismatch; it does not establish a failure in the outbox writer, and I have not labeled it pre-existing. The failing raw output is `raw/vfy-counter-fixes-808-outbox-writer-suite.txt`.
+
+**Offline-provable:** focused unit and PG16-disposable test outcomes; actual PostgreSQL enforcement for the local SQL transaction; count-only top-level shape classification on two synthetic rows; source-wide literal-argument audit. **Live-only / not run:** current production DB row counts or outbox mix, deployment role permissions and query cost/timeout, and opening every real row with the production Vault key provider. The disposable PG16 fixture and deterministic crypto provider are not production evidence. The temporary container used tmpfs + loopback only and was removed; no project database, real Vault, commit, push, stage or reset was used.
+
+Raw outputs, helper scripts, current SQL, and relevant source-snapshot hashes are in `raw/vfy-counter-fixes-808-sha256.txt`; its SHA-256 is `a1e4d69f1c5fdf23fb37506dcdc13745ebb5668076bac026689da5e69ebf9aff`. The current SQL SHA-256 is `872dafd3ef769e6ef98ca2e02be7e724a0f2c62a87f3830a9276d39f543eb2f3`. Key raw outputs: `raw/vfy-counter-fixes-808-pg16-exact-sql.txt` (SHA-256 `14839c7daa5c553509bd858e04b39a34ca35478ec1fd15b122887fe5f7087d37`), `raw/vfy-counter-fixes-808-pg16-same-tx-write-block.txt` (SHA-256 `6cd6817ba6e31f8305629288e707ce3d67a6ba61cf5e3847a9fcece46215e6f5`), and `raw/vfy-counter-fixes-808-allowplaintext-ast-audit.txt` (SHA-256 `5b034a7cb3571fd66f9d26969af5886a5454d508cb9399bce17478921a783324`).
+
+
+## VFY-VACUOUS-PASS-810 - independent verification (2026-10-05)
+
+**Task:** task_960cc368be7f; dispatch ctx_357e114f9e9f. **Scope:** read-only verification of the auth counter; no product source or counter edits. **Verdict: FAIL as a backfill/flip gate.** The empty-database PASS reproduces, and a second PostgreSQL test shows the larger gap: row-level security can hide a tenant while all eight slot queries succeed and the gate still returns PASS.
+
+### Executed evidence
+
+- The task-local harness ran against PostgreSQL 16.10 (server_version_num 160010) in a fresh container with a tmpfs data directory and loopback-only ephemeral port. The harness migrated only that disposable database. Jest: 1 suite / 7 tests passed, literal exit 0.
+- On the migrated application-empty database, the gate ran eight slot queries with crypto undefined; all eight returned zero rows, values seen=0, values authenticated=0, blockers=0, gate=PASS.
+- After inserting only one tenant and one API key, with no operations/tasks/waits/checkpoints, all eight slots were still empty and the result remained blockers=0, gate=PASS. This confirms unrelated DB data does not prevent the vacuous result.
+- A PG16 RLS fixture created two tenant operations. One operation had valid envelopes; the other tenant had a plaintext result reference. The unrestricted admin scan saw two operation rows and returned FAIL with one blocker. A restricted role subject to ENABLE + FORCE ROW LEVEL SECURITY saw one operation; its counter completed all eight slot queries, authenticated the two visible envelopes, saw no blockers, and returned PASS. This is an observed cross-tenant false PASS, not an inference.
+- Passing only seven of the eight specs throws the exact coverage error before any query (0 query calls). A slot query failure on query 4 propagates as an error after three successful queries and returns no gate status. A reader throw yields sealedBrokenOther=1 and FAIL; a real crypto seam whose key provider throws yields KEY_PROVIDER_FAILED, sealedBrokenOther=2, and FAIL.
+- Existing offline regressions also passed: bypass-fix-810 13/13, exit 0; gate-authenticate-808 5/5, exit 0.
+
+### Gate requirements
+
+The current result has slots, totals, blockers, and gate. The slots array contains per-slot counts, and totals.sealedValid can be used to derive successful opens, but there are no explicit slotsRead, slotsScanned, valuesAuthenticated/attempted, or coverageComplete fields. More importantly, those counts alone cannot prove tenant visibility: the RLS experiment reported eight successful slot scans and two authenticated values while missing a plaintext row in the second tenant.
+
+The gate must return FAIL or an error whenever complete coverage is not established; it must never treat an empty observation as proof of coverage. Require and report the expected slot count (8), successfully read and fully scanned slot counts, row/value counts and authentication attempts/successes, and an explicit complete-coverage result. Require the configured crypto seam even when the visible row count is zero. Tenant coverage also needs a separately proven full-visibility scope (for example, an operator-approved role known to see all tenant rows or a complete expected-tenant census); if that proof is absent, fail closed. Keep PASS unavailable when queries fail, slots are missing, counts disagree, crypto is unavailable, or any tenant/data scope may be hidden. The existing exact-eight-spec guard is useful but proves only the configured slot list, not database visibility.
+
+### Offline-provable versus live-only
+
+Offline-provable: all PG16 results above, including the forced-RLS false PASS; the missing-slot, query-error, reader-throw, and provider-error behavior; and the two existing unit-suite outcomes. The disposable database used synthetic rows and a deterministic local crypto provider, not Vault.
+
+Live-only and not run: whether any real tenant data is hidden by the deployed DB role/RLS policies; the deployed DB's actual metadata row counts and completeness of its tenant census; real Vault/key-provider availability; production query behavior, privileges, and cost. No project DB, live Vault, or user test window was accessed. The temporary Jest file and container were removed; the database lived on tmpfs. No source edit, commit, stage, push, or reset was performed.
+
+Raw harness, logs, and source snapshot checksums are in raw/vfy-vacuous-pass-810-20261005/vfy-vacuous-pass-810-sha256.txt; manifest SHA-256: f59b8b533c8e55e4de9bcab8442d8abd75a7966f1087d7d15832e5ef636d214f. Harness SHA-256: c8d4603777628cab2c65eaa2da33253fddec930d32f669d543ed00fb86538eb9. Final PG16 Jest output SHA-256: d3df9dec8f5373b6d8e6624053e32890d3f6b81677b294db5d9bdc0bcde8314a.

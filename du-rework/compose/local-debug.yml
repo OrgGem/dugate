@@ -1,0 +1,9 @@
+# Opt-in host access for local debugging only. This file is never included by
+# docker-compose.yml; specify it explicitly with a second -f argument.
+services:
+  orchestrator:
+    ports:
+      - '127.0.0.1:${ORCHESTRATOR_INTERNAL_DEBUG_PORT:-3002}:3002'
+  connector:
+    ports:
+      - '127.0.0.1:${CONNECTOR_DEBUG_PORT:-8080}:8080'

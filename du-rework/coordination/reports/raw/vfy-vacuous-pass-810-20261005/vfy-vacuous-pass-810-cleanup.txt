@@ -1,0 +1,4 @@
+Temporary Jest test removed from services/orchestrator/tests.
+Task-owned PG16 container stopped with --rm; no container remains.
+Data directory was tmpfs and was discarded.
+No project database, Vault, source edit, commit, stage, push, or reset used.

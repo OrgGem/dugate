@@ -1,5 +1,7 @@
 # Backlog kiểm thử nghiệp vụ chi tiết — 2026-10-01
 
+> **Acceptance Admin/config bổ sung:** [CFGADM-11 và sáu journeys](ADMIN-LEGACY-CONFIG-PARITY-2026-10-04.md#6-acceptance-hành-trình-vận-hành) mở rộng VFY-LOCAL/REG/COMP/P9/ENC cho setup, provider/prompt defaults, S3 generation/apply/cleanup, grants, workflow mappings và operations/docs. Browser render/readiness không thay config→provider/worker/result; old operation giữ pin khi đổi defaults/storage. Dùng existing golden/harness, không thêm bộ fixtures trùng; không đóng gate từ plan.
+
 **Mục đích:** các packet này nhận **sau khi** vertical slice tương ứng đạt `IMPLEMENTED` + focused smoke. Chúng là sub-packet verification của parent hiện có, không tạo gate mới và không cần hoàn tất trước khi giao implementation độc lập. Không dùng mock/unit xanh để đánh dấu parent `[x]`; các release gate vẫn **NO-GO** đến khi đủ acceptance và review `APPROVED`.
 
 **Điều kiện chung trước khi Tester chạy:** owner bàn giao build digest, contract/fixture version, command chạy, danh sách dữ liệu cần tạo; Tester ghi database/schema, Redis DB/prefix hoặc instance, S3 bucket/prefix, Vault path/key test. Resource chưa cô lập thì chỉ chạy non-destructive test với ID/tenant riêng, hoặc xin lease ngắn cho migration/reset/cleanup; không bắt mọi lane chờ một global DB window. Receipt ghi cwd, timestamp, passed/failed/skipped, exit code, raw output và mismatch còn mở.
@@ -13,3 +15,14 @@
 | `VFY-REG` `[ ]` | `RV01-08` + document-core/Worker SDK regression; Codex Tester offline | Full document-core và Worker SDK suites trên build hiện tại, cancellation/AbortSignal metadata adapter, các targeted producer/consumer tests mới. Nếu suite đụng DB, chạy namespace cô lập thay vì bỏ qua. | Exit 0; báo đúng số suite/test/skipped mới, raw output; test đỏ không bị sửa bằng cách bỏ production signal. |
 
 **Scheduling:** một Tester có thể chuẩn bị fixture/harness khi owner còn code; test live chỉ chạy khi vertical slice có build digest ổn định. `VFY-ENC`, `VFY-COMP`, `VFY-P9`, `VFY-LOCAL` có thể chạy đồng thời nếu namespace tách biệt và không có thao tác phá hủy trên shared resource. Chỉ rerun phần bị ảnh hưởng khi owner sửa sau receipt; không bắt owner đợi toàn bộ ma trận trước packet implementation kế tiếp.
+
+## Acceptance bổ sung sau review 2026-10-04
+
+[PLAN04-01..05 / CONT-00..05](PLAN-COMPLETION-2026-10-04.md) dùng các VFY parent ở trên; không tạo bộ golden thứ hai.
+
+- **VFY-ENC / PLAN04-01/03:** sentinel ở Profile cipher và tất cả operation/task/outbox/queue/claim/checkpoint/log sinks; wrong-key/tag/ref/tenant fail trước fetch. Live upload file, actual worker/Connector và encrypted output, metadata/recipient decrypt; acceptance run `ARTIFACT_STORAGE_MIGRATION_WINDOW=false`. Writer/reader machine identities thực và Transit negative matrix; root-token wrap/unwrap chỉ smoke.
+- **VFY-REG + VFY-COMP / PLAN04-02:** SDK context nhận non-secret pinned policy/prompt/step mapping và document-core thực sự dùng chúng; request quan sát tại mock provider đúng key-4/precedence/fallback/session. Canonical + legacy chung admission; old parent/child/retry/restart/HITL giữ revision A khi active chuyển B; extensions upload/sourceUrl/file_urls/Test Endpoint.
+- **VFY-COMP + VFY-P9 / CONT-04:** fixture client và key synthetic có trước migration; import config/hash/tenant mapping, old operation ID/cursor/download/resume và idempotency qua switch, callbacks/usage không duplicate. Runbook/restore/rollback rehearsal CONT-05 gồm operations mới sinh và partial import. Không đọc production legacy để lấy fixture khi chưa có quyền.
+- **VFY-LOCAL + LIV-08..10 / PLAN04-03:** đúng mode local/oidc/both, 2 tenant/role/CSRF/CAS; thực hiện issue/rotate/revoke key, lưu/test Vault credential và operation detail/lifecycle/download; DB/Vault/audit side effects được xác nhận. Chạy đúng route/build AWEB để đóng UI cutover; token login/breadcrumb pass không thay auth/mutation hoặc UI review.
+
+Mỗi receipt map invariant → test → raw result → build/namespace → verifier/reviewer. HEAD đơn lẻ không pin code khi worktree dirty; dùng build hoặc working-tree digest. Receipt đỏ mới hơn giữ gate hold tới fix + independent rerun, không dùng report GO lịch sử để bỏ qua.

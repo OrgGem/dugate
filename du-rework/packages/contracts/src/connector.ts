@@ -61,13 +61,23 @@ export const InvocationInputSchema = z
   });
 export type InvocationInput = z.infer<typeof InvocationInputSchema>;
 
+/**
+ * P745-CONNECTOR-PASSTHROUGH (T5): explicit, closed option set. The typed
+ * keys plus the two connector passthrough keys the business layer actually
+ * sends (`responseFormat`/`jsonSchema`) are the entire surface forwarded to
+ * a provider and hashed into the canonical invocation input. Anything else
+ * is rejected at both wire ends (SDK outbound + connector inbound) instead
+ * of silently extending the provider payload and the invocation identity.
+ */
 export const InvocationOptionsSchema = z
   .object({
     temperature: z.number().min(0).max(2).optional(),
     model: z.string().optional(),
     maxTokens: z.number().int().min(1).optional(),
+    responseFormat: z.enum(['json', 'text']).optional(),
+    jsonSchema: z.record(z.string(), z.unknown()).optional(),
   })
-  .passthrough();
+  .strict();
 export type InvocationOptions = z.infer<typeof InvocationOptionsSchema>;
 
 export const InvocationRequestSchema = z
@@ -121,6 +131,15 @@ export const InvocationResponseSchema = z.object({
     .optional(),
   /** Provider async: poll hint (202 semantics). */
   nextPollAt: z.string().nullable().optional(),
+  /**
+   * CR06-04: continuation session for THIS invocation. A provider may return
+   * a sessionRef in an async 202 accept body (not only in the final result);
+   * the connector persists it on the pending record, echoes it on every
+   * PENDING response, and keeps it as the invocation's session when the final
+   * result omits one. Additive optional — absent keeps the pre-CR06-04 wire
+   * shape byte-identical.
+   */
+  sessionRef: z.string().nullable().optional(),
 });
 export type InvocationResponse = z.infer<typeof InvocationResponseSchema>;
 

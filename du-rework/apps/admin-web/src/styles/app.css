@@ -1,0 +1,178 @@
+@import 'tailwindcss';
+@import './tokens.css';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *), &:is([data-theme='dark'] *));
+
+/**
+ * Tailwind CSS v4 theme (contract §3 — ONE palette).
+ *
+ * - The `--color-*` / `--font-*` entries below are utilities for our own code;
+ *   their values resolve through `./tokens.css`, which mirrors the rendered
+ *   shell (`shell-render.ts`). Mapping table: AWEB-00 §4.
+ * - The shadcn semantic layer (`--background`, `--primary`, …) is defined once
+ *   in the `:root` block after the theme, mapped onto the same tokens, so
+ *   shadcn/ui primitives added later (AWEB-03) need no palette of their own.
+ */
+@theme inline {
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: var(--font-sans);
+
+  --color-canvas: var(--bg-canvas);
+  --color-card: var(--bg-card);
+  --color-subtle: var(--bg-subtle);
+  --color-hover: var(--bg-hover);
+  --color-line: var(--border-subtle);
+  --color-line-strong: var(--border-dark);
+
+  --color-ink: var(--text-main);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-sub: var(--text-sub);
+
+  --color-brand: var(--cf-orange);
+  --color-brand-hover: var(--cf-orange-hover);
+  --color-brand-light: var(--cf-orange-light);
+  --color-action: var(--cf-blue);
+  --color-action-hover: var(--cf-blue-hover);
+  --color-action-light: var(--cf-blue-light);
+  --color-on-accent: var(--on-accent);
+  --color-focus: var(--focus-ring);
+
+  --color-ok-bg: var(--badge-success-bg);
+  --color-ok: var(--badge-success-text);
+  --color-ok-border: var(--badge-success-border);
+  --color-info-bg: var(--badge-info-bg);
+  --color-info: var(--badge-info-text);
+  --color-info-border: var(--badge-info-border);
+  --color-warn-bg: var(--badge-warning-bg);
+  --color-warn: var(--badge-warning-text);
+  --color-warn-border: var(--badge-warning-border);
+  --color-danger-bg: var(--badge-danger-bg);
+  --color-danger: var(--badge-danger-text);
+  --color-danger-border: var(--badge-danger-border);
+  --color-neutral-bg: var(--badge-neutral-bg);
+  --color-neutral: var(--badge-neutral-text);
+
+  /* shadcn/ui semantic namespace (kept so `shadcn add` output compiles). */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/**
+ * shadcn semantic variables → the single token source. Because every value
+ * references a `--cf-*`/semantic token, the dark palette comes from
+ * tokens.css's `prefers-color-scheme` block — no second palette here.
+ * (`dark:` utilities compile via the custom variant but stay inert until a
+ * theme toggle is decided — Q4.)
+ */
+:root {
+  --background: var(--bg-canvas);
+  --foreground: var(--text-main);
+  --card: var(--bg-card);
+  --card-foreground: var(--text-main);
+  --popover: var(--bg-card);
+  --popover-foreground: var(--text-main);
+  --primary: var(--cf-blue);
+  --primary-foreground: #ffffff;
+  --secondary: var(--bg-subtle);
+  --secondary-foreground: var(--text-main);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--text-sub);
+  --accent: var(--cf-blue-light);
+  --accent-foreground: var(--cf-blue);
+  --destructive: var(--badge-danger-text);
+  --border: var(--border-subtle);
+  --input: var(--border-dark);
+  --ring: var(--focus-ring);
+  --radius: var(--radius-md);
+
+  --chart-1: var(--badge-info-dot);
+  --chart-2: var(--badge-success-dot);
+  --chart-3: var(--badge-warning-dot);
+  --chart-4: var(--badge-danger-dot);
+  --chart-5: var(--badge-neutral-dot);
+
+  --sidebar: var(--bg-card);
+  --sidebar-foreground: var(--text-main);
+  --sidebar-primary: var(--cf-blue);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--bg-subtle);
+  --sidebar-accent-foreground: var(--text-main);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--focus-ring);
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+    @apply font-sans;
+  }
+
+  body {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  /* One visible keyboard-focus ring for every interactive element (matches
+     the rendered shell's shell-render.ts focus contract). */
+  :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

@@ -1,0 +1,1 @@
+﻿DUGate root source inventory: before=536, after=536, changed=0, added=0, removed=0. HEAD=b088eececcb5f3df0b4edbe073a29401dafda624. All root source hashes match.

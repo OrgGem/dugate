@@ -284,6 +284,7 @@ async function startBoundary(options: BoundaryOptions): Promise<Boundary> {
     runtime,
     capabilities: () => ({}),
     ready: async () => true,
+    allowUnauthenticatedTestTraffic: true,
   });
   const port = await listenLoopback(server, connectorPortSeed(), 6);
   return { server, base: 'http://127.0.0.1:' + port, activeCredentialCalls: () => activeCredentialCalls };

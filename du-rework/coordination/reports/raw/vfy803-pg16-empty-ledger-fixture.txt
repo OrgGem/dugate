@@ -1,0 +1,4 @@
+﻿COMMAND: docker exec psql: empty only the task-owned throwaway migration ledger
+LITERAL_EXIT_CODE: 0
+
+TRUNCATE TABLE

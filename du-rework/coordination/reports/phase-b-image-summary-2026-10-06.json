@@ -1,0 +1,26 @@
+[
+    {
+        "service":  "orchestrator",
+        "imageId":  "sha256:74c471aa5b40e19a6b54ed7769185c9608cfc62be76bd84517d3b30b2699c4e6",
+        "scannedImageId":  "sha256:74c471aa5b40e19a6b54ed7769185c9608cfc62be76bd84517d3b30b2699c4e6",
+        "idMatches":  true,
+        "highCritical":  0,
+        "exitCode":  0
+    },
+    {
+        "service":  "connector",
+        "imageId":  "sha256:fb3b3c391431c8af42d0f3d750bf05a1aa2c361776ea528d2fa5d2db814635e4",
+        "scannedImageId":  "sha256:fb3b3c391431c8af42d0f3d750bf05a1aa2c361776ea528d2fa5d2db814635e4",
+        "idMatches":  true,
+        "highCritical":  0,
+        "exitCode":  0
+    },
+    {
+        "service":  "document-core",
+        "imageId":  "sha256:5a1eb45692d4ca8e2aba7cba81834251df3489be86669de454bc1f00e25fb588",
+        "scannedImageId":  "sha256:5a1eb45692d4ca8e2aba7cba81834251df3489be86669de454bc1f00e25fb588",
+        "idMatches":  true,
+        "highCritical":  0,
+        "exitCode":  0
+    }
+]

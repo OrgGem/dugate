@@ -16,6 +16,13 @@ export interface HttpInvocationResult {
   providerRequestId?: string;
   error?: { code: string; message: string; retryAfterMs?: number };
   nextPollAt?: string;
+  /**
+   * CR06-04: invocation continuation session. PENDING responses carry the
+   * provider-issued session persisted on the pending record; SUCCEEDED
+   * responses carry the result-side session (the pending one when the final
+   * provider response omitted it). Additive/optional.
+   */
+  sessionRef?: string | null;
 }
 
 export interface ConnectorHttpStore {
@@ -57,16 +64,62 @@ export interface ConnectorHttpDependencies {
   capabilities: () => unknown;
   ready: () => Promise<boolean>;
   identityVerifier?: ServiceIdentityVerifier;
+  /**
+   * CR06-05 test-only carve-out. Unauthenticated non-health traffic is allowed
+   * only when this flag is explicitly `true`, no `identityVerifier` is wired,
+   * and the process runs under a recognized test runner (Jest/Vitest); the
+   * carve-out also logs a warning on activation. This is the explicit
+   * allowlist: a test harness opts in visibly instead of a missing verifier
+   * silently opening the server. Production composition never sets it.
+   */
+  allowUnauthenticatedTestTraffic?: boolean;
   acceptingInvocations?: () => boolean;
   maxBodyBytes?: number;
 }
 
+/**
+ * CR06-05: service identity is fail-closed on every composition path.
+ * Resolves the verifier that must guard the server, or `null` for the
+ * test-only unauthenticated carve-out. Construction fails closed when neither
+ * a verifier nor the explicitly gated carve-out is configured; the carve-out
+ * itself is rejected outside a recognized test runner.
+ */
+export function resolveIdentityVerifier(
+  dependencies: Pick<ConnectorHttpDependencies, 'identityVerifier' | 'allowUnauthenticatedTestTraffic'>,
+): ServiceIdentityVerifier | null {
+  if (dependencies.identityVerifier) return dependencies.identityVerifier;
+  if (dependencies.allowUnauthenticatedTestTraffic === true) {
+    if (!isRecognizedTestRuntime()) {
+      throw new Error(
+        'Connector test-only unauthenticated traffic is only allowed under a test runner; '
+        + 'wire an identityVerifier instead.',
+      );
+    }
+    console.warn(
+      '[connector] CR06-05 test-only carve-out active: serving non-health routes without service identity; '
+      + 'this must never happen in production.',
+    );
+    return null;
+  }
+  throw new Error(
+    'Connector service identity verification is required; provide identityVerifier or explicitly opt into the '
+    + 'test-only allowUnauthenticatedTestTraffic carve-out.',
+  );
+}
+
+function isRecognizedTestRuntime(): boolean {
+  return process.env.NODE_ENV === 'test'
+    || process.env.JEST_WORKER_ID !== undefined
+    || process.env.VITEST !== undefined;
+}
+
 export function createConnectorServer(dependencies: ConnectorHttpDependencies): DrainableConnectorServer {
+  const identityVerifier = resolveIdentityVerifier(dependencies);
   let activeRequests = 0;
   const requestDrainWaiters = new Set<() => void>();
   const server = createServer((request, response) => {
     activeRequests += 1;
-    void route(request, response, dependencies)
+    void route(request, response, dependencies, identityVerifier)
       .catch((error: unknown) => {
         const connectorError = error instanceof ConnectorError
           ? error
@@ -124,17 +177,18 @@ async function route(
   request: IncomingMessage,
   response: ServerResponse,
   dependencies: ConnectorHttpDependencies,
+  identityVerifier: ServiceIdentityVerifier | null,
 ): Promise<void> {
   const method = request.method ?? 'GET';
   const url = new URL(request.url ?? '/', 'http://connector.local');
   const path = url.pathname;
-  if (dependencies.identityVerifier && path !== '/health/live' && path !== '/health/ready') {
+  if (identityVerifier && path !== '/health/live' && path !== '/health/ready') {
     await requireServiceIdentity(
       {
         authorization: request.headers.authorization,
         'x-service-scope': headerValue(request.headers['x-service-scope']),
       },
-      dependencies.identityVerifier,
+      identityVerifier,
       path.startsWith('/connectors') ? 'connector:manage' : 'connector:invoke',
     );
   }

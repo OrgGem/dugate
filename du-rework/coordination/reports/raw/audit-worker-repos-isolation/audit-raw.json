@@ -1,0 +1,2996 @@
+{
+  "document-core": {
+    "declared": {
+      "@du/contracts": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      },
+      "@du/document-kit": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      },
+      "@du/worker-sdk": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      }
+    },
+    "imports": [
+      {
+        "file": "businesses/document-core/src/actions/compare/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DiffEngine",
+        "local": "DiffEngine",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DiffEngine } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/extract/index.ts",
+        "line": 11,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/ingest/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DocumentFormatDetector, PdfSplitter } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/ingest/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "PdfSplitter",
+        "local": "PdfSplitter",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { DocumentFormatDetector, PdfSplitter } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/ingest/index.ts",
+        "line": 12,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "local": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, type InvocationArtifactContent } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/ingest/index.ts",
+        "line": 12,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContent",
+        "local": "InvocationArtifactContent",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, type InvocationArtifactContent } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/prompt-application.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedProfilePolicy",
+        "local": "PinnedProfilePolicy",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { PinnedProfilePolicy, PinnedPromptOverride } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/prompt-application.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedPromptOverride",
+        "local": "PinnedPromptOverride",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { PinnedProfilePolicy, PinnedPromptOverride } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/prompt-precedence.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PROMPT_OVERRIDE_PRECEDENCE",
+        "local": "PROMPT_OVERRIDE_PRECEDENCE",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { PROMPT_OVERRIDE_PRECEDENCE, type PinnedProfilePolicy, type PromptOverrideRead, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/prompt-precedence.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedProfilePolicy",
+        "local": "PinnedProfilePolicy",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { PROMPT_OVERRIDE_PRECEDENCE, type PinnedProfilePolicy, type PromptOverrideRead, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/prompt-precedence.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PromptOverrideRead",
+        "local": "PromptOverrideRead",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { PROMPT_OVERRIDE_PRECEDENCE, type PinnedProfilePolicy, type PromptOverrideRead, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/session-seam.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedProfilePolicy",
+        "local": "PinnedProfilePolicy",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { PinnedProfilePolicy } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/transform/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "FormatConverter",
+        "local": "FormatConverter",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { FormatConverter, PiiRedactor, TemplateEngine, TextChunker, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/transform/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "PiiRedactor",
+        "local": "PiiRedactor",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { FormatConverter, PiiRedactor, TemplateEngine, TextChunker, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/transform/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "TemplateEngine",
+        "local": "TemplateEngine",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { FormatConverter, PiiRedactor, TemplateEngine, TextChunker, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/actions/transform/index.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "TextChunker",
+        "local": "TextChunker",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { FormatConverter, PiiRedactor, TemplateEngine, TextChunker, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/main.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "createLogger",
+        "local": "createLogger",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { createLogger } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/manifest/document-core.manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessManifest, ActionManifest, ConnectorSlotManifest, WIRE_CONTRACT_VERSION, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/manifest/document-core.manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ActionManifest",
+        "local": "ActionManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, ActionManifest, ConnectorSlotManifest, WIRE_CONTRACT_VERSION, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/manifest/document-core.manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ConnectorSlotManifest",
+        "local": "ConnectorSlotManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, ActionManifest, ConnectorSlotManifest, WIRE_CONTRACT_VERSION, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/manifest/document-core.manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "WIRE_CONTRACT_VERSION",
+        "local": "WIRE_CONTRACT_VERSION",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, ActionManifest, ConnectorSlotManifest, WIRE_CONTRACT_VERSION, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 33,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "MULTIPART_MIN_TOTAL_BYTES",
+        "local": "MULTIPART_MIN_TOTAL_BYTES",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 34,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "defaultParserFactory",
+        "local": "defaultParserFactory",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentParserFactory, DocumentFormatDetector, ParseResult, ParserOptions, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 34,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentParserFactory",
+        "local": "DocumentParserFactory",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentParserFactory, DocumentFormatDetector, ParseResult, ParserOptions, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 34,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { defaultParserFactory, DocumentParserFactory, DocumentFormatDetector, ParseResult, ParserOptions, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 34,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "ParseResult",
+        "local": "ParseResult",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defaultParserFactory, DocumentParserFactory, DocumentFormatDetector, ParseResult, ParserOptions, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 34,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "ParserOptions",
+        "local": "ParserOptions",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentParserFactory, DocumentFormatDetector, ParseResult, ParserOptions, } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 41,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ArtifactStreamError",
+        "local": "ArtifactStreamError",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactStreamError, createTempWorkspace } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 41,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "createTempWorkspace",
+        "local": "createTempWorkspace",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactStreamError, createTempWorkspace } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/step-checkpoint.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/step-checkpoint.ts",
+        "line": 4,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "SealedArtifact",
+        "local": "SealedArtifact",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { SealedArtifact } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/workflows/disbursement/fanout.ts",
+        "line": 12,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "resolveFanoutConcurrency",
+        "local": "resolveFanoutConcurrency",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveFanoutConcurrency, runBoundedFanout as runSharedBoundedFanout, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/workflows/disbursement/fanout.ts",
+        "line": 12,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "runBoundedFanout",
+        "local": "runSharedBoundedFanout",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveFanoutConcurrency, runBoundedFanout as runSharedBoundedFanout, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/types/actions.ts",
+        "line": 5,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "IngestionReceipt",
+        "local": "IngestionReceipt",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { IngestionReceipt } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/types/context.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactRef",
+        "local": "ArtifactRef",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { ArtifactRef, type PinnedProfilePolicy, type PinnedPromptOverride } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/types/context.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedProfilePolicy",
+        "local": "PinnedProfilePolicy",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { ArtifactRef, type PinnedProfilePolicy, type PinnedPromptOverride } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/types/context.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedPromptOverride",
+        "local": "PinnedPromptOverride",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { ArtifactRef, type PinnedProfilePolicy, type PinnedPromptOverride } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/types/context.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/document-kit",
+        "symbol": "SupportedFormat",
+        "local": "SupportedFormat",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { SupportedFormat } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/types/context.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskArtifactCrypto",
+        "local": "TaskArtifactCrypto",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { TaskArtifactCrypto } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/validation/input-normalizer.ts",
+        "line": 11,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "resolveIngestionSource",
+        "local": "resolveIngestionSource",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveIngestionSource, type IngestionReceipt } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/validation/input-normalizer.ts",
+        "line": 11,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "IngestionReceipt",
+        "local": "IngestionReceipt",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { resolveIngestionSource, type IngestionReceipt } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "startWorker",
+        "local": "startWorker",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": false,
+        "usage_refs": 42,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "BusinessDefinition",
+        "local": "BusinessDefinition",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerConfig",
+        "local": "WorkerConfig",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerHandle",
+        "local": "WorkerHandle",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "QueueConsumer",
+        "local": "QueueConsumer",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defineBusiness, startWorker, TaskHandler, TaskContext as SdkTaskContext, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactPurpose",
+        "local": "ArtifactPurpose",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": false,
+        "usage_refs": 10,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "local": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContent",
+        "local": "InvocationArtifactContent",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedProfilePolicy",
+        "local": "PinnedProfilePolicy",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 13,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "PinnedPromptOverride",
+        "local": "PinnedPromptOverride",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { ArtifactPurpose, TaskDisposition, InvocationResponse, CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContent, type PinnedProfilePolicy, type PinnedPromptOverride, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 22,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 80,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 4,
+        "raw": "import { LeaseLostError, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 80,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskArtifactBinding",
+        "local": "TaskArtifactBinding",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { LeaseLostError, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 80,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskArtifactCrypto",
+        "local": "TaskArtifactCrypto",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import { LeaseLostError, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 80,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerCryptoSeam",
+        "local": "WorkerCryptoSeam",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { LeaseLostError, type TaskArtifactBinding, type TaskArtifactCrypto, type WorkerCryptoSeam } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 399,
+        "kind": "dynamic import",
+        "pkg": "@du/contracts",
+        "symbol": "(namespace)",
+        "local": "(module)",
+        "type_only": true,
+        "usage_refs": 0,
+        "raw": "import('@du/contracts')"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 437,
+        "kind": "dynamic import",
+        "pkg": "@du/contracts",
+        "symbol": "(namespace)",
+        "local": "(module)",
+        "type_only": true,
+        "usage_refs": 0,
+        "raw": "import('@du/contracts')"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 399,
+        "kind": "type import()",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContent",
+        "local": "InvocationArtifactContent",
+        "type_only": true,
+        "usage_refs": 0,
+        "raw": "import('@du/contracts').InvocationArtifactContent"
+      },
+      {
+        "file": "businesses/document-core/src/worker.ts",
+        "line": 437,
+        "kind": "type import()",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContent",
+        "local": "InvocationArtifactContent",
+        "type_only": true,
+        "usage_refs": 0,
+        "raw": "import('@du/contracts').InvocationArtifactContent"
+      },
+      {
+        "file": "businesses/document-core/tests/bounded-input.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "local": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContentSchema } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bounded-input.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContentSchema",
+        "local": "InvocationArtifactContentSchema",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, InvocationArtifactContentSchema } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bounded-input.test.ts",
+        "line": 4,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContent",
+        "local": "InvocationArtifactContent",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { InvocationArtifactContent } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessJobV1",
+        "local": "BusinessJobV1",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "businessQueueName",
+        "local": "businessQueueName",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ClaimResult",
+        "local": "ClaimResult",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "HeartbeatAck",
+        "local": "HeartbeatAck",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "TaskHeartbeatAck",
+        "local": "TaskHeartbeatAck",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactUploadGrant",
+        "local": "ArtifactUploadGrant",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "SaveStepAck",
+        "local": "SaveStepAck",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/bullmq-smoke.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "TaskReportAck",
+        "local": "TaskReportAck",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, businessQueueName, ClaimResult, HeartbeatAck, TaskHeartbeatAck, ArtifactUploadGrant, SaveStepAck, TaskReportAck, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cancellation-fencing.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 10,
+        "raw": "import { LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/checkpoint-replay.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/checkpoint.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskArtifactCrypto",
+        "local": "TaskArtifactCrypto",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { TaskArtifactCrypto } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/config.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentParserFactory",
+        "local": "DocumentParserFactory",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { DocumentParserFactory, type DocumentParser } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/config.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentParser",
+        "local": "DocumentParser",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { DocumentParserFactory, type DocumentParser } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactUploadGrantRequestSchema",
+        "local": "ArtifactUploadGrantRequestSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactUploadGrantSchema",
+        "local": "ArtifactUploadGrantSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactFinalizeRequestSchema",
+        "local": "ArtifactFinalizeRequestSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactAccessRequestSchema",
+        "local": "ArtifactAccessRequestSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactAccessGrantSchema",
+        "local": "ArtifactAccessGrantSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationGrantRequestSchema",
+        "local": "InvocationGrantRequestSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/cross-service-boundary.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationGrantSchema",
+        "local": "InvocationGrantSchema",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactUploadGrantRequestSchema, ArtifactUploadGrantSchema, ArtifactFinalizeRequestSchema, ArtifactAccessRequestSchema, ArtifactAccessGrantSchema, InvocationGrantRequestSchema, InvocationGrantSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/disbursement-handler.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { InvocationResponse, TaskDisposition } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/disbursement-handler.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 3,
+        "raw": "import type { InvocationResponse, TaskDisposition } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/disbursement-handler.test.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext as SdkTaskContext } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/doc-core-crypto-seam.test.ts",
+        "line": 21,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "CryptoStorageFacade",
+        "local": "CryptoStorageFacade",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { CryptoStorageFacade, bindTaskCrypto, type CryptoKeyProvider, type TaskArtifactBinding, type TaskArtifactCrypto, type WrappedDek, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/doc-core-crypto-seam.test.ts",
+        "line": 21,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "bindTaskCrypto",
+        "local": "bindTaskCrypto",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { CryptoStorageFacade, bindTaskCrypto, type CryptoKeyProvider, type TaskArtifactBinding, type TaskArtifactCrypto, type WrappedDek, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/doc-core-crypto-seam.test.ts",
+        "line": 21,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "CryptoKeyProvider",
+        "local": "CryptoKeyProvider",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { CryptoStorageFacade, bindTaskCrypto, type CryptoKeyProvider, type TaskArtifactBinding, type TaskArtifactCrypto, type WrappedDek, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/doc-core-crypto-seam.test.ts",
+        "line": 21,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskArtifactBinding",
+        "local": "TaskArtifactBinding",
+        "type_only": true,
+        "usage_refs": 0,
+        "raw": "import { CryptoStorageFacade, bindTaskCrypto, type CryptoKeyProvider, type TaskArtifactBinding, type TaskArtifactCrypto, type WrappedDek, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/doc-core-crypto-seam.test.ts",
+        "line": 21,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskArtifactCrypto",
+        "local": "TaskArtifactCrypto",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import { CryptoStorageFacade, bindTaskCrypto, type CryptoKeyProvider, type TaskArtifactBinding, type TaskArtifactCrypto, type WrappedDek, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/doc-core-crypto-seam.test.ts",
+        "line": 21,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WrappedDek",
+        "local": "WrappedDek",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import { CryptoStorageFacade, bindTaskCrypto, type CryptoKeyProvider, type TaskArtifactBinding, type TaskArtifactCrypto, type WrappedDek, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/fixtures/mock-context.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-scan-fixtures.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationInputSchema",
+        "local": "InvocationInputSchema",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { InvocationInputSchema } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-scan-fixtures.test.ts",
+        "line": 8,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TEMP_WORKSPACE_PREFIX",
+        "local": "TEMP_WORKSPACE_PREFIX",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-scan-tamper.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TEMP_WORKSPACE_PREFIX",
+        "local": "TEMP_WORKSPACE_PREFIX",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-source-pin.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "withIngestionSource",
+        "local": "withIngestionSource",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { withIngestionSource, type IngestionReceipt } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-source-pin.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "IngestionReceipt",
+        "local": "IngestionReceipt",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { withIngestionSource, type IngestionReceipt } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-timeout-recovery.test.ts",
+        "line": 6,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TEMP_WORKSPACE_PREFIX",
+        "local": "TEMP_WORKSPACE_PREFIX",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest-wire.test.ts",
+        "line": 23,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationArtifactContent",
+        "local": "InvocationArtifactContent",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { InvocationArtifactContent } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/ingest.test.ts",
+        "line": 9,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TEMP_WORKSPACE_PREFIX",
+        "local": "TEMP_WORKSPACE_PREFIX",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/manifest.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 13,
+        "raw": "import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/manifest.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "hashManifest",
+        "local": "hashManifest",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/manifest.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "WIRE_CONTRACT_VERSION",
+        "local": "WIRE_CONTRACT_VERSION",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/manifest.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "SCHEMA_LIMITS",
+        "local": "SCHEMA_LIMITS",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { validateManifest, hashManifest, WIRE_CONTRACT_VERSION, SCHEMA_LIMITS } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactAccessGrant",
+        "local": "ArtifactAccessGrant",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactAccessGrant, InvocationGrant, type InvocationResponse, type ProblemDetails, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationGrant",
+        "local": "InvocationGrant",
+        "type_only": false,
+        "usage_refs": 0,
+        "raw": "import { ArtifactAccessGrant, InvocationGrant, type InvocationResponse, type ProblemDetails, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import { ArtifactAccessGrant, InvocationGrant, type InvocationResponse, type ProblemDetails, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ProblemDetails",
+        "local": "ProblemDetails",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import { ArtifactAccessGrant, InvocationGrant, type InvocationResponse, type ProblemDetails, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 29,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defineBusiness, startWorker, type TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 29,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "startWorker",
+        "local": "startWorker",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defineBusiness, startWorker, type TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/multi-container-e2e.integration.test.ts",
+        "line": 29,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { defineBusiness, startWorker, type TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-01-traceability-harness.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationGrant",
+        "local": "InvocationGrant",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { InvocationGrant } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-01-traceability-harness.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "DefaultTaskContext",
+        "local": "DefaultTaskContext",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DefaultTaskContext, RuntimeClient, type TaskContextDeps, type ConnectorInvocationPayload, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-01-traceability-harness.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "RuntimeClient",
+        "local": "RuntimeClient",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DefaultTaskContext, RuntimeClient, type TaskContextDeps, type ConnectorInvocationPayload, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-01-traceability-harness.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContextDeps",
+        "local": "TaskContextDeps",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { DefaultTaskContext, RuntimeClient, type TaskContextDeps, type ConnectorInvocationPayload, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-01-traceability-harness.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ConnectorInvocationPayload",
+        "local": "ConnectorInvocationPayload",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { DefaultTaskContext, RuntimeClient, type TaskContextDeps, type ConnectorInvocationPayload, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-03-provider-convergence.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { TaskContext as SdkTaskContext, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-03-provider-convergence.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { InvocationResponse, UsageEventSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/p8-03-provider-convergence.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "UsageEventSchema",
+        "local": "UsageEventSchema",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { InvocationResponse, UsageEventSchema, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/p9-01-disbursement-registration.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { validateManifest } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/p9-01-disbursement.test.ts",
+        "line": 32,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "resolveFanoutConcurrency",
+        "local": "resolveFanoutConcurrency",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveFanoutConcurrency } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p9-03-doc-compare-handler.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { InvocationResponse, TaskDisposition } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/p9-03-doc-compare-handler.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 6,
+        "raw": "import type { InvocationResponse, TaskDisposition } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/p9-03-doc-compare-handler.test.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext as SdkTaskContext } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/p9-03-doc-compare-registration.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { validateManifest } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budget-band.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "MULTIPART_MIN_TOTAL_BYTES",
+        "local": "MULTIPART_MIN_TOTAL_BYTES",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budget-band.test.ts",
+        "line": 6,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "PdfSplitter",
+        "local": "PdfSplitter",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { PdfSplitter } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budget-band.test.ts",
+        "line": 7,
+        "kind": "import type",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentParserFactory",
+        "local": "DocumentParserFactory",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { DocumentParserFactory } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budget-band.test.ts",
+        "line": 8,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TEMP_WORKSPACE_PREFIX",
+        "local": "TEMP_WORKSPACE_PREFIX",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budgets.test.ts",
+        "line": 10,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": false,
+        "usage_refs": 4,
+        "raw": "import { TaskContext as SdkTaskContext } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budgets.test.ts",
+        "line": 11,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentParserFactory",
+        "local": "DocumentParserFactory",
+        "type_only": false,
+        "usage_refs": 5,
+        "raw": "import { DocumentParserFactory, DocumentParser, ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budgets.test.ts",
+        "line": 11,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentParser",
+        "local": "DocumentParser",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { DocumentParserFactory, DocumentParser, ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/parser-budgets.test.ts",
+        "line": 11,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "ParseResult",
+        "local": "ParseResult",
+        "type_only": false,
+        "usage_refs": 6,
+        "raw": "import { DocumentParserFactory, DocumentParser, ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { TaskContext as SdkTaskContext, LeaseLostError, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 4,
+        "raw": "import { TaskContext as SdkTaskContext, LeaseLostError, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "startWorker",
+        "local": "startWorker",
+        "type_only": false,
+        "usage_refs": 0,
+        "raw": "import { TaskContext as SdkTaskContext, LeaseLostError, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "QueueConsumer",
+        "local": "QueueConsumer",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { TaskContext as SdkTaskContext, LeaseLostError, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 8,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { InvocationResponse, BusinessJobV1, ClaimResult, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 8,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessJobV1",
+        "local": "BusinessJobV1",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { InvocationResponse, BusinessJobV1, ClaimResult, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/provider-backed-variant.test.ts",
+        "line": 8,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ClaimResult",
+        "local": "ClaimResult",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { InvocationResponse, BusinessJobV1, ClaimResult, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-layer6-archive-worker.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "defaultParserFactory",
+        "local": "defaultParserFactory",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-sdk-metadata-adapter.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactRef",
+        "local": "ArtifactRef",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { ArtifactRef } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-sdk-metadata-adapter.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "defaultParserFactory",
+        "local": "defaultParserFactory",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-sdk-metadata-adapter.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-sdk-metadata-adapter.test.ts",
+        "line": 4,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "SdkTaskContext",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { TaskContext as SdkTaskContext } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-trusted-format-propagation.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DocumentFormatDetector, defaultParserFactory } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-trusted-format-propagation.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "defaultParserFactory",
+        "local": "defaultParserFactory",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DocumentFormatDetector, defaultParserFactory } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/r1-e-trusted-format-propagation.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/document-kit",
+        "symbol": "ParseResult",
+        "local": "ParseResult",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/read-stream-acquisition.test.ts",
+        "line": 6,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/document-core/tests/read-stream-acquisition.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TEMP_WORKSPACE_PREFIX",
+        "local": "TEMP_WORKSPACE_PREFIX",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { TEMP_WORKSPACE_PREFIX } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/read-stream-acquisition.test.ts",
+        "line": 282,
+        "kind": "dynamic import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "(namespace)",
+        "local": "(module)",
+        "type_only": true,
+        "usage_refs": 0,
+        "raw": "import('@du/worker-sdk')"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { defineBusiness, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "startWorker",
+        "local": "startWorker",
+        "type_only": false,
+        "usage_refs": 0,
+        "raw": "import { defineBusiness, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "QueueConsumer",
+        "local": "QueueConsumer",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defineBusiness, startWorker, QueueConsumer, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessJobV1",
+        "local": "BusinessJobV1",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { BusinessJobV1, ClaimResult, validateManifest, InvocationGrant, InvocationResponse, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "ClaimResult",
+        "local": "ClaimResult",
+        "type_only": false,
+        "usage_refs": 4,
+        "raw": "import { BusinessJobV1, ClaimResult, validateManifest, InvocationGrant, InvocationResponse, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, ClaimResult, validateManifest, InvocationGrant, InvocationResponse, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationGrant",
+        "local": "InvocationGrant",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, ClaimResult, validateManifest, InvocationGrant, InvocationResponse, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/sdk-consumer.test.ts",
+        "line": 7,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessJobV1, ClaimResult, validateManifest, InvocationGrant, InvocationResponse, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/document-core/tests/suite-bootstrap-contract.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 7,
+        "raw": "import { validateManifest } from '@du/contracts'"
+      }
+    ],
+    "non_import_refs": [
+      {
+        "file": "businesses/document-core/jest.config.cjs",
+        "line": 16,
+        "text": "'^@du/worker-sdk$': '<rootDir>/../../packages/worker-sdk/src/index.ts',"
+      },
+      {
+        "file": "businesses/document-core/jest.config.cjs",
+        "line": 17,
+        "text": "'^@du/document-kit$': '<rootDir>/../../packages/document-kit/src/index.ts',"
+      },
+      {
+        "file": "businesses/document-core/scripts/build-dependencies.cjs",
+        "line": 6,
+        "text": "*   1. @du/contracts (foundational schemas and wire contracts)"
+      },
+      {
+        "file": "businesses/document-core/scripts/build-dependencies.cjs",
+        "line": 9,
+        "text": "*   4. @du/document-kit (document parsing & conversion utilities)"
+      },
+      {
+        "file": "businesses/document-core/scripts/build-dependencies.cjs",
+        "line": 10,
+        "text": "*   5. @du/worker-sdk (worker runtime, context, and facades)"
+      },
+      {
+        "file": "businesses/document-core/scripts/build-dependencies.cjs",
+        "line": 28,
+        "text": "{ name: '@du/contracts', dir: 'packages/contracts', cmd: 'pnpm --filter @du/contracts build' },"
+      },
+      {
+        "file": "businesses/document-core/scripts/build-dependencies.cjs",
+        "line": 31,
+        "text": "{ name: '@du/document-kit', dir: 'packages/document-kit', cmd: 'pnpm --filter @du/document-kit build' },"
+      },
+      {
+        "file": "businesses/document-core/scripts/build-dependencies.cjs",
+        "line": 32,
+        "text": "{ name: '@du/worker-sdk', dir: 'packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },"
+      },
+      {
+        "file": "businesses/document-core/src/pipelines/parser-budget.ts",
+        "line": 17,
+        "text": "*    The built-in @du/document-kit factory also runs built-in parsers on a terminable worker"
+      },
+      {
+        "file": "businesses/document-core/src/types/actions.ts",
+        "line": 14,
+        "text": "* DATA-03 ingestion source pin (Δ14 envelope, `@du/contracts`"
+      },
+      {
+        "file": "businesses/document-core/src/types/context.ts",
+        "line": 63,
+        "text": "/** Grant-scoped read descriptor without bytes (mirrors @du/worker-sdk ArtifactStat). */"
+      },
+      {
+        "file": "businesses/document-core/template/vendor/document-kit/src/types.ts",
+        "line": 6,
+        "text": "* Core type definitions for @du/document-kit"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 10,
+        "text": "'@du/contracts',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 13,
+        "text": "'@du/document-kit',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 14,
+        "text": "'@du/worker-sdk',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 31,
+        "text": "'@du/contracts',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 34,
+        "text": "'@du/document-kit',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 35,
+        "text": "'@du/worker-sdk',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 60,
+        "text": "{ name: '@du/contracts', dir: 'packages/contracts', cmd: 'pnpm --filter @du/contracts build' },"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 62,
+        "text": "{ name: '@du/worker-sdk', dir: 'packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 111,
+        "text": "if (cmd.includes('@du/worker-sdk')) {"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 149,
+        "text": "'@du/contracts',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 152,
+        "text": "'@du/document-kit',"
+      },
+      {
+        "file": "businesses/document-core/tests/build-dependency-order.test.ts",
+        "line": 153,
+        "text": "'@du/worker-sdk',"
+      },
+      {
+        "file": "businesses/document-core/tests/manifest.test.ts",
+        "line": 6,
+        "text": "it('validates documentCoreManifest strictly against @du/contracts v1 validator', () => {"
+      },
+      {
+        "file": "businesses/document-core/tests/package-boundary.test.ts",
+        "line": 10,
+        "text": "'@du/contracts',"
+      },
+      {
+        "file": "businesses/document-core/tests/package-boundary.test.ts",
+        "line": 11,
+        "text": "'@du/worker-sdk',"
+      },
+      {
+        "file": "businesses/document-core/tests/package-boundary.test.ts",
+        "line": 12,
+        "text": "'@du/document-kit',"
+      },
+      {
+        "file": "businesses/document-core/tests/package-boundary.test.ts",
+        "line": 195,
+        "text": "'@du/contracts/private/internal',"
+      }
+    ]
+  },
+  "lc-checker": {
+    "declared": {
+      "@du/contracts": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      },
+      "@du/document-kit": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      },
+      "@du/worker-sdk": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      }
+    },
+    "imports": [
+      {
+        "file": "businesses/lc-checker/src/fanout.ts",
+        "line": 12,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "resolveFanoutConcurrency",
+        "local": "resolveFanoutConcurrency",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveFanoutConcurrency, runBoundedFanout as runSharedBoundedFanout, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/fanout.ts",
+        "line": 12,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "runBoundedFanout",
+        "local": "runSharedBoundedFanout",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveFanoutConcurrency, runBoundedFanout as runSharedBoundedFanout, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/main.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "createLogger",
+        "local": "createLogger",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { createLogger, safeErrorForLog } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/main.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "safeErrorForLog",
+        "local": "safeErrorForLog",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { createLogger, safeErrorForLog } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, WIRE_CONTRACT_VERSION } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "WIRE_CONTRACT_VERSION",
+        "local": "WIRE_CONTRACT_VERSION",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, WIRE_CONTRACT_VERSION } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/registry-tool.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { BusinessManifest, contentHash } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/registry-tool.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "contentHash",
+        "local": "contentHash",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessManifest, contentHash } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 24,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "local": "CONNECTOR_ARTIFACT_MAX_BYTES",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, CONNECTOR_ARTIFACT_MAX_COUNT, contentHash, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 24,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "CONNECTOR_ARTIFACT_MAX_COUNT",
+        "local": "CONNECTOR_ARTIFACT_MAX_COUNT",
+        "type_only": false,
+        "usage_refs": 0,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, CONNECTOR_ARTIFACT_MAX_COUNT, contentHash, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 24,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "contentHash",
+        "local": "contentHash",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { CONNECTOR_ARTIFACT_MAX_BYTES, CONNECTOR_ARTIFACT_MAX_COUNT, contentHash, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 29,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ChildTaskSpecInput",
+        "local": "ChildTaskSpecInput",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ChildTaskSpecInput, TaskContext, TaskDisposition, TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 29,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "TaskContext",
+        "type_only": true,
+        "usage_refs": 14,
+        "raw": "import type { ChildTaskSpecInput, TaskContext, TaskDisposition, TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 29,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 4,
+        "raw": "import type { ChildTaskSpecInput, TaskContext, TaskDisposition, TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 29,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": true,
+        "usage_refs": 4,
+        "raw": "import type { ChildTaskSpecInput, TaskContext, TaskDisposition, TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 30,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "BusinessDefinition",
+        "local": "BusinessDefinition",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, defineBusiness, startWorker, type WorkerConfig, type WorkerHandle, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 30,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessDefinition, defineBusiness, startWorker, type WorkerConfig, type WorkerHandle, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 30,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "startWorker",
+        "local": "startWorker",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, defineBusiness, startWorker, type WorkerConfig, type WorkerHandle, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 30,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerConfig",
+        "local": "WorkerConfig",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, defineBusiness, startWorker, type WorkerConfig, type WorkerHandle, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/src/worker.ts",
+        "line": 30,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerHandle",
+        "local": "WorkerHandle",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, defineBusiness, startWorker, type WorkerConfig, type WorkerHandle, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/tests/fakes.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "TaskContext",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/tests/fakes.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/lc-checker/tests/lc-checker.test.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "resolveFanoutConcurrency",
+        "local": "resolveFanoutConcurrency",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { resolveFanoutConcurrency } from '@du/worker-sdk'"
+      }
+    ],
+    "non_import_refs": [
+      {
+        "file": "businesses/lc-checker/jest.config.cjs",
+        "line": 11,
+        "text": "'^@du/contracts$': '<rootDir>/../../packages/contracts/dist/index.js',"
+      },
+      {
+        "file": "businesses/lc-checker/jest.config.cjs",
+        "line": 12,
+        "text": "'^@du/document-kit$': '<rootDir>/../../packages/document-kit/src/index.ts',"
+      },
+      {
+        "file": "businesses/lc-checker/jest.config.cjs",
+        "line": 13,
+        "text": "'^@du/worker-sdk$': '<rootDir>/../../packages/worker-sdk/dist/index.js',"
+      }
+    ]
+  },
+  "example-review": {
+    "declared": {
+      "@du/contracts": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      },
+      "@du/document-kit": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      },
+      "@du/worker-sdk": {
+        "section": "dependencies",
+        "version": "workspace:*"
+      }
+    },
+    "imports": [
+      {
+        "file": "businesses/example-review/src/main.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "createLogger",
+        "local": "createLogger",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { createLogger, safeErrorForLog } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/main.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "safeErrorForLog",
+        "local": "safeErrorForLog",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { createLogger, safeErrorForLog } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessManifest, WIRE_CONTRACT_VERSION, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/src/manifest.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "WIRE_CONTRACT_VERSION",
+        "local": "WIRE_CONTRACT_VERSION",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, WIRE_CONTRACT_VERSION, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/src/registry-tool.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessManifest, contentHash } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/src/registry-tool.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "contentHash",
+        "local": "contentHash",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessManifest, contentHash } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": true,
+        "usage_refs": 3,
+        "raw": "import type { TaskHandler, TaskContext, TaskDisposition } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "TaskContext",
+        "type_only": true,
+        "usage_refs": 5,
+        "raw": "import type { TaskHandler, TaskContext, TaskDisposition } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskHandler, TaskContext, TaskDisposition } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "createLogger",
+        "local": "createLogger",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { createLogger, LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 3,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 5,
+        "raw": "import { createLogger, LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 4,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "defaultParserFactory",
+        "local": "defaultParserFactory",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 4,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "DocumentFormatDetector",
+        "local": "DocumentFormatDetector",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defaultParserFactory, DocumentFormatDetector } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 5,
+        "kind": "import type",
+        "pkg": "@du/document-kit",
+        "symbol": "FormatDetectionResult",
+        "local": "FormatDetectionResult",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { FormatDetectionResult, ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/example-review/src/review.ts",
+        "line": 5,
+        "kind": "import type",
+        "pkg": "@du/document-kit",
+        "symbol": "ParseResult",
+        "local": "ParseResult",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { FormatDetectionResult, ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "BusinessDefinition",
+        "local": "BusinessDefinition",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "QueueConsumer",
+        "local": "QueueConsumer",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerConfig",
+        "local": "WorkerConfig",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerHandle",
+        "local": "WorkerHandle",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/src/worker.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "startWorker",
+        "local": "startWorker",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessDefinition, QueueConsumer, TaskHandler, WorkerConfig, WorkerHandle, defineBusiness, startWorker, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/child-review.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/example-review-continuation.integration.test.ts",
+        "line": 5,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "WorkerHandle",
+        "local": "WorkerHandle",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { WorkerHandle } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/fencing.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "LeaseLostError",
+        "local": "LeaseLostError",
+        "type_only": false,
+        "usage_refs": 3,
+        "raw": "import { LeaseLostError } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/manifest.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "BusinessManifest",
+        "local": "BusinessManifest",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { BusinessManifest, validateManifest, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/manifest.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { BusinessManifest, validateManifest, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/manifest.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defineBusiness, TaskHandler, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/manifest.test.ts",
+        "line": 5,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defineBusiness, TaskHandler, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/p7-03-registry-live.integration.test.ts",
+        "line": 4,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "contentHash",
+        "local": "contentHash",
+        "type_only": false,
+        "usage_refs": 4,
+        "raw": "import { contentHash } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/p7-04-profile-assignment.integration.test.ts",
+        "line": 4,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "contentHash",
+        "local": "contentHash",
+        "type_only": false,
+        "usage_refs": 0,
+        "raw": "import { contentHash } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/r1-e-office-safe-parser.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/document-kit",
+        "symbol": "defaultParserFactory",
+        "local": "defaultParserFactory",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { defaultParserFactory } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/example-review/tests/r1-e-office-safe-parser.test.ts",
+        "line": 2,
+        "kind": "import type",
+        "pkg": "@du/document-kit",
+        "symbol": "ParseResult",
+        "local": "ParseResult",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ParseResult } from '@du/document-kit'"
+      },
+      {
+        "file": "businesses/example-review/tests/r1-e-office-safe-parser.test.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { TaskHandler } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "TaskContext",
+        "type_only": true,
+        "usage_refs": 9,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 10,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskHandler",
+        "local": "TaskHandler",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "StepFacade",
+        "local": "StepFacade",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ArtifactFacade",
+        "local": "ArtifactFacade",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ConnectorFacade",
+        "local": "ConnectorFacade",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "SpawnFacade",
+        "local": "SpawnFacade",
+        "type_only": true,
+        "usage_refs": 4,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "HumanWaitFacade",
+        "local": "HumanWaitFacade",
+        "type_only": true,
+        "usage_refs": 4,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ProgressFacade",
+        "local": "ProgressFacade",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ChildTaskSpecInput",
+        "local": "ChildTaskSpecInput",
+        "type_only": true,
+        "usage_refs": 3,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ConnectorInvokeInput",
+        "local": "ConnectorInvokeInput",
+        "type_only": true,
+        "usage_refs": 3,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 1,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ArtifactPurpose",
+        "local": "ArtifactPurpose",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, TaskHandler, StepFacade, ArtifactFacade, ConnectorFacade, SpawnFacade, HumanWaitFacade, ProgressFacade, ChildTaskSpecInput, ConnectorInvokeInput, ArtifactPurpose, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 16,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactRef",
+        "local": "ArtifactRef",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { ArtifactRef, CheckpointRef, InvocationGrant, InvocationResponse } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 16,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "CheckpointRef",
+        "local": "CheckpointRef",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ArtifactRef, CheckpointRef, InvocationGrant, InvocationResponse } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 16,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationGrant",
+        "local": "InvocationGrant",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ArtifactRef, CheckpointRef, InvocationGrant, InvocationResponse } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 16,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { ArtifactRef, CheckpointRef, InvocationGrant, InvocationResponse } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "ArtifactRef",
+        "local": "ArtifactRef",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ArtifactRef, JoinPolicy, InvocationResponse, CheckpointRef, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "JoinPolicy",
+        "local": "JoinPolicy",
+        "type_only": true,
+        "usage_refs": 3,
+        "raw": "import type { ArtifactRef, JoinPolicy, InvocationResponse, CheckpointRef, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "InvocationResponse",
+        "local": "InvocationResponse",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { ArtifactRef, JoinPolicy, InvocationResponse, CheckpointRef, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 3,
+        "kind": "import type",
+        "pkg": "@du/contracts",
+        "symbol": "CheckpointRef",
+        "local": "CheckpointRef",
+        "type_only": true,
+        "usage_refs": 1,
+        "raw": "import type { ArtifactRef, JoinPolicy, InvocationResponse, CheckpointRef, } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 9,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskContext",
+        "local": "TaskContext",
+        "type_only": true,
+        "usage_refs": 2,
+        "raw": "import type { TaskContext, TaskDisposition, ChildTaskSpecInput, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 9,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "TaskDisposition",
+        "local": "TaskDisposition",
+        "type_only": true,
+        "usage_refs": 4,
+        "raw": "import type { TaskContext, TaskDisposition, ChildTaskSpecInput, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/test-helper.ts",
+        "line": 9,
+        "kind": "import type",
+        "pkg": "@du/worker-sdk",
+        "symbol": "ChildTaskSpecInput",
+        "local": "ChildTaskSpecInput",
+        "type_only": true,
+        "usage_refs": 3,
+        "raw": "import type { TaskContext, TaskDisposition, ChildTaskSpecInput, } from '@du/worker-sdk'"
+      },
+      {
+        "file": "businesses/example-review/tests/version-coexistence.test.ts",
+        "line": 1,
+        "kind": "import",
+        "pkg": "@du/contracts",
+        "symbol": "validateManifest",
+        "local": "validateManifest",
+        "type_only": false,
+        "usage_refs": 2,
+        "raw": "import { validateManifest } from '@du/contracts'"
+      },
+      {
+        "file": "businesses/example-review/tests/version-coexistence.test.ts",
+        "line": 2,
+        "kind": "import",
+        "pkg": "@du/worker-sdk",
+        "symbol": "defineBusiness",
+        "local": "defineBusiness",
+        "type_only": false,
+        "usage_refs": 1,
+        "raw": "import { defineBusiness } from '@du/worker-sdk'"
+      }
+    ],
+    "non_import_refs": [
+      {
+        "file": "businesses/example-review/jest.config.cjs",
+        "line": 11,
+        "text": "'^@du/contracts$': '<rootDir>/../../packages/contracts/dist/index.js',"
+      },
+      {
+        "file": "businesses/example-review/jest.config.cjs",
+        "line": 12,
+        "text": "'^@du/document-kit$': '<rootDir>/../../packages/document-kit/src/index.ts',"
+      },
+      {
+        "file": "businesses/example-review/jest.config.cjs",
+        "line": 13,
+        "text": "'^@du/worker-sdk$': '<rootDir>/../../packages/worker-sdk/dist/index.js',"
+      },
+      {
+        "file": "businesses/example-review/tests/package-boundary.test.ts",
+        "line": 10,
+        "text": "'@du/contracts',"
+      },
+      {
+        "file": "businesses/example-review/tests/package-boundary.test.ts",
+        "line": 11,
+        "text": "'@du/document-kit',"
+      },
+      {
+        "file": "businesses/example-review/tests/package-boundary.test.ts",
+        "line": 12,
+        "text": "'@du/worker-sdk',"
+      },
+      {
+        "file": "businesses/example-review/tests/task-context-consumer.test.ts",
+        "line": 20,
+        "text": "* against the real TaskContext interface exported by @du/worker-sdk."
+      }
+    ]
+  }
+}

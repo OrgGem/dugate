@@ -1,0 +1,54 @@
+# 3 ClusterIP tách theo listener — đúng ma trận PM-M02:
+# - orchestrator-public:3000    <- Ingress public duy nhất được phép target
+# - orchestrator-internal:3002  <- ClusterIP nội bộ, KHÔNG BAO GIỜ có Ingress/DNS
+# - orchestrator-portal:3001     <- private ALB duy nhất được phép target
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-public
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: du-rework
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: orchestrator
+  ports:
+    - name: public
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-internal
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: du-rework
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: orchestrator
+  ports:
+    - name: internal
+      port: 3002
+      targetPort: 3002
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-portal
+  namespace: du-platform
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: du-rework
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: orchestrator
+  ports:
+    - name: portal
+      port: 3001
+      targetPort: 3001

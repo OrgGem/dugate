@@ -85,7 +85,7 @@ describe('R1-E / FR24-14 unreadable review evidence fails closed', () => {
       onConnectorInvoke: NonNullable<MockTaskContextOptions['onConnectorInvoke']>
     ): Promise<{ artifacts: string; logs: string }> => {
       const { ctx, writtenArtifacts } = createMockTaskContext({ kind, input, onConnectorInvoke });
-      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const errorSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
       try {
         await handler(ctx);
         return {
@@ -137,7 +137,7 @@ describe('R1-E / FR24-14 unreadable review evidence fails closed', () => {
       }
     }
     expect(reviewOutputs[1]!.logs).toContain('REASONING_INVOCATION_FAILED');
-    expect(reviewOutputs[1]!.logs).toContain('[REDACTED]');
+    expect(reviewOutputs[1]!.logs).not.toContain('details');
     expect(reviewOutputs[0]!.logs).toContain('REASONING_PROVIDER_FAILED');
     expect(reviewOutputs[2]!.logs).toContain('REASONING_PROVIDER_FAILED');
     expect(reviewOutputs[4]!.logs).toContain('REASONING_INVOCATION_FAILED');
@@ -207,14 +207,14 @@ describe('R1-E / FR24-14 unreadable review evidence fails closed', () => {
     ctx.checkpoints = () => {
       throw new Error(secretSentinel);
     };
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     try {
       await expect(mainReviewHandler(ctx)).rejects.toThrow(secretSentinel);
-      expect(errorSpy).toHaveBeenCalledWith('[example-review] review operation failed', {
-        errorCode: 'REVIEW_RESUME_FAILED',
-        details: '[REDACTED]',
-      });
+      expect(errorSpy).toHaveBeenCalled();
+      const record = JSON.parse(String(errorSpy.mock.calls[0]![0])) as Record<string, unknown>;
+      expect(record).toMatchObject({ message: '[example-review] review operation failed', errorCode: 'REVIEW_RESUME_FAILED' });
+      expect(record).not.toHaveProperty('details');
       const logs = JSON.stringify(errorSpy.mock.calls);
       for (const fragment of [secretSentinel, ...secretSentinelFragments]) {
         expect(logs).not.toContain(fragment);
@@ -306,7 +306,7 @@ describe('R1-E / FR24-14 unreadable review evidence fails closed', () => {
       input: { resumeInput: { approved: true } },
       checkpointsStore,
     });
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     try {
       await expect(mainReviewHandler(ctx)).rejects.toThrow(/outdated evidence policy/);

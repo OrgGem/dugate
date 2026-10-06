@@ -1,6 +1,6 @@
 # Supplemental fixes from code review — 2026-09-23
 
-Source of findings and exact reproduction/acceptance: [code review](../coordination/CODE-REVIEW-2026-09-23.md). Evidence: [offline characterization](../coordination/review-evidence/code-review-2026-09-23.json).
+Source of findings and exact reproduction/acceptance: [code review](../coordination/CODE-REVIEW-2026-09-23.md). Evidence: [offline characterization](../coordination/_archive/review-evidence-arch/code-review-2026-09-23.json) (archived 2026-10-05).
 
 **This is an added fix backlog, not a new dispatch wave.** Preserve current lane ownership and in-flight work. No source or existing agent report is changed by this packet. Status TODO means not yet assigned/implemented; BLOCKED identifies the explicit current owner constraint. Recheck the source hashes/current code before work, because the checkout is shared.
 

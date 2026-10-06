@@ -1,0 +1,5 @@
+﻿COMMAND: node -e direct createDb + verifyMigrations probe (DATABASE_URL points only at this task-owned PostgreSQL 16 container)
+LITERAL_EXIT_CODE: 1
+
+VERIFY_ERROR_NAME=Error
+VERIFY_ERROR_MESSAGE=schema_migrations ledger is not readable as recorded: SELECT count(*) reports 32 row(s) but only 0 distinct sequence(s) could be registered from the same table. Either a row's sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below would false-green past it. Inspect the ledger directly: SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.

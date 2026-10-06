@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["ES2022", "dom", "dom.iterable"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@du/contracts": ["vendor/contracts/src/index.ts"],
+      "@du/document-kit": ["vendor/document-kit/src/index.ts"],
+      "@du/worker-sdk": ["vendor/worker-sdk/src/index.ts"],
+      "@du/observability": ["vendor/observability/src/index.ts"],
+      "@du/egress": ["vendor/egress/src/index.ts"]
+    }
+  },
+  "include": ["vendor/**/*.ts", "src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

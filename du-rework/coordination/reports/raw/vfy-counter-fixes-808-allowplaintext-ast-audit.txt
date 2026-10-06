@@ -1,0 +1,18 @@
+Static TypeScript AST audit of production source (services/orchestrator/src).
+FILES_SCANNED=156
+READ_CALLS=11
+LITERAL_TRUE_CALLS=6
+LITERAL_FALSE_CALLS=5
+NON_LITERAL_OR_MISSING_CALLS=0
+CALLS:
+services/orchestrator/src/http/routes/public.ts:538 readStoredText finalArgument=true
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:191 readStoredText finalArgument=false
+services/orchestrator/src/modules/encryption/metadata-auth-counter.ts:197 readStored finalArgument=false
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:325 readStored finalArgument=false
+services/orchestrator/src/modules/operations/ingestion-consumer.ts:660 readStored finalArgument=true
+services/orchestrator/src/modules/operations/mappers.ts:103 readStoredText finalArgument=true
+services/orchestrator/src/modules/runtime/metadata-crypto.ts:371 readStored finalArgument=false
+services/orchestrator/src/modules/runtime/runtime.ts:357 readStored finalArgument=false
+services/orchestrator/src/modules/runtime/runtime.ts:453 readStored finalArgument=true
+services/orchestrator/src/modules/runtime/runtime.ts:1202 readStoredText finalArgument=true
+services/orchestrator/src/modules/runtime/runtime.ts:1814 readStoredText finalArgument=true

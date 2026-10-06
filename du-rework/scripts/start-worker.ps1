@@ -24,6 +24,7 @@ $DistEntry = "$WorkspaceRoot\businesses\document-core\dist\main.js"
 if (-not (Test-Path $DistEntry)) {
     Write-Host "Compiled binary not found. Running build-all.cjs..." -ForegroundColor Yellow
     node "$ScriptDir\build-all.cjs"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -32,3 +33,5 @@ Write-Host "   Actions: Ingest, Extract, Analyze, Transform, Generate, Compare" 
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 node --env-file=$EnvFile "$DistEntry"
+
+exit $LASTEXITCODE

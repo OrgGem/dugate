@@ -1,0 +1,37 @@
+{
+  "id": "26289a78-4e05-4329-903a-62a135d4ccf7",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_4568d175-fdf8-4ff6-8916-9e787e232a58",
+      "status": "running",
+      "tail": [
+        "    == action generate @175",
+        "       disc=task @181  n=6  summary, outline, report, email, minutes, qa",
+        "    == action compare @210",
+        "       disc=mode @216  n=3  diff, semantic, version",
+        "    Error: (none)",
+        "    Exit Code: 0",
+        "    Signal: (none)",
+        "    Process Group PGID: 10372",
+        "  ⠦ Engage. (18m 53s · ↑ 2.9k tokens · esc to cancel)",
+        "──────────────────────────────────────────────────────────────────────────────────────",
+        "*   Type your message or @path/to/file",
+        "──────────────────────────────────────────────────────────────────────────────────────",
+        "  ➜ dugate · git:(codex/fix-workflow-builder) · qwen3.8-max max · 1.0m Context",
+        "  77.5% used",
+        "  Enter to steer · Ctrl+Q to queue · YOLO mode (tab to cycle) · 32 tasks done"
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "68379586",
+      "nextCursor": "68381586",
+      "latestCursor": "68381586",
+      "returnedLineCount": 15,
+      "source": "screen"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

@@ -1,0 +1,102 @@
+COMMAND=pnpm --filter @du/orchestrator test -- tests/enc-meta-sentinel-outbox-source-url.test.ts
+
+STDOUT:
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\services\orchestrator
+> jest --runInBand "--" "tests/enc-meta-sentinel-outbox-source-url.test.ts"
+
+D:\Git\dugate\du-rework\services\orchestrator:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @du/orchestrator@0.1.0 test: `jest --runInBand "--" "tests/enc-meta-sentinel-outbox-source-url.test.ts"`
+Exit status 1
+
+
+STDERR:
+FAIL tests/enc-meta-sentinel-outbox-source-url.test.ts
+  ● ENC-META-SENTINEL G1: URL submission through the real createApp › GREEN: seals both control-plane columns and the envelope opens back to input + sourceUrl
+
+    schema_migrations ledger is not readable as recorded: SELECT count(*) reports 0 row(s) but only 32 distinct sequence(s) could be registered from the same table. Either a row's sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below would false-green past it. Inspect the ledger directly: SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.
+
+      158 |
+      159 |   if (!Number.isSafeInteger(ledgerRows) || ledgerRows < 0 || done.size !== ledgerRows) {
+    > 160 |     throw new Error(
+          |           ^
+      161 |       `schema_migrations ledger is not readable as recorded: SELECT count(*) reports ${ledgerRows} row(s) `
+      162 |         + `but only ${done.size} distinct sequence(s) could be registered from the same table. Either a row's `
+      163 |         + `sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below `
+
+      at verifyMigrations (src/db/migrations.ts:160:11)
+      at assembleApp (src/app/bootstrap/create-app.ts:233:7)
+      at Object.<anonymous> (tests/enc-meta-sentinel-outbox-source-url.test.ts:328:17)
+
+  ● ENC-META-SENTINEL G1: URL submission through the real createApp › GREEN pin: the outbox payload carries the sourceUrl as a sealed envelope under the task binding
+
+    schema_migrations ledger is not readable as recorded: SELECT count(*) reports 0 row(s) but only 32 distinct sequence(s) could be registered from the same table. Either a row's sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below would false-green past it. Inspect the ledger directly: SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.
+
+      158 |
+      159 |   if (!Number.isSafeInteger(ledgerRows) || ledgerRows < 0 || done.size !== ledgerRows) {
+    > 160 |     throw new Error(
+          |           ^
+      161 |       `schema_migrations ledger is not readable as recorded: SELECT count(*) reports ${ledgerRows} row(s) `
+      162 |         + `but only ${done.size} distinct sequence(s) could be registered from the same table. Either a row's `
+      163 |         + `sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below `
+
+      at verifyMigrations (src/db/migrations.ts:160:11)
+      at assembleApp (src/app/bootstrap/create-app.ts:233:7)
+      at Object.<anonymous> (tests/enc-meta-sentinel-outbox-source-url.test.ts:359:17)
+
+  ● ENC-META-SENTINEL G1: URL submission through the real createApp › GREEN acceptance gate (was RED): the outbox payload must not carry sourceUrl plaintext
+
+    schema_migrations ledger is not readable as recorded: SELECT count(*) reports 0 row(s) but only 32 distinct sequence(s) could be registered from the same table. Either a row's sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below would false-green past it. Inspect the ledger directly: SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.
+
+      158 |
+      159 |   if (!Number.isSafeInteger(ledgerRows) || ledgerRows < 0 || done.size !== ledgerRows) {
+    > 160 |     throw new Error(
+          |           ^
+      161 |       `schema_migrations ledger is not readable as recorded: SELECT count(*) reports ${ledgerRows} row(s) `
+      162 |         + `but only ${done.size} distinct sequence(s) could be registered from the same table. Either a row's `
+      163 |         + `sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below `
+
+      at verifyMigrations (src/db/migrations.ts:160:11)
+      at assembleApp (src/app/bootstrap/create-app.ts:233:7)
+      at Object.<anonymous> (tests/enc-meta-sentinel-outbox-source-url.test.ts:401:17)
+
+  ● ENC-META-SENTINEL G1: URL submission through the real createApp › G1e: the consumer seam opens the captured dispatch sourceUrl back to the exact URL
+
+    schema_migrations ledger is not readable as recorded: SELECT count(*) reports 0 row(s) but only 32 distinct sequence(s) could be registered from the same table. Either a row's sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below would false-green past it. Inspect the ledger directly: SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.
+
+      158 |
+      159 |   if (!Number.isSafeInteger(ledgerRows) || ledgerRows < 0 || done.size !== ledgerRows) {
+    > 160 |     throw new Error(
+          |           ^
+      161 |       `schema_migrations ledger is not readable as recorded: SELECT count(*) reports ${ledgerRows} row(s) `
+      162 |         + `but only ${done.size} distinct sequence(s) could be registered from the same table. Either a row's `
+      163 |         + `sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below `
+
+      at verifyMigrations (src/db/migrations.ts:160:11)
+      at assembleApp (src/app/bootstrap/create-app.ts:233:7)
+      at Object.<anonymous> (tests/enc-meta-sentinel-outbox-source-url.test.ts:413:17)
+
+  ● ENC-META-SENTINEL G1: URL submission through the real createApp › GREEN: the dispatcher never publishes gate=ingestion rows, and published rows carry references only
+
+    schema_migrations ledger is not readable as recorded: SELECT count(*) reports 0 row(s) but only 32 distinct sequence(s) could be registered from the same table. Either a row's sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below would false-green past it. Inspect the ledger directly: SELECT sequence, filename FROM schema_migrations ORDER BY sequence; — never trust verify past this point.
+
+      158 |
+      159 |   if (!Number.isSafeInteger(ledgerRows) || ledgerRows < 0 || done.size !== ledgerRows) {
+    > 160 |     throw new Error(
+          |           ^
+      161 |       `schema_migrations ledger is not readable as recorded: SELECT count(*) reports ${ledgerRows} row(s) `
+      162 |         + `but only ${done.size} distinct sequence(s) could be registered from the same table. Either a row's `
+      163 |         + `sequence is not a usable integer or rows collapsed onto one key, and the file-level checks below `
+
+      at verifyMigrations (src/db/migrations.ts:160:11)
+      at assembleApp (src/app/bootstrap/create-app.ts:233:7)
+      at Object.<anonymous> (tests/enc-meta-sentinel-outbox-source-url.test.ts:454:17)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 1 passed, 6 total
+Snapshots:   0 total
+Time:        3.453 s
+Ran all test suites matching tests/enc-meta-sentinel-outbox-source-url.test.ts.
+
+
+LITERAL_EXIT_CODE=1

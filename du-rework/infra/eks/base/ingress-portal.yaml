@@ -1,0 +1,30 @@
+# Private ALB (internal scheme) -> orchestrator-portal:3001 DUY NHẤT (PM-M02).
+# Chỉ UI/session/OIDC + BFF allowlist; không proxy tùy ý tới internal API.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portal
+  namespace: du-platform
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT_ID:certificate/EXAMPLE
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    # Portal listener là plain node:http admin shell, KHÔNG có /health
+    # (route table chỉ có /, /admin*, /admin/login...). Healthcheck dùng
+    # /admin/login — login form public, luôn 200 không cần auth.
+    alb.ingress.kubernetes.io/healthcheck-path: /admin/login
+    alb.ingress.kubernetes.io/healthcheck-port: "3001"
+spec:
+  rules:
+    - host: portal.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orchestrator-portal
+                port: { number: 3001 }

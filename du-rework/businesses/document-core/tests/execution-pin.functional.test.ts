@@ -32,7 +32,6 @@ const PIN_PROFILES: ProfileSnapshot[] = [
     revision: 1,
     parameters: { temperature: 0 },
     slots: {},
-    promptOverrides: {},
   },
   {
     profileId: 'profile-pin-b',
@@ -53,7 +52,6 @@ const PIN_PROFILES: ProfileSnapshot[] = [
       ocr: { connectorId: 'connector-Y', revision: 88 },
       vision: { connectorId: 'connector-X', revision: 77 },
     },
-    promptOverrides: { extract_invoice: 'IGNORED-BY-BUSINESS' },
   },
 ];
 

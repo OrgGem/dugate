@@ -1,0 +1,5 @@
+﻿# cmd: npx tsc --noEmit -p tsconfig.json
+# cwd: services/orchestrator
+# time: 2026-10-05T01:34:52.8095644+07:00
+
+TSC_EXIT=0

@@ -11,23 +11,35 @@
  */
 
 import {
+  DATA_MODE_ENV,
   EncryptionBootConfigError,
   METADATA_ENABLED_ENV,
   PUBLIC_UPLOAD_ENABLED_ENV,
+  SYNTHETIC_ACK_ENV,
   VAULT_DECRYPT_TOKEN_ENV,
   VAULT_ENCRYPT_TOKEN_ENV,
   VAULT_TRANSIT_OPTIONS_ENV,
   buildEncryptionBootOptions,
   encryptionIsRequired,
   parseEncryptionBootConfig,
+  summarizeEncryptionPolicy,
   type EnvReader,
 } from '../src/modules/encryption/boot-options';
 
 const ENC = VAULT_ENCRYPT_TOKEN_ENV;
 const DEC = VAULT_DECRYPT_TOKEN_ENV;
 
+/** SEC-ENC-05: legacy opt-in semantics require an explicit synthetic mode. */
+const SYNTHETIC_ACK = JSON.stringify({
+  mode: 'synthetic-data-exempt',
+  reason: 'unit test fixture',
+  approvedBy: 'tester',
+  acknowledgedAt: '2026-10-06T00:00:00.000Z',
+  isolatedFromRealData: true,
+});
+
 function env(overrides: EnvReader): EnvReader {
-  return overrides;
+  return { [DATA_MODE_ENV]: 'synthetic', [SYNTHETIC_ACK_ENV]: SYNTHETIC_ACK, ...overrides };
 }
 
 /** A complete, valid surface — every negative case perturbs exactly one field. */
@@ -73,7 +85,7 @@ describe('RV01-02 #8 encryption boot options', () => {
       expect(options?.publicUploadEncryption?.keyRef).toBe('artifact');
     });
 
-    it('postgres + both flags off is the only unencrypted boot', () => {
+    it('postgres + both flags off is the only unencrypted boot, and only in explicit synthetic mode', () => {
       expect(buildEncryptionBootOptions(env({ ARTIFACT_STORAGE_BACKEND: 'postgres' }))).toBeNull();
       expect(buildEncryptionBootOptions(env({}))).toBeNull();
       expect(encryptionIsRequired(env({ ARTIFACT_STORAGE_BACKEND: 'postgres' }))).toBe(false);
@@ -328,6 +340,86 @@ describe('RV01-02 #8 encryption boot options', () => {
         .toThrow(EncryptionBootConfigError);
       expect(() => buildEncryptionBootOptions(env({ ARTIFACT_STORAGE_BACKEND: 's3' })))
         .toThrow(/^refusing to boot:/);
+    });
+  });
+
+  describe('SEC-ENC-05 real-data default and explicit synthetic exemption', () => {
+    const real = (overrides: EnvReader = {}): EnvReader => overrides;
+
+    const completeSurface = {
+      [VAULT_TRANSIT_OPTIONS_ENV]: validOptions(),
+      ...VALID_TOKENS,
+    };
+
+    it('real-data mode refuses postgres + flags off instead of defaulting to plaintext', () => {
+      expect(() => buildEncryptionBootOptions(real({ ARTIFACT_STORAGE_BACKEND: 'postgres' })))
+        .toThrow(VAULT_TRANSIT_OPTIONS_ENV + ' is required');
+      // The refusal names the explicit opt-out rather than suggesting a flag.
+      expect(() => buildEncryptionBootOptions(real({ ARTIFACT_STORAGE_BACKEND: 'postgres' })))
+        .toThrow(new RegExp(DATA_MODE_ENV + '=synthetic'));
+    });
+
+    it('real-data mode is required by default even with no env at all', () => {
+      expect(() => buildEncryptionBootOptions(real({}))).toThrow('real-data mode');
+      expect(encryptionIsRequired(real({ ARTIFACT_STORAGE_BACKEND: 'postgres' }))).toBe(true);
+      expect(encryptionIsRequired(real({}))).toBe(true);
+    });
+
+    it('forces BOTH encryption blocks on postgres when the surface is complete', () => {
+      const options = buildEncryptionBootOptions(real({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ...completeSurface,
+      }));
+      expect(options?.metadataEncryption?.keyRef).toBe('metadata');
+      expect(options?.publicUploadEncryption?.keyRef).toBe('artifact');
+    });
+
+    it('synthetic mode without an acknowledgement refuses the boot', () => {
+      expect(() => buildEncryptionBootOptions({ [DATA_MODE_ENV]: 'synthetic' }))
+        .toThrow(SYNTHETIC_ACK_ENV + ' acknowledgement');
+    });
+
+    it('synthetic mode with an incomplete acknowledgement refuses the boot', () => {
+      for (const ack of ['{}', JSON.stringify({ mode: 'synthetic-data-exempt' }), 'not-json', JSON.stringify({
+        mode: 'synthetic-data-exempt',
+        reason: 'x',
+        approvedBy: 'y',
+        acknowledgedAt: '2026-10-06T00:00:00.000Z',
+        isolatedFromRealData: false,
+      })]) {
+        expect(() => buildEncryptionBootOptions({
+          [DATA_MODE_ENV]: 'synthetic',
+          [SYNTHETIC_ACK_ENV]: ack,
+        })).toThrow(EncryptionBootConfigError);
+      }
+    });
+
+    it('an unknown data mode refuses the boot instead of guessing real', () => {
+      expect(() => buildEncryptionBootOptions({ [DATA_MODE_ENV]: 'prod' }))
+        .toThrow(DATA_MODE_ENV + ' must be real or synthetic');
+    });
+
+    it('summary reports the effective policy, never secrets or Vault paths', () => {
+      const realSummary = summarizeEncryptionPolicy(real({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ...completeSurface,
+      }));
+      expect(realSummary).toEqual({
+        dataMode: 'real',
+        metadataEncryption: true,
+        publicUploadEncryption: true,
+        metadataPlaintextReadMode: 'none',
+      });
+
+      const syntheticSummary = summarizeEncryptionPolicy(env({ ARTIFACT_STORAGE_BACKEND: 'postgres' }));
+      expect(syntheticSummary).toEqual({
+        dataMode: 'synthetic',
+        syntheticReason: 'unit test fixture',
+        metadataEncryption: false,
+        publicUploadEncryption: false,
+        metadataPlaintextReadMode: 'none',
+      });
+      expect(JSON.stringify(syntheticSummary)).not.toContain('hvs.');
     });
   });
 });

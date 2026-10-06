@@ -1,0 +1,13 @@
+PASS tests/admin-shell-router.test.ts
+PASS tests/admin-p6-01-shell-fixtures.test.ts
+{"subsystem":"admin-shell","event":{"kind":"auth.login_failed","reason":"invalid_token","method":"POST","pathname":"/admin/login"},"timestamp":"2026-10-04T18:46:32.815Z","level":"warn","service":"orchestrator","version":"unknown","environment":"prod","correlationId":"a75842ff-9ac7-4b0e-84d6-1266d8758035","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+PASS tests/admin-shell-server.test.ts
+PASS tests/admin-shell-platform-mount.test.ts
+{"subsystem":"admin-shell","event":{"kind":"auth.login_failed","reason":"invalid_token","method":"POST","pathname":"/admin/login"},"timestamp":"2026-10-04T18:46:33.569Z","level":"warn","service":"orchestrator","version":"unknown","environment":"prod","correlationId":"8fb34e46-e634-43bd-9507-5407072219ec","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+PASS tests/admin-view-model.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       352 passed, 352 total
+Snapshots:   0 total
+Time:        7.116 s
+Ran all test suites matching tests/admin-shell-router.test.ts|tests/admin-shell-server.test.ts|tests/admin-shell-platform-mount.test.ts|tests/admin-p6-01-shell-fixtures.test.ts|tests/admin-view-model.test.ts.

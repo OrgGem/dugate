@@ -1,0 +1,38 @@
+﻿import assert from "node:assert/strict";
+import schema from "./lib/workflow-builder/examples/schema-disbursement";
+import { runSchemaDag, validateSchema } from "./lib/workflow-builder/interpreter";
+(async () => {
+  const leafCalls: Array<{ id: string; bindings: Record<string, unknown> }> = [];
+  const input = { resolution_data: { reference: "fixture-resolution" }, limit_amount: 5000000 };
+  const files = ["shipping-fixture.pdf"];
+  const results = await runSchemaDag({
+    schema,
+    input,
+    files,
+    exec: async (node, resolve) => {
+      const inputs = (node as { inputs?: Record<string, unknown> }).inputs ?? {};
+      const bindings = Object.fromEntries(Object.entries(inputs).map(([key, value]) => [key, resolve(value)]));
+      leafCalls.push({ id: node.id, bindings });
+      return { content: `${node.id}.fixture`, output: `${node.id}.fixture`, data: {} };
+    },
+  });
+  assert.deepEqual(validateSchema(schema), []);
+  assert.deepEqual(Object.keys(results), ["classify", "extract", "human_review", "crosscheck", "report"]);
+  assert.deepEqual(leafCalls.map((call) => call.id), ["classify", "extract", "crosscheck", "report"]);
+  assert.deepEqual(leafCalls[0]?.bindings.file, files);
+  assert.equal(leafCalls[1]?.bindings.logical_docs, "classify.fixture");
+  assert.equal(leafCalls[2]?.bindings.text, "extract.fixture");
+  assert.deepEqual(leafCalls[2]?.bindings.reference, input.resolution_data);
+  assert.equal(leafCalls[2]?.bindings.limit, input.limit_amount);
+  assert.equal(leafCalls[3]?.bindings.text, "crosscheck.fixture");
+  console.log(JSON.stringify({
+    schemaSlug: schema.slug,
+    validationErrors: validateSchema(schema),
+    flow: schema.flow,
+    resultNodes: Object.keys(results),
+    invokedConnectorNodes: leafCalls.map((call) => call.id),
+    humanNode: results.human_review,
+    resolvedBindings: leafCalls.map((call) => ({ id: call.id, bindings: call.bindings })),
+    verdict: "PASS",
+  }, null, 2));
+})().catch((error) => { console.error(error); process.exitCode = 1; });

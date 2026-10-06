@@ -183,7 +183,12 @@ export class MockTaskContext implements TaskContext {
     },
   };
 
-  public async step<T>(stepKey: string, inputHash: string, fn: () => Promise<T>): Promise<T> {
+  public async step<T>(
+    stepKey: string,
+    inputHash: string,
+    fn: () => Promise<T>,
+    options?: { sessionRef?: string | null }
+  ): Promise<T> {
     const existing = this.checkpointsStore.get(stepKey);
     if (existing && existing.inputHash === inputHash) {
       return existing.output as T;
@@ -195,6 +200,7 @@ export class MockTaskContext implements TaskContext {
       inputHash,
       output,
       savedAt: new Date().toISOString(),
+      ...(options?.sessionRef !== undefined ? { sessionRef: options.sessionRef } : {}),
     });
 
     return output;

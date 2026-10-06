@@ -1,0 +1,30 @@
+{
+  "id": "2224764b-2b29-4fa4-ae71-4378d51ac43a",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "handle": "term_b2d08e87-4435-4323-8e14-b58fa1a6729b",
+      "status": "running",
+      "tail": [
+        "",
+        "  This is explicitly a spec, not live verification: neither port 2023 nor 3000 was reachable, and I ran no tests. No source or test files were changed, and no gates were ticked.",
+        "",
+        "  Worked for 12m 39s · done 11:44 AM",
+        "",
+        "─ Conversation recap ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "",
+        "  The auth cutover characterization is settled at LOCAL-0, and a code-reading fixture spec was created. Next, continue from the fixture spec; no tests or approval status were reported."
+      ],
+      "truncated": true,
+      "limited": true,
+      "oldestCursor": "29442",
+      "nextCursor": "30790",
+      "latestCursor": "30790",
+      "returnedLineCount": 8,
+      "source": "stream"
+    }
+  },
+  "_meta": {
+    "runtimeId": "0ff27373-e370-461f-87cd-602f423983e2"
+  }
+}

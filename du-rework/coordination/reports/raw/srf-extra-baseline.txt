@@ -1,0 +1,137 @@
+FAIL tests/admin-p6-01-shell-fixtures.test.ts
+  ● W39-O2 P6-01: evaluateAuthGuard (3 roles × 5 sections) › viewer vs profiles -> allowed=false (required=operator)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "operator"
+    Received: "admin"
+
+    [0m [90m 65 |[39m       } [36melse[39m {
+     [90m 66 |[39m         expect(decision[33m.[39mactualRole)[33m.[39mtoBe(role)[33m;[39m
+    [31m[1m>[22m[39m[90m 67 |[39m         expect(decision[33m.[39mrequiredRole)[33m.[39mtoBe(required)[33m;[39m
+     [90m    |[39m                                       [31m[1m^[22m[39m
+     [90m 68 |[39m         expect(decision[33m.[39mreason[33m.[39mlength)[33m.[39mtoBeGreaterThan([35m0[39m)[33m;[39m
+     [90m 69 |[39m         expect(decision[33m.[39mreason)[33m.[39mtoContain(section)[33m;[39m
+     [90m 70 |[39m       }[0m
+
+      at tests/admin-p6-01-shell-fixtures.test.ts:67:39
+
+  ● W39-O2 P6-01: evaluateAuthGuard (3 roles × 5 sections) › viewer vs connectors -> allowed=false (required=operator)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "operator"
+    Received: "admin"
+
+    [0m [90m 65 |[39m       } [36melse[39m {
+     [90m 66 |[39m         expect(decision[33m.[39mactualRole)[33m.[39mtoBe(role)[33m;[39m
+    [31m[1m>[22m[39m[90m 67 |[39m         expect(decision[33m.[39mrequiredRole)[33m.[39mtoBe(required)[33m;[39m
+     [90m    |[39m                                       [31m[1m^[22m[39m
+     [90m 68 |[39m         expect(decision[33m.[39mreason[33m.[39mlength)[33m.[39mtoBeGreaterThan([35m0[39m)[33m;[39m
+     [90m 69 |[39m         expect(decision[33m.[39mreason)[33m.[39mtoContain(section)[33m;[39m
+     [90m 70 |[39m       }[0m
+
+      at tests/admin-p6-01-shell-fixtures.test.ts:67:39
+
+  ● W39-O2 P6-01: evaluateAuthGuard (3 roles × 5 sections) › operator vs profiles -> allowed=true (required=operator)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "allowed"
+    Received: "denied"
+
+    [0m [90m 59 |[39m     ({ role[33m,[39m section[33m,[39m allowed[33m,[39m required }) [33m=>[39m {
+     [90m 60 |[39m       [36mconst[39m decision [33m=[39m evaluateAuthGuard(role[33m,[39m section[33m,[39m nav)[33m;[39m
+    [31m[1m>[22m[39m[90m 61 |[39m       expect(decision[33m.[39mkind)[33m.[39mtoBe(allowed [33m?[39m [32m'allowed'[39m [33m:[39m [32m'denied'[39m)[33m;[39m
+     [90m    |[39m                             [31m[1m^[22m[39m
+     [90m 62 |[39m       [36mif[39m (decision[33m.[39mkind [33m===[39m [32m'allowed'[39m) {
+     [90m 63 |[39m         expect(decision[33m.[39mactualRole)[33m.[39mtoBe(role)[33m;[39m
+     [90m 64 |[39m         expect(decision[33m.[39mrequiredRole)[33m.[39mtoBe(required)[33m;[39m[0m
+
+      at tests/admin-p6-01-shell-fixtures.test.ts:61:29
+
+  ● W39-O2 P6-01: evaluateAuthGuard (3 roles × 5 sections) › operator vs connectors -> allowed=true (required=operator)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "allowed"
+    Received: "denied"
+
+    [0m [90m 59 |[39m     ({ role[33m,[39m section[33m,[39m allowed[33m,[39m required }) [33m=>[39m {
+     [90m 60 |[39m       [36mconst[39m decision [33m=[39m evaluateAuthGuard(role[33m,[39m section[33m,[39m nav)[33m;[39m
+    [31m[1m>[22m[39m[90m 61 |[39m       expect(decision[33m.[39mkind)[33m.[39mtoBe(allowed [33m?[39m [32m'allowed'[39m [33m:[39m [32m'denied'[39m)[33m;[39m
+     [90m    |[39m                             [31m[1m^[22m[39m
+     [90m 62 |[39m       [36mif[39m (decision[33m.[39mkind [33m===[39m [32m'allowed'[39m) {
+     [90m 63 |[39m         expect(decision[33m.[39mactualRole)[33m.[39mtoBe(role)[33m;[39m
+     [90m 64 |[39m         expect(decision[33m.[39mrequiredRole)[33m.[39mtoBe(required)[33m;[39m[0m
+
+      at tests/admin-p6-01-shell-fixtures.test.ts:61:29
+
+  ● W39-O2 P6-01: evaluateAuthGuard (3 roles × 5 sections) › admin vs profiles -> allowed=true (required=operator)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "operator"
+    Received: "admin"
+
+    [0m [90m 62 |[39m       [36mif[39m (decision[33m.[39mkind [33m===[39m [32m'allowed'[39m) {
+     [90m 63 |[39m         expect(decision[33m.[39mactualRole)[33m.[39mtoBe(role)[33m;[39m
+    [31m[1m>[22m[39m[90m 64 |[39m         expect(decision[33m.[39mrequiredRole)[33m.[39mtoBe(required)[33m;[39m
+     [90m    |[39m                                       [31m[1m^[22m[39m
+     [90m 65 |[39m       } [36melse[39m {
+     [90m 66 |[39m         expect(decision[33m.[39mactualRole)[33m.[39mtoBe(role)[33m;[39m
+     [90m 67 |[39m         expect(decision[33m.[39mrequiredRole)[33m.[39mtoBe(required)[33m;[39m[0m
+
+      at tests/admin-p6-01-shell-fixtures.test.ts:64:39
+
+  ● W39-O2 P6-01: buildAdminShellView (layout chrome) › loading state preserves currentSection and yields visible nav for role
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m  95 |[39m     expect(view[33m.[39mcurrentSection)[33m.[39mtoBe([32m'connectors'[39m)[33m;[39m
+     [90m  96 |[39m     expect(view[33m.[39mrole)[33m.[39mtoBe([32m'operator'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m  97 |[39m     expect(view[33m.[39mauthorized)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                             [31m[1m^[22m[39m
+     [90m  98 |[39m     expect(view[33m.[39mstatus)[33m.[39mtoBe([32m'loading'[39m)[33m;[39m
+     [90m  99 |[39m     expect(view[33m.[39mvisibleNav[33m.[39mmap((n) [33m=>[39m n[33m.[39msection))[33m.[39mtoEqual([
+     [90m 100 |[39m       [32m'businesses'[39m[33m,[39m[0m
+
+      at Object.<anonymous> (tests/admin-p6-01-shell-fixtures.test.ts:97:29)
+
+  ● W39-O2 P6-01: buildScreenState (reducer wiring auth guard before data) › authorized section + error -> error
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 3
+
+      Object {
+    -   "kind": "error",
+    -   "message": "fetch failed",
+    +   "kind": "denied",
+    +   "reason": "Role 'operator' is not authorized for 'connectors' (requires 'admin')",
+    +   "requiredRole": "admin",
+        "role": "operator",
+        "section": "connectors",
+      }
+
+    [0m [90m 303 |[39m         navItems[33m:[39m nav[33m,[39m
+     [90m 304 |[39m       })[33m,[39m
+    [31m[1m>[22m[39m[90m 305 |[39m     )[33m.[39mtoEqual({ kind[33m:[39m [32m'error'[39m[33m,[39m section[33m:[39m [32m'connectors'[39m[33m,[39m role[33m:[39m [32m'operator'[39m[33m,[39m message[33m:[39m [32m'fetch failed'[39m })[33m;[39m
+     [90m     |[39m       [31m[1m^[22m[39m
+     [90m 306 |[39m   })[33m;[39m
+     [90m 307 |[39m
+     [90m 308 |[39m   test([32m'authorized section + loading -> loading'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> (tests/admin-p6-01-shell-fixtures.test.ts:305:7)
+
+PASS tests/admin-view-model.test.ts
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       7 failed, 227 passed, 234 total
+Snapshots:   0 total
+Time:        3.095 s
+Ran all test suites matching tests/admin-p6-01-shell-fixtures.test.ts|tests/admin-view-model.test.ts.

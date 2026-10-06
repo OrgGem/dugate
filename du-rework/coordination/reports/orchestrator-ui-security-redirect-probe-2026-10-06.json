@@ -1,0 +1,8 @@
+﻿{
+  "diagnostic": "legacy-login-open-redirect",
+  "reproduced": true,
+  "status": 302,
+  "location": "https://example.invalid/phishing",
+  "cookieIssued": true,
+  "scope": "legacy token login only; synthetic credential; no external request"
+}

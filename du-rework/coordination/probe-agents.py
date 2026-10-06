@@ -128,9 +128,10 @@ def main():
         if not t:
             rows.append(dict(role=role, handle=h, state='OFFLINE',
                              idle=None, evidence='handle not in live terminal list',
-                             watch=None, title=None, screen=None))
+                             watch=None, title=None, screen=None,
+                             connected=False, orphaned=False))
             continue
-        idle = (now - t.get('lastOutputAt', now)) / 60000
+        idle = (now - (t.get('lastOutputAt') or now)) / 60000
         scr = screen_text(h)
         st, ev = classify(idle, scr, t.get('title'))
         ctx, wd = watch_by_term.get(h, (None, None))

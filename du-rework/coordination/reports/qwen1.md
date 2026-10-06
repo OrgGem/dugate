@@ -1753,3 +1753,616 @@ port đã mitigated 3 lớp. Không commit/push; không tick row; lane không t�
 
 
 
+
+---
+
+## W1-1 - PACKET W1 (T-SUB-01..03): AUDIT IN-FLIGHT TRUOC KHI SUA
+
+**Packet:** `coordination/dispatch-specs/2026-10-04-1805-W1-admission-seam.md` (owner qwen_1 /
+`term_7cb640ae`, run `run_069ecd6957cd`).
+
+**Delta-DEVIATION-01 (khong chan):** packet gui toi ten file `6--4-85-W-admission-seam.md` -
+**khong ton tai**. File that la `2026-10-04-1805-W1-admission-seam.md` (ten trong packet la
+mojibake cua timestamp). Toi doc file that; noi dung khop 4 cau hoi audit nen coi la cung mot packet.
+
+**So series:** `W49-QW1-*` (W49-QW1-1..33) la series **da dong**. Packet W1 mo series moi `W1-*`
+de khong tron hai workstream.
+
+### 1. Baseline do duoc (read-only, TRUOC moi chinh sua)
+
+| Lenh (cwd `du-rework/services/orchestrator`) | Ket qua | Exit Code |
+|---|---|---|
+| `npx tsc --noEmit -p tsconfig.json` | output rong | **0** |
+| `npx jest` 5 suite trong lease | `4 passed, 1 skipped` - `43 passed, 40 skipped, 83 total` - 15.178s | **0** |
+
+**Vet skip - da truy nguyen, KHONG phai test-stub do:** `runtime.test.ts` boc bang
+`liveDescribe('WINDOW-GATED live suite (DU_LIVE_INFRA=1)')` (`tests/runtime.test.ts:41`) => 40
+test la **gate ha tang live**, dung thiet ke. Grep `it.skip|describe.skip|TODO|FIXME|.todo(`
+ tren **ca 5 file** trong lease => **0 match** => **test-stub fallout da sach**. Theo lane rule
+`SKIP != PASS`: 40 test nay **khong** tinh la bang chung cua lane nay.
+
+### 2. DA XONG (doc code, khong phai suy doan)
+
+| ID | Bang chung |
+|---|---|
+| T-SUB-01 admission seam | `submission.ts:218` goi `resolveEffectiveProfile` **truoc** `randomUUID`/cac INSERT => submit bi tu choi khong de lai row nao |
+| Effective-input validate | AJV compile `actionDef.inputSchema` tren `effectiveInput` (merge), 422 `INVALID_SCHEMA` |
+| Idempotency hash tren RAW input | `submission.ts:258` - hash `submission.input`, **khong** phai `effectiveInput` |
+| T-SUB-03 priority | `submission.ts:439` ghi `priority` vao outbox; `dispatcher.ts:55` doc tu outbox; legacy mode giu `bullMqPriorityFor(PROFILE_JOB_PRIORITY_DEFAULT)`. **F-PP1 giu nguyen huong** |
+| T-SUB-03 extension (2 path) | `submission.ts:353` goi `assertProfileExtensionAllowed` **sau** replay check, **truoc** INSERT dau tien |
+| DB column | `migrations/0026_profile_policy.sql` muc 2 - `operations.profile_policy_snapshot jsonb NULL` |
+| Cipher format | `0026` muc 1 - `file_url_auth_cipher text` = `iv_hex:tag_hex:ciphertext_hex` |
+| Claim fail-closed khi shape hong | `runtime.ts:201-219` `parsePinnedProfilePolicy` nem `INVALID_SCHEMA` thay vi chay bang default |
+
+### 3. CON THIEU / DO - 6 finding (thu tu uu tien)
+
+**F-W1-1 CRITICAL - raw secret di vao snapshot + claim.**
+`submission.ts:399` ghi `JSON.stringify(profile.policy)`. `EffectiveProfilePolicy.fileUrlAuthConfig`
+(`profiles.ts:98`) la **plaintext da giai ma**: `decodePolicy` (`profiles.ts:232`) goi
+`decryptFileUrlAuthConfig` roi tra `decrypted?.config ?? null` (`profiles.ts:249`).
+Chuoi leak: `file_url_auth_cipher` (da ma hoa) -> giai ma trong RAM -> **`JSON.stringify` vao cot
+jsonb thuan** (`profile_policy_snapshot`) -> `runtime.ts` parse -> claim. Cot nay **khong** nam
+trong metadata-crypto seal. Vi pham truc tiep `PLAN-COMPLETION-2026-10-04.md` muc 2 + acceptance
+PLAN04-01 (sentinel trong token/header/query khong duoc xuat hien o operation snapshot/claim).
+
+**F-W1-2 HIGH - contract `.passthrough()` hai tang.** `PinnedProfilePolicySchema`
+(`contracts/runtime.ts:58-69`) co `fileUrlAuthConfig: z.object({type}).passthrough().nullable()`
+**va** `.passthrough()` o cap ngoai => moi field la (token/header/query) deu lot. Day la ly do cau
+truc ma F-W1-1 khong bi chan o contract boundary.
+
+**F-W1-3 HIGH - guard da viet nhung KHONG noi day.** `fileUrlAuthConfigCarriesSecret()`
+(`file-url-auth.ts:155`) ton tai, grep toan repo => **0 consumer**. Day la bang chung chinh xac
+Claude dung o dau: da viet ham phat hien secret nhung chua dung no de loc snapshot.
+
+**F-W1-4 MEDIUM - thieu snapshot DTO chuyen biet + ref bat bien.** PLAN04-01 muc 2 yeu cau
+snapshot DTO chuyen biet da runtime-validate, khong serialize nguyen `EffectiveProfilePolicy`,
+con ref `(tenantId, profileId, profileRevision)`. Hien chua co DTO nao; `profile_id` /
+`profile_revision` co o cot rieng (`submission.ts:386-387`) nhung **ban than snapshot khong mang ref**.
+
+**F-W1-5 MEDIUM - `sourceUrl` top-level khong qua extension gate.**
+`assertProfileExtensionAllowed` (`submission.ts:697`) chi duyet `artifacts` + `effectiveInput.fileUrls`;
+**khong** kiem `submission.sourceUrl`. PLAN04-01 muc 3 neu dich danh: *Khong bo sot top-level
+`sourceUrl`*. Day la producer-side => nam trong lease `submission.ts` cua toi (download/acquisition
+leg thuoc W1c).
+
+**F-W1-6 MEDIUM - chua co sentinel test cho cot `profile_policy_snapshot`.**
+`tests/enc-meta-sentinel-runtime-refs.test.ts` chi phu `result_ref`/`human_waits`/`resume`; khong
+suite nao assert sentinel vang o snapshot/claim. Theo `feedback/verify-failure-reason.md`: test
+`not.toContain` ma **khong inject sentinel vao input** la bang chung rong - test moi phai inject
+that roi moi assert vang.
+
+### 4. Ket luan audit
+
+Claude da lam xong **T-SUB-01, T-SUB-03 va phan hinh dang DB cua T-SUB-02**, con **T-SUB-02 phan
+no-secret la do dung cho packet neu** (`submission.ts:399` van la `JSON.stringify(profile.policy)`).
+Uu tien sua: **F-W1-1 -> F-W1-2 -> F-W1-4 -> F-W1-6**, roi F-W1-5, F-W1-3.
+Khong sua gi o muc nay; phan code nam o W1-2+.
+
+---
+
+## W1-2 - IMPLEMENT T-SUB-02 no-secret snapshot + T-SUB-03 sourceUrl gate (W1 xong)
+
+### 1. Diff (write-set dung lease, khong file ngoai lease)
+
+| File | Thay doi |
+|---|---|
+| `packages/contracts/src/profile-policy.ts` | + them `ProfileCredentialRefSchema` va `ProfilePolicySnapshotSchema` (`.strict()` 2 tang) |
+| `packages/contracts/src/runtime.ts` | `PinnedProfilePolicySchema` gio re-export `ProfilePolicySnapshotSchema`; bo khai bao `.passthrough()` va `fileUrlAuthConfig` raw |
+| `services/orchestrator/src/modules/operations/submission.ts` | them `buildProfilePolicySnapshot()`; INSERT snapshot troi ve DTO moi; `assertProfileExtensionAllowed` nhan them `sourceUrl` |
+| `services/orchestrator/tests/w1-sub02-snapshot-secret.test.ts` | MOI, 10 test |
+| `services/orchestrator/tests/w1-sub03-sourceurl-extension.test.ts` | MOI, 6 test |
+
+**Khong sua:** `0026`/`0027` (migration khong bat buoc - DTO moi la jsonb,van ghi cung cot),
+`docs/21-openapi.json` (ngoai lease; DTO nay la internal snapshot, khong phai wire public).
+`dispatcher.ts` va `runtime.ts` (orchestrator) giu nguyen - chi can schema moi tu parse.
+
+### 2. Schema/type diff - DTO freeze (y eu cau cua CHECKPOINT (a))
+
+**TRUOC** (`PinnedProfilePolicySchema` tai `contracts/runtime.ts`):
+
+```ts
+z.object({
+  enabled, parameters: z.record(..., {value}.passthrough()), jobPriority,
+  allowedFileExtensions, connectionsOverride,
+  fileUrlAuthConfig: z.object({ type: z.string() }).passthrough().nullable(),
+}).passthrough();          // <- .passthrough() o CA HAI tang
+```
+
+**SAU** (`ProfilePolicySnapshotSchema`, mot schema cho ca hai huong):
+
+```ts
+z.object({
+  enabled, parameters, jobPriority, allowedFileExtensions, connectionsOverride,
+  fileUrlAuthConfigured: z.boolean(),   // thay cho config
+  credentialRef: z.object({ tenantId, profileId, profileRevision }).strict(),
+}).strict();
+```
+
+`SCHEMA_KEYS` do tu test, khong doan:
+`["enabled","parameters","jobPriority","allowedFileExtensions","connectionsOverride","fileUrlAuthConfigured","credentialRef"]`
+- **khong con** `fileUrlAuthConfig`.
+
+### 3. Payload that (capture tu test, khong viet tay)
+
+**configured** (`fileUrlAuthConfigured: true`):
+
+```json
+{"enabled":true,"parameters":{"temperature":{"value":0.2,"isLocked":false}},
+"jobPriority":"HIGH","allowedFileExtensions":".pdf,.docx",
+"connectionsOverride":[{"slug":"conn-a","stepId":"_default"}],
+"credentialRef":{"tenantId":"T","profileId":"P","profileRevision":7},
+"fileUrlAuthConfigured":true}
+```
+
+**absent** (`type: 'none'` hoac `null`) - chi khac `fileUrlAuthConfigured: false`;
+`credentialRef` **van co mat**, de consumer khong phai suy ra ref tu co bien hay khong.
+
+**invalid** (ban ghi cu co `fileUrlAuthConfig`):
+`safeParse.success = false`, issue that:
+```json
+{"code":"unrecognized_keys","keys":["fileUrlAuthConfig"],"path":[],
+"message":"Unrecognized key(s) in object: 'fileUrlAuthConfig'"}
+```
+
+=> claim fail closed 422 thay vi chay bang secret da giai ma.
+
+### 4. Strict-secret negatives (F-W1-2 dong kich ban ghi cu)
+
+| Input |safeParse|
+|---|---|
+| raw config (`fileUrlAuthConfig`) | **false** - `unrecognized_keys` |
+| key la (`surpriseCredential`) | **false** - `.passthrough()` da bi bo |
+| token/header/query sentinel trong snapshot | **khong bao gio duoc ghi** (test 10) |
+
+### 5. Verify (literal Exit Code tu wrapper, khong suy ra marker)
+
+| Lenh | Exit Code |
+|---|---|
+| `contracts: pnpm run lint` (= `tsc --noEmit`) | **0** |
+| `orchestrator: pnpm run lint` (= `tsc --noEmit`) | **0** |
+| `contracts: npx jest --runInBand` | **1** - pre-existing, xem muc 6 |
+| focused 7 suite (2 moi + 5 baseline) **x3 lien tiep** | **0 / 0 / 0** |
+| `tests/enc-meta-sentinel-runtime-refs` + 4 suite lien quan | **0** (182/182) |
+
+Focused 3 lan: `Test Suites: 1 skipped, 6 passed, 6 of 7 total` -
+`Tests: 40 skipped, 59 passed, 99 total`. **40 skip = gate `DU_LIVE_INFRA`, SKIP != PASS**,
+khong tinh vao bang chung lane nay.
+
+### 6. 8 suite do trong `test:unit` toan cay - KHONG phai do toi (da truy nguyen tung cai)
+
+Tong: `8 failed, 10 skipped, 145 passed, 153 of 163` - `28 failed, 89 skipped, 4281 passed`.
+
+| Suite | Ly do | Bang chung |
+|---|---|---|
+| `br12-isolation-offline` | manifest gia trong test khong co `inputSchema` => `declaredParameterKeys(undefined)` nem TypeError | **Probe do duoc**: `TypeError: Cannot read properties of undefined (reading 'properties')`. `declaredParameterKeys` + call site la code Phase 2 cua Claude, **co san o read dau tien cua toi truoc moi edit**; code do chay TRUOC moi thay doi cua toi. Probe da xoa |
+| `enc-meta-sentinel-runtime-refs` | co ten **RED GAP DETECTOR**, comment trong file: *"Fails today (finding)... requires a METADATA_SLOTS entry for result_ref"* | Danh nghia redact, ve `result_ref` - khong ve profile snapshot |
+| 6 suite `admin-shell-*` + `admin-p6-01-shell-fixtures` | lane Admin, ngoai write-set cua toi | Co san truoc cycle nay |
+
+Khong suite nao trong 8 la suite W1 vua viet.
+
+### 7. Mutation probe - chung minh test khong vacuous
+
+Tạm tra ve `JSON.stringify(profile.policy)` (khoi phuc defect) roi chay lai suite W1-02:
+**5/10 RED, Exit Code: 1**, va **do sai ly do** (`leaks(...)` tra `true`, khong phai loi khac).
+Sau do revert ve fix -> 10/10 xanh. Test bat duoc tai dung cho tai do.
+
+### 8. Mot test cua toi fail vì fixture sai, khong phai vi code
+
+`w1-sub03` case *"admits a sourceUrl inside the CSV"* fail truoc:
+`only pdf, docx are accepted; this file has ".pdf"`. Truyen loi la **fixture** cua toi:
+CSV phai co **dau cham** (`.pdf,.docx`) - `extname()` doi chieu nguyen ban va
+`normalizedAllowedFileExtensions` chi fold **case**, khong fold dot (legacy parity, `policy.ts`
+ghi ro la co chu dich de typo hien ra). Da sua fixture, **khong sua code san pham**.
+
+### 9. SKIP co ly do
+
+**ESLint: SKIP.** `npx eslint` -> *"dong cai eslint@10.12.0"* (prompt hang). Repo **khong co
+eslint**: `package.json` khong co devDep eslint, va `scripts.lint` chinh la `tsc --noEmit`.
+Theo chi dao coordinator 18:36, dung tool co san cua repo -> `pnpm run lint` da chay **Exit Code 0**.
+Khong tinh ESLint vao [PASS].
+
+### 10. Trang thai W1 vs 4 muc cua packet
+
+| Muc | Trang thai |
+|---|---|
+| 1. Audit in-flight (ghi TRUOC khi sua) | **XONG** - muc W1-1, 6 finding |
+| 2. Admission seam + snapshot khong raw credential | **XONG** - F-W1-1, F-W1-4 |
+| 3. Validate effective input, DTO chuyen biet runtime-validate | **XONG** - `buildProfilePolicySnapshot` validate truoc khi ghi |
+| 4. Test-stub fallout 5 file | **XONG** - grep skip/TODO = 0 match; 4 suite xanh; `runtime.test.ts` skip la gate live |
+
+### 11. Delta-DEVIATION can xu ly cho coordinator
+
+**DD-02 (da xu ly trong lease):** them `sourceUrl` vao extension gate. PLAN04-01 muc 3
+nam trong PLAN04-02 (W1b) nhung `sourceUrl` admission la producer-side => nam trong lease
+`submission.ts` cua toi. Download/acquisition leg van de nguyen W1c.
+
+**DD-03 (can coordinator quyet):** ket qua snapshot **doi shape** so voi cai Claude da ghi.
+`operations.profile_policy_snapshot` co the da co duong du trong DB dev voi shape cu
+(co `fileUrlAuthConfig`). Shape moi `.strict()` se **fail closed** khi claim - dung y chung,
+nhung neu co bang ghi thuoc tinh co plaintext thi can **rewrite** truoc khi claim lai.
+`0026` ghi *"Deliberately NOT backfilled"* va du-rework la project moi nen **offline toi khong
+do duoc co du lieu do**; day la ket luan suy ra tu tai lieu, **khong phai do duoc**. Can ban live
+xac nhan hoac packet migration rieng.
+
+**DD-04 (van mo, KHONG claim):** W1 khong implement acquisition resolve/decrypt theo
+`credentialRef` - dung W1c. `fileUrlAuthConfigCarriesSecret` da noi day (F-W1-3) nhung con
+duong doc credential o acquisition **chua ton tai** trong code hien tai (grep: 0 consumer
+truoc khi tao no). Claim nay chi mang ref, chua mang secret - acquisition se phai lay ciphertext
+tu `profile_bindings` bang ref roi giai ma sat luc fetch.
+
+Chua commit/push/reset. Chua tick gate. Khong mo DB/Redis/S3/Vault.
+
+---
+
+## W1 HANDOFF - RELEASE LIST (W1-HANDOFF, receipt-only, 2026-10-04 19:0x)
+
+Packet: `coordination/dispatch-specs/2026-10-04-1901-W1-HANDOFF-RELEASE.md` (run `run_069ecd6957cd`,
+task `task_b5aa5fbfd8ca`). **Khong doi code, khong commit, khong tick.**
+
+### 0. Diem quan trong nhat - lease W1 co ~20 file, toi CHI GHI 5 file
+
+Spec yeu cau *"release tung file can chuyen, khong tu gia dinh ca lease het"*. Su that do:
+trong ca lease W1, **chi 5 file duoc TOI ghi**. 10 file con lai toi **chi DOC**.
+
+Phan biet nay khong phai suy doan tu mtime: toi biet chinh xac vi tool call cua toi da ghi file nao
+(edit/write_file cua toi co ten file). mtime chi **corroborate** - va theo lesson da gap o lane nay,
+mtime trung KHONG chung minh tac nhan, nen tinh no la bang chung phu, khong phai bang chung chinh.
+
+**=> Coordinator khong can cho toi release 15 file: toi khong giu chung.**
+
+### 1. Trang thai + digest (sha256 rut gon 12 hex, do bang Get-FileHash)
+
+**A. File TOI da ghi trong W1 (5 file) - day la moi thu toi that su giu:**
+
+| File | sha256[0:12] | mtime | Vai tro |
+|---|---|---|---|
+| `services/orchestrator/src/modules/operations/submission.ts` | `1655BE49D843` | 18:24:13 | admission seam; `buildProfilePolicySnapshot`; `sourceUrl` extension gate |
+| `packages/contracts/src/profile-policy.ts` | `759C51004A5F` | 18:17:26 | them `ProfileCredentialRefSchema` + `ProfilePolicySnapshotSchema` |
+| `packages/contracts/src/runtime.ts` | `4CC34F0FAC91` | 18:18:21 | `PinnedProfilePolicySchema` re-export schema moi, bo `.passthrough()` |
+| `services/orchestrator/tests/w1-sub02-snapshot-secret.test.ts` | `D3B51AD2CBB4` | 18:23:16 | MOI, 10 test sentinel |
+| `services/orchestrator/tests/w1-sub03-sourceurl-extension.test.ts` | `5EF1E24E0BC6` | 18:25:39 | MOI, 6 test sourceUrl gate |
+
+**B. File trong lease nhung toi CHI DOC (15 file) - KHONG can release tu toi:**
+
+| File | sha256[0:12] | mtime | Nguon ghi gan nhat |
+|---|---|---|---|
+| `modules/profiles/profiles.ts` | `153965D7E20A` | 15:46:16 | Claude Phase 2 |
+| `modules/profiles/policy.ts` | `EF02D8EB7FDB` | 16:31:51 | Claude Phase 2 |
+| `modules/profiles/publish.ts` | `AE76AC4BC2D6` | 15:27:49 | Claude Phase 2 |
+| `modules/profiles/file-url-auth.ts` | `15CFBED3B445` | 15:27:09 | Claude Phase 2 |
+| `modules/profiles/prompt-overrides.ts` | `CA2EC15C0BA3` | 16:48:00 | Claude Phase 2 |
+| `modules/queue/dispatcher.ts` | `3715751DB581` | 15:58:17 | Claude Phase 2 |
+| `modules/runtime/runtime.ts` | `196A9985E963` | 17:17:53 | Claude Phase 2 (dung luc 17:22) |
+| `packages/contracts/src/index.ts` | `33A8748D2F78` | 14:43:14 | lane truoc |
+| `migrations/0026_profile_policy.sql` | `B98615F802AF` | 14:06:47 | lane truoc |
+| `migrations/0027_profile_active_pointer.sql` | `EC28DD7CFBBE` | 14:07:59 | lane truoc |
+| `tests/artifact-submit-guards.test.ts` | `E094044122FE` | 17:19:05 | Claude Phase 2 |
+| `tests/public-upload-encryption-gateway.test.ts` | `DAB379B1E23B` | 17:19:17 | Claude Phase 2 |
+| `tests/url-ingestion-offline.functional.test.ts` | `4F1394D16DEE` | 17:18:34 | Claude Phase 2 |
+| `tests/url-ingestion-backend-failclosed-offline.test.ts` | `4F87BEF52360` | 17:18:34 | Claude Phase 2 |
+| `tests/runtime.test.ts` | `DA62779AB1FA` | **2026-10-03** 02:29 | lane truoc (khong phai fallout Phase 2) |
+
+`0026`/`0027` **khong co cham** (DD khong phat sinh) - DTO moi van ghi cung cot jsonb, khong can migration.
+
+### 2. De xuat release NGAY cho W1c (acquisition)
+
+| File | Ly do phai sang W1c |
+|---|---|
+| `modules/profiles/file-url-auth.ts` | W1c can `decryptFileUrlAuthConfig` + `resolveProfileCryptoKey` + `isFileUrlAuthCipher` de giai ma **sat luc fetch**. **LUU Y MOI:** `submission.ts` (cua toi) bay gio **import `fileUrlAuthConfigCarriesSecret` tu file nay** - da co coupling chieu 2 chieu. W1c sua file nay thi focused W1 phai chay lai |
+| `modules/profiles/profiles.ts` | W1c can `decodePolicy` de doc `file_url_auth_cipher` theo `credentialRef`. **NHUNG** `selectActiveRow` cung la duong T-SUB-01; sua cho qua lo co the dong admission seam. De nguyen: W1c tao module acquisition rieng chi DOC tu day |
+
+**File MOI (chua co ai giu):** module acquisition resolve `credentialRef` -> ciphertext. DD-04 de nguyen,
+chua ai implement. Dat ten/module do coordinator chot de tranh 2 lane cung tao.
+
+### 3. De xuat release cho W1b (consumer T-SUB-04)
+
+| File | Trang thai release |
+|---|---|
+| `modules/runtime/runtime.ts` | **GIAI PHONG WRITE cho W1b** - `parsePinnedProfilePolicy` bay goi schema moi `.strict()`, nen W1b can sua no de consume `credentialRef`. Cho den luc day no van chay xanh (chi thay doi hanh vi khi shape cu) |
+| `contracts/{profile-policy,runtime}.ts` | **CHI DOC cho W1b/W2** - xem muc 4 |
+
+### 4. GIU READ-ONLY (KHONG release write) - 3 file
+
+| File | Ly do |
+|---|---|
+| `packages/contracts/src/profile-policy.ts` | **DTO da freeze (CHECKPOINT a).** W1b/W2/W1c/W3 chi **consume**; bat ky ai sua se lam drift giua writer va reader - day chinh la tai lieu bao ve single-writer. |
+| `packages/contracts/src/runtime.ts` | Cung, va no la noi `PinnedProfilePolicySchema` **re-export**; sua o day tuc la sua contract. |
+| `modules/operations/submission.ts` | Admission seam. T-SUB-02 vua dong o day. **Chi giu cho den khi W1b/W2 xong** - xem cau hoi 2. |
+
+### 5. De xuat release cho W3 (publish/CAS)
+
+| File | Ly do |
+|---|---|
+| `modules/profiles/publish.ts` | T-PROF-03 publish/rollback/CAS la dependency explicit cua T-SUB-02 pin (PLAN-COMPLETION muc 3). W3 can ghi file nay. **Toi khong ghi file nay** nen khong co conflict voi W1. |
+
+### 6. Thu tu + dieu kien an toan (khong 2 writer)
+
+```
+[1] GIAI PHONG   file-url-auth.ts + module acquisition moi   -> W1c
+[2] GIAI PHONG   runtime/runtime.ts                         -> W1b
+[3] GIAI PHONG   publish.ts                                 -> W3
+[4] GIU READ-ONLY  contracts x2 + submission.ts          -> den khi [1][2] xong
+```
+
+**Dieu kien bat buoc:**
+
+1. `contracts/{profile-policy,runtime}.ts` = **READ-ONLY cho moi lane**, khong phai cho rieng W1.
+   Neu W1b/W1c/W3 can them field, ho **dung** `credentialRef` co san hoac mang `DD-DEVIATION`
+   de coordinator cap quyen, **KHONG tu them** - them field vao DTO ngay luc nay se pha CHECKPOINT (a).
+2. Khong cap 2 writer cho **cung mot file** trong cung mot thoi diem. W1c va W1b deu can
+   `file-url-auth.ts`? Khong - chi W1c. Nhung ca hai deu can *doc* contract => cho phep.
+3. Bat ky ai sua `file-url-auth.ts` phai chay lai focused W1 (`w1-sub02`, `w1-sub03`) +
+   `tests/artifact-submit-guards` + `url-ingestion-*` boi **coupling import** o muc 2.
+4. `submission.ts` chi giai phong **sau** khi W1b/W2 chot; neu W3 can ghi cho T-AUD-01 thi phai
+   **serialize**, khong giao song song.
+
+### 7. Cau hoi cho coordinator (can quyet truoc khi cap lease)
+
+**Q1 - `credentialRef` ai resolve?** DD-04: chua ton tai code doc credential o acquisition.
+Tao module moi hay dua vao `profiles.ts`? Toi de nguyen vi `profiles.ts` la T-SUB-01 seam.
+
+**Q2 - W3 co can ghi `submission.ts` khong?** PLAN-COMPLETION muc 3 noi T-AUD-01 la "phan cua
+transaction mutation ngay khi ship API". Neu T-AUD-01 cham `operations/submission.ts` thi phai
+serialize voi W1/W1b; neu chi cham admin/publish side thi khong conflict.
+
+**Q3 - W1b sua `runtime/runtime.ts` hay chi doc?** Toi de nguyen. `parsePinnedProfilePolicy` van
+xanh; chi can sua khi W1b them consumer that cua `credentialRef`.
+
+**Q4 - DD-03 (data da ghi):** snapshot shape doi => ban ghi cu co plaintext se fail closed khi claim.
+Tay ban live xac nhan co du lieu hay khong, hay cap packet migration rieng. Offline toi khong do duoc.
+
+### 8. Constraint observance
+
+Khong sua code/test vong nay. Khong commit/push/reset. Khong tick gate. Khong mo DB/Redis/S3/Vault.
+Chi ghi receipt nay.
+
+---
+
+## T-PROF-03 CLOSURE - publish / rollback / CAS evidence (2026-10-04 19:2x)
+
+Packet: `coordination/dispatch-specs/2026-10-04-1910-T-PROF-03-CLOSURE.md` (run `run_069ecd6957cd`,
+task `task_f0014eff828a`). Lease moi: `publish.ts` (+ `policy.ts` khi that su, **khong can**),
+test moi `tests/p730-prof03-publish-cas.test.ts`. **Khong commit/push, khong tick, offline.**
+
+### 1. invariant THAT suoc xac lap (doc va code khop)
+
+`publish.ts` (mtime 15:27, Claude viet, **chua tung duoc test nao cham** - xac nhan dung nhu
+`w1-receipt-audit` §5: grep trong `tests/` chi hit `aweb04-bff-profiles.test.ts`, noi dung dung
+o tang BFF wire, **khong goi `publish.ts`**).
+
+| # | Invariant | Bang chung |
+|---|---|---|
+| I1 | Publish la **CAS move**: `expectedRevision` bat buoc (type-enforced) | stale => 409 `REVISION_CONFLICT`, con tro **khong doi** |
+| I2 | Rollback **co** `targetRevision` bat buoc, `expectedRevision` **tuy chon** | rollback khong expected => ok; rollback stale expected => 409 |
+| I3 | Doc pointer bang `SELECT ... FOR UPDATE` **truoc** khi so CAS | test kiem `FOR UPDATE` co mat + **thu tu**: lock read truoc pin write |
+| I4 | 0027 #2: publish/rollback **chi** doi con tro, khong bao gio ghi `profile_bindings` | `wroteBindings === false`; khong co INSERT/UPDATE/DELETE len bindings |
+| I5 | 0027 #3: read **khong bao gio** fallback `MAX(revision)` | profile rollback ve 2 trong khi co revision 7 => doc ra **2**, khong phai 7 |
+| I6 | `null` = khong co pointer row, khong substitute revision g | tra `null` |
+| I7 | Target khong ton tai bi **FK 23503** chan, khong phai read path | `isUnknownRevisionError` phan loai dung; khong nuot `HttpError` cua chinh no |
+| I8 | `pinActiveRevision` la **upsert** | `ON CONFLICT (profile_id) DO UPDATE SET revision = EXCLUDED.revision` |
+| I9 | Client truyen vao duoc dung, khong mo tx moi | tx count = 0 khi co client; = 1 khi khong |
+
+### 2. MOT TEST THAT - va no la gi
+
+Test dau tien cua toi *"publish with no revisions at all is 404"* **FAIL (nhan duoc 409)**.
+Kiem lai code: CAS compare chay **TRUOC** khi resolve target, nen thieu pointer => 409 chu
+phai toi 404. **Test cua toi sai, khong phai code sai** - da viet lai cho dung.
+
+**Phat hien that tu do: nhanh 404 trong `moveActiveRevision` (`notFound('profile has no revisions
+to activate')`) la DEAD CODE qua public service.** Ly do:
+
+- `publishRevision` **luon** truyen `expectedRevision` => CAS phai khop mot pointer row ton tai;
+- co pointer row => theo composite FK 0027 **bat buoi** co `profile_bindings` row, nen `MAX(revision)`
+  khong bao gio NULL tai diem do;
+- `rollbackTo` **luon** truyen `targetRevision` => khong di qua nhanh `MAX()`.
+
+**Khong phai bug** (khong lam sai hanh vi) - nhung la guard gia tao cam giac an toan. **Khong sua code**:
+xoa nhanh 404 se la refactor ngoai scope, va `moveActiveRevision` la private nen nhac co the dung sau
+nay. Da ghi thanh **F-3** de coordinator quyet dinh.
+
+**Bang chung thi cho F-3 (khong phai suy doan):** mutation probe **xoa guard CAS** => nhanh 404
+**tro lai reachable** (test doi tu 409 thanh 404).
+
+### 3. Mutation probe
+
+Tạm xoa khoi `if (actual !== input.expectedRevision) throw conflict(...)`:
+
+- **5/25 RED, Exit Code: 1** (3 test publish +1 rollback stale +1 unreachable-404)
+- Do sai ly do: promise **resolve** thay vi reject (stale CAS bi bo qua, con tro bi dich)
+- Revert xong: `publish.ts` digest = **`AE76AC4BC2D6`** - **bang dung** voi digest da ghi o W1 HANDOFF
+  muc 1 => revert byte-identical, khong phai "edit bao thanh cong"
+
+### 4. Verify (literal Exit Code tu wrapper)
+
+| Lenh | Exit Code |
+|---|---|
+| `p730-prof03-publish-cas.test.ts` **x3 lien tiep** | **0 / 0 / 0** |
+| `pnpm run lint` (= `tsc --noEmit`) | **0** |
+| 4 suite gop (p730 + aweb04-bff-profiles + w1-sub02 + w1-sub03) | **0** - `51 passed, 51 total` |
+
+`Tests: 25 passed, 25 total` - **khong co skip** o suite nay (`SKIP != PASS`: bo test nao gate).
+
+### 5. PHAN KHONG CHUNG MINH DUOC OFFLINE (bat buoc ghi ro)
+
+| Khong chung minh | Vi sao | Ai chung minh |
+|---|---|---|
+| **Serialize that cua `FOR UPDATE`** | Mock DB chi mo phong **cai code xin khoa**; khong mo phong MVCC, EvalPlanQual re-read, hay wait tren unique index | **Live window / real PG** |
+| **23503 that khi rollback ve revision khong ton tai** | Mock khong co FK; chi test ham phan loai loi | **Live window / real PG** |
+| **`ON CONFLICT DO UPDATE` khi 2 tx ghi cung pointer** | Upsert dung trong SQL nhung hanh vi ghi khi tranh chap do PG quyet dinh | **Live window / real PG** |
+| **0027 invariant #1** (`createRevision` insert + pin cung tx) | `createRevision` o `profiles.ts`, **ngoai lease packet nay** - chua test | Owner profile tiep / W3 |
+
+**Khong con lai thi dua:** suite nay chung minh **decision logic + SQL issued + thu tu**, khong chung
+minh concurrency that. Toi khong tinh fake lock la bang chung serialize.
+
+### 6. Doi chieu 0026/0027 (tham chieu, khong mo lai)
+
+- 0026 §2: `operations.profile_policy_snapshot jsonb NULL` - NULL = "khong ap policy", cam coalesce
+  thanh `{}`. **Da dong o W1** (xem W1-2).
+- 0027: pointer table (khong phai `is_active` tren `profile_bindings`), composite FK `ON DELETE RESTRICT`,
+  backfill `max(revision)` + `ON CONFLICT DO NOTHING` de chay lai duoc.
+- **Kiem soat trong lease:** `revision` la `integer` (int4) o **ca** 0006->0004 va 0027 => pg tra
+  ve JS **number**, nen so sanh CAS `actual !== expectedRevision` khong gap tranh chap int8->string.
+  `ProfileRevisionSchema` la `z.number().int().min(0)` **khong coerce** => string bi contract chan truoc.
+
+### 7. Tra loi §5 cua cc_1 audit - bang chung (b) cho W1c/W3
+
+| Yeu cau | Bang chung |
+|---|---|
+| Publish co evidence | 9 test trong describe `publish`, xanh 3/3, literal exit 0 |
+| Rollback co evidence | 5 test, gồm target row bat bien va rollback forward |
+| CAS-conflict dung loai | `REVISION_CONFLICT` / 409, con tro giu nguyen (khong overwrite) |
+| Concurrency **mo phong offline** | Co: `FOR UPDATE` co mat + thu tu lock-read truoc pin-write. **Khong** co: serialize that cua PG - xem muc 5 |
+
+**TPROF03 = VERIFIED OFFLINE cho decision layer. `T-PROF-03` chua ACCEPTED** - con phan live o muc 5.
+
+### 8. Trang thai write-set
+
+| File | Trang thai |
+|---|---|
+| `src/modules/profiles/publish.ts` | **0 product diff** (digest `AE76AC4BC2D6` khop) - chi them bang chung |
+| `src/modules/profiles/policy.ts` | **khong cham** - khong can cho invariant nao |
+| `tests/p730-prof03-publish-cas.test.ts` | MOI, 25 test |
+
+Khong cham `dispatcher.ts`, `runtime.ts`, `server.ts`, contracts. Khong tick gate. Khong mo DB/Redis/S3/Vault.
+
+### 9. Mo cho coordinator quyet
+
+**F-3 (mo, khong hanh dong):** nhanh 404 dead code trong `moveActiveRevision`. Ba lua chon:
+giu nguyen + comment "unreachable qua public service" / xoa / giu de cho API sau dung.
+Toi **khong** sua vi xoa la refactor ngoai scope va khu vuc nay co the dung cho lenh moi.
+
+**DD-05 (can lease):** 0027 invariant #1 (`createRevision` insert + pin trong **cung** transaction)
+o `profiles.ts`, **ngoai lease packet nay**, **chua co test nao**. Day la invariant ma `publish.ts`
+phu thuoc vao (khong co pointer thi moi profile fail closed). Toi de nguyen, can packet rieng hoac
+mo lease `profiles.ts`.
+
+**DD-06 (can luu y, KHONG sua):** `apps/admin-web/src/lib/api/client.ts:37` khai bao
+`expectedRevision?: string | number`. Contract server la `z.number()` nen string bi 422 tai
+boundary - **khong lo** offline. Nhung type client cho phep string la mo hinh sai; can W3/AWEB
+chot lai khi sua route.
+
+
+<!-- appended by coordinator 2026-10-04 20:11 from qwen_1 staged temp (.qwen/tmp/dd05-receipt.md) do lane stream error tai buoc append -->
+
+---
+
+## DD-05 - 0027 invariant #1: createRevision insert + pin CUNG transaction (2026-10-04 19:4x)
+
+Packet: `coordination/dispatch-specs/2026-10-04-1930-DD05-INVARIANT1.md` (run `run_069ecd6957cd`,
+task `task_7e8ce5064039`). Lease: `profiles.ts` + test moi `tests/p730-prof03-invariant1.test.ts`.
+
+### 0. Ba quyet dinh cua coordinator - da ghi nhan, khong hanh dong code
+
+| Quyet dinh | Trang thai |
+|---|---|
+| **DD-05 MET** (basis: CLOSURE 25 test x3 exit 0 + plan-refresh §2) | **Ghi nhan tai muc 6** - day la chot cua coordinator, toi khong tu tick |
+| **F-3**: giu nguyen nhanh 404, **khong xoa, khong them comment** | **Khong cham `publish.ts`** (digest khop, muc 5) |
+| **DD-06**: chi note cho W3 | **Khong sua** - note tai muc 7 |
+
+### 1. Fake phai mo phong TRANSACTION - ly do
+
+Case **(b)** la trung tam packet nay: pin fail thi insert **khong** duoc ton tai. Fake chi ghi lai
+cac lenh khong phat hien duoc dieu do - no se bao "insert da xay ra" cho mot transaction da
+rollback. `Store` trong suite giu **write set chua commit** va chi gop vao committed khi COMMIT;
+throw => bo. Do do cac assertion rollback co y nghia.
+
+### 2. (a) happy - insert + pin cung tx
+
+| Test | Chung minh |
+|---|---|
+| revision vua insert **va** active sau commit | bindings `[1]`, pointer `1` |
+| pin do `createRevision` tu phat, khong phai caller | `insertIdx < pinIdx` |
+| **ca hai** trong MOT transaction | dem `db.tx` mo = **1** |
+| revision thu hai bump pointer | bindings `[1,2]`, pointer `2` |
+
+### 3. (b) failure injection - pin fail => insert rollback
+
+| Test | Chung minh |
+|---|---|
+| insert **da duoc phat** roi **khong ton tai** | co `INSERT INTO profile_bindings` trong `calls`; `bindings.size === 0`, `pointers.size === 0`, `counter === 0` |
+| create fail giu nguyen revision + pointer **truoc** do | pointer van `1`, bindings van `[1]` |
+| revision bi rollback **khong bi tieu** | create lai cho ra `1`, khong nhay len `3` (khong ho trong chuoi) |
+
+### 4. (c) pointer bat buoc truoc effective
+
+| Test | Chung minh |
+|---|---|
+| binding co, pointer **khong** => fail closed, **khong** fallback MAX | 404 `NOT_FOUND` (nhanh `pointer-missing`) |
+| co pointer => resolve `pinned`, **khong** 404 | `mode/pofileId/revision` khop |
+| pointer do invariant #1 tao chinh la cai `getEffectiveRevision` doc | tra `1` |
+| key khong co binding nao => **legacy**, khong phai 404 | `{mode:'legacy'}` |
+
+### 5. MUTATION PROBE - va mot test da XANH SAI LY DO
+
+Mutation: chuyen `pinActiveRevision(c, ...)` ra `db.tx` rieng (pham invariant #1).
+
+**Ket qua lan 1: 10/14 RED** - nhung **test (b) "FAILURE INJECTION" van XANH**.
+
+> **Day la fail nguy hiem nhat cua mot test: xanh VI SAI LY DO.** Mutation tao nested transaction,
+> fake nem `nested transaction in fake` **truoc** khi toi `failPin`, nen rollback van xanh -
+> test xanh khong phai vi pin fail ma vi loi khac.
+
+**Cua chua:** them assertion pin **phai duoc thu** trong cung transaction:
+`expect(calls.some(INSERT INTO profile_active_revisions)).toBe(true)`.
+
+**Ket qua lan 2: 11/14 RED**, va (b) do **dung ly do** - pin khong bao gio duoc attemp trong tx ngoai.
+
+Revert xong: `profiles.ts` digest = **`153965D7E20A`** - **bang dung** voi bang W1 HANDOFF muc 1.
+
+### 6. Xac nhan DD-05 da MET (basis coordinator)
+
+Coordinator chot **MET** tren CLOSURE evidence (25 test x3 literal exit 0) + plan-refresh §2.
+Toi **ghi nhan**, khong tu tick gate. Packet nay **bo sung** chung cho invariant #1 ma CLOSURE
+chua co - sau khi nay thi `publish.ts` (CAS move) va `createRevision` (pin) deu co bang chung
+offline cua chung.
+
+**=> W1c/W3 co the mo.** Invariant #1 + invariant #2 + invariant #3 (0027) deu da co test:
+| Invariant | Test |
+|---|---|
+| #1 insert + pin cung tx | `p730-prof03-invariant1` (a)(b)(c) |
+| #2 chi doi con tro | `p730-prof03-publish-cas` I4 |
+| #3 khong fallback MAX | `p730-prof03-publish-cas` I5/I6 + invariant1 (c) |
+
+### 7. DD-06 - note cho W3 (khong sua trong packet nay)
+
+`apps/admin-web/src/lib/api/client.ts:37` khai bao `expectedRevision?: string | number`.
+Contract server la `ProfileRevisionSchema = z.number().int()` **khong coerce**, nen string bi 422 tai
+boundary - **khong phai bug runtime**. Nhung type client cho phep string la mo hinh sai.
+**W3/AWEB nen chot khi sua route.** Toi khong cham file nay.
+
+### 8. Verify (literal Exit Code tu wrapper)
+
+| Lenh | Exit Code |
+|---|---|
+| `invariant1` + `publish-cas` **x3 lien tiep** | **0 / 0 / 0** |
+| `pnpm run lint` (= `tsc --noEmit`) | **0** |
+| 5 suite gop (DD-05 + CLOSURE + aweb04 + w1-sub02 + w1-sub03) | **0** - `65 passed, 65 total` |
+
+`invariant1`: `Tests: 14 passed, 14 total` - **khong co skip** (`SKIP != PASS`).
+
+### 9. Phan KHONG chung minh duoc offline
+
+| Khong chung minh | Vi sao | Ai chung minh |
+|---|---|---|
+| **Rollback that cua PG** khi pin that fail | Store la fake; PG rollback la co che duy tri thuoc PG | **Live window / real PG** |
+| **23503** khi pointer tro toi revision khong ton tai | Fake khong co FK | **Live window / real PG** |
+| **Serialize** 2 `createRevision` cho cung profile | `max(revision)+1` co race khi doc khong khoa | **Live window / real PG** |
+| **Atomicity that** khi admin route truyen client | Fake `tx` la minh hoa, khong phai router that | **Live window + AWEB** |
+
+**Ghi chu danh gia rui ro (de coordinator can, toi KHONG sua):** hai `createRevision` chay song song
+cho cung `profileId` deu doc `max(revision)` **khong khoa** => cung nhan revision, ca hai insert
+se **loi unique PK (profile_id, revision)**. `pinActiveRevision` la upsert nen con tro se lai dung,
+nhung **mot revision bi orphan** (co binding row, khong bao gio active) - lech nhe invariant #1.
+Day la **concurrency that** => thuoc live window, va `profiles.ts` dang trong lease cua toi nen
+**DD-07** de coordinator quyet: co mo them `SELECT ... FOR UPDATE` tren profile_id khong.
+
+### 10. Trang thai write-set
+
+| File | Trang thai |
+|---|---|
+| `src/modules/profiles/profiles.ts` | **0 product diff** (digest `153965D7E20A` khop) |
+| `src/modules/profiles/publish.ts` | **khong cham** theo quyet dinh F-3 |
+| `tests/p730-prof03-invariant1.test.ts` | MOI, 14 test |
+
+Khong cham contracts/submission/runtime/server/dispatcher/migrations. Khong commit/push. Khong tick.
+Khong mo DB/Redis/S3/Vault.
