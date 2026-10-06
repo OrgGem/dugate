@@ -1,0 +1,15 @@
+# Live-gates RUN overlay: explicit SEC-ENC-05 synthetic-data exemption.
+#
+# The r4.1 candidate boot enforces "real-data mode ALWAYS requires the artifact
+# encryption surface" (DU_VAULT_TRANSIT_OPTIONS + Vault transit fixture). The
+# live gates run against synthetic fixtures only (synthetic tenant/operation,
+# harness-generated OAuth/HMAC values) and no Vault transit service is part of
+# the gate scope, so this run declares the same complete, explicit exemption
+# shape the benchmark packet used. This is NOT a product change and NOT a
+# production posture: it is visible in /health and in the execution receipt.
+services:
+  orchestrator:
+    environment:
+      DU_DATA_MODE: synthetic
+      DU_SYNTHETIC_DATA_ACK: >-
+        {"mode":"synthetic-data-exempt","reason":"Isolated live-gates run: synthetic tenant/operation and harness-generated TLS/OAuth/HMAC fixtures only; no real or customer data","approvedBy":"Live-gates execution packet 7 (oc_2)","acknowledgedAt":"2026-10-06T15:10:00Z","isolatedFromRealData":true}

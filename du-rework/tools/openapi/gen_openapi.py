@@ -778,10 +778,21 @@ _secret_file = 'du-rework/services/orchestrator/src/app/admin/bff/secrets.ts'
 _secret_source = io.open(_secret_file, encoding='utf-8').read()
 _secret_handle = io.open('du-rework/services/orchestrator/src/app/admin/bff/handle.ts', encoding='utf-8').read()
 assert 'matchSecretsRoute(relative)' in _secret_handle
-assert "if (relative === '/secrets') return { kind: 'list' }" in _secret_source
-assert '(rotate|disable|test)' in _secret_source
-_create_blocked = "route.kind === 'list' ? 'GET' : 'POST'" in _secret_source
-assert _create_blocked, 'Secret method routing changed: reconcile create availability before generating'
+# WT-7: the dispatch contract is asserted by CALLING resolveSecretsRoute,
+# not by scanning secrets.ts source text. A reformat of that file used to
+# fail the generator with an error that did not describe the real risk.
+_dispatch = subprocess.run(
+    ['node', 'du-rework/tools/openapi/secrets-route-assert.cjs'],
+    capture_output=True, text=True, check=True)
+_dispatch_matrix = json.loads(_dispatch.stdout)
+assert _dispatch_matrix['list_get'] == 'list', _dispatch_matrix
+assert _dispatch_matrix['list_post'] == 'create', _dispatch_matrix
+for _denied in ('put', 'delete', 'patch', 'head'):
+    assert _dispatch_matrix['list_' + _denied] is None, _dispatch_matrix
+    assert _dispatch_matrix['rotate_' + _denied] is None, _dispatch_matrix
+for _op in ('rotate', 'disable', 'test'):
+    assert _dispatch_matrix[_op + '_post'] == _op, _dispatch_matrix
+    assert _dispatch_matrix[_op + '_get'] is None, _dispatch_matrix
 _secret_security = {'PortalSession': []}
 _secret_errors = {
     '401': {'description': 'Missing Portal session'},
@@ -819,10 +830,16 @@ _list = secret_operation('/admin/api/secrets', 'get', 'Tenant-fenced metadata ca
 _list['parameters'] = [{'name': name, 'in': 'query', 'schema': {'type': 'string'},
     'description': 'Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot.'}
     for name in ['tenantId', 'cursor', 'limit', 'state', 'purpose', 'sort']]
-_create = secret_operation('/admin/api/secrets', 'post', 'Create/link is unavailable: matcher selects list and method gate returns 405 before the create branch.')
-_create['responses'] = {'405': {'description': 'Current matcher makes create branch unreachable; SC owner must fix method dispatch'}}
-_create['x-implementation-status'] = 'Unavailable: unconditional 405 at BFF method gate'
-_create['x-planned-request-schema'] = '#/components/schemas/SecretCatalogCreate'
+_create = secret_operation('/admin/api/secrets', 'post',
+    'Platform-admin + CSRF create/link proxy: POST selects effectiveRoute=create; validate write-only DTO then forward to Internal JSON. Catalog upstream API remains absent.',
+    'SecretCatalogCreate')
+_create['description'] = 'BFF method dispatch is implemented, not unconditional 405. Reads never return secret values. Create requires tenantId in the body or resolved tenantId query scope; differing body/query tenant is rejected. Upstream availability, storage and idempotency remain unimplemented in this snapshot.'
+_create['parameters'].append({'name': 'tenantId', 'in': 'query', 'schema': {'type': 'string', 'format': 'uuid'},
+    'description': 'Optional platform-admin scope; fills an omitted body tenantId and must match an explicitly supplied one.'})
+_create_body = dict(SCHEMAS['SecretCatalogCreate'])
+_create_body['required'] = [key for key in _create_body['required'] if key != 'tenantId']
+_create_body['description'] = 'Canonical create DTO after BFF tenant scope injection. tenantId must be supplied in body or resolved query scope; managed_value requires write-only literal, vault_reference forbids value. Canonical Zod refinements apply.'
+_create['requestBody']['content']['application/json']['schema'] = _create_body
 for _action, _model in [('rotate', 'SecretCatalogRotate'), ('disable', 'SecretCatalogDisable'), ('test', None)]:
     _operation = secret_operation('/admin/api/secrets/{secretId}/' + _action, 'post',
         'Platform-admin + CSRF secret ' + _action + ' proxy. Body secretId is supplied/overridden by path; upstream catalog API absent.', _model)

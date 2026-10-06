@@ -387,6 +387,20 @@ export const WEBHOOK_ENCRYPTION_FAILED = 'WEBHOOK_ENCRYPTION_FAILED';
  */
 export const WEBHOOK_AUTH_UNAVAILABLE = 'WEBHOOK_AUTH_UNAVAILABLE';
 /**
+ * WT-01: terminal, non-retryable state for a credential-bearing callback whose
+ * managed-secret resolver was never wired into the composition.
+ *
+ * Deliberately distinct from WEBHOOK_AUTH_UNAVAILABLE: that code covers
+ * TRANSIENT faults (token server unreachable, a flaky secret lookup) and keeps
+ * the row PENDING for retry. "Resolver not configured" is a configuration
+ * error, not a transient one, so retrying would burn max_attempts and then
+ * report a failure that looks like an upstream incident while the real cause is
+ * a missing composition wiring.
+ *
+ * Terminal => status FAILED, attempts left untouched, last_error = this code.
+ */
+export const WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED = 'WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED';
+/**
  * CB-02: fixed runbook-visible code for a delivery whose pinned policy cannot
  * be parsed. Such a row is refused (fail closed) instead of being replayed as
  * an unauthenticated legacy notification: an invalid pin must never widen the
@@ -583,7 +597,14 @@ export async function deliverWebhooks(
   const claimTokens = claimResult.tokens;
 
   // FIX-CR-02 phase 2 — outside any transaction: adjudicate + dispatch.
-  const outcomes: Array<{ row: WebhookDeliveryRow; ok: boolean; errMsg: string | null; shutdownRelease?: boolean }> = [];
+  const outcomes: Array<{
+    row: WebhookDeliveryRow;
+    ok: boolean;
+    errMsg: string | null;
+    shutdownRelease?: boolean;
+    /** WT-01: FAILED now, attempts NOT incremented. Retry cannot help. */
+    terminal?: boolean;
+  }> = [];
   // P8-04 drain bookkeeping. The grace window starts at the abort EVENT, not at the
   // first observed check; setTimeout is unref'd so a never-firing watch cannot keep jest alive.
   let drainDeadlineAt: number | null = null;
@@ -651,7 +672,16 @@ export async function deliverWebhooks(
             continue;
           }
           if (!opts.resolveCallbackSecret) {
-            outcomes.push({ row, ok: false, errMsg: WEBHOOK_AUTH_UNAVAILABLE });
+            // WT-01: no resolver in the composition. This is a configuration
+            // gap, not a transient fault: retrying burns the retry budget and
+            // then reports an upstream-looking failure. Fail TERMINALLY and keep
+            // attempts untouched, under a code that names the actual cause.
+            outcomes.push({
+              row,
+              ok: false,
+              errMsg: WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED,
+              terminal: true,
+            });
             continue;
           }
           try {
@@ -751,7 +781,7 @@ export async function deliverWebhooks(
   // re-claimed elsewhere) lose the write instead of clobbering it: last
   // CLAIMED dispatcher wins, delivery stays at-least-once.
   await db.tx(async (client) => {
-    for (const { row, ok, errMsg, shutdownRelease } of outcomes) {
+    for (const { row, ok, errMsg, shutdownRelease, terminal } of outcomes) {
       const token = claimTokens.get(row.delivery_id);
       if (token === undefined) continue; // fail-closed: never release a claim we cannot identify
       if (shutdownRelease) {
@@ -762,6 +792,23 @@ export async function deliverWebhooks(
           `UPDATE webhook_deliveries SET status='PENDING', last_error=$3, next_at=now(), updated_at=now()
            WHERE delivery_id=$1 AND status='DISPATCHING' AND next_at=$2::timestamptz`,
           [row.delivery_id, token, WEBHOOK_SHUTDOWN_RELEASED]
+        );
+        continue;
+      }
+      if (terminal) {
+        // WT-01: terminal outcome (resolver never wired). Close the row as FAILED
+        // WITHOUT incrementing attempts and WITHOUT scheduling a backoff: a retry
+        // can never fix a configuration gap, so charging one attempt per sweep
+        // would only burn the budget and then report a misleading upstream
+        // failure. last_error records the fixed, runbook-visible code.
+        //
+        // Deliberately the SAME parameter shape as the exhausted-budget FAILED
+        // branch below (attempts written explicitly, here UNCHANGED) so every
+        // fake/real driver sees one statement shape for a terminal row.
+        await client.query(
+          `UPDATE webhook_deliveries SET status='FAILED', attempts=$3, last_error=$4, updated_at=now()
+           WHERE delivery_id=$1 AND status='DISPATCHING' AND next_at=$2::timestamptz`,
+          [row.delivery_id, token, row.attempts, errMsg]
         );
         continue;
       }

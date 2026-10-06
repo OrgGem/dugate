@@ -65,6 +65,33 @@ export function matchSecretsRoute(relative: string): SecretsRoute | null {
   return { kind: 'test', secretId };
 }
 
+/**
+ * SC-04-M02 / WT-7 — pure (method, path-route) -> effective-route resolution.
+ *
+ * `/secrets` is shared by two operations and `matchSecretsRoute` is
+ * method-agnostic, so the method has to be resolved here:
+ *   list  + GET  -> list
+ *   list  + POST -> create
+ *   other       -> 405
+ * Mutations (`rotate`/`disable`/`test`) stay POST-only.
+ *
+ * Exported so the OpenAPI generator/projection can assert the DISPATCH MATRIX
+ * by calling this function instead of scanning this file's source text: a
+ * reformatted (but behaviourally identical) file used to break the generator
+ * with an error that did not name the real risk.
+ */
+export function resolveSecretsRoute(
+  method: string,
+  route: SecretsRoute,
+): { allowed: true; route: SecretsRoute } | { allowed: false; reason: string } {
+  if (route.kind === 'list') {
+    if (method === 'GET') return { allowed: true, route };
+    if (method === 'POST') return { allowed: true, route: { kind: 'create' } };
+    return { allowed: false, reason: `method ${method} is not allowed here` };
+  }
+  if (method === 'POST') return { allowed: true, route };
+  return { allowed: false, reason: `method ${method} is not allowed here` };
+}
 export async function handleSecretsRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -76,11 +103,18 @@ export async function handleSecretsRoute(
   correlationId: string,
 ): Promise<void> {
   const method = (req.method ?? 'GET').toUpperCase();
-  const expectedMethod = route.kind === 'list' ? 'GET' : 'POST';
-  if (method !== expectedMethod) {
-    writeProblem(res, 405, 'METHOD_NOT_ALLOWED', `method ${method} is not allowed here`, correlationId);
+  // SC-04-M02: `/secrets` is shared by two operations and the route matcher is
+  // method-agnostic. Dispatch the method here instead of rejecting POST before
+  // the create branch can run:
+  //   list + GET  -> catalog list
+  //   list + POST -> create (the former dead `kind: 'create'` branch)
+  //   every other (method, route) combination -> 405
+  const resolvedRoute = resolveSecretsRoute(method, route);
+  if (!resolvedRoute.allowed) {
+    writeProblem(res, 405, 'METHOD_NOT_ALLOWED', resolvedRoute.reason, correlationId);
     return;
   }
+  const effectiveRoute: SecretsRoute = resolvedRoute.route;
 
   const ctx = await resolveBffContext(config, request);
   if (!ctx) {
@@ -116,7 +150,7 @@ export async function handleSecretsRoute(
     return;
   }
 
-  if (route.kind === 'list') {
+  if (effectiveRoute.kind === 'list') {
     const upstream = new URL('/api/v1/admin/secrets', runtime.jsonBaseUrl);
     for (const name of LIST_PARAM_ALLOWLIST) {
       const value = query.get(name);
@@ -158,7 +192,7 @@ export async function handleSecretsRoute(
   }
   const body = parsed as Record<string, unknown>;
 
-  const validation = validateMutation(route, body, scope);
+  const validation = validateMutation(effectiveRoute, body, scope);
   if (!validation.ok) {
     writeJson(
       res,
@@ -169,9 +203,9 @@ export async function handleSecretsRoute(
     return;
   }
 
-  const upstreamPath = route.kind === 'create'
+  const upstreamPath = effectiveRoute.kind === 'create'
     ? '/api/v1/admin/secrets'
-    : `/api/v1/admin/secrets/${encodeURIComponent(route.secretId)}/${route.kind}`;
+    : `/api/v1/admin/secrets/${encodeURIComponent(effectiveRoute.secretId)}/${effectiveRoute.kind}`;
   const upstream = new URL(upstreamPath, runtime.jsonBaseUrl);
   const response = await callUpstream(runtime, upstream, {
     method: 'POST',

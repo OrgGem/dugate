@@ -69,6 +69,10 @@ export interface CallbackHeaderDraft {
   name: string;
   secretId: string | null;
   prefix: string;
+  /** Seeded from a stored policy: render configured/Replace/Clear. */
+  configuredOnServer: boolean;
+  /** Operator pressed Replace; show the editor even when configured. */
+  replacing: boolean;
 }
 
 export interface CallbackExtensionDraft {
@@ -85,6 +89,9 @@ export interface CallbackDraft {
   tokenUrl: string;
   clientId: string;
   clientSecretId: string | null;
+  /** Seeded from a stored policy: render configured/Replace/Clear. */
+  clientSecretConfiguredOnServer: boolean;
+  clientSecretReplacing: boolean;
   clientAuthMethod: 'client_secret_basic' | 'client_secret_post';
   scope: string;
   audience: string;
@@ -96,15 +103,27 @@ export interface CallbackDraft {
   forceReferenceOnly: boolean;
 }
 
+/**
+ * Catalog purposes a callback credential may be resolved for. The purpose
+ * filter keeps an operator from selecting a secret the resolver would deny at
+ * delivery time (SC-02 `PURPOSE_DENIED`).
+ */
+export const CALLBACK_SECRET_PURPOSES = {
+  header: 'profile.callback_header',
+  oauth2ClientSecret: 'profile.callback_oauth2_client_secret',
+} as const;
+
 export function emptyCallbackDraft(): CallbackDraft {
   return {
     touched: true,
     mode: 'notification_only',
     authMethod: 'none',
-    headers: [{ name: '', secretId: null, prefix: '' }],
+    headers: [{ name: '', secretId: null, prefix: '', configuredOnServer: false, replacing: false }],
     tokenUrl: '',
     clientId: '',
     clientSecretId: null,
+    clientSecretConfiguredOnServer: false,
+    clientSecretReplacing: false,
     clientAuthMethod: 'client_secret_basic',
     scope: '',
     audience: '',
@@ -139,13 +158,18 @@ export function callbackPolicyFromRead(value: unknown): CallbackDraft | null {
       name: header.name,
       secretId: header.secretRef.ref,
       prefix: header.prefix ?? '',
+      configuredOnServer: true,
+      replacing: false,
     }));
-    if (draft.headers.length === 0) draft.headers = [{ name: '', secretId: null, prefix: '' }];
+    if (draft.headers.length === 0) {
+      draft.headers = [{ name: '', secretId: null, prefix: '', configuredOnServer: false, replacing: false }];
+    }
   }
   if (auth.method === 'oauth2_client_credentials') {
     draft.tokenUrl = auth.tokenUrl;
     draft.clientId = auth.clientId;
     draft.clientSecretId = auth.clientSecretRef.ref;
+    draft.clientSecretConfiguredOnServer = true;
     draft.clientAuthMethod = auth.clientAuthMethod;
     draft.scope = auth.scope ?? '';
     draft.audience = auth.audience ?? '';
@@ -177,7 +201,8 @@ export function validateCallbackDraft(draft: CallbackDraft): string[] {
     const names = new Set<string>();
     const active = draft.headers.filter((header) => header.name.trim().length > 0 || header.secretId !== null);
     if (active.length === 0) errors.push('configured_headers requires at least one header');
-    if (draft.headers.length > CALLBACK_MAX_HEADERS) errors.push(`at most ${CALLBACK_MAX_HEADERS} headers`);
+    // F5: count only real entries; blank draft rows must not trip the limit.
+    if (active.length > CALLBACK_MAX_HEADERS) errors.push(`at most ${CALLBACK_MAX_HEADERS} headers`);
     for (const header of active) {
       const name = header.name.trim();
       if (!HEADER_NAME_RE.test(name)) errors.push(`header '${name}' is not a valid HTTP token`);
@@ -186,6 +211,11 @@ export function validateCallbackDraft(draft: CallbackDraft): string[] {
       names.add(name.toLowerCase());
       if (header.secretId === null) errors.push(`header '${name}' needs a secret reference`);
       if (header.prefix.length > 64) errors.push(`header '${name}' prefix is too long`);
+      // F5: the frozen contract rejects CR/LF/NUL in a prefix; fail here so the
+      // operator sees the field error instead of a server 422.
+      if (/[\r\n\0]/.test(header.prefix)) {
+        errors.push(`header '${name}' prefix must not contain CRLF or NUL characters`);
+      }
     }
   }
 
@@ -198,6 +228,11 @@ export function validateCallbackDraft(draft: CallbackDraft): string[] {
       errors.push('token URL must be a valid URL');
     }
     if (draft.clientId.trim().length === 0) errors.push('client id is required');
+    // F5: mirror the frozen contract bounds so long values fail in the editor.
+    if (draft.clientId.length > 256) errors.push('client id must be at most 256 characters');
+    if (draft.scope.length > 512) errors.push('scope must be at most 512 characters');
+    if (draft.audience.length > 512) errors.push('audience must be at most 512 characters');
+    if (draft.resource.length > 512) errors.push('resource must be at most 512 characters');
     if (draft.clientSecretId === null) errors.push('client secret reference is required');
     if (draft.tokenLifetimeSeconds.trim().length > 0) {
       const lifetime = Number(draft.tokenLifetimeSeconds);

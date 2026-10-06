@@ -42,6 +42,12 @@ export interface ValueSourceSelectorProps {
   secretId: string | null;
   onSecretChange: (secretId: string | null) => void;
   secrets: readonly SecretOption[];
+  /**
+   * Metadata for `secretId` when it is not in `secrets` (disabled/revoked or
+   * outside the selectable filter). Lets a configured reference stay visible
+   * instead of masquerading as "not selected".
+   */
+  currentSecret?: SecretOption | null;
   secretsLoading?: boolean;
   secretsProblem?: string | null;
   /** Server read metadata for this field; never carries a value. */
@@ -82,6 +88,7 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
     secretId,
     onSecretChange,
     secrets,
+    currentSecret = null,
     secretsLoading = false,
     secretsProblem = null,
     stored = null,
@@ -97,8 +104,11 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
   } = props;
 
   const [filter, setFilter] = React.useState('');
+  const literalRadioRef = React.useRef<HTMLButtonElement>(null);
+  const secretRadioRef = React.useRef<HTMLButtonElement>(null);
   const showStored = stored !== null && !replacing;
-  const selected = secrets.find((secret) => secret.secretId === secretId) ?? null;
+  const selected = secrets.find((secret) => secret.secretId === secretId)
+    ?? (currentSecret !== null && currentSecret.secretId === secretId ? currentSecret : null);
   const filtered = React.useMemo(() => {
     const needle = filter.trim().toLowerCase();
     if (needle.length === 0) return secrets;
@@ -107,6 +117,12 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
         secret.name.toLowerCase().includes(needle) || secret.secretId.toLowerCase().includes(needle),
     );
   }, [filter, secrets]);
+  // A configured reference the selectable list does not contain (disabled or
+  // outside the filter) still needs an option, or the control renders blank.
+  const currentOptionMissing = secretId !== null && !filtered.some((secret) => secret.secretId === secretId);
+  const currentOptionLabel = selected !== null
+    ? `${selected.name} — Secret (${selected.state})`
+    : 'Current reference (not in the selectable list)';
 
   function switchKind(next: ValueSourceKind): void {
     if (next === kind) return;
@@ -114,6 +130,16 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
     if (next === 'literal') onSecretChange(null);
     else onLiteralChange('');
     onKindChange(next);
+  }
+
+  function handleRadioKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (disabled || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    // With two options, either direction wraps to the other radio.
+    // Follow actual focus so repeated keys also work before a parent rerender.
+    const next: ValueSourceKind = event.target === literalRadioRef.current ? 'secret_ref' : 'literal';
+    switchKind(next);
+    (next === 'literal' ? literalRadioRef : secretRadioRef).current?.focus();
   }
 
   if (showStored) {
@@ -162,24 +188,28 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
     <FormField id={`${idPrefix}-control`} label={label} required={required} description={description}>
       <div className="flex flex-col gap-2">
         {showToggle ? (
-          <div role="radiogroup" aria-label={`${label} source type`} className="flex flex-wrap gap-2">
+          <div role="radiogroup" aria-label={`${label} source type`} className="flex flex-wrap gap-2" onKeyDown={handleRadioKeyDown}>
             <Button
+              ref={literalRadioRef}
               type="button"
               size="sm"
               variant={kind === 'literal' ? 'primary' : 'outline'}
               role="radio"
               aria-checked={kind === 'literal'}
+              tabIndex={kind === 'literal' ? 0 : -1}
               disabled={disabled}
               onClick={() => switchKind('literal')}
             >
               Text value
             </Button>
             <Button
+              ref={secretRadioRef}
               type="button"
               size="sm"
               variant={kind === 'secret_ref' ? 'primary' : 'outline'}
               role="radio"
               aria-checked={kind === 'secret_ref'}
+              tabIndex={kind === 'secret_ref' ? 0 : -1}
               disabled={disabled}
               onClick={() => switchKind('secret_ref')}
             >
@@ -208,7 +238,7 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
             {secretsProblem !== null ? (
               <p className="text-xs text-[var(--badge-danger-text)]" role="alert">{secretsProblem}</p>
             ) : null}
-            {!secretsLoading && secretsProblem === null && secrets.length === 0 ? (
+            {!secretsLoading && secretsProblem === null && secrets.length === 0 && secretId === null ? (
               <p className="text-xs text-[var(--text-sub)]">{emptyHint ?? 'No secrets in the catalog yet.'}</p>
             ) : null}
             {!secretsLoading && secrets.length > 8 ? (
@@ -222,7 +252,7 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
                 onChange={(event) => setFilter(event.target.value)}
               />
             ) : null}
-            {secrets.length > 0 ? (
+            {secrets.length > 0 || secretId !== null ? (
               <NativeSelect
                 id={`${idPrefix}-secret`}
                 value={secretId ?? ''}
@@ -234,6 +264,9 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
                 }}
               >
                 <option value="">Select a secret…</option>
+                {currentOptionMissing ? (
+                  <option value={secretId ?? ''}>{currentOptionLabel}</option>
+                ) : null}
                 {filtered.map((secret) => (
                   <option key={secret.secretId} value={secret.secretId}>
                     {secret.name} — Secret ({secret.state})
@@ -245,11 +278,29 @@ export function ValueSourceSelector(props: ValueSourceSelectorProps): React.JSX.
               <div
                 className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3 py-2"
                 data-value-source-selected="secret_ref"
+                data-secret-state={selected.state}
               >
                 <Badge variant="info">Secret</Badge>
                 <span className="text-sm text-[var(--text-main)]">{selected.name}</span>
                 <span className="font-mono text-xs text-[var(--text-sub)]">{maskSecretId(selected.secretId)}</span>
                 <Badge variant={stateVariant(selected.state)} dot>{selected.state}</Badge>
+              </div>
+            ) : secretId !== null ? (
+              <div
+                className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--badge-warning-border)] bg-[var(--badge-warning-bg)]/40 px-3 py-2"
+                data-value-source-selected="secret_ref"
+                data-secret-state="unavailable"
+              >
+                <Badge variant="warning">Secret</Badge>
+                <span className="text-sm text-[var(--text-main)]">Configured reference is no longer available</span>
+                <span className="font-mono text-xs text-[var(--text-sub)]">{maskSecretId(secretId)}</span>
+              </div>
+            ) : null}
+            {secretId !== null && onClear !== undefined ? (
+              <div>
+                <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={onClear}>
+                  Clear reference
+                </Button>
               </div>
             ) : null}
           </div>

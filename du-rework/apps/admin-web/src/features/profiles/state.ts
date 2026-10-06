@@ -72,7 +72,8 @@ export function parsePolicyRead(value: unknown): ProfilePolicyRead | null {
         ...(typeof rule['flags'] === 'string' ? { flags: rule['flags'] } : {}),
         ...(typeof rule['replacement'] === 'string' ? { replacement: rule['replacement'] } : {}),
       })) : [],
-    ...(callbackPolicy !== null ? { callbackPolicy } : {}),
+    ...(value['callbackPolicy'] === null ? { callbackPolicy: null } : callbackPolicy !== null ? { callbackPolicy } : {}),
+    ...(value['callbackPolicyInvalid'] === true ? { callbackPolicyInvalid: true as const } : {}),
   };
 }
 

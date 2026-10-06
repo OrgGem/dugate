@@ -19,6 +19,7 @@ import {
   VAULT_DECRYPT_TOKEN_ENV,
   VAULT_ENCRYPT_TOKEN_ENV,
   VAULT_TRANSIT_OPTIONS_ENV,
+  assertProfileCipherBootPolicy,
   buildEncryptionBootOptions,
   encryptionIsRequired,
   parseEncryptionBootConfig,
@@ -409,6 +410,7 @@ describe('RV01-02 #8 encryption boot options', () => {
         metadataEncryption: true,
         publicUploadEncryption: true,
         metadataPlaintextReadMode: 'none',
+        profileCipherKeyPresent: false,
       });
 
       const syntheticSummary = summarizeEncryptionPolicy(env({ ARTIFACT_STORAGE_BACKEND: 'postgres' }));
@@ -418,8 +420,83 @@ describe('RV01-02 #8 encryption boot options', () => {
         metadataEncryption: false,
         publicUploadEncryption: false,
         metadataPlaintextReadMode: 'none',
+        profileCipherKeyPresent: false,
       });
       expect(JSON.stringify(syntheticSummary)).not.toContain('hvs.');
+    });
+  });
+
+  describe('F-VFY6-01 profile cipher boot policy (D-BOOT-01 hybrid, approved r4 A§12.2)', () => {
+    const seamOn = { dataMode: 'real' as const, metadataEncryption: true, publicUploadEncryption: true };
+    const seamOff = { dataMode: 'real' as const, metadataEncryption: false, publicUploadEncryption: false };
+    const completeSurface = {
+      [VAULT_TRANSIT_OPTIONS_ENV]: validOptions(),
+      ...VALID_TOKENS,
+    };
+    const SENTINEL = 'hvs.F-VFY6-01-SENTINEL-NOT-IN-MESSAGE';
+
+    it('case 1: real-data + seam + production + no key refuses with the approved content-safe message', () => {
+      let error: unknown;
+      try {
+        assertProfileCipherBootPolicy({ NODE_ENV: 'production', VAULT_TRANSIT_ENC_TOKEN: SENTINEL }, seamOn);
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(EncryptionBootConfigError);
+      const message = (error as Error).message;
+      expect(message).toBe(
+        'refusing to boot: ENCRYPTION_KEY (or NEXTAUTH_SECRET) is required when artifact encryption is enabled in ' +
+          'real-data mode; set the profile cipher key, or declare an explicit synthetic deployment ' +
+          '(DU_DATA_MODE=synthetic with DU_SYNTHETIC_DATA_ACK) for isolated fixtures only',
+      );
+      expect(message).not.toContain(SENTINEL);
+    });
+
+    it('case 2: unset NODE_ENV and staging both refuse (fail-safe, no carve-out)', () => {
+      expect(() => assertProfileCipherBootPolicy({}, seamOn)).toThrow(EncryptionBootConfigError);
+      expect(() => assertProfileCipherBootPolicy({ NODE_ENV: 'staging' }, seamOn))
+        .toThrow(EncryptionBootConfigError);
+    });
+
+    it.each(['development', 'test'])('case 3: NODE_ENV=%s keeps warn-only', (NODE_ENV) => {
+      expect(() => assertProfileCipherBootPolicy({ NODE_ENV }, seamOn)).not.toThrow();
+    });
+
+    it('case 4: explicit synthetic mode keeps warn-only even in production', () => {
+      expect(() =>
+        assertProfileCipherBootPolicy({ NODE_ENV: 'production' }, { ...seamOn, dataMode: 'synthetic' }),
+      ).not.toThrow();
+    });
+
+    it('case 5: an empty key string counts as absent', () => {
+      expect(() => assertProfileCipherBootPolicy({ NODE_ENV: 'production', ENCRYPTION_KEY: '' }, seamOn))
+        .toThrow(EncryptionBootConfigError);
+    });
+
+    it.each([{ ENCRYPTION_KEY: 'k' }, { NEXTAUTH_SECRET: 'k' }])(
+      'case 6: a supported key boots (%o)',
+      (keys) => {
+        expect(() => assertProfileCipherBootPolicy({ NODE_ENV: 'production', ...keys }, seamOn)).not.toThrow();
+      },
+    );
+
+    it('case 7: seam off never refuses (documented invariant)', () => {
+      expect(() => assertProfileCipherBootPolicy({ NODE_ENV: 'production' }, seamOff)).not.toThrow();
+    });
+
+    it('summary exposes profileCipherKeyPresent as a presence-only boolean', () => {
+      const withoutKey = summarizeEncryptionPolicy({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ...completeSurface,
+      });
+      expect(withoutKey.profileCipherKeyPresent).toBe(false);
+      const withKey = summarizeEncryptionPolicy({
+        ARTIFACT_STORAGE_BACKEND: 'postgres',
+        ...completeSurface,
+        ENCRYPTION_KEY: 'synthetic-fixture-key',
+      });
+      expect(withKey.profileCipherKeyPresent).toBe(true);
+      expect(JSON.stringify(withKey)).not.toContain('synthetic-fixture-key');
     });
   });
 });

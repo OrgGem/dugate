@@ -71,6 +71,16 @@ describe('profile endpoint policy (T-PROF-01)', () => {
 });
 
 describe('fileUrlAuthConfig write-only (T-PROF-04)', () => {
+  it('WT-04 exposes invalid callback marker only on the read contract', () => {
+    const read = {
+      enabled: true, parameters: {}, jobPriority: 'MEDIUM', allowedFileExtensions: '',
+      fileUrlAuthConfigured: false, connectionsOverride: [],
+      callbackPolicy: null, callbackPolicyInvalid: true,
+    };
+    expect(ProfileEndpointPolicyReadSchema.safeParse(read).success).toBe(true);
+    expect(ProfileEndpointPolicySchema.safeParse({ callbackPolicy: null }).success).toBe(true);
+    expect(ProfileEndpointPolicySchema.safeParse({ callbackPolicy: null, callbackPolicyInvalid: true }).success).toBe(false);
+  });
   it('keeps the legacy snake_case header/query field names', () => {
     const parsed = FileUrlAuthConfigSchema.parse({
       type: 'header',

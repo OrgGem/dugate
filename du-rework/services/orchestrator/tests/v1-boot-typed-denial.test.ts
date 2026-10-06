@@ -192,6 +192,16 @@ async function withBootEnv<T>(overrides: Partial<Record<(typeof BOOT_ENV_NAMES)[
 
 let runMain: typeof import('../src/main').main;
 
+/** F-VFY6-01: mutable effective policy the real boot predicate is driven with. */
+const DEFAULT_BOOT_POLICY: Record<string, unknown> = {
+  dataMode: 'real',
+  metadataEncryption: false,
+  publicUploadEncryption: false,
+  metadataPlaintextReadMode: 'none',
+  profileCipherKeyPresent: false,
+};
+let mockPolicy: Record<string, unknown> = { ...DEFAULT_BOOT_POLICY };
+
 beforeAll(async () => {
   jest.doMock('@du/observability', () => ({
     createLogger: jest.fn(() => mockBootLogger),
@@ -203,21 +213,24 @@ beforeAll(async () => {
   }));
   jest.doMock('../src/shutdown', () => ({ installGracefulShutdown: jest.fn() }));
   jest.doMock('../src/app/admin/oidc-boot', () => ({ buildOidcAdminComponents: jest.fn(() => null) }));
-  jest.doMock('../src/modules/encryption/boot-options', () => ({
-    buildEncryptionBootOptions: jest.fn(() => undefined),
-    // SEC-ENC-05: main always resolves the effective policy; this boot test is
-    // not exercising that policy, so report a content-free 'real' summary.
-    summarizeEncryptionPolicy: jest.fn(() => ({
-      dataMode: 'real',
-      metadataEncryption: false,
-      publicUploadEncryption: false,
-      metadataPlaintextReadMode: 'none',
-    })),
-  }));
+  jest.doMock('../src/modules/encryption/boot-options', () => {
+    const actual = jest.requireActual('../src/modules/encryption/boot-options');
+    return {
+      ...actual,
+      buildEncryptionBootOptions: jest.fn(() => undefined),
+      // SEC-ENC-05 / F-VFY6-01: main always resolves the effective policy;
+      // tests steer the seam/mode through this mutable summary while the REAL
+      // `assertProfileCipherBootPolicy` runs, so the hybrid boot refusal is
+      // exercised end-to-end through main().
+      summarizeEncryptionPolicy: jest.fn(() => mockPolicy),
+      assertProfileCipherBootPolicy: actual.assertProfileCipherBootPolicy,
+    };
+  });
   runMain = (await import('../src/main')).main;
 });
 
 beforeEach(() => {
+  mockPolicy = { ...DEFAULT_BOOT_POLICY };
   mockBootLogger.info.mockClear();
   mockBootLogger.warn.mockClear();
   mockBootLogger.error.mockClear();
@@ -247,6 +260,74 @@ describe('V1 boot missing profile cipher key policy', () => {
     expect(mockCreateApp).toHaveBeenCalledTimes(1);
     expect(mockListen).toHaveBeenCalledTimes(1);
     expect(mockBootLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('refuses a keyless real-data boot with the artifact seam enabled outside dev/test', async () => {
+    mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true, publicUploadEncryption: true };
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      await withBootEnv({}, async () => {
+        await expect(runMain()).rejects.toThrow(
+          /refusing to boot: ENCRYPTION_KEY \(or NEXTAUTH_SECRET\) is required/,
+        );
+      });
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+    expect(mockCreateApp).not.toHaveBeenCalled();
+    expect(mockBootLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('staging refuses too (no carve-out)', async () => {
+    mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true };
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'staging';
+    try {
+      await withBootEnv({}, async () => {
+        await expect(runMain()).rejects.toThrow(/real-data mode/);
+      });
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+    expect(mockCreateApp).not.toHaveBeenCalled();
+  });
+
+  it('keeps warn-only in development with the seam enabled', async () => {
+    mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true, publicUploadEncryption: true };
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      await withBootEnv({}, runMain);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+    expect(mockCreateApp).toHaveBeenCalledTimes(1);
+    expect(mockListen).toHaveBeenCalledTimes(1);
+    expect(mockBootLogger.warn).toHaveBeenCalledTimes(1);
+    expect(String(mockBootLogger.warn.mock.calls[0]?.[0])).toContain('AUTH_DECRYPT_FAILED');
+  });
+
+  it('keeps warn-only for an explicit synthetic deployment outside dev/test', async () => {
+    mockPolicy = {
+      ...DEFAULT_BOOT_POLICY,
+      dataMode: 'synthetic',
+      metadataEncryption: true,
+      publicUploadEncryption: true,
+    };
+    const previousNodeEnv = process.env.NODE_ENV;
+    // staging (not production) avoids the unrelated production-only
+    // ORCHESTRATOR_INTERNAL_BASE_URL guard while still proving the bypass for
+    // every NODE_ENV outside {development, test}.
+    process.env.NODE_ENV = 'staging';
+    try {
+      await withBootEnv({}, runMain);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+    expect(mockCreateApp).toHaveBeenCalledTimes(1);
+    // one synthetic-mode warning + one profile-cipher warning
+    expect(mockBootLogger.warn).toHaveBeenCalledTimes(2);
   });
 });
 

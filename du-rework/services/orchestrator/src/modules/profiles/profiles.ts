@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import {
   FileUrlAuthConfigSchema,
+  ProfileCallbackPolicySchema,
   type ConnectionStep,
   type FileUrlAuthConfig,
+  type ProfileCallbackPolicy,
   type ProfileJobPriority,
   type ProfileParameters,
 } from '@du/contracts';
@@ -98,6 +100,8 @@ export interface EffectiveProfilePolicy {
   allowedFileExtensions: string;
   connectionsOverride: ConnectionStep[];
   fileUrlAuthConfig: FileUrlAuthConfig | null;
+  /** CB-02: stored callback policy, or null when none is configured. */
+  callbackPolicy: ProfileCallbackPolicy | null;
 }
 
 /**
@@ -115,6 +119,8 @@ export type EffectiveProfile =
       profileId: string;
       revision: number;
       bindings: ConnectorPinMap;
+      /** CB-02: name from the `profile_names` registry, when present. */
+      profileName: string | null;
       policy: EffectiveProfilePolicy;
       /** Client input merged over the stored defaults (locks already enforced). */
       effectiveParameters: Record<string, unknown>;
@@ -156,6 +162,37 @@ interface PolicyRow {
   connections_override: unknown;
   file_url_auth_cipher: string | null;
   request_redaction?: unknown;
+  callback_policy?: unknown;
+  profile_name?: string | null;
+}
+
+/**
+ * CB-02: tolerant read of a stored callback policy. Absent/null → null;
+ * a malformed stored value fails the admission closed (never treated as
+ * "no auth"), matching the dispatcher's invalid-pin behavior.
+ */
+function parseStoredCallbackPolicy(raw: unknown): ProfileCallbackPolicy | null {
+  if (raw === null || raw === undefined) return null;
+  const parsed = ProfileCallbackPolicySchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile callback policy does not satisfy its contract');
+  }
+  return parsed.data;
+}
+
+/** CB-02: validate the CLIENT-SUPPLIED callback policy (write boundary). */
+function parseWriteCallbackPolicy(raw: unknown): ProfileCallbackPolicy | null {
+  if (raw === null) return null;
+  const parsed = ProfileCallbackPolicySchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'callbackPolicy failed validation', {
+      errors: parsed.error.issues.slice(0, 50).map((i) => ({
+        pointer: '/callbackPolicy/' + i.path.join('/'),
+        message: i.message,
+      })),
+    });
+  }
+  return parsed.data;
 }
 
 function carryForwardPolicy(
@@ -171,6 +208,7 @@ function carryForwardPolicy(
   connectionsOverride: unknown;
   cipher: string | null;
   requestRedaction: unknown;
+  callbackPolicy: ProfileCallbackPolicy | null;
 } {
   // Absent field → previous value. No previous revision → legacy defaults.
   const policy = input ?? {};
@@ -227,6 +265,14 @@ function carryForwardPolicy(
     requestRedaction: parseRequestRedactionRules(
       has('requestRedaction') ? policy.requestRedaction : (previous?.request_redaction ?? [])
     ),
+    // CB-02: explicit null clears; absent carries the previous revision
+    // forward; a client value is validated here (write boundary).
+    callbackPolicy:
+      policy.callbackPolicy === null
+        ? null
+        : has('callbackPolicy')
+          ? parseWriteCallbackPolicy(policy.callbackPolicy)
+          : parseStoredCallbackPolicy(previous?.callback_policy),
   };
 }
 
@@ -253,6 +299,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       allowed_file_extensions: string | null;
       connections_override: unknown;
       file_url_auth_cipher: string | null;
+      callback_policy?: unknown;
     }
   ): EffectiveProfilePolicy => {
     const decrypted = decryptFileUrlAuthConfig(row.file_url_auth_cipher, cryptoEnv, warnLegacyPlaintext);
@@ -263,6 +310,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       allowedFileExtensions: coerceAllowedFileExtensions(row.allowed_file_extensions),
       connectionsOverride: coerceConnectionsOverride(row.connections_override),
       fileUrlAuthConfig: decrypted?.config ?? null,
+      callbackPolicy: parseStoredCallbackPolicy(row.callback_policy),
     };
   };
 
@@ -303,7 +351,9 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     >(
       `SELECT p.profile_id, p.revision, p.connector_bindings,
               p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
-              p.connections_override, p.file_url_auth_cipher, a.moved_at
+              p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy,
+              (SELECT n.profile_name FROM profile_names n WHERE n.profile_id = p.profile_id LIMIT 1) AS profile_name,
+              a.moved_at
          FROM profile_active_revisions a
          JOIN profile_bindings p
            ON p.profile_id = a.profile_id AND p.revision = a.revision
@@ -375,7 +425,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
 
         const prevRes = await c.query<PolicyRow>(
           `SELECT enabled, parameters, job_priority, allowed_file_extensions,
-                  connections_override, file_url_auth_cipher, request_redaction
+                  connections_override, file_url_auth_cipher, request_redaction, callback_policy
              FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
           [profileId, revision - 1]
         );
@@ -390,8 +440,8 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
           `INSERT INTO profile_bindings
              (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
               connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
-              file_url_auth_cipher, connections_override, request_redaction)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+              file_url_auth_cipher, connections_override, request_redaction, callback_policy)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
           [
             profileId,
             revision,
@@ -408,6 +458,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
             policy.cipher,
             JSON.stringify(policy.connectionsOverride ?? []),
             JSON.stringify(policy.requestRedaction),
+            policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
           ]
         );
 
@@ -504,6 +555,9 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
         profileId: row.profile_id,
         revision: row.revision,
         bindings: parseConnectorBindings(row.connector_bindings),
+        profileName: typeof row.profile_name === 'string' && row.profile_name.length > 0
+          ? row.profile_name
+          : null,
         policy,
         effectiveParameters,
         passthrough,

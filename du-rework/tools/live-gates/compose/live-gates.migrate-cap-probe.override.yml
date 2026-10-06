@@ -1,0 +1,19 @@
+# 64 MiB migrate-cap probe (reviewer §12.6: "the 64 MiB migrate-service cap
+# must be validated before any measured run"). Wraps the real migrate command
+# only to read the container's OWN cgroup peak after the run, then exits with
+# the migration's exit code. The migration process itself runs unchanged under
+# the benchmark overlay's 64 MiB limit. Harness-only.
+# Note: `$$` escapes Compose interpolation so sh sees `$?`, `$(cat ...)`, `$ec`.
+services:
+  migrate:
+    command:
+      - sh
+      - -c
+      - >-
+        node dist/migrate-cli.js migrate; ec=$$?;
+        if [ -f /sys/fs/cgroup/memory.peak ]; then
+        echo LIVE_GATES_MEMORY_PEAK_BYTES=$$(cat /sys/fs/cgroup/memory.peak);
+        elif [ -f /sys/fs/cgroup/memory/memory.max_usage_in_bytes ]; then
+        echo LIVE_GATES_MEMORY_PEAK_BYTES=$$(cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes);
+        else echo LIVE_GATES_MEMORY_PEAK_BYTES=unavailable; fi;
+        sleep 5; exit $$ec

@@ -11,13 +11,16 @@ connector invocation request. Docs-only: node safeParse, no DB.
 import io, json, subprocess, sys
 from pathlib import Path
 import os
+import argparse
 
 os.chdir(Path(__file__).resolve().parents[3])
 
 SPEC = "du-rework/docs/21-openapi.json"
 
 def main():
-    spec = json.load(io.open(SPEC, encoding="utf-8"))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--spec', default=SPEC, help='Artifact to validate (absolute path supported for temporary generation).')
+    spec = json.load(io.open(parser.parse_args().spec, encoding="utf-8"))
     assert spec.get("openapi") == "3.0.3", "openapi version"
     paths = spec.get("paths", {})
     need = ["/api/v1/businesses/{id}/actions/{action}", "/api/v1/operations",
@@ -45,7 +48,14 @@ def main():
                                 capture_output=True, text=True, check=True)
     canonical = json.loads(projection.stdout)
     assert all(spec['components']['schemas'].get(name) == schema for name, schema in canonical.items()), 'SC/CB canonical schema drift'
-    assert paths['/admin/api/secrets']['post']['responses'].keys() == {'405'}, 'unimplemented create advertised as available'
+    create = paths['/admin/api/secrets']['post']
+    assert create['requestBody']['required'] is True, 'POST create DTO missing'
+    body = create['requestBody']['content']['application/json']['schema']
+    assert body['properties'] == canonical['SecretCatalogCreate']['properties'], 'create fields drifted'
+    assert body['required'] == [key for key in canonical['SecretCatalogCreate']['required'] if key != 'tenantId'], 'BFF tenant-injection requirements drifted'
+    assert 'x-planned-request-schema' not in create, 'obsolete unreachable-create marker'
+    assert {'401', '403', '404', '405', '413', '422', '503'}.issubset(create['responses']), 'create error/availability contract drifted'
+    assert any(p['name'] == 'x-csrf-token' and p.get('required') for p in create['parameters']), 'mutation CSRF missing'
     for path in ['/admin/api/secrets', '/admin/api/secrets/{secretId}/rotate',
                  '/admin/api/secrets/{secretId}/disable', '/admin/api/secrets/{secretId}/test']:
         assert path in paths, 'missing BFF route: ' + path

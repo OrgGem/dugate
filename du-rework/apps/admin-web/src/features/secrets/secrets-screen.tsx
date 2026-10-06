@@ -77,6 +77,23 @@ function emptyCreateDraft(): CreateDraft {
   };
 }
 
+/**
+ * SC-03 / F6: a pinned Vault version must be a positive whole number.
+ *
+ * `Number('')`, `Number('abc')` and `Number('1.5')` all return NaN, and
+ * `JSON.stringify` turns NaN into `null` — so an empty or non-numeric field
+ * used to reach `client.createSecret` as `{ mode: 'pinned', version: null }`.
+ * Validate here rather than trusting the input widget (`type="number"` only
+ * constrains what the user can type, not what `value` ends up being).
+ */
+function parsePinnedVersion(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const version = Number(trimmed);
+  if (!Number.isSafeInteger(version) || version < 1) return null;
+  return version;
+}
+
 function newIdempotencyKey(): string {
   try {
     return crypto.randomUUID();
@@ -139,10 +156,32 @@ export function SecretsScreen(): React.JSX.Element {
     setCreateDraft((current) => mutate(current));
   }
 
+  // SC-03 / F6: while a pinned version is invalid, Save stays disabled and the
+  // field reports the reason, so the bad value cannot be submitted at all.
+  const pinnedVersionInvalid = createDraft.providerKind === 'vault_reference'
+    && createDraft.versionMode === 'pinned'
+    && parsePinnedVersion(createDraft.version) === null;
+
   async function submitCreate(): Promise<void> {
     setBusy(true);
     setCreateError(null);
     const draft = createDraft;
+    // SC-03 / F6: refuse the submit BEFORE any payload is built, so an invalid
+    // pinned version can never become NaN -> null on the wire.
+    if (draft.providerKind === 'vault_reference' && draft.versionMode === 'pinned'
+      && parsePinnedVersion(draft.version) === null) {
+      setCreateError({
+        status: 422,
+        code: 'INVALID_VERSION',
+        title: 'Pinned version must be a whole number of 1 or more.',
+        errors: [{
+          pointer: '/provider/version',
+          message: `expected a positive integer, got ${draft.version.trim() === '' ? 'an empty value' : JSON.stringify(draft.version)}`,
+        }],
+      });
+      setBusy(false);
+      return;
+    }
     const provider = draft.providerKind === 'managed_value'
       ? { kind: 'managed_value' as const }
       : {
@@ -153,7 +192,9 @@ export function SecretsScreen(): React.JSX.Element {
           field: draft.field.trim(),
           ...(draft.namespace.trim().length > 0 ? { namespace: draft.namespace.trim() } : {}),
           version: draft.versionMode === 'pinned'
-            ? { mode: 'pinned' as const, version: Number(draft.version) }
+            // Guard above already rejected anything that does not parse to a
+            // positive integer, so the assertion is provably non-null here.
+            ? { mode: 'pinned' as const, version: parsePinnedVersion(draft.version)! }
             : { mode: 'latest' as const },
         };
     const result = await client.createSecret({
@@ -411,6 +452,9 @@ export function SecretsScreen(): React.JSX.Element {
                 || (createDraft.providerKind === 'managed_value' && createDraft.value.length === 0)
                 || (createDraft.providerKind === 'vault_reference'
                   && (createDraft.connectionId.trim().length === 0 || createDraft.path.trim().length === 0 || createDraft.field.trim().length === 0))
+                // SC-03 / F6: an unparsable pinned version must block Save so
+                // the payload can never carry version: null.
+                || pinnedVersionInvalid
               }
               onClick={() => void submitCreate()}
             >
@@ -529,7 +573,12 @@ export function SecretsScreen(): React.JSX.Element {
                 <Input id="vault-namespace" value={createDraft.namespace}
                   onChange={(event) => updateCreate((draft) => ({ ...draft, namespace: event.target.value }))} />
               </FormField>
-              <FormField id="vault-version" label="Version" description="Pinned is safest; latest follows Vault.">
+              <FormField
+                id="vault-version"
+                label="Version"
+                description="Pinned is safest; latest follows Vault."
+                error={pinnedVersionInvalid ? 'Enter a whole number of 1 or more.' : undefined}
+              >
                 <div className="flex gap-2">
                   <NativeSelect
                     id="vault-version-mode"

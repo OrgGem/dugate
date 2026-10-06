@@ -26,7 +26,7 @@ import {
   maybeScheduleWebhook,
   signWebhookBody,
   verifyWebhookSignature,
-  WEBHOOK_AUTH_UNAVAILABLE,
+  WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED,
   type DbClient,
 } from '../src/modules/webhooks/webhooks';
 import { DEFAULT_CALLBACK_REFERENCE_TTL_MS } from '../src/modules/webhooks/result-projection';
@@ -558,7 +558,12 @@ describe('CB-02 deliverWebhooks — result mode & auth integration', () => {
     });
     expect(calls).toBe(0);
     expect(scripted.row().status).toBe('FAILED');
-    expect(scripted.row().last_error).toBe(WEBHOOK_AUTH_UNAVAILABLE);
+    // WT-01: the no-resolver case is TERMINAL and now carries its own code, so
+    // it is no longer indistinguishable from a transient auth fault. This row is
+    // seeded with max_attempts 1, so it reached FAILED before WT-01 too — the
+    // behavioural change is the CODE, and the dedicated terminal/attempts
+    // contract is pinned in tests/cb03-composition-resolver.test.ts.
+    expect(scripted.row().last_error).toBe(WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED);
   });
 
   test('an unparseable pinned policy fails closed (never replayed as unauthenticated legacy)', async () => {

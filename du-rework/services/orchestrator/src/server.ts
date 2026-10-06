@@ -36,6 +36,8 @@ import type {
   RuntimeSecretResolver,
   RuntimeSecretResolverOptions,
 } from './modules/secrets/vault-resolver';
+import type { OutboundSecretResolver } from './modules/webhooks/outbound-auth';
+import type { OAuth2TokenClientOptions } from './modules/webhooks/oauth2-client';
 
 
 // CONV-02: the audience families moved to src/http/routes/*, and the route
@@ -291,6 +293,15 @@ export interface ServerConfig {
    * without either simply has no catalog resolver.
    */
   secrets?: RuntimeSecretResolverOptions;
+  /**
+   * CB-03 (B4): production resolver for callback `managed-secret` references
+   * (the SC-01 catalog / SC-02 Vault resolver supplies the values). When
+   * absent, a credential-bearing pinned callback policy fails closed with
+   * `WEBHOOK_AUTH_UNAVAILABLE`; legacy notification-only rows are unaffected.
+   */
+  resolveCallbackSecret?: OutboundSecretResolver;
+  /** CB-03: token-client seams for OAuth2 callback auth (tests/instrumentation). */
+  callbackOAuth2Options?: OAuth2TokenClientOptions;
 }
 
 export async function createApp(config: ServerConfig) {

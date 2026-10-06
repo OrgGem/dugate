@@ -460,6 +460,11 @@ export interface EncryptionPolicySummary {
   readonly metadataEncryption: boolean;
   readonly publicUploadEncryption: boolean;
   readonly metadataPlaintextReadMode: 'forbid' | 'window' | 'none';
+  /**
+   * F-VFY6-01: presence-only signal (never the value) for the profile cipher
+   * key. `true` when ENCRYPTION_KEY or NEXTAUTH_SECRET is non-empty.
+   */
+  readonly profileCipherKeyPresent: boolean;
 }
 
 /**
@@ -481,5 +486,42 @@ export function summarizeEncryptionPolicy(env: EnvReader): EncryptionPolicySumma
     metadataEncryption: metadataEnabled,
     publicUploadEncryption: publicUploadEnabled,
     metadataPlaintextReadMode: readMode,
+    profileCipherKeyPresent: Boolean(env['ENCRYPTION_KEY'] || env['NEXTAUTH_SECRET']),
   };
+}
+
+/**
+ * F-VFY6-01 (D-BOOT-01 hybrid, approved r4 §12.2): a real-data boot with the
+ * artifact seam enabled must not continue without the profile cipher key.
+ *
+ * - key present -> no-op (any mode; tamper is only detectable at use, where the
+ *   acquisition resolver already answers the typed AUTH_DECRYPT_FAILED);
+ * - explicit synthetic mode -> no-op (the acknowledged exemption is the
+ *   operator opt-out, visible in the health policy summary);
+ * - artifact seam off -> no-op (unreachable in real mode today; kept so a
+ *   future refactor cannot silently open the hole);
+ * - NODE_ENV development/test -> no-op (offline/dev/test fixtures keep the
+ *   warn-only behaviour, per the directive);
+ * - anything else (production, staging, unset) -> refuse with a content-safe
+ *   EncryptionBootConfigError. No key values, lengths or hashes appear.
+ *
+ * The predicate reads `dataMode` from the already-computed policy summary so
+ * the boot rule can never drift from the health surface.
+ */
+export function assertProfileCipherBootPolicy(
+  env: EnvReader,
+  policy: Pick<
+    EncryptionPolicySummary,
+    'dataMode' | 'metadataEncryption' | 'publicUploadEncryption'
+  >,
+): void {
+  if (env['ENCRYPTION_KEY'] || env['NEXTAUTH_SECRET']) return;
+  if (policy.dataMode !== 'real') return;
+  if (!policy.metadataEncryption && !policy.publicUploadEncryption) return;
+  if (env['NODE_ENV'] === 'development' || env['NODE_ENV'] === 'test') return;
+  throw new EncryptionBootConfigError(
+    'ENCRYPTION_KEY (or NEXTAUTH_SECRET) is required when artifact encryption is enabled in ' +
+      'real-data mode; set the profile cipher key, or declare an explicit synthetic deployment ' +
+      '(DU_DATA_MODE=synthetic with DU_SYNTHETIC_DATA_ACK) for isolated fixtures only',
+  );
 }

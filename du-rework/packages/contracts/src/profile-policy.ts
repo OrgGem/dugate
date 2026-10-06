@@ -30,6 +30,7 @@
  */
 
 import { RequestRedactionRulesSchema } from './request-redaction';
+import { ProfileCallbackPolicySchema } from './profile-callback';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -293,6 +294,13 @@ export const ProfileEndpointPolicySchema = z
     fileUrlAuthConfig: FileUrlAuthConfigSchema.optional(),
     connectionsOverride: ProfileConnectionsOverrideSchema.optional(),
     requestRedaction: RequestRedactionRulesSchema.optional(),
+    /**
+     * CB-02: the endpoint's callback delivery policy (frozen CB-01 shape).
+     * Absent = leave unchanged on publish; explicit null clears it. The
+     * admission writer pins the effective policy onto
+     * `operations.callback_policy` (migration 0035/0036).
+     */
+    callbackPolicy: ProfileCallbackPolicySchema.nullable().optional(),
   })
   .strict();
 export type ProfileEndpointPolicy = z.infer<typeof ProfileEndpointPolicySchema>;
@@ -316,6 +324,10 @@ export const ProfileEndpointPolicyReadSchema = z
     fileUrlAuthConfigured: z.boolean(),
     connectionsOverride: ProfileConnectionsOverrideSchema,
     requestRedaction: RequestRedactionRulesSchema.optional(),
+    /** CB-02: stored callback policy metadata; never a secret value. */
+    callbackPolicy: ProfileCallbackPolicySchema.nullable().optional(),
+    /** WT-04: invalid stored pin; read-only, raw malformed content is never exposed. */
+    callbackPolicyInvalid: z.literal(true).optional(),
   })
   .strict();
 export type ProfileEndpointPolicyRead = z.infer<
@@ -604,6 +616,17 @@ export const ProfileCredentialRefSchema = z
      * admission record. Rejecting it at the DTO is non-breaking for valid data.
      */
     tenantId: z.string().uuid(),
+    /**
+     * Deliberately NOT `.uuid()` (CR06-08). A profile is addressed by a
+     * human-readable slug in legacy data — `default`, `custom-profile` — and
+     * also by a uuid in newer rows, so this ref must accept both or a stored
+     * snapshot written by an older writer would fail to parse. Tightening it
+     * to uuid would break 100% of legacy profile ids with no security gain.
+     *
+     * Contrast with `tenantId` directly above: `tenants.id` is `uuid NOT NULL`
+     * in every migration and is written from the operation's own `tenant_id`,
+     * so a non-uuid tenant can only be a corrupt record and is rejected.
+     */
     profileId: z.string().min(1),
     profileRevision: z.number().int().min(1),
   })

@@ -26,6 +26,13 @@ function localEnvironment(now = Date.now()) {
     CONNECTOR_INVOCATION_GRANT_SECRET: Buffer.from(rawGrant).toString('base64'),
     SERVICE_IDENTITY_SECRET: identityKey.toString('base64'),
     CONNECTOR_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+    // SEC-ENC-02/05: ledger field crypto; unset = sensitive invocation writes refuse (502).
+    // Shape expected by resolveInvocationStorageCryptoFromEnv (LocalInvocationKekConfig).
+    CONNECTOR_INVOCATION_ENCRYPTION_KEYS: JSON.stringify({
+      keyRef: 'du-connector-invocation-v1',
+      activeVersion: 1,
+      keys: { 1: randomBytes(32).toString('base64') },
+    }),
     CONNECTOR_SERVICE_TOKEN: `${signed}.${createHmac('sha256', identityKey).update(signed).digest('base64url')}`,
     DU_ADMIN_WEB: '0', DU_ADMIN_TRUST_PROXY_PROTOCOL: 'false', ARTIFACT_STORAGE_BACKEND: 'postgres',
   };

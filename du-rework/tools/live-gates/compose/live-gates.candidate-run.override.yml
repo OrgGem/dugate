@@ -1,0 +1,9 @@
+# Candidate-run overlay for live-gates EXECUTION (Packet 7, reviewer §12.3/§12.6).
+# Publishes the isolated candidate project's PostgreSQL to host loopback so the
+# harness can run direct SQL checks (0035/0036 applied-state, plaintext scan)
+# against the actual candidate database. Harness-only; product compose files
+# are not edited. Never use outside a disposable live-gates project.
+services:
+  postgres:
+    ports:
+      - '127.0.0.1:${LIVE_GATES_PG_PORT:-5443}:5432'

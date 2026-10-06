@@ -1041,6 +1041,11 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
             // all three surfaces. `?? undefined` so a platform with no
             // crypto-config surface leaves every webhook exactly as it was.
             deliveryEncryption: deliveryEncryption ?? undefined,
+            // CB-03 (B4): authenticated callback delivery. Absent resolver =
+            // credential-bearing pins fail closed (WEBHOOK_AUTH_UNAVAILABLE);
+            // legacy rows without a pinned policy keep the P2-08 path.
+            ...(config.resolveCallbackSecret ? { resolveCallbackSecret: config.resolveCallbackSecret } : {}),
+            ...(config.callbackOAuth2Options ? { oauth2Options: config.callbackOAuth2Options } : {}),
           }).catch(() => undefined);
           activeWebhookSweep = sweep;
           void sweep.finally(() => {

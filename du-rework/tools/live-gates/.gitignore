@@ -1,0 +1,3 @@
+# Generated TLS fixture + local evidence from live runs: never committed.
+.certs/
+*.log

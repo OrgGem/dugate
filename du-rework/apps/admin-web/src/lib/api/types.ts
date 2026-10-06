@@ -212,6 +212,8 @@ export interface ProfilePolicyRead {
   requestRedaction?: RequestRedactionRule[];
   /** CB-04: versioned callback policy when the profile revision carries one. */
   callbackPolicy?: ProfileCallbackPolicy | null;
+  /** Read-only marker; malformed stored callback content is never returned. */
+  callbackPolicyInvalid?: true;
 }
 
 export interface ProfileCapability {

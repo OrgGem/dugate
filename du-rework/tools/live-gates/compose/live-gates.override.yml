@@ -1,0 +1,20 @@
+# LIVE-GATES compose override for the tagged candidate
+# (Claude review §10.7-5 / §11.4-5). Harness-only file; the product compose
+# fragments are NOT edited. Use together with the root docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f tools/live-gates/compose/live-gates.override.yml ...
+#
+# run-live-gates.ps1 sets the required env vars and wires the args.
+services:
+  orchestrator:
+    # Candidate -> host-side harness aliases (Docker Desktop / Linux host-gateway).
+    extra_hosts:
+      - 'idp.live-gates.test:host-gateway'
+      - 'receiver.live-gates.test:host-gateway'
+    environment:
+      # Trust the harness CA for the live HTTPS IdP + receiver only.
+      NODE_EXTRA_CA_CERTS: /live-certs/ca.pem
+    volumes:
+      # Mount the harness (read-only) and the generated TLS fixture.
+      - ${LIVE_GATES_HOST_DIR:?set LIVE_GATES_HOST_DIR to the tools/live-gates directory}:/live-gates:ro
+      - ${LIVE_CERTS_HOST_DIR:?set LIVE_CERTS_HOST_DIR to the generated .certs directory}:/live-certs:ro

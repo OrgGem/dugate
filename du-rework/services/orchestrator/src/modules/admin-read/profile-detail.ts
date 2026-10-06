@@ -1,4 +1,4 @@
-import { FILE_URL_AUTH_CIPHER_RE, FileUrlAuthConfigSchema, RequestRedactionRulesSchema } from '@du/contracts';
+import { FILE_URL_AUTH_CIPHER_RE, FileUrlAuthConfigSchema, ProfileCallbackPolicySchema, RequestRedactionRulesSchema } from '@du/contracts';
 import type { Db } from '../../db/db';
 import type { ProfileEndpointPolicyRead } from '@du/contracts';
 
@@ -30,6 +30,8 @@ export interface ProfileDetailDbRow extends Record<string, unknown> {
   connections_override: unknown;
   file_url_auth_cipher: string | null;
   request_redaction?: unknown;
+  /** CB-02: stored callback policy (migration 0036), secret refs only. */
+  callback_policy?: unknown;
 }
 
 export type ProfileDetailLookup =
@@ -47,7 +49,7 @@ export async function loadProfileDetail(
   const hit = await db.query<ProfileDetailDbRow>(
     `SELECT n.profile_id, a.revision, n.api_key_id,
             p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
-            p.connections_override, p.file_url_auth_cipher, p.request_redaction
+            p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy
        FROM profile_names n
        JOIN profile_active_revisions a ON a.profile_id = n.profile_id
        JOIN profile_bindings p
@@ -75,6 +77,7 @@ export const EMPTY_PROFILE_POLICY_READ: ProfileEndpointPolicyRead = {
   allowedFileExtensions: '',
   fileUrlAuthConfigured: false,
   connectionsOverride: [],
+  callbackPolicy: null,
 };
 
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'] as const;
@@ -116,6 +119,12 @@ function normalizeParameters(raw: unknown): ProfileEndpointPolicyRead['parameter
 }
 
 export function profileDetailPolicyRead(row: ProfileDetailDbRow): ProfileEndpointPolicyRead {
+  // WT-04: never expose malformed stored content, but distinguish it from
+  // an absent policy so operators can replace or explicitly clear the pin.
+  const storedCallback = row.callback_policy === null || row.callback_policy === undefined
+    ? null : ProfileCallbackPolicySchema.safeParse(row.callback_policy);
+  const callbackPolicy = storedCallback?.success ? storedCallback.data : null;
+  const callbackPolicyInvalid = storedCallback !== null && !storedCallback.success;
   return {
     enabled: typeof row.enabled === 'boolean' ? row.enabled : true,
     parameters: normalizeParameters(row.parameters),
@@ -125,6 +134,8 @@ export function profileDetailPolicyRead(row: ProfileDetailDbRow): ProfileEndpoin
     fileUrlAuthConfigured: fileUrlAuthConfigured(row.file_url_auth_cipher),
     connectionsOverride: Array.isArray(row.connections_override) ? row.connections_override : [],
     ...(row.request_redaction !== undefined ? { requestRedaction: RequestRedactionRulesSchema.parse(row.request_redaction) } : {}),
+    callbackPolicy,
+    ...(callbackPolicyInvalid ? { callbackPolicyInvalid: true as const } : {}),
   };
 }
 

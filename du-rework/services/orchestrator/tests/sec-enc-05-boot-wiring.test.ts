@@ -92,6 +92,7 @@ const REAL_POLICY = {
   metadataEncryption: true,
   publicUploadEncryption: true,
   metadataPlaintextReadMode: 'forbid' as const,
+  profileCipherKeyPresent: true,
 };
 
 type App = Awaited<ReturnType<typeof createApp>>;
@@ -184,6 +185,7 @@ describe('SEC-ENC-05 boot wiring', () => {
         metadataEncryption: false,
         publicUploadEncryption: false,
         metadataPlaintextReadMode: 'none',
+        profileCipherKeyPresent: false,
       },
     });
 
@@ -223,6 +225,7 @@ describe('SEC-ENC-05 boot wiring', () => {
       metadataEncryption: true,
       publicUploadEncryption: true,
       metadataPlaintextReadMode: 'forbid',
+      profileCipherKeyPresent: true,
       secretResolver: true,
     });
     expect(JSON.stringify(body)).not.toContain('resolved-value');
