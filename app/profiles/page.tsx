@@ -9,6 +9,12 @@ import {
   Settings, Save, Key, ChevronRight, ChevronDown, FileText, PlugZap, Trash2, Code, FlaskConical, Zap, XCircle, GripVertical, X, Wand2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  DEFAULT_ENDPOINT_RATE_LIMIT_PER_MIN,
+  MAX_CONCURRENT_PER_PROFILE_ENDPOINT,
+  MAX_ENDPOINT_RATE_LIMIT_PER_MIN,
+  MAX_ENDPOINT_CONCURRENT,
+} from '@/lib/config';
 
 interface ApiKey {
   id: string;
@@ -759,6 +765,18 @@ function ProfileEndpointCard({
     endpoint.jobPriority ?? 'MEDIUM'
   );
 
+  // Per-endpoint rate limit / concurrency (admin-managed). Empty string = the
+  // stored value is NULL/0 → deployment default at runtime; inputs keep raw
+  // strings so the operator can clear back to default.
+  const [rateLimitPerMin, setRateLimitPerMin] = useState<string>(
+    endpoint.rateLimitPerMin != null ? String(endpoint.rateLimitPerMin) : ''
+  );
+  const [maxConcurrent, setMaxConcurrent] = useState<string>(
+    endpoint.maxConcurrent != null ? String(endpoint.maxConcurrent) : ''
+  );
+  // Stable field-id suffix: slugs may contain ':' (e.g. service:subcase).
+  const limitsFieldId = `endpoint-limits-${String(endpoint.slug).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
   // File URL Auth Config
   const [fileUrlAuthConfig, setFileUrlAuthConfig] = useState<{
     type: 'none' | 'bearer' | 'header' | 'query';
@@ -873,6 +891,8 @@ function ProfileEndpointCard({
     setShowRaw(false);
     setAddKey('');
     setJobPriority(endpoint.jobPriority ?? 'MEDIUM');
+    setRateLimitPerMin(endpoint.rateLimitPerMin != null ? String(endpoint.rateLimitPerMin) : '');
+    setMaxConcurrent(endpoint.maxConcurrent != null ? String(endpoint.maxConcurrent) : '');
     setFileUrlAuthConfig(endpoint.fileUrlAuthConfig ?? { type: 'none' });
     setAllowedFileExtensions(endpoint.allowedFileExtensions || '');
     setIsFileUrlAuthOpen(false);
@@ -1003,6 +1023,8 @@ function ProfileEndpointCard({
           jobPriority,
           fileUrlAuthConfig: fileUrlAuthConfig.type !== 'none' ? fileUrlAuthConfig : null,
           allowedFileExtensions: allowedFileExtensions.trim() ? allowedFileExtensions.trim() : null,
+          rateLimitPerMin: rateLimitPerMin.trim() === '' ? null : Number(rateLimitPerMin),
+          maxConcurrent: maxConcurrent.trim() === '' ? null : Number(maxConcurrent),
         }),
       });
 
@@ -1511,6 +1533,52 @@ function ProfileEndpointCard({
                       {level === 'HIGH' ? '⚡ High' : level === 'LOW' ? '🐢 Low' : '— Medium'}
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* RATE LIMIT + CONCURRENCY (admin-only) */}
+            {isAdmin && (
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+                <div className="flex flex-col gap-2 py-3 px-4 bg-muted/30 border border-border rounded-xl">
+                  <label htmlFor={`${limitsFieldId}-rate`} className="text-sm font-semibold text-foreground">
+                    Rate Limit (requests/phút)
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    Để trống hoặc 0 = mặc định {DEFAULT_ENDPOINT_RATE_LIMIT_PER_MIN}/phút; tối đa {MAX_ENDPOINT_RATE_LIMIT_PER_MIN}.
+                    {' '}Vượt hạn bị từ chối ngay (429), không xếp hàng chờ.
+                  </span>
+                  <input
+                    id={`${limitsFieldId}-rate`}
+                    type="number"
+                    min={0}
+                    max={MAX_ENDPOINT_RATE_LIMIT_PER_MIN}
+                    step={1}
+                    value={rateLimitPerMin}
+                    onChange={(e) => setRateLimitPerMin(e.target.value)}
+                    placeholder={`Mặc định (${DEFAULT_ENDPOINT_RATE_LIMIT_PER_MIN})`}
+                    className="input-field py-1.5 text-sm font-mono"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 py-3 px-4 bg-muted/30 border border-border rounded-xl">
+                  <label htmlFor={`${limitsFieldId}-concurrent`} className="text-sm font-semibold text-foreground">
+                    Max Concurrent Slots
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    Số job chạy đồng thời tối đa cho endpoint này. Để trống hoặc 0 = mặc định {MAX_CONCURRENT_PER_PROFILE_ENDPOINT};
+                    {' '}tối đa {MAX_ENDPOINT_CONCURRENT}.
+                  </span>
+                  <input
+                    id={`${limitsFieldId}-concurrent`}
+                    type="number"
+                    min={0}
+                    max={MAX_ENDPOINT_CONCURRENT}
+                    step={1}
+                    value={maxConcurrent}
+                    onChange={(e) => setMaxConcurrent(e.target.value)}
+                    placeholder={`Mặc định (${MAX_CONCURRENT_PER_PROFILE_ENDPOINT})`}
+                    className="input-field py-1.5 text-sm font-mono"
+                  />
                 </div>
               </div>
             )}

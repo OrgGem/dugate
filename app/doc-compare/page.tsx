@@ -4,13 +4,17 @@
 // So sánh Văn bản Nâng cao — Upload 2 văn bản, phân tích mục lục, so sánh từng mục
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
+import {
+  FileText, FolderOpen, Search, X, RotateCcw,
+  Sparkles, AlertCircle, ArrowRight
+} from 'lucide-react';
 import type { PipelineStep, StepStatus, UploadedFile } from './types';
 import { getInitialSteps, getFileIcon, formatBytes } from './lib/mock-data';
 import { useWorkflowPolling } from './hooks/useWorkflowPolling';
 
 import { PipelineStepCard } from '@/app/doc-pipeline/components/PipelineStepCard';
 import { CompletionBanner } from '@/app/doc-pipeline/components/CompletionBanner';
-import { SpinnerIcon, CheckIcon } from '@/app/doc-pipeline/components/Icons';
+import { Button, Input, Badge, Card, ConfirmDialog } from '@/components/ui';
 
 // ─── File Slot Component ──────────────────────────────────────────────────────
 
@@ -49,39 +53,41 @@ function FileSlot({ label, slotIndex, file, isProcessing, onFileSelected, onFile
     <div className="flex-1 min-w-0">
       <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">{label}</p>
       {file ? (
-        <div className="modern-card p-4 flex items-center gap-3 border-blue-500/20 bg-blue-500/5">
-          <span className="text-2xl">{file.icon}</span>
+        <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-center gap-3 transition-colors shadow-xs">
+          <FileText className="w-8 h-8 text-primary shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{file.name}</p>
-            <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+            <p className="text-sm font-semibold truncate text-foreground">{file.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{formatBytes(file.size)}</p>
           </div>
           {!isProcessing && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={() => onFileRemoved(slotIndex)}
-              className="text-xs text-muted-foreground hover:text-destructive transition-colors p-1"
               aria-label="Xóa file"
+              className="text-muted-foreground hover:text-destructive"
             >
-              ✕
-            </button>
+              <X className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ) : (
         <div
           className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 ${
             isDragging
-              ? 'border-blue-500/60 bg-blue-500/10'
-              : 'border-border hover:border-blue-500/40 hover:bg-muted/30'
+              ? 'border-primary bg-primary/10'
+              : 'border-border hover:border-primary/50 hover:bg-muted/30'
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
         >
-          <span className="text-2xl opacity-50">📄</span>
+          <FileText className="w-8 h-8 text-muted-foreground/60" />
           <p className="text-xs text-muted-foreground text-center">
-            Kéo thả hoặc <span className="text-blue-400">chọn file</span>
+            Kéo thả hoặc <span className="text-primary font-semibold">chọn file</span>
           </p>
-          <p className="text-[10px] text-muted-foreground/60">PDF, DOCX, XLSX</p>
+          <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-mono">PDF, DOCX, XLSX</p>
           <input
             ref={inputRef}
             type="file"
@@ -105,6 +111,7 @@ export default function DocComparePage() {
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [testApiKeyId, setTestApiKeyId] = useState('');
+  const [showAbortConfirm, setShowAbortConfirm] = useState(false);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [steps, setSteps] = useState<PipelineStep[]>(getInitialSteps());
 
@@ -235,9 +242,8 @@ export default function DocComparePage() {
     }
   };
 
-  const handleAbort = useCallback(async () => {
+  const confirmAbort = useCallback(async () => {
     if (!polling.operationId) return;
-    if (!window.confirm('Hủy workflow? Thao tác này không thể khôi phục.')) return;
     try {
       await fetch(`/api/v1/operations/${polling.operationId}/cancel`, { method: 'POST' });
     } catch {}
@@ -250,68 +256,64 @@ export default function DocComparePage() {
   const uploadedFileList = files.filter(Boolean) as UploadedFile[];
 
   return (
-    <div className="min-h-screen pb-20 relative overflow-hidden">
-      {/* Background ambient glows */}
-      <div className="fixed -top-60 -left-40 opacity-20 pointer-events-none" aria-hidden="true"
-        style={{ width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)' }} />
-      <div className="fixed -bottom-40 -right-60 opacity-20 pointer-events-none" aria-hidden="true"
-        style={{ width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)' }} />
+    <div className="min-h-screen pb-20 relative">
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showAbortConfirm}
+        onClose={() => setShowAbortConfirm(false)}
+        onConfirm={confirmAbort}
+        isDestructive
+        title="Hủy Quá Trình So Sánh"
+        description="Thao tác hủy này không thể khôi phục. Các bước so sánh đang chạy sẽ bị dừng ngay lập tức."
+        confirmText="Dừng workflow"
+      />
 
       {/* Header */}
       <div className="max-w-5xl mx-auto px-4 pt-8 pb-6">
-        <div className="text-center mb-2">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-400 tracking-wider uppercase mb-4">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400" />
-            </span>
-            Advanced Document Comparison
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 mb-3">
+            <Badge variant="primary" dot>
+              Advanced Document Comparison
+            </Badge>
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tight mb-3">
-            <span className="text-gradient">So sánh Văn bản Nâng cao</span>
+          <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tight mb-3 text-foreground">
+            So sánh Văn bản Nâng cao
           </h1>
           <p className="text-muted-foreground text-sm md:text-base max-w-2xl mx-auto leading-relaxed">
             Upload 2 văn bản quy trình/quy định → OCR → Phân tích Mục lục → So sánh từng mục (phát hiện thêm/xóa/sửa) → Báo cáo chi tiết
           </p>
 
-          <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+          <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
             {['Phát hiện Thêm mục', 'Phát hiện Xóa mục', 'Nội dung Sửa đổi', 'Báo cáo Markdown'].map(badge => (
-              <span key={badge}
-                className="px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 uppercase tracking-wider">
+              <Badge key={badge} variant="outline">
                 {badge}
-              </span>
+              </Badge>
             ))}
           </div>
 
-          <div className="mt-4 mx-auto max-w-sm">
-            <input
-              type="text"
+          <div className="mt-5 mx-auto max-w-sm">
+            <Input
               placeholder="Target Profile API Key ID (Bắt buộc)"
-              className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50 text-center"
               value={testApiKeyId}
               onChange={(e) => setTestApiKeyId(e.target.value)}
               disabled={isProcessing}
               id="input-api-key-id"
+              className="text-center"
+              helperText="* Bắt buộc phải nhập Profile API Key ID để định tuyến connector"
             />
-            <p className="mt-1.5 text-[10px] text-destructive opacity-80">
-              * Bắt buộc phải nhập Profile API Key ID
-            </p>
           </div>
         </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-4 space-y-6">
 
         {/* ─── 2-File Upload Slots ─────────────────────────────────────── */}
-        <div className="modern-card p-5">
+        <Card className="p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-base">📂</span>
-            <h2 className="text-sm font-semibold">Upload 2 Văn bản</h2>
+            <FolderOpen className="w-5 h-5 text-primary" />
+            <h2 className="text-base font-bold text-foreground">Upload 2 Văn bản Cần So Sánh</h2>
             {allFilesReady && (
-              <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <Badge variant="success" dot className="ml-auto">
                 Sẵn sàng so sánh
-              </span>
+              </Badge>
             )}
           </div>
 
@@ -328,7 +330,7 @@ export default function DocComparePage() {
             {/* VS divider */}
             <div className="flex items-center justify-center">
               <div className="w-px h-full bg-border sm:w-8 sm:h-px hidden sm:block" />
-              <div className="px-3 py-1.5 rounded-full bg-muted/50 border border-border text-xs font-bold text-muted-foreground shrink-0">
+              <div className="px-3 py-1.5 rounded-full bg-muted border border-border text-xs font-bold text-muted-foreground shrink-0 select-none">
                 VS
               </div>
               <div className="w-px h-full bg-border sm:w-8 sm:h-px hidden sm:block" />
@@ -343,54 +345,68 @@ export default function DocComparePage() {
               onFileRemoved={handleFileRemoved}
             />
           </div>
-        </div>
+        </Card>
 
         {/* Action button */}
         {allFilesReady && (
-          <div className="flex items-center gap-3">
-            <button
+          <div className="flex items-center gap-3 mb-6">
+            <Button
               onClick={runPipeline}
               disabled={isProcessing || pipelineComplete}
-              className="modern-button btn-primary text-sm gap-2 flex-1 sm:flex-none"
+              isLoading={isProcessing}
+              leftIcon={<Search className="w-4 h-4" />}
+              size="lg"
               id="btn-start-doc-compare"
-              style={!isProcessing && !pipelineComplete ? { background: 'linear-gradient(135deg, #3b82f6, #2563eb)' } : undefined}
+              className="flex-1 sm:flex-none shadow-sm"
             >
-              {isProcessing ? (
-                <><SpinnerIcon className="w-4 h-4" /> Đang so sánh...</>
-              ) : pipelineComplete && !pipelineError ? (
-                <><CheckIcon className="w-4 h-4" /> Hoàn tất</>
-              ) : (
-                <>🔍 Bắt đầu So sánh Văn bản</>
-              )}
-            </button>
+              {pipelineComplete && !pipelineError ? 'So sánh Hoàn tất' : 'Bắt đầu So sánh Văn bản'}
+            </Button>
+
             {isProcessing && (
-              <button onClick={handleAbort} className="modern-button btn-outline text-sm text-destructive border-destructive/30">
-                ✕ Hủy
-              </button>
+              <Button
+                variant="destructive"
+                onClick={() => setShowAbortConfirm(true)}
+                leftIcon={<X className="w-4 h-4" />}
+              >
+                Hủy Workflow
+              </Button>
             )}
+
             {pipelineComplete && (
-              <button onClick={() => resetPipeline()} className="modern-button btn-outline text-sm" id="btn-reset-doc-compare">
-                ↻ So sánh lại
-              </button>
+              <Button
+                variant="outline"
+                onClick={() => resetPipeline()}
+                leftIcon={<RotateCcw className="w-4 h-4" />}
+                id="btn-reset-doc-compare"
+              >
+                So sánh lại
+              </Button>
             )}
           </div>
         )}
 
-        {/* Error toast */}
+        {/* Error notification */}
         {pipelineError && !pipelineComplete && (
-          <div className="modern-card p-4 border-destructive/30 bg-destructive/5 flex items-center gap-3 animate-in slide-in-from-top-2 duration-300" role="alert">
-            <span className="text-destructive text-lg">⚠️</span>
+          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-3 mb-6 animate-in slide-in-from-top-2 duration-300" role="alert">
+            <AlertCircle className="w-5 h-5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-destructive">{pipelineError}</p>
+              <p className="text-sm font-medium">{pipelineError}</p>
             </div>
-            <button onClick={() => setPipelineError(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">✕</button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setPipelineError(null)}
+              className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         )}
 
         {/* Pipeline Steps */}
         {allFilesReady && (
           <div className="space-y-0 relative">
-            <div className="absolute left-[27px] top-[40px] bottom-[40px] w-px bg-gradient-to-b from-blue-500/30 via-blue-500/10 to-transparent z-0" />
+            <div className="absolute left-[27px] top-[40px] bottom-[40px] w-px bg-gradient-to-b from-primary/30 via-primary/10 to-transparent z-0" />
             {steps.map((step, i) => (
               <React.Fragment key={step.id}>
                 <PipelineStepCard
@@ -417,14 +433,14 @@ export default function DocComparePage() {
       {/* Floating progress badge */}
       {isProcessing && (
         <div
-          className="fixed bottom-6 right-6 px-4 py-2.5 rounded-2xl bg-card/90 backdrop-blur-xl border border-blue-500/20 shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300 z-50"
+          className="fixed bottom-6 right-6 px-4 py-2.5 rounded-2xl bg-card/95 backdrop-blur-md border border-border shadow-xl flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300 z-40"
           role="status" aria-live="polite"
         >
-          <SpinnerIcon className="w-4 h-4 text-blue-400" />
-          <span className="text-sm font-medium">Đang so sánh 2 văn bản...</span>
-          <span className="text-xs text-muted-foreground">
+          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+          <span className="text-sm font-semibold text-foreground">Đang so sánh 2 văn bản...</span>
+          <Badge variant="secondary" className="font-mono text-[11px]">
             {currentRunningStep >= 0 ? `Bước ${currentRunningStep + 1}/${steps.length}` : 'Khởi tạo...'}
-          </span>
+          </Badge>
         </div>
       )}
     </div>

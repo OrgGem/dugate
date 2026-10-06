@@ -12,8 +12,31 @@ import { Logger } from '@/lib/logger';
 import { requireAdmin, requireProfileAccess } from '@/lib/auth-guard';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { MAX_ENDPOINT_RATE_LIMIT_PER_MIN, MAX_ENDPOINT_CONCURRENT } from '@/lib/config';
 
 const logger = new Logger({ service: 'profile-endpoints' });
+
+type EndpointLimitValidation =
+  | { ok: true; value: number | null }
+  | { ok: false; error: string };
+
+/**
+ * Validate one admin-managed endpoint limit:
+ * - `undefined`/`null` resets to the deployment default (stored NULL);
+ * - only integers >= 0 are accepted (floats/strings/negatives -> 400);
+ * - `0` is accepted and means "use the deployment default" at runtime;
+ * - an upper bound guards against typo/DoS values.
+ */
+function validateEndpointLimit(value: unknown, max: number, label: string): EndpointLimitValidation {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return { ok: false, error: `${label} must be a non-negative integer` };
+  }
+  if (value > max) {
+    return { ok: false, error: `${label} must not exceed ${max}` };
+  }
+  return { ok: true, value };
+}
 
 
 export async function GET(req: NextRequest) {
@@ -91,6 +114,8 @@ export async function GET(req: NextRequest) {
         parameters: dbParameters,
         connectionsOverride: dbConnectionsOverride,
         jobPriority: dbRecord?.jobPriority ?? 'MEDIUM',
+        rateLimitPerMin: dbRecord?.rateLimitPerMin ?? null,
+        maxConcurrent: dbRecord?.maxConcurrent ?? null,
         fileUrlAuthConfig: fileUrlAuthConfigParsed,
         allowedFileExtensions: dbRecord?.allowedFileExtensions ?? null,
         isWorkflow: endpointDef.isWorkflow ?? false,
@@ -110,7 +135,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { apiKeyId, endpointSlug, enabled, parameters, connectionsOverride, jobPriority, fileUrlAuthConfig, allowedFileExtensions } = body;
+    const { apiKeyId, endpointSlug, enabled, parameters, connectionsOverride, jobPriority, fileUrlAuthConfig, allowedFileExtensions, rateLimitPerMin, maxConcurrent } = body;
 
     if (!apiKeyId || !endpointSlug) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -148,6 +173,24 @@ export async function POST(req: NextRequest) {
 
     // Admin can update all fields
     const VALID_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];
+
+    const rateLimitValidation = validateEndpointLimit(
+      rateLimitPerMin,
+      MAX_ENDPOINT_RATE_LIMIT_PER_MIN,
+      'rateLimitPerMin',
+    );
+    if (!rateLimitValidation.ok) {
+      return NextResponse.json({ error: rateLimitValidation.error }, { status: 400 });
+    }
+    const concurrentValidation = validateEndpointLimit(
+      maxConcurrent,
+      MAX_ENDPOINT_CONCURRENT,
+      'maxConcurrent',
+    );
+    if (!concurrentValidation.ok) {
+      return NextResponse.json({ error: concurrentValidation.error }, { status: 400 });
+    }
+
     const payload = {
       enabled: typeof enabled === 'boolean' ? enabled : true,
       parameters: parameters ? JSON.stringify(parameters) : null,
@@ -155,6 +198,8 @@ export async function POST(req: NextRequest) {
       fileUrlAuthConfig: fileUrlAuthConfig ? encrypt(JSON.stringify(fileUrlAuthConfig)) : null,
       allowedFileExtensions: typeof allowedFileExtensions === 'string' && allowedFileExtensions.trim() ? allowedFileExtensions.trim() : null,
       jobPriority: VALID_PRIORITIES.includes(jobPriority) ? jobPriority : 'MEDIUM',
+      rateLimitPerMin: rateLimitValidation.value,
+      maxConcurrent: concurrentValidation.value,
     };
 
     const [record] = await db.insert(profileEndpoints).values({
