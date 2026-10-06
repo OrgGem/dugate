@@ -1,0 +1,190 @@
+{
+  "harness": "live-gates",
+  "candidate": "candidate-portal-swagger-20261006-r4.1",
+  "generatedAt": "2026-10-06T15:15:34.659Z",
+  "step": "check-migrations",
+  "mode": "live",
+  "pass": true,
+  "summary": {
+    "expectedMigrations": [
+      "0035",
+      "0036"
+    ],
+    "expectedColumns": [
+      [
+        "operations",
+        "callback_policy"
+      ],
+      [
+        "webhook_deliveries",
+        "mode"
+      ],
+      [
+        "webhook_deliveries",
+        "callback_policy"
+      ],
+      [
+        "profile_bindings",
+        "callback_policy"
+      ]
+    ],
+    "failures": [],
+    "viaContainer": true,
+    "appliedCount": 36,
+    "migrations": [
+      {
+        "sequence": 1,
+        "filename": "0001_platform_v1.sql"
+      },
+      {
+        "sequence": 2,
+        "filename": "0002_usage_events.sql"
+      },
+      {
+        "sequence": 3,
+        "filename": "0003_artifacts_grants.sql"
+      },
+      {
+        "sequence": 4,
+        "filename": "0004_profile_bindings.sql"
+      },
+      {
+        "sequence": 5,
+        "filename": "0005_continuation.sql"
+      },
+      {
+        "sequence": 6,
+        "filename": "0006_active_version.sql"
+      },
+      {
+        "sequence": 7,
+        "filename": "0007_webhook_deliveries.sql"
+      },
+      {
+        "sequence": 8,
+        "filename": "0008_artifact_grant_fencing.sql"
+      },
+      {
+        "sequence": 9,
+        "filename": "0009_operation_submit_artifacts.sql"
+      },
+      {
+        "sequence": 10,
+        "filename": "0010_admin_audit.sql"
+      },
+      {
+        "sequence": 11,
+        "filename": "0011_artifact_finalize_epoch.sql"
+      },
+      {
+        "sequence": 12,
+        "filename": "0012_admin_idempotency.sql"
+      },
+      {
+        "sequence": 13,
+        "filename": "0013_artifact_storage_version.sql"
+      },
+      {
+        "sequence": 14,
+        "filename": "0014_artifact_declared_filename.sql"
+      },
+      {
+        "sequence": 15,
+        "filename": "0015_artifact_multipart.sql"
+      },
+      {
+        "sequence": 16,
+        "filename": "0016_public_upload_token_index.sql"
+      },
+      {
+        "sequence": 17,
+        "filename": "0017_operations_keyset_index.sql"
+      },
+      {
+        "sequence": 18,
+        "filename": "0018_operations_sort_keyset_indexes.sql"
+      },
+      {
+        "sequence": 19,
+        "filename": "0019_operations_deadline_coalesce_index.sql"
+      },
+      {
+        "sequence": 20,
+        "filename": "0020_admin_crypto_config.sql"
+      },
+      {
+        "sequence": 21,
+        "filename": "0021_admin_list_sort_timestamps.sql"
+      },
+      {
+        "sequence": 22,
+        "filename": "0022_budget_reservations.sql"
+      },
+      {
+        "sequence": 23,
+        "filename": "0023_admin_local_users.sql"
+      },
+      {
+        "sequence": 24,
+        "filename": "0024_legacy_parity_columns.sql"
+      },
+      {
+        "sequence": 25,
+        "filename": "0025_artifact_manifest_version.sql"
+      },
+      {
+        "sequence": 26,
+        "filename": "0026_profile_policy.sql"
+      },
+      {
+        "sequence": 27,
+        "filename": "0027_profile_active_pointer.sql"
+      },
+      {
+        "sequence": 28,
+        "filename": "0028_profile_name.sql"
+      },
+      {
+        "sequence": 29,
+        "filename": "0029_audit_actor_principal.sql"
+      },
+      {
+        "sequence": 30,
+        "filename": "0030_prompt_revisions_pin.sql"
+      },
+      {
+        "sequence": 31,
+        "filename": "0031_prompt_overrides_ref.sql"
+      },
+      {
+        "sequence": 32,
+        "filename": "0032_checkpoint_session_ref.sql"
+      },
+      {
+        "sequence": 33,
+        "filename": "0033_profile_request_redaction.sql"
+      },
+      {
+        "sequence": 34,
+        "filename": "0034_operation_execution_times.sql"
+      },
+      {
+        "sequence": 35,
+        "filename": "0035_webhook_result_delivery.sql"
+      },
+      {
+        "sequence": 36,
+        "filename": "0036_profile_callback_policy.sql"
+      }
+    ],
+    "containerStatus": {
+      "exit": 0,
+      "stdout": [
+        "{\"subsystem\":\"migrations\",\"appliedCount\":36,\"totalCount\":36,\"timestamp\":\"2026-10-06T15:15:34.563Z\",\"level\":\"info\",\"service\":\"orchestrator\",\"version\":\"unknown\",\"environment\":\"prod\",\"correlationId\":\"49e02e7e-b3bb-47e0-ab08-5734a5289729\",\"operationId\":null,\"taskId\":null,\"invocationId\":null,\"message\":\"migration status\"}"
+      ]
+    },
+    "pendingCount": null,
+    "appliedCountFromContainer": 36,
+    "totalCount": 36
+  }
+}

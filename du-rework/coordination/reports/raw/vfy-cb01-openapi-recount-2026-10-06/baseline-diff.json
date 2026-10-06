@@ -1,0 +1,16 @@
+{
+  "baseline": "HEAD:4308cc54eda32cfcca54e0c55554fc85d720a43b:du-rework/docs/21-openapi.json",
+  "baselineSha256": "d1cf79721220ae89c7ddf37bf45a8e5c0bf955168168dcb51a804e75a023a646",
+  "baselineCounts": [
+    58,
+    62,
+    51
+  ],
+  "addedPaths": [],
+  "droppedPaths": [],
+  "addedOperations": [],
+  "droppedOperations": [],
+  "addedSchemas": [],
+  "droppedSchemas": [],
+  "semanticEqual": true
+}

@@ -1,0 +1,369 @@
+{
+  "rows": [
+    {
+      "action": "ingest",
+      "i": -1,
+      "warmup": true,
+      "admissionHttp": 404,
+      "admissionMs": 33.67730000000029,
+      "e2eMs": 33.69909999999982,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 0,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 5.463799999999537,
+      "e2eMs": 5.470999999999549,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 1,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 5.619799999999486,
+      "e2eMs": 5.6260999999994965,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 3,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.089200000000346,
+      "e2eMs": 4.097900000000664,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 2,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 5.480299999999261,
+      "e2eMs": 5.487699999999677,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 5,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.70929999999953,
+      "e2eMs": 4.716499999999542,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 4,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 5.957599999999729,
+      "e2eMs": 5.964500000000044,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 6,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.317500000000109,
+      "e2eMs": 4.324099999999817,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 7,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.939900000000307,
+      "e2eMs": 4.9463000000005195,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 9,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.514799999999923,
+      "e2eMs": 3.52350000000024,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 8,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.378799999999501,
+      "e2eMs": 4.383600000000115,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 10,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.544799999999668,
+      "e2eMs": 4.55199999999968,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "ingest",
+      "i": 11,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 5.025400000000445,
+      "e2eMs": 5.028200000000652,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": -1,
+      "warmup": true,
+      "admissionHttp": 404,
+      "admissionMs": 5.70719999999983,
+      "e2eMs": 5.711699999999837,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 0,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.4616000000005442,
+      "e2eMs": 3.464600000000246,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 1,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.6391999999996187,
+      "e2eMs": 3.641299999999319,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 3,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.602100000000064,
+      "e2eMs": 3.6054999999996653,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 2,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.326900000000023,
+      "e2eMs": 4.328899999999521,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 4,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.014699999999721,
+      "e2eMs": 4.019399999999223,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 5,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 4.223200000000361,
+      "e2eMs": 4.225200000000768,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 7,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 2.832999999999629,
+      "e2eMs": 2.836199999999735,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 6,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.389299999999821,
+      "e2eMs": 3.3913999999995212,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 8,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.022899999999936,
+      "e2eMs": 3.025699999999233,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 9,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 3.191100000000006,
+      "e2eMs": 3.193899999999303,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 11,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 21.554699999999684,
+      "e2eMs": 21.55919999999969,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    },
+    {
+      "action": "extract",
+      "i": 10,
+      "warmup": false,
+      "admissionHttp": 404,
+      "admissionMs": 22.211699999999837,
+      "e2eMs": 22.21389999999974,
+      "state": "ADMISSION_404",
+      "resultHttp": null,
+      "code": "NOT_FOUND"
+    }
+  ],
+  "batches": [
+    {
+      "action": "ingest",
+      "durationMs": 32.962100000000646
+    },
+    {
+      "action": "extract",
+      "durationMs": 41.8079000000007
+    }
+  ],
+  "observations": [
+    {
+      "time": "2026-10-06T14:27:39.849Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-orchestrator-1",
+          "ID": "6ecd0c01e0e8",
+          "MemPerc": "5.70%",
+          "MemUsage": "43.77MiB / 768MiB",
+          "Name": "du-benchmark-run-20261006-orchestrator-1",
+          "NetIO": "87.8kB / 133kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "639kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-connector-1",
+          "ID": "8b51463f6de2",
+          "MemPerc": "6.60%",
+          "MemUsage": "25.33MiB / 384MiB",
+          "Name": "du-benchmark-run-20261006-connector-1",
+          "NetIO": "21.1kB / 11.7kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-document-core-1",
+          "ID": "943763ebb6c6",
+          "MemPerc": "1.69%",
+          "MemUsage": "34.62MiB / 2GiB",
+          "Name": "du-benchmark-run-20261006-document-core-1",
+          "NetIO": "39.2kB / 59.2kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "37MB / 58.5MB",
+          "CPUPerc": "0.02%",
+          "Container": "du-benchmark-run-20261006-postgres-1",
+          "ID": "5f74dd453dc8",
+          "MemPerc": "8.08%",
+          "MemUsage": "51.73MiB / 640MiB",
+          "Name": "du-benchmark-run-20261006-postgres-1",
+          "NetIO": "246kB / 110kB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "4.55MB / 28.7kB",
+          "CPUPerc": "1.92%",
+          "Container": "du-benchmark-run-20261006-valkey-1",
+          "ID": "7e3cafe4688e",
+          "MemPerc": "3.18%",
+          "MemUsage": "5.973MiB / 188MiB",
+          "Name": "du-benchmark-run-20261006-valkey-1",
+          "NetIO": "57.1kB / 51.5kB",
+          "PIDs": "7"
+        }
+      ]
+    }
+  ],
+  "provider": {
+    "calls": 0
+  },
+  "concurrency": 2,
+  "requestCountPerAction": 12,
+  "pollIntervalMs": 100,
+  "fixture": "Synthetic inline text: ingest parse and invoice extract. Mock provider, no paid AI."
+}

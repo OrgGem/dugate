@@ -1,0 +1,62 @@
+[
+    {
+        "name":  "du-benchmark-r41-v2-document-core-1",
+        "image":  "du-document-core:candidate-portal-swagger-20261006-r4.1",
+        "oomKilled":  false,
+        "exitCode":  0,
+        "restartCount":  0,
+        "memoryBytes":  2147483648,
+        "nanoCpus":  1000000000,
+        "memorySwapBytes":  2147483648
+    },
+    {
+        "name":  "du-benchmark-r41-v2-orchestrator-1",
+        "image":  "du-orchestrator:candidate-portal-swagger-20261006-r4.1",
+        "oomKilled":  false,
+        "exitCode":  0,
+        "restartCount":  0,
+        "memoryBytes":  805306368,
+        "nanoCpus":  350000000,
+        "memorySwapBytes":  805306368
+    },
+    {
+        "name":  "du-benchmark-r41-v2-connector-1",
+        "image":  "du-connector:candidate-portal-swagger-20261006-r4.1",
+        "oomKilled":  false,
+        "exitCode":  0,
+        "restartCount":  0,
+        "memoryBytes":  402653184,
+        "nanoCpus":  200000000,
+        "memorySwapBytes":  402653184
+    },
+    {
+        "name":  "du-benchmark-r41-v2-migrate-1",
+        "image":  "du-orchestrator:candidate-portal-swagger-20261006-r4.1",
+        "oomKilled":  false,
+        "exitCode":  0,
+        "restartCount":  0,
+        "memoryBytes":  67108864,
+        "nanoCpus":  50000000,
+        "memorySwapBytes":  67108864
+    },
+    {
+        "name":  "du-benchmark-r41-v2-postgres-1",
+        "image":  "postgres:16-alpine",
+        "oomKilled":  false,
+        "exitCode":  0,
+        "restartCount":  0,
+        "memoryBytes":  671088640,
+        "nanoCpus":  300000000,
+        "memorySwapBytes":  671088640
+    },
+    {
+        "name":  "du-benchmark-r41-v2-valkey-1",
+        "image":  "valkey/valkey:8-alpine",
+        "oomKilled":  false,
+        "exitCode":  0,
+        "restartCount":  0,
+        "memoryBytes":  197132288,
+        "nanoCpus":  100000000,
+        "memorySwapBytes":  197132288
+    }
+]

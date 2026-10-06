@@ -1,0 +1,1 @@
+{"status":"ok","db":true,"redis":true,"activeLeases":0,"queueIntegrity":{"state":"OK","orphansLast":0,"stalled":0,"lastSweepAt":"2026-10-06T20:12:04.158Z"},"encryption":{"dataMode":"real","metadataEncryption":true,"publicUploadEncryption":true,"metadataPlaintextReadMode":"forbid","secretResolver":false}}

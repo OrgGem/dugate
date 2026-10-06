@@ -1,0 +1,4 @@
+Id=sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6
+Created=2026-10-06T13:27:39.312554141Z
+WorkingDir=/app
+Cmd=["node","dist/main.js"]

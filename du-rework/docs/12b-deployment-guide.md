@@ -104,7 +104,7 @@ Scope and limits: this is a **scoped live-local PASS**, not production cutover, 
 |---|---|
 | `POSTGRES_PASSWORD` | provisioned password; URL-encode reserved characters in `DATABASE_URL` when overriding |
 | `RUNTIME_TOKEN`, `ADMIN_TOKEN` | distinct platform/runtime and admin bearer tokens |
-| `ENCRYPTION_KEY` | stable profile cipher secret, retain across deployments |
+| `ENCRYPTION_KEY` | stable profile cipher secret, retain across deployments. **Required when artifact encryption is enabled in real-data mode — boot is refused if absent** (no synthetic exemption); profile cipher key is the SHA-256 of `ENCRYPTION_KEY` **or** `NEXTAUTH_SECRET`, both absent is a hard error at use. F-VFY6-01 |
 | `ADMIN_SHELL_COOKIE_SECRET` | stable random cookie signing secret |
 | `INVOCATION_GRANT_SECRET` | raw 32 ASCII bytes consumed as UTF-8 by Orchestrator |
 | `CONNECTOR_INVOCATION_GRANT_SECRET` | base64 encoding of the **same bytes**, consumed by Connector |

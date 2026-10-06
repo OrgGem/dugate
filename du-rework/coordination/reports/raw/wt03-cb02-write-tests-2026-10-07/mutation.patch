@@ -1,0 +1,22 @@
+--- canonical/src/modules/profiles/profiles.ts
++++ isolated-mutant/src/modules/profiles/profiles.ts
+@@ -272,7 +272,7 @@
+         ? null
+         : has('callbackPolicy')
+           ? parseWriteCallbackPolicy(policy.callbackPolicy)
+-          : parseStoredCallbackPolicy(previous?.callback_policy),
++          : null,
+   };
+ }
+ 
+--- canonical/src/modules/operations/retry.ts
++++ isolated-mutant/src/modules/operations/retry.ts
+@@ -75,7 +75,7 @@
+       correlation_id,callback_url,profile_id,profile_revision,connector_bindings,submit_artifacts,profile_policy_snapshot,
+       callback_policy,prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at)
+      SELECT $2,tenant_id,api_key_id,business_id,business_version,action,$3,$4,$5,$6,callback_url,profile_id,profile_revision,
+-       connector_bindings,submit_artifacts,profile_policy_snapshot,callback_policy,prompt_revisions_pin,$7,id,
++       connector_bindings,submit_artifacts,profile_policy_snapshot,NULL,prompt_revisions_pin,$7,id,
+        CASE WHEN deadline_at>created_at THEN now()+(deadline_at-created_at) ELSE NULL END
+      FROM operations WHERE id=$1`,
+     [operationId, newId, state, taskId, sealedInput, correlationId, prompts],

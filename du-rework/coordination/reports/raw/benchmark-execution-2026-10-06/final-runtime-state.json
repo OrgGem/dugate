@@ -1,0 +1,282 @@
+[
+  {
+    "service": "connector",
+    "image": "sha256:d54c29f54daac7e4bf20eaea8d2a688fb911cda745594a01b0531101d44cc71f",
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 5865,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-06T14:25:25.183067834Z",
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "Status": "healthy",
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "Start": "2026-10-06T14:30:13.227038374Z",
+            "End": "2026-10-06T14:30:13.719352547Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:23.72018119Z",
+            "End": "2026-10-06T14:30:24.229576169Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:34.230132468Z",
+            "End": "2026-10-06T14:30:34.718844085Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:44.718295268Z",
+            "End": "2026-10-06T14:30:45.230393091Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:55.23127064Z",
+            "End": "2026-10-06T14:30:55.630085664Z",
+            "ExitCode": 0,
+            "Output": ""
+          }
+        ]
+      }
+    },
+    "restartCount": 0,
+    "nanoCpus": 200000000,
+    "memory": 402653184,
+    "memorySwap": 402653184,
+    "cgroupCounters": "50700288\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 4062899\nuser_usec 2680862\nsystem_usec 1382036\nnice_usec 0\nnr_periods 339\nnr_throttled 179\nthrottled_usec 16385403\nnr_bursts 0\nburst_usec 0\n",
+    "cgroupReadExit": 0
+  },
+  {
+    "service": "orchestrator",
+    "image": "sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6",
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 6119,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-06T14:25:28.206142784Z",
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "Status": "healthy",
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "Start": "2026-10-06T14:30:19.988338109Z",
+            "End": "2026-10-06T14:30:20.191745781Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:30.19240853Z",
+            "End": "2026-10-06T14:30:30.39396312Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:40.394791141Z",
+            "End": "2026-10-06T14:30:41.071574008Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:30:51.071438495Z",
+            "End": "2026-10-06T14:30:51.288382814Z",
+            "ExitCode": 0,
+            "Output": ""
+          },
+          {
+            "Start": "2026-10-06T14:31:01.289602867Z",
+            "End": "2026-10-06T14:31:01.484581381Z",
+            "ExitCode": 0,
+            "Output": ""
+          }
+        ]
+      }
+    },
+    "restartCount": 0,
+    "nanoCpus": 350000000,
+    "memory": 805306368,
+    "memorySwap": 805306368,
+    "cgroupCounters": "102293504\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 7491777\nuser_usec 5204243\nsystem_usec 2287533\nnice_usec 0\nnr_periods 726\nnr_throttled 138\nthrottled_usec 10501439\nnr_bursts 0\nburst_usec 0\n",
+    "cgroupReadExit": 0
+  },
+  {
+    "service": "document-core",
+    "image": "sha256:e1b7ce7e5ac8e9dda72d10660159bcc79642f92265203f9e1e0d47c1bbd9e408",
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 6522,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-06T14:25:33.944728127Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "restartCount": 0,
+    "nanoCpus": 1000000000,
+    "memory": 2147483648,
+    "memorySwap": 2147483648,
+    "cgroupCounters": "77156352\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 2291221\nuser_usec 1732759\nsystem_usec 558461\nnice_usec 0\nnr_periods 344\nnr_throttled 5\nthrottled_usec 142122\nnr_bursts 0\nburst_usec 0\n",
+    "cgroupReadExit": 0
+  },
+  {
+    "service": "migrate",
+    "image": "sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6",
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-06T14:25:25.168883005Z",
+      "FinishedAt": "2026-10-06T14:25:27.974903355Z"
+    },
+    "restartCount": 0,
+    "nanoCpus": 50000000,
+    "memory": 67108864,
+    "memorySwap": 67108864
+  },
+  {
+    "service": "postgres",
+    "image": "sha256:23e88eb049fd5d54894d70100df61d38a49ed97909263f79d4ff4c30a5d5fca2",
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 96638,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-06T14:23:17.558480057Z",
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "Status": "healthy",
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "Start": "2026-10-06T14:30:42.479238389Z",
+            "End": "2026-10-06T14:30:42.586326987Z",
+            "ExitCode": 0,
+            "Output": "/var/run/postgresql:5432 - accepting connections\n"
+          },
+          {
+            "Start": "2026-10-06T14:30:47.587579947Z",
+            "End": "2026-10-06T14:30:47.61880554Z",
+            "ExitCode": 0,
+            "Output": "/var/run/postgresql:5432 - accepting connections\n"
+          },
+          {
+            "Start": "2026-10-06T14:30:52.620001259Z",
+            "End": "2026-10-06T14:30:52.671718586Z",
+            "ExitCode": 0,
+            "Output": "/var/run/postgresql:5432 - accepting connections\n"
+          },
+          {
+            "Start": "2026-10-06T14:30:57.672969253Z",
+            "End": "2026-10-06T14:30:57.732134729Z",
+            "ExitCode": 0,
+            "Output": "/var/run/postgresql:5432 - accepting connections\n"
+          },
+          {
+            "Start": "2026-10-06T14:31:02.733621438Z",
+            "End": "2026-10-06T14:31:02.788431195Z",
+            "ExitCode": 0,
+            "Output": "/var/run/postgresql:5432 - accepting connections\n"
+          }
+        ]
+      }
+    },
+    "restartCount": 0,
+    "nanoCpus": 300000000,
+    "memory": 671088640,
+    "memorySwap": 671088640,
+    "cgroupCounters": "138620928\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 5360115\nuser_usec 2878194\nsystem_usec 2481921\nnice_usec 0\nnr_periods 822\nnr_throttled 49\nthrottled_usec 2352756\nnr_bursts 0\nburst_usec 0\n",
+    "cgroupReadExit": 0
+  },
+  {
+    "service": "valkey",
+    "image": "sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507",
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 97968,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-06T14:23:44.198902737Z",
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "Status": "healthy",
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "Start": "2026-10-06T14:30:42.696796332Z",
+            "End": "2026-10-06T14:30:42.79531721Z",
+            "ExitCode": 0,
+            "Output": "PONG\n"
+          },
+          {
+            "Start": "2026-10-06T14:30:47.796087506Z",
+            "End": "2026-10-06T14:30:47.896183107Z",
+            "ExitCode": 0,
+            "Output": "PONG\n"
+          },
+          {
+            "Start": "2026-10-06T14:30:52.897334969Z",
+            "End": "2026-10-06T14:30:52.996291535Z",
+            "ExitCode": 0,
+            "Output": "PONG\n"
+          },
+          {
+            "Start": "2026-10-06T14:30:57.997574803Z",
+            "End": "2026-10-06T14:30:58.095524449Z",
+            "ExitCode": 0,
+            "Output": "PONG\n"
+          },
+          {
+            "Start": "2026-10-06T14:31:03.096414594Z",
+            "End": "2026-10-06T14:31:03.196450204Z",
+            "ExitCode": 0,
+            "Output": "PONG\n"
+          }
+        ]
+      }
+    },
+    "restartCount": 0,
+    "nanoCpus": 100000000,
+    "memory": 197132288,
+    "memorySwap": 197132288,
+    "cgroupCounters": "14065664\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 2507080\nuser_usec 1678469\nsystem_usec 828611\nnice_usec 0\nnr_periods 1845\nnr_throttled 95\nthrottled_usec 5387011\nnr_bursts 0\nburst_usec 0\n",
+    "cgroupReadExit": 0
+  }
+]

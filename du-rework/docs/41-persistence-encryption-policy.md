@@ -80,6 +80,7 @@ frozen here, writer not yet encrypting (owner packet named); **EXEMPT** = review
 | 18 | Admin idempotency `response_body` (may echo content) | `modules/idempotency/idempotency.ts` | replay path | PG idempotency table | purpose `idempotency.response_body` | Vault Transit | **PLANNED** (classify in SEC-ENC-04/05) |
 | 19 | Content-free operational metadata: ids, states, versions, timestamps, durations, counters, approved business/profile identifiers | various | queries/admin | PG columns | — | — | EXEMPT (queryable, schema-reviewed) |
 | 20 | Queue job payloads / BullMQ body | queue producers | workers | Valkey | must stay reference-only (no inline content) | — | EXEMPT today via reference-only rule; any inline content becomes PLANNED |
+| 21 | `profile_bindings.file_url_auth_cipher` (profile cipher) | `modules/profiles/file-url-auth.ts` | profile upsert/read, file-url download | PG `profile_bindings` | profile cipher (SHA-256 of `ENCRYPTION_KEY` or `NEXTAUTH_SECRET`) | `ENCRYPTION_KEY` / `NEXTAUTH_SECRET` | **ENFORCED** — keyless boot refused in real-data mode when artifact encryption is enabled (no synthetic exemption) |
 
 Historical plaintext rows and backups are handled by SEC-ENC-06; enabling new-write encryption does not rewrite
 history.

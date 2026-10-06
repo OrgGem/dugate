@@ -1,0 +1,302 @@
+{
+  "connector": {
+    "buildx.build.provenance": {
+      "builder": {
+        "id": ""
+      },
+      "buildType": "https://mobyproject.org/buildkit@v1",
+      "materials": [
+        {
+          "uri": "pkg:docker/docker/dockerfile@1",
+          "digest": {
+            "sha256": "4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e"
+          }
+        },
+        {
+          "uri": "pkg:docker/node@24.21.0-alpine3.24?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\u0026platform=linux%2Famd64",
+          "digest": {
+            "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+          }
+        }
+      ],
+      "invocation": {
+        "configSource": {
+          "entryPoint": "Dockerfile"
+        },
+        "parameters": {
+          "frontend": "gateway.v0",
+          "args": {
+            "cmdline": "docker/dockerfile:1",
+            "label:du.candidate": "verify-only",
+            "label:org.opencontainers.image.revision": "4308cc5",
+            "local-sessionid:context": "4ell32i40dyjhgdl3a7f533pp",
+            "local-sessionid:dockerfile": "4ell32i40dyjhgdl3a7f533pp",
+            "no-cache": "",
+            "source": "docker/dockerfile:1",
+            "target": "connector"
+          },
+          "locals": [
+            {
+              "name": "context"
+            },
+            {
+              "name": "dockerfile"
+            }
+          ]
+        },
+        "environment": {
+          "platform": "linux/amd64",
+          "ProvenanceCustomEnv": null
+        }
+      }
+    },
+    "buildx.build.ref": "desktop-linux/desktop-linux/r4k40dmly9v983zrttiqewn6r",
+    "containerimage.descriptor": {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "digest": "sha256:d54c29f54daac7e4bf20eaea8d2a688fb911cda745594a01b0531101d44cc71f",
+      "size": 856
+    },
+    "containerimage.digest": "sha256:d54c29f54daac7e4bf20eaea8d2a688fb911cda745594a01b0531101d44cc71f",
+    "image.name": "docker.io/library/du-connector:candidate-portal-swagger-20261006-r4.1"
+  },
+  "document-core": {
+    "buildx.build.provenance": {
+      "builder": {
+        "id": ""
+      },
+      "buildType": "https://mobyproject.org/buildkit@v1",
+      "materials": [
+        {
+          "uri": "pkg:docker/docker/dockerfile@1",
+          "digest": {
+            "sha256": "4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e"
+          }
+        },
+        {
+          "uri": "pkg:docker/node@24.21.0-alpine3.24?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\u0026platform=linux%2Famd64",
+          "digest": {
+            "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+          }
+        }
+      ],
+      "invocation": {
+        "configSource": {
+          "entryPoint": "Dockerfile"
+        },
+        "parameters": {
+          "frontend": "gateway.v0",
+          "args": {
+            "cmdline": "docker/dockerfile:1",
+            "label:du.candidate": "verify-only",
+            "label:org.opencontainers.image.revision": "4308cc5",
+            "local-sessionid:context": "4ell32i40dyjhgdl3a7f533pp",
+            "local-sessionid:dockerfile": "4ell32i40dyjhgdl3a7f533pp",
+            "no-cache": "",
+            "source": "docker/dockerfile:1",
+            "target": "document-core"
+          },
+          "locals": [
+            {
+              "name": "context"
+            },
+            {
+              "name": "dockerfile"
+            }
+          ]
+        },
+        "environment": {
+          "platform": "linux/amd64",
+          "ProvenanceCustomEnv": null
+        }
+      }
+    },
+    "buildx.build.ref": "desktop-linux/desktop-linux/i9xev13fnfnmzqtyxplrwa8kz",
+    "containerimage.descriptor": {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "digest": "sha256:e1b7ce7e5ac8e9dda72d10660159bcc79642f92265203f9e1e0d47c1bbd9e408",
+      "size": 856
+    },
+    "containerimage.digest": "sha256:e1b7ce7e5ac8e9dda72d10660159bcc79642f92265203f9e1e0d47c1bbd9e408",
+    "image.name": "docker.io/library/du-document-core:candidate-portal-swagger-20261006-r4.1"
+  },
+  "example-review": {
+    "buildx.build.provenance": {
+      "builder": {
+        "id": ""
+      },
+      "buildType": "https://mobyproject.org/buildkit@v1",
+      "materials": [
+        {
+          "uri": "pkg:docker/docker/dockerfile@1",
+          "digest": {
+            "sha256": "4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e"
+          }
+        },
+        {
+          "uri": "pkg:docker/node@24.21.0-alpine3.24?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\u0026platform=linux%2Famd64",
+          "digest": {
+            "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+          }
+        }
+      ],
+      "invocation": {
+        "configSource": {
+          "entryPoint": "Dockerfile"
+        },
+        "parameters": {
+          "frontend": "gateway.v0",
+          "args": {
+            "cmdline": "docker/dockerfile:1",
+            "label:du.candidate": "verify-only",
+            "label:org.opencontainers.image.revision": "4308cc5",
+            "local-sessionid:context": "4ell32i40dyjhgdl3a7f533pp",
+            "local-sessionid:dockerfile": "4ell32i40dyjhgdl3a7f533pp",
+            "no-cache": "",
+            "source": "docker/dockerfile:1",
+            "target": "example-review"
+          },
+          "locals": [
+            {
+              "name": "context"
+            },
+            {
+              "name": "dockerfile"
+            }
+          ]
+        },
+        "environment": {
+          "platform": "linux/amd64",
+          "ProvenanceCustomEnv": null
+        }
+      }
+    },
+    "buildx.build.ref": "desktop-linux/desktop-linux/u30ozzukyeqlw6jlpmko92fw0",
+    "containerimage.descriptor": {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "digest": "sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe",
+      "size": 856
+    },
+    "containerimage.digest": "sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe",
+    "image.name": "docker.io/library/du-example-review:candidate-portal-swagger-20261006-r4.1"
+  },
+  "lc-checker": {
+    "buildx.build.provenance": {
+      "builder": {
+        "id": ""
+      },
+      "buildType": "https://mobyproject.org/buildkit@v1",
+      "materials": [
+        {
+          "uri": "pkg:docker/docker/dockerfile@1",
+          "digest": {
+            "sha256": "4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e"
+          }
+        },
+        {
+          "uri": "pkg:docker/node@24.21.0-alpine3.24?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\u0026platform=linux%2Famd64",
+          "digest": {
+            "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+          }
+        }
+      ],
+      "invocation": {
+        "configSource": {
+          "entryPoint": "Dockerfile"
+        },
+        "parameters": {
+          "frontend": "gateway.v0",
+          "args": {
+            "cmdline": "docker/dockerfile:1",
+            "label:du.candidate": "verify-only",
+            "label:org.opencontainers.image.revision": "4308cc5",
+            "local-sessionid:context": "4ell32i40dyjhgdl3a7f533pp",
+            "local-sessionid:dockerfile": "4ell32i40dyjhgdl3a7f533pp",
+            "no-cache": "",
+            "source": "docker/dockerfile:1",
+            "target": "lc-checker"
+          },
+          "locals": [
+            {
+              "name": "context"
+            },
+            {
+              "name": "dockerfile"
+            }
+          ]
+        },
+        "environment": {
+          "platform": "linux/amd64",
+          "ProvenanceCustomEnv": null
+        }
+      }
+    },
+    "buildx.build.ref": "desktop-linux/desktop-linux/yrkdj7nrubz8t6p5f0ico26zk",
+    "containerimage.descriptor": {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "digest": "sha256:670560fc549f9ca10a9f0f04cdead93e48f232286e833fff100b4e3ba0daf60a",
+      "size": 856
+    },
+    "containerimage.digest": "sha256:670560fc549f9ca10a9f0f04cdead93e48f232286e833fff100b4e3ba0daf60a",
+    "image.name": "docker.io/library/du-lc-checker:candidate-portal-swagger-20261006-r4.1"
+  },
+  "orchestrator": {
+    "buildx.build.provenance": {
+      "builder": {
+        "id": ""
+      },
+      "buildType": "https://mobyproject.org/buildkit@v1",
+      "materials": [
+        {
+          "uri": "pkg:docker/docker/dockerfile@1",
+          "digest": {
+            "sha256": "4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e"
+          }
+        },
+        {
+          "uri": "pkg:docker/node@24.21.0-alpine3.24?digest=sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1\u0026platform=linux%2Famd64",
+          "digest": {
+            "sha256": "ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1"
+          }
+        }
+      ],
+      "invocation": {
+        "configSource": {
+          "entryPoint": "Dockerfile"
+        },
+        "parameters": {
+          "frontend": "gateway.v0",
+          "args": {
+            "cmdline": "docker/dockerfile:1",
+            "label:du.candidate": "verify-only",
+            "label:org.opencontainers.image.revision": "4308cc5",
+            "local-sessionid:context": "4ell32i40dyjhgdl3a7f533pp",
+            "local-sessionid:dockerfile": "4ell32i40dyjhgdl3a7f533pp",
+            "no-cache": "",
+            "source": "docker/dockerfile:1",
+            "target": "orchestrator"
+          },
+          "locals": [
+            {
+              "name": "context"
+            },
+            {
+              "name": "dockerfile"
+            }
+          ]
+        },
+        "environment": {
+          "platform": "linux/amd64",
+          "ProvenanceCustomEnv": null
+        }
+      }
+    },
+    "buildx.build.ref": "desktop-linux/desktop-linux/jauzqj4sbqacnlycwdzhgtlws",
+    "containerimage.descriptor": {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "digest": "sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6",
+      "size": 856
+    },
+    "containerimage.digest": "sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6",
+    "image.name": "docker.io/library/du-orchestrator:candidate-portal-swagger-20261006-r4.1"
+  }
+}

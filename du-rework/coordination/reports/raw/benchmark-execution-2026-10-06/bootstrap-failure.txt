@@ -1,0 +1,1 @@
+business.enable:404:{"type":"urn:du:error:not_found","title":"business document-core@1.0.0 not registered","status":404,"code":"NOT_FOUND","correlationId":"7df47a9f-dfc0-49dc-ad25-d67a2572bf00"}

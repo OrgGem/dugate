@@ -1,0 +1,66 @@
+{
+  "Id": "sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe",
+  "RepoTags": [
+    "du-example-review:candidate-portal-swagger-20261006-r4.1"
+  ],
+  "RepoDigests": [
+    "du-example-review@sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe"
+  ],
+  "Parent": "",
+  "Comment": "buildkit.dockerfile.v0",
+  "Created": "2026-10-06T13:27:19.08420277Z",
+  "DockerVersion": "",
+  "Author": "",
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 73782819,
+  "GraphDriver": {
+    "Data": null,
+    "Name": "overlayfs"
+  },
+  "RootFS": {
+    "Type": "layers",
+    "Layers": [
+      "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+      "sha256:7c732ed82ebdb575d2af70ebb84786b7421107ae929359e8e180c636040cbe88",
+      "sha256:6f3bd0caa7c25469ef663d37b3d333f7cda0b2887c78a1653af1f7bc6babef2d",
+      "sha256:a3b40bc0bbc6fc169200dd4069eac2195573e96112b64ad82c795d6ef3636719",
+      "sha256:150e316b20188bfdfdf11aa9c31eb473da454317397056c410cbb41842d200a3",
+      "sha256:9fdaf99e9353ce40f67475111767d96fdf4f4d47fd4b7b93f45b1557d70f006c",
+      "sha256:a6b257d3b4304b0465c110549cc1e37c6f5685561ac16f7b8026c16708d32841"
+    ]
+  },
+  "Metadata": {
+    "LastTagTime": "2026-10-06T13:27:21.480948049Z"
+  },
+  "Descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe",
+    "size": 856
+  },
+  "Config": {
+    "ArgsEscaped": true,
+    "Cmd": [
+      "node",
+      "dist/main.js"
+    ],
+    "Entrypoint": [
+      "docker-entrypoint.sh"
+    ],
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "NODE_VERSION=24.21.0",
+      "YARN_VERSION=1.22.22",
+      "NODE_ENV=production"
+    ],
+    "Labels": {
+      "du.candidate": "verify-only",
+      "org.opencontainers.image.revision": "4308cc5"
+    },
+    "OnBuild": null,
+    "StopSignal": "SIGTERM",
+    "User": "node",
+    "Volumes": null,
+    "WorkingDir": "/app"
+  }
+}

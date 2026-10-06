@@ -1,0 +1,63 @@
+{
+  "verdict": "PASS_INGEST_AND_EXTRACT",
+  "metrics": [
+    {
+      "action": "ingest",
+      "samples": 12,
+      "success": 12,
+      "failed": 0,
+      "durationSec": 1.9453008,
+      "successfulReqPerSec": 6.169,
+      "latencyKind": "successful e2e (admission through result fetch)",
+      "p50Ms": 249.46929999999975,
+      "p95Ms": 381.6514000000002,
+      "p99Ms": 381.6514000000002,
+      "admissionP50Ms": 17.51610000000028,
+      "admissionP95Ms": 32.41139999999996
+    },
+    {
+      "action": "extract",
+      "samples": 12,
+      "success": 12,
+      "failed": 0,
+      "durationSec": 2.5901495000000003,
+      "successfulReqPerSec": 4.633,
+      "latencyKind": "successful e2e (admission through result fetch)",
+      "p50Ms": 350.0150000000003,
+      "p95Ms": 543.8729999999996,
+      "p99Ms": 543.8729999999996,
+      "admissionP50Ms": 12.54740000000038,
+      "admissionP95Ms": 56.47409999999945
+    }
+  ],
+  "resources": {
+    "orchestrator": {
+      "memoryPercent": 10.35,
+      "cpuPercent": 32.46,
+      "memUsage": "79.51MiB / 768MiB"
+    },
+    "connector": {
+      "memoryPercent": 8.58,
+      "cpuPercent": 9.18,
+      "memUsage": "32.94MiB / 384MiB"
+    },
+    "document-core": {
+      "memoryPercent": 3.55,
+      "cpuPercent": 22.4,
+      "memUsage": "72.66MiB / 2GiB"
+    },
+    "postgres": {
+      "memoryPercent": 8.7,
+      "cpuPercent": 28.71,
+      "memUsage": "55.69MiB / 640MiB"
+    },
+    "valkey": {
+      "memoryPercent": 3.43,
+      "cpuPercent": 2.79,
+      "memUsage": "6.445MiB / 188MiB"
+    }
+  },
+  "dockerStatsSnapshots": 2,
+  "providerCalls": 13,
+  "note": "Short synthetic sample (12 measured + warmup per action, concurrency 2); not a sustained SLA test."
+}

@@ -1,0 +1,9 @@
+﻿services:
+  orchestrator:
+    environment:
+      DU_DATA_MODE: synthetic
+      DU_SYNTHETIC_DATA_ACK: '{"mode":"synthetic-data-exempt","reason":"Isolated benchmark with generated PDF and mock invoice only","approvedBy":"Benchmark execution dispatch with synthetic framework","acknowledgedAt":"2026-10-06T14:30:00Z","isolatedFromRealData":true}'
+  connector:
+    environment:
+      PROVIDER_ALLOW_HOSTS: host.docker.internal
+      ALLOW_PRIVATE_PROVIDER_NETWORKS: 'true'

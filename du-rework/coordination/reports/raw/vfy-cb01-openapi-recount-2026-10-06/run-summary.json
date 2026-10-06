@@ -1,0 +1,21 @@
+{
+  "artifactVersion": "1.4.0",
+  "counts": [
+    58,
+    62,
+    51
+  ],
+  "artifactSha256": "7f0afb86c151e5ee204e82cc75c4dda3cfca1f14c51cf6ab403b51da26a46840",
+  "generatorExit": 1,
+  "generatorOutputMatches": false,
+  "freshGeneratorNoDrop": null,
+  "baselineDroppedPaths": 0,
+  "baselineDroppedOperations": 0,
+  "structuralErrors": 0,
+  "baselineSemanticEqual": true,
+  "head": "4308cc54eda32cfcca54e0c55554fc85d720a43b",
+  "productArtifactUnchanged": true,
+  "generatorSha256": "482719c63a9008b96f7702805fe4ec13f4455fe74529ff8ce6c9cf645b1730e2",
+  "projectionSha256": "0856b29a6c2c26880960267457d02423fbdd0f72d3b6f867cc547e79443c5a60",
+  "migration0035Sha256": "ac769d1b51130e51582466a7c96025ac5c2771032182184f61f0ce413ca8bd61"
+}

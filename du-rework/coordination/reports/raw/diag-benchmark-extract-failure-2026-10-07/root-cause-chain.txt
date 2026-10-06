@@ -1,0 +1,283 @@
+=== compose\connector.yml : 8-21
+   8:     environment:
+   9:       PORT: '8080'
+  10:       HOST: 0.0.0.0
+  11:       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-du}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-du_orchestrator}}
+  12:       REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
+  13:       REDIS_KEY_PREFIX: ${CONNECTOR_REDIS_PREFIX:-du:connector:}
+  14:       DRAIN_TIMEOUT_MS: '30000'
+  15:       SERVICE_IDENTITY_SECRET: ${SERVICE_IDENTITY_SECRET:?Set a base64 32-byte identity key}
+  16:       INVOCATION_GRANT_SECRET: ${CONNECTOR_INVOCATION_GRANT_SECRET:?Set base64 of INVOCATION_GRANT_SECRET}
+  17:       CONNECTOR_ENCRYPTION_KEY: ${CONNECTOR_ENCRYPTION_KEY:?Set a base64 32-byte encryption key}
+  18:       PROVIDER_ALLOW_HOSTS: ${PROVIDER_ALLOW_HOSTS:-}
+  19:       ALLOW_PRIVATE_PROVIDER_NETWORKS: ${ALLOW_PRIVATE_PROVIDER_NETWORKS:-false}
+  20:       USAGE_SINK_URL: ${USAGE_SINK_URL:-}
+  21:       USAGE_SINK_TOKEN: ${USAGE_SINK_TOKEN:-}
+
+=== scripts\docker\init-env.cjs : 17-31
+  17:   return {
+  18:     POSTGRES_USER: 'du', POSTGRES_DB: 'du_orchestrator',
+  19:     POSTGRES_PASSWORD: randomBytes(24).toString('hex'),
+  20:     BIND_ADDRESS: '127.0.0.1', ORCHESTRATOR_PORT: '3000', ADMIN_SHELL_PORT: '3001', CONNECTOR_PORT: '8080',
+  21:     RUNTIME_TOKEN: randomBytes(32).toString('hex'), ADMIN_TOKEN: randomBytes(32).toString('hex'),
+  22:     DOCUMENT_CORE_RUNTIME_TOKEN: workers['document-core'], LC_RUNTIME_TOKEN: workers['lc-checker'],
+  23:     EXAMPLE_REVIEW_RUNTIME_TOKEN: workers['example-review'], WORKER_IDENTITY_TOKENS_BY_BUSINESS: JSON.stringify(workers),
+  24:     ENCRYPTION_KEY: randomBytes(32).toString('hex'), ADMIN_SHELL_COOKIE_SECRET: randomBytes(32).toString('hex'),
+  25:     INVOCATION_GRANT_SECRET: rawGrant,
+  26:     CONNECTOR_INVOCATION_GRANT_SECRET: Buffer.from(rawGrant).toString('base64'),
+  27:     SERVICE_IDENTITY_SECRET: identityKey.toString('base64'),
+  28:     CONNECTOR_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+  29:     CONNECTOR_SERVICE_TOKEN: `${signed}.${createHmac('sha256', identityKey).update(signed).digest('base64url')}`,
+  30:     DU_ADMIN_WEB: '0', DU_ADMIN_TRUST_PROXY_PROTOCOL: 'false', ARTIFACT_STORAGE_BACKEND: 'postgres',
+  31:   };
+
+=== businesses\document-core\src\manifest\document-core.manifest.ts : 146-157
+ 146:       connectorSlots: [
+ 147:         {
+ 148:           name: 'ocr',
+ 149:           required: false,
+ 150:           acceptedCapabilities: ['ocr', 'pdf-text'],
+ 151:         },
+ 152:         {
+ 153:           name: 'vision',
+ 154:           required: false,
+ 155:           acceptedCapabilities: ['vision', 'handwriting'],
+ 156:         },
+ 157:       ],
+
+=== businesses\document-core\src\manifest\document-core.manifest.ts : 184-190
+ 184:       connectorSlots: [
+ 185:         {
+ 186:           name: 'reasoning',
+ 187:           required: true,
+ 188:           acceptedCapabilities: ['chat-completion', 'structured-output'],
+ 189:         },
+ 190:       ],
+
+=== businesses\document-core\src\actions\extract\index.ts : 86-101
+  86:     // Step 2: connector-inference
+  87:     const inferenceResult = await StepCheckpointManager.executeWithCheckpoint(
+  88:       ctx,
+  89:       STEP_KEYS.EXTRACT.CONNECTOR_INFERENCE,
+  90:       { promptHash: StepCheckpointManager.computeInputHash(promptPayload) },
+  91:       async () => {
+  92:         let invocation;
+  93:         try {
+  94:           invocation = await invokeWithStepSession(
+  95:             ctx,
+  96:             STEP_KEYS.EXTRACT.CONNECTOR_INFERENCE,
+  97:             (sessionRef) =>
+  98:               ctx.connector.invoke(
+  99:                 'reasoning',
+ 100:                 {
+ 101:                   task: `extract_${input.type}`,
+
+=== packages\worker-sdk\src\connector-invoker.ts : 21-30
+  21: export class ConnectorTransportError extends Error {
+  22:   constructor(
+  23:     readonly status: number,
+  24:     readonly code: ConnectorErrorCode,
+  25:     message?: string
+  26:   ) {
+  27:     super(message ?? `connector error ${status} ${code}`);
+  28:     this.name = 'ConnectorTransportError';
+  29:   }
+  30: }
+
+=== packages\worker-sdk\src\connector-invoker.ts : 118-124
+ 118: function statusErrorCode(status: number): ConnectorErrorCode {
+ 119:   return status === 429
+ 120:     ? 'PROVIDER_RATE_LIMITED'
+ 121:     : status >= 500
+ 122:       ? 'PROVIDER_UNAVAILABLE'
+ 123:       : 'INVALID_INPUT';
+ 124: }
+
+=== services\connector\src\invoke.ts : 60-68
+  60: export async function invokeAdapter(
+  61:   request: LocalInvocationRequest,
+  62:   options: InvokeAdapterOptions,
+  63: ): Promise<AdapterInvocationOutcome> {
+  64:   const now = options.now ?? Date.now;
+  65:   const inputHash = hashInvocationInput(request);
+  66:   const claim = await options.ledger.claim(request, inputHash);
+  67:   if (claim.kind === 'conflict') {
+  68:     throw new ConnectorError('INPUT_HASH_MISMATCH', 'Invocation ID was already used with different input.');
+
+=== services\connector\src\db\repository.ts : 80-89
+  80:   private requireCrypto(): InvocationFieldCrypto {
+  81:     if (!this.fieldCrypto) {
+  82:       // Fail closed: an unconfigured deployment must not persist or serve
+  83:       // tenant/provider content. The boot policy (SEC-ENC-05) turns this into
+  84:       // a startup refusal; until then no plaintext can enter the table.
+  85:       throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Invocation storage encryption is not configured.', {
+  86:         safeToRetry: false,
+  87:       });
+  88:     }
+  89:     return this.fieldCrypto;
+
+=== services\connector\src\db\repository.ts : 217-239
+ 217:       // SEC-ENC-02: the request row never reaches SQL unsealed. The envelope is
+ 218:       // bound to (tenant, request slot, invocationId); the sealed value is the
+ 219:       // only copy written to the JSONB column.
+ 220:       const sealedRequest = await this.sealField(
+ 221:         { tenantId: request.tenantId, slot: 'connector_invocations.request', refId: request.invocationId },
+ 222:         request,
+ 223:       );
+ 224:       const inserted = await tx.query<InvocationRow>(
+ 225:         `INSERT INTO connector_invocations
+ 226:           (invocation_id, tenant_id, operation_id, task_id, step_key, input_hash, request, state)
+ 227:          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'IN_FLIGHT')
+ 228:          ON CONFLICT (invocation_id) DO NOTHING
+ 229:          RETURNING *`,
+ 230:         [
+ 231:           request.invocationId,
+ 232:           request.tenantId,
+ 233:           request.operationId,
+ 234:           request.taskId,
+ 235:           request.stepKey,
+ 236:           inputHash,
+ 237:           JSON.stringify(sealedRequest),
+ 238:         ],
+ 239:       );
+
+=== services\connector\src\composition.ts : 110-117
+ 110:   // SEC-ENC-02 (SD-01): the production ledger always receives the sealing
+ 111:   // options. Explicit config wins; otherwise the environment is resolved here
+ 112:   // (malformed keys fail composition loudly) and an unset key means sensitive
+ 113:   // writes are refused at the ledger, never persisted as plaintext.
+ 114:   const ledger = new PostgresInvocationLedger(
+ 115:     database,
+ 116:     config.invocationStorageCrypto ?? resolveInvocationStorageCryptoFromEnv(process.env),
+ 117:   );
+
+=== services\connector\src\db\invocation-crypto.ts : 461-489
+ 461: export interface InvocationStorageCryptoOptions {
+ 462:   /** Absent = sensitive writes fail closed (no plaintext fallback). */
+ 463:   readonly fieldCrypto?: InvocationFieldCrypto;
+ 464:   /** Bounded historical-read window; default false (strict). */
+ 465:   readonly legacyPlaintextReads?: boolean;
+ 466: }
+ 467: 
+ 468: /**
+ 469:  * Resolve the ledger crypto options from the process environment.
+ 470:  *
+ 471:  *   CONNECTOR_INVOCATION_ENCRYPTION_KEYS           JSON LocalInvocationKekConfig
+ 472:  *   CONNECTOR_INVOCATION_LEGACY_PLAINTEXT_READS    'true' opens the read window
+ 473:  *
+ 474:  * Must be called from the composition root so a malformed key config fails
+ 475:  * startup instead of surfacing at the first invocation. No crypto configured
+ 476:  * means the Postgres ledger refuses to persist sensitive fields.
+ 477:  */
+ 478: export function resolveInvocationStorageCryptoFromEnv(
+ 479:   env: Record<string, string | undefined>,
+ 480: ): InvocationStorageCryptoOptions {
+ 481:   const parsed = parseLocalInvocationKekConfig(env.CONNECTOR_INVOCATION_ENCRYPTION_KEYS);
+ 482:   const fieldCrypto = parsed === undefined
+ 483:     ? undefined
+ 484:     : createInvocationFieldCrypto(createLocalInvocationKekProvider(parsed), parsed.keyRef);
+ 485:   return {
+ 486:     ...(fieldCrypto === undefined ? {} : { fieldCrypto }),
+ 487:     legacyPlaintextReads: env.CONNECTOR_INVOCATION_LEGACY_PLAINTEXT_READS === 'true',
+ 488:   };
+ 489: }
+
+=== services\connector\src\db\invocation-crypto.ts : 330-337
+ 330: /**
+ 331:  * Parse the JSON key configuration. Malformed configuration fails violently at
+ 332:  * boot: a silently ignored key would turn "required encryption" into plaintext
+ 333:  * or a half-open store.
+ 334:  *
+ 335:  * Shape: `{"keyRef":"du-connector-invocation-v1","activeVersion":2,
+ 336:  *          "keys":{"1":"<base64 32B>","2":"<base64 32B>"}}`
+ 337:  */
+
+=== services\connector\src\http\server.ts : 471-503
+ 471: function errorStatus(error: ConnectorError): number {
+ 472:   switch (error.code) {
+ 473:     case 'INVALID_INPUT':
+ 474:     case 'INVALID_PROVIDER_RESPONSE':
+ 475:       return 400;
+ 476:     case 'GRANT_INVALID':
+ 477:       return 401;
+ 478:     case 'BINDING_DENIED':
+ 479:       return 403;
+ 480:     case 'INPUT_HASH_MISMATCH':
+ 481:     case 'CANCELLED':
+ 482:       return 409;
+ 483:     case 'QUOTA_EXHAUSTED':
+ 484:     case 'PROVIDER_RATE_LIMITED':
+ 485:       return 429;
+ 486:     case 'CREDENTIAL_INVALID':
+ 487:       return 401;
+ 488:     case 'CONNECTOR_DISABLED':
+ 489:       return 409;
+ 490:     case 'PROVIDER_TIMEOUT':
+ 491:       return 504;
+ 492:     case 'PROVIDER_UNAVAILABLE':
+ 493:       return 502;
+ 494:     case 'PROVIDER_REQUEST_REJECTED':
+ 495:       // The caller sent a well-formed request and the upstream refused it, so the
+ 496:       // fault is the upstream hop. 400 would wrongly tell the orchestrator its own
+ 497:       // request was malformed and send it looking in the wrong place.
+ 498:       return 502;
+ 499:     case 'INVOCATION_UNKNOWN':
+ 500:       return 409;
+ 501:     default:
+ 502:       return 500;
+ 503:   }
+
+=== packages\worker-sdk\src\worker.ts : 538-550
+ 538:   if (ConnectorTransportErrorLike(err)) {
+ 539:     const nonRetryableConnectorCode =
+ 540:       err.code === 'INPUT_HASH_MISMATCH'
+ 541:       || err.code === 'CANCELLED'
+ 542:       || err.code === 'CONNECTOR_DISABLED'
+ 543:       || err.code === 'INVOCATION_UNKNOWN';
+ 544:     return {
+ 545:       errorCode: err.code,
+ 546:       // Ambiguous invocation outcomes must be reconciled against the Connector
+ 547:       // ledger; replaying the task could execute provider work twice.
+ 548:       retryable: !nonRetryableConnectorCode && (err.status === 429 || err.status === 503),
+ 549:       detail: err.message.slice(0, 2048),
+ 550:     };
+
+=== coordination\reports\sec-enc-02-connector-encryption-2026-10-06.md : 106-111
+ 106: ## 8. Honest limits / open items
+ 107: 
+ 108: - **Real PostgreSQL chưa chạy**: chưa inspect JSONB/TEXT bytes thật; `black-box-durable` cần `CONNECTOR_INTEGRATION=1` + PG/Redis window. VFY-SEC-ENC-01 phải là người mở gate này.
+ 109: - **Vault Transit chưa wire**: local KEK provider dùng env key material; adapter Vault Transit là integration item (interface đã sẵn). Key outage/rotation đã test ở seam provider, không phải Vault thật.
+ 110: - **Production boot policy**: khi env key unset, invocation writes bị refuse (502 non-retryable). SEC-ENC-05 cần thêm boot refusal + env samples để lỗi xuất hiện lúc start thay vì lúc invoke.
+ 111: - **Historical rows**: migration window read-only đã có; backfill thật (rewrite rows cũ) thuộc SEC-ENC-06 — dùng `seal()` với cùng slot/AAD; chưa viết CLI trong packet này.
+
+=== coordination\reports\sec-enc-02-connector-encryption-2026-10-06.md : 118-122
+ 118: ## 9. Handoff
+ 119: 
+ 120: - **VFY-SEC-ENC-01**: chạy `black-box-durable` + probe SQL `SELECT request,result,session_ref FROM connector_invocations` với sentinel synthetic; verify không plaintext, wrong tenant/AAD, key outage, restart, rotation. Digest candidate theo §5.
+ 121: - **SEC-ENC-05 (cw1)**: boot policy + env samples (`CONNECTOR_INVOCATION_ENCRYPTION_KEYS`), effective-policy health view; có thể thay local KEK bằng Vault Transit provider qua `InvocationDekKeyProvider`.
+ 122: - **SEC-ENC-06**: backfill dùng `createInvocationFieldCrypto`/slot constants + `legacyPlaintextReads` window; không tạo plaintext mới.
+
+=== coordination\reports\raw\benchmark-execution-2026-10-06\run-overlay.yml : 1-9
+   1: services:
+   2:   orchestrator:
+   3:     environment:
+   4:       DU_DATA_MODE: synthetic
+   5:       DU_SYNTHETIC_DATA_ACK: '{"mode":"synthetic-data-exempt","reason":"Isolated benchmark with generated PDF and mock invoice only","approvedBy":"Benchmark execution dispatch with synthetic framework","acknowledgedAt":"2026-10-06T14:30:00Z","isolatedFromRealData":true}'
+   6:   connector:
+   7:     environment:
+   8:       PROVIDER_ALLOW_HOSTS: host.docker.internal
+   9:       ALLOW_PRIVATE_PROVIDER_NETWORKS: 'true'
+
+=== benchmark: connector-invocation-counts.txt
+ state | error_code | count 
+-------+------------+-------
+(0 rows)
+
+
+=== benchmark: document-core-runtime.log (first PROVIDER_UNAVAILABLE line)
+{"businessId":"document-core","businessVersion":"1.0.0","errorCode":"PROVIDER_UNAVAILABLE","retryable":false,"errorName":"ConnectorTransportError","reason":"worker.js:285:27","timestamp":"2026-10-06T14:29:17.336Z","level":"error","service":"worker:document-core","version":"unknown","environment":"prod","correlationId":"c3c1b37e-8e4c-47e2-8147-6b36e3dc6d32","operationId":"f3d6d6cb-11cc-45d0-bd9f-78e7954e1f90","taskId":"53c839cb-7050-40f5-bcc1-1bd4c8d52426","invocationId":null,"message":"handler failed"}
+
+=== benchmark: workload.json extract rows (count by state/code)
+ingest, SUCCEEDED => 13
+extract, FAILED, PROVIDER_UNAVAILABLE => 13
+provider stats: {"calls":0}

@@ -1,0 +1,12 @@
+﻿{
+    "harness":  "live-gates",
+    "candidate":  "candidate-portal-swagger-20261006-r4.1",
+    "envFile":  "D:\\Git\\dugate\\du-rework\\.env.docker",
+    "reportedAt":  "2026-10-06T15:15:36.4203341Z",
+    "steps":  {
+                  "check-migrations":  0,
+                  "webhook-live-idp":  0,
+                  "scan-plaintext-sentinels":  0
+              },
+    "reportDir":  "D:\\Git\\dugate\\du-rework\\coordination\\reports\\raw\\live-gates-execution-2026-10-06"
+}

@@ -1,0 +1,15 @@
+﻿const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const Module = require('node:module');
+const root = 'D:/Git/dugate/du-rework';
+const ts = require(root + '/apps/admin-web/node_modules/typescript');
+const filename = root + '/apps/admin-web/src/features/profiles/state.ts';
+const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const moduleUnderTest = new Module(filename, module);
+moduleUnderTest._compile(compiled, filename);
+const parse = moduleUnderTest.exports.parsePolicyRead;
+assert.equal(Object.hasOwn(parse({}), 'callbackPolicy'), false);
+assert.equal(parse({ callbackPolicy: null }).callbackPolicy, null);
+assert.deepEqual(parse({ callbackPolicy: null, callbackPolicyInvalid: true }).callbackPolicyInvalid, true);
+assert.equal(parse({ callbackPolicy: {version:1,mode:'notification_only',auth:{method:'none'}} }).callbackPolicy.mode, 'notification_only');
+console.log('4 Portal read parser assertions passed; Node ' + process.version);

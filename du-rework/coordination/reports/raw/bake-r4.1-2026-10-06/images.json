@@ -1,0 +1,62 @@
+{
+  "orchestrator": {
+    "tag": "du-orchestrator:candidate-portal-swagger-20261006-r4.1",
+    "id": "sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6",
+    "repoDigests": [
+      "du-orchestrator@sha256:ce35749edf35559095504f749ea9cfc63731e55e8c638a9e467c365a0a4f35c6"
+    ],
+    "labels": {
+      "du.candidate": "verify-only",
+      "org.opencontainers.image.revision": "4308cc5"
+    },
+    "node": "v24.21.0"
+  },
+  "connector": {
+    "tag": "du-connector:candidate-portal-swagger-20261006-r4.1",
+    "id": "sha256:d54c29f54daac7e4bf20eaea8d2a688fb911cda745594a01b0531101d44cc71f",
+    "repoDigests": [
+      "du-connector@sha256:d54c29f54daac7e4bf20eaea8d2a688fb911cda745594a01b0531101d44cc71f"
+    ],
+    "labels": {
+      "du.candidate": "verify-only",
+      "org.opencontainers.image.revision": "4308cc5"
+    },
+    "node": "v24.21.0"
+  },
+  "document-core": {
+    "tag": "du-document-core:candidate-portal-swagger-20261006-r4.1",
+    "id": "sha256:e1b7ce7e5ac8e9dda72d10660159bcc79642f92265203f9e1e0d47c1bbd9e408",
+    "repoDigests": [
+      "du-document-core@sha256:e1b7ce7e5ac8e9dda72d10660159bcc79642f92265203f9e1e0d47c1bbd9e408"
+    ],
+    "labels": {
+      "du.candidate": "verify-only",
+      "org.opencontainers.image.revision": "4308cc5"
+    },
+    "node": "v24.21.0"
+  },
+  "lc-checker": {
+    "tag": "du-lc-checker:candidate-portal-swagger-20261006-r4.1",
+    "id": "sha256:670560fc549f9ca10a9f0f04cdead93e48f232286e833fff100b4e3ba0daf60a",
+    "repoDigests": [
+      "du-lc-checker@sha256:670560fc549f9ca10a9f0f04cdead93e48f232286e833fff100b4e3ba0daf60a"
+    ],
+    "labels": {
+      "du.candidate": "verify-only",
+      "org.opencontainers.image.revision": "4308cc5"
+    },
+    "node": "v24.21.0"
+  },
+  "example-review": {
+    "tag": "du-example-review:candidate-portal-swagger-20261006-r4.1",
+    "id": "sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe",
+    "repoDigests": [
+      "du-example-review@sha256:1545679e7574123403a606e5b62abc2d1da2b7f8f0a22aedbee32a1c967ec9fe"
+    ],
+    "labels": {
+      "du.candidate": "verify-only",
+      "org.opencontainers.image.revision": "4308cc5"
+    },
+    "node": "v24.21.0"
+  }
+}

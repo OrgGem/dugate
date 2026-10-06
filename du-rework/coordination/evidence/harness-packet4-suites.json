@@ -1,0 +1,13 @@
+{
+  "url": "http://127.0.0.1:61581",
+  "port": 61581,
+  "token": "aweb01b-browser-token",
+  "dist": "D:\\Git\\dugate\\du-rework\\apps\\admin-web\\dist",
+  "stubUrl": "http://127.0.0.1:61580",
+  "sessions": {
+    "admin": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "operator": "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO",
+    "viewer": "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+  },
+  "tenant": "11111111-1111-4111-8111-111111111111"
+}

@@ -1,0 +1,3 @@
+SOURCE_TREE_boot-options.ts: assertProfileCipherBootPolicy PRESENT (line 511)
+IMAGE_dist/boot-options.js: assertProfileCipherBootPolicy ABSENT (exports: resolveDataMode, encryptionIsRequired, parseEncryptionBootConfig, buildMetadataReadPolicy, buildEncryptionBootOptions, summarizeEncryptionPolicy, EncryptionBootConfigError)
+IMAGE_dist/main.js: only warn-only block at compiled line 264-267 ('profile cipher key absent...'); NO assertProfileCipherBootPolicy call

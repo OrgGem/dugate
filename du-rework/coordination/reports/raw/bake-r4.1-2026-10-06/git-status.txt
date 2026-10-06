@@ -1,0 +1,190 @@
+ M .commandcode/taste/--writes-prompts-in-vietnamese,-expects-technical-work-in-english/taste.md
+ M .commandcode/taste/taste.md
+ M .gitignore
+ M app/doc-compare/page.tsx
+ M app/doc-pipeline/components/Icons.tsx
+ M du-rework/docs/21-openapi.json
+ M du-rework/packages/contracts/src/profile-policy.ts
+ M du-rework/services/orchestrator/src/app/admin/bff/secrets.ts
+ M du-rework/services/orchestrator/src/app/bootstrap/create-app.ts
+ M du-rework/services/orchestrator/src/http/routes/public.ts
+ M du-rework/services/orchestrator/src/modules/admin-read/profile-detail.ts
+ M du-rework/services/orchestrator/src/modules/operations/retry.ts
+ M du-rework/services/orchestrator/src/modules/operations/submission.ts
+ M du-rework/services/orchestrator/src/modules/profiles/profiles.ts
+ M du-rework/services/orchestrator/src/server.ts
+ M du-rework/services/orchestrator/tests/multipart-routes-offline.test.ts
+ M du-rework/tests/browser/admin-web/admin-web.spec.ts
+ M du-rework/tests/browser/admin-web/identity-security-settings.spec.ts
+ M du-rework/tools/openapi/gen_openapi.py
+ M du-rework/tools/openapi/validate_openapi.py
+ M package-lock.json
+ M package.json
+ M tsconfig.json
+?? DUGATE_ADMIN_UI_FUNCTIONS.md
+?? components/ui/Badge.tsx
+?? components/ui/Button.tsx
+?? components/ui/Card.tsx
+?? components/ui/ConfirmDialog.tsx
+?? components/ui/Input.tsx
+?? components/ui/Modal.tsx
+?? components/ui/Tabs.tsx
+?? components/ui/index.ts
+?? coordination/reports/commit-preflight-813-2026-10-05.md
+?? coordination/reports/control-plane-rollout-811-2026-10-05.md
+?? coordination/reports/docs-catalog-honesty-803-2026-10-05.md
+?? coordination/reports/gitignore-audit-820-2026-10-05.md
+?? coordination/reports/gitignore-audit-820-path-inventory.txt
+?? coordination/reports/shipping-checklist-817-2026-10-05.md
+?? coordination/reports/ui-acceptance-checklist-803-2026-10-05.md
+?? coordination/reports/uirev-docs-csrf-803-2026-10-05.md
+?? du-rework/coordination/reports/cb02-cb03-wiring-evidence-2026-10-06.md
+?? du-rework/coordination/reports/claude-audit-review-r4-2026-10-06.md
+?? du-rework/coordination/reports/cr06-08-10-closure-2026-10-06.md
+?? du-rework/coordination/reports/dispatch-antigravity-r4-closeout-2026-10-06.md
+?? du-rework/coordination/reports/fix-sc-04-m02-oc2-2026-10-06.md
+?? du-rework/coordination/reports/fix-sc-04-m02-oc3-2026-10-06.md
+?? du-rework/coordination/reports/raw/bake-r4.1-2026-10-06/git-diff-name-only.txt
+?? du-rework/coordination/reports/raw/cb02-cb03-wiring-2026-10-06/SHA256SUMS.txt
+?? du-rework/coordination/reports/raw/cb02-cb03-wiring-2026-10-06/exit-codes.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/SHA256SUMS.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/applied-state.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/applied-state.sql
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/baseline-diff.json
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/SHA256SUMS.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/canonical-generator.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/canonical-validator.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/head.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/run-summary.json
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/temp-generator-repeat.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/temp-generator.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/temp-structural.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/temp-validator.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/c4-reconcile/verify-provenance.py
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/canonical-validator.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/dispatcher-tests.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/generator-isolated.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/head.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/run-summary.json
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/stack-attribution.exit.txt
+?? du-rework/coordination/reports/raw/vfy-cb01-openapi-recount-2026-10-06/verify-recount.py
+?? du-rework/coordination/reports/test-browser-align-2026-10-06.md
+?? du-rework/coordination/reports/vfy-06-sc01-evidence-2026-10-06.md
+?? du-rework/coordination/reports/vfy-cb01-openapi-recount-2026-10-06.md
+?? du-rework/coordination/reports/vfy-group-a-rerun-2026-10-06.md
+?? du-rework/services/orchestrator/migrations/0036_profile_callback_policy.sql
+?? du-rework/services/orchestrator/tests/cb02-admission-writer.test.ts
+?? du-rework/services/orchestrator/tests/vfy-cb01-dispatch-matrix.test.ts
+?? lib/utils.ts
+?? scratch/coord-update-0001.js
+?? scratch/coord-update-0004.js
+?? scratch/coord-update-0012.js
+?? scratch/coord-update-0015.js
+?? scratch/coord-update-0025.js
+?? scratch/coord-update-0028.js
+?? scratch/coord-update-0036.js
+?? scratch/coord-update-0044.js
+?? scratch/coord-update-0055.js
+?? scratch/coord-update-0100.js
+?? scratch/coord-update-0106.js
+?? scratch/coord-update-0112.js
+?? scratch/coord-update-0125.js
+?? scratch/coord-update-0126.js
+?? scratch/coord-update-0128.js
+?? scratch/coord-update-0137.js
+?? scratch/coord-update-0145.js
+?? scratch/coord-update-0148.js
+?? scratch/coord-update-0202.js
+?? scratch/coord-update-0206.js
+?? scratch/coord-update-0218.js
+?? scratch/coord-update-0230.js
+?? scratch/coord-update-0236.js
+?? scratch/coord-update-0239.js
+?? scratch/coord-update-0244.js
+?? scratch/coord-update-0248.js
+?? scratch/coord-update-0250.js
+?? scratch/coord-update-1805.js
+?? scratch/coord-update-1820.js
+?? scratch/coord-update-1830.js
+?? scratch/coord-update-1836.js
+?? scratch/coord-update-1840.js
+?? scratch/coord-update-1845.js
+?? scratch/coord-update-1855.js
+?? scratch/coord-update-1900.js
+?? scratch/coord-update-1905.js
+?? scratch/coord-update-1910.js
+?? scratch/coord-update-1920.js
+?? scratch/coord-update-1930.js
+?? scratch/coord-update-1935.js
+?? scratch/coord-update-1940.js
+?? scratch/coord-update-1945.js
+?? scratch/coord-update-1955.js
+?? scratch/coord-update-2005.js
+?? scratch/coord-update-2010.js
+?? scratch/coord-update-2015.js
+?? scratch/coord-update-2025.js
+?? scratch/coord-update-2030.js
+?? scratch/coord-update-2035.js
+?? scratch/coord-update-2043.js
+?? scratch/coord-update-2052.js
+?? scratch/coord-update-2101.js
+?? scratch/coord-update-2105.js
+?? scratch/coord-update-2113.js
+?? scratch/coord-update-2123.js
+?? scratch/coord-update-2133.js
+?? scratch/coord-update-2137.js
+?? scratch/coord-update-2149.js
+?? scratch/coord-update-2155.js
+?? scratch/coord-update-2202.js
+?? scratch/coord-update-2205.js
+?? scratch/coord-update-2215.js
+?? scratch/coord-update-2225.js
+?? scratch/coord-update-2233.js
+?? scratch/coord-update-2238.js
+?? scratch/coord-update-2248.js
+?? scratch/coord-update-2258.js
+?? scratch/coord-update-2305.js
+?? scratch/coord-update-2312.js
+?? scratch/coord-update-2313.js
+?? scratch/coord-update-2325.js
+?? scratch/coord-update-2335.js
+?? scratch/coord-update-2340.js
+?? scratch/coord-update-2348.js
+?? scratch/coord-update-2350.js
+?? scratch/coord-update-2352.js
+?? scratch/coord-update-2356.js
+?? scratch/dispatch-claude.txt
+?? scratch/dispatch-codex-arch.txt
+?? scratch/dispatch-cw1.txt
+?? scratch/dispatch-fix-oc2.txt
+?? scratch/dispatch-fix-oc3.txt
+?? scratch/dispatch-fix-oc4.txt
+?? scratch/dispatch-oc1.txt
+?? scratch/dispatch-qwen2.txt
+?? scratch/dispatch-qwen5.txt
+?? scratch/fix-state.js
+?? scratch/hint-qwen2.txt
+?? scratch/inspect-terminals.js
+?? scratch/nudge-claude.txt
+?? scratch/patch-1825.js
+?? scratch/prompt-claude-direction.txt
+?? scratch/prompt-claude-rereview.txt
+?? scratch/prompt-codex-arch.txt
+?? scratch/prompt-codex-c4.txt
+?? scratch/prompt-codex-vfy.txt
+?? scratch/prompt-oc1-vfy.txt
+?? scratch/prompt-oc2-cb.txt
+?? scratch/prompt-oc3-fix.txt
+?? scratch/prompt-qwen1.txt
+?? scratch/prompt-qwen2-direct.txt
+?? scratch/prompt-qwen2-fix-test.txt
+?? scratch/prompt-qwen2-fix462.txt
+?? scratch/prompt-qwen2-receipt.txt
+?? scratch/prompt-qwen2-write.txt
+?? scratch/prompt-qwen2.txt
+?? scratch/prompt-qwen5-groupa.txt
+?? scratch/resume-oc2.txt
+?? scratch/resume-oc3.txt
+?? scratch/send-prompt.js
+?? scratch/verify-780-pins.js
+?? scratch/write-audit-claude.txt

@@ -1,0 +1,45 @@
+{
+  "rows": [
+    {
+      "service": "document-core",
+      "cpu": 1000000000,
+      "memory": 2147483648,
+      "swap": 2147483648
+    },
+    {
+      "service": "orchestrator",
+      "cpu": 350000000,
+      "memory": 805306368,
+      "swap": 805306368
+    },
+    {
+      "service": "migrate",
+      "cpu": 50000000,
+      "memory": 67108864,
+      "swap": 67108864
+    },
+    {
+      "service": "connector",
+      "cpu": 200000000,
+      "memory": 402653184,
+      "swap": 402653184
+    },
+    {
+      "service": "postgres",
+      "cpu": 300000000,
+      "memory": 671088640,
+      "swap": 671088640
+    },
+    {
+      "service": "valkey",
+      "cpu": 100000000,
+      "memory": 197132288,
+      "swap": 197132288
+    }
+  ],
+  "aggregate": {
+    "cpus": 2,
+    "memoryMiB": 4092
+  },
+  "scope": "All containers in dedicated project, including stopped migrate; no swap allowance."
+}

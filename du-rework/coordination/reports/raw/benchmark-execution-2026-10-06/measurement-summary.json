@@ -1,0 +1,108 @@
+{
+  "utc": "2026-10-06T14:32:10.645296+00:00",
+  "verdict": "PARTIAL_INGEST_PASS_EXTRACT_FAILED",
+  "metrics": [
+    {
+      "action": "ingest",
+      "samples": 12,
+      "success": 12,
+      "failed": 0,
+      "durationSec": 1.5133307,
+      "successfulReqPerSec": 7.929529216581677,
+      "terminalEventsPerSec": 7.929529216581677,
+      "latencyKind": "successful e2e (admission through result fetch)",
+      "p50Ms": 244.04669999999987,
+      "p95Ms": 291.4744999999998,
+      "p99Ms": 291.4744999999998,
+      "admissionP50Ms": 13.691299999999956,
+      "admissionP95Ms": 21.125400000000354,
+      "admissionP99Ms": 21.125400000000354
+    },
+    {
+      "action": "extract",
+      "samples": 12,
+      "success": 0,
+      "failed": 12,
+      "durationSec": 1.1053148000000002,
+      "successfulReqPerSec": 0.0,
+      "terminalEventsPerSec": 10.856635593769303,
+      "latencyKind": "terminal failure latency, NOT successful extract latency",
+      "p50Ms": 129.04849999999988,
+      "p95Ms": 245.33880000000045,
+      "p99Ms": 245.33880000000045,
+      "admissionP50Ms": 12.692299999999705,
+      "admissionP95Ms": 21.378899999999703,
+      "admissionP99Ms": 21.378899999999703
+    }
+  ],
+  "resources": [
+    {
+      "service": "connector",
+      "samples": 1,
+      "peakDockerCpuPercent": 0.23,
+      "peakCpuQuotaPercent": 1.15,
+      "peakDockerMemoryPercent": 6.93,
+      "memoryCapMiB": 384.0,
+      "OOMKilled": false,
+      "restarts": 0,
+      "cgroupCounters": "50700288\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 4062899\nuser_usec 2680862\nsystem_usec 1382036\nnice_usec 0\nnr_periods 339\nnr_throttled 179\nthrottled_usec 16385403\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "service": "orchestrator",
+      "samples": 1,
+      "peakDockerCpuPercent": 28.23,
+      "peakCpuQuotaPercent": 80.65714285714286,
+      "peakDockerMemoryPercent": 7.13,
+      "memoryCapMiB": 768.0,
+      "OOMKilled": false,
+      "restarts": 0,
+      "cgroupCounters": "102293504\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 7491777\nuser_usec 5204243\nsystem_usec 2287533\nnice_usec 0\nnr_periods 726\nnr_throttled 138\nthrottled_usec 10501439\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "service": "document-core",
+      "samples": 1,
+      "peakDockerCpuPercent": 16.79,
+      "peakCpuQuotaPercent": 16.79,
+      "peakDockerMemoryPercent": 2.76,
+      "memoryCapMiB": 2048.0,
+      "OOMKilled": false,
+      "restarts": 0,
+      "cgroupCounters": "77156352\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 2291221\nuser_usec 1732759\nsystem_usec 558461\nnice_usec 0\nnr_periods 344\nnr_throttled 5\nthrottled_usec 142122\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "service": "migrate",
+      "samples": 0,
+      "peakDockerCpuPercent": 0,
+      "peakCpuQuotaPercent": 0.0,
+      "peakDockerMemoryPercent": 0,
+      "memoryCapMiB": 64.0,
+      "OOMKilled": false,
+      "restarts": 0,
+      "cgroupCounters": null
+    },
+    {
+      "service": "postgres",
+      "samples": 1,
+      "peakDockerCpuPercent": 23.91,
+      "peakCpuQuotaPercent": 79.7,
+      "peakDockerMemoryPercent": 9.25,
+      "memoryCapMiB": 640.0,
+      "OOMKilled": false,
+      "restarts": 0,
+      "cgroupCounters": "138620928\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 5360115\nuser_usec 2878194\nsystem_usec 2481921\nnice_usec 0\nnr_periods 822\nnr_throttled 49\nthrottled_usec 2352756\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "service": "valkey",
+      "samples": 1,
+      "peakDockerCpuPercent": 0.76,
+      "peakCpuQuotaPercent": 7.6,
+      "peakDockerMemoryPercent": 3.43,
+      "memoryCapMiB": 188.0,
+      "OOMKilled": false,
+      "restarts": 0,
+      "cgroupCounters": "14065664\nlow 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nusage_usec 2507080\nuser_usec 1678469\nsystem_usec 828611\nnice_usec 0\nnr_periods 1845\nnr_throttled 95\nthrottled_usec 5387011\nnr_bursts 0\nburst_usec 0\n"
+    }
+  ],
+  "dockerStatsSnapshots": 1,
+  "providerCalls": 0
+}

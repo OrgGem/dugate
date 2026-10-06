@@ -60,3 +60,8 @@ Docker: `docker compose up -d` starts the app, worker, PostgreSQL, Redis, and mo
 - Don't log API keys or secrets; use `lib/logger.ts` for structured logging.
 - New AI or connector endpoints should respect profile-driven override routing in `lib/pipelines/`.
 
+
+
+## Coordinator role boundary (2026-10-06)
+
+Agents acting as coordinator must follow [COORDINATOR-CONTRACT.md](du-rework/coordination/COORDINATOR-CONTRACT.md). Antigravity is the single dispatcher. Coordinator writes plan/coordination metadata only, never product code/tests, including legacy files. Requests to split tasks require actual worker delivery and independent verification. Explicit repo scope/canonical plan required; never implement personally or infer functional success from exit codes.

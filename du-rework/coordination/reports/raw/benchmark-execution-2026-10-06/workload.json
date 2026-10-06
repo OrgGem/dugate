@@ -1,0 +1,369 @@
+{
+  "rows": [
+    {
+      "action": "ingest",
+      "i": -1,
+      "warmup": true,
+      "admissionHttp": 202,
+      "admissionMs": 85.53870000000006,
+      "e2eMs": 405.82360000000017,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 1,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 21.125400000000354,
+      "e2eMs": 245.84050000000025,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 0,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.052100000000337,
+      "e2eMs": 247.0871000000002,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 2,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.436300000000301,
+      "e2eMs": 129.45700000000033,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 3,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.653099999999995,
+      "e2eMs": 244.26870000000008,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 4,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 10.6558,
+      "e2eMs": 118.0899000000004,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 5,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.812199999999848,
+      "e2eMs": 234.99299999999994,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 7,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.64599999999973,
+      "e2eMs": 143.39509999999973,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 6,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 16.503799999999956,
+      "e2eMs": 249.4748999999997,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 9,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.312600000000202,
+      "e2eMs": 133.01490000000013,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 8,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.691299999999956,
+      "e2eMs": 291.4744999999998,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 11,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.1871000000001,
+      "e2eMs": 244.04669999999987,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 10,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.710500000000138,
+      "e2eMs": 244.86670000000004,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "extract",
+      "i": -1,
+      "warmup": true,
+      "admissionHttp": 202,
+      "admissionMs": 10.468399999999747,
+      "e2eMs": 125.26099999999997,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 1,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 10.534999999999854,
+      "e2eMs": 117.05509999999958,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 0,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.844500000000153,
+      "e2eMs": 228.84739999999965,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 3,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 17.919299999999566,
+      "e2eMs": 137.70579999999973,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 2,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 21.378899999999703,
+      "e2eMs": 245.33880000000045,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 4,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.692299999999705,
+      "e2eMs": 128.33489999999983,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 5,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 10.684900000000198,
+      "e2eMs": 128.45679999999993,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 7,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.4329000000007,
+      "e2eMs": 134.9384,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 6,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.011600000000726,
+      "e2eMs": 136.02150000000074,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 8,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 17.04439999999977,
+      "e2eMs": 129.04849999999988,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 9,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.595000000000255,
+      "e2eMs": 128.78440000000046,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 11,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 9.207399999999325,
+      "e2eMs": 116.47009999999955,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 10,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.039300000000367,
+      "e2eMs": 236.4363000000003,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    }
+  ],
+  "batches": [
+    {
+      "action": "ingest",
+      "durationMs": 1513.3307
+    },
+    {
+      "action": "extract",
+      "durationMs": 1105.3148
+    }
+  ],
+  "observations": [
+    {
+      "time": "2026-10-06T14:30:43.332Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "28.23%",
+          "Container": "du-benchmark-run-20261006-orchestrator-1",
+          "ID": "6ecd0c01e0e8",
+          "MemPerc": "7.13%",
+          "MemUsage": "54.76MiB / 768MiB",
+          "Name": "du-benchmark-run-20261006-orchestrator-1",
+          "NetIO": "2.47MB / 2.06MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "639kB / 0B",
+          "CPUPerc": "0.23%",
+          "Container": "du-benchmark-run-20261006-connector-1",
+          "ID": "8b51463f6de2",
+          "MemPerc": "6.93%",
+          "MemUsage": "26.61MiB / 384MiB",
+          "Name": "du-benchmark-run-20261006-connector-1",
+          "NetIO": "87.1kB / 49.4kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "922kB / 0B",
+          "CPUPerc": "16.79%",
+          "Container": "du-benchmark-run-20261006-document-core-1",
+          "ID": "943763ebb6c6",
+          "MemPerc": "2.76%",
+          "MemUsage": "56.52MiB / 2GiB",
+          "Name": "du-benchmark-run-20261006-document-core-1",
+          "NetIO": "328kB / 560kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "37.1MB / 67.1MB",
+          "CPUPerc": "23.91%",
+          "Container": "du-benchmark-run-20261006-postgres-1",
+          "ID": "5f74dd453dc8",
+          "MemPerc": "9.25%",
+          "MemUsage": "59.21MiB / 640MiB",
+          "Name": "du-benchmark-run-20261006-postgres-1",
+          "NetIO": "1.78MB / 2.13MB",
+          "PIDs": "10"
+        },
+        {
+          "BlockIO": "4.62MB / 184kB",
+          "CPUPerc": "0.76%",
+          "Container": "du-benchmark-run-20261006-valkey-1",
+          "ID": "7e3cafe4688e",
+          "MemPerc": "3.43%",
+          "MemUsage": "6.441MiB / 188MiB",
+          "Name": "du-benchmark-run-20261006-valkey-1",
+          "NetIO": "283kB / 106kB",
+          "PIDs": "7"
+        }
+      ]
+    }
+  ],
+  "provider": {
+    "calls": 0
+  },
+  "concurrency": 2,
+  "requestCountPerAction": 12,
+  "pollIntervalMs": 100,
+  "fixture": "Synthetic inline text: ingest parse and invoice extract. Mock provider, no paid AI."
+}

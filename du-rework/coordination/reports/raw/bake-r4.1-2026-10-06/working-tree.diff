@@ -1,0 +1,898 @@
+diff --git a/du-rework/docs/21-openapi.json b/du-rework/docs/21-openapi.json
+index 91812b4..c67926b 100644
+--- a/du-rework/docs/21-openapi.json
++++ b/du-rework/docs/21-openapi.json
+@@ -6596,7 +6596,7 @@
+         "x-api-family": "admin"
+       },
+       "post": {
+-        "summary": "Create/link is unavailable: matcher selects list and method gate returns 405 before the create branch.",
++        "summary": "Platform-admin + CSRF create/link proxy: POST selects effectiveRoute=create; validate write-only DTO then forward to Internal JSON. Catalog upstream API remains absent.",
+         "security": [
+           {
+             "PortalSession": []
+@@ -6619,17 +6619,226 @@
+               "maxLength": 200
+             },
+             "description": "BFF forwards a bounded key; upstream idempotency is not implemented here."
++          },
++          {
++            "name": "tenantId",
++            "in": "query",
++            "schema": {
++              "type": "string",
++              "format": "uuid"
++            },
++            "description": "Optional platform-admin scope; fills an omitted body tenantId and must match an explicitly supplied one."
+           }
+         ],
++        "requestBody": {
++          "required": true,
++          "content": {
++            "application/json": {
++              "schema": {
++                "type": "object",
++                "properties": {
++                  "tenantId": {
++                    "type": "string",
++                    "format": "uuid"
++                  },
++                  "name": {
++                    "type": "string",
++                    "minLength": 1,
++                    "maxLength": 128,
++                    "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._/-]*$"
++                  },
++                  "purpose": {
++                    "type": "string",
++                    "enum": [
++                      "connector.credential",
++                      "connector.provider_header",
++                      "profile.callback_header",
++                      "profile.callback_oauth2_client_secret",
++                      "oidc.client_secret",
++                      "source.auth",
++                      "generic"
++                    ]
++                  },
++                  "services": {
++                    "type": "array",
++                    "items": {
++                      "type": "string",
++                      "enum": [
++                        "orchestrator",
++                        "connector"
++                      ]
++                    },
++                    "minItems": 1,
++                    "maxItems": 2
++                  },
++                  "provider": {
++                    "anyOf": [
++                      {
++                        "type": "object",
++                        "properties": {
++                          "kind": {
++                            "type": "string",
++                            "enum": [
++                              "managed_value"
++                            ]
++                          }
++                        },
++                        "required": [
++                          "kind"
++                        ],
++                        "additionalProperties": false
++                      },
++                      {
++                        "type": "object",
++                        "properties": {
++                          "kind": {
++                            "type": "string",
++                            "enum": [
++                              "vault_reference"
++                            ]
++                          },
++                          "connectionId": {
++                            "type": "string",
++                            "minLength": 1,
++                            "maxLength": 128
++                          },
++                          "mount": {
++                            "type": "string",
++                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
++                          },
++                          "path": {
++                            "type": "string"
++                          },
++                          "field": {
++                            "type": "string",
++                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
++                          },
++                          "namespace": {
++                            "type": "string",
++                            "minLength": 1,
++                            "maxLength": 256
++                          },
++                          "version": {
++                            "oneOf": [
++                              {
++                                "type": "object",
++                                "properties": {
++                                  "mode": {
++                                    "type": "string",
++                                    "enum": [
++                                      "pinned"
++                                    ]
++                                  },
++                                  "version": {
++                                    "type": "integer",
++                                    "minimum": 1
++                                  }
++                                },
++                                "required": [
++                                  "mode",
++                                  "version"
++                                ],
++                                "additionalProperties": false
++                              },
++                              {
++                                "type": "object",
++                                "properties": {
++                                  "mode": {
++                                    "type": "string",
++                                    "enum": [
++                                      "latest"
++                                    ]
++                                  }
++                                },
++                                "required": [
++                                  "mode"
++                                ],
++                                "additionalProperties": false
++                              }
++                            ],
++                            "discriminator": {
++                              "propertyName": "mode"
++                            }
++                          }
++                        },
++                        "required": [
++                          "kind",
++                          "connectionId",
++                          "mount",
++                          "path",
++                          "field",
++                          "version"
++                        ],
++                        "additionalProperties": false,
++                        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
++                      }
++                    ]
++                  },
++                  "value": {
++                    "type": "object",
++                    "properties": {
++                      "kind": {
++                        "type": "string",
++                        "enum": [
++                          "literal"
++                        ]
++                      },
++                      "value": {
++                        "type": "string",
++                        "minLength": 1,
++                        "maxLength": 65536,
++                        "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
++                      }
++                    },
++                    "required": [
++                      "kind",
++                      "value"
++                    ],
++                    "additionalProperties": false,
++                    "writeOnly": true
++                  }
++                },
++                "required": [
++                  "name",
++                  "purpose",
++                  "services",
++                  "provider"
++                ],
++                "additionalProperties": false,
++                "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
++                "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogCreateSchema",
++                "description": "Canonical create DTO after BFF tenant scope injection. tenantId must be supplied in body or resolved query scope; managed_value requires write-only literal, vault_reference forbids value. Canonical Zod refinements apply."
++              }
++            }
++          }
++        },
+         "responses": {
++          "401": {
++            "description": "Missing Portal session"
++          },
++          "403": {
++            "description": "Tenant/RBAC/credential fence; mutations require platform admin and x-csrf-token"
++          },
+           "405": {
+-            "description": "Current matcher makes create branch unreachable; SC owner must fix method dispatch"
++            "description": "Method not allowed"
++          },
++          "422": {
++            "description": "Invalid JSON/schema; no offending secret value echoed"
++          },
++          "503": {
++            "description": "Admin upstream not configured/unavailable"
++          },
++          "404": {
++            "description": "Catalog upstream route absent in current snapshot; no metadata repository API is implemented"
++          },
++          "413": {
++            "description": "Bounded BFF body exceeded"
+           }
+         },
+         "operationId": "portalSecretsPostSecrets",
+         "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+-        "x-implementation-status": "Unavailable: unconditional 405 at BFF method gate",
+-        "x-planned-request-schema": "#/components/schemas/SecretCatalogCreate",
++        "x-implementation-status": "BFF only; upstream catalog API absent",
++        "description": "BFF method dispatch is implemented, not unconditional 405. Reads never return secret values. Create requires tenantId in the body or resolved tenantId query scope; differing body/query tenant is rejected. Upstream availability, storage and idempotency remain unimplemented in this snapshot.",
+         "servers": [
+           {
+             "url": "http://localhost:3001",
+diff --git a/du-rework/packages/contracts/src/profile-policy.ts b/du-rework/packages/contracts/src/profile-policy.ts
+index 438f36a..e738c06 100644
+--- a/du-rework/packages/contracts/src/profile-policy.ts
++++ b/du-rework/packages/contracts/src/profile-policy.ts
+@@ -30,6 +30,7 @@
+  */
+ 
+ import { RequestRedactionRulesSchema } from './request-redaction';
++import { ProfileCallbackPolicySchema } from './profile-callback';
+ import { z } from 'zod';
+ 
+ // ---------------------------------------------------------------------------
+@@ -293,6 +294,13 @@ export const ProfileEndpointPolicySchema = z
+     fileUrlAuthConfig: FileUrlAuthConfigSchema.optional(),
+     connectionsOverride: ProfileConnectionsOverrideSchema.optional(),
+     requestRedaction: RequestRedactionRulesSchema.optional(),
++    /**
++     * CB-02: the endpoint's callback delivery policy (frozen CB-01 shape).
++     * Absent = leave unchanged on publish; explicit null clears it. The
++     * admission writer pins the effective policy onto
++     * `operations.callback_policy` (migration 0035/0036).
++     */
++    callbackPolicy: ProfileCallbackPolicySchema.nullable().optional(),
+   })
+   .strict();
+ export type ProfileEndpointPolicy = z.infer<typeof ProfileEndpointPolicySchema>;
+@@ -316,6 +324,8 @@ export const ProfileEndpointPolicyReadSchema = z
+     fileUrlAuthConfigured: z.boolean(),
+     connectionsOverride: ProfileConnectionsOverrideSchema,
+     requestRedaction: RequestRedactionRulesSchema.optional(),
++    /** CB-02: stored callback policy metadata; never a secret value. */
++    callbackPolicy: ProfileCallbackPolicySchema.nullable().optional(),
+   })
+   .strict();
+ export type ProfileEndpointPolicyRead = z.infer<
+@@ -604,6 +614,17 @@ export const ProfileCredentialRefSchema = z
+      * admission record. Rejecting it at the DTO is non-breaking for valid data.
+      */
+     tenantId: z.string().uuid(),
++    /**
++     * Deliberately NOT `.uuid()` (CR06-08). A profile is addressed by a
++     * human-readable slug in legacy data — `default`, `custom-profile` — and
++     * also by a uuid in newer rows, so this ref must accept both or a stored
++     * snapshot written by an older writer would fail to parse. Tightening it
++     * to uuid would break 100% of legacy profile ids with no security gain.
++     *
++     * Contrast with `tenantId` directly above: `tenants.id` is `uuid NOT NULL`
++     * in every migration and is written from the operation's own `tenant_id`,
++     * so a non-uuid tenant can only be a corrupt record and is rejected.
++     */
+     profileId: z.string().min(1),
+     profileRevision: z.number().int().min(1),
+   })
+diff --git a/du-rework/services/orchestrator/src/app/admin/bff/secrets.ts b/du-rework/services/orchestrator/src/app/admin/bff/secrets.ts
+index 11b4796..3f5cbfb 100644
+--- a/du-rework/services/orchestrator/src/app/admin/bff/secrets.ts
++++ b/du-rework/services/orchestrator/src/app/admin/bff/secrets.ts
+@@ -76,8 +76,25 @@ export async function handleSecretsRoute(
+   correlationId: string,
+ ): Promise<void> {
+   const method = (req.method ?? 'GET').toUpperCase();
+-  const expectedMethod = route.kind === 'list' ? 'GET' : 'POST';
+-  if (method !== expectedMethod) {
++  // SC-04-M02: `/secrets` is shared by two operations and the route matcher is
++  // method-agnostic. Dispatch the method here instead of rejecting POST before
++  // the create branch can run:
++  //   list + GET  -> catalog list
++  //   list + POST -> create (the former dead `kind: 'create'` branch)
++  //   every other (method, route) combination -> 405
++  let effectiveRoute: SecretsRoute;
++  if (route.kind === 'list') {
++    if (method === 'GET') {
++      effectiveRoute = route;
++    } else if (method === 'POST') {
++      effectiveRoute = { kind: 'create' };
++    } else {
++      writeProblem(res, 405, 'METHOD_NOT_ALLOWED', `method ${method} is not allowed here`, correlationId);
++      return;
++    }
++  } else if (method === 'POST') {
++    effectiveRoute = route;
++  } else {
+     writeProblem(res, 405, 'METHOD_NOT_ALLOWED', `method ${method} is not allowed here`, correlationId);
+     return;
+   }
+@@ -116,7 +133,7 @@ export async function handleSecretsRoute(
+     return;
+   }
+ 
+-  if (route.kind === 'list') {
++  if (effectiveRoute.kind === 'list') {
+     const upstream = new URL('/api/v1/admin/secrets', runtime.jsonBaseUrl);
+     for (const name of LIST_PARAM_ALLOWLIST) {
+       const value = query.get(name);
+@@ -158,7 +175,7 @@ export async function handleSecretsRoute(
+   }
+   const body = parsed as Record<string, unknown>;
+ 
+-  const validation = validateMutation(route, body, scope);
++  const validation = validateMutation(effectiveRoute, body, scope);
+   if (!validation.ok) {
+     writeJson(
+       res,
+@@ -169,9 +186,9 @@ export async function handleSecretsRoute(
+     return;
+   }
+ 
+-  const upstreamPath = route.kind === 'create'
++  const upstreamPath = effectiveRoute.kind === 'create'
+     ? '/api/v1/admin/secrets'
+-    : `/api/v1/admin/secrets/${encodeURIComponent(route.secretId)}/${route.kind}`;
++    : `/api/v1/admin/secrets/${encodeURIComponent(effectiveRoute.secretId)}/${effectiveRoute.kind}`;
+   const upstream = new URL(upstreamPath, runtime.jsonBaseUrl);
+   const response = await callUpstream(runtime, upstream, {
+     method: 'POST',
+diff --git a/du-rework/services/orchestrator/src/app/bootstrap/create-app.ts b/du-rework/services/orchestrator/src/app/bootstrap/create-app.ts
+index f9798fc..9117b5a 100644
+--- a/du-rework/services/orchestrator/src/app/bootstrap/create-app.ts
++++ b/du-rework/services/orchestrator/src/app/bootstrap/create-app.ts
+@@ -1041,6 +1041,11 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
+             // all three surfaces. `?? undefined` so a platform with no
+             // crypto-config surface leaves every webhook exactly as it was.
+             deliveryEncryption: deliveryEncryption ?? undefined,
++            // CB-03 (B4): authenticated callback delivery. Absent resolver =
++            // credential-bearing pins fail closed (WEBHOOK_AUTH_UNAVAILABLE);
++            // legacy rows without a pinned policy keep the P2-08 path.
++            ...(config.resolveCallbackSecret ? { resolveCallbackSecret: config.resolveCallbackSecret } : {}),
++            ...(config.callbackOAuth2Options ? { oauth2Options: config.callbackOAuth2Options } : {}),
+           }).catch(() => undefined);
+           activeWebhookSweep = sweep;
+           void sweep.finally(() => {
+diff --git a/du-rework/services/orchestrator/src/http/routes/public.ts b/du-rework/services/orchestrator/src/http/routes/public.ts
+index af4d792..7e07fe6 100644
+--- a/du-rework/services/orchestrator/src/http/routes/public.ts
++++ b/du-rework/services/orchestrator/src/http/routes/public.ts
+@@ -266,7 +266,18 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
+       const apiKey = await resolveApiKey(ctx);
+       const artifactId = decodeURIComponent(m[1]!);
+       if (m[2] === 'part') {
+-        throw new HttpError(409, 'STATE_CONFLICT', 'direct S3 upload grants are disabled for public uploads');
++        // CR06-10: a direct-S3 `part` grant is the same capability the
++        // encryption-gated public multipart refuses, so it must report the
++        // SAME status+code as assertPublicMultipartAllowed
++        // (multipart-service.ts:81) — 501 PUBLIC_MULTIPART_UNAVAILABLE.
++        // The old 409 STATE_CONFLICT read as "try again", implying a retry
++        // could succeed; 501 says this deployment does not offer it.
++        throw new HttpError(
++          501,
++          'PUBLIC_MULTIPART_UNAVAILABLE',
++          'public multipart upload is not available while artifact encryption is required; ' +
++            'use the encrypted upload gateway (single PUT or multipart) instead',
++        );
+       }
+       if (m[2] === 'complete') {
+         if (!ctx.publicUploadGateway) {
+diff --git a/du-rework/services/orchestrator/src/modules/admin-read/profile-detail.ts b/du-rework/services/orchestrator/src/modules/admin-read/profile-detail.ts
+index 2a5fb97..c65136c 100644
+--- a/du-rework/services/orchestrator/src/modules/admin-read/profile-detail.ts
++++ b/du-rework/services/orchestrator/src/modules/admin-read/profile-detail.ts
+@@ -1,4 +1,4 @@
+-import { FILE_URL_AUTH_CIPHER_RE, FileUrlAuthConfigSchema, RequestRedactionRulesSchema } from '@du/contracts';
++import { FILE_URL_AUTH_CIPHER_RE, FileUrlAuthConfigSchema, ProfileCallbackPolicySchema, RequestRedactionRulesSchema } from '@du/contracts';
+ import type { Db } from '../../db/db';
+ import type { ProfileEndpointPolicyRead } from '@du/contracts';
+ 
+@@ -30,6 +30,8 @@ export interface ProfileDetailDbRow extends Record<string, unknown> {
+   connections_override: unknown;
+   file_url_auth_cipher: string | null;
+   request_redaction?: unknown;
++  /** CB-02: stored callback policy (migration 0036), secret refs only. */
++  callback_policy?: unknown;
+ }
+ 
+ export type ProfileDetailLookup =
+@@ -47,7 +49,7 @@ export async function loadProfileDetail(
+   const hit = await db.query<ProfileDetailDbRow>(
+     `SELECT n.profile_id, a.revision, n.api_key_id,
+             p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
+-            p.connections_override, p.file_url_auth_cipher, p.request_redaction
++            p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy
+        FROM profile_names n
+        JOIN profile_active_revisions a ON a.profile_id = n.profile_id
+        JOIN profile_bindings p
+@@ -75,6 +77,7 @@ export const EMPTY_PROFILE_POLICY_READ: ProfileEndpointPolicyRead = {
+   allowedFileExtensions: '',
+   fileUrlAuthConfigured: false,
+   connectionsOverride: [],
++  callbackPolicy: null,
+ };
+ 
+ const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'] as const;
+@@ -116,6 +119,14 @@ function normalizeParameters(raw: unknown): ProfileEndpointPolicyRead['parameter
+ }
+ 
+ export function profileDetailPolicyRead(row: ProfileDetailDbRow): ProfileEndpointPolicyRead {
++  // CB-02: the stored callback policy is projected verbatim (secret refs only)
++  // when it satisfies the frozen contract; a malformed stored value reads as
++  // null here and fails closed at the dispatcher's invalid-pin check.
++  const callbackPolicy = row.callback_policy === null || row.callback_policy === undefined
++    ? null
++    : (ProfileCallbackPolicySchema.safeParse(row.callback_policy).success
++        ? (row.callback_policy as ProfileEndpointPolicyRead['callbackPolicy'])
++        : null);
+   return {
+     enabled: typeof row.enabled === 'boolean' ? row.enabled : true,
+     parameters: normalizeParameters(row.parameters),
+@@ -125,6 +136,7 @@ export function profileDetailPolicyRead(row: ProfileDetailDbRow): ProfileEndpoin
+     fileUrlAuthConfigured: fileUrlAuthConfigured(row.file_url_auth_cipher),
+     connectionsOverride: Array.isArray(row.connections_override) ? row.connections_override : [],
+     ...(row.request_redaction !== undefined ? { requestRedaction: RequestRedactionRulesSchema.parse(row.request_redaction) } : {}),
++    callbackPolicy,
+   };
+ }
+ 
+diff --git a/du-rework/services/orchestrator/src/modules/operations/retry.ts b/du-rework/services/orchestrator/src/modules/operations/retry.ts
+index c904339..c3f8e29 100644
+--- a/du-rework/services/orchestrator/src/modules/operations/retry.ts
++++ b/du-rework/services/orchestrator/src/modules/operations/retry.ts
+@@ -73,9 +73,9 @@ export async function retryOperation(
+   await client.query(
+     `INSERT INTO operations (id,tenant_id,api_key_id,business_id,business_version,action,state,root_task_id,input_ref,
+       correlation_id,callback_url,profile_id,profile_revision,connector_bindings,submit_artifacts,profile_policy_snapshot,
+-      prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at)
++      callback_policy,prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at)
+      SELECT $2,tenant_id,api_key_id,business_id,business_version,action,$3,$4,$5,$6,callback_url,profile_id,profile_revision,
+-       connector_bindings,submit_artifacts,profile_policy_snapshot,prompt_revisions_pin,$7,id,
++       connector_bindings,submit_artifacts,profile_policy_snapshot,callback_policy,prompt_revisions_pin,$7,id,
+        CASE WHEN deadline_at>created_at THEN now()+(deadline_at-created_at) ELSE NULL END
+      FROM operations WHERE id=$1`,
+     [operationId, newId, state, taskId, sealedInput, correlationId, prompts],
+diff --git a/du-rework/services/orchestrator/src/modules/operations/submission.ts b/du-rework/services/orchestrator/src/modules/operations/submission.ts
+index 65ff419..f6a88c4 100644
+--- a/du-rework/services/orchestrator/src/modules/operations/submission.ts
++++ b/du-rework/services/orchestrator/src/modules/operations/submission.ts
+@@ -4,6 +4,7 @@ import {
+   BusinessManifest,
+   OperationView,
+   PROFILE_JOB_PRIORITY_DEFAULT,
++  ProfileCallbackPolicySnapshotSchema,
+   ProfilePolicySnapshotSchema,
+   findSecretParameterKeys,
+   SubmissionSchema,
+@@ -12,6 +13,7 @@ import {
+   adjudicateUrlDestination,
+   withIngestionSource,
+   type IngestionReceipt,
++  type ProfileCallbackPolicySnapshot,
+   type ProfilePolicySnapshot,
+   type PromptOverrideRead,
+   type PinnedPromptOverride,
+@@ -395,6 +397,16 @@ export function createSubmissionService(
+       // failure must abort the submit with nothing written, and no Vault call
+       // may sit inside the write tx.
+       const sealedOutboxSourceUrl = await sealOutboxSourceUrl(metadataCrypto, submission.sourceUrl, ctx.tenantId, rootTaskId);
++      // CB-02 (B3): the admission-time callback pin. NULL for profiles without
++      // a callback policy (or legacy mode), preserving notification-only.
++      const callbackPolicyPin = profile.mode === 'pinned'
++        ? buildCallbackPolicySnapshot(profile, {
++            tenantId: ctx.tenantId,
++            businessId: ctx.businessId,
++            businessVersion: version,
++            endpointKey: canonicalAction,
++          })
++        : null;
+ 
+       const created = await db.tx(async (client) => {
+         // Recheck under row locks inside the write transaction so an artifact
+@@ -442,8 +454,8 @@ export function createSubmissionService(
+              (id, tenant_id, api_key_id, business_id, business_version, action, state, state_version,
+               root_task_id, input_ref, correlation_id, callback_url,
+               profile_id, profile_revision, connector_bindings, submit_artifacts,
+-              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref)
+-             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
++              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref, callback_policy)
++             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+           [
+             operationId,
+             ctx.tenantId,
+@@ -493,6 +505,10 @@ export function createSubmissionService(
+             // P745-CARRIER-IMPL-A (Δ-PC-1): the sealed content carrier (JSON
+             // text of the ENC-META envelope), or NULL per adjudication 1c.
+             sealedPromptCarrier,
++            // CB-02 (B3): the admission-time callback policy snapshot
++            // (migration 0035 column). Secret REFERENCES only; NULL keeps the
++            // legacy notification-only path byte-identical.
++            callbackPolicyPin === null ? null : JSON.stringify(callbackPolicyPin),
+           ]
+         );
+ 
+@@ -624,6 +640,47 @@ export function buildProfilePolicySnapshot(
+   return parsed.data;
+ }
+ 
++/**
++ * CB-02 (B3) — the admission-time callback-policy pin written to
++ * `operations.callback_policy` (migration 0035). Returns null when the pinned
++ * profile carries no callback policy, preserving the legacy notification-only
++ * delivery byte-for-byte. The snapshot copies tenant/profile/endpoint identity
++ * plus the revision so a later publish/rollback cannot retarget an already
++ * admitted callback.
++ */
++export function buildCallbackPolicySnapshot(
++  profile: Extract<EffectiveProfile, { mode: 'pinned' }>,
++  input: { tenantId: string; businessId: string; businessVersion: string; endpointKey: string }
++): ProfileCallbackPolicySnapshot | null {
++  const policy = profile.policy.callbackPolicy;
++  if (policy == null) return null;
++  const parsed = ProfileCallbackPolicySnapshotSchema.safeParse({
++    tenantId: input.tenantId,
++    businessId: input.businessId,
++    businessVersion: input.businessVersion,
++    // The `profile_names` registry name is the display identity; profileId is
++    // the stable fallback for legacy rows that predate the registry.
++    profileName: profile.profileName ?? profile.profileId,
++    endpointKey: input.endpointKey,
++    profileRevision: profile.revision,
++    policy,
++  });
++  if (!parsed.success) {
++    throw new HttpError(
++      500,
++      'INVALID_SCHEMA',
++      'resolved callback policy does not satisfy the snapshot contract',
++      {
++        errors: parsed.error.issues.slice(0, 50).map((i) => ({
++          pointer: '/callbackPolicy/' + i.path.join('/'),
++          message: i.message,
++        })),
++      }
++    );
++  }
++  return parsed.data;
++}
++
+ /**
+  * P745-PRODUCER (step 1, marker-only): the non-secret prompt-revision markers.
+  *
+diff --git a/du-rework/services/orchestrator/src/modules/profiles/profiles.ts b/du-rework/services/orchestrator/src/modules/profiles/profiles.ts
+index 4da6cc6..fc5636e 100644
+--- a/du-rework/services/orchestrator/src/modules/profiles/profiles.ts
++++ b/du-rework/services/orchestrator/src/modules/profiles/profiles.ts
+@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
+ import { PoolClient, QueryResult, QueryResultRow } from 'pg';
+ import {
+   FileUrlAuthConfigSchema,
++  ProfileCallbackPolicySchema,
+   type ConnectionStep,
+   type FileUrlAuthConfig,
++  type ProfileCallbackPolicy,
+   type ProfileJobPriority,
+   type ProfileParameters,
+ } from '@du/contracts';
+@@ -98,6 +100,8 @@ export interface EffectiveProfilePolicy {
+   allowedFileExtensions: string;
+   connectionsOverride: ConnectionStep[];
+   fileUrlAuthConfig: FileUrlAuthConfig | null;
++  /** CB-02: stored callback policy, or null when none is configured. */
++  callbackPolicy: ProfileCallbackPolicy | null;
+ }
+ 
+ /**
+@@ -115,6 +119,8 @@ export type EffectiveProfile =
+       profileId: string;
+       revision: number;
+       bindings: ConnectorPinMap;
++      /** CB-02: name from the `profile_names` registry, when present. */
++      profileName: string | null;
+       policy: EffectiveProfilePolicy;
+       /** Client input merged over the stored defaults (locks already enforced). */
+       effectiveParameters: Record<string, unknown>;
+@@ -156,6 +162,37 @@ interface PolicyRow {
+   connections_override: unknown;
+   file_url_auth_cipher: string | null;
+   request_redaction?: unknown;
++  callback_policy?: unknown;
++  profile_name?: string | null;
++}
++
++/**
++ * CB-02: tolerant read of a stored callback policy. Absent/null → null;
++ * a malformed stored value fails the admission closed (never treated as
++ * "no auth"), matching the dispatcher's invalid-pin behavior.
++ */
++function parseStoredCallbackPolicy(raw: unknown): ProfileCallbackPolicy | null {
++  if (raw === null || raw === undefined) return null;
++  const parsed = ProfileCallbackPolicySchema.safeParse(raw);
++  if (!parsed.success) {
++    throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile callback policy does not satisfy its contract');
++  }
++  return parsed.data;
++}
++
++/** CB-02: validate the CLIENT-SUPPLIED callback policy (write boundary). */
++function parseWriteCallbackPolicy(raw: unknown): ProfileCallbackPolicy | null {
++  if (raw === null) return null;
++  const parsed = ProfileCallbackPolicySchema.safeParse(raw);
++  if (!parsed.success) {
++    throw new HttpError(422, 'INVALID_SCHEMA', 'callbackPolicy failed validation', {
++      errors: parsed.error.issues.slice(0, 50).map((i) => ({
++        pointer: '/callbackPolicy/' + i.path.join('/'),
++        message: i.message,
++      })),
++    });
++  }
++  return parsed.data;
+ }
+ 
+ function carryForwardPolicy(
+@@ -171,6 +208,7 @@ function carryForwardPolicy(
+   connectionsOverride: unknown;
+   cipher: string | null;
+   requestRedaction: unknown;
++  callbackPolicy: ProfileCallbackPolicy | null;
+ } {
+   // Absent field → previous value. No previous revision → legacy defaults.
+   const policy = input ?? {};
+@@ -227,6 +265,14 @@ function carryForwardPolicy(
+     requestRedaction: parseRequestRedactionRules(
+       has('requestRedaction') ? policy.requestRedaction : (previous?.request_redaction ?? [])
+     ),
++    // CB-02: explicit null clears; absent carries the previous revision
++    // forward; a client value is validated here (write boundary).
++    callbackPolicy:
++      policy.callbackPolicy === null
++        ? null
++        : has('callbackPolicy')
++          ? parseWriteCallbackPolicy(policy.callbackPolicy)
++          : parseStoredCallbackPolicy(previous?.callback_policy),
+   };
+ }
+ 
+@@ -253,6 +299,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+       allowed_file_extensions: string | null;
+       connections_override: unknown;
+       file_url_auth_cipher: string | null;
++      callback_policy?: unknown;
+     }
+   ): EffectiveProfilePolicy => {
+     const decrypted = decryptFileUrlAuthConfig(row.file_url_auth_cipher, cryptoEnv, warnLegacyPlaintext);
+@@ -263,6 +310,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+       allowedFileExtensions: coerceAllowedFileExtensions(row.allowed_file_extensions),
+       connectionsOverride: coerceConnectionsOverride(row.connections_override),
+       fileUrlAuthConfig: decrypted?.config ?? null,
++      callbackPolicy: parseStoredCallbackPolicy(row.callback_policy),
+     };
+   };
+ 
+@@ -303,7 +351,9 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+     >(
+       `SELECT p.profile_id, p.revision, p.connector_bindings,
+               p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
+-              p.connections_override, p.file_url_auth_cipher, a.moved_at
++              p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy,
++              (SELECT n.profile_name FROM profile_names n WHERE n.profile_id = p.profile_id LIMIT 1) AS profile_name,
++              a.moved_at
+          FROM profile_active_revisions a
+          JOIN profile_bindings p
+            ON p.profile_id = a.profile_id AND p.revision = a.revision
+@@ -375,7 +425,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+ 
+         const prevRes = await c.query<PolicyRow>(
+           `SELECT enabled, parameters, job_priority, allowed_file_extensions,
+-                  connections_override, file_url_auth_cipher, request_redaction
++                  connections_override, file_url_auth_cipher, request_redaction, callback_policy
+              FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
+           [profileId, revision - 1]
+         );
+@@ -390,8 +440,8 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+           `INSERT INTO profile_bindings
+              (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
+               connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
+-              file_url_auth_cipher, connections_override, request_redaction)
+-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
++              file_url_auth_cipher, connections_override, request_redaction, callback_policy)
++           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+           [
+             profileId,
+             revision,
+@@ -408,6 +458,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+             policy.cipher,
+             JSON.stringify(policy.connectionsOverride ?? []),
+             JSON.stringify(policy.requestRedaction),
++            policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
+           ]
+         );
+ 
+@@ -504,6 +555,9 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
+         profileId: row.profile_id,
+         revision: row.revision,
+         bindings: parseConnectorBindings(row.connector_bindings),
++        profileName: typeof row.profile_name === 'string' && row.profile_name.length > 0
++          ? row.profile_name
++          : null,
+         policy,
+         effectiveParameters,
+         passthrough,
+diff --git a/du-rework/services/orchestrator/src/server.ts b/du-rework/services/orchestrator/src/server.ts
+index a3e335d..9bf8b0e 100644
+--- a/du-rework/services/orchestrator/src/server.ts
++++ b/du-rework/services/orchestrator/src/server.ts
+@@ -36,6 +36,8 @@ import type {
+   RuntimeSecretResolver,
+   RuntimeSecretResolverOptions,
+ } from './modules/secrets/vault-resolver';
++import type { OutboundSecretResolver } from './modules/webhooks/outbound-auth';
++import type { OAuth2TokenClientOptions } from './modules/webhooks/oauth2-client';
+ 
+ 
+ // CONV-02: the audience families moved to src/http/routes/*, and the route
+@@ -291,6 +293,15 @@ export interface ServerConfig {
+    * without either simply has no catalog resolver.
+    */
+   secrets?: RuntimeSecretResolverOptions;
++  /**
++   * CB-03 (B4): production resolver for callback `managed-secret` references
++   * (the SC-01 catalog / SC-02 Vault resolver supplies the values). When
++   * absent, a credential-bearing pinned callback policy fails closed with
++   * `WEBHOOK_AUTH_UNAVAILABLE`; legacy notification-only rows are unaffected.
++   */
++  resolveCallbackSecret?: OutboundSecretResolver;
++  /** CB-03: token-client seams for OAuth2 callback auth (tests/instrumentation). */
++  callbackOAuth2Options?: OAuth2TokenClientOptions;
+ }
+ 
+ export async function createApp(config: ServerConfig) {
+diff --git a/du-rework/services/orchestrator/tests/multipart-routes-offline.test.ts b/du-rework/services/orchestrator/tests/multipart-routes-offline.test.ts
+index 857ecfd..435e26f 100644
+--- a/du-rework/services/orchestrator/tests/multipart-routes-offline.test.ts
++++ b/du-rework/services/orchestrator/tests/multipart-routes-offline.test.ts
+@@ -459,7 +459,7 @@ describe('POST /api/v1/uploads/:id/{part,complete,abort}', () => {
+       pathname: '/api/v1/uploads/' + ARTIFACT_ID + '/part',
+       body: PUBLIC_PART_BODY,
+     });
+-    await expect(route(ctx)).rejects.toMatchObject({ status: 409, code: 'STATE_CONFLICT' });
++    await expect(route(ctx)).rejects.toMatchObject({ status: 501, code: 'PUBLIC_MULTIPART_UNAVAILABLE' });
+     expect(service.publicGrantPart).not.toHaveBeenCalled();
+   });
+ 
+diff --git a/du-rework/tests/browser/admin-web/admin-web.spec.ts b/du-rework/tests/browser/admin-web/admin-web.spec.ts
+index d4565b6..e31467f 100644
+--- a/du-rework/tests/browser/admin-web/admin-web.spec.ts
++++ b/du-rework/tests/browser/admin-web/admin-web.spec.ts
+@@ -46,7 +46,7 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
+ 
+   async function gotoApp(page: Page): Promise<void> {
+     await page.goto(`${BASE}/admin/web`, { waitUntil: 'networkidle' });
+-    await expect(page.getByRole('heading', { name: 'Admin Web bootstrap is running' })).toBeVisible();
++    await expect(page.getByRole('heading', { name: 'Orchestrator Portal bootstrap is running' })).toBeVisible();
+   }
+ 
+   test('1. direct unauth /admin/web -> 302 login; login form renders', async ({ page }) => {
+@@ -82,7 +82,7 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
+     await gotoApp(page);
+     await page.reload({ waitUntil: 'networkidle' });
+     expect(new URL(page.url()).pathname).toBe('/admin/web');
+-    await expect(page.getByRole('heading', { name: 'Admin Web bootstrap is running' })).toBeVisible();
++    await expect(page.getByRole('heading', { name: 'Orchestrator Portal bootstrap is running' })).toBeVisible();
+     await shot(page, '03-reload.png');
+   });
+ 
+diff --git a/du-rework/tests/browser/admin-web/identity-security-settings.spec.ts b/du-rework/tests/browser/admin-web/identity-security-settings.spec.ts
+index 8a32720..d205d85 100644
+--- a/du-rework/tests/browser/admin-web/identity-security-settings.spec.ts
++++ b/du-rework/tests/browser/admin-web/identity-security-settings.spec.ts
+@@ -73,7 +73,7 @@ test.describe('AWEB-07 Identity/Security/Settings browser evidence (harness seam
+   test('4. identity: real session + auth-mode not managed + users list unavailable', async ({ page }) => {
+     await gotoAsAdmin(page, 'identity');
+     await expect(page.getByText('Current session')).toBeVisible();
+-    await expect(page.getByText('legacy:admin')).toBeVisible();
++    await expect(page.getByText('legacy:admin').first()).toBeVisible();
+     await expect(page.getByText('chưa managed')).toBeVisible();
+     await expect(page.getByRole('heading', { name: 'Users & sessions' })).toBeVisible();
+     await expect(page.getByText(/owner LOCAL\/OIDC/)).toBeVisible();
+diff --git a/du-rework/tools/openapi/gen_openapi.py b/du-rework/tools/openapi/gen_openapi.py
+index ab9a48d..d5aef6b 100644
+--- a/du-rework/tools/openapi/gen_openapi.py
++++ b/du-rework/tools/openapi/gen_openapi.py
+@@ -780,8 +780,16 @@ _secret_handle = io.open('du-rework/services/orchestrator/src/app/admin/bff/hand
+ assert 'matchSecretsRoute(relative)' in _secret_handle
+ assert "if (relative === '/secrets') return { kind: 'list' }" in _secret_source
+ assert '(rotate|disable|test)' in _secret_source
+-_create_blocked = "route.kind === 'list' ? 'GET' : 'POST'" in _secret_source
+-assert _create_blocked, 'Secret method routing changed: reconcile create availability before generating'
++_create_dispatch_fragments = [
++    "if (route.kind === 'list') {", "if (method === 'GET') {",
++    "effectiveRoute = route;", "} else if (method === 'POST') {",
++    "effectiveRoute = { kind: 'create' };", "if (effectiveRoute.kind === 'list') {",
++    "validateMutation(effectiveRoute, body, scope)", "effectiveRoute.kind === 'create'",
++]
++assert all(fragment in _secret_source for fragment in _create_dispatch_fragments), (
++    'Secret GET-list/POST-create effectiveRoute dispatch changed; reconcile generator')
++assert "route.kind === 'list' ? 'GET' : 'POST'" not in _secret_source, (
++    'Obsolete list-only method gate reintroduced; POST create would be unreachable')
+ _secret_security = {'PortalSession': []}
+ _secret_errors = {
+     '401': {'description': 'Missing Portal session'},
+@@ -819,10 +827,16 @@ _list = secret_operation('/admin/api/secrets', 'get', 'Tenant-fenced metadata ca
+ _list['parameters'] = [{'name': name, 'in': 'query', 'schema': {'type': 'string'},
+     'description': 'Forwarded to upstream; operator tenant cannot be widened. Upstream filter validation is not implemented in this snapshot.'}
+     for name in ['tenantId', 'cursor', 'limit', 'state', 'purpose', 'sort']]
+-_create = secret_operation('/admin/api/secrets', 'post', 'Create/link is unavailable: matcher selects list and method gate returns 405 before the create branch.')
+-_create['responses'] = {'405': {'description': 'Current matcher makes create branch unreachable; SC owner must fix method dispatch'}}
+-_create['x-implementation-status'] = 'Unavailable: unconditional 405 at BFF method gate'
+-_create['x-planned-request-schema'] = '#/components/schemas/SecretCatalogCreate'
++_create = secret_operation('/admin/api/secrets', 'post',
++    'Platform-admin + CSRF create/link proxy: POST selects effectiveRoute=create; validate write-only DTO then forward to Internal JSON. Catalog upstream API remains absent.',
++    'SecretCatalogCreate')
++_create['description'] = 'BFF method dispatch is implemented, not unconditional 405. Reads never return secret values. Create requires tenantId in the body or resolved tenantId query scope; differing body/query tenant is rejected. Upstream availability, storage and idempotency remain unimplemented in this snapshot.'
++_create['parameters'].append({'name': 'tenantId', 'in': 'query', 'schema': {'type': 'string', 'format': 'uuid'},
++    'description': 'Optional platform-admin scope; fills an omitted body tenantId and must match an explicitly supplied one.'})
++_create_body = dict(SCHEMAS['SecretCatalogCreate'])
++_create_body['required'] = [key for key in _create_body['required'] if key != 'tenantId']
++_create_body['description'] = 'Canonical create DTO after BFF tenant scope injection. tenantId must be supplied in body or resolved query scope; managed_value requires write-only literal, vault_reference forbids value. Canonical Zod refinements apply.'
++_create['requestBody']['content']['application/json']['schema'] = _create_body
+ for _action, _model in [('rotate', 'SecretCatalogRotate'), ('disable', 'SecretCatalogDisable'), ('test', None)]:
+     _operation = secret_operation('/admin/api/secrets/{secretId}/' + _action, 'post',
+         'Platform-admin + CSRF secret ' + _action + ' proxy. Body secretId is supplied/overridden by path; upstream catalog API absent.', _model)
+diff --git a/du-rework/tools/openapi/validate_openapi.py b/du-rework/tools/openapi/validate_openapi.py
+index b187f17..cca2faa 100644
+--- a/du-rework/tools/openapi/validate_openapi.py
++++ b/du-rework/tools/openapi/validate_openapi.py
+@@ -11,13 +11,16 @@ connector invocation request. Docs-only: node safeParse, no DB.
+ import io, json, subprocess, sys
+ from pathlib import Path
+ import os
++import argparse
+ 
+ os.chdir(Path(__file__).resolve().parents[3])
+ 
+ SPEC = "du-rework/docs/21-openapi.json"
+ 
+ def main():
+-    spec = json.load(io.open(SPEC, encoding="utf-8"))
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--spec', default=SPEC, help='Artifact to validate (absolute path supported for temporary generation).')
++    spec = json.load(io.open(parser.parse_args().spec, encoding="utf-8"))
+     assert spec.get("openapi") == "3.0.3", "openapi version"
+     paths = spec.get("paths", {})
+     need = ["/api/v1/businesses/{id}/actions/{action}", "/api/v1/operations",
+@@ -45,7 +48,14 @@ def main():
+                                 capture_output=True, text=True, check=True)
+     canonical = json.loads(projection.stdout)
+     assert all(spec['components']['schemas'].get(name) == schema for name, schema in canonical.items()), 'SC/CB canonical schema drift'
+-    assert paths['/admin/api/secrets']['post']['responses'].keys() == {'405'}, 'unimplemented create advertised as available'
++    create = paths['/admin/api/secrets']['post']
++    assert create['requestBody']['required'] is True, 'POST create DTO missing'
++    body = create['requestBody']['content']['application/json']['schema']
++    assert body['properties'] == canonical['SecretCatalogCreate']['properties'], 'create fields drifted'
++    assert body['required'] == [key for key in canonical['SecretCatalogCreate']['required'] if key != 'tenantId'], 'BFF tenant-injection requirements drifted'
++    assert 'x-planned-request-schema' not in create, 'obsolete unreachable-create marker'
++    assert {'401', '403', '404', '405', '413', '422', '503'}.issubset(create['responses']), 'create error/availability contract drifted'
++    assert any(p['name'] == 'x-csrf-token' and p.get('required') for p in create['parameters']), 'mutation CSRF missing'
+     for path in ['/admin/api/secrets', '/admin/api/secrets/{secretId}/rotate',
+                  '/admin/api/secrets/{secretId}/disable', '/admin/api/secrets/{secretId}/test']:
+         assert path in paths, 'missing BFF route: ' + path

@@ -1,0 +1,26 @@
+{
+  "counts": [
+    58,
+    62,
+    51
+  ],
+  "version": "1.4.0",
+  "head": "4308cc54eda32cfcca54e0c55554fc85d720a43b",
+  "beforeArtifactSha256": "7f0afb86c151e5ee204e82cc75c4dda3cfca1f14c51cf6ab403b51da26a46840",
+  "artifactSha256": "1388add7b1a30b535228f9acc1e04e23123de1aaeda9e17cb9e3057339c5c89c",
+  "tempGeneratorExit": 0,
+  "canonicalGeneratorExit": 0,
+  "validatorExit": 0,
+  "structuralErrors": 0,
+  "noDropPaths": 0,
+  "noDropOperations": 0,
+  "noDropSchemas": 0,
+  "changedOperations": [
+    [
+      "/admin/api/secrets",
+      "post"
+    ]
+  ],
+  "repeatByteIdentical": true,
+  "tempMatchesCanonical": true
+}

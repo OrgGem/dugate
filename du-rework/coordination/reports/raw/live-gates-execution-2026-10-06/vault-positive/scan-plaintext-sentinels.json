@@ -1,0 +1,35 @@
+{
+  "harness": "live-gates",
+  "candidate": "candidate-portal-swagger-20261006-r4.1",
+  "generatedAt": "2026-10-06T15:16:10.706Z",
+  "step": "scan-plaintext-sentinels",
+  "mode": "live",
+  "pass": true,
+  "plan": {
+    "dryRun": false,
+    "sentinelCount": 2,
+    "postgres": false,
+    "s3": false,
+    "vault": true,
+    "reportsDir": "D:\\Git\\dugate\\du-rework\\coordination\\reports\\raw\\live-gates-execution-2026-10-06\\vault-positive"
+  },
+  "sentinelCount": 2,
+  "summary": {
+    "vault": {
+      "enabled": true,
+      "mounts": [
+        "secret"
+      ],
+      "allowPrefixes": [
+        "du/"
+      ],
+      "secrets": 1,
+      "expectedHits": 1,
+      "hits": [],
+      "errors": [],
+      "mustContainPresent": true
+    }
+  },
+  "hits": [],
+  "errors": []
+}

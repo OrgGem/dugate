@@ -1,5 +1,38 @@
+# WT-09: normalize line endings repo-wide. Text files use LF in the repo;
+# the working-tree may materialise CRLF on Windows but git stores LF.
+* text=auto eol=lf
+
+# Common text types explicitly pinned to LF.
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.cjs   text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.sh    text eol=lf
+
+# Windows-native scripts keep CRLF (cmd.exe/PowerShell expect it).
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+
 # Container build inputs must use LF on Windows checkouts.
 Dockerfile text eol=lf
 **/Dockerfile text eol=lf
 *.yml text eol=lf
 scripts/docker/*.cjs text eol=lf
+
+# Binary assets are never EOL-converted.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary
+*.zip  binary
+*.gz   binary

@@ -1,0 +1,8 @@
+a75b48c3596bed48bb449f801d62601e21b84574d415789610ff336b3ce6c00f  packages/contracts/src/profile-policy.ts
+31480e097582598daf8c05ecf9195e8a16e0295cae629a4eb978c71dd3298982  packages/contracts/tests/profile-policy.test.ts
+c088174393db0c713d5a11cc8b9867576382b5b3f12a60dcea47bd4bd3be4cd1  services/orchestrator/src/modules/admin-read/profile-detail.ts
+60983acb6e9f55eaf6efac84b12bd50a69e12ea67a82434c861d5b055ceb1a26  services/orchestrator/tests/tapi01-closure-offline.test.ts
+3d90d1858e2475af63aff2e982a15227439304f0533a6a6cdf117bd7624768f2  services/orchestrator/tests/wt04-profile-invalid-callback-read.test.ts
+a10da10d3f7721339aed5d37b605f6bc5db497ff448c85d1652a74479c76042c  apps/admin-web/src/features/profiles/profiles-screen.tsx
+6f648611329e31b62c2d8feffd687a89cf75c9872d089b9edd7c2ce432f2f29f  apps/admin-web/src/features/profiles/state.ts
+3f5a18535bb25bf26e85db4f14a09ffc81064d32cbab7070fe3a565ad913ac0f  apps/admin-web/src/lib/api/types.ts

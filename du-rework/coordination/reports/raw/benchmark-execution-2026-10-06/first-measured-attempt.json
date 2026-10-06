@@ -1,0 +1,549 @@
+{
+  "rows": [
+    {
+      "action": "ingest",
+      "i": -1,
+      "warmup": true,
+      "admissionHttp": 202,
+      "admissionMs": 130.64770000000044,
+      "e2eMs": 370.6410999999998,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 0,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 16.08690000000024,
+      "e2eMs": 243.53700000000026,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 1,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 19.230400000000373,
+      "e2eMs": 243.51080000000002,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 2,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.938699999999699,
+      "e2eMs": 248.63540000000012,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 3,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 25.0028999999995,
+      "e2eMs": 248.78999999999996,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 4,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.518599999999424,
+      "e2eMs": 2705.8932999999997,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 5,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.390900000000329,
+      "e2eMs": 2706.2361,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 7,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 15.01589999999942,
+      "e2eMs": 167.89720000000034,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 6,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 17.356800000000476,
+      "e2eMs": 244.34259999999995,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 9,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.126800000000003,
+      "e2eMs": 136.81230000000141,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 8,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.443699999999808,
+      "e2eMs": 251.58530000000064,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 11,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.973799999999756,
+      "e2eMs": 133.99319999999898,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "ingest",
+      "i": 10,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.424000000000888,
+      "e2eMs": 250.16550000000097,
+      "state": "SUCCEEDED",
+      "resultHttp": 200,
+      "code": null
+    },
+    {
+      "action": "extract",
+      "i": -1,
+      "warmup": true,
+      "admissionHttp": 202,
+      "admissionMs": 9.5625,
+      "e2eMs": 114.71299999999974,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 0,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 82.65400000000045,
+      "e2eMs": 2702.2642000000014,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 1,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 14.280300000000352,
+      "e2eMs": 2817.9323999999997,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 3,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 18.95679999999993,
+      "e2eMs": 133.45460000000094,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 2,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 17.86290000000008,
+      "e2eMs": 134.21539999999914,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 4,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.101199999999153,
+      "e2eMs": 116.25870000000032,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 5,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.235899999999674,
+      "e2eMs": 119.09649999999965,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 7,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.501000000000204,
+      "e2eMs": 118.84999999999854,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 6,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 12.621999999999389,
+      "e2eMs": 229.48689999999988,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 9,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.705400000000736,
+      "e2eMs": 130.60050000000047,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 8,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 15.74960000000101,
+      "e2eMs": 248.40760000000046,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 11,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 11.573599999999715,
+      "e2eMs": 117.53700000000026,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    },
+    {
+      "action": "extract",
+      "i": 10,
+      "warmup": false,
+      "admissionHttp": 202,
+      "admissionMs": 13.242400000000998,
+      "e2eMs": 2703.122300000001,
+      "state": "FAILED",
+      "resultHttp": null,
+      "code": "PROVIDER_UNAVAILABLE"
+    }
+  ],
+  "batches": [
+    {
+      "action": "ingest",
+      "durationMs": 3945.987
+    },
+    {
+      "action": "extract",
+      "durationMs": 6253.2572
+    }
+  ],
+  "observations": [
+    {
+      "time": "2026-10-06T14:29:12.950Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.08%",
+          "Container": "du-benchmark-run-20261006-orchestrator-1",
+          "ID": "6ecd0c01e0e8",
+          "MemPerc": "5.88%",
+          "MemUsage": "45.2MiB / 768MiB",
+          "Name": "du-benchmark-run-20261006-orchestrator-1",
+          "NetIO": "179kB / 288kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "639kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-connector-1",
+          "ID": "8b51463f6de2",
+          "MemPerc": "6.30%",
+          "MemUsage": "24.18MiB / 384MiB",
+          "Name": "du-benchmark-run-20261006-connector-1",
+          "NetIO": "30.7kB / 19.4kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "922kB / 0B",
+          "CPUPerc": "0.12%",
+          "Container": "du-benchmark-run-20261006-document-core-1",
+          "ID": "943763ebb6c6",
+          "MemPerc": "1.76%",
+          "MemUsage": "36.07MiB / 2GiB",
+          "Name": "du-benchmark-run-20261006-document-core-1",
+          "NetIO": "48.7kB / 89.7kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "37MB / 61.1MB",
+          "CPUPerc": "2.11%",
+          "Container": "du-benchmark-run-20261006-postgres-1",
+          "ID": "5f74dd453dc8",
+          "MemPerc": "8.39%",
+          "MemUsage": "53.69MiB / 640MiB",
+          "Name": "du-benchmark-run-20261006-postgres-1",
+          "NetIO": "382kB / 179kB",
+          "PIDs": "9"
+        },
+        {
+          "BlockIO": "4.57MB / 41kB",
+          "CPUPerc": "2.00%",
+          "Container": "du-benchmark-run-20261006-valkey-1",
+          "ID": "7e3cafe4688e",
+          "MemPerc": "3.15%",
+          "MemUsage": "5.914MiB / 188MiB",
+          "Name": "du-benchmark-run-20261006-valkey-1",
+          "NetIO": "80.5kB / 56.6kB",
+          "PIDs": "7"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T14:29:16.514Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.09%",
+          "Container": "du-benchmark-run-20261006-orchestrator-1",
+          "ID": "6ecd0c01e0e8",
+          "MemPerc": "6.50%",
+          "MemUsage": "49.91MiB / 768MiB",
+          "Name": "du-benchmark-run-20261006-orchestrator-1",
+          "NetIO": "575kB / 636kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "639kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-connector-1",
+          "ID": "8b51463f6de2",
+          "MemPerc": "6.26%",
+          "MemUsage": "24.04MiB / 384MiB",
+          "Name": "du-benchmark-run-20261006-connector-1",
+          "NetIO": "30.8kB / 19.5kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "922kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-document-core-1",
+          "ID": "943763ebb6c6",
+          "MemPerc": "1.97%",
+          "MemUsage": "40.43MiB / 2GiB",
+          "Name": "du-benchmark-run-20261006-document-core-1",
+          "NetIO": "98.8kB / 206kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "37MB / 62.1MB",
+          "CPUPerc": "1.74%",
+          "Container": "du-benchmark-run-20261006-postgres-1",
+          "ID": "5f74dd453dc8",
+          "MemPerc": "9.08%",
+          "MemUsage": "58.13MiB / 640MiB",
+          "Name": "du-benchmark-run-20261006-postgres-1",
+          "NetIO": "638kB / 496kB",
+          "PIDs": "10"
+        },
+        {
+          "BlockIO": "4.58MB / 81.9kB",
+          "CPUPerc": "0.29%",
+          "Container": "du-benchmark-run-20261006-valkey-1",
+          "ID": "7e3cafe4688e",
+          "MemPerc": "3.43%",
+          "MemUsage": "6.457MiB / 188MiB",
+          "Name": "du-benchmark-run-20261006-valkey-1",
+          "NetIO": "170kB / 71.5kB",
+          "PIDs": "7"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T14:29:20.080Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "10.35%",
+          "Container": "du-benchmark-run-20261006-orchestrator-1",
+          "ID": "6ecd0c01e0e8",
+          "MemPerc": "6.71%",
+          "MemUsage": "51.53MiB / 768MiB",
+          "Name": "du-benchmark-run-20261006-orchestrator-1",
+          "NetIO": "1.08MB / 1.02MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "639kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-connector-1",
+          "ID": "8b51463f6de2",
+          "MemPerc": "6.50%",
+          "MemUsage": "24.95MiB / 384MiB",
+          "Name": "du-benchmark-run-20261006-connector-1",
+          "NetIO": "41.9kB / 25.1kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "922kB / 0B",
+          "CPUPerc": "0.02%",
+          "Container": "du-benchmark-run-20261006-document-core-1",
+          "ID": "943763ebb6c6",
+          "MemPerc": "2.27%",
+          "MemUsage": "46.46MiB / 2GiB",
+          "Name": "du-benchmark-run-20261006-document-core-1",
+          "NetIO": "160kB / 298kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "37MB / 63.2MB",
+          "CPUPerc": "0.08%",
+          "Container": "du-benchmark-run-20261006-postgres-1",
+          "ID": "5f74dd453dc8",
+          "MemPerc": "9.00%",
+          "MemUsage": "57.62MiB / 640MiB",
+          "Name": "du-benchmark-run-20261006-postgres-1",
+          "NetIO": "939kB / 925kB",
+          "PIDs": "10"
+        },
+        {
+          "BlockIO": "4.59MB / 123kB",
+          "CPUPerc": "0.33%",
+          "Container": "du-benchmark-run-20261006-valkey-1",
+          "ID": "7e3cafe4688e",
+          "MemPerc": "3.01%",
+          "MemUsage": "5.664MiB / 188MiB",
+          "Name": "du-benchmark-run-20261006-valkey-1",
+          "NetIO": "204kB / 82.3kB",
+          "PIDs": "7"
+        }
+      ]
+    },
+    {
+      "time": "2026-10-06T14:29:23.631Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-orchestrator-1",
+          "ID": "6ecd0c01e0e8",
+          "MemPerc": "6.79%",
+          "MemUsage": "52.12MiB / 768MiB",
+          "Name": "du-benchmark-run-20261006-orchestrator-1",
+          "NetIO": "1.62MB / 1.33MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "639kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-connector-1",
+          "ID": "8b51463f6de2",
+          "MemPerc": "6.74%",
+          "MemUsage": "25.87MiB / 384MiB",
+          "Name": "du-benchmark-run-20261006-connector-1",
+          "NetIO": "78.3kB / 43.5kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "922kB / 0B",
+          "CPUPerc": "0.00%",
+          "Container": "du-benchmark-run-20261006-document-core-1",
+          "ID": "943763ebb6c6",
+          "MemPerc": "2.45%",
+          "MemUsage": "50.19MiB / 2GiB",
+          "Name": "du-benchmark-run-20261006-document-core-1",
+          "NetIO": "221kB / 384kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "37MB / 64.1MB",
+          "CPUPerc": "0.01%",
+          "Container": "du-benchmark-run-20261006-postgres-1",
+          "ID": "5f74dd453dc8",
+          "MemPerc": "9.08%",
+          "MemUsage": "58.12MiB / 640MiB",
+          "Name": "du-benchmark-run-20261006-postgres-1",
+          "NetIO": "1.2MB / 1.42MB",
+          "PIDs": "10"
+        },
+        {
+          "BlockIO": "4.6MB / 164kB",
+          "CPUPerc": "1.99%",
+          "Container": "du-benchmark-run-20261006-valkey-1",
+          "ID": "7e3cafe4688e",
+          "MemPerc": "2.78%",
+          "MemUsage": "5.223MiB / 188MiB",
+          "Name": "du-benchmark-run-20261006-valkey-1",
+          "NetIO": "240kB / 94kB",
+          "PIDs": "7"
+        }
+      ]
+    }
+  ],
+  "provider": {
+    "calls": 0
+  },
+  "concurrency": 2,
+  "requestCountPerAction": 12,
+  "pollIntervalMs": 100,
+  "fixture": "Synthetic inline text: ingest parse and invoice extract. Mock provider, no paid AI."
+}
