@@ -1,0 +1,56 @@
+# Overlay: docker-compose.yml + this file. Select exactly ONE worker profile.
+# Docker has no Compose-wide aggregate limit: the guarded allocation sums to
+# 2.0 CPU / 4092 MiB, including the one-shot migration container.
+services:
+  orchestrator:
+    memswap_limit: 768M
+    deploy:
+      resources:
+        limits: { cpus: '0.35', memory: 768M }
+  connector:
+    memswap_limit: 384M
+    deploy:
+      resources:
+        limits: { cpus: '0.20', memory: 384M }
+  postgres:
+    memswap_limit: 640M
+    deploy:
+      resources:
+        limits: { cpus: '0.30', memory: 640M }
+  valkey:
+    memswap_limit: 188M
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 188M }
+  migrate:
+    memswap_limit: 64M
+    deploy:
+      resources:
+        limits: { cpus: '0.05', memory: 64M }
+  document-core:
+    profiles: [benchmark-document-core]
+    environment:
+      CONCURRENCY: '1'
+    memswap_limit: 2048M
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: '1.0', memory: 2048M }
+  lc-checker:
+    profiles: [benchmark-lc-checker]
+    environment:
+      CONCURRENCY: '1'
+    memswap_limit: 2048M
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: '1.0', memory: 2048M }
+  example-review:
+    profiles: [benchmark-example-review]
+    environment:
+      CONCURRENCY: '1'
+    memswap_limit: 2048M
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: '1.0', memory: 2048M }
