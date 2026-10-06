@@ -12,7 +12,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:e2e": "jest --config jest.e2e.config.js",
-    "test:e2e:connector": "jest --config jest.e2e.config.js --runInBand tests/e2e/profile-openai-flow.e2e.test.ts",
+    "test:e2e:connector": "jest --config jest.e2e.config.js --runInBand --forceExit tests/e2e/profile-openai-flow.e2e.test.ts",
     "seed": "npx tsx lib/db/seed.ts"
   },
   "dependencies": {
@@ -51,6 +51,7 @@
     "sharp": "^0.34.5",
     "sonner": "^2.0.7",
     "swagger-ui-react": "^5.32.1",
+    "tailwind-merge": "^3.7.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
