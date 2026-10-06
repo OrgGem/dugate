@@ -20,7 +20,7 @@ import { s3SourceRulesFromEnv } from './modules/operations/s3-source';
 import { createLogger, safeErrorForLog } from '@du/observability';
 import { installGracefulShutdown } from './shutdown';
 import { buildOidcAdminComponents } from './app/admin/oidc-boot';
-import { buildEncryptionBootOptions, buildMetadataReadPolicy, type EncryptionBootOptions } from './modules/encryption/boot-options';
+import { assertProfileCipherBootPolicy, buildEncryptionBootOptions, buildMetadataReadPolicy, summarizeEncryptionPolicy, type EncryptionBootOptions } from './modules/encryption/boot-options';
 import {
   connectorManagementAuthorizationProviderFromEnv,
   type ConnectorManagementAuthorizationProvider,
@@ -253,10 +253,25 @@ export async function main(): Promise<void> {
       publicUpload: Boolean(encryptionBoot.publicUploadEncryption),
     });
   }
+  // SEC-ENC-05: resolve the effective policy once and hand it to createApp so
+  // /health reports what actually runs. Synthetic mode is explicit and loud.
+  const encryptionPolicy = summarizeEncryptionPolicy(process.env);
+  if (encryptionPolicy.dataMode === 'synthetic') {
+    logger.warn('synthetic-data mode: persistence encryption is explicitly exempt', {
+      syntheticReason: encryptionPolicy.syntheticReason,
+      metadataEncryption: encryptionPolicy.metadataEncryption,
+      publicUploadEncryption: encryptionPolicy.publicUploadEncryption,
+    });
+  }
   // PLAT-MIG-01: connector management composition. A HALF-set surface is a
   // boot refusal, never the old empty-map fallback that silently made the
   // management surface absent on every deployment (DESIGN-803, Muc 1).
   const { connectorBaseUrls, connectorManagementAuthorizationForRequest } = assertConnectorComposition(process.env);
+  // F-VFY6-01 (D-BOOT-01 hybrid): a real-data boot with the artifact seam
+  // enabled refuses a missing profile cipher key; dev/offline/test and the
+  // explicit synthetic exemption keep the warn-only path below. Sits at the
+  // old warn site by reviewer direction (minimal diff).
+  assertProfileCipherBootPolicy(process.env, encryptionPolicy);
   if (!process.env.ENCRYPTION_KEY && !process.env.NEXTAUTH_SECRET) {
     logger.warn(
       'profile cipher key absent — configured-cipher acquisition will deny with AUTH_DECRYPT_FAILED; ' +
@@ -298,6 +313,8 @@ export async function main(): Promise<void> {
     // control-plane column silently keeps plaintext behaviour. Building them
     // here is fail-closed: a half-specified surface throws instead of degrading.
     ...encryptionBoot,
+    // SEC-ENC-05: effective policy surfaced in /health (content-free).
+    encryptionPolicy,
     // PLAT-MIG-01 / DESIGN-803: management URL source and server-only
     // per-request signed identity provider. Key and tokens are NEVER logged.
     ...(connectorBaseUrls ? { connectorBaseUrls } : {}),

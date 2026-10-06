@@ -73,9 +73,9 @@ export async function retryOperation(
   await client.query(
     `INSERT INTO operations (id,tenant_id,api_key_id,business_id,business_version,action,state,root_task_id,input_ref,
       correlation_id,callback_url,profile_id,profile_revision,connector_bindings,submit_artifacts,profile_policy_snapshot,
-      prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at)
+      callback_policy,prompt_revisions_pin,prompt_overrides_ref,retry_of,deadline_at)
      SELECT $2,tenant_id,api_key_id,business_id,business_version,action,$3,$4,$5,$6,callback_url,profile_id,profile_revision,
-       connector_bindings,submit_artifacts,profile_policy_snapshot,prompt_revisions_pin,$7,id,
+       connector_bindings,submit_artifacts,profile_policy_snapshot,callback_policy,prompt_revisions_pin,$7,id,
        CASE WHEN deadline_at>created_at THEN now()+(deadline_at-created_at) ELSE NULL END
      FROM operations WHERE id=$1`,
     [operationId, newId, state, taskId, sealedInput, correlationId, prompts],

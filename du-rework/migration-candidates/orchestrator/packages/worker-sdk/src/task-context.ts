@@ -304,7 +304,13 @@ export class DefaultTaskContext implements TaskContext {
     // policy merge. The claim is the sole authority for revisions.
     this.profileRevision = task.profileRevision;
     this.promptRevisions = task.promptRevisions;
-    this.profilePolicy = task.profilePolicy ?? null;
+    // CR06-07 (tri-state discipline): straight pass-through. `undefined`
+    // (pre-pin / a context that never carried the pin) MUST stay `undefined`,
+    // `null` (admitted-without-policy) MUST stay `null`, and a populated policy
+    // must pass through untouched. The previous `?? null` silently collapsed the
+    // first two states into one, which is exactly the distinction a consumer
+    // needs in order to tell "no pin" from "pinned, and the pin says no".
+    this.profilePolicy = task.profilePolicy;
     // P745-CARRIER-IMPL-B1 (Δ-PC-1): straight pass-through on purpose —
     // `null` (no carrier) stays null, `undefined` (a context that never
     // carried the pin) stays undefined. Neither is coalesced.

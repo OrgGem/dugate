@@ -85,7 +85,7 @@ function createRaceHarness(initialState: OperationState) {
             wait.status = 'CANCELLED';
             return pgResult<Row>([], 'UPDATE');
           }
-          if (/^SELECT id, tenant_id, state, state_version, callback_url, updated_at FROM operations/i.test(normalized)) {
+          if (/^SELECT id, tenant_id, state, state_version, callback_url,/i.test(normalized)) {
             return pgResult<Row>([{
               id: OPERATION_ID,
               tenant_id: TENANT_ID,

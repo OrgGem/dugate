@@ -2,17 +2,35 @@ import { createHmac } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { createPinnedFetch } from '@du/egress';
 import {
+  CALLBACK_DEFAULT_MODE,
+  ProfileCallbackPolicySchema,
+  ProfileCallbackPolicySnapshotSchema,
   adjudicateUrlDestination,
+  authorizeCallbackDestination,
   isPubliclyRoutableAddress,
   WEBHOOK_DELIVERY_HEADER,
   WEBHOOK_SIGNATURE_HEADER,
   WEBHOOK_TIMESTAMP_HEADER,
   webhookSigningPayload,
+  type CallbackAuth,
+  type CallbackResultEnvelope,
   type DestinationDecision,
+  type ProfileCallbackPolicy,
+  type ProfileCallbackPolicySnapshot,
   type RecipientDeliveryEnvelope,
   type WebhookEventType,
   type WebhookPayload,
 } from '@du/contracts';
+import { buildCallbackResultEnvelope } from './result-projection';
+import {
+  createOutboundAuthSession,
+  dispatchWithAuth,
+  OutboundAuthError,
+  type OutboundAuthPolicy,
+  type OutboundAuthSession,
+  type OutboundSecretResolver,
+} from './outbound-auth';
+import type { OAuth2TokenClientOptions } from './oauth2-client';
 
 /**
  * Webhook delivery (P2-08; docs 04 WebhookDelivery + Outbox, docs 06 Webhook).
@@ -31,7 +49,7 @@ export interface DbClient {
 }
 
 const TERMINAL_STATES = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'] as const;
-type TerminalState = (typeof TERMINAL_STATES)[number];
+export type TerminalState = (typeof TERMINAL_STATES)[number];
 
 function eventTypeFor(state: TerminalState): WebhookEventType {
   switch (state) {
@@ -47,6 +65,53 @@ function eventTypeFor(state: TerminalState): WebhookEventType {
 }
 
 /**
+ * CB-02: the pinned callback policy of an operation/delivery row. The frozen
+ * CB-01 snapshot is preferred (it carries profile/endpoint/revision identity
+ * for the OAuth2 cache scope); a bare policy is tolerated.
+ *
+ * Tri-state on purpose: an ABSENT pin is the legacy notification-only
+ * behavior, while an INVALID pin must never be treated as "no auth" — the
+ * dispatcher fails such a delivery closed instead of sending it
+ * unauthenticated.
+ */
+type PinnedCallbackPolicyResult =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'invalid' }
+  | {
+      readonly kind: 'valid';
+      readonly policy: ProfileCallbackPolicy;
+      /** Exactly what is copied onto the delivery row (snapshot or bare policy). */
+      readonly raw: ProfileCallbackPolicy | ProfileCallbackPolicySnapshot;
+      readonly profileRevision?: number;
+      readonly endpointKey?: string;
+    };
+
+function parsePinnedCallbackPolicy(value: unknown): PinnedCallbackPolicyResult {
+  if (value === null || value === undefined) return { kind: 'absent' };
+  let candidate: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      candidate = JSON.parse(value);
+    } catch {
+      return { kind: 'invalid' };
+    }
+  }
+  const snapshot = ProfileCallbackPolicySnapshotSchema.safeParse(candidate);
+  if (snapshot.success) {
+    return {
+      kind: 'valid',
+      policy: snapshot.data.policy,
+      raw: snapshot.data,
+      profileRevision: snapshot.data.profileRevision,
+      endpointKey: snapshot.data.endpointKey,
+    };
+  }
+  const policy = ProfileCallbackPolicySchema.safeParse(candidate);
+  if (policy.success) return { kind: 'valid', policy: policy.data, raw: policy.data };
+  return { kind: 'invalid' };
+}
+
+/**
  * Schedule a webhook delivery if the operation just reached a terminal state
  * and carries a callback URL. Idempotent: the unique index on
  * (operation_id, state_version, destination_url) + ON CONFLICT DO NOTHING
@@ -55,10 +120,19 @@ function eventTypeFor(state: TerminalState): WebhookEventType {
  *
  * MUST be called inside the same transaction as the terminal UPDATE so the
  * row reflects the post-transition state_version (the terminal revision).
+ *
+ * CB-02: the mode comes from the admission-time `operations.callback_policy`
+ * pin. `notification_only` keeps the P2-08 envelope byte-identical;
+ * `notification_with_result` snapshots the authorized result projection and
+ * artifact descriptors ONCE, here, so retries replay the frozen payload and
+ * terminal timestamps can never be rewritten. The policy itself is copied onto
+ * the delivery row (secret REFERENCES only) so the dispatcher never re-reads a
+ * live profile revision.
  */
 export async function maybeScheduleWebhook(client: DbClient, operationId: string): Promise<void> {
   const res = await client.query(
-    'SELECT id, tenant_id, state, state_version, callback_url, updated_at FROM operations WHERE id=$1',
+    `SELECT id, tenant_id, state, state_version, callback_url, updated_at, completed_at, callback_policy
+     FROM operations WHERE id=$1`,
     [operationId]
   );
   if (!res.rowCount) return;
@@ -69,34 +143,73 @@ export async function maybeScheduleWebhook(client: DbClient, operationId: string
     state_version: number;
     callback_url: string | null;
     updated_at: string;
+    completed_at: string | Date | null;
+    callback_policy: unknown;
   };
   if (!op.callback_url) return;
   if (!TERMINAL_STATES.includes(op.state as TerminalState)) return;
   const terminalState = op.state as TerminalState;
-  const payload: WebhookPayload = {
-    deliveryId: '', // placeholder replaced by the INSERT RETURNING below
-    eventType: eventTypeFor(terminalState),
-    operationId: op.id,
-    state: terminalState,
-    stateVersion: op.state_version,
-    occurredAt: new Date(op.updated_at).toISOString(),
-  };
-  // Insert first with a generated delivery_id, then stamp the payload with it
-  // in the same tx so the delivered body's deliveryId matches the durable row.
+  // Terminal fact first: `completed_at` is written by the 0034 trigger at the
+  // terminal transition and is immutable afterwards, so a retry can never
+  // change the envelope's occurredAt.
+  const occurredAt = new Date(op.completed_at ?? op.updated_at).toISOString();
+  const pinnedResult = parsePinnedCallbackPolicy(op.callback_policy);
+  const pinned = pinnedResult.kind === 'valid' ? pinnedResult : null;
+  const mode = pinned?.policy.mode ?? CALLBACK_DEFAULT_MODE;
+
+  let payload: WebhookPayload | CallbackResultEnvelope;
+  if (mode === 'notification_with_result') {
+    payload = await buildCallbackResultEnvelope(client, {
+      operationId: op.id,
+      state: terminalState,
+      eventType: eventTypeFor(terminalState),
+      occurredAt,
+      forceReferenceOnly: pinned?.policy.forceReferenceOnly === true,
+    });
+  } else {
+    payload = {
+      deliveryId: '', // placeholder replaced by the INSERT RETURNING below
+      eventType: eventTypeFor(terminalState),
+      operationId: op.id,
+      state: terminalState,
+      stateVersion: op.state_version,
+      occurredAt,
+    };
+  }
+
+  // Insert first with a generated delivery_id, then stamp the legacy payload
+  // with it in the same tx so the delivered body's deliveryId matches the
+  // durable row. The result envelope carries no deliveryId field (CB-01
+  // strict contract): receivers dedup by the x-du-delivery-id header, which is
+  // the same durable row id.
   const inserted = await client.query(
     `INSERT INTO webhook_deliveries
-       (operation_id, tenant_id, event_type, terminal_state, state_version, destination_url, payload)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+       (operation_id, tenant_id, event_type, terminal_state, state_version, destination_url, payload, mode, callback_policy)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (operation_id, state_version, destination_url) DO NOTHING
      RETURNING delivery_id`,
-    [op.id, op.tenant_id, payload.eventType, terminalState, op.state_version, op.callback_url, JSON.stringify(payload)]
+    [
+      op.id,
+      op.tenant_id,
+      eventTypeFor(terminalState),
+      terminalState,
+      op.state_version,
+      op.callback_url,
+      JSON.stringify(payload),
+      mode,
+      pinnedResult.kind === 'absent'
+        ? null
+        : JSON.stringify(pinnedResult.kind === 'valid' ? pinnedResult.raw : op.callback_policy),
+    ]
   );
   if (!inserted.rowCount) return; // already scheduled for this terminal revision
   const deliveryId = (inserted.rows[0] as { delivery_id: string }).delivery_id;
-  await client.query('UPDATE webhook_deliveries SET payload = jsonb_set(payload, \'{deliveryId}\', to_jsonb($2::text)) WHERE delivery_id=$1', [
-    deliveryId,
-    deliveryId,
-  ]);
+  if (mode === 'notification_only') {
+    await client.query('UPDATE webhook_deliveries SET payload = jsonb_set(payload, \'{deliveryId}\', to_jsonb($2::text)) WHERE delivery_id=$1', [
+      deliveryId,
+      deliveryId,
+    ]);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,7 +244,14 @@ export interface WebhookDispatcherOptions {
   /** Injectable fetch (tests substitute a stub; production uses global fetch). */
   fetchFn?: (
     url: string,
-    init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
+    init: {
+      method: string;
+      headers: Record<string, string>;
+      body: string;
+      signal?: AbortSignal;
+      /** CB-02: authenticated callback/token requests never follow redirects. */
+      redirect?: 'error';
+    },
   ) => Promise<{ status: number }>;
   /** Base backoff in ms for attempt n: next_at = now + base * 2^(attempts-1). */
   baseBackoffMs?: number;
@@ -177,6 +297,15 @@ export interface WebhookDispatcherOptions {
    * governs GET /operations/:id/result and /artifacts/:id/download.
    */
   deliveryEncryption?: WebhookDeliveryEncryption;
+  /**
+   * CB-02/CB-03: resolves managed secret REFERENCES for a credential-bearing
+   * callback policy (`configured_headers`, OAuth2 client secret). Absent = a
+   * credential-bearing policy fails closed with `WEBHOOK_AUTH_UNAVAILABLE`;
+   * the dispatcher never sends such a callback unauthenticated.
+   */
+  resolveCallbackSecret?: OutboundSecretResolver;
+  /** CB-03 token-client seams (tests inject fetch/clock; production uses defaults). */
+  oauth2Options?: OAuth2TokenClientOptions;
 }
 
 export interface WebhookDeliveryRow {
@@ -188,9 +317,18 @@ export interface WebhookDeliveryRow {
    */
   tenant_id: string;
   destination_url: string;
-  payload: WebhookPayload;
+  /**
+   * CB-02: the frozen snapshot. `notification_only` rows hold the P2-08
+   * `WebhookPayload`; `notification_with_result` rows hold the CB-01
+   * `CallbackResultEnvelope`. Retries replay this value verbatim.
+   */
+  payload: WebhookPayload | CallbackResultEnvelope;
   attempts: number;
   max_attempts: number;
+  /** CB-02 mode; absent on pre-0035 rows = legacy notification-only. */
+  mode?: string | null;
+  /** CB-02 frozen policy snapshot (secret refs only) or bare policy. */
+  callback_policy?: unknown;
 }
 
 /**
@@ -241,6 +379,75 @@ export const WEBHOOK_SHUTDOWN_RELEASED = 'SHUTDOWN_RELEASED';
  * other failed delivery, so a fixed key or a restored registry lets the retry win.
  */
 export const WEBHOOK_ENCRYPTION_FAILED = 'WEBHOOK_ENCRYPTION_FAILED';
+/**
+ * CB-02/CB-03: fixed runbook-visible code for a credential-bearing callback
+ * that could not be authenticated (no managed-secret resolver wired, or an
+ * invalid/expired policy). The delivery fails closed and consumes a retry
+ * attempt; it is NEVER sent unauthenticated.
+ */
+export const WEBHOOK_AUTH_UNAVAILABLE = 'WEBHOOK_AUTH_UNAVAILABLE';
+/**
+ * WT-01: terminal, non-retryable state for a credential-bearing callback whose
+ * managed-secret resolver was never wired into the composition.
+ *
+ * Deliberately distinct from WEBHOOK_AUTH_UNAVAILABLE: that code covers
+ * TRANSIENT faults (token server unreachable, a flaky secret lookup) and keeps
+ * the row PENDING for retry. "Resolver not configured" is a configuration
+ * error, not a transient one, so retrying would burn max_attempts and then
+ * report a failure that looks like an upstream incident while the real cause is
+ * a missing composition wiring.
+ *
+ * Terminal => status FAILED, attempts left untouched, last_error = this code.
+ */
+export const WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED = 'WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED';
+/**
+ * CB-02: fixed runbook-visible code for a delivery whose pinned policy cannot
+ * be parsed. Such a row is refused (fail closed) instead of being replayed as
+ * an unauthenticated legacy notification: an invalid pin must never widen the
+ * delivery's security posture.
+ */
+export const WEBHOOK_POLICY_INVALID = 'WEBHOOK_POLICY_INVALID';
+
+/**
+ * CB-02/CB-03: map a frozen CB-01 auth policy onto the CB-03 outbound session
+ * policy. Secret VALUES are never resolved here: references are handed to the
+ * session, which resolves them per attempt (rotation applies).
+ */
+function toOutboundAuthPolicy(
+  auth: CallbackAuth,
+  resolveSecret: OutboundSecretResolver,
+): OutboundAuthPolicy {
+  switch (auth.method) {
+    case 'none':
+      return { mode: 'none' };
+    case 'configured_headers':
+      return {
+        mode: 'configured_headers',
+        headers: auth.headers.map((header) => ({
+          name: header.name,
+          secretRef: header.secretRef.ref,
+          ...(header.prefix === undefined ? {} : { prefix: header.prefix }),
+        })),
+      };
+    case 'oauth2_client_credentials':
+      return {
+        mode: 'oauth2_client_credentials',
+        config: {
+          tokenUrl: auth.tokenUrl,
+          clientId: auth.clientId,
+          clientSecret: () => resolveSecret(auth.clientSecretRef.ref),
+          authMethod: auth.clientAuthMethod,
+          ...(auth.scope === undefined ? {} : { scope: auth.scope }),
+          ...(auth.audience === undefined ? {} : { audience: auth.audience }),
+          ...(auth.resource === undefined ? {} : { resource: auth.resource }),
+          ...(auth.extensions === undefined ? {} : { extensionParams: auth.extensions }),
+        },
+        ...(auth.additionalHeaders === undefined
+          ? {}
+          : { extraHeaders: auth.additionalHeaders.map((header) => ({ name: header.name, value: header.value })) }),
+      };
+  }
+}
 
 /**
  * The slice of the ENC-07 delivery service this module needs. Declared
@@ -353,7 +560,7 @@ export async function deliverWebhooks(
   // DB connection or row lock for the duration of dispatch.
   const claimResult = await db.tx(async (client) => {
     const res = await client.query(
-      `SELECT delivery_id, tenant_id, destination_url, payload, attempts, max_attempts
+      `SELECT delivery_id, tenant_id, destination_url, payload, attempts, max_attempts, mode, callback_policy
        FROM webhook_deliveries
        WHERE (status='PENDING' OR (status='DISPATCHING' AND next_at <= now()))
          AND next_at <= now()
@@ -390,7 +597,14 @@ export async function deliverWebhooks(
   const claimTokens = claimResult.tokens;
 
   // FIX-CR-02 phase 2 — outside any transaction: adjudicate + dispatch.
-  const outcomes: Array<{ row: WebhookDeliveryRow; ok: boolean; errMsg: string | null; shutdownRelease?: boolean }> = [];
+  const outcomes: Array<{
+    row: WebhookDeliveryRow;
+    ok: boolean;
+    errMsg: string | null;
+    shutdownRelease?: boolean;
+    /** WT-01: FAILED now, attempts NOT incremented. Retry cannot help. */
+    terminal?: boolean;
+  }> = [];
   // P8-04 drain bookkeeping. The grace window starts at the abort EVENT, not at the
   // first observed check; setTimeout is unref'd so a never-firing watch cannot keep jest alive.
   let drainDeadlineAt: number | null = null;
@@ -432,6 +646,62 @@ export async function deliverWebhooks(
         // FIX-CR-01: deny before connect — fetchFn is never invoked for blocked targets.
         errMsg = destination.code;
       } else {
+        // CB-02/CB-03: a credential-bearing pinned policy must pass the
+        // approved-destination check AND have a managed-secret resolver;
+        // otherwise the delivery fails closed. It is never sent unauthenticated
+        // and never falls back to `none`. Legacy rows (no pinned policy) keep
+        // the exact P2-08 path.
+        const pinnedResult = parsePinnedCallbackPolicy(row.callback_policy);
+        if (pinnedResult.kind === 'invalid') {
+          // A non-null pin that does not parse is corruption/tampering, not
+          // "no policy": fail closed rather than sending an unauthenticated
+          // legacy callback.
+          outcomes.push({ row, ok: false, errMsg: WEBHOOK_POLICY_INVALID });
+          continue;
+        }
+        const pinned = pinnedResult.kind === 'valid' ? pinnedResult : null;
+        let authSession: OutboundAuthSession | undefined;
+        if (pinned && pinned.policy.auth.method !== 'none') {
+          const allowed = authorizeCallbackDestination(
+            row.destination_url,
+            pinned.policy.auth,
+            pinned.policy.destination,
+          );
+          if (allowed.kind === 'DENIED') {
+            outcomes.push({ row, ok: false, errMsg: 'DESTINATION_DENIED' });
+            continue;
+          }
+          if (!opts.resolveCallbackSecret) {
+            // WT-01: no resolver in the composition. This is a configuration
+            // gap, not a transient fault: retrying burns the retry budget and
+            // then reports an upstream-looking failure. Fail TERMINALLY and keep
+            // attempts untouched, under a code that names the actual cause.
+            outcomes.push({
+              row,
+              ok: false,
+              errMsg: WEBHOOK_AUTH_RESOLVER_NOT_CONFIGURED,
+              terminal: true,
+            });
+            continue;
+          }
+          try {
+            authSession = createOutboundAuthSession(
+              toOutboundAuthPolicy(pinned.policy.auth, opts.resolveCallbackSecret),
+              {
+                resolveSecret: opts.resolveCallbackSecret,
+                cacheScope: {
+                  tenantId: row.tenant_id,
+                  ...(pinned.profileRevision === undefined ? {} : { profileRevision: pinned.profileRevision }),
+                  ...(pinned.endpointKey === undefined ? {} : { endpointKey: pinned.endpointKey }),
+                },
+                ...(opts.oauth2Options === undefined ? {} : { oauth2Options: opts.oauth2Options }),
+              },
+            );
+          } catch {
+            outcomes.push({ row, ok: false, errMsg: WEBHOOK_AUTH_UNAVAILABLE });
+            continue;
+          }
+        }
         // ENC-07/Delta 110: build the wire body FIRST, then sign it. Signing the
         // plaintext and then swapping in ciphertext would produce a signature
         // that authenticates bytes the receiver never got - a silent integrity
@@ -445,23 +715,36 @@ export async function deliverWebhooks(
         }
         const timestamp = now().toISOString();
         const signature = signWebhookBody(opts.secret, timestamp, body);
+        // CB-03: one send closure reused by the OAuth2 401 reacquire; deliveryId,
+        // body and signature stay byte-identical across the retry.
+        const send = async (authHeaders: Record<string, string>): Promise<{ status: number }> => {
+          const resp = await fetchFn(row.destination_url, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              [WEBHOOK_SIGNATURE_HEADER]: signature,
+              [WEBHOOK_TIMESTAMP_HEADER]: timestamp,
+              [WEBHOOK_DELIVERY_HEADER]: row.delivery_id,
+              ...authHeaders,
+            },
+            body,
+            redirect: 'error',
+          });
+          return { status: resp.status };
+        };
         const dispatch = (async (): Promise<{ ok: boolean; errMsg: string | null }> => {
           try {
-            const resp = await fetchFn(row.destination_url, {
-              method: 'POST',
-              headers: {
-                'content-type': 'application/json',
-                [WEBHOOK_SIGNATURE_HEADER]: signature,
-                [WEBHOOK_TIMESTAMP_HEADER]: timestamp,
-                [WEBHOOK_DELIVERY_HEADER]: row.delivery_id,
-              },
-              body,
-            });
-            const good = resp.status >= 200 && resp.status < 300;
-            return { ok: good, errMsg: good ? null : `HTTP ${resp.status}` };
+            const result = authSession
+              ? await dispatchWithAuth(authSession, send)
+              : await send({});
+            const good = result.status >= 200 && result.status < 300;
+            return { ok: good, errMsg: good ? null : `HTTP ${result.status}` };
           } catch (err) {
             // ADM-BASE-03 / C2-1: last_error is operator-visible (runbook SELECT). Fixed code
             // + error CLASS only — String(err) raw text must never enter the column.
+            if (err instanceof OutboundAuthError) {
+              return { ok: false, errMsg: `${WEBHOOK_AUTH_UNAVAILABLE} (${err.code})` };
+            }
             return { ok: false, errMsg: `${WEBHOOK_TRANSPORT_FAILED} (${errorClassName(err)})` };
           }
         })();
@@ -498,7 +781,7 @@ export async function deliverWebhooks(
   // re-claimed elsewhere) lose the write instead of clobbering it: last
   // CLAIMED dispatcher wins, delivery stays at-least-once.
   await db.tx(async (client) => {
-    for (const { row, ok, errMsg, shutdownRelease } of outcomes) {
+    for (const { row, ok, errMsg, shutdownRelease, terminal } of outcomes) {
       const token = claimTokens.get(row.delivery_id);
       if (token === undefined) continue; // fail-closed: never release a claim we cannot identify
       if (shutdownRelease) {
@@ -509,6 +792,23 @@ export async function deliverWebhooks(
           `UPDATE webhook_deliveries SET status='PENDING', last_error=$3, next_at=now(), updated_at=now()
            WHERE delivery_id=$1 AND status='DISPATCHING' AND next_at=$2::timestamptz`,
           [row.delivery_id, token, WEBHOOK_SHUTDOWN_RELEASED]
+        );
+        continue;
+      }
+      if (terminal) {
+        // WT-01: terminal outcome (resolver never wired). Close the row as FAILED
+        // WITHOUT incrementing attempts and WITHOUT scheduling a backoff: a retry
+        // can never fix a configuration gap, so charging one attempt per sweep
+        // would only burn the budget and then report a misleading upstream
+        // failure. last_error records the fixed, runbook-visible code.
+        //
+        // Deliberately the SAME parameter shape as the exhausted-budget FAILED
+        // branch below (attempts written explicitly, here UNCHANGED) so every
+        // fake/real driver sees one statement shape for a terminal row.
+        await client.query(
+          `UPDATE webhook_deliveries SET status='FAILED', attempts=$3, last_error=$4, updated_at=now()
+           WHERE delivery_id=$1 AND status='DISPATCHING' AND next_at=$2::timestamptz`,
+          [row.delivery_id, token, row.attempts, errMsg]
         );
         continue;
       }

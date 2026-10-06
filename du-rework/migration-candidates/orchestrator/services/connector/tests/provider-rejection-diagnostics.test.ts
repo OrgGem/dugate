@@ -197,6 +197,7 @@ describe('Provider rejection is distinct from a malformed provider response', ()
         },
         capabilities: () => ({ adapters: ['json-http', 'multipart-http'] }),
         ready: async () => true,
+        allowUnauthenticatedTestTraffic: true,
       });
       const port = await listenLoopback(server, 43520 + ((process.pid % 8) * 8), 6);
       try {

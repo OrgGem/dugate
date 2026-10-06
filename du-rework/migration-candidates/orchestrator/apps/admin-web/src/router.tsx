@@ -9,6 +9,7 @@ import { OperationsRoute } from '@/routes/operations';
 import { BusinessesRoute } from '@/routes/businesses';
 import { UsageRoute } from '@/routes/usage';
 import { SecurityRoute } from '@/routes/security';
+import { SecretsRoute } from '@/routes/secrets';
 import { IdentityRoute } from '@/routes/identity';
 import { SettingsRoute } from '@/routes/settings';
 import { WorkflowsRoute } from '@/routes/workflows';
@@ -45,6 +46,7 @@ export const router = createBrowserRouter(
         { path: 'businesses', Component: BusinessesRoute },
         { path: 'usage', Component: UsageRoute },
         { path: 'security', Component: SecurityRoute },
+        { path: 'secrets', Component: SecretsRoute },
         { path: 'identity', Component: IdentityRoute },
         { path: 'settings', Component: SettingsRoute },
         { path: 'workflows', Component: WorkflowsRoute },

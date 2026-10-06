@@ -77,11 +77,15 @@ describe('connector local protocol functions', () => {
       },
       transaction: async <T>(callback: (client: SqlClient) => Promise<T>) => callback(db),
     };
-    const ledger = new PostgresInvocationLedger(db);
+    // SEC-ENC-02: this fixture models a historical plaintext row, so it opens
+    // the bounded migration window explicitly. New writes are still sealed.
+    const ledger = new PostgresInvocationLedger(db, { legacyPlaintextReads: true });
 
     await expect(ledger.claim(request, 'persisted-hash')).resolves.toMatchObject({ kind: 'replay' });
     await expect(ledger.claim(request, 'different-hash')).resolves.toMatchObject({ kind: 'conflict' });
-    expect(queryCalls[0]).toContain('ON CONFLICT (invocation_id) DO NOTHING');
+    // The existence pre-check answers before the INSERT is even attempted.
+    expect(queryCalls[0]).toContain('SELECT * FROM connector_invocations');
+    expect(queryCalls.some((text) => text.includes('ON CONFLICT (invocation_id) DO NOTHING'))).toBe(false);
   });
 
   test('replaying a cancelled invocation never dispatches the provider', async () => {

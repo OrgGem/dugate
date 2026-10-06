@@ -120,6 +120,7 @@ describe('The retry signal is carried, and written down once', () => {
         },
         capabilities: () => ({ adapters: ['json-http', 'multipart-http'] }),
         ready: async () => true,
+        allowUnauthenticatedTestTraffic: true,
       });
       const port = await listenLoopback(server, 43620 + ((process.pid % 8) * 8), 6);
       try {

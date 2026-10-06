@@ -202,6 +202,14 @@ export interface MultipartServiceOptions {
   sessionTtlMs?: number;
   partUrlTtlMs?: number;
   now?: () => number;
+  /**
+   * SEC-ENC-04: true when this deployment must not persist plaintext artifacts.
+   * The client-driven worker multipart lifecycle presigns part PUTs straight at
+   * the object store, so the Orchestrator cannot seal it; while this is true
+   * the worker branch refuses before a session, an upload or a presign exists.
+   * Defaults to the same boot predicate the public branch uses.
+   */
+  encryptionRequired?: boolean;
 }
 
 export interface MultipartSweepSummary {
@@ -255,6 +263,24 @@ function narrow(value: number, floor: number, ceiling: number, label: string): n
 export function createMultipartService(db: Db, options: MultipartServiceOptions = {}): MultipartService {
   const now = options.now ?? Date.now;
   const storage = options.storage;
+  const encryptionRequired = options.encryptionRequired ?? publicMultipartBlockedByEncryption();
+
+  /**
+   * SEC-ENC-04 (SD-03): the worker multipart branch writes client bytes
+   * directly to object storage, so it is a plaintext-at-rest bypass whenever
+   * this deployment requires encryption. Until a server-mediated sealed
+   * multipart writer exists, refusing before the session is created is the
+   * only fail-closed answer; `abort` stays open so an operator can clean up.
+   */
+  function assertWorkerMultipartSealingAvailable(): void {
+    if (!encryptionRequired) return;
+    throw new HttpError(
+      501,
+      'ENCRYPTED_MULTIPART_UNAVAILABLE',
+      'worker multipart uploads are disabled while artifact encryption is required; '
+        + 'use the server-mediated single upload path',
+    );
+  }
   const policy = {
     partSizeBytes: narrow(
       options.partSizeBytes ?? MULTIPART_FIXED_PART_BYTES,
@@ -749,6 +775,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     async init(taskId, body): Promise<MultipartInitAck> {
       const parsed = MultipartInitRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('init', parsed.error);
+      assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
       const backend = requireStorage();
       if (req.purpose === 'input') {
@@ -847,6 +874,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     async grantPart(artifactId, body): Promise<MultipartPartGrant> {
       const parsed = MultipartPartGrantRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('part grant', parsed.error);
+      assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
       const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);
@@ -870,6 +898,7 @@ export function createMultipartService(db: Db, options: MultipartServiceOptions 
     async complete(artifactId, body): Promise<MultipartCompleteAck> {
       const parsed = MultipartCompleteRequestSchema.safeParse(body);
       if (!parsed.success) throw invalidSchema('complete', parsed.error);
+      assertWorkerMultipartSealingAvailable();
       const req = parsed.data;
       const backend = requireStorage();
       const taskId = await ownerTaskOf(artifactId);

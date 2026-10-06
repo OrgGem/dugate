@@ -106,8 +106,10 @@ describe('MIGRATION-0032: idempotent re-run on a fresh instance', () => {
   test('two migrate() runs apply the DDL exactly once and leave one ledger row', async () => {
     const { files, target } = targetFile();
     const db = new FakeMigrateDb();
-    // Pre-seed sequences 1..31 so only 0032 is pending.
-    for (const f of files) if (f.sequence < 32) db.ledger.set(f.sequence, f.filename);
+    // WT-08: pre-seed every file EXCEPT 0032 so only 0032 is pending. The old
+    // `sequence < 32` assumed 0032 was the newest file; once the directory grew
+    // to 0036 the test silently had five pending migrations and failed.
+    for (const f of files) if (f.sequence !== 32) db.ledger.set(f.sequence, f.filename);
 
     const first = await migrate(db as never);
     expect(first.applied).toEqual([target.filename]);
@@ -116,7 +118,11 @@ describe('MIGRATION-0032: idempotent re-run on a fresh instance', () => {
 
     const second = await migrate(db as never);
     expect(second.applied).toEqual([]);
-    expect(db.ledger.size).toBe(32);
+    // WT-08: derive from the real directory instead of hardcoding 32.
+    // Ledger = every file except 0032, plus the single 0032 row the second
+    // migrate() run correctly skipped.
+    const expected = files.filter((f) => f.sequence !== 32).length + 1;
+    expect(db.ledger.size).toBe(expected);
     // The DDL ran exactly once across both invocations.
     expect(db.statements.filter((s) => /ADD COLUMN IF NOT EXISTS session_ref/.test(s))).toHaveLength(1);
 

@@ -8,7 +8,7 @@ import { createAdminApiClient, type AdminWebSession } from '@/lib/api';
 const NAV = [
   { label: 'Workspace', items: [['Overview', '/overview'], ['Operations', '/operations'], ['Usage', '/usage']] },
   { label: 'Configuration', items: [['Businesses', '/businesses'], ['Profiles', '/profiles'], ['Connectors', '/connectors'], ['Workflows', '/workflows']] },
-  { label: 'Administration', items: [['API keys', '/api-keys'], ['Security', '/security'], ['Identity', '/identity'], ['Settings', '/settings']] },
+  { label: 'Administration', items: [['API keys', '/api-keys'], ['Security', '/security'], ['Secrets', '/secrets'], ['Identity', '/identity'], ['Settings', '/settings']] },
   { label: 'Resources', items: [['API Reference', '/api-docs'], ['Documentation', '/docs'], ['Bootstrap', '/']] },
 ] as const;
 

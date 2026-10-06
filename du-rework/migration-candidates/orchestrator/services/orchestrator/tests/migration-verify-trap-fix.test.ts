@@ -70,15 +70,20 @@ describe('verifyMigrations: consistent ledger passes', () => {
 describe('verifyMigrations: mismatch reports with real evidence', () => {
   test('the table has MORE rows than the read registered -> throws with both numbers', async () => {
     const rows = realRows();
-    // count says 33 rows exist, the read registered only 32 sequences.
-    await expect(verifyMigrations(fakeDb({ rows, count: rows.length + 1 }))).rejects.toThrow(
+    // WT-08: derive from the real migration-directory count instead of
+    // hardcoding 33/32. The directory grows (36 files as of 0001..0036), and a
+    // hardcoded number turns "a migration was added" into a false red here.
+    const registered = rows.length;
+    const claimed = registered + 1;
+    // `count` says more rows exist than the read registered.
+    await expect(verifyMigrations(fakeDb({ rows, count: claimed }))).rejects.toThrow(
       /ledger is not readable as recorded/,
     );
-    await expect(verifyMigrations(fakeDb({ rows, count: rows.length + 1 }))).rejects.toThrow(
-      /SELECT count\(\*\) reports 33 row\(s\)/,
+    await expect(verifyMigrations(fakeDb({ rows, count: claimed }))).rejects.toThrow(
+      new RegExp('SELECT count\\(\\*\\) reports ' + claimed + ' row\\(s\\)'),
     );
-    await expect(verifyMigrations(fakeDb({ rows, count: rows.length + 1 }))).rejects.toThrow(
-      /only 32 distinct sequence\(s\)/,
+    await expect(verifyMigrations(fakeDb({ rows, count: claimed }))).rejects.toThrow(
+      new RegExp('only ' + registered + ' distinct sequence\\(s\\)'),
     );
   });
 

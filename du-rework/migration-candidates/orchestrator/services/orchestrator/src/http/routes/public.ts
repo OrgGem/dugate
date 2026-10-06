@@ -266,7 +266,18 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
       const apiKey = await resolveApiKey(ctx);
       const artifactId = decodeURIComponent(m[1]!);
       if (m[2] === 'part') {
-        throw new HttpError(409, 'STATE_CONFLICT', 'direct S3 upload grants are disabled for public uploads');
+        // CR06-10: a direct-S3 `part` grant is the same capability the
+        // encryption-gated public multipart refuses, so it must report the
+        // SAME status+code as assertPublicMultipartAllowed
+        // (multipart-service.ts:81) — 501 PUBLIC_MULTIPART_UNAVAILABLE.
+        // The old 409 STATE_CONFLICT read as "try again", implying a retry
+        // could succeed; 501 says this deployment does not offer it.
+        throw new HttpError(
+          501,
+          'PUBLIC_MULTIPART_UNAVAILABLE',
+          'public multipart upload is not available while artifact encryption is required; ' +
+            'use the encrypted upload gateway (single PUT or multipart) instead',
+        );
       }
       if (m[2] === 'complete') {
         if (!ctx.publicUploadGateway) {

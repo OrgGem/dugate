@@ -14,10 +14,11 @@ import {
   ArtifactStreamError,
   assertHttpUrl,
   createRequestScope,
-  readErrorDetail,
+  readErrorResponse,
   streamTransportError,
   toNodeReadable,
 } from './artifact-streams';
+import { isArtifactStoragePolicyCode } from './storage-policy';
 import type { SdkFetcher } from './fan-out';
 
 /**
@@ -102,6 +103,9 @@ export interface MultipartUploadResult {
 }
 
 function retryablePutStatus(status: number): boolean {
+  // 501 is a policy/not-implemented refusal: retrying the same PUT can never
+  // change the answer (SEC-ENC-04 multipart policy refusal included).
+  if (status === 501) return false;
   return status === 403 || status === 404 || status === 408 || status === 429 || status >= 500;
 }
 
@@ -242,7 +246,14 @@ export async function uploadArtifactMultipart(
             scope.dispose();
           }
           if (!response.ok) {
-            const detail = await readErrorDetail(response);
+            const { detail, code } = await readErrorResponse(response);
+            if (response.status === 501 || isArtifactStoragePolicyCode(code)) {
+              throw new ArtifactStreamError(
+                response.status,
+                'STORAGE_POLICY_REJECTED',
+                'part ' + partNumber + ' PUT refused by storage policy (HTTP ' + response.status + '): ' + detail
+              );
+            }
             throw new ArtifactStreamError(
               response.status,
               'DOWNLOAD_REJECTED',

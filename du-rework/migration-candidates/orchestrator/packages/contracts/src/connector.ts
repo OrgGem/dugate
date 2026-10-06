@@ -131,6 +131,15 @@ export const InvocationResponseSchema = z.object({
     .optional(),
   /** Provider async: poll hint (202 semantics). */
   nextPollAt: z.string().nullable().optional(),
+  /**
+   * CR06-04: continuation session for THIS invocation. A provider may return
+   * a sessionRef in an async 202 accept body (not only in the final result);
+   * the connector persists it on the pending record, echoes it on every
+   * PENDING response, and keeps it as the invocation's session when the final
+   * result omits one. Additive optional — absent keeps the pre-CR06-04 wire
+   * shape byte-identical.
+   */
+  sessionRef: z.string().nullable().optional(),
 });
 export type InvocationResponse = z.infer<typeof InvocationResponseSchema>;
 

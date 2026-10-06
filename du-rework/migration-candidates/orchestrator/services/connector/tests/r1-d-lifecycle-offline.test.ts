@@ -718,6 +718,7 @@ describe('R1-D-03 UNKNOWN surfacing + reconciliation-gap pins (offline)', () => 
       runtime,
       capabilities: () => ({}),
       ready: async () => true,
+      allowUnauthenticatedTestTraffic: true,
     });
     const { listenLoopback } = await import('../../../tests/harness/listen-loopback');
     // quiet band (see cycle 102): dynamic ports on this box intermittently

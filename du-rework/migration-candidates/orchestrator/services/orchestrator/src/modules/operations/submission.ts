@@ -4,13 +4,16 @@ import {
   BusinessManifest,
   OperationView,
   PROFILE_JOB_PRIORITY_DEFAULT,
+  ProfileCallbackPolicySnapshotSchema,
   ProfilePolicySnapshotSchema,
+  findSecretParameterKeys,
   SubmissionSchema,
   canonicalRequestHash,
   normalizeRouteAction,
   adjudicateUrlDestination,
   withIngestionSource,
   type IngestionReceipt,
+  type ProfileCallbackPolicySnapshot,
   type ProfilePolicySnapshot,
   type PromptOverrideRead,
   type PinnedPromptOverride,
@@ -394,6 +397,16 @@ export function createSubmissionService(
       // failure must abort the submit with nothing written, and no Vault call
       // may sit inside the write tx.
       const sealedOutboxSourceUrl = await sealOutboxSourceUrl(metadataCrypto, submission.sourceUrl, ctx.tenantId, rootTaskId);
+      // CB-02 (B3): the admission-time callback pin. NULL for profiles without
+      // a callback policy (or legacy mode), preserving notification-only.
+      const callbackPolicyPin = profile.mode === 'pinned'
+        ? buildCallbackPolicySnapshot(profile, {
+            tenantId: ctx.tenantId,
+            businessId: ctx.businessId,
+            businessVersion: version,
+            endpointKey: canonicalAction,
+          })
+        : null;
 
       const created = await db.tx(async (client) => {
         // Recheck under row locks inside the write transaction so an artifact
@@ -441,8 +454,8 @@ export function createSubmissionService(
              (id, tenant_id, api_key_id, business_id, business_version, action, state, state_version,
               root_task_id, input_ref, correlation_id, callback_url,
               profile_id, profile_revision, connector_bindings, submit_artifacts,
-              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref, callback_policy)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
           [
             operationId,
             ctx.tenantId,
@@ -492,6 +505,10 @@ export function createSubmissionService(
             // P745-CARRIER-IMPL-A (Δ-PC-1): the sealed content carrier (JSON
             // text of the ENC-META envelope), or NULL per adjudication 1c.
             sealedPromptCarrier,
+            // CB-02 (B3): the admission-time callback policy snapshot
+            // (migration 0035 column). Secret REFERENCES only; NULL keeps the
+            // legacy notification-only path byte-identical.
+            callbackPolicyPin === null ? null : JSON.stringify(callbackPolicyPin),
           ]
         );
 
@@ -571,10 +588,29 @@ export function createSubmissionService(
  * closed later at claim time — an admission record that cannot be read back
  * is not an admission record.
  */
-function buildProfilePolicySnapshot(
+/** CR06-06: exported so the 422 sentinel is testable without a database. */
+export function buildProfilePolicySnapshot(
   profile: Extract<EffectiveProfile, { mode: 'pinned' }>,
   tenantId: string
 ): ProfilePolicySnapshot {
+  // CR06-06: `parameters` is a passthrough bag, so a credential in it would be
+  // copied into the admission snapshot verbatim. Refuse the SUBMIT here — 422,
+  // caller-fixable — instead of letting the snapshot contract fail later as a
+  // 500. Only key NAMES are echoed back; values never leave this point.
+  const secretParameterKeys = findSecretParameterKeys(profile.policy.parameters);
+  if (secretParameterKeys.length > 0) {
+    throw new HttpError(
+      422,
+      'SECRET_IN_PARAMETERS',
+      'profile policy parameters must not carry credential keys',
+      {
+        errors: secretParameterKeys.map((key) => ({
+          pointer: '/profilePolicy/parameters/' + key,
+          message: 'parameter key must not carry a credential; configure it through the profile credential surface',
+        })),
+      }
+    );
+  }
   const parsed = ProfilePolicySnapshotSchema.safeParse({
     enabled: profile.policy.enabled,
     parameters: profile.policy.parameters,
@@ -596,6 +632,47 @@ function buildProfilePolicySnapshot(
       {
         errors: parsed.error.issues.slice(0, 50).map((i) => ({
           pointer: '/profilePolicy/' + i.path.join('/'),
+          message: i.message,
+        })),
+      }
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * CB-02 (B3) — the admission-time callback-policy pin written to
+ * `operations.callback_policy` (migration 0035). Returns null when the pinned
+ * profile carries no callback policy, preserving the legacy notification-only
+ * delivery byte-for-byte. The snapshot copies tenant/profile/endpoint identity
+ * plus the revision so a later publish/rollback cannot retarget an already
+ * admitted callback.
+ */
+export function buildCallbackPolicySnapshot(
+  profile: Extract<EffectiveProfile, { mode: 'pinned' }>,
+  input: { tenantId: string; businessId: string; businessVersion: string; endpointKey: string }
+): ProfileCallbackPolicySnapshot | null {
+  const policy = profile.policy.callbackPolicy;
+  if (policy == null) return null;
+  const parsed = ProfileCallbackPolicySnapshotSchema.safeParse({
+    tenantId: input.tenantId,
+    businessId: input.businessId,
+    businessVersion: input.businessVersion,
+    // The `profile_names` registry name is the display identity; profileId is
+    // the stable fallback for legacy rows that predate the registry.
+    profileName: profile.profileName ?? profile.profileId,
+    endpointKey: input.endpointKey,
+    profileRevision: profile.revision,
+    policy,
+  });
+  if (!parsed.success) {
+    throw new HttpError(
+      500,
+      'INVALID_SCHEMA',
+      'resolved callback policy does not satisfy the snapshot contract',
+      {
+        errors: parsed.error.issues.slice(0, 50).map((i) => ({
+          pointer: '/callbackPolicy/' + i.path.join('/'),
           message: i.message,
         })),
       }

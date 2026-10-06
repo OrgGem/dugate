@@ -120,6 +120,7 @@ test('HTTP shell exposes health, redacted management, and write-only rotation', 
     },
     capabilities: () => ({ adapters: ['json-http', 'multipart-http'] }),
     ready: async () => true,
+    allowUnauthenticatedTestTraffic: true,
   });
 
   await listenLoopback(server, 43440 + ((process.pid % 8) * 8));
@@ -179,6 +180,7 @@ test('HTTP invocation reads and cancellation forward the invocation grant header
     },
     capabilities: () => ({}),
     ready: async () => true,
+    allowUnauthenticatedTestTraffic: true,
   });
 
   await listenLoopback(server, 43500 + ((process.pid % 8) * 8));

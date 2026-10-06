@@ -39,6 +39,35 @@ const DECLARED_SHA = wholeHash('whole-object');
 /** Signed §6 policy ceiling for one part (§6 user decision gate, Cycle A1). */
 const SIGNED_MAX_PART_BYTES = 64 * 1024 * 1024;
 
+/**
+ * SEC-ENC-05: these fixtures model non-real data, and the boot default is now
+ * real-data (persistence encryption required). The suite declares the explicit
+ * synthetic exemption and restores the environment afterwards so other files
+ * in an --runInBand worker are unaffected. RFX-03 keeps its own `withEnv`
+ * cases: synthetic mode still forces encryption for the s3 backend and for a
+ * malformed flag.
+ */
+const SEC_ENC_05_ENV = ['DU_DATA_MODE', 'DU_SYNTHETIC_DATA_ACK'] as const;
+const savedSecEnc05Env = SEC_ENC_05_ENV.map((key) => [key, process.env[key]] as const);
+
+beforeAll(() => {
+  process.env.DU_DATA_MODE = 'synthetic';
+  process.env.DU_SYNTHETIC_DATA_ACK = JSON.stringify({
+    mode: 'synthetic-data-exempt',
+    reason: 'offline multipart fixtures',
+    approvedBy: 'tester',
+    acknowledgedAt: '2026-10-06T00:00:00.000Z',
+    isolatedFromRealData: true,
+  });
+});
+
+afterAll(() => {
+  for (const [key, value] of savedSecEnc05Env) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
+
 async function opened(harness: MultipartHarness) {
   const ack = await harness.service.init(TASK_ID, initBody());
   const geometry = { partSizeBytes: ack.partSizeBytes, partCount: ack.partCount, sizeBytes: SIZE_70MIB };

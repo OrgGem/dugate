@@ -152,13 +152,21 @@ export class DurableConnectorRuntime implements ConnectorRuntime {
         ? { eventId: `${local.invocationId}:1`, invocationId: local.invocationId, operationId: local.operationId, taskId: local.taskId, usage: outcome.result.usage, createdAt: new Date().toISOString() }
         : undefined;
       if (event) await this.outbox.append(event);
-      return { invocationId: local.invocationId, state: 'completed', result: outcome.result as Record<string, unknown> };
+      return {
+        invocationId: local.invocationId,
+        state: 'completed',
+        result: outcome.result as Record<string, unknown>,
+        // CR06-04: the result carries the invocation session (provider's
+        // result-side value, or the pending 202 value it did not echo back).
+        sessionRef: outcome.result.sessionRef,
+      };
     }
     return {
       invocationId: local.invocationId,
       state: 'pending',
       nextPollAt: outcome.nextPollAt,
       providerRequestId: outcome.providerRequestId,
+      sessionRef: outcome.sessionRef,
     };
   }
 
@@ -408,5 +416,9 @@ function toHttpResult(record: import('./types').InvocationRecord): HttpInvocatio
     providerRequestId: record.providerRequestId,
     error: errorCode ? { code: errorCode, message: 'Invocation did not complete.' } : undefined,
     nextPollAt: record.nextPollAt,
+    // CR06-04: pending records expose the provider-issued session; completed
+    // records expose the result-side session (which already falls back to the
+    // pending one inside invokeAdapter).
+    sessionRef: record.sessionRef ?? record.result?.sessionRef,
   };
 }

@@ -245,7 +245,7 @@ function makeHarness(opts: HarnessOptions = {}) {
       }
       return result([]);
     }
-    if (n.includes('SELECT id, tenant_id, state, state_version, callback_url, updated_at FROM operations WHERE id=$1')) {
+    if (n.includes('SELECT id, tenant_id, state, state_version, callback_url,')) {
       const op = store.ops.get(String(params[0]));
       if (!op) return result([]);
       return result([{

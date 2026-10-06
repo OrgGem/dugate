@@ -2,6 +2,20 @@ import { ConnectorError } from './errors';
 import type { ServiceIdentity, ServiceIdentityVerifier } from './types';
 import { HmacSignedGrantSource } from './contract-grants';
 
+/**
+ * HMAC-SHA256 Bearer service identity (CR28-02; fail-closed enforcement
+ * CR06-05).
+ *
+ * Threat model in short: issuer and Connector share a 32-byte secret.
+ * A bearer token is `base64url(header).base64url(claims).base64url(HMAC)`.
+ * Signature comparison is constant-time, the header must be HS256, `exp`
+ * (epoch seconds) is required and enforced, and `requireServiceIdentity`
+ * additionally binds `aud=connector` and the per-route scope. Accepted
+ * residual risks: replay inside the short token TTL, no revocation list
+ * (rotate the shared secret), and any holder of the shared secret can mint
+ * arbitrary identities. The verifier never logs token material. Full note:
+ * `docs/08-connector-api.md` threat-model section.
+ */
 export class HmacServiceIdentityVerifier implements ServiceIdentityVerifier {
   private readonly source: HmacSignedGrantSource;
 

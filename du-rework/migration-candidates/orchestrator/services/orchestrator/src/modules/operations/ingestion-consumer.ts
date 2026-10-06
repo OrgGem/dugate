@@ -22,6 +22,13 @@ import {
   type AcquisitionRefCoords,
   type ResolvedSourceAuth,
 } from './acquisition-ref-resolver';
+import {
+  createEncryptedSourceStorageWrapper,
+  encryptedSourceArtifactId,
+  encryptedSourceObjectVersion,
+  hasEncryptedSourceWriteCapability,
+  type EncryptedSourceWriteDescription,
+} from './ingestion-storage-s3';
 import { processIngestionTask, type SourceAcquirer } from './submission';
 
 /**
@@ -130,6 +137,18 @@ export interface IngestionConsumerOptions {
    * historical unauthenticated acquisition path, byte-identical.
    */
   resolveSourceAuth?: (coords: AcquisitionRefCoords) => Promise<ResolvedSourceAuth>;
+  /**
+   * SEC-ENC-03 (SD-02): when true, every cold source acquisition MUST persist
+   * a canonical encrypted envelope and the artifacts row carries the strict
+   * reader's `upload_token` + `manifest_version_id`. The storage adapter must
+   * expose the encrypted write capability (composed from the SAME Vault-backed
+   * facade the deployment already uses); a deployment that sets this flag
+   * without that capability fails at construction instead of silently writing
+   * plaintext. Absent/false keeps the historical plaintext path byte-identical
+   * for synthetic/legacy environments until SEC-ENC-05 flips the real-data
+   * default.
+   */
+  requireEncryptedSourceWrites?: boolean;
 }
 
 export interface IngestionSweepResult {
@@ -261,11 +280,15 @@ const ARTIFACT_BY_ID_SQL =
 
 /** token is NOT NULL in the base schema but is only a placeholder here: the
  * grant routes rotate token/token_mode on demand (artifacts.ts:410), and a
- * platform-materialized source pin was never PUT through the proxy path. */
+ * platform-materialized source pin was never PUT through the proxy path.
+ * SEC-ENC-03: `upload_token` (AAD object version) and `manifest_version_id`
+ * are appended for encrypted writes; both stay NULL on the historical
+ * plaintext path. */
 const ARTIFACT_INSERT_SQL =
   'INSERT INTO artifacts (id, tenant_id, operation_id, task_id, purpose, mime_type, ' +
-  'size_bytes, sha256, state, token, storage_key, storage_version_id, storage_backend) ' +
-  "VALUES ($1,$2,$3,$4,'input','application/octet-stream',$5,$6,'READY',$7,$8,$9,$10) " +
+  'size_bytes, sha256, state, token, storage_key, storage_version_id, storage_backend, ' +
+  'upload_token, manifest_version_id) ' +
+  "VALUES ($1,$2,$3,$4,'input','application/octet-stream',$5,$6,'READY',$7,$8,$9,$10,$11,$12) " +
   'ON CONFLICT (id) DO NOTHING';
 
 /** Non-retryable: redelivery cannot change the answer. Everything that
@@ -413,6 +436,11 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   if (!Number.isSafeInteger(options.transfer.maxBytes) || options.transfer.maxBytes < 1) {
     throw new Error('ingestion consumer requires a positive integer transfer.maxBytes');
   }
+  // SEC-ENC-03: fail at composition, not mid-ingestion, when encryption is
+  // required but the storage adapter cannot produce envelopes.
+  if (options.requireEncryptedSourceWrites && !hasEncryptedSourceWriteCapability(options.storage)) {
+    throw new Error('ingestion consumer requires encrypted source writes but the storage adapter does not implement putEncrypted');
+  }
   // T180-D1: the claim lease must outlive the transfer it protects, or the
   // fence exists only on paper (a lease shorter than the deadline guarantees
   // mid-flight expiry). 60s default mirrors the SDK DEFAULT_SOURCE_TIMEOUT_MS.
@@ -477,15 +505,21 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
   async function materializeArtifactRow(
     row: ClaimedRow,
     coords: { tenantId: string; operationId: string; taskId: string },
-    receipt: IngestionReceipt
+    receipt: IngestionReceipt,
+    encrypted?: EncryptedSourceWriteDescription | null,
   ): Promise<string> {
-    const artifactId = sourceArtifactId({
-      tenantId: coords.tenantId,
-      operationId: coords.operationId,
-      storageKey: receipt.storageKey,
-      versionId: receipt.versionId,
-      sha256: receipt.sha256,
-    });
+    // SEC-ENC-03: an encrypted write pre-binds the row id (AAD artifactId) and
+    // the object version (AAD objectVersion); the plaintext path keeps the
+    // historical deterministic pin formula.
+    const artifactId = encrypted
+      ? encrypted.artifactId
+      : sourceArtifactId({
+          tenantId: coords.tenantId,
+          operationId: coords.operationId,
+          storageKey: receipt.storageKey,
+          versionId: receipt.versionId,
+          sha256: receipt.sha256,
+        });
     return options.db.tx(async (client) => {
       await assertOwnership(client, row);
       const found = await client.query(ARTIFACT_FIND_SQL, [
@@ -506,6 +540,8 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
         artifactId, coords.tenantId, coords.operationId, coords.taskId,
         receipt.sizeBytes, receipt.sha256, randomUUID(),
         receipt.storageKey, receipt.versionId, options.storageBackend,
+        encrypted?.objectVersion ?? null,
+        encrypted?.manifestVersionId ?? null,
       ]);
       if (inserted.rowCount) return artifactId;
       // PK conflict: our deterministic id already exists (concurrent or
@@ -549,8 +585,30 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
             fetcher: withSourceAuth(options.transfer.fetcher ?? createPinnedFetch(), sourceAuth),
           };
     const storageKey = sourceStorageKey(coords.tenantId, coords.operationId);
+    // SEC-ENC-03: bind this acquisition's envelope identity. The wrapper fails
+    // closed when the adapter has no encrypted capability; with the flag
+    // absent the historical storage port is used unchanged.
+    let encryptedWrite: EncryptedSourceWriteDescription | null = null;
+    const acquisitionStorage = options.requireEncryptedSourceWrites
+      ? createEncryptedSourceStorageWrapper(options.storage, {
+          context: {
+            tenantId: coords.tenantId,
+            artifactId: encryptedSourceArtifactId({
+              tenantId: coords.tenantId,
+              operationId: coords.operationId,
+              storageKey,
+            }),
+            objectVersion: encryptedSourceObjectVersion({
+              tenantId: coords.tenantId,
+              operationId: coords.operationId,
+              storageKey,
+            }),
+          },
+          onWritten: (description) => { encryptedWrite = description; },
+        })
+      : options.storage;
     const ingestor = createSourceAcquisitionIngestor({
-      storage: options.storage,
+      storage: acquisitionStorage,
       storageKey,
       transfer,
       taskId: coords.operationId,
@@ -562,7 +620,7 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
     });
     const handler = createIngestionTaskHandler({
       acquirer: ingestor,
-      materializeArtifact: (_task, receipt) => materializeArtifactRow(row, coords, receipt),
+      materializeArtifact: (_task, receipt) => materializeArtifactRow(row, coords, receipt, encryptedWrite),
     });
     // The handler IS the SourceAcquirer processIngestionTask demands: the
     // audit's missing middle - acquisition plus READY-artifact

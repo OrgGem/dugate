@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,10 @@ import {
 import { profileErrorHint, parseProfileDetail } from './state';
 import { buildPublishBody, buildRollbackBody, buildUpsertBody } from './command-bodies';
 import { RequestRedactionEditor } from './request-redaction-editor';
+import { CallbackPolicyEditor } from './callback-policy-editor';
+import { buildCallbackPolicy, callbackPolicyFromRead, emptyCallbackDraft, validateCallbackDraft, type CallbackDraft } from './callback-policy';
+import { parseSecretListPage } from '@/features/secrets/state';
+import type { SecretOption } from '@/features/secrets/value-source-selector';
 import { BusinessInputs } from '@/features/businesses/business-inputs';
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -41,6 +45,14 @@ interface RowDraft {
   params: ParamDraft[];
   connSteps: ConnectionStep[];
   requestRedaction: RequestRedactionRule[];
+  /** CB-04: null = inherit (absent policy preserves notification-only). */
+  callback: CallbackDraft | null;
+  /** A policy exists on the server for this revision. */
+  callbackConfiguredOnServer: boolean;
+  /** WT-04: stored pin failed validation; only an explicit clear/replacement repairs it. */
+  callbackPolicyInvalid: boolean;
+  /** Operator unchecked the box after a stored policy: send explicit null. */
+  callbackClearPending: boolean;
 }
 
 interface FileUrlAuthDraft {
@@ -89,6 +101,44 @@ export function ProfilesScreen() {
   const [testFileUrls, setTestFileUrls] = useState('');
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
   const [testProblem, setTestProblem] = useState<AdminApiProblem | null>(null);
+  const [secretOptions, setSecretOptions] = useState<SecretOption[]>([]);
+  const [secretsLoading, setSecretsLoading] = useState(false);
+  const [secretsProblem, setSecretsProblem] = useState<AdminApiProblem | null>(null);
+
+  // CB-04: the callback credential fields select from the live secret
+  // catalog; a catalog outage degrades the selector with an honest message and
+  // never blocks profile editing.
+  useEffect(() => {
+    let active = true;
+    setSecretsLoading(true);
+    void client.listSecrets({ limit: '100' }).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setSecretOptions([]);
+        setSecretsProblem(result.problem);
+        setSecretsLoading(false);
+        return;
+      }
+      const page = parseSecretListPage(result.data);
+      if (page === null) {
+        setSecretOptions([]);
+        setSecretsProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'The secret catalog response did not match the contract.' });
+        setSecretsLoading(false);
+        return;
+      }
+      setSecretOptions(page.items.map((entry) => ({
+        secretId: entry.secretId,
+        name: entry.name,
+        state: entry.state,
+        purpose: entry.purpose,
+      })));
+      setSecretsProblem(null);
+      setSecretsLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [client]);
 
   const identifiers = { businessId: businessId.trim(), businessVersion: businessVersion.trim() || 'latest', profileName: profileName.trim() || 'new' };
 
@@ -160,6 +210,14 @@ export function ProfilesScreen() {
     if (draft !== null && draft.fileUrlAuth.touched) {
       policy.fileUrlAuthConfig = buildFileUrlAuth(draft.fileUrlAuth);
     }
+    if (row.callbackClearPending) {
+      // CB-01/CB-02 write semantics: explicit `null` clears; an omitted key
+      // would PRESERVE the stored policy (profiles.ts:268-276).
+      policy.callbackPolicy = null;
+    } else if (row.callback !== null && row.callback.touched) {
+      const callbackPolicy = buildCallbackPolicy(row.callback);
+      if (callbackPolicy !== null) policy.callbackPolicy = callbackPolicy;
+    }
     return policy;
   }
 
@@ -169,6 +227,18 @@ export function ProfilesScreen() {
       return { result: { profileName: row.profileName, ok: false, detail: 'no profile loaded' } };
     }
     const profileKey = row.profileName.trim() || target.profileName;
+    if (row.callback !== null && row.callback.touched) {
+      const callbackErrors = validateCallbackDraft(row.callback);
+      if (callbackErrors.length > 0) {
+        return {
+          result: {
+            profileName: profileKey,
+            ok: false,
+            detail: `callback policy invalid: ${callbackErrors[0] ?? 'configuration error'}`,
+          },
+        };
+      }
+    }
     const response = await client.upsertProfile(
       target.businessId,
       target.businessVersion,
@@ -450,7 +520,7 @@ export function ProfilesScreen() {
                       ...d,
                       rows: [
                         ...d.rows,
-                        { profileName: '', enabled: true, jobPriority: 'MEDIUM', extensionsCsv: '', params: [], connSteps: [], requestRedaction: [] },
+                        { profileName: '', enabled: true, jobPriority: 'MEDIUM', extensionsCsv: '', params: [], connSteps: [], requestRedaction: [], callback: null, callbackConfiguredOnServer: false, callbackPolicyInvalid: false, callbackClearPending: false },
                       ],
                     }))
                   }
@@ -589,6 +659,68 @@ export function ProfilesScreen() {
 
                 <RequestRedactionEditor rules={row.requestRedaction} disabled={!policyShipped || busy}
                   onChange={rules => updateRow(rowIndex, { ...row, requestRedaction: rules })} />
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle>Callback policy (CB-04)</CardTitle>
+                      <Badge variant="info" dot>secrets stay server-side</Badge>
+                    </div>
+                    <CardDescription>
+                      Delivery mode and outbound authentication for this profile&apos;s endpoint callbacks. Credentials
+                      are catalog secret references only — no literal secret is ever typed into or read from this form.
+                      Leaving the policy unchecked preserves the existing notification-only behavior.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    {row.callbackPolicyInvalid ? (
+                      <div role="alert" className="text-sm text-[var(--badge-warning-text)]">
+                        <p>The stored callback policy is invalid. Callback processing remains blocked until you replace or clear it.</p>
+                        <Button type="button" disabled={!policyShipped || busy || row.callbackClearPending}
+                          onClick={() => updateRow(rowIndex, { ...row, callback: null, callbackClearPending: true })}>
+                          Clear invalid callback policy
+                        </Button>
+                      </div>
+                    ) : null}
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+                      <input
+                        type="checkbox"
+                        checked={row.callback !== null}
+                        disabled={!policyShipped || busy}
+                        onChange={(event) => updateRow(rowIndex, event.target.checked
+                          ? { ...row, callback: emptyCallbackDraft(), callbackClearPending: false }
+                          : {
+                              ...row,
+                              callback: null,
+                              callbackClearPending: row.callbackConfiguredOnServer,
+                            })}
+                      />
+                      Configure a callback policy for this profile
+                    </label>
+                    {row.callbackClearPending ? (
+                      <p className="text-xs text-[var(--badge-warning-text)]" role="status">
+                        Saving now sends an explicit clear (`callbackPolicy: null`); an omitted key would keep the
+                        stored policy active.
+                      </p>
+                    ) : null}
+                    {row.callback !== null ? (
+                      <CallbackPolicyEditor
+                        idPrefix={`profile-${rowIndex}-callback`}
+                        draft={row.callback}
+                        onChange={(callback) => updateRow(rowIndex, { ...row, callback })}
+                        secrets={secretOptions}
+                        secretsLoading={secretsLoading}
+                        secretsProblem={secretsProblem}
+                        disabled={!policyShipped || busy}
+                      />
+                    ) : row.callbackClearPending ? null : (
+                      <p className="text-xs text-[var(--text-sub)]">
+                        No callback policy is attached: the platform keeps the existing notification-only delivery
+                        (submission callback URL + HMAC signature).
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
 
                 <div className="flex justify-end gap-2">
                   <Button
@@ -816,6 +948,10 @@ function draftFromDetail(detail: ProfileDetail): Draft {
         params,
         connSteps: detail.policy.connectionsOverride,
         requestRedaction: detail.policy.requestRedaction ?? [],
+        callback: callbackPolicyFromRead(detail.policy.callbackPolicy),
+        callbackConfiguredOnServer: detail.policy.callbackPolicyInvalid === true || (detail.policy.callbackPolicy !== undefined && detail.policy.callbackPolicy !== null),
+        callbackPolicyInvalid: detail.policy.callbackPolicyInvalid === true,
+        callbackClearPending: false,
       },
     ],
     fileUrlAuth: {

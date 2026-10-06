@@ -6,6 +6,12 @@ import {
 } from '@du/contracts';
 import { parseCredentialSource, type CredentialSource } from '../vault/resolver';
 import { randomUUID } from 'node:crypto';
+import {
+  InvocationFieldCryptoError,
+  isSealedInvocationField,
+  type InvocationCryptoContext,
+  type InvocationFieldCrypto,
+} from './invocation-crypto';
 import type {
   AdapterConfig,
   ConnectorErrorCode,
@@ -30,6 +36,7 @@ interface InvocationRow {
   result: unknown;
   error_code: ConnectorErrorCode | null;
   provider_request_id: string | null;
+  session_ref: string | null;
   next_poll_at: string | Date | null;
   poll_lease_token: string | null;
   poll_lease_expires_at: string | Date | null;
@@ -40,15 +47,148 @@ interface InvocationRow {
   updated_at: string;
 }
 
+export interface PostgresInvocationLedgerOptions {
+  /**
+   * SEC-ENC-02 (SD-01): seals `request`, `result` and `session_ref` before any
+   * SQL statement runs, and opens them only when a record is authorized and
+   * read back. Absent = fail closed: sensitive writes/reads are refused
+   * rather than persisted in plaintext. Wire at composition via
+   * `resolveInvocationStorageCryptoFromEnv` (db/invocation-crypto.ts).
+   */
+  readonly fieldCrypto?: InvocationFieldCrypto;
+  /**
+   * Bounded historical/migration window: a stored value that is not an
+   * envelope is returned as-is so pre-encryption rows stay readable while a
+   * backfill runs. Default false (strict). Never affects writes: writes are
+   * always sealed or refused.
+   */
+  readonly legacyPlaintextReads?: boolean;
+}
+
 export class PostgresInvocationLedger implements InvocationLedger {
-  public constructor(private readonly db: SqlClient) {}
+  private readonly fieldCrypto?: InvocationFieldCrypto;
+  private readonly legacyPlaintextReads: boolean;
+
+  public constructor(
+    private readonly db: SqlClient,
+    options: PostgresInvocationLedgerOptions = {},
+  ) {
+    this.fieldCrypto = options.fieldCrypto;
+    this.legacyPlaintextReads = options.legacyPlaintextReads === true;
+  }
+
+  private requireCrypto(): InvocationFieldCrypto {
+    if (!this.fieldCrypto) {
+      // Fail closed: an unconfigured deployment must not persist or serve
+      // tenant/provider content. The boot policy (SEC-ENC-05) turns this into
+      // a startup refusal; until then no plaintext can enter the table.
+      throw new ConnectorError('PROVIDER_UNAVAILABLE', 'Invocation storage encryption is not configured.', {
+        safeToRetry: false,
+      });
+    }
+    return this.fieldCrypto;
+  }
+
+  private async sealField(context: InvocationCryptoContext, value: unknown): Promise<unknown> {
+    const crypto = this.requireCrypto();
+    try {
+      return await crypto.seal(value, context);
+    } catch (error) {
+      throw mapInvocationCryptoFailure(error);
+    }
+  }
+
+  private async openField(context: InvocationCryptoContext, value: unknown): Promise<unknown> {
+    if (value === null || value === undefined) return value;
+    if (isSealedInvocationField(value)) {
+      const crypto = this.requireCrypto();
+      try {
+        return await crypto.open(value, context);
+      } catch (error) {
+        throw mapInvocationCryptoFailure(error);
+      }
+    }
+    if (this.legacyPlaintextReads) return value;
+    throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation data is not protected by an envelope.');
+  }
+
+  private async openSessionRef(row: InvocationRow): Promise<string> {
+    const raw = row.session_ref;
+    if (raw === null || raw === undefined) {
+      throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation session failed protection.');
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = undefined;
+    }
+    if (parsed !== undefined && isSealedInvocationField(parsed)) {
+      const opened = await this.openField(
+        { tenantId: row.tenant_id, slot: 'connector_invocations.session_ref', refId: row.invocation_id },
+        parsed,
+      );
+      if (typeof opened !== 'string') {
+        throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation session failed protection.');
+      }
+      return opened;
+    }
+    // Not an envelope: a pre-encryption session string is readable only inside
+    // the explicit migration window.
+    if (this.legacyPlaintextReads) return raw;
+    throw new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation data is not protected by an envelope.');
+  }
+
+  private async tenantFor(invocationId: string): Promise<string | undefined> {
+    const result = await this.db.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM connector_invocations WHERE invocation_id = $1',
+      [invocationId],
+    );
+    return result.rows[0]?.tenant_id;
+  }
+
+  private async toRecord(row: InvocationRow): Promise<InvocationRecord> {
+    const request = await this.openField(
+      { tenantId: row.tenant_id, slot: 'connector_invocations.request', refId: row.invocation_id },
+      row.request,
+    ) as LocalInvocationRequest;
+    const result = await this.openField(
+      { tenantId: row.tenant_id, slot: 'connector_invocations.result', refId: row.invocation_id },
+      row.result,
+    ) as NormalizedProviderResult | undefined;
+    const sessionRef = row.session_ref === null || row.session_ref === undefined
+      ? undefined
+      : await this.openSessionRef(row);
+    return {
+      request,
+      inputHash: row.input_hash,
+      state: row.state,
+      result,
+      errorCode: row.error_code ?? undefined,
+      providerRequestId: row.provider_request_id ?? undefined,
+      sessionRef,
+      // pg returns TIMESTAMPTZ as Date; the contract requires an RFC3339 string.
+      nextPollAt: row.next_poll_at == null ? undefined : new Date(row.next_poll_at).toISOString(),
+      pollLeaseToken: row.poll_lease_token ?? undefined,
+      pollLeaseExpiresAt: row.poll_lease_expires_at == null ? undefined : new Date(row.poll_lease_expires_at).toISOString(),
+      quotaLease: row.quota_lease_key && row.quota_lease_id && row.quota_lease_expires_at != null
+        ? {
+          key: row.quota_lease_key,
+          leaseId: row.quota_lease_id,
+          expiresAt: new Date(row.quota_lease_expires_at).getTime(),
+        }
+        : undefined,
+      providerPollAttempts: Number(row.provider_poll_attempts ?? 0),
+      updatedAt: row.updated_at,
+    };
+  }
 
   public async get(invocationId: string): Promise<InvocationRecord | undefined> {
     const result = await this.db.query<InvocationRow>(
       'SELECT * FROM connector_invocations WHERE invocation_id = $1',
       [invocationId],
     );
-    return result.rows[0] ? toRecord(result.rows[0]) : undefined;
+    return result.rows[0] ? this.toRecord(result.rows[0]) : undefined;
   }
 
   public async claim(
@@ -60,6 +200,27 @@ export class PostgresInvocationLedger implements InvocationLedger {
     | { kind: 'conflict'; record: InvocationRecord }
   > {
     return this.db.transaction(async (tx) => {
+      // Existence pre-check: a replay opens the stored row (the caller must see
+      // the original request anyway) and never needs a fresh DEK wrap. A key
+      // provider outage therefore surfaces before any write is attempted.
+      const existing = await tx.query<InvocationRow>(
+        'SELECT * FROM connector_invocations WHERE invocation_id = $1',
+        [request.invocationId],
+      );
+      if (existing.rows[0]) {
+        const record = await this.toRecord(existing.rows[0]);
+        return record.inputHash === inputHash
+          ? { kind: 'replay' as const, record }
+          : { kind: 'conflict' as const, record };
+      }
+
+      // SEC-ENC-02: the request row never reaches SQL unsealed. The envelope is
+      // bound to (tenant, request slot, invocationId); the sealed value is the
+      // only copy written to the JSONB column.
+      const sealedRequest = await this.sealField(
+        { tenantId: request.tenantId, slot: 'connector_invocations.request', refId: request.invocationId },
+        request,
+      );
       const inserted = await tx.query<InvocationRow>(
         `INSERT INTO connector_invocations
           (invocation_id, tenant_id, operation_id, task_id, step_key, input_hash, request, state)
@@ -73,24 +234,27 @@ export class PostgresInvocationLedger implements InvocationLedger {
           request.taskId,
           request.stepKey,
           inputHash,
-          JSON.stringify(request),
+          JSON.stringify(sealedRequest),
         ],
       );
       if (inserted.rows[0]) {
-        return { kind: 'claimed' as const, record: toRecord(inserted.rows[0]) };
+        // The claimed record is built from the in-memory request rather than
+        // unwrapping the envelope just written; behavior is identical and no
+        // extra key operation is spent on the write path.
+        return { kind: 'claimed' as const, record: recordFromClaim(request, inputHash, inserted.rows[0]) };
       }
 
       // A concurrent first claimant may have inserted this ID after our
-      // INSERT began. ON CONFLICT makes that a replay/conflict path instead
-      // of surfacing a primary-key violation as an HTTP 500.
-      const existing = await tx.query<InvocationRow>(
+      // pre-check. ON CONFLICT makes that a replay/conflict path instead of
+      // surfacing a primary-key violation as an HTTP 500.
+      const raced = await tx.query<InvocationRow>(
         'SELECT * FROM connector_invocations WHERE invocation_id = $1 FOR UPDATE',
         [request.invocationId],
       );
-      if (!existing.rows[0]) {
+      if (!raced.rows[0]) {
         throw new ConnectorError('INVOCATION_UNKNOWN', 'Invocation claim could not be reconciled.');
       }
-      const record = toRecord(existing.rows[0]);
+      const record = await this.toRecord(raced.rows[0]);
       return record.inputHash === inputHash
         ? { kind: 'replay' as const, record }
         : { kind: 'conflict' as const, record };
@@ -124,6 +288,15 @@ export class PostgresInvocationLedger implements InvocationLedger {
     result: NormalizedProviderResult,
     pollLeaseToken?: string,
   ): Promise<InvocationRecord> {
+    const tenantId = await this.tenantFor(invocationId);
+    if (tenantId === undefined) {
+      throw new ConnectorError('INVOCATION_UNKNOWN', `Invocation ${invocationId} cannot be updated.`);
+    }
+    // SEC-ENC-02: the result never reaches SQL unsealed.
+    const sealedResult = await this.sealField(
+      { tenantId, slot: 'connector_invocations.result', refId: invocationId },
+      result,
+    );
     const claimPredicate = pollLeaseToken === undefined
       ? "state = 'IN_FLIGHT'"
       : "state = 'POLLING' AND poll_lease_token = $4";
@@ -136,8 +309,8 @@ export class PostgresInvocationLedger implements InvocationLedger {
        WHERE invocation_id = $1 AND ${claimPredicate}
        RETURNING *`,
       pollLeaseToken === undefined
-        ? [invocationId, JSON.stringify(result), result.providerRequestId ?? null]
-        : [invocationId, JSON.stringify(result), result.providerRequestId ?? null, pollLeaseToken],
+        ? [invocationId, JSON.stringify(sealedResult), result.providerRequestId ?? null]
+        : [invocationId, JSON.stringify(sealedResult), result.providerRequestId ?? null, pollLeaseToken],
     );
     return this.requireUpdated(updated.rows[0], invocationId);
   }
@@ -203,13 +376,30 @@ export class PostgresInvocationLedger implements InvocationLedger {
     pollLeaseToken?: string,
     quotaLease?: QuotaLease,
     providerPollAttempt = false,
+    sessionRef?: string | null,
   ): Promise<InvocationRecord> {
     const quotaValues = quotaLease === undefined
       ? [null, null, null]
       : [quotaLease.key, quotaLease.leaseId, new Date(quotaLease.expiresAt).toISOString()];
+    // SEC-ENC-02: a new continuation session is sealed before the COALESCE
+    // update. `undefined`/`null` keeps the stored value untouched, so the
+    // quota-retry paths (which never carry a session) do not touch a key.
+    let sealedSessionRef: string | null = null;
+    if (sessionRef !== undefined && sessionRef !== null) {
+      const tenantId = await this.tenantFor(invocationId);
+      if (tenantId === undefined) {
+        throw new ConnectorError('INVOCATION_UNKNOWN', `Invocation ${invocationId} cannot be updated.`);
+      }
+      const sealed = await this.sealField(
+        { tenantId, slot: 'connector_invocations.session_ref', refId: invocationId },
+        sessionRef,
+      );
+      sealedSessionRef = JSON.stringify(sealed);
+    }
     const updated = await this.db.query<InvocationRow>(
       `UPDATE connector_invocations
        SET state = 'PENDING', next_poll_at = $2, provider_request_id = COALESCE($3, provider_request_id),
+           session_ref = COALESCE($9, session_ref),
            poll_lease_token = NULL, poll_lease_expires_at = NULL,
            quota_lease_key = COALESCE($5, quota_lease_key),
            quota_lease_id = COALESCE($6, quota_lease_id),
@@ -227,6 +417,7 @@ export class PostgresInvocationLedger implements InvocationLedger {
         pollLeaseToken ?? null,
         ...quotaValues,
         providerPollAttempt,
+        sealedSessionRef,
       ],
     );
     return this.requireUpdated(updated.rows[0], invocationId);
@@ -252,10 +443,48 @@ export class PostgresInvocationLedger implements InvocationLedger {
     return this.requireUpdated(updated.rows[0], invocationId);
   }
 
-  private requireUpdated(row: InvocationRow | undefined, invocationId: string): InvocationRecord {
+  private async requireUpdated(row: InvocationRow | undefined, invocationId: string): Promise<InvocationRecord> {
     if (!row) throw new ConnectorError('INVOCATION_UNKNOWN', `Invocation ${invocationId} cannot be updated.`);
-    return toRecord(row);
+    return this.toRecord(row);
   }
+}
+
+/**
+ * Build the claimed record from the in-memory request instead of unwrapping
+ * the envelope that was just written. The row's non-content fields are copied
+ * exactly as the INSERT ... RETURNING would have returned them.
+ */
+function recordFromClaim(
+  request: LocalInvocationRequest,
+  inputHash: string,
+  row: InvocationRow,
+): InvocationRecord {
+  return {
+    request,
+    inputHash,
+    state: row.state,
+    updatedAt: row.updated_at,
+    providerPollAttempts: Number(row.provider_poll_attempts ?? 0),
+  };
+}
+
+/**
+ * Map a crypto failure onto the connector's existing error taxonomy without
+ * adding surface area to the wire contract:
+ *   - key provider outage  -> PROVIDER_UNAVAILABLE (retryable, no write)
+ *   - tamper / wrong row   -> INVOCATION_UNKNOWN (reconcile, never retry)
+ * Messages are fixed and content-free: no plaintext, key, or ciphertext.
+ */
+function mapInvocationCryptoFailure(error: unknown): ConnectorError {
+  if (error instanceof InvocationFieldCryptoError) {
+    if (error.code === 'KEY_PROVIDER_FAILED') {
+      return new ConnectorError('PROVIDER_UNAVAILABLE', 'Invocation storage key service is unavailable.', {
+        safeToRetry: true,
+      });
+    }
+    return new ConnectorError('INVOCATION_UNKNOWN', 'Stored invocation data failed authenticated protection.');
+  }
+  return new ConnectorError('INVOCATION_UNKNOWN', 'Invocation storage protection failed.');
 }
 
 export interface ConnectorRevision {
@@ -709,30 +938,5 @@ function toRevision(row: RevisionRowShape): ConnectorRevision {
     credentialSource,
     tenantId,
     ...(accountId === undefined ? {} : { accountId }),
-  };
-}
-
-
-function toRecord(row: InvocationRow): InvocationRecord {
-  return {
-    request: row.request as LocalInvocationRequest,
-    inputHash: row.input_hash,
-    state: row.state,
-    result: row.result as NormalizedProviderResult | undefined,
-    errorCode: row.error_code ?? undefined,
-    providerRequestId: row.provider_request_id ?? undefined,
-    // pg returns TIMESTAMPTZ as Date; the contract requires an RFC3339 string.
-    nextPollAt: row.next_poll_at == null ? undefined : new Date(row.next_poll_at).toISOString(),
-    pollLeaseToken: row.poll_lease_token ?? undefined,
-    pollLeaseExpiresAt: row.poll_lease_expires_at == null ? undefined : new Date(row.poll_lease_expires_at).toISOString(),
-    quotaLease: row.quota_lease_key && row.quota_lease_id && row.quota_lease_expires_at != null
-      ? {
-        key: row.quota_lease_key,
-        leaseId: row.quota_lease_id,
-        expiresAt: new Date(row.quota_lease_expires_at).getTime(),
-      }
-      : undefined,
-    providerPollAttempts: Number(row.provider_poll_attempts ?? 0),
-    updatedAt: row.updated_at,
   };
 }

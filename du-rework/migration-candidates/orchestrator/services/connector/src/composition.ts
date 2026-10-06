@@ -5,6 +5,10 @@ import { IoredisEvalClient } from './redis-client';
 import { RedisQuotaStore } from './quota-redis';
 import { PostgresInvocationLedger, PostgresConnectorConfigRepository } from './db/repository';
 import { PostgresUsageOutbox } from './db/usage-outbox';
+import {
+  resolveInvocationStorageCryptoFromEnv,
+  type InvocationStorageCryptoOptions,
+} from './db/invocation-crypto';
 import type { QuotaStore } from './types';
 import type { GrantVerifier } from './grants';
 import { AdapterRegistry } from './adapters/registry';
@@ -30,6 +34,15 @@ export interface ConnectorConfig {
   allowPrivateProviderNetworks?: boolean;
   usageSink?: UsageSink;
   usageDispatcher?: UsageDispatcherOptions;
+  /**
+   * SEC-ENC-02 (SD-01): seals the durable invocation request/result/session
+   * before SQL. Defaults to the environment
+   * (`CONNECTOR_INVOCATION_ENCRYPTION_KEYS`, optional
+   * `CONNECTOR_INVOCATION_LEGACY_PLAINTEXT_READS`); when neither is present
+   * the ledger refuses sensitive writes instead of storing plaintext. A
+   * malformed key config throws here, at composition time.
+   */
+  invocationStorageCrypto?: InvocationStorageCryptoOptions;
 }
 
 export interface ConnectorComposition {
@@ -55,6 +68,12 @@ export function createConnectorComposition(
   if (overrides) {
     const dependencies: ConnectorHttpDependencies = {
       ...overrides.http,
+      // CR06-05: the override path enforces the same identity contract as
+      // production. A verifier supplied through either the override HTTP
+      // dependencies or the composition config is honored; when neither is
+      // present `createConnectorServer` below fails closed, so test harnesses
+      // must explicitly opt into `allowUnauthenticatedTestTraffic`.
+      identityVerifier: overrides.http.identityVerifier ?? config.serviceIdentityVerifier,
       ready: async () => {
         const [database, redis] = await Promise.all([
           overrides.pingDatabase?.() ?? true,
@@ -88,7 +107,14 @@ export function createConnectorComposition(
   });
   const redis = new IoredisEvalClient({ ...parseRedisUrl(config.redisUrl) });
   const quota = new RedisQuotaStore(redis, config.redisKeyPrefix);
-  const ledger = new PostgresInvocationLedger(database);
+  // SEC-ENC-02 (SD-01): the production ledger always receives the sealing
+  // options. Explicit config wins; otherwise the environment is resolved here
+  // (malformed keys fail composition loudly) and an unset key means sensitive
+  // writes are refused at the ledger, never persisted as plaintext.
+  const ledger = new PostgresInvocationLedger(
+    database,
+    config.invocationStorageCrypto ?? resolveInvocationStorageCryptoFromEnv(process.env),
+  );
   const connectorConfig = new PostgresConnectorConfigRepository(database);
   const usageOutbox = new PostgresUsageOutbox(database);
   const registry = new AdapterRegistry();

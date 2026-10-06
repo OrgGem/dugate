@@ -96,7 +96,7 @@ function makeRouter(): { db: Db; state: RouterState } {
       return { rowCount: 1, rows: [] };
     }
     // maybeScheduleWebhook's row read: callback_url null → early return, no INSERT.
-    if (sql.startsWith('SELECT id, tenant_id, state, state_version, callback_url, updated_at FROM operations WHERE id=$1')) {
+    if (sql.startsWith('SELECT id, tenant_id, state, state_version, callback_url,')) {
       return {
         rowCount: 1,
         rows: [{ id: OP, tenant_id: TENANT, state: 'FAILED', state_version: 2, callback_url: null, updated_at: new Date().toISOString() }],

@@ -30,6 +30,7 @@
  */
 
 import { RequestRedactionRulesSchema } from './request-redaction';
+import { ProfileCallbackPolicySchema } from './profile-callback';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -83,12 +84,71 @@ export const ProfileParameterValueSchema = z
   .strict();
 export type ProfileParameterValue = z.infer<typeof ProfileParameterValueSchema>;
 
-/** `{ "<paramKey>": { value, isLocked } }`. */
+/**
+ * CR06-06: parameter keys that would carry a credential into an admission
+ * snapshot. `parameters` is a passthrough bag (`value: unknown`), so without
+ * this the snapshot could carry plaintext secrets verbatim.
+ *
+ * Suffix-anchored on purpose: `maxTokens`, `passwordPolicy` and `tokenizer`
+ * are NOT credentials and must stay usable. The family prefixes (anything
+ * starting with `fileUrlAuth`) are prefix-matched because that whole family is
+ * the credential shape.
+ */
+export const SECRET_PARAMETER_KEY_PATTERNS: readonly RegExp[] = [
+  /^fileurlauth/i,
+  /token$/i,
+  /password$/i,
+  /passwd$/i,
+  /secret$/i,
+  /(^|[-_])api[-_]?key$/i,
+  /authorization$/i,
+  /credential$/i,
+];
+
+export function isSecretParameterKey(key: string): boolean {
+  return SECRET_PARAMETER_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+/**
+ * The offending keys, so a caller can name them instead of guessing. Never
+ * returns values: only key names leave this function.
+ */
+export function findSecretParameterKeys(parameters: unknown): string[] {
+  if (parameters === null || typeof parameters !== 'object' || Array.isArray(parameters)) return [];
+  return Object.keys(parameters as Record<string, unknown>)
+    .filter((key) => isSecretParameterKey(key))
+    .sort();
+}
+
+/**
+ * `{ "<paramKey>": { value, isLocked } }`.
+ *
+ * The WRITE path (admin-authored profile revisions) deliberately carries values
+ * verbatim — see the ADMIN-TRUSTED PIN contract. Credential keys are refused at
+ * the SNAPSHOT instead (ProfileSnapshotParametersSchema), which is the boundary
+ * where the value leaves the process.
+ */
 export const ProfileParametersSchema = z.record(
   z.string().min(1),
   ProfileParameterValueSchema,
 );
 export type ProfileParameters = z.infer<typeof ProfileParametersSchema>;
+
+/**
+ * CR06-06: `parameters` as they enter the ADMISSION SNAPSHOT. Same record, but
+ * credential keys are refused, because this is what leaves the process.
+ */
+export const ProfileSnapshotParametersSchema = z
+  .record(z.string().min(1), ProfileParameterValueSchema)
+  .superRefine((parameters, ctx) => {
+    for (const key of findSecretParameterKeys(parameters)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: 'parameter keys must not carry credentials; use the profile credential configuration instead',
+      });
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Priority + extensions
@@ -234,6 +294,13 @@ export const ProfileEndpointPolicySchema = z
     fileUrlAuthConfig: FileUrlAuthConfigSchema.optional(),
     connectionsOverride: ProfileConnectionsOverrideSchema.optional(),
     requestRedaction: RequestRedactionRulesSchema.optional(),
+    /**
+     * CB-02: the endpoint's callback delivery policy (frozen CB-01 shape).
+     * Absent = leave unchanged on publish; explicit null clears it. The
+     * admission writer pins the effective policy onto
+     * `operations.callback_policy` (migration 0035/0036).
+     */
+    callbackPolicy: ProfileCallbackPolicySchema.nullable().optional(),
   })
   .strict();
 export type ProfileEndpointPolicy = z.infer<typeof ProfileEndpointPolicySchema>;
@@ -257,6 +324,10 @@ export const ProfileEndpointPolicyReadSchema = z
     fileUrlAuthConfigured: z.boolean(),
     connectionsOverride: ProfileConnectionsOverrideSchema,
     requestRedaction: RequestRedactionRulesSchema.optional(),
+    /** CB-02: stored callback policy metadata; never a secret value. */
+    callbackPolicy: ProfileCallbackPolicySchema.nullable().optional(),
+    /** WT-04: invalid stored pin; read-only, raw malformed content is never exposed. */
+    callbackPolicyInvalid: z.literal(true).optional(),
   })
   .strict();
 export type ProfileEndpointPolicyRead = z.infer<
@@ -545,6 +616,17 @@ export const ProfileCredentialRefSchema = z
      * admission record. Rejecting it at the DTO is non-breaking for valid data.
      */
     tenantId: z.string().uuid(),
+    /**
+     * Deliberately NOT `.uuid()` (CR06-08). A profile is addressed by a
+     * human-readable slug in legacy data — `default`, `custom-profile` — and
+     * also by a uuid in newer rows, so this ref must accept both or a stored
+     * snapshot written by an older writer would fail to parse. Tightening it
+     * to uuid would break 100% of legacy profile ids with no security gain.
+     *
+     * Contrast with `tenantId` directly above: `tenants.id` is `uuid NOT NULL`
+     * in every migration and is written from the operation's own `tenant_id`,
+     * so a non-uuid tenant can only be a corrupt record and is rejected.
+     */
     profileId: z.string().min(1),
     profileRevision: z.number().int().min(1),
   })
@@ -573,7 +655,8 @@ export type ProfileCredentialRef = z.infer<typeof ProfileCredentialRefSchema>;
 export const ProfilePolicySnapshotSchema = z
   .object({
     enabled: z.boolean(),
-    parameters: ProfileParametersSchema,
+    // CR06-06: snapshot-specific parameters schema — credential keys refused.
+    parameters: ProfileSnapshotParametersSchema,
     jobPriority: ProfileJobPrioritySchema,
     /** CSV string, exactly as stored — parse with `parseAllowedFileExtensions`. */
     allowedFileExtensions: ProfileAllowedFileExtensionsSchema,

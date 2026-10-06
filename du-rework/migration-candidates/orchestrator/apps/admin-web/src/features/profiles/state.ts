@@ -10,6 +10,7 @@
  */
 import type {
   ConnectionStep,
+  ProfileCallbackPolicy,
   ProfileCapability,
   ProfileDetail,
   ProfileParameterValue,
@@ -57,6 +58,7 @@ export function parsePolicyRead(value: unknown): ProfilePolicyRead | null {
   const steps = Array.isArray(value['connectionsOverride'])
     ? value['connectionsOverride'].map(parseConnStep).filter((step): step is ConnectionStep => step !== null)
     : [];
+  const callbackPolicy = parseCallbackPolicy(value['callbackPolicy']);
   return {
     enabled: value['enabled'] !== false,
     parameters,
@@ -70,7 +72,22 @@ export function parsePolicyRead(value: unknown): ProfilePolicyRead | null {
         ...(typeof rule['flags'] === 'string' ? { flags: rule['flags'] } : {}),
         ...(typeof rule['replacement'] === 'string' ? { replacement: rule['replacement'] } : {}),
       })) : [],
+    ...(value['callbackPolicy'] === null ? { callbackPolicy: null } : callbackPolicy !== null ? { callbackPolicy } : {}),
+    ...(value['callbackPolicyInvalid'] === true ? { callbackPolicyInvalid: true as const } : {}),
   };
+}
+
+/**
+ * CB-04: minimal shape gate for the read wire. The editor re-validates the
+ * whole policy from the draft; this only keeps a garbage payload from entering
+ * typed state as if it were a policy.
+ */
+function parseCallbackPolicy(value: unknown): ProfileCallbackPolicy | null {
+  if (!isRecord(value)) return null;
+  if (value['version'] !== 1 || typeof value['mode'] !== 'string' || !isRecord(value['auth'])) return null;
+  const auth = value['auth'];
+  if (typeof auth['method'] !== 'string') return null;
+  return value as unknown as ProfileCallbackPolicy;
 }
 
 function parseCapability(value: unknown): ProfileCapability | null {

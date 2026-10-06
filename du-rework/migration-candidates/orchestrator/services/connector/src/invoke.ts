@@ -26,7 +26,17 @@ const POLL_LEASE_BUFFER_MS = 5000;
 
 export type AdapterInvocationOutcome =
   | { state: 'completed'; result: NormalizedProviderResult }
-  | { state: 'pending'; nextPollAt: string; providerRequestId?: string };
+  | {
+    state: 'pending';
+    nextPollAt: string;
+    providerRequestId?: string;
+    /**
+     * CR06-04: provider-issued continuation session stored on the pending
+     * record (captured from a 202 body). Returned on every pending outcome
+     * so a resume after a pending-yield keeps the session.
+     */
+    sessionRef?: string | null;
+  };
 
 export interface ProviderTransport {
   send(request: ReturnType<ProviderAdapter['buildRequest']>, signal?: AbortSignal): Promise<ProviderResponse>;
@@ -97,6 +107,7 @@ export async function invokeAdapter(
             state: 'pending',
             nextPollAt: claim.record.pollLeaseExpiresAt!,
             providerRequestId: claim.record.providerRequestId,
+            sessionRef: claim.record.sessionRef,
           };
         }
         pollLeaseToken = await options.ledger.claimPendingPoll(
@@ -109,10 +120,20 @@ export async function invokeAdapter(
           const current = await options.ledger.get(request.invocationId);
           if (current?.state === 'SUCCEEDED' && current.result) return { state: 'completed', result: current.result };
           if (current?.state === 'PENDING' && current.nextPollAt) {
-            return { state: 'pending', nextPollAt: current.nextPollAt, providerRequestId: current.providerRequestId };
+            return {
+              state: 'pending',
+              nextPollAt: current.nextPollAt,
+              providerRequestId: current.providerRequestId,
+              sessionRef: current.sessionRef,
+            };
           }
           if (current?.state === 'POLLING' && current.pollLeaseExpiresAt) {
-            return { state: 'pending', nextPollAt: current.pollLeaseExpiresAt, providerRequestId: current.providerRequestId };
+            return {
+              state: 'pending',
+              nextPollAt: current.pollLeaseExpiresAt,
+              providerRequestId: current.providerRequestId,
+              sessionRef: current.sessionRef,
+            };
           }
           throw new ConnectorError('INVOCATION_UNKNOWN', 'Invocation poll recovery was claimed by another worker.');
         }
@@ -160,6 +181,7 @@ export async function invokeAdapter(
             state: 'pending',
             nextPollAt: claim.record.nextPollAt!,
             providerRequestId: claim.record.providerRequestId,
+            sessionRef: claim.record.sessionRef,
           };
         }
         pollLeaseToken = await options.ledger.claimPendingPoll(
@@ -181,6 +203,7 @@ export async function invokeAdapter(
               state: 'pending',
               nextPollAt: current.nextPollAt,
               providerRequestId: current.providerRequestId,
+              sessionRef: current.sessionRef,
             };
           }
           if (current?.state === 'POLLING' && current.pollLeaseExpiresAt) {
@@ -188,6 +211,7 @@ export async function invokeAdapter(
               state: 'pending',
               nextPollAt: current.pollLeaseExpiresAt,
               providerRequestId: current.providerRequestId,
+              sessionRef: current.sessionRef,
             };
           }
           if (current?.state === 'FAILED') {
@@ -276,6 +300,19 @@ export async function invokeAdapter(
     });
   }
 
+  // CR06-04: a pending invocation may hold a provider-issued continuation
+  // session captured from an earlier 202. On resume, the worker's request (and
+  // its canonical hash / stable invocationId) cannot know it — the provider is
+  // the only source of that token, and the connector ledger is its durable
+  // custodian. Re-attach the stored session to the provider call while the
+  // grant and ledger identity stay bound to the original request, so the
+  // session survives the pending-yield without changing invocation identity.
+  // No stored session -> the request is used verbatim (pre-CR06-04 behavior).
+  const storedSessionRef = claim.kind === 'replay' ? (claim.record.sessionRef ?? undefined) : undefined;
+  const providerInput = storedSessionRef !== undefined && storedSessionRef !== request.sessionRef
+    ? { ...request, sessionRef: storedSessionRef }
+    : request;
+
   try {
     if (options.credential && !(await options.credential.isActive())) {
       await options.ledger.fail(request.invocationId, 'CREDENTIAL_INVALID', pollLeaseToken);
@@ -324,7 +361,7 @@ export async function invokeAdapter(
     let response: ProviderResponse;
     try {
       const providerRequest = withInvocationIdempotencyKey(
-        options.adapter.buildRequest(request, options.config),
+        options.adapter.buildRequest(providerInput, options.config),
         request.invocationId,
       );
       response = await options.transport.send(providerRequest, controller.signal);
@@ -391,6 +428,21 @@ export async function invokeAdapter(
         throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Async provider request ID is invalid.');
       }
       const providerRequestId = typeof rawProviderRequestId === 'string' ? rawProviderRequestId : undefined;
+      // CR06-04: an async provider may offer its continuation session in the
+      // 202 body (the contract decision recorded in docs/08). null/absent
+      // means "no new session to record"; a non-empty string is stored on the
+      // pending record and replayed to the provider on every poll, so the
+      // session survives the worker's pending-yield. Anything else fails
+      // closed like any other malformed async body.
+      const rawSessionRef = body !== null && typeof body === 'object' && !Array.isArray(body)
+        ? (body as Record<string, unknown>).sessionRef
+        : undefined;
+      if (rawSessionRef !== undefined && rawSessionRef !== null && (typeof rawSessionRef !== 'string' || rawSessionRef.length === 0)) {
+        await options.ledger.fail(request.invocationId, 'INVALID_PROVIDER_RESPONSE', pollLeaseToken);
+        retainQuotaLease = false;
+        throw new ConnectorError('INVALID_PROVIDER_RESPONSE', 'Async provider session reference is invalid.');
+      }
+      const offeredSessionRef = typeof rawSessionRef === 'string' ? rawSessionRef : undefined;
       const parsedNextPollAt = typeof nextPollAt === 'string' ? Date.parse(nextPollAt) : Number.NaN;
       if (!Number.isFinite(parsedNextPollAt)) {
         await options.ledger.fail(request.invocationId, 'INVALID_PROVIDER_RESPONSE', pollLeaseToken);
@@ -417,9 +469,15 @@ export async function invokeAdapter(
         pollLeaseToken,
         lease,
         true,
+        offeredSessionRef,
       );
       retainQuotaLease = true;
-      return { state: 'pending', nextPollAt: scheduledPollAtIso, providerRequestId: pendingRecord.providerRequestId };
+      return {
+        state: 'pending',
+        nextPollAt: scheduledPollAtIso,
+        providerRequestId: pendingRecord.providerRequestId,
+        sessionRef: pendingRecord.sessionRef,
+      };
     }
     if (response.status < 200 || response.status >= 300) {
       const code = options.adapter.classifyFailure(response);
@@ -439,6 +497,14 @@ export async function invokeAdapter(
         retainQuotaLease = false;
       }
       throw error;
+    }
+    // CR06-04: when the provider captured a session on the pending record
+    // (202 body) but its final response omits one, keep the stored session as
+    // the invocation's continuation so the resumed delivery/checkpoint does
+    // not silently drop it. A result-side sessionRef still wins — the provider
+    // may rotate the session on completion.
+    if (result.sessionRef === undefined && storedSessionRef !== undefined) {
+      result = { ...result, sessionRef: storedSessionRef };
     }
     await options.ledger.complete(request.invocationId, result, pollLeaseToken);
     retainQuotaLease = false;
@@ -503,10 +569,20 @@ async function failPendingReplay(
     return { state: 'completed', result: current.result };
   }
   if (current?.state === 'PENDING' && current.nextPollAt) {
-    return { state: 'pending', nextPollAt: current.nextPollAt, providerRequestId: current.providerRequestId };
+    return {
+      state: 'pending',
+      nextPollAt: current.nextPollAt,
+      providerRequestId: current.providerRequestId,
+      sessionRef: current.sessionRef,
+    };
   }
   if (current?.state === 'POLLING' && current.pollLeaseExpiresAt) {
-    return { state: 'pending', nextPollAt: current.pollLeaseExpiresAt, providerRequestId: current.providerRequestId };
+    return {
+      state: 'pending',
+      nextPollAt: current.pollLeaseExpiresAt,
+      providerRequestId: current.providerRequestId,
+      sessionRef: current.sessionRef,
+    };
   }
   if (current?.state === 'FAILED') {
     throw new ConnectorError(current.errorCode ?? errorCode, 'Invocation has already failed.');

@@ -46,6 +46,7 @@ import { handleOperationsRoute, matchOperationsRoute } from './operations';
 import { handleSecurityRoute, matchSecurityRoute } from './security';
 import { handleSettingsRoute, matchSettingsRoute } from './settings';
 import { handleIdentityRoute, matchIdentityRoute } from './identity';
+import { handleSecretsRoute, matchSecretsRoute } from './secrets';
 
 const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'admin-bff' } });
 
@@ -181,6 +182,19 @@ export async function handleBffRequest(
         res,
         request,
         identityRoute,
+        query,
+        config,
+        runtime,
+        correlationId,
+      );
+    }
+    const secretsRoute = matchSecretsRoute(relative);
+    if (secretsRoute !== null) {
+      return await handleSecretsRoute(
+        req,
+        res,
+        request,
+        secretsRoute,
         query,
         config,
         runtime,

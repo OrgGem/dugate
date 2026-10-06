@@ -328,6 +328,11 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
     expect(body.profileName).toBe('');
     expect(body.revision).toBe(0);
     expect('apiKeyId' in body).toBe(false);
+    // WT-02: the blank editor now carries `callbackPolicy: null` as well. That is
+    // deliberate tri-state, not drift: `undefined` = key absent from the read DTO,
+    // `null` = "no callback policy stored" (which is also what an explicit Clear
+    // produces), object = a valid stored pin. The Portal needs all three so that
+    // clearing a policy is expressible.
     expect(body.policy).toEqual({
       enabled: true,
       parameters: {},
@@ -335,6 +340,7 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
       allowedFileExtensions: '',
       fileUrlAuthConfigured: false,
       connectionsOverride: [],
+      callbackPolicy: null,
     });
   });
 

@@ -31,6 +31,13 @@ import {
   type DeliveryEncryptionConfig,
 } from './modules/public-api';
 import type { RecipientKeyRegistry } from './modules/encryption/recipient-key-registry';
+import type { EncryptionPolicySummary } from './modules/encryption/boot-options';
+import type {
+  RuntimeSecretResolver,
+  RuntimeSecretResolverOptions,
+} from './modules/secrets/vault-resolver';
+import type { OutboundSecretResolver } from './modules/webhooks/outbound-auth';
+import type { OAuth2TokenClientOptions } from './modules/webhooks/oauth2-client';
 
 
 // CONV-02: the audience families moved to src/http/routes/*, and the route
@@ -268,6 +275,33 @@ export interface ServerConfig {
     keyProvider: KeyProvider;
     keyRef: string;
   };
+  /**
+   * SEC-ENC-05: the effective, content-free boot encryption policy. When
+   * present it is surfaced verbatim in the /health payload so the running
+   * policy is observable instead of inferred from environment strings.
+   */
+  encryptionPolicy?: EncryptionPolicySummary;
+  /**
+   * SC-02 seam: a prebuilt runtime secret resolver (catalog resolution for
+   * approved consumers). Consumers read it from the route context; absent
+   * means no catalog resolution is configured on this deployment.
+   */
+  secretResolver?: RuntimeSecretResolver;
+  /**
+   * SC-02 seam: composition builds the resolver from these options when a
+   * prebuilt instance is not injected. Both seams are optional; a deployment
+   * without either simply has no catalog resolver.
+   */
+  secrets?: RuntimeSecretResolverOptions;
+  /**
+   * CB-03 (B4): production resolver for callback `managed-secret` references
+   * (the SC-01 catalog / SC-02 Vault resolver supplies the values). When
+   * absent, a credential-bearing pinned callback policy fails closed with
+   * `WEBHOOK_AUTH_UNAVAILABLE`; legacy notification-only rows are unaffected.
+   */
+  resolveCallbackSecret?: OutboundSecretResolver;
+  /** CB-03: token-client seams for OAuth2 callback auth (tests/instrumentation). */
+  callbackOAuth2Options?: OAuth2TokenClientOptions;
 }
 
 export async function createApp(config: ServerConfig) {
@@ -324,6 +358,12 @@ export async function route(ctx: RouteContext): Promise<RouteResult> {
       activeLeases,
     };
     if (qi) body.queueIntegrity = qi;
+    if (ctx.config.encryptionPolicy || ctx.config.secretResolver || ctx.config.secrets) {
+      body.encryption = {
+        ...(ctx.config.encryptionPolicy ?? {}),
+        secretResolver: Boolean(ctx.config.secretResolver ?? ctx.config.secrets),
+      };
+    }
     return { status: isOk ? 200 : 503, body };
   }
 

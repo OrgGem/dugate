@@ -210,6 +210,10 @@ export interface ProfilePolicyRead {
   fileUrlAuthConfigured: boolean;
   connectionsOverride: ConnectionStep[];
   requestRedaction?: RequestRedactionRule[];
+  /** CB-04: versioned callback policy when the profile revision carries one. */
+  callbackPolicy?: ProfileCallbackPolicy | null;
+  /** Read-only marker; malformed stored callback content is never returned. */
+  callbackPolicyInvalid?: true;
 }
 
 export interface ProfileCapability {
@@ -345,4 +349,158 @@ export interface BusinessVersions {
 /** crypto-config view — refs/previews only, secrets never ride this wire. */
 export interface CryptoConfigView {
   [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// SC-03 Secret catalog wire (mirrors the frozen @du/contracts shapes)
+// ---------------------------------------------------------------------------
+
+export const SECRET_PURPOSES = [
+  'connector.credential',
+  'connector.provider_header',
+  'profile.callback_header',
+  'profile.callback_oauth2_client_secret',
+  'oidc.client_secret',
+  'source.auth',
+  'generic',
+] as const;
+export type SecretPurpose = (typeof SECRET_PURPOSES)[number];
+
+export const SECRET_SERVICES = ['orchestrator', 'connector'] as const;
+export type SecretService = (typeof SECRET_SERVICES)[number];
+
+export type SecretState = 'ACTIVE' | 'DISABLED' | 'REVOKED';
+
+export type VaultVersionMode = { mode: 'pinned'; version: number } | { mode: 'latest' };
+
+export interface ManagedValueProvider {
+  kind: 'managed_value';
+}
+
+export interface VaultReferenceProvider {
+  kind: 'vault_reference';
+  connectionId: string;
+  mount: string;
+  path: string;
+  field: string;
+  namespace?: string;
+  version: VaultVersionMode;
+}
+
+export type SecretProvider = ManagedValueProvider | VaultReferenceProvider;
+
+export interface SecretUsageReference {
+  kind: 'connector_credential' | 'profile_callback' | 'oidc_client' | 'source_auth';
+  refId: string;
+  revision?: number;
+}
+
+export interface SecretRotationMetadata {
+  rotatedAt: string | null;
+  intervalDays: number | null;
+}
+
+/** Read projection: metadata ONLY, never a value (`valueConfigured` boolean). */
+export interface SecretCatalogEntryRead {
+  catalogVersion: 1;
+  secretId: string;
+  tenantId: string;
+  name: string;
+  purpose: SecretPurpose;
+  services: SecretService[];
+  provider: SecretProvider;
+  state: SecretState;
+  revision: number;
+  rotation?: SecretRotationMetadata;
+  valueConfigured: boolean;
+  usageReferences: SecretUsageReference[];
+}
+
+export interface SecretCatalogListPage {
+  items: SecretCatalogEntryRead[];
+  nextCursor: string | null;
+}
+
+export interface SecretCatalogCreateBody {
+  tenantId: string;
+  name: string;
+  purpose: SecretPurpose;
+  services: SecretService[];
+  provider: SecretProvider;
+  /** Required for managed_value; forbidden for vault_reference. Write-only. */
+  value?: { kind: 'literal'; value: string };
+}
+
+export interface SecretCatalogRotateBody {
+  expectedRevision: number;
+  value: { kind: 'literal'; value: string };
+}
+
+export interface SecretCatalogDisableBody {
+  expectedRevision: number;
+  reason: string;
+}
+
+/** Safe probe result: availability/error code only, never a value. */
+export interface SecretProbeResult {
+  ok: boolean;
+  errorCode?: string;
+}
+
+// ---------------------------------------------------------------------------
+// CB-04 Callback policy wire (mirrors the frozen @du/contracts shapes)
+// ---------------------------------------------------------------------------
+
+export type CallbackMode = 'notification_only' | 'notification_with_result';
+export type CallbackAuthMethod = 'none' | 'configured_headers' | 'oauth2_client_credentials';
+
+/** Opaque managed-secret reference; the catalog secretId is the stable id. */
+export interface CallbackSecretRef {
+  kind: 'managed-secret';
+  ref: string;
+}
+
+export interface CallbackConfiguredHeader {
+  name: string;
+  secretRef: CallbackSecretRef;
+  prefix?: string;
+}
+
+export interface CallbackNoneAuth {
+  method: 'none';
+}
+
+export interface CallbackConfiguredHeadersAuth {
+  method: 'configured_headers';
+  headers: CallbackConfiguredHeader[];
+}
+
+export interface CallbackOAuth2Auth {
+  method: 'oauth2_client_credentials';
+  grantType: 'client_credentials';
+  tokenUrl: string;
+  clientId: string;
+  clientSecretRef: CallbackSecretRef;
+  clientAuthMethod: 'client_secret_basic' | 'client_secret_post';
+  scope?: string;
+  audience?: string;
+  resource?: string;
+  extensions?: Record<string, string>;
+  additionalHeaders?: { name: string; value: string }[];
+  tokenLifetimeSeconds?: number;
+}
+
+export type CallbackAuth = CallbackNoneAuth | CallbackConfiguredHeadersAuth | CallbackOAuth2Auth;
+
+export interface CallbackDestinationAuthorization {
+  approvedOrigins: string[];
+  allowedPathPrefixes?: string[];
+}
+
+export interface ProfileCallbackPolicy {
+  version: 1;
+  mode: CallbackMode;
+  auth: CallbackAuth;
+  destination?: CallbackDestinationAuthorization | null;
+  forceReferenceOnly?: boolean;
 }

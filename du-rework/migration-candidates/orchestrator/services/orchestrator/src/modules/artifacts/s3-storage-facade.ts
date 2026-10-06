@@ -28,6 +28,7 @@ import type {
   ArtifactStorageFacade,
   ArtifactStorageUploadGrant,
   ArtifactUploadGrantInput,
+  ServerObjectWriteInput,
   StoredArtifactVersion,
   VerifyAndPinArtifactInput,
 } from './storage-facade';
@@ -234,6 +235,83 @@ export function createS3ArtifactStorageFacade(
       throw new ArtifactStorageError('CHECKSUM_MISMATCH');
     }
     return { objectKey: input.objectKey, versionId, sizeBytes, sha256 };
+  };
+
+  const MAX_SERVER_OBJECT_BYTES = 16 * 1024 * 1024;
+
+  const readServerObjectBytes = async (objectKey: string): Promise<Buffer> => {
+    let output: GetObjectCommandOutput;
+    try {
+      output = await options.client.send(new GetObjectCommand({
+        Bucket: options.bucket,
+        Key: objectKey,
+      }));
+    } catch (error) {
+      if (isNotFound(error)) throw new ArtifactStorageError('OBJECT_NOT_FOUND');
+      throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+    }
+    const body = output.Body;
+    if (!body || typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== 'function') {
+      throw new ArtifactStorageError('INVALID_OBJECT_BODY');
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    try {
+      for await (const chunk of body as AsyncIterable<Uint8Array>) {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += bytes.byteLength;
+        if (total > MAX_SERVER_OBJECT_BYTES) throw new ArtifactStorageError('SIZE_MISMATCH');
+        chunks.push(bytes);
+      }
+    } catch (error) {
+      if (error instanceof ArtifactStorageError) throw error;
+      throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+    }
+    return Buffer.concat(chunks, total);
+  };
+
+  const putServerObject = async (
+    input: ServerObjectWriteInput,
+  ): Promise<{ versionId: string | null }> => {
+    if (
+      !options.bucket
+      || !input.objectKey
+      || typeof input.tenantId !== 'string'
+      || input.tenantId.length < 1
+      || !Buffer.isBuffer(input.body)
+      || input.body.byteLength < 1
+    ) {
+      throw new ArtifactStorageError('INVALID_OBJECT_BODY');
+    }
+    let versionId: string | undefined;
+    try {
+      const uploaded = await options.client.send(new PutObjectCommand({
+        Bucket: options.bucket,
+        Key: input.objectKey,
+        Body: input.body,
+        ContentLength: input.body.byteLength,
+        ContentType: input.contentType,
+        ...(input.metadata ? { Metadata: { ...input.metadata } } : {}),
+      }));
+      versionId = uploaded.VersionId;
+    } catch {
+      throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+    }
+    if (!versionId || versionId === 'null') {
+      // The sealed carrier must be an immutable generation; an unversioned
+      // write cannot be pinned, so remove it rather than leave an addressable
+      // object the row never commits.
+      try {
+        await options.client.send(new DeleteObjectCommand({
+          Bucket: options.bucket,
+          Key: input.objectKey,
+        }));
+      } catch {
+        // Best-effort: the row stays STAGING and the sweeper owns leftovers.
+      }
+      throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+    }
+    return { versionId };
   };
 
   const openPinnedRead = async (
@@ -927,6 +1005,9 @@ export function createS3ArtifactStorageFacade(
     },
 
     openRead: openPinnedRead,
+
+    putServerObject,
+    readServerObject: readServerObjectBytes,
 
     async delete(version): Promise<void> {
       if (!version.versionId || version.versionId === 'null') {

@@ -345,6 +345,8 @@ const ADMIN_WEB_ROUTE_NAMES = [
   'businesses',
   'usage',
   'security',
+  // SC-03: Secret catalog screen (list/create/link/rotate/disable).
+  'secrets',
   'identity',
   'settings',
 ] as const;

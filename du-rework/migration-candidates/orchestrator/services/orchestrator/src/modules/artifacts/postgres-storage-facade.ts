@@ -12,6 +12,11 @@ import {
 export interface PostgresArtifactBlobPort {
   read(storageKey: string): Promise<Buffer | null>;
   delete(storageKey: string): Promise<void>;
+  /**
+   * Server-mediated write (SEC-ENC-04). Optional so read-only seams keep
+   * type-checking; a deployment that must seal fails closed without it.
+   */
+  write?(storageKey: string, tenantId: string, bytes: Buffer): Promise<void>;
 }
 
 /** PostgreSQL fallback; a content hash acts as its immutable generation ID. */
@@ -56,6 +61,21 @@ export function createPostgresArtifactStorageFacade(
         throw new ArtifactStorageError('CHECKSUM_MISMATCH');
       }
       await blobs.delete(version.objectKey);
+    },
+
+    async putServerObject(input): Promise<{ versionId: string | null }> {
+      if (!blobs.write) throw new ArtifactStorageError('STORAGE_UNAVAILABLE');
+      if (!(input.body instanceof Uint8Array) || input.body.byteLength < 1) {
+        throw new ArtifactStorageError('INVALID_OBJECT_BODY');
+      }
+      await blobs.write(input.objectKey, input.tenantId, input.body);
+      return { versionId: createHash('sha256').update(input.body).digest('hex') };
+    },
+
+    async readServerObject(objectKey): Promise<Buffer> {
+      const bytes = await blobs.read(objectKey);
+      if (bytes === null) throw new ArtifactStorageError('OBJECT_NOT_FOUND');
+      return bytes;
     },
   };
 }

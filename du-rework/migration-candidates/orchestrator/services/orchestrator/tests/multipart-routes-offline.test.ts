@@ -459,7 +459,7 @@ describe('POST /api/v1/uploads/:id/{part,complete,abort}', () => {
       pathname: '/api/v1/uploads/' + ARTIFACT_ID + '/part',
       body: PUBLIC_PART_BODY,
     });
-    await expect(route(ctx)).rejects.toMatchObject({ status: 409, code: 'STATE_CONFLICT' });
+    await expect(route(ctx)).rejects.toMatchObject({ status: 501, code: 'PUBLIC_MULTIPART_UNAVAILABLE' });
     expect(service.publicGrantPart).not.toHaveBeenCalled();
   });
 

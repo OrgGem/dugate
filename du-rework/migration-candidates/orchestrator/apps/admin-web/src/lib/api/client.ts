@@ -28,6 +28,12 @@ import type {
   ProfileMutationResult,
   ProfilePublishBody,
   ProfileRollbackBody,
+  SecretCatalogCreateBody,
+  SecretCatalogDisableBody,
+  SecretCatalogEntryRead,
+  SecretCatalogListPage,
+  SecretCatalogRotateBody,
+  SecretProbeResult,
   UsageSummary,
 } from './types';
 
@@ -128,6 +134,24 @@ export interface AdminApiClient {
     body: Record<string, unknown>,
     idempotencyKey?: string,
   ): Promise<AdminApiResult<Record<string, unknown>>>;
+  /** SC-03: catalog list; metadata only, never a value. */
+  listSecrets(query?: Record<string, string>): Promise<AdminApiResult<SecretCatalogListPage>>;
+  createSecret(
+    body: SecretCatalogCreateBody,
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<SecretCatalogEntryRead>>;
+  rotateSecret(
+    secretId: string,
+    body: SecretCatalogRotateBody,
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<SecretCatalogEntryRead>>;
+  disableSecret(
+    secretId: string,
+    body: SecretCatalogDisableBody,
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<SecretCatalogEntryRead>>;
+  /** Safe probe: availability/error code only, never a value. */
+  testSecret(secretId: string): Promise<AdminApiResult<SecretProbeResult>>;
   postAction(
     action: string,
     params: Record<string, unknown>,
@@ -344,6 +368,37 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
         csrf: true,
         idempotencyKey,
       });
+    },
+    listSecrets(query) {
+      return request<SecretCatalogListPage>('GET', '/secrets', { query });
+    },
+    createSecret(body, idempotencyKey) {
+      return request<SecretCatalogEntryRead>('POST', '/secrets', {
+        body,
+        csrf: true,
+        idempotencyKey,
+      });
+    },
+    rotateSecret(secretId, body, idempotencyKey) {
+      return request<SecretCatalogEntryRead>(
+        'POST',
+        `/secrets/${encodeURIComponent(secretId)}/rotate`,
+        { body, csrf: true, idempotencyKey },
+      );
+    },
+    disableSecret(secretId, body, idempotencyKey) {
+      return request<SecretCatalogEntryRead>(
+        'POST',
+        `/secrets/${encodeURIComponent(secretId)}/disable`,
+        { body, csrf: true, idempotencyKey },
+      );
+    },
+    testSecret(secretId) {
+      return request<SecretProbeResult>(
+        'POST',
+        `/secrets/${encodeURIComponent(secretId)}/test`,
+        { body: {}, csrf: true },
+      );
     },
     postAction(action, params, actionOptions) {
       return runAction(action, params, actionOptions);

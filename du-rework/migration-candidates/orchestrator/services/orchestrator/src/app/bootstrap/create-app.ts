@@ -30,6 +30,7 @@ import {
 import { validateWorkerIdentityConfig } from '../../modules/runtime/worker-identity';
 import { createUsageService } from '../../modules/usage/usage';
 import { createArtifactService, type ArtifactService } from '../../modules/artifacts/artifacts';
+import { createRuntimeSecretResolver } from '../../modules/secrets/vault-resolver';
 import {
   createMultipartService,
   type MultipartService,
@@ -257,6 +258,12 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     }
   }
   validateWorkerIdentityConfig(config);
+  // SC-02 seam wiring: a prebuilt resolver wins; otherwise composition builds
+  // one from the injected adapter options. With neither, no catalog resolution
+  // is configured and consumers fail closed.
+  if (!config.secretResolver && config.secrets) {
+    config = { ...config, secretResolver: createRuntimeSecretResolver(config.secrets) };
+  }
   const db = createDb(config.databaseUrl);
   const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'api' } });
   const storageConfig = config.artifactStorage ?? { backend: 'postgres' as const };
@@ -411,15 +418,41 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   const s3StorageFacade = s3Client && storageConfig.backend === 's3'
     ? createS3ArtifactStorageFacade({ bucket: storageConfig.bucket, client: s3Client })
     : undefined;
+  // SEC-ENC-05 / SEC-ENC-04 wiring: one crypto facade instance serves the
+  // gateway, the worker artifact service and the S3 decrypt deps, so all three
+  // agree on the key provider and AAD. `synthetic` (explicit exemption) keeps
+  // the historical compatibility behaviour; real-data mode requires a sealed
+  // envelope and only an approved migration window may read legacy plaintext.
+  const artifactCryptoFacade: CryptoStorageFacade | null = config.publicUploadEncryption
+    ? new CryptoStorageFacade(config.publicUploadEncryption.keyProvider)
+    : null;
+  const artifactMigrationWindowOpen =
+    storageConfig.backend === 's3' && storageConfig.migrationWindow === true;
+  const syntheticDataExempt = config.encryptionPolicy?.dataMode === 'synthetic';
+  const workerArtifactEncryption = config.publicUploadEncryption && artifactCryptoFacade
+    ? {
+        facade: artifactCryptoFacade,
+        keyRef: config.publicUploadEncryption.keyRef,
+        ...(config.publicUploadEncryption.keyVersion === undefined
+          ? {}
+          : { keyVersion: config.publicUploadEncryption.keyVersion }),
+        required: !syntheticDataExempt && !artifactMigrationWindowOpen,
+      }
+    : undefined;
   const artifacts: ArtifactService = createArtifactService(db, {
     storageBackend: storageConfig.backend,
     migrationWindow: storageConfig.backend === 's3' && storageConfig.migrationWindow,
     maxArtifactBytes: config.maxBlobBytes,
     ...(s3StorageFacade ? { storageFacade: s3StorageFacade } : {}),
+    ...(workerArtifactEncryption ? { encryption: workerArtifactEncryption } : {}),
   });
   const multipart: MultipartService = createMultipartService(db, {
     storage: s3StorageFacade,
     ...config.multipartLimits,
+    // SEC-ENC-04: the worker multipart branch presigns client bytes straight at
+    // storage, so while encryption is configured it fails closed per-session
+    // until a server-mediated sealed multipart writer exists.
+    encryptionRequired: Boolean(config.publicUploadEncryption) && !artifactMigrationWindowOpen,
   });
   // CR28-01/CRX-02: the read side of the same encryption the public upload
   // gateway writes. One facade instance is shared with the gateway on purpose:
@@ -439,17 +472,11 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   const encryptedWritesRequired = Boolean(
     s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption,
   );
-  // `migrationWindow` exists only on the s3 variant of the storage config, so
-  // narrow on the same discriminant the deps construction below uses.
-  const artifactMigrationWindowOpen =
-    storageConfig.backend === 's3' && storageConfig.migrationWindow === true;
   const artifactEncryptionRequired = encryptedWritesRequired && !artifactMigrationWindowOpen;
-  // Absent when the deployment is not on S3 or has no public-upload encryption
-  // configured, in which case every stored object is plaintext.
+  // The worker artifact encryption seam is absent when the deployment is not
+  // configured for encryption, in which case every stored object is plaintext.
   const s3CryptoStorageFacade: CryptoStorageFacade | null =
-    s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption
-      ? new CryptoStorageFacade(config.publicUploadEncryption.keyProvider)
-      : null;
+    s3Client && storageConfig.backend === 's3' ? artifactCryptoFacade : null;
   const artifactDecryptDeps: ArtifactDecryptDeps | null =
     s3Client && storageConfig.backend === 's3' && s3CryptoStorageFacade
       ? {
@@ -460,12 +487,12 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
       : null;
 
   const publicUploadGateway: PublicUploadGateway | null =
-    s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption
+    s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption && artifactCryptoFacade
       ? createPublicUploadGateway({
           db,
           client: s3Client,
           bucket: storageConfig.bucket,
-          cryptoStorage: new CryptoStorageFacade(config.publicUploadEncryption.keyProvider),
+          cryptoStorage: artifactCryptoFacade,
           keyRef: config.publicUploadEncryption.keyRef,
           keyVersion: config.publicUploadEncryption.keyVersion,
           maxBytes: config.publicUploadEncryption.maxBytes,
@@ -1014,6 +1041,11 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
             // all three surfaces. `?? undefined` so a platform with no
             // crypto-config surface leaves every webhook exactly as it was.
             deliveryEncryption: deliveryEncryption ?? undefined,
+            // CB-03 (B4): authenticated callback delivery. Absent resolver =
+            // credential-bearing pins fail closed (WEBHOOK_AUTH_UNAVAILABLE);
+            // legacy rows without a pinned policy keep the P2-08 path.
+            ...(config.resolveCallbackSecret ? { resolveCallbackSecret: config.resolveCallbackSecret } : {}),
+            ...(config.callbackOAuth2Options ? { oauth2Options: config.callbackOAuth2Options } : {}),
           }).catch(() => undefined);
           activeWebhookSweep = sweep;
           void sweep.finally(() => {

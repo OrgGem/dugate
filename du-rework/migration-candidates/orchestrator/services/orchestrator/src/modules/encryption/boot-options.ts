@@ -18,6 +18,10 @@
 
 import { VaultTransitProvider, type KeyProvider } from './vault-transit-provider';
 import {
+  SyntheticDataExemptionSchema,
+  type SyntheticDataExemption,
+} from '@du/contracts';
+import {
   createBoundedDualReadWindow,
   type BoundedDualReadWindow,
 } from './legacy-payload-migration';
@@ -32,6 +36,20 @@ export const VAULT_ENCRYPT_TOKEN_ENV = 'DU_VAULT_TRANSIT_ENC_TOKEN';
 export const VAULT_DECRYPT_TOKEN_ENV = 'DU_VAULT_TRANSIT_DEC_TOKEN';
 export const METADATA_ENABLED_ENV = 'DU_ENCRYPTION_METADATA_ENABLED';
 export const PUBLIC_UPLOAD_ENABLED_ENV = 'DU_ENCRYPTION_PUBLIC_UPLOAD_ENABLED';
+/**
+ * SEC-ENC-05 mode switch. `real` (the DEFAULT when unset) requires persistence
+ * encryption across PG/S3 and every producer: a missing flag, partial surface
+ * or missing key refuses the boot. Only an explicit `synthetic` mode with a
+ * complete acknowledgement object may opt out — omission can never disable
+ * encryption.
+ */
+export const DATA_MODE_ENV = 'DU_DATA_MODE';
+/**
+ * Required with `DU_DATA_MODE=synthetic`; JSON matching the SEC-ENC-01
+ * explicit exemption (`reason`, `approvedBy`, `acknowledgedAt`,
+ * `isolatedFromRealData: true`). Real tenant data must not use it.
+ */
+export const SYNTHETIC_ACK_ENV = 'DU_SYNTHETIC_DATA_ACK';
 // CONTROL-PLANE-IMPL-818: the one operator-facing switch for allowPlaintext.
 // REQUIRED: an absent or unknown mode fails the boot (buildMetadataReadPolicy).
 export const METADATA_READ_MODE_ENV = 'DU_METADATA_PLAINTEXT_READ_MODE';
@@ -166,11 +184,58 @@ function parseConfig(raw: string): EncryptionBootConfig {
 }
 
 /**
- * True when this deployment must have a working Vault surface. `s3` implies it
- * because the encrypted upload gateway is the only artifact write path; the
- * enable flags cover the postgres backend where encryption is still opt-in.
+ * SEC-ENC-05 effective data mode. Default is `real`; the synthetic opt-out is
+ * only valid with the complete explicit acknowledgement object.
+ */
+export type DataMode = 'real' | 'synthetic';
+
+export interface EffectiveDataMode {
+  readonly mode: DataMode;
+  /** Present only in synthetic mode, after validation. */
+  readonly exemption?: SyntheticDataExemption;
+}
+
+export function resolveDataMode(env: EnvReader): EffectiveDataMode {
+  const raw = readOptional(env, DATA_MODE_ENV);
+  if (raw === undefined || raw === 'real') return { mode: 'real' };
+  if (raw !== 'synthetic') {
+    throw new EncryptionBootConfigError(
+      DATA_MODE_ENV + ' must be real or synthetic, got ' + JSON.stringify(raw),
+    );
+  }
+  const ackRaw = readOptional(env, SYNTHETIC_ACK_ENV);
+  if (ackRaw === undefined) {
+    throw new EncryptionBootConfigError(
+      'synthetic-data mode requires an explicit ' + SYNTHETIC_ACK_ENV
+        + ' acknowledgement; encryption cannot be disabled by an omitted flag',
+    );
+  }
+  let ack: unknown;
+  try {
+    ack = JSON.parse(ackRaw);
+  } catch {
+    throw new EncryptionBootConfigError(SYNTHETIC_ACK_ENV + ' must be valid JSON');
+  }
+  const parsed = SyntheticDataExemptionSchema.safeParse(ack);
+  if (!parsed.success) {
+    throw new EncryptionBootConfigError(
+      SYNTHETIC_ACK_ENV + ' must be a complete synthetic-data exemption'
+        + ' (mode, reason, approvedBy, acknowledgedAt, isolatedFromRealData)',
+    );
+  }
+  return { mode: 'synthetic', exemption: parsed.data };
+}
+
+/**
+ * True when this deployment must have a working encryption surface.
+ *
+ * SEC-ENC-05: real-data mode ALWAYS requires it, whatever the backend or the
+ * legacy enable flags say. Only an explicit, acknowledged synthetic mode may
+ * fall back to the previous rule (s3 implies it; the enable flags cover the
+ * postgres backend where encryption was historically opt-in).
  */
 export function encryptionIsRequired(env: EnvReader): boolean {
+  if (resolveDataMode(env).mode === 'real') return true;
   const backend = readOptional(env, 'ARTIFACT_STORAGE_BACKEND') ?? 'postgres';
   return backend === 's3' || readBoolean(env, METADATA_ENABLED_ENV) || readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV);
 }
@@ -219,15 +284,23 @@ function resolveEncryptionBoot(env: EnvReader): {
   // s3 is the encrypted-upload backend, so it turns on BOTH blocks: the artifact
   // write path and the control-plane columns. Leaving metadata off here is the
   // exact fail-open RV01-02 exists to close.
+  //
+  // SEC-ENC-05: real-data mode forces BOTH blocks regardless of backend/flags;
+  // only an explicit synthetic exemption keeps the historical opt-in shape.
+  const dataMode = resolveDataMode(env);
+  const forced = dataMode.mode === 'real';
   const s3 = backend === 's3';
-  const metadataEnabled = readBoolean(env, METADATA_ENABLED_ENV) || s3;
-  const publicUploadEnabled = readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV) || s3;
+  const metadataEnabled = forced || readBoolean(env, METADATA_ENABLED_ENV) || s3;
+  const publicUploadEnabled = forced || readBoolean(env, PUBLIC_UPLOAD_ENABLED_ENV) || s3;
   if (!metadataEnabled && !publicUploadEnabled) return { config: null, metadataEnabled, publicUploadEnabled };
 
   const raw = readOptional(env, VAULT_TRANSIT_OPTIONS_ENV);
   if (raw === undefined) {
     throw new EncryptionBootConfigError(
-      VAULT_TRANSIT_OPTIONS_ENV + ' is required when artifact encryption is enabled; refusing to store artifacts in plaintext',
+      VAULT_TRANSIT_OPTIONS_ENV + ' is required when artifact encryption is enabled'
+        + (forced ? ' (real-data mode; export ' + DATA_MODE_ENV + '=synthetic with an explicit '
+          + SYNTHETIC_ACK_ENV + ' only for isolated synthetic data)' : '')
+        + '; refusing to store artifacts in plaintext',
     );
   }
   const config = parseConfig(raw);
@@ -378,4 +451,77 @@ export function buildEncryptionBootOptions(env: EnvReader): EncryptionBootOption
         }
       : {}),
   };
+}
+
+/** SEC-ENC-05: content-free effective policy summary for logs and /health. */
+export interface EncryptionPolicySummary {
+  readonly dataMode: DataMode;
+  readonly syntheticReason?: string;
+  readonly metadataEncryption: boolean;
+  readonly publicUploadEncryption: boolean;
+  readonly metadataPlaintextReadMode: 'forbid' | 'window' | 'none';
+  /**
+   * F-VFY6-01: presence-only signal (never the value) for the profile cipher
+   * key. `true` when ENCRYPTION_KEY or NEXTAUTH_SECRET is non-empty.
+   */
+  readonly profileCipherKeyPresent: boolean;
+}
+
+/**
+ * Resolve the effective policy exactly as the boot would (same validation), so
+ * a health surface can never advertise a policy the boot refused. Content-free:
+ * no tokens, key material or Vault paths are ever part of this object.
+ */
+export function summarizeEncryptionPolicy(env: EnvReader): EncryptionPolicySummary {
+  const dataMode = resolveDataMode(env);
+  const { metadataEnabled, publicUploadEnabled } = resolveEncryptionBoot(env);
+  let readMode: 'forbid' | 'window' | 'none' = 'none';
+  if (metadataEnabled) {
+    const raw = readOptional(env, METADATA_READ_MODE_ENV);
+    if (raw === 'window' || raw === 'forbid') readMode = raw;
+  }
+  return {
+    dataMode: dataMode.mode,
+    ...(dataMode.exemption === undefined ? {} : { syntheticReason: dataMode.exemption.reason }),
+    metadataEncryption: metadataEnabled,
+    publicUploadEncryption: publicUploadEnabled,
+    metadataPlaintextReadMode: readMode,
+    profileCipherKeyPresent: Boolean(env['ENCRYPTION_KEY'] || env['NEXTAUTH_SECRET']),
+  };
+}
+
+/**
+ * F-VFY6-01 (D-BOOT-01 hybrid, approved r4 §12.2): a real-data boot with the
+ * artifact seam enabled must not continue without the profile cipher key.
+ *
+ * - key present -> no-op (any mode; tamper is only detectable at use, where the
+ *   acquisition resolver already answers the typed AUTH_DECRYPT_FAILED);
+ * - explicit synthetic mode -> no-op (the acknowledged exemption is the
+ *   operator opt-out, visible in the health policy summary);
+ * - artifact seam off -> no-op (unreachable in real mode today; kept so a
+ *   future refactor cannot silently open the hole);
+ * - NODE_ENV development/test -> no-op (offline/dev/test fixtures keep the
+ *   warn-only behaviour, per the directive);
+ * - anything else (production, staging, unset) -> refuse with a content-safe
+ *   EncryptionBootConfigError. No key values, lengths or hashes appear.
+ *
+ * The predicate reads `dataMode` from the already-computed policy summary so
+ * the boot rule can never drift from the health surface.
+ */
+export function assertProfileCipherBootPolicy(
+  env: EnvReader,
+  policy: Pick<
+    EncryptionPolicySummary,
+    'dataMode' | 'metadataEncryption' | 'publicUploadEncryption'
+  >,
+): void {
+  if (env['ENCRYPTION_KEY'] || env['NEXTAUTH_SECRET']) return;
+  if (policy.dataMode !== 'real') return;
+  if (!policy.metadataEncryption && !policy.publicUploadEncryption) return;
+  if (env['NODE_ENV'] === 'development' || env['NODE_ENV'] === 'test') return;
+  throw new EncryptionBootConfigError(
+    'ENCRYPTION_KEY (or NEXTAUTH_SECRET) is required when artifact encryption is enabled in ' +
+      'real-data mode; set the profile cipher key, or declare an explicit synthetic deployment ' +
+      '(DU_DATA_MODE=synthetic with DU_SYNTHETIC_DATA_ACK) for isolated fixtures only',
+  );
 }

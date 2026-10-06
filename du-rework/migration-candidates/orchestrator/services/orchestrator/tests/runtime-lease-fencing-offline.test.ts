@@ -178,7 +178,7 @@ function makeLeaseTakeoverRaceDb() {
           if (/^\s*SELECT state FROM operations WHERE id=\$1/i.test(sql)) {
             return queryResult<R>([{ state: stagedOperation.state }]);
           }
-          if (/^\s*SELECT id, tenant_id, state, state_version, callback_url, updated_at FROM operations WHERE id=\$1/i.test(sql)) {
+          if (/^\s*SELECT id, tenant_id, state, state_version, callback_url,/i.test(sql)) {
             return queryResult<R>([stagedOperation]);
           }
           if (/^\s*UPDATE tasks SET lease_epoch=\$2/i.test(sql)) {
