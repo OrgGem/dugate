@@ -44,7 +44,7 @@ Sơ đồ trên là **đích triển khai**, không là danh sách container đa
 4. Bật Connector và Orchestrator; chờ health/readiness. Bật worker theo business/version; kiểm registration/heartbeat trước khi nhận tải. Orchestrator có `/health`/`/api/v1/health`; Connector có `/health/live` và `/health/ready`. Worker readiness dựa runtime registration/heartbeat, không có HTTP health endpoint chung.
 5. Khi shutdown, signal đi vào `main.ts`/`shutdown.ts` của Orchestrator, `entrypoint.ts`/`lifecycle.ts` của Connector và worker entrypoint. Drain phải phù hợp deadline, webhook/outbox và lease; kiểm bằng test triển khai, không suy từ hàm tồn tại trong source.
 
-Các biến env chi tiết nằm ở [root README](../README.md), [Orchestrator README](../services/orchestrator/README.md), [Connector README](../services/connector/README.md) và README từng business. Không sao chép secret/example password sang tài liệu này.
+Các biến env chi tiết nằm ở [root README](../README.md), [Orchestrator README](../orchestrator/services/orchestrator/README.md), [Connector README](../orchestrator/services/connector/README.md) và README từng business. Không sao chép secret/example password sang tài liệu này.
 
 ## 3. Trust boundaries
 
@@ -81,9 +81,9 @@ Danh mục test ở [docs/28](../docs/28-test-inventory.md) và acceptance ở [
 
 | Vấn đề | Bằng chứng code/tài liệu | Tác động cần xét |
 |---|---|---|
-| Orchestrator route/composition tập trung trong một file lớn | [server.ts](../services/orchestrator/src/server.ts) | Thay auth, startup hoặc route dễ ảnh hưởng nhiều bề mặt; cần focused consumer tests và review khi tách module. |
-| Connector standalone chưa inject Vault resolver | [composition.ts](../services/connector/src/composition.ts), [services.ts](../services/connector/src/services.ts) | Revision `vault-kv2` fail-closed khi invoke ở wiring này. |
-| Connector migration chạy lúc service start | [composition.ts](../services/connector/src/composition.ts) | Cần chủ sở hữu migration độc lập/serialized trước multi-replica rollout. |
-| Tài liệu API và deployment có snapshot lệch source | [docs/06](../docs/06-public-api.md), [root README](../README.md), [server.ts](../services/orchestrator/src/server.ts) | Không dùng nhãn “chưa implement” cũ thay cho kiểm route/contract hiện tại. |
+| Orchestrator route/composition tập trung trong một file lớn | [server.ts](../orchestrator/services/orchestrator/src/server.ts) | Thay auth, startup hoặc route dễ ảnh hưởng nhiều bề mặt; cần focused consumer tests và review khi tách module. |
+| Connector standalone chưa inject Vault resolver | [composition.ts](../orchestrator/services/connector/src/composition.ts), [services.ts](../orchestrator/services/connector/src/services.ts) | Revision `vault-kv2` fail-closed khi invoke ở wiring này. |
+| Connector migration chạy lúc service start | [composition.ts](../orchestrator/services/connector/src/composition.ts) | Cần chủ sở hữu migration độc lập/serialized trước multi-replica rollout. |
+| Tài liệu API và deployment có snapshot lệch source | [docs/06](../docs/06-public-api.md), [root README](../README.md), [server.ts](../orchestrator/services/orchestrator/src/server.ts) | Không dùng nhãn “chưa implement” cũ thay cho kiểm route/contract hiện tại. |
 
 Đây là các điểm đối chiếu kiến trúc, không phải verdict acceptance hoặc danh sách đầy đủ finding. [Task board](../tasks/README.md) và [review gần nhất](../coordination/reports/review.md) mới quản lý owner, bằng chứng và gate.

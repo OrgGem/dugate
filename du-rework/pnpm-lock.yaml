@@ -7,18 +7,114 @@ settings:
 overrides:
   '@types/mammoth': npm:empty-npm-package@1.0.0
   pdf-lib@^1.17.9: ^1.17.1
-  xlsx: file:vendor/xlsx-0.20.3.tgz
+  xlsx: file:orchestrator/vendor/xlsx-0.20.3.tgz
 
 patchedDependencies:
   braces@3.0.3:
     hash: 06330ee993739f75af3b059cf21192d8d98f387bb152fe284ba5634962a8659c
-    path: patches/braces@3.0.3.patch
+    path: orchestrator/patches/braces@3.0.3.patch
 
 importers:
 
   .: {}
 
-  apps/admin-web:
+  businesses/document-core:
+    dependencies:
+      '@du/contracts':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/contracts
+      '@du/document-kit':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/document-kit
+      '@du/worker-sdk':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/worker-sdk
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/jest':
+        specifier: ^29.5.12
+        version: 29.5.14
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.1
+      bullmq:
+        specifier: ^5.34.0
+        version: 5.81.5
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@24.19.1)
+      ts-jest:
+        specifier: ^29.1.2
+        version: 29.4.12(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.19.1))(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  businesses/example-review:
+    dependencies:
+      '@du/contracts':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/contracts
+      '@du/document-kit':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/document-kit
+      '@du/worker-sdk':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/worker-sdk
+    devDependencies:
+      '@types/jest':
+        specifier: ^29.5.12
+        version: 29.5.14
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.1
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@24.19.1)
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      ts-jest:
+        specifier: ^29.1.2
+        version: 29.4.12(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.19.1))(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  businesses/lc-checker:
+    dependencies:
+      '@du/contracts':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/contracts
+      '@du/document-kit':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/document-kit
+      '@du/worker-sdk':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/worker-sdk
+    devDependencies:
+      '@types/jest':
+        specifier: ^29.5.12
+        version: 29.5.14
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.1
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@24.19.1)
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      ts-jest:
+        specifier: ^29.1.2
+        version: 29.4.12(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.19.1))(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  orchestrator/apps/admin-web:
     dependencies:
       '@base-ui/react':
         specifier: ^1.8.0
@@ -76,103 +172,7 @@ importers:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.32.0)
 
-  businesses/document-core:
-    dependencies:
-      '@du/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@du/document-kit':
-        specifier: workspace:*
-        version: link:../../packages/document-kit
-      '@du/worker-sdk':
-        specifier: workspace:*
-        version: link:../../packages/worker-sdk
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
-      '@types/jest':
-        specifier: ^29.5.12
-        version: 29.5.14
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.19.1
-      bullmq:
-        specifier: ^5.34.0
-        version: 5.81.5
-      jest:
-        specifier: ^29.7.0
-        version: 29.7.0(@types/node@24.19.1)
-      ts-jest:
-        specifier: ^29.1.2
-        version: 29.4.12(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.19.1))(typescript@5.9.3)
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-
-  businesses/example-review:
-    dependencies:
-      '@du/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@du/document-kit':
-        specifier: workspace:*
-        version: link:../../packages/document-kit
-      '@du/worker-sdk':
-        specifier: workspace:*
-        version: link:../../packages/worker-sdk
-    devDependencies:
-      '@types/jest':
-        specifier: ^29.5.12
-        version: 29.5.14
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.19.1
-      jest:
-        specifier: ^29.7.0
-        version: 29.7.0(@types/node@24.19.1)
-      rimraf:
-        specifier: ^5.0.5
-        version: 5.0.10
-      ts-jest:
-        specifier: ^29.1.2
-        version: 29.4.12(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.19.1))(typescript@5.9.3)
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-
-  businesses/lc-checker:
-    dependencies:
-      '@du/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@du/document-kit':
-        specifier: workspace:*
-        version: link:../../packages/document-kit
-      '@du/worker-sdk':
-        specifier: workspace:*
-        version: link:../../packages/worker-sdk
-    devDependencies:
-      '@types/jest':
-        specifier: ^29.5.12
-        version: 29.5.14
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.19.1
-      jest:
-        specifier: ^29.7.0
-        version: 29.7.0(@types/node@24.19.1)
-      rimraf:
-        specifier: ^5.0.5
-        version: 5.0.10
-      ts-jest:
-        specifier: ^29.1.2
-        version: 29.4.12(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.19.1))(typescript@5.9.3)
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-
-  packages/connector-client:
+  orchestrator/packages/connector-client:
     dependencies:
       '@du/contracts':
         specifier: workspace:*
@@ -197,7 +197,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  packages/contracts:
+  orchestrator/packages/contracts:
     dependencies:
       zod:
         specifier: ^3.23.8
@@ -222,7 +222,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  packages/document-kit:
+  orchestrator/packages/document-kit:
     dependencies:
       mammoth:
         specifier: ^1.8.0
@@ -232,7 +232,7 @@ importers:
         version: 1.17.1
       xlsx:
         specifier: file:../../vendor/xlsx-0.20.3.tgz
-        version: file:vendor/xlsx-0.20.3.tgz
+        version: file:orchestrator/vendor/xlsx-0.20.3.tgz
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -253,7 +253,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  packages/egress:
+  orchestrator/packages/egress:
     dependencies:
       '@du/contracts':
         specifier: workspace:*
@@ -278,7 +278,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  packages/observability:
+  orchestrator/packages/observability:
     devDependencies:
       '@types/jest':
         specifier: ^29.5.12
@@ -299,7 +299,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  packages/worker-sdk:
+  orchestrator/packages/worker-sdk:
     dependencies:
       '@du/contracts':
         specifier: workspace:*
@@ -336,7 +336,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  services/connector:
+  orchestrator/services/connector:
     dependencies:
       '@du/contracts':
         specifier: workspace:*
@@ -373,7 +373,7 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-  services/orchestrator:
+  orchestrator/services/orchestrator:
     dependencies:
       '@aws-sdk/client-s3':
         specifier: ^3.1140.0
@@ -451,13 +451,13 @@ importers:
     dependencies:
       '@du/connector':
         specifier: workspace:*
-        version: link:../../services/connector
+        version: link:../../orchestrator/services/connector
       '@du/contracts':
         specifier: workspace:*
-        version: link:../../packages/contracts
+        version: link:../../orchestrator/packages/contracts
       '@du/orchestrator':
         specifier: workspace:*
-        version: link:../../services/orchestrator
+        version: link:../../orchestrator/services/orchestrator
       bullmq:
         specifier: ^5.34.0
         version: 5.81.5
@@ -3600,8 +3600,8 @@ packages:
     resolution: {integrity: sha512-c16PKLIRxBYpR3jSWsdS7SFp0COm5SOQdiFjY818dYFHJbMGuLBszpF07LBWmOS1uzrHa9VGdynsEgoeKy0oOQ==}
     engines: {node: '>=20'}
 
-  xlsx@file:vendor/xlsx-0.20.3.tgz:
-    resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: file:vendor/xlsx-0.20.3.tgz}
+  xlsx@file:orchestrator/vendor/xlsx-0.20.3.tgz:
+    resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: file:orchestrator/vendor/xlsx-0.20.3.tgz}
     version: 0.20.3
     engines: {node: '>=0.8'}
     hasBin: true
@@ -7030,7 +7030,7 @@ snapshots:
       is-wsl: 3.1.1
       powershell-utils: 0.2.1
 
-  xlsx@file:vendor/xlsx-0.20.3.tgz: {}
+  xlsx@file:orchestrator/vendor/xlsx-0.20.3.tgz: {}
 
   xmlbuilder@10.1.1: {}
 

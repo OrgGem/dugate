@@ -21,7 +21,7 @@ Trong một ca trực, tôi cần trả lời nhanh:
 | Admin Operations có list/detail và trạng thái. | Route list đã có **cursor keyset + filter + sort chạy ở server**: token cursor 4-slot `base64url("<ISO>\|<uuid>\|<field>:<direction>[\|p]")` mang cả hướng đi lẫn thứ tự, nên gửi cursor lệch sort trả **422 `INVALID_SCHEMA`** thay vì đọc sai lát cắt — đây là hành vi đã đọc thẳng từ source, chưa phải nghiệm thu. `sort` có đúng 6 giá trị (`created_at`/`updated_at`/`deadline_at` × `asc`/`desc`), `limit` clamp 1–100 và không 422, `total` là `COUNT(*)` của tập đã lọc chứ không phải số dòng trả về. Tuy vậy Admin **shell** chưa có sort control, chưa có receipt live six-sort/cross-sort, và các chức năng tìm kiếm cùng operator journey vẫn là acceptance mở ở ADM-UX-02..05. |
 | Spec `docs/11-admin-ux.md` nêu Usage, filter/export; `docs/12-operations.md` nêu usage lag metric/alert. | Đây là yêu cầu, chưa chứng minh một luồng quản trị cost và giám sát hoàn chỉnh trên build thật. |
 
-Các nhận định trên dựa vào `packages/contracts/src/runtime.ts`, `services/connector/src/usage.ts`, `services/orchestrator/src/modules/usage/usage.ts`, `services/orchestrator/src/server.ts` và `services/orchestrator/src/app/admin/`. Tình trạng auth tenant/role của Admin phải theo `OIDC-03`; không dùng admin bearer toàn cục hiện tại làm bằng chứng phân quyền operator.
+Các nhận định trên dựa vào `orchestrator/packages/contracts/src/runtime.ts`, `orchestrator/services/connector/src/usage.ts`, `orchestrator/services/orchestrator/src/modules/usage/usage.ts`, `orchestrator/services/orchestrator/src/server.ts` và `orchestrator/services/orchestrator/src/app/admin/`. Tình trạng auth tenant/role của Admin phải theo `OIDC-03`; không dùng admin bearer toàn cục hiện tại làm bằng chứng phân quyền operator.
 
 ## Điều hướng Admin board đề xuất
 
@@ -80,7 +80,7 @@ Mục này **không** đổi trạng thái `[ ]` của COST-01..04 trong bảng 
 
 ### 2. Hợp đồng durable reservation cho hard cap (COST-04)
 
-Đây là **service**, không phải route: `BudgetReservationService` trong `services/orchestrator/src/modules/usage/budget-reservations.ts` được gọi nội bộ, nên không sinh dòng nào trong bảng route nào của tài liệu này.
+Đây là **service**, không phải route: `BudgetReservationService` trong `orchestrator/services/orchestrator/src/modules/usage/budget-reservations.ts` được gọi nội bộ, nên không sinh dòng nào trong bảng route nào của tài liệu này.
 
 | Quy tắc | Hành vi đọc từ source |
 |---|---|

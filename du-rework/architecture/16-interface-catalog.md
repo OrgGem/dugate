@@ -6,7 +6,7 @@ Ví dụ request/response theo router hiện tại: [Public API](17-public-api-e
 
 ## 1. Client ↔ Orchestrator Public API
 
-Base path `/api/v1`; client dùng `x-api-key` của tenant. Những nhóm sau có trong [public routes](../services/orchestrator/src/http/routes/public.ts) và [health dispatcher](../services/orchestrator/src/server.ts):
+Base path `/api/v1`; client dùng `x-api-key` của tenant. Những nhóm sau có trong [public routes](../orchestrator/services/orchestrator/src/http/routes/public.ts) và [health dispatcher](../orchestrator/services/orchestrator/src/server.ts):
 
 | Nhóm | Các route/khả năng chính | Module owner |
 |---|---|---|
@@ -22,7 +22,7 @@ Base path `/api/v1`; client dùng `x-api-key` của tenant. Những nhóm sau c�
 
 ## 2. Worker ↔ Orchestrator Runtime API
 
-Base path `/api/runtime/v1`; identity worker được ràng theo business, không dùng public API key. [Runtime service](../services/orchestrator/src/modules/runtime/runtime.ts) và [worker SDK](../packages/worker-sdk/src/) giữ contract consumer.
+Base path `/api/runtime/v1`; identity worker được ràng theo business, không dùng public API key. [Runtime service](../orchestrator/services/orchestrator/src/modules/runtime/runtime.ts) và [worker SDK](../orchestrator/packages/worker-sdk/src/) giữ contract consumer.
 
 | Nhóm | Route điển hình | Mục đích |
 |---|---|---|
@@ -43,7 +43,7 @@ Ngoài các nhóm trên, router còn phục vụ `GET /tasks/{id}/children` (joi
 
 ## 3. Operator ↔ Orchestrator Admin
 
-Admin JSON chủ yếu ở `/api/v1/admin/*`; rendered shell ở `/admin/*` khi cấu hình được cấp. API hiện có nhóm business/version, profile binding, connector management, API key listing, audit, crypto config, operations/deadline sweep và action dispatcher. Source tương ứng là [admin routes](../services/orchestrator/src/http/routes/admin.ts), [admin shell](../services/orchestrator/src/app/admin/) và [admin actions](../services/orchestrator/src/modules/admin-actions/). Một số thao tác có UI/route nhưng còn phụ thuộc composition/config hoặc gate browser/security; xem [task board](../tasks/README.md).
+Admin JSON chủ yếu ở `/api/v1/admin/*`; rendered shell ở `/admin/*` khi cấu hình được cấp. API hiện có nhóm business/version, profile binding, connector management, API key listing, audit, crypto config, operations/deadline sweep và action dispatcher. Source tương ứng là [admin routes](../orchestrator/services/orchestrator/src/http/routes/admin.ts), [admin shell](../orchestrator/services/orchestrator/src/app/admin/) và [admin actions](../orchestrator/services/orchestrator/src/modules/admin-actions/). Một số thao tác có UI/route nhưng còn phụ thuộc composition/config hoặc gate browser/security; xem [task board](../tasks/README.md).
 
 **Connector mutation đi qua action dispatcher, không phải route `/admin/connectors`.** Router chỉ có `POST|GET /api/v1/admin/connectors/{id}/credentials` và `GET /api/v1/admin/connectors/{id}/revisions/{rev}`; các thao tác xoay vòng/thu hồi/kiểm credential chạy qua `POST /api/v1/admin/actions` với action `connectors.rotate_credential`, `connectors.revoke_credential`, `connectors.test_credential`. CODE-FIX-01 đã chốt **phương án A** (sửa hướng dẫn, không bổ sung route) và phần code đã sửa: `app/admin/connector-section-renderer.ts` (`renderNotFound`) nay ghi rõ không có platform route tạo connector binding, connector đăng ký ở Connector service, còn đổi/thu hồi/kiểm credential thì qua `POST /api/v1/admin/actions`. `POST /api/v1/admin/connector-bindings` vẫn **không có** trong router (0 match `connector-bindings`) — đó là trạng thái đúng theo quyết định, không phải route đang chờ land.
 
@@ -51,11 +51,11 @@ Admin JSON chủ yếu ở `/api/v1/admin/*`; rendered shell ở `/admin/*` khi 
 
 ## 4. Orchestrator/worker ↔ Connector
 
-[Connector HTTP router](../services/connector/src/http/server.ts) có health, capabilities, management `/connectors*` (revision, activation/retire, credential rotation/disable/test) và runtime `/invocations*` (invoke/get/cancel). Health liveness/readiness công khai; phần còn lại yêu cầu service identity khi verifier được cấu hình. Invocation cần signed grant, tenant/revision binding và quota. Response có `completed`, `pending`, `unknown`, `failed`, `cancelled`; consumer phải xử lý state theo contract, không tự retry `unknown` như request chưa gửi.
+[Connector HTTP router](../orchestrator/services/connector/src/http/server.ts) có health, capabilities, management `/connectors*` (revision, activation/retire, credential rotation/disable/test) và runtime `/invocations*` (invoke/get/cancel). Health liveness/readiness công khai; phần còn lại yêu cầu service identity khi verifier được cấu hình. Invocation cần signed grant, tenant/revision binding và quota. Response có `completed`, `pending`, `unknown`, `failed`, `cancelled`; consumer phải xử lý state theo contract, không tự retry `unknown` như request chưa gửi.
 
 Router còn có các route đọc revision mà catalog trước đây bỏ sót: `GET /connectors/{id}/revisions/current` và `GET /connectors/{id}/revisions/{n}` — đây là nơi đọc revision `ACTIVE` mà invariant binding của §4 dựa vào. Quan trọng hơn, `POST /connectors/{id}/revisions/bootstrap` là đường **duy nhất** tạo được revision 1 của một bound chain; đường `POST /connectors/{id}/revisions` thông thường không mở được chuỗi đã bound. Đọc router trước khi kết luận không có đường chuyển từ legacy sang bound.
 
-**Chưa có route nhận webhook của provider.** `services/connector/src/webhook.ts` export `verifyWebhookSignature`/`parseWebhookPayload` và được re-export qua `index.ts`, có test riêng, nhưng `http/server.ts` không đăng ký route nào dùng tới nó — helper xác thị callback đã có và được kiểm thử, đường nhận chưa được mount.
+**Chưa có route nhận webhook của provider.** `orchestrator/services/connector/src/webhook.ts` export `verifyWebhookSignature`/`parseWebhookPayload` và được re-export qua `index.ts`, có test riêng, nhưng `http/server.ts` không đăng ký route nào dùng tới nó — helper xác thị callback đã có và được kiểm thử, đường nhận chưa được mount.
 
 ## 5. Không gian version và compatibility
 

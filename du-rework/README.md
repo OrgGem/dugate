@@ -16,7 +16,7 @@ Xây dựng mới trong `du-rework/`. Repository DUGate bên ngoài thư mục n
 
 ## Bắt đầu từ source
 
-Chạy lệnh tại thư mục `du-rework/`, **không phải** root DUGate cũ. Cần Node.js 20+, pnpm 9+ (qua Corepack hoặc cài riêng), Docker Engine + Compose v2 nếu dùng container, và PostgreSQL/Redis cho integration hoặc chạy service. Workspace dùng các package nội bộ `@du/*` qua pnpm; build image/worker từ source phải mang theo các workspace dependency, không cần publish SDK lên registry.
+Chạy lệnh tại thư mục `du-rework/`, **không phải** root DUGate cũ. Cần Node.js 24.21.0, pnpm 10.18.3 (qua Corepack hoặc cài riêng), Docker Engine + Compose v2 nếu dùng container, và PostgreSQL/Redis cho integration hoặc chạy service. Workspace dùng các package nội bộ `@du/*` qua pnpm; build image/worker từ source phải mang theo các workspace dependency, không cần publish SDK lên registry.
 
 ```sh
 corepack enable
@@ -25,37 +25,32 @@ pnpm build
 pnpm lint
 ```
 
-### 🚀 Khởi chạy nhanh toàn bộ hệ thống (Dev Mode — 1 lệnh duy nhất)
+### Local development
 
-Để khởi chạy đồng thời cả 3 service (**Orchestrator API + Admin UI**, **Connector**, **Document-Core Worker**) trong **1 cửa sổ terminal duy nhất** với đầy đủ log màu sắc:
+Run from `du-rework/` using Node 24.21.0 and pnpm 10.18.3. Prepare PostgreSQL/Redis and a private `.env.local` copied from `.env.local.sample`; configure tokens and identity secrets before startup. The runner does not create infrastructure or seed a default admin account.
 
-```bash
-# Trong thư mục du-rework/
+```sh
+pnpm dev --help
+pnpm dev --check
+pnpm dev --workers=document-core
+# All three workers:
 pnpm dev
-# hoặc: npm run dev
-# hoặc trên Windows PowerShell: .\scripts\dev.ps1
-# hoặc gắn thêm cờ watch: pnpm dev --watch
+# Reuse an existing build/schema:
+pnpm dev --skip-build --skip-migrate
 ```
 
-* **Địa chỉ truy cập & Cổng dịch vụ**:
-  - **Admin Web UI**: [http://localhost:3001/admin/login](http://localhost:3001/admin/login) *(Tài khoản mặc định: `admin` / Mật khẩu: `Admin@123456`)*
-  - **Orchestrator Public API**: [http://localhost:3000](http://localhost:3000) (Health check: `http://localhost:3000/health`)
-  - **Connector Service**: [http://localhost:8088](http://localhost:8088) (Readiness: `http://localhost:8088/health/ready`)
-  - **Worker Service**: Kết nối hàng đợi Redis BullMQ (`127.0.0.1:6380`)
-* **Tính năng tự động của Dev Runner**:
-  - Tự động nạp file `.env.local` (tự copy từ `.env.local.sample` nếu chưa có).
-  - Tự động build mã nguồn và chạy migration DB trước khi khởi động.
-  - Tự động dọn dẹp port cũ bị kẹt trước khi start để tránh lỗi `EADDRINUSE`.
-  - Khởi động tuần tự thông minh: chờ Orchestrator mở cổng thành công mới kích hoạt Worker.
-* **Cách tắt server**:
-  - **Khi đang chạy Dev Mode**: Chỉ cần nhấn `Ctrl + C` tại terminal, runner sẽ tự động kill sạch toàn bộ các tiến trình con.
-  - **Khi server đang chạy ngầm hoặc kẹt cổng**: Chạy lệnh `pnpm stop` (hoặc `.\scripts\stop-all.ps1`) để tắt ngay lập tức.
+| Component | Local address |
+| --- | --- |
+| Orchestrator Portal + BFF | `http://127.0.0.1:3001/admin/web/` (login: `/admin/login`) |
+| Public API | `http://127.0.0.1:3000` |
+| Internal admin/runtime API | `http://127.0.0.1:3002` |
+| Connector | `http://127.0.0.1:8088` |
 
-Chi tiết xem tại [Hướng dẫn scripts local dev](scripts/README.md).
+The runner builds and applies migrations unless skipped, waits for readiness before starting workers, and rejects occupied ports. It does not terminate unrelated port owners. `Ctrl+C` stops this session's processes; `pnpm stop` handles matching rework processes. See [local scripts](scripts/README.md) for configuration, watch mode and troubleshooting.
 
 `pnpm build` build các package/service/business trong workspace; `pnpm lint` hiện chạy các script lint của từng package (chủ yếu là TypeScript typecheck). Cấu hình mẫu ở [`.env.example`](.env.example); copy thành `.env` rồi thay toàn bộ token, mật khẩu và khóa mẫu trước khi chạy. Không commit `.env` hoặc dùng secret mẫu ngoài môi trường test. `RUNTIME_TOKEN` dành cho worker/runtime, `ADMIN_TOKEN` dành cho admin; **external client chỉ dùng `x-api-key`** đã được cấp.
 
-Hướng dẫn riêng: [Orchestrator](services/orchestrator/README.md), [Connector](services/connector/README.md), [document-core](businesses/document-core/README.md), [example-review](businesses/example-review/README.md), [lc-checker](businesses/lc-checker/README.md), [integration tests](tests/README.md) và [test infra](infra/README.md).
+Hướng dẫn riêng: [Orchestrator](orchestrator/services/orchestrator/README.md), [Connector](orchestrator/services/connector/README.md), [document-core](businesses/document-core/README.md), [example-review](businesses/example-review/README.md), [lc-checker](businesses/lc-checker/README.md), [integration tests](tests/README.md) và [test infra](infra/README.md).
 
 ### Chạy thủ công từng service và phụ thuộc local
 
@@ -79,7 +74,7 @@ pnpm --filter @du/orchestrator start
 
 Lệnh `migrate` **ghi vào DB**: chỉ chạy khi đã xác nhận đúng URL, có backup/window phù hợp; `AUTO_MIGRATE=false` mặc định khiến startup kiểm tra migration thay vì tự áp dụng. Để xử lý operation end-to-end, còn cần Connector, worker `document-core`, business version/profile và API key đang active được provision; chỉ start Orchestrator không tự tạo các thành phần đó. Xem [deployment guide](docs/12b-deployment-guide.md), [registry](docs/05-business-registry.md) và [runbooks](docs/17-operational-runbooks.md). Cấu hình `ARTIFACT_STORAGE_BACKEND=postgres` chỉ dành cho pilot/test; production yêu cầu private S3, mã hóa tầng ứng dụng/Vault và các gate DATA/ENC/SEC chưa được nghiệm thu.
 
-Để start worker `document-core` từ source trong terminal khác, dùng lại `RUNTIME_TOKEN` và `REDIS_URL` ở trên, đặt `RUNTIME_URL=http://127.0.0.1:3000/api/runtime/v1`, rồi chạy `pnpm --filter @du/document-core start`. Action cần provider còn đòi Connector, profile và service token tương ứng; worker đơn lẻ không chứng minh luồng đó đã sẵn sàng. Connector có entrypoint `services/connector/dist/entrypoint.js` sau build và yêu cầu ba secret base64 mã hóa 32 byte (`SERVICE_IDENTITY_SECRET`, `INVOCATION_GRANT_SECRET`, `CONNECTOR_ENCRYPTION_KEY`); xem [Connector API](docs/08-connector-api.md) trước khi bật.
+Để start worker `document-core` từ source trong terminal khác, dùng lại `RUNTIME_TOKEN` và `REDIS_URL` ở trên, đặt `RUNTIME_URL=http://127.0.0.1:3002/api/runtime/v1`, rồi chạy `pnpm --filter @du/document-core start`. Action cần provider còn đòi Connector, profile và service token tương ứng; worker đơn lẻ không chứng minh luồng đó đã sẵn sàng. Connector có entrypoint `orchestrator/services/connector/dist/entrypoint.js` sau build và yêu cầu ba secret base64 mã hóa 32 byte (`SERVICE_IDENTITY_SECRET`, `INVOCATION_GRANT_SECRET`, `CONNECTOR_ENCRYPTION_KEY`); xem [Connector API](docs/08-connector-api.md) trước khi bật.
 
 ## Kiểm thử
 
@@ -133,7 +128,7 @@ $result
 
 Submit thường trả `202` với `operationId`, `state`, `stateVersion`, `replayed`, `correlationId`, `links`; replay cùng `idempotency-key` và body trả `200`, key trùng với body khác trả `409`. Poll `GET /operations/{id}` đến `SUCCEEDED` rồi mới gọi `/result` (`409` khi chưa xong; `410` khi hết hạn). Result plaintext có dạng `{schemaVersion,data,artifacts,usage,warnings}`; `data.resultRef` có thể là `artifact://...`, còn `artifacts[].download` là URL tương đối dùng cùng `x-api-key` để tải bytes. Nếu admin bật delivery encryption, `/result` trả envelope `{schemaVersion,encrypted:true,delivery}`; client **không** được chọn giải mã bằng query param. `sourceUrl` chỉ được nhận khi backend S3; backend khác trả `422 UNSUPPORTED_STORAGE_BACKEND`. Không gửi dữ liệu nhạy cảm, key hoặc token vào log.
 
-**API canonical và facade legacy:** `services/orchestrator/src/http/routes/public.ts` đã mount `compat/legacy-http-mount.ts` trước các route canonical. Facade nhận `/api/v1/docs/{action}`, body multipart legacy và `?sync=true` (trả `200` với `done: false` theo wire cũ); đường generic `/api/v1/businesses/{id}/actions/{action}` ở trên vẫn có contract riêng. Xem [legacy parity contract](docs/39-legacy-parity-contract.md), [ResultEnvelope canonical](docs/06-result-envelope.md) và [public API spec](docs/06-public-api.md). Sự hiện diện của route trong source chưa thay cho kiểm chứng tương thích end-to-end hoặc acceptance gate của [kế hoạch compatibility](tasks/API-COMPAT-DUGATE-2026-09-28.md).
+**API canonical và facade legacy:** `orchestrator/services/orchestrator/src/http/routes/public.ts` đã mount `compat/legacy-http-mount.ts` trước các route canonical. Facade nhận `/api/v1/docs/{action}`, body multipart legacy và `?sync=true` (trả `200` với `done: false` theo wire cũ); đường generic `/api/v1/businesses/{id}/actions/{action}` ở trên vẫn có contract riêng. Xem [legacy parity contract](docs/39-legacy-parity-contract.md), [ResultEnvelope canonical](docs/06-result-envelope.md) và [public API spec](docs/06-public-api.md). Sự hiện diện của route trong source chưa thay cho kiểm chứng tương thích end-to-end hoặc acceptance gate của [kế hoạch compatibility](tasks/API-COMPAT-DUGATE-2026-09-28.md).
 
 ## Đọc theo thứ tự
 

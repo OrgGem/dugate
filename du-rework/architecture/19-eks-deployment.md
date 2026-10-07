@@ -2,7 +2,7 @@
 
 **Phạm vi:** topology mục tiêu đưa DU Rework lên Amazon EKS. Đây là **tài liệu kiến trúc + mapping**, không phải bằng chứng deployment đã kiểm chứng. Mọi gate/go-live vẫn theo [09](09-readiness.md); triển khai EC2 hiện có ở [06](06-aws-deployment.md) vẫn giữ nguyên như một lựa chọn topology.
 
-Đối chiếu source tại thời điểm viết: `Dockerfile` (5 targets, Node 24, runtime `node`, Orchestrator `EXPOSE 3000 3001`), `compose/*.yml` (env/listener/health), ingress fence (`services/orchestrator/src/http/ingress-guard.ts`), Connector router (`services/connector/src/http/server.ts`). Sample manifests ở [`infra/eks/`](../infra/eks/README.md); hướng dẫn từng bước ở [`docs/12c-eks-deployment-guide.md`](../docs/12c-eks-deployment-guide.md).
+Đối chiếu source tại thời điểm viết: `Dockerfile` (5 targets, Node 24, runtime `node`, Orchestrator `EXPOSE 3000 3001`), `compose/*.yml` (env/listener/health), ingress fence (`orchestrator/services/orchestrator/src/http/ingress-guard.ts`), Connector router (`orchestrator/services/connector/src/http/server.ts`). Sample manifests ở [`infra/eks/`](../infra/eks/README.md); hướng dẫn từng bước ở [`docs/12c-eks-deployment-guide.md`](../docs/12c-eks-deployment-guide.md).
 
 ## 1. Mục tiêu và nguyên tắc
 

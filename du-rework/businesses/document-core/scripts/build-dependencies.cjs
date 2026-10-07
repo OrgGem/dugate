@@ -25,14 +25,14 @@ const { execSync } = require('node:child_process');
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../..');
 
 const DEPENDENCY_BUILD_ORDER = [
-  { name: '@du/contracts', dir: 'packages/contracts', cmd: 'pnpm --filter @du/contracts build' },
-  { name: '@du/observability', dir: 'packages/observability', cmd: 'pnpm --filter @du/observability build' },
-  { name: '@du/egress', dir: 'packages/egress', cmd: 'pnpm --filter @du/egress build' },
-  { name: '@du/document-kit', dir: 'packages/document-kit', cmd: 'pnpm --filter @du/document-kit build' },
-  { name: '@du/worker-sdk', dir: 'packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },
-  { name: '@du/connector-client', dir: 'packages/connector-client', cmd: 'pnpm --filter @du/connector-client build' },
-  { name: '@du/connector', dir: 'services/connector', cmd: 'pnpm --filter @du/connector build' },
-  { name: '@du/orchestrator', dir: 'services/orchestrator', cmd: 'pnpm --filter @du/orchestrator build' },
+  { name: '@du/contracts', dir: 'orchestrator/packages/contracts', cmd: 'pnpm --filter @du/contracts build' },
+  { name: '@du/observability', dir: 'orchestrator/packages/observability', cmd: 'pnpm --filter @du/observability build' },
+  { name: '@du/egress', dir: 'orchestrator/packages/egress', cmd: 'pnpm --filter @du/egress build' },
+  { name: '@du/document-kit', dir: 'orchestrator/packages/document-kit', cmd: 'pnpm --filter @du/document-kit build' },
+  { name: '@du/worker-sdk', dir: 'orchestrator/packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },
+  { name: '@du/connector-client', dir: 'orchestrator/packages/connector-client', cmd: 'pnpm --filter @du/connector-client build' },
+  { name: '@du/connector', dir: 'orchestrator/services/connector', cmd: 'pnpm --filter @du/connector build' },
+  { name: '@du/orchestrator', dir: 'orchestrator/services/orchestrator', cmd: 'pnpm --filter @du/orchestrator build' },
   { name: '@du/document-core', dir: 'businesses/document-core', cmd: 'pnpm --filter @du/document-core build' },
 ];
 

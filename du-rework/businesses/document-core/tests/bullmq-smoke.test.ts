@@ -142,6 +142,7 @@ describe('Document Core — BullMQ & Redis Smoke Suite', () => {
               outputFormat: 'markdown',
             },
             pinned: {
+              profilePolicy: null,
               profileRevision: 1,
               promptRevisions: {},
               connectorBindings: {},

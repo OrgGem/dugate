@@ -9,8 +9,8 @@ import { ParserBudgetHelper } from '../src/pipelines/parser-budget';
 import { IngestAction } from '../src/actions/ingest';
 import { MockTaskContext } from './fixtures/mock-context';
 import type { TaskContext } from '../src/types/context';
-import { multipartHttpAdapter } from '../../../services/connector/src/adapters/http';
-import type { LocalInvocationRequest } from '../../../services/connector/src/types';
+import { multipartHttpAdapter } from '../../../orchestrator/services/connector/src/adapters/http';
+import type { LocalInvocationRequest } from '../../../orchestrator/services/connector/src/types';
 
 const contractArtifact = {
   artifactId: '00000000-0000-4000-8000-000000000001',

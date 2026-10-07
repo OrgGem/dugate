@@ -170,9 +170,9 @@ window; and held tasks resume without duplicate effects. Record the config
 revision, canary artifact IDs, metadata-only evidence, and backup/restore
 decision in the incident/change record.
 
-**References:** `../../services/orchestrator/src/modules/artifacts/storage-facade.ts`,
-`../../services/orchestrator/src/modules/artifacts/artifacts.ts`,
-`../../services/orchestrator/src/modules/artifacts/s3-storage-facade.ts`,
-`../../services/orchestrator/src/modules/artifacts/postgres-storage-facade.ts`,
-and migrations `../../services/orchestrator/migrations/0003_artifacts_grants.sql`,
-`../../services/orchestrator/migrations/0013_artifact_storage_version.sql`.
+**References:** `../../orchestrator/services/orchestrator/src/modules/artifacts/storage-facade.ts`,
+`../../orchestrator/services/orchestrator/src/modules/artifacts/artifacts.ts`,
+`../../orchestrator/services/orchestrator/src/modules/artifacts/s3-storage-facade.ts`,
+`../../orchestrator/services/orchestrator/src/modules/artifacts/postgres-storage-facade.ts`,
+and migrations `../../orchestrator/services/orchestrator/migrations/0003_artifacts_grants.sql`,
+`../../orchestrator/services/orchestrator/migrations/0013_artifact_storage_version.sql`.

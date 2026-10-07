@@ -1,6 +1,6 @@
 # 18 — Runtime, Admin và Connector API: spec và ví dụ
 
-**Phạm vi:** API giữa process và operator theo [Orchestrator router](../services/orchestrator/src/server.ts), [runtime contract](../packages/contracts/src/runtime.ts), [Connector contract](../packages/contracts/src/connector.ts), [Connector HTTP router](../services/connector/src/http/server.ts) ngày 2026-10-02. Token/ID trong ví dụ là giả; lệnh chưa được chạy trên deployment trong lượt viết tài liệu. Các endpoint nội bộ không dành cho client dùng `x-api-key`.
+**Phạm vi:** API giữa process và operator theo [Orchestrator router](../orchestrator/services/orchestrator/src/server.ts), [runtime contract](../orchestrator/packages/contracts/src/runtime.ts), [Connector contract](../orchestrator/packages/contracts/src/connector.ts), [Connector HTTP router](../orchestrator/services/connector/src/http/server.ts) ngày 2026-10-02. Token/ID trong ví dụ là giả; lệnh chưa được chạy trên deployment trong lượt viết tài liệu. Các endpoint nội bộ không dành cho client dùng `x-api-key`.
 
 ## 1. Bốn loại danh tính không được hoán đổi
 
@@ -11,7 +11,7 @@
 | Operator | `Authorization: Bearer <admin-token>` hoặc cookie session OIDC/local + CSRF | Admin JSON/shell theo role. Cookie mutation phải qua CSRF gate. |
 | Connector/service caller | Connector nhận signed service identity có audience `connector`, scope `connector:invoke` hoặc `connector:manage`; invocation còn cần signed grant. Connector gửi usage tới Orchestrator bằng `USAGE_TOKEN` riêng. | Management/invocation/usage, không dùng worker runtime token thay thế. |
 
-Tất cả token là secret của môi trường. Các ví dụ không chỉ cách tự ký token: xem [security/deployment](13-deployment-and-operations.md) và [Connector identity code](../services/connector/src/identity.ts) để cấu hình authority đúng.
+Tất cả token là secret của môi trường. Các ví dụ không chỉ cách tự ký token: xem [security/deployment](13-deployment-and-operations.md) và [Connector identity code](../orchestrator/services/connector/src/identity.ts) để cấu hình authority đúng.
 
 ## 2. Worker đăng ký và claim task
 
@@ -26,7 +26,7 @@ curl -i -X POST 'http://127.0.0.1:3000/api/runtime/v1/tasks/22222222-2222-4222-8
 
 HTTP 200 trả `taskId`, `operationId`, `leaseEpoch`, `leaseExpiresAt`, `attempt`, `deadlineAt`, `executionSnapshot` và `checkpointRefs`. `executionSnapshot` chứa business/version/action, pinned profile/connector bindings, resolved input reference và task kind; không coi job payload Redis là nguồn authority. Claim sai business, task không đúng trạng thái hoặc delivery cũ bị từ chối theo auth/state contract.
 
-Sau claim, worker gửi `POST /tasks/{id}/heartbeat` với `{ "leaseEpoch": 1 }`. Checkpoint step dùng `PUT /tasks/{id}/steps/{stepKey}` với `leaseEpoch`, `inputHash`, `outputRef`, tùy chọn `sessionRef` và `status`; kết quả giống hệt được replay idempotent. `POST /tasks/{id}/complete`/`fail` chỉ hợp lệ khi lease còn hiện hành. Các request/ack chính xác nằm trong [runtime schema](../packages/contracts/src/runtime.ts).
+Sau claim, worker gửi `POST /tasks/{id}/heartbeat` với `{ "leaseEpoch": 1 }`. Checkpoint step dùng `PUT /tasks/{id}/steps/{stepKey}` với `leaseEpoch`, `inputHash`, `outputRef`, tùy chọn `sessionRef` và `status`; kết quả giống hệt được replay idempotent. `POST /tasks/{id}/complete`/`fail` chỉ hợp lệ khi lease còn hiện hành. Các request/ack chính xác nằm trong [runtime schema](../orchestrator/packages/contracts/src/runtime.ts).
 
 ## 3. Cấp invocation grant
 
@@ -92,7 +92,7 @@ curl -i -X POST 'http://127.0.0.1:3000/api/v1/admin/actions' \
   --data '{"action":"operations.cancel","params":{"operationId":"11111111-1111-4111-8111-111111111111"}}'
 ```
 
-Response tùy action; route bọc `{ "action": "operations.cancel", ... }` quanh body do dispatcher trả. Unknown action là 404, method khác POST là 405, thiếu role/tenant là 403. Cookie session phải kèm CSRF token hợp lệ; bearer token và cookie không có cùng quyền mặc định. Các admin read routes như businesses, profiles, connectors, API keys, audit và crypto config có schema/khả năng khác nhau; xem [catalog](16-interface-catalog.md), [Admin source](../services/orchestrator/src/app/admin/) và [dispatcher](../services/orchestrator/src/modules/admin-actions/dispatcher.ts) trước khi tự động hóa mutation.
+Response tùy action; route bọc `{ "action": "operations.cancel", ... }` quanh body do dispatcher trả. Unknown action là 404, method khác POST là 405, thiếu role/tenant là 403. Cookie session phải kèm CSRF token hợp lệ; bearer token và cookie không có cùng quyền mặc định. Các admin read routes như businesses, profiles, connectors, API keys, audit và crypto config có schema/khả năng khác nhau; xem [catalog](16-interface-catalog.md), [Admin source](../orchestrator/services/orchestrator/src/app/admin/) và [dispatcher](../orchestrator/services/orchestrator/src/modules/admin-actions/dispatcher.ts) trước khi tự động hóa mutation.
 
 ## 7. Ma trận phản ứng với lỗi
 

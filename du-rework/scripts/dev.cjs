@@ -72,7 +72,7 @@ async function main() {
   // Match Node --env-file precedence: existing process environment wins.
   const configured = { ...parseEnv(fs.readFileSync(envFile, 'utf8')), ...process.env };
   Object.assign(process.env, configured);
-  const defaults = { ORCHESTRATOR_PORT: '3000', ORCHESTRATOR_INTERNAL_PORT: '3002', ADMIN_SHELL_PORT: '3001', CONNECTOR_PORT: '8088', ORCHESTRATOR_HOST: '127.0.0.1', ORCHESTRATOR_INTERNAL_HOST: '127.0.0.1', ADMIN_SHELL_HOST: '127.0.0.1', HOST: '127.0.0.1', DU_ADMIN_WEB: '1', DU_ADMIN_WEB_DIST: path.join(ROOT, 'apps/admin-web/dist') };
+  const defaults = { ORCHESTRATOR_PORT: '3000', ORCHESTRATOR_INTERNAL_PORT: '3002', ADMIN_SHELL_PORT: '3001', CONNECTOR_PORT: '8088', ORCHESTRATOR_HOST: '127.0.0.1', ORCHESTRATOR_INTERNAL_HOST: '127.0.0.1', ADMIN_SHELL_HOST: '127.0.0.1', HOST: '127.0.0.1', DU_ADMIN_WEB: '1', DU_ADMIN_WEB_DIST: path.join(ROOT, 'orchestrator/apps/admin-web/dist') };
   for (const [key, value] of Object.entries(defaults)) process.env[key] ??= value;
   const ports = ['ORCHESTRATOR_PORT', 'ORCHESTRATOR_INTERNAL_PORT', 'ADMIN_SHELL_PORT', 'CONNECTOR_PORT'].map(key => Number(process.env[key]));
   if (ports.some(port => !Number.isInteger(port) || port < 1 || port > 65535) || new Set(ports).size !== ports.length) throw new Error('Listener ports must be valid and distinct');
@@ -88,12 +88,12 @@ async function main() {
   if (args.includes('--check')) return; // No build, migrations, bind or process launch.
   for (const port of ports) await available(port);
   if (!args.includes('--skip-build')) runNode(['scripts/build-all.cjs']);
-  for (const entry of ['services/orchestrator/dist/main.js', 'services/connector/dist/entrypoint.js', 'apps/admin-web/dist/index.html', ...workers.map(worker => `businesses/${worker}/dist/main.js`)]) {
+  for (const entry of ['orchestrator/services/orchestrator/dist/main.js', 'orchestrator/services/connector/dist/entrypoint.js', 'orchestrator/apps/admin-web/dist/index.html', ...workers.map(worker => `businesses/${worker}/dist/main.js`)]) {
     if (!fs.existsSync(path.join(ROOT, entry))) throw new Error(`Missing build artifact: ${entry}`);
   }
   if (!args.includes('--skip-migrate')) runNode(['scripts/migrate-local.cjs', `--env-file=${envFile}`]);
-  start('orchestrator', 'services/orchestrator/dist/main.js');
-  start('connector', 'services/connector/dist/entrypoint.js');
+  start('orchestrator', 'orchestrator/services/orchestrator/dist/main.js');
+  start('connector', 'orchestrator/services/connector/dist/entrypoint.js');
   await Promise.all([ready(`http://127.0.0.1:${internalPort}/health`), ready(`http://127.0.0.1:${connectorPort}/health/ready`)]);
   if (!stopping) for (const worker of workers) start(worker, `businesses/${worker}/dist/main.js`);
 }

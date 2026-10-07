@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const { createRequire } = require('node:module');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
-const uiRequire = createRequire(path.join(root, 'apps/admin-web/package.json'));
+const uiRequire = createRequire(path.join(root, 'orchestrator/apps/admin-web/package.json'));
 const shadcnRequire = createRequire(uiRequire.resolve('shadcn'));
 const globRequire = createRequire(shadcnRequire.resolve('fast-glob'));
 const matchRequire = createRequire(globRequire.resolve('micromatch'));
@@ -16,7 +16,7 @@ test('actual UI transitive package keeps its real upstream version', () => {
 });
 
 test('backend Jest dependency chain uses the same patched braces package', () => {
-  const backendRequire = createRequire(path.join(root, 'services/orchestrator/package.json'));
+  const backendRequire = createRequire(path.join(root, 'orchestrator/services/orchestrator/package.json'));
   const jestRequire = createRequire(backendRequire.resolve('jest'));
   const coreRequire = createRequire(jestRequire.resolve('@jest/core'));
   const backendMatchRequire = createRequire(coreRequire.resolve('micromatch'));

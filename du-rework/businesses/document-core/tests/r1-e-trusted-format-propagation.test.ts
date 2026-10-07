@@ -2,7 +2,7 @@ import { DocumentFormatDetector, defaultParserFactory } from '@du/document-kit';
 import type { ParseResult } from '@du/document-kit';
 import { documentCoreHandlers } from '../src/worker';
 import { MockTaskContext } from './fixtures/mock-context';
-import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
+import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

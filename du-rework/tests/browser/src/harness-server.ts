@@ -8,8 +8,8 @@
 
 import {
   createAdminShellServer,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
-import type { AdminShellHandle } from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
+import type { AdminShellHandle } from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 import { stubFetchers } from './stubs';
 
 export interface HarnessHandle {

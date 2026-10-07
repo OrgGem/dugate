@@ -69,8 +69,8 @@ Each standalone wrapper starts its full dependency closure using the same fragme
 
 | Compose file | Services beyond shared infrastructure |
 |---|---|
-| `services/orchestrator/docker-compose.yml` | migrate, orchestrator |
-| `services/connector/docker-compose.yml` | connector |
+| `orchestrator/services/orchestrator/docker-compose.yml` | migrate, orchestrator |
+| `orchestrator/services/connector/docker-compose.yml` | connector |
 | `businesses/document-core/docker-compose.yml` | migrate, orchestrator, connector, document-core |
 | `businesses/lc-checker/docker-compose.yml` | migrate, orchestrator, connector, lc-checker |
 | `businesses/example-review/docker-compose.yml` | migrate, orchestrator, example-review |
@@ -165,7 +165,7 @@ Credential workflow production writer (KV v2) + connector management seam. **To�
 | `DU_VAULT_KV_TOKEN` | _(unset)_ | Vault token machine-identity cho KV v2 writer (CAS). Machine identity, **không** root token ngoài provisioning — xem LIV-05/liv05b. |
 | `DU_CONNECTOR_INITIAL_BINDINGS` | _(unset)_ | JSON `{ "<connectorId>": { "tenantId", "accountId" } }` — binding khởi tạo cho connector legacy→bound; validate **fail-closed lúc construct** (thiếu/hỏng ⇒ refuse boot). |
 
-**Connector-management boot configuration:** `services/orchestrator/src/main.ts` parses `DU_CONNECTOR_BASE_URLS` (JSON `connectorId → base URL`) and the shared base64 `SERVICE_IDENTITY_SECRET` used by Connector. When management URLs are configured, a missing/invalid 32-byte key refuses boot; Orchestrator signs a fresh `aud=connector`, `connector:manage` HS256 JWT for each request, with a 60-second token lifetime. The key stays in server-side environment only and is never sent to Portal/browser. The legacy `DU_CONNECTOR_MANAGEMENT_HEADERS` and `DU_CONNECTOR_IDENTITY_EXPIRES_AT` settings are rejected; expiry is carried and checked in each JWT. Docker configuration passes the same `SERVICE_IDENTITY_SECRET` to Orchestrator and Connector, and the optional URL map is documented in [.env.docker.example](../.env.docker.example).
+**Connector-management boot configuration:** `orchestrator/services/orchestrator/src/main.ts` parses `DU_CONNECTOR_BASE_URLS` (JSON `connectorId → base URL`) and the shared base64 `SERVICE_IDENTITY_SECRET` used by Connector. When management URLs are configured, a missing/invalid 32-byte key refuses boot; Orchestrator signs a fresh `aud=connector`, `connector:manage` HS256 JWT for each request, with a 60-second token lifetime. The key stays in server-side environment only and is never sent to Portal/browser. The legacy `DU_CONNECTOR_MANAGEMENT_HEADERS` and `DU_CONNECTOR_IDENTITY_EXPIRES_AT` settings are rejected; expiry is carried and checked in each JWT. Docker configuration passes the same `SERVICE_IDENTITY_SECRET` to Orchestrator and Connector, and the optional URL map is documented in [.env.docker.example](../.env.docker.example).
 
 - Nếu cả base URL và service identity key đều unset, app vẫn boot nhưng management store vắng: capability báo `management:false`, danh sách management trả 503. Khi URL được cấu hình, thiếu/sai key làm boot fail; không còn chế độ management call không identity. Credential workflow được yêu cầu mà thiếu base URL hoặc issuer key cũng từ chối boot.
 - **Compose forwarding (cập nhật 2026-10-06):** `.env.docker.example` có `DU_CONNECTOR_BASE_URLS`, `SERVICE_IDENTITY_SECRET`, `CONNECTOR_SERVICE_TOKEN`; `compose/orchestrator.yml` forward `DU_CONNECTOR_BASE_URLS` + `SERVICE_IDENTITY_SECRET`, còn `compose/connector.yml` forward `SERVICE_IDENTITY_SECRET`. Đường cấu hình management qua Compose đã có; tuy nhiên end-to-end live management list/capabilities và credential workflow trên stack này vẫn cần verification theo PLAT-MIG-01/03/VFY trước khi tuyên bố tích hợp hoàn tất.

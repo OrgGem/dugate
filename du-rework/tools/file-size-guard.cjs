@@ -23,11 +23,11 @@ const EXCLUDED_DIRECTORIES = new Set([
 // The stored count records the baseline receipt and is not a maximum: existing
 // debt is reported but does not fail the whole repository before refactoring.
 const PLAN_BASELINE_COUNTS = new Map([
-  ['services/orchestrator/src/server.ts', 4299],
-  ['services/orchestrator/tests/runtime.test.ts', 3869],
-  ['services/orchestrator/tests/admin-shell-render.test.ts', 2815],
+  ['orchestrator/services/orchestrator/src/server.ts', 4299],
+  ['orchestrator/services/orchestrator/tests/runtime.test.ts', 3869],
+  ['orchestrator/services/orchestrator/tests/admin-shell-render.test.ts', 2815],
   ['businesses/document-core/tests/multi-container-e2e.integration.test.ts', 2261],
-  ['services/orchestrator/tests/admin-operations-list-pagination.test.ts', 2031],
+  ['orchestrator/services/orchestrator/tests/admin-operations-list-pagination.test.ts', 2031],
 ]);
 
 // Current exemptions are a subset of the original plan snapshot. These two
@@ -35,8 +35,8 @@ const PLAN_BASELINE_COUNTS = new Map([
 // one was deleted. They intentionally no longer receive grandfathering, so a
 // later reappearance above 2,000 lines is caught as a regression.
 const GRANDFATHERED_DEBT = new Map([
-  ['services/orchestrator/src/server.ts', 4299],
-  ['services/orchestrator/tests/runtime.test.ts', 3869],
+  ['orchestrator/services/orchestrator/src/server.ts', 4299],
+  ['orchestrator/services/orchestrator/tests/runtime.test.ts', 3869],
   ['businesses/document-core/tests/multi-container-e2e.integration.test.ts', 2261],
 ]);
 

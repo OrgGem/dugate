@@ -38,11 +38,11 @@ from pathlib import Path
 # as well as the parent repository. No dependence on the caller's cwd.
 os.chdir(Path(__file__).resolve().parents[3])
 
-ORCH = "du-rework/services/orchestrator/src/server.ts"
-CONN = "du-rework/services/connector/src/http/server.ts"
-CONTRACT = "du-rework/packages/contracts/src/public-api.ts"
-METRICS = "du-rework/packages/contracts/src/usage-metrics.ts"
-RECON = "du-rework/packages/contracts/src/usage-reconciliation.ts"
+ORCH = "du-rework/orchestrator/services/orchestrator/src/server.ts"
+CONN = "du-rework/orchestrator/services/connector/src/http/server.ts"
+CONTRACT = "du-rework/orchestrator/packages/contracts/src/public-api.ts"
+METRICS = "du-rework/orchestrator/packages/contracts/src/usage-metrics.ts"
+RECON = "du-rework/orchestrator/packages/contracts/src/usage-reconciliation.ts"
 OUT = "du-rework/docs/21-openapi.json"
 
 # ---- PM-M02 ingress origins (SWAGGER-ORIGIN-DOCS-ALIGNMENT) ------------------
@@ -725,7 +725,7 @@ for method, pth, summ, fragment, responses in cp:
 
 # Reconstruct four Connector-related Platform entries missing from the old
 # generator. Source is the admin router, never the previous JSON artifact.
-_admin_file = 'du-rework/services/orchestrator/src/http/routes/admin.ts'
+_admin_file = 'du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts'
 _admin_source = io.open(_admin_file, encoding='utf-8').read()
 
 def admin_source(fragment):
@@ -774,9 +774,9 @@ _projection = subprocess.run(
     ['node', 'du-rework/tools/openapi/catalog_callback_schemas.cjs'],
     capture_output=True, text=True, check=True)
 SCHEMAS.update(json.loads(_projection.stdout))
-_secret_file = 'du-rework/services/orchestrator/src/app/admin/bff/secrets.ts'
+_secret_file = 'du-rework/orchestrator/services/orchestrator/src/app/admin/bff/secrets.ts'
 _secret_source = io.open(_secret_file, encoding='utf-8').read()
-_secret_handle = io.open('du-rework/services/orchestrator/src/app/admin/bff/handle.ts', encoding='utf-8').read()
+_secret_handle = io.open('du-rework/orchestrator/services/orchestrator/src/app/admin/bff/handle.ts', encoding='utf-8').read()
 assert 'matchSecretsRoute(relative)' in _secret_handle
 # WT-7: the dispatch contract is asserted by CALLING resolveSecretsRoute,
 # not by scanning secrets.ts source text. A reformat of that file used to

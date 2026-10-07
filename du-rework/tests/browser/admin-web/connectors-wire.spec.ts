@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { parseCurlImport } from '../../../apps/admin-web/src/features/connectors/curl-import';
+import { parseCurlImport } from '../../../orchestrator/apps/admin-web/src/features/connectors/curl-import';
 import {
   buildConnectorUpsertParams,
   connectorActionGating,
@@ -12,7 +12,7 @@ import {
   parseConnectorRevisionRead,
   parseConnectorTestResult,
   summarizeConnectorConfig,
-} from '../../../apps/admin-web/src/features/connectors/state';
+} from '../../../orchestrator/apps/admin-web/src/features/connectors/state';
 
 /**
  * CONNECTOR-WIRE-B (UI lane) — the admin-web connector management wire.
@@ -27,9 +27,9 @@ import {
  */
 
 const SPEC_DIR = __dirname;
-const STATE_PATH = join(SPEC_DIR, '../../../apps/admin-web/src/features/connectors/state.ts');
-const SCREEN_PATH = join(SPEC_DIR, '../../../apps/admin-web/src/features/connectors/connectors-screen.tsx');
-const CLIENT_PATH = join(SPEC_DIR, '../../../apps/admin-web/src/lib/api/client.ts');
+const STATE_PATH = join(SPEC_DIR, '../../../orchestrator/apps/admin-web/src/features/connectors/state.ts');
+const SCREEN_PATH = join(SPEC_DIR, '../../../orchestrator/apps/admin-web/src/features/connectors/connectors-screen.tsx');
+const CLIENT_PATH = join(SPEC_DIR, '../../../orchestrator/apps/admin-web/src/lib/api/client.ts');
 
 /** Single quote, kept as a character code so the fixtures stay quote-free. */
 const SQ = String.fromCharCode(39);

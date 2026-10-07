@@ -23,7 +23,7 @@ Fail-closed rules:
 - Missing policy, crypto seam, wrapping service or key fails the write; no plaintext fallback on error/retry paths.
 - A partial write is never marked READY/SUCCEEDED; serving a missing/invalid envelope is denied in strict read mode.
 - The synthetic-data exemption is **explicit only** and cannot be enabled by omitted configuration
-  (`SyntheticDataExemptionSchema`, `packages/contracts/src/encryption-persistence.ts`).
+  (`SyntheticDataExemptionSchema`, `orchestrator/packages/contracts/src/encryption-persistence.ts`).
 - Encryption is not applied to content-free allowlisted metadata (IDs, states, approved business/profile identifiers,
   durations, non-content counters). Filename, source/callback URL, arbitrary JSON/options, prompts, session
   references, schema defaults and exception details are NOT presumed safe; an unclassified field is not an exemption.
@@ -50,7 +50,7 @@ AAD binds **tenant + purpose/slot + entity/object identity**:
 - storage context: `{format:"du-crypto-storage-v1", tenantId, artifactId, objectVersion, purpose}`
 - storage single/chunk: the context plus `sizeBytes`/`sha256` (and `index` for chunks)
 
-The storage AAD builders in `services/orchestrator/src/modules/encryption/crypto-storage-facade.ts` now construct
+The storage AAD builders in `orchestrator/services/orchestrator/src/modules/encryption/crypto-storage-facade.ts` now construct
 these objects through the contract schemas, so facade output and contract cannot drift.
 
 ## 3. Field inventory (producer → consumer → store → format → key owner → status)
@@ -71,12 +71,12 @@ frozen here, writer not yet encrypting (owner packet named); **EXEMPT** = review
 | 9 | Public-upload artifact bytes | `public-api/upload-encryption-gateway.ts` | `artifact-read-decrypt.ts`, delivery | S3 object + grant ref | storage single/stream + `StorageEnvelopeRef` | Vault Transit (artifact key) | ENFORCED |
 | 10 | External result/download/webhook delivery | delivery/webhook egress | tenant client | wire only (ciphertext at rest not stored) | RecipientDeliveryEnvelope | recipient public key (server-side policy) | ENFORCED where tenant enabled |
 | 11 | `webhook_deliveries.payload` | `modules/webhooks/webhooks.ts` | webhook dispatcher | PG `webhook_deliveries` | frozen purpose `webhook.delivery.payload` | Vault Transit | **PLANNED** (Δ121; ENC-META follow-up / SEC-ENC-04) |
-| 12 | Connector `invocations.request` | `services/connector/src/db/repository.ts` | connector runtime | Connector PG (JSONB) | purpose `connector.invocation.request` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
+| 12 | Connector `invocations.request` | `orchestrator/services/connector/src/db/repository.ts` | connector runtime | Connector PG (JSONB) | purpose `connector.invocation.request` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
 | 13 | Connector `invocations.result` (provider data/content) | `repository.ts` complete path | connector runtime | Connector PG (JSONB) | purpose `connector.invocation.result` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
 | 14 | Connector `invocations.session_ref` | `repository.ts`, migration 009 | poll/continue | Connector PG (TEXT) | purpose `connector.invocation.session` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
 | 15 | Source acquisition cache (URL/IAM `s3://`) | `modules/operations/ingestion-storage-s3.ts`, `ingestion-consumer.ts` | ingest/parse pipeline | destination S3 + manifest | purpose `source.acquisition-cache` | Vault Transit | **PLANNED — SEC-ENC-03** (public upload path already enforced) |
 | 16 | Worker output/intermediate/session artifacts (single + multipart, PG + S3) | artifact service / worker SDK transport | artifact read path | PG blobs + S3 | purpose `artifact.worker-output` | Vault Transit | **PLANNED — SEC-ENC-04** |
-| 17 | Connector usage outbox payload | `services/connector/src/db/usage-outbox.ts` | usage ingestion | Connector PG (JSONB) | purpose `usage.outbox.payload` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
+| 17 | Connector usage outbox payload | `orchestrator/services/connector/src/db/usage-outbox.ts` | usage ingestion | Connector PG (JSONB) | purpose `usage.outbox.payload` | Connector/Vault-managed | **PLANNED — SEC-ENC-02** |
 | 18 | Admin idempotency `response_body` (may echo content) | `modules/idempotency/idempotency.ts` | replay path | PG idempotency table | purpose `idempotency.response_body` | Vault Transit | **PLANNED** (classify in SEC-ENC-04/05) |
 | 19 | Content-free operational metadata: ids, states, versions, timestamps, durations, counters, approved business/profile identifiers | various | queries/admin | PG columns | — | — | EXEMPT (queryable, schema-reviewed) |
 | 20 | Queue job payloads / BullMQ body | queue producers | workers | Valkey | must stay reference-only (no inline content) | — | EXEMPT today via reference-only rule; any inline content becomes PLANNED |

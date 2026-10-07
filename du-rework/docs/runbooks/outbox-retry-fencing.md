@@ -53,4 +53,4 @@ FROM outbox;
 
 Database row lock `FOR UPDATE SKIP LOCKED` bảo vệ claim của dispatcher trong transaction. Đây không phải lease fencing cho worker. Runtime dùng `tasks.lease_epoch` để từ chối stale worker; 409 `LEASE_LOST` phải được coi là kết quả fence, không lặp lại write bằng epoch cũ. Giữ task/outbox IDs trong audit; xác nhận backlog giảm, webhook/usage ack đúng và không có duplicate operation/provider effect trước khi resolve alert.
 
-**Tham chiếu:** `../../services/orchestrator/src/modules/queue/dispatcher.ts`, `../../services/orchestrator/src/modules/webhooks/webhooks.ts`, `../../services/connector/src/db/usage-outbox.ts`, `../../services/connector/src/usage-dispatcher.ts`.
+**Tham chiếu:** `../../orchestrator/services/orchestrator/src/modules/queue/dispatcher.ts`, `../../orchestrator/services/orchestrator/src/modules/webhooks/webhooks.ts`, `../../orchestrator/services/connector/src/db/usage-outbox.ts`, `../../orchestrator/services/connector/src/usage-dispatcher.ts`.

@@ -2,7 +2,7 @@
 
 **Contract mục tiêu, chưa phải API đang được chứng nhận hoạt động.** Base minh họa `https://du.example.com/api/v1`; `.example.com` không phải môi trường triển khai. UTF-8 JSON; file qua multipart/artifact. Tất cả endpoint trong tài liệu này cần `x-api-key`, kể cả đọc trạng thái và download.
 
-> **Ingress (PM-M02):** các route public dưới đây phục vụ trên cả Public `:3000` và Internal `:3002`; route admin (`/api/v1/admin*`), runtime (`/api/runtime*`) và internal (`/api/internal*`) **bị chặn trên Public `:3000`** bằng generic 404 (`services/orchestrator/src/http/ingress-guard.ts`), kể cả khi caller có credential hợp lệ. BFF/workers/services dùng Internal `:3002`.
+> **Ingress (PM-M02):** các route public dưới đây phục vụ trên cả Public `:3000` và Internal `:3002`; route admin (`/api/v1/admin*`), runtime (`/api/runtime*`) và internal (`/api/internal*`) **bị chặn trên Public `:3000`** bằng generic 404 (`orchestrator/services/orchestrator/src/http/ingress-guard.ts`), kể cả khi caller có credential hợp lệ. BFF/workers/services dùng Internal `:3002`.
 
 ## Headers và submission
 

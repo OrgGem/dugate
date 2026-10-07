@@ -6,7 +6,7 @@ the platform resolves it from authenticated identity and stamps it on rows.
 
 Evidence:
 - Usage projection scopes by JOINED operation tenant: `WHERE o.tenant_id = $1`
-  (services/orchestrator/src/modules/usage/usage.ts:134). The UsageEvent
+  (orchestrator/services/orchestrator/src/modules/usage/usage.ts:134). The UsageEvent
   contract carries NO tenantId field (contracts runtime.ts UsageEventSchema:
   eventId/invocationId/operationId/taskId/units/cost/measurement/occurredAt
   only); provider/model attribution reads payload.provider/payload.model with

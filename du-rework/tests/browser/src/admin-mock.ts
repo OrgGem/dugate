@@ -33,24 +33,24 @@ import * as http from 'node:http';
 
 import {
   createAdminShellServer,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 import type {
   AdminShellHandle,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 import {
   fetchProfileForm,
   fetchConnectorConfig,
   fetchApiKeys,
   fetchOverview,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 import {
   fetchBusinessVersions,
   type BusinessFetchResult,
-} from '../../../services/orchestrator/dist/app/admin/business-section-data.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/business-section-data.js';
 import {
   fetchOperationDetail,
   type OperationFetchResult,
-} from '../../../services/orchestrator/dist/app/admin/operation-section-data.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/operation-section-data.js';
 import type {
   BusinessSectionFetcher,
   ProfileFetchResult,
@@ -62,7 +62,7 @@ import type {
   OverviewFetchResult,
   OverviewSectionFetcher,
   OperationSectionFetcher,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 
 // ---------------------------------------------------------------------------
 // Stable tenant

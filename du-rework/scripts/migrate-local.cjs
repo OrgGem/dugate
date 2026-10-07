@@ -26,9 +26,9 @@ if (customEnvArg) {
   }
 }
 
-const cliPath = path.join(WORKSPACE_ROOT, 'services/orchestrator/dist/migrate-cli.js');
+const cliPath = path.join(WORKSPACE_ROOT, 'orchestrator/services/orchestrator/dist/migrate-cli.js');
 if (!fs.existsSync(cliPath)) {
-  console.error('\x1b[33mWarning: services/orchestrator/dist/migrate-cli.js not found. Running build first...\x1b[0m');
+  console.error('\x1b[33mWarning: orchestrator/services/orchestrator/dist/migrate-cli.js not found. Running build first...\x1b[0m');
   const buildResult = spawnSync(process.execPath, ['scripts/build-all.cjs'], {
     cwd: WORKSPACE_ROOT,
     stdio: 'inherit',
@@ -40,7 +40,7 @@ if (!fs.existsSync(cliPath)) {
 
 console.log(`\x1b[34m[Migration] Running Orchestrator database migrations using ${envFile}...\x1b[0m`);
 
-const result = spawnSync(process.execPath, [`--env-file=${envFile}`, 'services/orchestrator/dist/migrate-cli.js', 'migrate'], {
+const result = spawnSync(process.execPath, [`--env-file=${envFile}`, 'orchestrator/services/orchestrator/dist/migrate-cli.js', 'migrate'], {
   cwd: WORKSPACE_ROOT,
   stdio: 'inherit',
 });

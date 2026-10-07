@@ -20,8 +20,8 @@ import { writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { resolve } from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { createAdminShellServer } from '../../../services/orchestrator/src/app/admin/shell-server';
-import type { AdminSessionStore, AdminSessionView } from '../../../services/orchestrator/src/modules/admin-actions/rbac';
+import { createAdminShellServer } from '../../../orchestrator/services/orchestrator/src/app/admin/shell-server';
+import type { AdminSessionStore, AdminSessionView } from '../../../orchestrator/services/orchestrator/src/modules/admin-actions/rbac';
 
 const outFile = process.argv[2];
 if (!outFile) {
@@ -30,7 +30,7 @@ if (!outFile) {
 
 const TOKEN = 'aweb01b-browser-token';
 const SECRET = 'aweb01b-browser-secret';
-const DIST = resolve(__dirname, '../../../apps/admin-web/dist');
+const DIST = resolve(__dirname, '../../../orchestrator/apps/admin-web/dist');
 
 /** Tenant ids must be UUIDs (the platform queries validate them). */
 const OPERATOR_TENANT = '11111111-1111-4111-8111-111111111111';

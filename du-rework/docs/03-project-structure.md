@@ -1,6 +1,6 @@
 # Project structures và ownership
 
-Tài liệu này đóng băng target repo/service đã được user chốt ngày 2026-10-05, rồi đối chiếu với source và Compose workspace hiện có. `du-rework/` có pnpm workspace riêng nhưng vẫn nằm trong Git root của DUGate; không xem workspace/build target là repo đã tách hoặc production deployment. Xem thêm [bản đồ Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md), [cấu trúc subproject](../architecture/11-subprojects.md) và [topology decision](40-du-platform-architecture.md).
+Tài liệu này đóng băng target repo/service đã được user chốt ngày 2026-10-05, rồi đối chiếu với source và Compose workspace hiện có. `du-rework/` có pnpm workspace riêng nhưng vẫn nằm trong Git root của DUGate; không xem workspace/build target là repo đã tách hoặc production deployment. Xem thêm [bản đồ Orchestrator](../orchestrator/services/orchestrator/CODE-ARCHITECTURE.md), [cấu trúc subproject](../architecture/11-subprojects.md) và [topology decision](40-du-platform-architecture.md).
 
 ## Topology freeze ngày 2026-10-05
 
@@ -8,9 +8,9 @@ Theo [quyết định repo/service](40-du-platform-architecture.md), mặc đị
 
 | Đích đã chốt | Source hiện thấy trong workspace | Ranh giới build/runtime đích | Tình trạng chứng minh |
 |---|---|---|---|
-| Orchestrator repo — Portal | `apps/admin-web/` | UI bundle được đóng cùng image Orchestrator theo Docker build hiện có | Có source/build target; repo đích độc lập chưa được tạo |
-| Orchestrator repo — API + Runtime | `services/orchestrator/` | Một process/service/image Orchestrator; API routes và durable runtime cùng backend | Có source/service target; không chứng minh đã cutover production |
-| Orchestrator repo — Connector | `services/connector/` | Image/process/service Connector riêng, kết nối bằng service API và quyền riêng | Có source/service target trong cùng build workspace; không phải API process |
+| Orchestrator repo — Portal | `orchestrator/apps/admin-web/` | UI bundle được đóng cùng image Orchestrator theo Docker build hiện có | Có source/build target; repo đích độc lập chưa được tạo |
+| Orchestrator repo — API + Runtime | `orchestrator/services/orchestrator/` | Một process/service/image Orchestrator; API routes và durable runtime cùng backend | Có source/service target; không chứng minh đã cutover production |
+| Orchestrator repo — Connector | `orchestrator/services/connector/` | Image/process/service Connector riêng, kết nối bằng service API và quyền riêng | Có source/service target trong cùng build workspace; không phải API process |
 | Worker template — mỗi business | `businesses/document-core/`, `businesses/example-review/`, `businesses/lc-checker/` | Mỗi business repo/image/version độc lập; replicas cùng business/version consume queue tương ứng | Ba source folder có mặt trong workspace chung; chưa phải ba Git repo tự đủ |
 | Connector repo tùy chọn | Chưa có path/repo được chọn | Có thể tách Connector source về loại repo thứ ba sau quyết định riêng; service/image boundary vẫn giữ | Chưa chọn/chưa triển khai |
 
@@ -22,7 +22,7 @@ Theo [quyết định repo/service](40-du-platform-architecture.md), mặc đị
 |---|---|---|
 | Workspace | Hai service, ba business độc lập, sáu shared package trong pnpm workspace | Đây là phân bố source; readiness theo task/gate riêng. |
 | Orchestrator HTTP và Admin | `node:http`; `server.ts` giữ `ServerConfig`, `createApp` và route dispatcher; `http/routes/{public,runtime,admin}.ts` giữ handler; `app/bootstrap/create-app.ts` lắp dependency, timer và Admin shell từ `app/admin/` | `main.ts` đọc env, bật shell khi có secret/token và gọi `listen()`; không dùng số dòng cũ của `server.ts` làm vị trí wiring. |
-| PostgreSQL | `pg` và SQL migration tại `services/orchestrator/migrations/`; boot mặc định kiểm schema, `autoMigrate` chỉ là opt-in | Production chạy migrate CLI riêng trước khi start; Drizzle chỉ còn trong thiết kế cũ. |
+| PostgreSQL | `pg` và SQL migration tại `orchestrator/services/orchestrator/migrations/`; boot mặc định kiểm schema, `autoMigrate` chỉ là opt-in | Production chạy migrate CLI riêng trước khi start; Drizzle chỉ còn trong thiết kế cũ. |
 | Artifact storage | Có backend PostgreSQL và S3, S3 facade, multipart và đường mã hóa theo cấu hình | Source có adapter không tự chứng minh deployment S3 hoặc acceptance gate. |
 | Connector | `composition.ts` lắp runtime, HTTP, DB và Redis; domain files chủ yếu ở `src/`, với `http/`, `adapters/`, `db/`, `vault/` | `SecretResolver` có module nhưng chưa được truyền vào runtime ở composition production. |
 | Triển khai | Có Dockerfile và nhiều Compose profile/test topology | Kiểm config và chạy live theo deployment guide trước khi công bố full stack. |
@@ -31,53 +31,22 @@ Các khác biệt framework/DB so với đề xuất ban đầu được ghi rõ
 
 ```text
 du-rework/
-  docs/                         # normative specifications
-  tasks/                        # phase packets, dependencies, DoD
-  tools/
-    openapi/                    # gen_openapi.py (code-derived docs/21 + path-loss guards), validate_openapi.py, probe_cases.js
-  services/
-    orchestrator/
-      src/server.ts             # ServerConfig, createApp, health và route dispatcher
-      src/http/routes/          # public, runtime, admin HTTP handlers
-      src/app/bootstrap/        # dependency wiring, node:http, background lifecycle
-      src/app/admin/            # Admin shell (renderers, view-models, shell-router, OIDC flow) via attachAdminShell
-      src/modules/
-        auth/ registry/ profiles/ operations/ runtime/
-        artifacts/ queue/ usage/ webhooks/ audit/
-        admin-read/             # Admin list queries và projections
-        admin-actions/          # Admin action dispatcher
-      src/db/                   # PG adapter và migration runner
-      migrations/               # platform SQL migrations
-      tests/
-    connector/
-      src/composition.ts        # HTTP/runtime/DB/Redis composition root
-      src/*.ts                  # grants, quota, ledger, config domain files
-      src/http/                 # internal invocation + management API
-      src/adapters/             # multipart-http, json-http, mock
-      src/db/                   # connector-owned schema/migrations
-      tests/
-  businesses/
-    document-core/
-      docs/                     # action BRDs, interfaces, case matrix
-      src/manifest/ src/actions/ src/pipelines/ src/recipes/ src/validation/
-      src/worker.ts
-      tests/fixtures/ tests/unit/ tests/e2e/
-    example-review/
-      docs/ src/ tests/          # proof of registration + HITL + fanout
-    lc-checker/
-      src/ tests/ Dockerfile     # P9-02 trade-finance LC checker, own manifest + queue
-  packages/
-    contracts/                  # JSON schemas, DTOs, errors, API descriptions
-    worker-sdk/                 # queue/runtime lifecycle, task/step facade
-    connector-client/           # typed invocation + replay/poll client
-    document-kit/               # parse, conversion, archive, file helpers
-    egress/                     # DNS-rebinding-safe pinned fetch (PR-Q3-03/09): one resolution feeds policy and socket
-    observability/              # logger, trace IDs, metrics interfaces
-  infra/                        # compose, deployment, environment/runbooks
-  tests/                        # black-box contract/e2e/fault/load suites
+  orchestrator/
+    apps/admin-web/          # Orchestrator Portal
+    services/orchestrator/   # public/admin/runtime backend + migrations
+    services/connector/      # independently deployed provider gateway
+    packages/                # contracts, worker-sdk, connector-client,
+                             # document-kit, egress, observability
+    scripts/                 # boundary checks
+    patches/, vendor/        # canonical security fixes
+  businesses/                # document-core, example-review, lc-checker
+  docs/, architecture/       # specifications and architecture
+  tasks/, coordination/      # plans and evidence
+  tools/, scripts/           # shared workspace tooling
+  infra/, compose/, tests/   # deployment and verification
 ```
 
-`pnpm-workspace.yaml` discover qua glob `packages/*`, `services/*`, `businesses/*`, `tests/*` — package thêm mới vào đúng một thư mục trong glob sẽ tự được workspace nhận, không cần sửa manifest root.
+`pnpm-workspace.yaml` discover qua glob `orchestrator/packages/*`, `orchestrator/services/*`, `orchestrator/apps/*`, `businesses/*`, `tests/*` — package thêm mới vào đúng một thư mục trong glob sẽ tự được workspace nhận, không cần sửa manifest root.
 
 ## Dependency rules
 
@@ -109,6 +78,6 @@ Topology mục tiêu ở trên thay thế các giả định repo/service cũ. [
 
 ## File ownership khi giao agent
 
-Contract owner sửa `packages/contracts` và docs 04–09. Platform owner sửa Orchestrator. Connector owner sửa Connector và connector-client. SDK owner sửa worker-sdk/document-kit. Business owner sửa business folder. QA owner sửa black-box tests. Infra owner sửa infra.
+Contract owner sửa `orchestrator/packages/contracts` và docs 04–09. Platform owner sửa Orchestrator. Connector owner sửa Connector và connector-client. SDK owner sửa worker-sdk/document-kit. Business owner sửa business folder. QA owner sửa black-box tests. Infra owner sửa infra.
 
 Root workspace config/lockfile chỉ một integration owner sửa trong một thời điểm. Agent không tự sửa contract đang freeze để làm test riêng pass; tạo change note rồi tích hợp qua owner.

@@ -1,6 +1,6 @@
 # 17 — Public API: spec thực thi và ví dụ sử dụng
 
-**Phạm vi:** canonical Public API trong [Orchestrator router](../services/orchestrator/src/server.ts), [submission/result schema](../packages/contracts/src/operations.ts) và [document-core manifest](../businesses/document-core/src/manifest/document-core.manifest.ts), đối chiếu ngày 2026-10-02. Ví dụ dùng ID/token giả và là **mẫu wire**, chưa được chạy trên deployment trong lượt viết tài liệu. Legacy `/api/v1/docs/*` có contract riêng ở [docs/39](../docs/39-legacy-parity-contract.md); đừng trộn body/response legacy với canonical API này.
+**Phạm vi:** canonical Public API trong [Orchestrator router](../orchestrator/services/orchestrator/src/server.ts), [submission/result schema](../orchestrator/packages/contracts/src/operations.ts) và [document-core manifest](../businesses/document-core/src/manifest/document-core.manifest.ts), đối chiếu ngày 2026-10-02. Ví dụ dùng ID/token giả và là **mẫu wire**, chưa được chạy trên deployment trong lượt viết tài liệu. Legacy `/api/v1/docs/*` có contract riêng ở [docs/39](../docs/39-legacy-parity-contract.md); đừng trộn body/response legacy với canonical API này.
 
 ## 1. Điều kiện dùng API
 
@@ -73,9 +73,9 @@ Public projection `toOperationView()` hiện trả `id`, `name`, `businessId`, `
 }
 ```
 
-**MISMATCH schema ↔ projection:** [contract `OperationViewSchema`](../packages/contracts/src/operations.ts) yêu cầu `tenantId` và không khai báo `name`, còn [public projection `toOperationView()`](../services/orchestrator/src/modules/operations/facade.ts) trả `name` nhưng không trả `tenantId`. Đây là chênh lệch producer/consumer cần test và quyết định contract; ví dụ trên mô tả **wire hiện tại**, không tuyên bố nó đã đạt schema xuất bản.
+**MISMATCH schema ↔ projection:** [contract `OperationViewSchema`](../orchestrator/packages/contracts/src/operations.ts) yêu cầu `tenantId` và không khai báo `name`, còn [public projection `toOperationView()`](../orchestrator/services/orchestrator/src/modules/operations/facade.ts) trả `name` nhưng không trả `tenantId`. Đây là chênh lệch producer/consumer cần test và quyết định contract; ví dụ trên mô tả **wire hiện tại**, không tuyên bố nó đã đạt schema xuất bản.
 
-Danh sách có thể trả `{"items":[],"nextCursor":null,"prevCursor":null,"total":0,"limit":20}`. `state` dùng nhóm filter `RUNNING`, `COMPLETED`, `FAILED`, `TIMED_OUT`; đây không phải toàn bộ enum state nội bộ. `sort` nhận sáu tổ hợp `created_at|updated_at|deadline_at` với `asc|desc`; `tenant` trên đường API key chỉ được bằng tenant của chính key. Đọc [docs/06](../docs/06-public-api.md) và [contract parser](../packages/contracts/src/public-api.ts) trước khi tự tạo cursor hoặc filter nâng cao.
+Danh sách có thể trả `{"items":[],"nextCursor":null,"prevCursor":null,"total":0,"limit":20}`. `state` dùng nhóm filter `RUNNING`, `COMPLETED`, `FAILED`, `TIMED_OUT`; đây không phải toàn bộ enum state nội bộ. `sort` nhận sáu tổ hợp `created_at|updated_at|deadline_at` với `asc|desc`; `tenant` trên đường API key chỉ được bằng tenant của chính key. Đọc [docs/06](../docs/06-public-api.md) và [contract parser](../orchestrator/packages/contracts/src/public-api.ts) trước khi tự tạo cursor hoặc filter nâng cao.
 
 ## 4. Lấy result và artifact
 

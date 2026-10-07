@@ -1,14 +1,14 @@
 packages:
-  - packages/*
-  - services/*
+  - orchestrator/packages/*
+  - orchestrator/services/*
+  - orchestrator/apps/*
   - businesses/*
   - tests/*
-  - apps/*
 
 overrides:
   '@types/mammoth': npm:empty-npm-package@1.0.0
   pdf-lib@^1.17.9: ^1.17.1
-  xlsx: file:vendor/xlsx-0.20.3.tgz
+  xlsx: file:orchestrator/vendor/xlsx-0.20.3.tgz
 
 patchedDependencies:
-  braces@3.0.3: patches/braces@3.0.3.patch
+  braces@3.0.3: orchestrator/patches/braces@3.0.3.patch

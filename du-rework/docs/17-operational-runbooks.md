@@ -242,7 +242,7 @@ single version; page Connector for provider 429 or UNKNOWN growth.
 
 **Reference:** [BullMQ queue runbook](runbooks/bullmq-queue.md),
 [alert catalog](ops/p8-07-dashboards-alerts.md),
-`services/orchestrator/src/modules/runtime/runtime.ts`.
+`orchestrator/services/orchestrator/src/modules/runtime/runtime.ts`.
 
 ---
 
@@ -468,8 +468,8 @@ reconciliation tooling exists, leave the incident escalated and record that
 capability gap.
 
 **Reference:** [UNKNOWN reconciliation detail](runbooks/unknown-reconciliation.md),
-`services/connector/src/invoke.ts`,
-`services/connector/src/db/repository.ts`.
+`orchestrator/services/connector/src/invoke.ts`,
+`orchestrator/services/connector/src/db/repository.ts`.
 
 ---
 
@@ -575,7 +575,7 @@ separate rehearsal.
 
 **References:** [Artifact storage runbook](runbooks/artifact-storage.md),
 [G-DATA storage plan](../tasks/DEPLOY-STORAGE-LOGGING-2026-09-24.md),
-`services/orchestrator/src/modules/artifacts/s3-storage-facade.ts`.
+`orchestrator/services/orchestrator/src/modules/artifacts/s3-storage-facade.ts`.
 
 ---
 

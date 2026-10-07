@@ -98,8 +98,8 @@ conformance test parses each line with `JSON.parse` and asserts:
 
 ## 4. Redaction contract (HTTP / Admin surface)
 
-Applies to: `services/orchestrator/src/app/admin/**`,
-`services/orchestrator/src/http/**`, and every request entry-point that
+Applies to: `orchestrator/services/orchestrator/src/app/admin/**`,
+`orchestrator/services/orchestrator/src/http/**`, and every request entry-point that
 the OpenClaude lane owns. Platform / Connector lanes apply the
 **sentinel list** (§4.7) but may define additional redaction classes
 specific to their handlers.
@@ -221,7 +221,7 @@ The decision rationale:
   the only sanctioned example), but the JSON-line path is the
   production contract from day one.
 
-The OpenClaude lane does not edit `services/orchestrator/src/**`
+The OpenClaude lane does not edit `orchestrator/services/orchestrator/src/**`
 directly; the schema is wired by the PLATFORM REQUEST to Claude
 Code (see §8). PR-LOG01-A emits the new shape from a single helper;
 PR-LOG01-B wires the helper at the 38 existing emit sites; PR-LOG01-C
@@ -240,7 +240,7 @@ PLATFORM REQUEST introduces a shim.
 ## 8. PLATFORM REQUEST (LOG-01, src-side)
 
 The OpenClaude lane owns only the doc + the test. The platform lane
-(Claude Code, owner of `services/orchestrator/src/server.ts` and
+(Claude Code, owner of `orchestrator/services/orchestrator/src/server.ts` and
 `src/http/**`) owns:
 
 - `redactForLog` implementation wired into the HTTP entry point
@@ -250,7 +250,7 @@ The OpenClaude lane owns only the doc + the test. The platform lane
   in `src/server.ts`, `src/migrate-cli.ts`, `src/modules/**`,
   `src/app/admin/**` to the schema in §2
 - addition of a regression suite under
-  `services/orchestrator/tests/log-schema-conformance.test.ts` that
+  `orchestrator/services/orchestrator/tests/log-schema-conformance.test.ts` that
   asserts every emitted line carries the six required keys and never
   carries any §4.7 sentinel
 

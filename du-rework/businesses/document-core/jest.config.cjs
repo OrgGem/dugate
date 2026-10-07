@@ -13,9 +13,9 @@ module.exports = {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.json' }],
   },
   moduleNameMapper: {
-    '^@du/worker-sdk$': '<rootDir>/../../packages/worker-sdk/src/index.ts',
-    '^@du/document-kit$': '<rootDir>/../../packages/document-kit/src/index.ts',
-    '^@du/orchestrator$': '<rootDir>/../../services/orchestrator/dist/index.js',
-    '^@du/connector$': '<rootDir>/../../services/connector/dist/index.js',
+    '^@du/worker-sdk$': '<rootDir>/../../orchestrator/packages/worker-sdk/src/index.ts',
+    '^@du/document-kit$': '<rootDir>/../../orchestrator/packages/document-kit/src/index.ts',
+    '^@du/orchestrator$': '<rootDir>/../../orchestrator/services/orchestrator/dist/index.js',
+    '^@du/connector$': '<rootDir>/../../orchestrator/services/connector/dist/index.js',
   },
 };

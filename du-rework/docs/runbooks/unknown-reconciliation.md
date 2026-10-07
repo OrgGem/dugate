@@ -37,4 +37,4 @@ Snapshot hiện không có API reconcile operator-facing. Nếu provider đã x�
 
 Chỉ đóng sau khi có state/kết quả có thẩm quyền, usage event đối chiếu đúng một lần, quota lease/counter được service quản lý nhất quán, và operation được resume/recover qua supported path. Lưu evidence tham chiếu, người quyết định và mọi khoản bù/hoàn phí. UNKNOWN quá budget phải page; tuổi state không tự làm nó thành failure.
 
-**Tham chiếu:** `../../services/connector/src/invoke.ts`, `../../services/connector/src/db/repository.ts`, `../../services/connector/src/db/migrations/001_connector.sql`.
+**Tham chiếu:** `../../orchestrator/services/connector/src/invoke.ts`, `../../orchestrator/services/connector/src/db/repository.ts`, `../../orchestrator/services/connector/src/db/migrations/001_connector.sql`.

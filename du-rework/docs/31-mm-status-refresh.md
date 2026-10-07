@@ -83,7 +83,7 @@ Ghi chú: cả hai plan thuộc lớp bằng chứng LIVE_INFRA/BROWSER/multi-co
   `services/connector` mà Codex-2 nay sở hữu.
 - **Quy tắc skip cho `connector-client 19 passed / 1 SKIPPED`**: offline `npx jest --runInBand` →
   `Tests: 1 skipped, 19 passed, 20 total` exit 0 — test skipped là
-  `invoke/poll/wait/cancel behave end-to-end over real HTTP` (`packages/connector-client/tests/real-service.test.ts:152`,
+  `invoke/poll/wait/cancel behave end-to-end over real HTTP` (`orchestrator/packages/connector-client/tests/real-service.test.ts:152`,
   gate `CONNECTOR_INTEGRATION=1`). **Theo luật fleet: SKIP KHÔNG tính là pass** — test thứ 20 (live E2E)
   **vẫn MỞ/unproven ở chế độ offline**; chỉ được coi là có bằng chứng khi chạy gated live (A72 từng ghi
   1/1 exit 0 với gate bật — nếu cần kích hoạt lại, đó là RUN REQUEST cho antigravity, không phải offline pass).

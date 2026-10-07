@@ -16,7 +16,7 @@ Hổng MM-05 nằm GIỮA đường này — mất Redis sau dispatch, trước 
 
 | Mắt xích | File:line | Hệ quả khi Redis wipe |
 |---|---|---|
-| Dispatcher chỉ chọn row CHƯA dispatch | `services/orchestrator/src/modules/queue/dispatcher.ts` SELECT `WHERE dispatched_at IS NULL` | Row đã stamp KHÔNG BAO GIỜ được publish lại → job mất vĩnh viễn trên queue |
+| Dispatcher chỉ chọn row CHƯA dispatch | `orchestrator/services/orchestrator/src/modules/queue/dispatcher.ts` SELECT `WHERE dispatched_at IS NULL` | Row đã stamp KHÔNG BAO GIỜ được publish lại → job mất vĩnh viễn trên queue |
 | Recovery chỉ quét RUNNING hết lease | `runtime.ts` `sweepExpiredLeases` (~:812-839): `WHERE t.state='RUNNING' AND lease_expires_at < now()` | Task READY leaseless nằm NGOÀI scope sweep (runtime.test.ts W30-C pin: "READY task with NULL lease is excluded") |
 | Deadline sweep = escape hatch manual | `server.ts:1131-1151` admin `POST /operations/sweep-deadlines` → `lifecycle.sweepDeadlines` | Operation chết dần → TIMED_OUT, dù PG state-of-record còn nguyên |
 | /health chỉ báo connectivity | `server.ts:453-484` `{status,db,redis,activeLeases}` | Queue rỗng mà vẫn `ok` → MM-05c (p8-02b:288-310) đang characterization chính gap này |
@@ -49,7 +49,7 @@ LIMIT $2;
 
 Xác nhận phía Redis (nguồn chân lý duy nhất cho "job còn sống"): `const job = await queue.getJob(jobIdForDelivery(c.delivery_id))` — BullMQ v5 trả `undefined` khi job không tồn tại (p8-02b header note). **Chỉ reconstruct khi `job === undefined`.** Các state `waiting/delayed/active/completed` để nguyên — `active` + task READY = worker vừa dequeue chưa kịp claim, sẽ tự hội tụ; `completed` + task READY là race fenced (xem §5).
 
-Offline proof (4/4 exit 0, `services/orchestrator/tests/mm05-queue-integrity-offline.functional.test.ts`):
+Offline proof (4/4 exit 0, `orchestrator/services/orchestrator/tests/mm05-queue-integrity-offline.functional.test.ts`):
 - probe/1 pin đúng gap dispatcher.ts (wipe → dispatchOnce()=0, không republish);
 - probe/3 pin PG đủ cột để enumerate orphan mà không cần sổ sách phía Redis.
 
@@ -132,4 +132,4 @@ MM-05 đóng khi: (a) sweepQueueIntegrity xanh live drill MM-05d; (b) /health ph
 
 ---
 
-*Created 2026-09-25 (TURN 3-B). Probe offline: `services/orchestrator/tests/mm05-queue-integrity-offline.functional.test.ts` — `4 passed, 4 total` ExitCode 0 (03:25, zero DB/Redis). Ledger: docs/29 vòng 5-6, docs/35 §6 addendum, qwen2.md §35.*
+*Created 2026-09-25 (TURN 3-B). Probe offline: `orchestrator/services/orchestrator/tests/mm05-queue-integrity-offline.functional.test.ts` — `4 passed, 4 total` ExitCode 0 (03:25, zero DB/Redis). Ledger: docs/29 vòng 5-6, docs/35 §6 addendum, qwen2.md §35.*

@@ -6,27 +6,19 @@
 
 ```text
 du-rework/
-├── services/
-│   ├── orchestrator/       # platform API + runtime + admin
-│   └── connector/          # provider gateway
-├── businesses/
-│   ├── document-core/      # sáu action tài liệu + workflow nội bộ
-│   ├── example-review/     # extension/reference worker
-│   └── lc-checker/         # kiểm tra bộ chứng từ LC
-├── packages/
-│   ├── contracts/          # schema/DTO/wire contract
-│   ├── worker-sdk/         # BullMQ/runtime client/task context
-│   ├── connector-client/   # typed Connector invocation client
-│   ├── document-kit/       # parser/converter/archive
-│   ├── egress/             # network policy + pinned fetch
-│   └── observability/      # logger, redaction, metrics
-├── tests/                  # integration/cross-service/stubs/isolation
-├── infra/                  # test Compose, Vault policies, deploy proposal
-├── architecture/           # bộ tài liệu hệ thống này
-├── docs/                   # spec, API, runbook và hồ sơ evidence lịch sử
-├── tasks/                  # task/acceptance/gate
-├── coordination/           # receipt, report, review theo thời gian
-└── tools/, scripts/        # OpenAPI tooling, build/dev orchestration
+|-- orchestrator/
+|   |-- apps/admin-web/       # Orchestrator Portal
+|   |-- services/
+|   |   |-- orchestrator/     # public/admin/runtime backend
+|   |   `-- connector/        # separate provider gateway process
+|   |-- packages/             # six canonical shared packages
+|   |-- scripts/
+|   `-- patches/, vendor/     # security fixes
+|-- businesses/               # document-core, example-review, lc-checker
+|-- tests/, infra/
+|-- architecture/, docs/
+|-- tasks/, coordination/
+`-- tools/, scripts/          # workspace tooling
 ```
 
 `businesses/scratch/` và các `node_modules/`, `dist/`, `.cache/` không thuộc các subproject sản phẩm được mô tả ở đây. Workspace cũng bao gồm `tests/*` theo glob, nhưng đó là project kiểm chứng chứ không phải dịch vụ phục vụ request.
@@ -35,8 +27,8 @@ du-rework/
 
 | Service | Điểm vào / module quan trọng | Vai trò |
 |---|---|---|
-| [Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md) | `src/main.ts` → `createApp` trong `src/server.ts` → `src/app/bootstrap/create-app.ts`; `src/http/routes/*`, `src/modules/*`, `src/app/admin/*`, `src/compat/*`, `migrations/*` | API public/admin/runtime, lifecycle operation/task, registry/profile, artifact, queue, usage và audit. |
-| [Connector](../services/connector/CODE-ARCHITECTURE.md) | `src/entrypoint.ts` → `src/composition.ts`; `src/http/server.ts`, `src/services.ts`, `src/invoke.ts`, `src/adapters/*`, `src/db/*` | Gateway provider với grant, identity, quota, revision/credential, invocation ledger và usage outbox. |
+| [Orchestrator](../orchestrator/services/orchestrator/CODE-ARCHITECTURE.md) | `src/main.ts` → `createApp` trong `src/server.ts` → `src/app/bootstrap/create-app.ts`; `src/http/routes/*`, `src/modules/*`, `src/app/admin/*`, `src/compat/*`, `migrations/*` | API public/admin/runtime, lifecycle operation/task, registry/profile, artifact, queue, usage và audit. |
+| [Connector](../orchestrator/services/connector/CODE-ARCHITECTURE.md) | `src/entrypoint.ts` → `src/composition.ts`; `src/http/server.ts`, `src/services.ts`, `src/invoke.ts`, `src/adapters/*`, `src/db/*` | Gateway provider với grant, identity, quota, revision/credential, invocation ledger và usage outbox. |
 
 Hai file liên kết ở trên có cây source chi tiết, mô tả từng module và sơ đồ riêng của service.
 
@@ -54,12 +46,12 @@ Mỗi worker có manifest, queue/version và image riêng. Worker dùng `@du/wor
 
 | Package | Nội dung source chính | Consumer trực tiếp theo package manifests |
 |---|---|---|
-| [`@du/contracts`](../packages/contracts/src/) | `public-api.ts`, `runtime.ts`, `queue.ts`, `connector.ts`, `manifest.ts`, `sdk.ts`, usage/encryption/vault schemas. | Hai services, ba workers, worker SDK, connector client, egress. |
-| [`@du/worker-sdk`](../packages/worker-sdk/src/) | `worker.ts`, `runtime-client.ts`, `task-context.ts`, `connector-invoker.ts`, artifact/source helpers, fan-out. | Orchestrator dùng source-ingestion logic/types; ba workers dùng runtime SDK. |
-| [`@du/connector-client`](../packages/connector-client/src/) | `client.ts`, `sdk-invoker.ts`, `transport.ts`, errors/types. | Package độc lập; chưa có import trong source production của service hoặc business, worker SDK đang dùng invoker riêng. |
-| [`@du/document-kit`](../packages/document-kit/src/) | `parsers/`, `converters/`, `formats/`, `archives/`. | Ba workers. |
-| [`@du/egress`](../packages/egress/src/) | `pinned-fetch.ts` và exports: chính sách fetch/địa chỉ mạng. | Orchestrator, Connector, worker SDK. |
-| [`@du/observability`](../packages/observability/src/) | `logger.ts`, `context.ts`, `redaction.ts`, `metrics.ts`, Elasticsearch collector. | Orchestrator, Connector, worker SDK. |
+| [`@du/contracts`](../orchestrator/packages/contracts/src/) | `public-api.ts`, `runtime.ts`, `queue.ts`, `connector.ts`, `manifest.ts`, `sdk.ts`, usage/encryption/vault schemas. | Hai services, ba workers, worker SDK, connector client, egress. |
+| [`@du/worker-sdk`](../orchestrator/packages/worker-sdk/src/) | `worker.ts`, `runtime-client.ts`, `task-context.ts`, `connector-invoker.ts`, artifact/source helpers, fan-out. | Orchestrator dùng source-ingestion logic/types; ba workers dùng runtime SDK. |
+| [`@du/connector-client`](../orchestrator/packages/connector-client/src/) | `client.ts`, `sdk-invoker.ts`, `transport.ts`, errors/types. | Package độc lập; chưa có import trong source production của service hoặc business, worker SDK đang dùng invoker riêng. |
+| [`@du/document-kit`](../orchestrator/packages/document-kit/src/) | `parsers/`, `converters/`, `formats/`, `archives/`. | Ba workers. |
+| [`@du/egress`](../orchestrator/packages/egress/src/) | `pinned-fetch.ts` và exports: chính sách fetch/địa chỉ mạng. | Orchestrator, Connector, worker SDK. |
+| [`@du/observability`](../orchestrator/packages/observability/src/) | `logger.ts`, `context.ts`, `redaction.ts`, `metrics.ts`, Elasticsearch collector. | Orchestrator, Connector, worker SDK. |
 
 ## 5. Dependency graph
 

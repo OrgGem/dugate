@@ -1,0 +1,37 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@du/contracts": [
+        "packages/contracts/src/index.ts"
+      ],
+      "@du/connector-client": [
+        "packages/connector-client/src/index.ts"
+      ],
+      "@du/document-kit": [
+        "packages/document-kit/src/index.ts"
+      ],
+      "@du/egress": [
+        "packages/egress/src/index.ts"
+      ],
+      "@du/observability": [
+        "packages/observability/src/index.ts"
+      ],
+      "@du/worker-sdk": [
+        "packages/worker-sdk/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "services/orchestrator/src/**/*.ts",
+    "services/connector/src/**/*.ts",
+    "packages/*/src/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/tests/**"
+  ]
+}

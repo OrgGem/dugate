@@ -1,5 +1,5 @@
 // Quick probe: boot harness, hit operations endpoint with auth, dump HTML.
-const { createAdminShellServer } = require('../../../services/orchestrator/dist/app/admin/index.js');
+const { createAdminShellServer } = require('../../orchestrator/services/orchestrator/dist/app/admin/index.js');
 const { stubFetchers } = require('./compiled-stubs.js');
 
 async function main() {

@@ -69,7 +69,7 @@ const connectorId = `p8-01-${randomUUID().replace(/-/g, '').slice(0, 20)}`;
 const credentialRef = `credential-${connectorId}`;
 const connectorMigrationDirectory = path.resolve(
   __dirname,
-  '../../services/connector/src/db/migrations'
+  '../../orchestrator/services/connector/src/db/migrations'
 );
 const encryptionKey = randomBytes(32);
 

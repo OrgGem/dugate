@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createRequire } = require('node:module');
-const root = path.resolve(__dirname, '../../packages/contracts');
+const root = path.resolve(__dirname, '../../orchestrator/packages/contracts');
 const localRequire = createRequire(path.join(root, 'package.json'));
 const ts = localRequire('typescript');
 require.extensions['.ts'] = (module, filename) => {
@@ -74,7 +74,7 @@ for (const file of ['secret-catalog', 'profile-callback']) {
   for (const [name, value] of Object.entries(exports)) {
     if (!name.endsWith('Schema')) continue;
     const key = name.slice(0, -6);
-    schemas[key] = { ...convert(value), 'x-source': 'packages/contracts/src/' + file + '.ts#' + name };
+    schemas[key] = { ...convert(value), 'x-source': 'orchestrator/packages/contracts/src/' + file + '.ts#' + name };
   }
 }
 schemas.LiteralValueSource.properties.value.writeOnly = true;
@@ -86,6 +86,6 @@ schemas.CallbackAuth.description = 'Managed-secret opaque refs only; catalog sec
 const publicApi = require(path.join(root, 'src/public-api.ts'));
 schemas.WebhookNotificationEnvelope = { ...convert(publicApi.WebhookPayloadSchema),
   description: 'Legacy notification_only canonical body; dispatcher additionally stamps stable deliveryId. Receiver must also deduplicate x-du-delivery-id.',
-  'x-source': 'packages/contracts/src/public-api.ts#WebhookPayloadSchema' };
+  'x-source': 'orchestrator/packages/contracts/src/public-api.ts#WebhookPayloadSchema' };
 schemas.WebhookNotificationEnvelope.properties.deliveryId.description = 'Dispatcher-stamped stable delivery row identifier.';
 process.stdout.write(JSON.stringify(schemas));

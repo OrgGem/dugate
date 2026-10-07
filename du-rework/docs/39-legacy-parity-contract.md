@@ -35,7 +35,7 @@ Câu hỏi `API-COMPAT-DUGATE-2026-09-28.md:108` (yêu cầu 200 chỉ khi hoàn
 | 11 | `/api/v1/operations/{id}/cancel` | POST | có, **status khác** | Khớp status + body |
 | 12 | `/api/v1/operations/{id}/resume` | POST | có, **body khác** | Trả `{success,message}` |
 
-Xác minh "không có route" = `grep "/api/v1/docs|billing|services" services/orchestrator/src/server.ts` → **0 hit**, và `server.ts` **0 tham chiếu** `compat/`. Không suy đoán từ tài liệu.
+Xác minh "không có route" = `grep "/api/v1/docs|billing|services" orchestrator/services/orchestrator/src/server.ts` → **0 hit**, và `server.ts` **0 tham chiếu** `compat/`. Không suy đoán từ tài liệu.
 
 ## 2. Submit — 6 core action route
 
@@ -67,7 +67,7 @@ comment dòng 1 trong mỗi file viết sai (`/api/v1/ingest`) và **không đư
 | Manifest | `.../document-core.manifest.ts:15` | mô tả tự ghi *"31 document variants"* |
 | Input normalizer | `.../src/validation/input-normalizer.ts:99,149` | allow-list 6 + 7 |
 | Recipe | `.../src/recipes/recipe-definitions.ts:101,220,235` | 3 recipe cho 3 variant này |
-| Decoder | `services/orchestrator/src/compat/legacy-wire-decoders.ts:32-38` | `VARIANTS` đủ 31 |
+| Decoder | `orchestrator/services/orchestrator/src/compat/legacy-wire-decoders.ts:32-38` | `VARIANTS` đủ 31 |
 
 ⇒ **Hai file tài liệu trên cần sửa.** Không phải thiếu code; là tài liệu chưa đuổi theo code.
 Không tick `COMP-03` cho tới khi claim này được sửa, vì `:53` dùng nó làm lý do cho một task.
@@ -336,7 +336,7 @@ Không có ledger, không có bảng usage — đọc thẳng **hai cột trên 
 | Kiểm tra | Kết quả |
 |---|---|
 | `migrations/0001_platform_v1.sql:14-22` | `api_keys` chỉ có `id, tenant_id, hash, prefix, status, created_at` |
-| `grep -i spending services/orchestrator/src/db/*.ts` | **0 hit** |
+| `grep -i spending orchestrator/services/orchestrator/src/db/*.ts` | **0 hit** |
 
 => **Không có nguồn dữ liệu.** Cần migration thêm `spending_limit` + `total_used` **và** cơ chế
 cập nhật `total_used` khi operation `SUCCEEDED`. `COMP-08:57` cho phép `DEFER` balance nếu chưa có

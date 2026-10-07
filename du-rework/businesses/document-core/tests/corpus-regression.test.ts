@@ -1,7 +1,7 @@
 import { VARIANT_TRACEABILITY_MATRIX, VariantTraceabilityEntry } from '../src/manifest/traceability';
 import { documentCoreHandlers } from '../src/worker';
 import { MockTaskContext } from './fixtures/mock-context';
-import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
+import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
 
 /** INGEST-WIRE-01: a real 1x1 PNG so OCR/digitize variants carry a real image. */
 const SCAN_PNG_BASE64 =

@@ -16,7 +16,7 @@ Bộ **kiến trúc hiện hành** dưới đây tổng hợp toàn bộ workspa
 | [17 — Public API và ví dụ](17-public-api-examples.md) | Request/response có thể dùng làm mẫu cho submit, poll, result và lỗi. |
 | [18 — API nội bộ và Connector](18-internal-api-examples.md) | Auth, runtime lease, usage, admin và invocation qua Connector. |
 
-Sơ đồ code riêng của [Orchestrator](../services/orchestrator/CODE-ARCHITECTURE.md) và [Connector](../services/connector/CODE-ARCHITECTURE.md) đi sâu đến thư mục/module từng service.
+Sơ đồ code riêng của [Orchestrator](../orchestrator/services/orchestrator/CODE-ARCHITECTURE.md) và [Connector](../orchestrator/services/connector/CODE-ARCHITECTURE.md) đi sâu đến thư mục/module từng service.
 
 Hai hình minh họa có ở [kiến trúc thành phần](diagrams/system-components.svg) và [topology deployment](diagrams/deployment-topology.svg); bản [draw.io của kiến trúc](diagrams/system-components.drawio) và [draw.io của deployment](diagrams/deployment-topology.drawio) có thể mở/chỉnh sửa bằng diagrams.net.
 
@@ -53,7 +53,7 @@ Bộ hồ sơ này phục vụ hội đồng kỹ thuật, chủ sản phẩm, �
 
 ## Nguồn và quản lý thay đổi
 
-Nguồn thiết kế mới: [docs 01–15](../docs/01-product-scope.md), [public spec](../docs/06-public-api.md), [runtime spec](../docs/07-internal-api.md), [Connector spec](../docs/08-connector-api.md), [business spec](../docs/10-document-core.md). Nguồn đối chiếu implementation: [contracts](../packages/contracts/src/operations.ts), [business input/output](../businesses/document-core/src/types/actions.ts), [Connector HTTP](../services/connector/src/http/server.ts).
+Nguồn thiết kế mới: [docs 01–15](../docs/01-product-scope.md), [public spec](../docs/06-public-api.md), [runtime spec](../docs/07-internal-api.md), [Connector spec](../docs/08-connector-api.md), [business spec](../docs/10-document-core.md). Nguồn đối chiếu implementation: [contracts](../orchestrator/packages/contracts/src/operations.ts), [business input/output](../businesses/document-core/src/types/actions.ts), [Connector HTTP](../orchestrator/services/connector/src/http/server.ts).
 
 Project gốc chỉ được tham khảo về chức năng/API: [registry](../../lib/endpoints/registry.ts), [hướng dẫn tích hợp](../../docs/DU_INTEGRATION_GUIDE.md). Ví dụ cũ như `name/done/result`, đường dẫn `/extract`, hay biến thể `id-card`, `fact-check` không tự động trở thành contract mới.
 

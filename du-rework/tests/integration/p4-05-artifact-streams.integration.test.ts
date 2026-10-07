@@ -21,8 +21,8 @@ import {
   downloadArtifactById,
   uploadArtifact,
   withDownloadedArtifact,
-} from '../../packages/worker-sdk/src/index';
-import type { TempWorkspace } from '../../packages/worker-sdk/src/index';
+} from '../../orchestrator/packages/worker-sdk/src/index';
+import type { TempWorkspace } from '../../orchestrator/packages/worker-sdk/src/index';
 
 import {
   createTestIsolationContext,

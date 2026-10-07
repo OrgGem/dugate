@@ -1,6 +1,6 @@
 import http from 'node:http';
-import type { RenewalToken, VaultTokenClient } from '../../../services/connector/src/vault/token-renewal';
-import type { VaultCredentialWriter, VaultRefFields } from '../../../services/orchestrator/src/modules/connector-credentials/workflow';
+import type { RenewalToken, VaultTokenClient } from '../../../orchestrator/services/connector/src/vault/token-renewal';
+import type { VaultCredentialWriter, VaultRefFields } from '../../../orchestrator/services/orchestrator/src/modules/connector-credentials/workflow';
 
 /**
  * Non-pooled HTTP transport for the harness. Node's global fetch (undici)

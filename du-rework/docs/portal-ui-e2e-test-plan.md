@@ -5,7 +5,7 @@
 
 ## I. TỔNG QUAN PHẠM VI & MÔI TRƯỜNG KIỂM THỬ
 
-1. **Ứng dụng kiểm thử:** Orchestrator Portal (`apps/admin-web`, build Vite production).
+1. **Ứng dụng kiểm thử:** Orchestrator Portal (`orchestrator/apps/admin-web`, build Vite production).
 2. **Mount base URL:** `http://localhost:3301/admin/web/` (hoặc test preview `http://localhost:4173/admin/web/`).
 3. **Công cụ thực thi tự động:** Playwright Test Suite (Chromium & Mobile viewport Pixel 7/iPhone).
 4. **Các khía cạnh phát hiện lỗi UI bắt buộc (Defect Coverage):**

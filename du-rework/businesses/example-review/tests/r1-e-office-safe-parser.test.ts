@@ -3,7 +3,7 @@ import type { ParseResult } from '@du/document-kit';
 import type { TaskHandler } from '@du/worker-sdk';
 import { itemReviewHandler, mainReviewHandler } from '../src/review';
 import { createMockTaskContext } from './test-helper';
-import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
+import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

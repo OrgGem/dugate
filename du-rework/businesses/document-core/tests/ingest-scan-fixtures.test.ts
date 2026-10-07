@@ -10,7 +10,7 @@ import { IngestAction } from '../src/actions/ingest';
 import { ParserBudgetHelper } from '../src/pipelines/parser-budget';
 import type { ArtifactStat, TaskContext } from '../src/types/context';
 import { MockTaskContext } from './fixtures/mock-context';
-import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
+import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
 
 type FixtureReadOptions = {
   expectedSha256?: string;

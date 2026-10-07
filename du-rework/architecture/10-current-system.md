@@ -38,20 +38,20 @@ Ba **vai trò triển khai** là Orchestrator, Business Worker và Connector. V�
 | Orchestrator | Public/Admin/runtime HTTP, tenant/API key, registry/profile, operation/task/lease, artifact metadata, outbox, usage projection, audit, webhook | Parser và business action, provider credential thực thi |
 | Business worker | Manifest và action/workflow của business, xử lý file bằng `document-kit`, quyết định bước và kết quả | Platform PostgreSQL, tenant auth, generic lease/queue policy |
 | Connector | Connector revision/credential, invocation ledger, quota provider, HTTP adapter, provider usage outbox | Operation lifecycle, business workflow |
-| `packages/contracts` | DTO/schema và wire contract dùng chung | Persistence hoặc process lifecycle |
+| `orchestrator/packages/contracts` | DTO/schema và wire contract dùng chung | Persistence hoặc process lifecycle |
 
-Ranh giới này được thực thi qua [Orchestrator router](../services/orchestrator/src/server.ts), [bootstrap](../services/orchestrator/src/app/bootstrap/create-app.ts), [Connector composition](../services/connector/src/composition.ts), [worker SDK](../packages/worker-sdk/src/worker.ts) và các package manifest. Các service hiện dùng `node:http` và raw `pg` trong source; mô tả Next.js/Drizzle ở tài liệu mục tiêu cũ không phản ánh implementation này.
+Ranh giới này được thực thi qua [Orchestrator router](../orchestrator/services/orchestrator/src/server.ts), [bootstrap](../orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts), [Connector composition](../orchestrator/services/connector/src/composition.ts), [worker SDK](../orchestrator/packages/worker-sdk/src/worker.ts) và các package manifest. Các service hiện dùng `node:http` và raw `pg` trong source; mô tả Next.js/Drizzle ở tài liệu mục tiêu cũ không phản ánh implementation này.
 
 ## 3. Thành phần hạ tầng
 
 | Hạ tầng | Vai trò hiện tại | Nguồn |
 |---|---|---|
-| PostgreSQL | Orchestrator lưu tenant, key, business version, operation, task, outbox, artifact metadata, usage/audit; Connector lưu revision, encrypted credential legacy, invocation và usage outbox. Migration của hai service riêng. | [Platform migrations](../services/orchestrator/migrations/), [Connector migrations](../services/connector/src/db/migrations/) |
-| Redis/BullMQ | Task delivery, shared quota và một số session/challenge; task state và fencing authority ở PostgreSQL/runtime. | [Dispatcher](../services/orchestrator/src/modules/queue/dispatcher.ts), [Connector quota](../services/connector/src/quota-redis.ts) |
-| S3-compatible storage | Artifact bytes, upload/multipart/version pin khi cấu hình S3. Orchestrator vẫn có backend PostgreSQL cho pilot/test. | [Artifact storage](../services/orchestrator/src/modules/artifacts/), [source ingestion](../services/orchestrator/src/modules/operations/ingestion-storage-s3.ts) |
-| Vault | Credential source KV v2 và các đường key provider/Transit theo cấu hình. Không coi sự hiện diện của module là bằng chứng wiring/live deployment. | [Connector resolver](../services/connector/src/vault/), [Orchestrator encryption](../services/orchestrator/src/modules/encryption/) |
-| External provider | JSON hoặc multipart HTTP qua Connector adapter/transport. | [Adapters](../services/connector/src/adapters/) |
-| Log destination | `@du/observability` tạo log/context/redaction; collector Elasticsearch có source nhưng cần topology triển khai riêng. | [Observability](../packages/observability/src/), [log collector](../services/orchestrator/src/log-collector.ts) |
+| PostgreSQL | Orchestrator lưu tenant, key, business version, operation, task, outbox, artifact metadata, usage/audit; Connector lưu revision, encrypted credential legacy, invocation và usage outbox. Migration của hai service riêng. | [Platform migrations](../orchestrator/services/orchestrator/migrations/), [Connector migrations](../orchestrator/services/connector/src/db/migrations/) |
+| Redis/BullMQ | Task delivery, shared quota và một số session/challenge; task state và fencing authority ở PostgreSQL/runtime. | [Dispatcher](../orchestrator/services/orchestrator/src/modules/queue/dispatcher.ts), [Connector quota](../orchestrator/services/connector/src/quota-redis.ts) |
+| S3-compatible storage | Artifact bytes, upload/multipart/version pin khi cấu hình S3. Orchestrator vẫn có backend PostgreSQL cho pilot/test. | [Artifact storage](../orchestrator/services/orchestrator/src/modules/artifacts/), [source ingestion](../orchestrator/services/orchestrator/src/modules/operations/ingestion-storage-s3.ts) |
+| Vault | Credential source KV v2 và các đường key provider/Transit theo cấu hình. Không coi sự hiện diện của module là bằng chứng wiring/live deployment. | [Connector resolver](../orchestrator/services/connector/src/vault/), [Orchestrator encryption](../orchestrator/services/orchestrator/src/modules/encryption/) |
+| External provider | JSON hoặc multipart HTTP qua Connector adapter/transport. | [Adapters](../orchestrator/services/connector/src/adapters/) |
+| Log destination | `@du/observability` tạo log/context/redaction; collector Elasticsearch có source nhưng cần topology triển khai riêng. | [Observability](../orchestrator/packages/observability/src/), [log collector](../orchestrator/services/orchestrator/src/log-collector.ts) |
 
 ## 4. Luồng xử lý cấp cao
 

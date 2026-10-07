@@ -8,9 +8,9 @@ module.exports = {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.json' }],
   },
   moduleNameMapper: {
-    '^@du/contracts$': '<rootDir>/../../packages/contracts/dist/index.js',
-    '^@du/document-kit$': '<rootDir>/../../packages/document-kit/src/index.ts',
-    '^@du/worker-sdk$': '<rootDir>/../../packages/worker-sdk/dist/index.js',
-    '^@du/orchestrator$': '<rootDir>/../../services/orchestrator/dist/index.js',
+    '^@du/contracts$': '<rootDir>/../../orchestrator/packages/contracts/dist/index.js',
+    '^@du/document-kit$': '<rootDir>/../../orchestrator/packages/document-kit/src/index.ts',
+    '^@du/worker-sdk$': '<rootDir>/../../orchestrator/packages/worker-sdk/dist/index.js',
+    '^@du/orchestrator$': '<rootDir>/../../orchestrator/services/orchestrator/dist/index.js',
   },
 };

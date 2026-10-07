@@ -37,4 +37,4 @@ Xác nhận queue age và số task ready giảm; completion throughput trở l�
 
 ## Escalation
 
-Page Platform nếu DB/Redis readiness fail, outbox không dispatch hoặc lease recovery ngừng. Page owner business/runtime nếu chỉ một queue/version lỗi. Page Connector nếu backlog chờ provider, 429 hoặc UNKNOWN tăng. Source mapping: `../../services/orchestrator/src/modules/queue/dispatcher.ts`, `../../services/orchestrator/src/modules/runtime/runtime.ts`.
+Page Platform nếu DB/Redis readiness fail, outbox không dispatch hoặc lease recovery ngừng. Page owner business/runtime nếu chỉ một queue/version lỗi. Page Connector nếu backlog chờ provider, 429 hoặc UNKNOWN tăng. Source mapping: `../../orchestrator/services/orchestrator/src/modules/queue/dispatcher.ts`, `../../orchestrator/services/orchestrator/src/modules/runtime/runtime.ts`.

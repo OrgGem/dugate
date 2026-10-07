@@ -1,4 +1,0 @@
-name: du-connector
-include:
-  - ../../compose/infra.yml
-  - ../../compose/connector.yml

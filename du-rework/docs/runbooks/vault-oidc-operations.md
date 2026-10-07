@@ -60,7 +60,7 @@ session. These are read-only checks:
    `secret/metadata/du/connector/*`; it cannot read secret values.
    `connector-reader` can read values and metadata under that prefix; it
    cannot create, update, delete, or destroy secrets. Review the rendered
-   policy against `packages/contracts/src/vault-policies.ts` before applying.
+   policy against `orchestrator/packages/contracts/src/vault-policies.ts` before applying.
    `worker-browser.hcl` is a no-access marker, not a policy to bind to a
    browser/worker identity. Do not issue Vault credentials to those actors.
 
@@ -328,7 +328,7 @@ required SEC task receipts; this runbook alone does not satisfy that gate.
 [`orchestrator-writer.hcl`](../../infra/vault/policies/orchestrator-writer.hcl),
 [`connector-reader.hcl`](../../infra/vault/policies/connector-reader.hcl),
 [`worker-browser.hcl`](../../infra/vault/policies/worker-browser.hcl),
-[`vault-policies.ts`](../../packages/contracts/src/vault-policies.ts),
-[`vault.ts`](../../packages/contracts/src/vault.ts),
-[`oidc-client.ts`](../../services/orchestrator/src/modules/auth/oidc-client.ts),
-[`redaction.ts`](../../packages/observability/src/redaction.ts).
+[`vault-policies.ts`](../../orchestrator/packages/contracts/src/vault-policies.ts),
+[`vault.ts`](../../orchestrator/packages/contracts/src/vault.ts),
+[`oidc-client.ts`](../../orchestrator/services/orchestrator/src/modules/auth/oidc-client.ts),
+[`redaction.ts`](../../orchestrator/packages/observability/src/redaction.ts).

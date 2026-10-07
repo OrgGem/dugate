@@ -3,7 +3,7 @@
 Owner lane (Antigravity-6 / Test-Infra) restored to rotation at 18:47.
 MM-13 fully implemented and verified:
 1. **Default Consumers Wired**:
-   - `services/orchestrator/tests/runtime.test.ts`
+   - `orchestrator/services/orchestrator/tests/runtime.test.ts`
    - `du-rework/tests/integration/p8-04-security-isolation.integration.test.ts`
    - `du-rework/tests/integration/p8-02-fault-recovery.integration.test.ts`
 2. **Two Plain Runs Isolation Proven**:

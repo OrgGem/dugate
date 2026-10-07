@@ -29,7 +29,7 @@ root credentials, and attributed the red to a credential set that did not match.
 Source confirms the mechanism, and adds a diagnostic trap worth knowing:
 
 1. The Orchestrator builds its S3 client **without explicit credentials**
-   (`services/orchestrator/src/server.ts:261-266`), so identity comes from the AWS
+   (`orchestrator/services/orchestrator/src/server.ts:261-266`), so identity comes from the AWS
    SDK default provider chain - in practice `AWS_ACCESS_KEY_ID` /
    `AWS_SECRET_ACCESS_KEY` in the process environment. A key pair that is present
    but does not belong to **this** MinIO instance is therefore accepted silently at
@@ -37,9 +37,9 @@ Source confirms the mechanism, and adds a diagnostic trap worth knowing:
 2. Every storage fault is collapsed into one code. The S3 facade wraps
    `CreateMultipartUpload` (and its siblings) in a bare `catch` that throws
    `ArtifactStorageError('STORAGE_UNAVAILABLE')`
-   (`services/orchestrator/src/modules/artifacts/s3-storage-facade.ts:426-429`), and
+   (`orchestrator/services/orchestrator/src/modules/artifacts/s3-storage-facade.ts:426-429`), and
    the HTTP layer maps that to **503 `TEMPORARY_UNAVAILABLE`**
-   (`services/orchestrator/src/http/errors.ts:61-62`). The underlying S3 error name
+   (`orchestrator/services/orchestrator/src/http/errors.ts:61-62`). The underlying S3 error name
    is dropped.
 3. Consequence: **503 at multipart init in this stack is not an outage signal.** It
    is the same answer you get from `InvalidAccessKeyId`, `AccessDenied`,
@@ -54,7 +54,7 @@ Source confirms the mechanism, and adds a diagnostic trap worth knowing:
    where the root credentials came from).
 5. Bucket naming: the live pilot bucket is `du-artifacts-live2` and the offline
    fixture bucket is `du-artifacts-test`
-   (`services/orchestrator/tests/s3-multipart-storage-offline.test.ts:23`).
+   (`orchestrator/services/orchestrator/tests/s3-multipart-storage-offline.test.ts:23`).
    `du-uploads` is **not** a bucket anywhere in `du-rework`; the only occurrence is
    the namespace salt inside the public replay-key derivation
    (`modules/artifacts/multipart-service.ts:86`, `'du-uploads|' + tenantId + '|' +
@@ -112,7 +112,7 @@ Read from source, not assumed. Names only; never commit values.
 ## Scenario A - public multipart lifecycle `/api/v1/uploads`
 
 Routes are JSON-only and tenant-scoped by `x-api-key`
-(`services/orchestrator/src/server.ts:899-924`); the replay key is the body
+(`orchestrator/services/orchestrator/src/server.ts:899-924`); the replay key is the body
 `uploadToken`, or a per-tenant derivation of the `Idempotency-Key` header
 (`multipart-service.ts:82-92`). Public `complete` **is** the verified
 `STAGING -> READY` edge for this branch.
@@ -133,13 +133,13 @@ Routes are JSON-only and tenant-scoped by `x-api-key`
 | A12 | Expire a session (short TTL) and run the sweep hook | `scanned>=1 aborted>=1 purged>=1 failed=0`, `multipart_upload_id` cleared |
 | A13 | Submit with an expired READY row | `404 NOT_FOUND` |
 | A14 | RSS sample during A5 (peak minus baseline, sampled in the data path) | record the number; a whole-file retention shows a delta ~= object size |
-| A15 | `init` with `sizeBytes` between 1 MiB and 64 MiB | **`422` today** - the public contract floor is `64 MiB + 1` (`packages/contracts/src/runtime.ts:255,274`) and no public binary route exists; this is the open T20-D1 decision, not a passing case |
+| A15 | `init` with `sizeBytes` between 1 MiB and 64 MiB | **`422` today** - the public contract floor is `64 MiB + 1` (`orchestrator/packages/contracts/src/runtime.ts:255,274`) and no public binary route exists; this is the open T20-D1 decision, not a passing case |
 
 Note for A15: the only route that accepts a binary request body is the runtime
 blob PUT `PUT /api/runtime/v1/artifacts/blob/:key` (`server.ts:415-420`,
 `binary: isBlobPut`), which is grant- and worker-scoped, not public. So a public
 client still cannot deliver a 1 MiB - 64 MiB object. The SDK-side band policy
-`resolveArtifactUploadBand` exists (`packages/worker-sdk/src/artifact-streams.ts`)
+`resolveArtifactUploadBand` exists (`orchestrator/packages/worker-sdk/src/artifact-streams.ts`)
 and pins the numbers; the server half needs its own packet.
 
 ## Scenario B - DATA-03 worker ingestion to S3 and `READY`

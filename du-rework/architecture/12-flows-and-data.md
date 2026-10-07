@@ -1,6 +1,6 @@
 # 12 — Luồng xử lý, dữ liệu và contract
 
-**Nguồn kiểm:** [Orchestrator route dispatcher](../services/orchestrator/src/server.ts), [HTTP route groups](../services/orchestrator/src/http/routes/), [composition](../services/orchestrator/src/app/bootstrap/create-app.ts), [platform migrations](../services/orchestrator/migrations/), [Connector HTTP/runtime](../services/connector/src/), [Connector migrations](../services/connector/src/db/migrations/) và [contracts](../packages/contracts/src/). Các đường tùy chọn phụ thuộc cấu hình runtime.
+**Nguồn kiểm:** [Orchestrator route dispatcher](../orchestrator/services/orchestrator/src/server.ts), [HTTP route groups](../orchestrator/services/orchestrator/src/http/routes/), [composition](../orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts), [platform migrations](../orchestrator/services/orchestrator/migrations/), [Connector HTTP/runtime](../orchestrator/services/connector/src/), [Connector migrations](../orchestrator/services/connector/src/db/migrations/) và [contracts](../orchestrator/packages/contracts/src/). Các đường tùy chọn phụ thuộc cấu hình runtime.
 
 ## 1. Bề mặt API và danh tính
 

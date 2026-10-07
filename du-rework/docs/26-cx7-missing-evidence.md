@@ -25,7 +25,7 @@ function, and the assertion that does not exist yet. Nothing ticked.
 
 3. MM-10 row cites `p7-04-profile-assignment.integration.test.ts`; that path
    does not exist anywhere under du-rework (rg filename search empty) and no
-   `services/orchestrator/tests/integration/` directory exists. Owner:
+   `orchestrator/services/orchestrator/tests/integration/` directory exists. Owner:
    admin-ui (+ platform). Fix: either commit the test the review describes
    (rendered profile edit/validate/publish via public creds) or correct the
    review citation to the real file + literal test name; until then MM-10

@@ -38,7 +38,8 @@ services:
     profiles: ["connector"]
     build:
       context: ..
-      dockerfile: services/connector/Dockerfile
+      dockerfile: Dockerfile
+      target: connector
     init: true
     environment:
       PORT: "8080"

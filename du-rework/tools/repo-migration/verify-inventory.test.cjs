@@ -13,7 +13,7 @@ function fixture(t) {
     assert.ok(path.basename(root).startsWith('du-inventory-'));
     fs.rmSync(root, { recursive: true, force: true });
   });
-  const relative = 'du-rework/services/orchestrator/src/current.ts';
+  const relative = 'du-rework/orchestrator/services/orchestrator/src/current.ts';
   const absolute = path.join(root, relative);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
   fs.writeFileSync(absolute, 'export const current = true;');
@@ -48,8 +48,8 @@ test('rejects duplicate files and malformed hashes', (t) => {
 });
 
 test('excludes environment files and generated/sensitive outputs', () => {
-  for (const file of ['du-rework/.env.example', 'du-rework/services/x/.env',
-    'du-rework/services/x/dist/main.js', 'du-rework/packages/x/node_modules/y/index.js',
+  for (const file of ['du-rework/.env.example', 'du-rework/orchestrator/services/x/.env',
+    'du-rework/orchestrator/services/x/dist/main.js', 'du-rework/orchestrator/packages/x/node_modules/y/index.js',
     'du-rework/infra/provider.key']) assert.equal(forbidden(file), true);
 });
 

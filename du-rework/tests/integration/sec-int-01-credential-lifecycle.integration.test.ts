@@ -11,9 +11,9 @@ import {
 import {
   createCredentialWorkflow,
   type VaultCredentialWriter,
-} from '../../services/orchestrator/src/modules/connector-credentials/workflow';
-import { createConnectorRevisionHttpAdapter } from '../../services/orchestrator/src/modules/connector-credentials/connector-http-store';
-import { createTokenRenewalDaemon } from '../../services/connector/src/vault/token-renewal';
+} from '../../orchestrator/services/orchestrator/src/modules/connector-credentials/workflow';
+import { createConnectorRevisionHttpAdapter } from '../../orchestrator/services/orchestrator/src/modules/connector-credentials/connector-http-store';
+import { createTokenRenewalDaemon } from '../../orchestrator/services/connector/src/vault/token-renewal';
 import {
   createTestIsolationContext,
   generateSchemaSetupDdl,
@@ -21,7 +21,7 @@ import {
   assertSafeIsolationConfig,
   type TestIsolationContext,
 } from '../isolation/namespace';
-import type { AdapterConfig } from '../../services/connector/src/types';
+import type { AdapterConfig } from '../../orchestrator/services/connector/src/types';
 
 /**
  * SEC-INT-01 — credential rotation/revocation across the REAL two-service
@@ -34,7 +34,7 @@ import type { AdapterConfig } from '../../services/connector/src/types';
  * pass claim. Provider-invoke e2e (Redis quota, real containers) is the
  * documented follow-on slice of the same gate.
  */
-import { createVaultDevFixture, VaultError, type VaultDevFixture } from '../../packages/contracts/tests/stubs/vault-dev-fixture';
+import { createVaultDevFixture, VaultError, type VaultDevFixture } from '../../orchestrator/packages/contracts/tests/stubs/vault-dev-fixture';
 
 const LIVE = process.env.DU_LIVE_INFRA === '1' && process.env.DU_SECINT === '1';
 const describeLive = LIVE ? describe : describe.skip;
@@ -100,7 +100,7 @@ describeLive('SEC-INT-01 rotation/revocation across orchestrator↔connector↔v
     // via the PRODUCTION migrator path.
     connPool = new PgSqlClient({
       connectionString: DATABASE_URL,
-      migrationDirectory: require('node:path').resolve(__dirname, '../../services/connector/src/db/migrations'),
+      migrationDirectory: require('node:path').resolve(__dirname, '../../orchestrator/services/connector/src/db/migrations'),
     });
     await connPool.migrate();
     connRepo = new PostgresConnectorConfigRepository(connPool);

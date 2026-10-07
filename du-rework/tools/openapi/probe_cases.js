@@ -1,4 +1,4 @@
-const c = require(require("path").resolve("du-rework/packages/contracts/dist/index.js"));
+const c = require(require("path").resolve("du-rework/orchestrator/packages/contracts/dist/index.js"));
 const U = (n) => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
 const cases = [
   ["SubmissionSchema", { input: { type: "invoice" } }],

@@ -1,6 +1,6 @@
 # Result envelope — hợp đồng trả kết quả (RESULT-WIRE-01)
 
-> **Nguồn:** contract đọc trực tiếp từ `packages/contracts/src/operations.ts` và `encryption.ts`; bằng chứng đóng băng tại [RESULT-WIRE-01](../coordination/reports/tester.md#L8245).
+> **Nguồn:** contract đọc trực tiếp từ `orchestrator/packages/contracts/src/operations.ts` và `encryption.ts`; bằng chứng đóng băng tại [RESULT-WIRE-01](../coordination/reports/tester.md#L8245).
 >
 > **Mức bằng chứng: OFFLINE.** Receipt tự ghi: `@du/contracts` build 0, **19 suites / 427 tests** 0; orchestrator `tests/delivery-encryption.test.ts` **22/22** 0; `tsc --noEmit` sạch 0 ở cả hai package. **Chưa có** external consumer thật, live Vault, hay hạ tầng nào. `G-ENC`, `G6` NO-GO; `RESULT-WIRE-01` vẫn `[~]`.
 >
@@ -76,8 +76,8 @@ Content type của biến thể này là `application/json` (hằng `ENCRYPTED_D
 
 ## 5. Liên kết
 
-- Contract schema: `packages/contracts/src/operations.ts` (`ResultEnvelopeSchema`, `EncryptedResultEnvelopeSchema`, `ResultResponseSchema`, `EncryptedArtifactDownloadSchema`, `ArtifactDownloadResponseSchema`, `ENCRYPTED_DELIVERY_CONTENT_TYPE`)
-- Schema mã hóa: `packages/contracts/src/encryption.ts` (`RecipientDeliveryEnvelopeSchema`)
+- Contract schema: `orchestrator/packages/contracts/src/operations.ts` (`ResultEnvelopeSchema`, `EncryptedResultEnvelopeSchema`, `ResultResponseSchema`, `EncryptedArtifactDownloadSchema`, `ArtifactDownloadResponseSchema`, `ENCRYPTED_DELIVERY_CONTENT_TYPE`)
+- Schema mã hóa: `orchestrator/packages/contracts/src/encryption.ts` (`RecipientDeliveryEnvelopeSchema`)
 - Catalog public: [06-public-api.md](06-public-api.md)
 - Bằng chứng: [RESULT-WIRE-01](../coordination/reports/tester.md#L8245)
 - Quyết định kiến trúc: [ADR-18](15-decisions.md)

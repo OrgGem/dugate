@@ -3,7 +3,7 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
-const entries = ['scripts/dev.cjs', 'services/orchestrator/dist/main.js', 'services/connector/dist/entrypoint.js', ...['document-core', 'lc-checker', 'example-review'].map(worker => `businesses/${worker}/dist/main.js`)];
+const entries = ['scripts/dev.cjs', 'orchestrator/services/orchestrator/dist/main.js', 'orchestrator/services/connector/dist/entrypoint.js', ...['document-core', 'lc-checker', 'example-review'].map(worker => `businesses/${worker}/dist/main.js`)];
 function target(command) {
   const normalized = command.replaceAll('\\', '/');
   return entries.some(entry => {

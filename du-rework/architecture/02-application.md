@@ -40,7 +40,7 @@ Production không lưu file bytes trong PostgreSQL hoặc Valkey. PostgreSQL gi�
 
 Coordinator gộp trong subproject Orchestrator. Ban đầu có thể cùng container với API qua lifecycle server rõ ràng; background loops bắt buộc dùng DB claims/leases khi có nhiều replica. Nếu đo tải cho thấy cần tách process API và background thì dùng cùng codebase/domain, không tạo thêm service nghiệp vụ Coordinator.
 
-Document worker riêng được thay bằng `packages/document-kit` dùng trong business worker. Tác vụ parser nặng cần giới hạn process/thread concurrency, bộ nhớ, timeout; không được chặn event loop làm mất heartbeat.
+Document worker riêng được thay bằng `orchestrator/packages/document-kit` dùng trong business worker. Tác vụ parser nặng cần giới hạn process/thread concurrency, bộ nhớ, timeout; không được chặn event loop làm mất heartbeat.
 
 ## Luồng tiếp nhận đến kết quả
 
@@ -117,15 +117,15 @@ PostgreSQL có thể tự quản trên EC2 hoặc dùng RDS; Redis/Valkey có th
 
 ```text
 du-rework/
-  services/orchestrator/     API, Admin, generic runtime/coordinator
-  services/connector/        management, invocation, adapters, ledger
+  orchestrator/services/orchestrator/     API, Admin, generic runtime/coordinator
+  orchestrator/services/connector/        management, invocation, adapters, ledger
   businesses/document-core/  6 actions, recipes, schemas, business tests
   businesses/<new-business>/ image và manifest độc lập
-  packages/contracts/       wire schemas và version compatibility
-  packages/worker-sdk/       claim, heartbeat, checkpoint, wait, complete
-  packages/connector-client/ typed invocation client
-  packages/document-kit/     parsing, conversion, diff, archive utilities
-  packages/observability/    structured logs, tracing, metrics
+  orchestrator/packages/contracts/       wire schemas và version compatibility
+  orchestrator/packages/worker-sdk/       claim, heartbeat, checkpoint, wait, complete
+  orchestrator/packages/connector-client/ typed invocation client
+  orchestrator/packages/document-kit/     parsing, conversion, diff, archive utilities
+  orchestrator/packages/observability/    structured logs, tracing, metrics
   infra/                    deployment assets
   tests/                    cross-service contract, E2E, fault/load tests
   architecture/             hồ sơ review này

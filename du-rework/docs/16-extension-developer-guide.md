@@ -46,7 +46,7 @@ flowchart TD
 
 ### The "Zero Platform Code Change" Invariant (G5 / EXT-01)
 To add or upgrade a business extension on DU Gate:
-1. **Zero source edits** to `services/orchestrator/**`, `services/connector/**`, or shared platform libraries.
+1. **Zero source edits** to `orchestrator/services/orchestrator/**`, `orchestrator/services/connector/**`, or shared platform libraries.
 2. **Zero platform rebuilds**: Image digests for the Orchestrator and Connector remain 100% bit-identical.
 3. **Public Contract Dependencies Only**: The business implementation must depend exclusively on public SDK packages (`@du/contracts` and `@du/worker-sdk`) and Node.js built-ins.
 4. **Dynamic Registration via APIs**: New businesses and versions are registered, enabled, and activated dynamically at runtime via authenticated HTTP endpoints.

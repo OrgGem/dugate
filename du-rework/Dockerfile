@@ -7,16 +7,16 @@ ENV PNPM_HOME=/pnpm
 ENV PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
-COPY patches ./patches
-COPY vendor ./vendor
+COPY orchestrator/patches ./orchestrator/patches
+COPY orchestrator/vendor ./orchestrator/vendor
 RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store \
     && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5
-COPY packages ./packages
-COPY services ./services
+COPY orchestrator/packages ./orchestrator/packages
+COPY orchestrator/services ./orchestrator/services
 COPY businesses ./businesses
 COPY docs/21-openapi.json ./docs/21-openapi.json
-COPY apps ./apps
+COPY orchestrator/apps ./orchestrator/apps
 COPY tests ./tests
 COPY scripts/docker ./scripts/docker
 RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
@@ -64,5 +64,5 @@ CMD ["node", "dist/main.js"]
 FROM runtime-base AS orchestrator
 COPY --from=orchestrator-build --chown=node:node /deploy/orchestrator ./
 ENV DU_ADMIN_WEB_DIST=/app/admin-web
-EXPOSE 3000 3001
+EXPOSE 3000 3001 3002
 CMD ["node", "dist/main.js"]

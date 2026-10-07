@@ -152,7 +152,7 @@ versions or drop `artifact_blobs` as part of an emergency rollback.
 ## Offline cutover test harness
 
 The offline regression case in
-`services/orchestrator/tests/artifact-storage-service.test.ts` configures
+`orchestrator/services/orchestrator/tests/artifact-storage-service.test.ts` configures
 `migrationWindow: false`, verifies new upload grants select S3, and proves an
 unresolved legacy row fails closed without reading `artifact_blobs`. Run it
 without a database window:
@@ -162,5 +162,5 @@ pnpm --filter @du/orchestrator test -- --runTestsByPath tests/artifact-storage-s
 ```
 
 Related full migration inventory/hash/retry coverage is in
-`services/orchestrator/tests/storage-migration.test.ts` and the S3 adapter
-contract coverage is in `services/orchestrator/tests/s3-storage-facade.test.ts`.
+`orchestrator/services/orchestrator/tests/storage-migration.test.ts` and the S3 adapter
+contract coverage is in `orchestrator/services/orchestrator/tests/s3-storage-facade.test.ts`.

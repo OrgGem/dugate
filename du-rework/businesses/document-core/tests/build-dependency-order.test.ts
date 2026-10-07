@@ -57,10 +57,10 @@ describe('Dependency-Ordered Build Pipeline (Wave 17, W17-A Build Graph Closure)
     // runs first and a worker-sdk that cannot see its @du/egress dependency
     // would fail on closure instead of on the ordering under test.
     const invertedOrder = [
-      { name: '@du/contracts', dir: 'packages/contracts', cmd: 'pnpm --filter @du/contracts build' },
-      { name: '@du/egress', dir: 'packages/egress', cmd: 'pnpm --filter @du/egress build' },
-      { name: '@du/worker-sdk', dir: 'packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },
-      { name: '@du/observability', dir: 'packages/observability', cmd: 'pnpm --filter @du/observability build' },
+      { name: '@du/contracts', dir: 'orchestrator/packages/contracts', cmd: 'pnpm --filter @du/contracts build' },
+      { name: '@du/egress', dir: 'orchestrator/packages/egress', cmd: 'pnpm --filter @du/egress build' },
+      { name: '@du/worker-sdk', dir: 'orchestrator/packages/worker-sdk', cmd: 'pnpm --filter @du/worker-sdk build' },
+      { name: '@du/observability', dir: 'orchestrator/packages/observability', cmd: 'pnpm --filter @du/observability build' },
       { name: '@du/document-core', dir: 'businesses/document-core', cmd: 'pnpm --filter @du/document-core build' },
     ];
 
@@ -74,7 +74,7 @@ describe('Dependency-Ordered Build Pipeline (Wave 17, W17-A Build Graph Closure)
     // Simulate running with invalid order through runner with throwOnError: false
     // We pass a step that doesn't exist
     const brokenOrder = [
-      { name: '@du/nonexistent', dir: 'packages/nonexistent', cmd: 'pnpm build' },
+      { name: '@du/nonexistent', dir: 'orchestrator/packages/nonexistent', cmd: 'pnpm build' },
     ];
 
     expect(() =>

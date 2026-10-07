@@ -24,8 +24,8 @@ import type { InvocationArtifactContent } from '@du/contracts';
 import { IngestAction } from '../src/actions/ingest';
 import type { TaskContext } from '../src/types/context';
 import { MockTaskContext } from './fixtures/mock-context';
-import { jsonHttpAdapter, multipartHttpAdapter } from '../../../services/connector/src/adapters/http';
-import type { LocalInvocationRequest } from '../../../services/connector/src/types';
+import { jsonHttpAdapter, multipartHttpAdapter } from '../../../orchestrator/services/connector/src/adapters/http';
+import type { LocalInvocationRequest } from '../../../orchestrator/services/connector/src/types';
 
 const SCAN_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -307,7 +307,7 @@ describe('INGEST-WIRE-01: foreign references and the native boundary', () => {
 
   it('keeps native split local: the Connector is never involved', async () => {
     const ctx = new MockTaskContext();
-    const { TestFixtures } = await import('../../../packages/document-kit/tests/fixtures/test-fixtures');
+    const { TestFixtures } = await import('../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures');
     const ref = await ctx.artifacts.write(TestFixtures.createSamplePdf('p1'), 'doc.pdf', 'application/pdf');
     const input = IngestAction.validateInput({ mode: 'split', artifactIds: [ref.artifactId], pages: '1' });
     const sources = await IngestAction.prepareSources(ctx, input);

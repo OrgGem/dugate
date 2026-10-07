@@ -4,8 +4,8 @@
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
-      "@du/orchestrator": ["../../services/orchestrator/dist/index.d.ts"],
-      "@du/connector": ["../../services/connector/dist/index.d.ts"]
+      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"],
+      "@du/connector": ["../../orchestrator/services/connector/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*.ts"],

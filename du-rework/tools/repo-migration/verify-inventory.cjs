@@ -22,7 +22,7 @@ function parseInventory(text) {
 }
 
 function isProductPath(file) {
-  return /^du-rework\/(?:packages|services|businesses|apps|scripts|compose|infra)\//.test(file)
+  return /^du-rework\/(?:orchestrator\/(?:packages|services|apps|scripts)|businesses|scripts|compose|infra)\//.test(file)
     || /^du-rework\/(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.base\.json|Dockerfile|\.npmrc|\.dockerignore)$/.test(file);
 }
 

@@ -22,12 +22,12 @@ import {
   defineBusiness,
   runConnectorStep,
   startWorker,
-} from '../../packages/worker-sdk/src/index';
-import type { WorkerHandle } from '../../packages/worker-sdk/src/index';
+} from '../../orchestrator/packages/worker-sdk/src/index';
+import type { WorkerHandle } from '../../orchestrator/packages/worker-sdk/src/index';
 import {
   createHttpTransport,
   createSdkConnectorInvoker,
-} from '../../packages/connector-client/src/index';
+} from '../../orchestrator/packages/connector-client/src/index';
 
 import { MockProviderServer } from '../stubs/provider/mock-provider';
 

@@ -1,6 +1,6 @@
 # Data ownership và state machines
 
-Đây là đặc tả logic chuẩn. SQL hiện đã có cho minimal Orchestrator runtime và Connector durable stores, được kiểm chứng bởi `services/orchestrator/tests/runtime.test.ts` và các opt-in Connector durable suites; artifact/object-storage, fan-out/HITL và lifecycle đầy đủ vẫn chưa được materialize. UUID cho entity, UTC RFC3339 cho timestamp, integer cho token/bytes, decimal hoặc integer micro-USD cho tiền; không dùng floating point tích lũy billing.
+Đây là đặc tả logic chuẩn. SQL hiện đã có cho minimal Orchestrator runtime và Connector durable stores, được kiểm chứng bởi `orchestrator/services/orchestrator/tests/runtime.test.ts` và các opt-in Connector durable suites; artifact/object-storage, fan-out/HITL và lifecycle đầy đủ vẫn chưa được materialize. UUID cho entity, UTC RFC3339 cho timestamp, integer cho token/bytes, decimal hoặc integer micro-USD cho tiền; không dùng floating point tích lũy billing.
 
 ## Platform schema — Orchestrator owner
 
@@ -83,7 +83,7 @@ Retention cụ thể là config được chốt P0. Không xóa idempotency/chec
 
 ## Artifact encryption at rest (ADR-18 baseline — CHƯA triển khai)
 
-> **Trạng thái:** ADR-18 ghi baseline thiết kế; `ENC-00` vẫn `[~]` (partial). Không có code mã hóa nào tồn tại trong `services/orchestrator/src` hay `packages/contracts/src` tại thời điểm viết dòng này. Mục này đồng bộ tài liệu theo ADR đã duyệt, không mô tả hành vi đang chạy. Gate `G-ENC` mở cho đến khi ENC-01..ENC-09 + ENC-INT-01 triển khai, kiểm thử độc lập và Reviewer phê duyệt.
+> **Trạng thái:** ADR-18 ghi baseline thiết kế; `ENC-00` vẫn `[~]` (partial). Không có code mã hóa nào tồn tại trong `orchestrator/services/orchestrator/src` hay `orchestrator/packages/contracts/src` tại thời điểm viết dòng này. Mục này đồng bộ tài liệu theo ADR đã duyệt, không mô tả hành vi đang chạy. Gate `G-ENC` mở cho đến khi ENC-01..ENC-09 + ENC-INT-01 triển khai, kiểm thử độc lập và Reviewer phê duyệt.
 
 Mô hình envelope encryption (ADR-18 §Baseline kỹ thuật):
 
@@ -97,7 +97,7 @@ Cả hai backend (S3 production theo ADR-10, PG pilot ≤ 10 MB) đều nhận c
 
 ### ENC-META / ENC-09 — control-plane slots + backfill window (cập nhật 2026-10-05)
 
-Metadata/control-plane encryption giờ có **8 slot** được seal (`METADATA_SLOTS`, `services/orchestrator/src/modules/runtime/metadata-crypto.ts`): `operations.input_ref`, `tasks.payload_ref`, `human_waits.response_ref`, `step_checkpoints.output_ref`, **`step_checkpoints.session_ref`**, `operations.prompt_overrides_ref` (carrier Δ-PC-1) và **`tasks.result_ref` + `operations.result_ref`** (ENCMETA-RESULTREF, Option A — hai slot vì cùng một chuỗi nằm ở HAI row; AAD bind `(tenant, slot, refId)` nên replay chéo row ⇒ `CONTEXT_MISMATCH`).
+Metadata/control-plane encryption giờ có **8 slot** được seal (`METADATA_SLOTS`, `orchestrator/services/orchestrator/src/modules/runtime/metadata-crypto.ts`): `operations.input_ref`, `tasks.payload_ref`, `human_waits.response_ref`, `step_checkpoints.output_ref`, **`step_checkpoints.session_ref`**, `operations.prompt_overrides_ref` (carrier Δ-PC-1) và **`tasks.result_ref` + `operations.result_ref`** (ENCMETA-RESULTREF, Option A — hai slot vì cùng một chuỗi nằm ở HAI row; AAD bind `(tenant, slot, refId)` nên replay chéo row ⇒ `CONTEXT_MISMATCH`).
 
 - **Cột TEXT:** `result_ref` là cột text (0001) — envelope được bọc dạng **JSON text** (cùng convention `input_ref`), không phải object thô; trong backfill window hiện tại, cả 4 call-site của `readStoredText` truyền `allowPlaintext=true`: reader mở được sealed envelope khi có seam phù hợp và đọc legacy plaintext verbatim (best-effort); legacy rows vẫn plaintext-readable. Fail-closed `NOT_SEALED` chỉ có hiệu lực sau window switch (A3/A2), chưa được enforce ở các call-site hiện tại (A8).
 

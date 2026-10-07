@@ -430,7 +430,7 @@ describe('Provider-Backed Variant (DOC-02-01 extract/invoice) — SDK Facade & R
                   text: 'Invoice from Supplier XYZ INV-8899 Total $3500.00',
                   outputFormat: 'json',
                 },
-                pinned: { profileRevision: 1, promptRevisions: {}, connectorBindings: { reasoning: 'mock-llm@1' } },
+                pinned: { profilePolicy: null, profileRevision: 1, promptRevisions: {}, connectorBindings: { reasoning: 'mock-llm@1' } },
                 taskKey: 'task-extract-worker-loop',
                 kind: 'extract',
                 payloadRef: {},

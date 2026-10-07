@@ -23,7 +23,7 @@ Mục tiêu của bộ `architecture/` là cung cấp **một đường đọc t
 | Hướng dẫn vận hành/kiểm thử | `12b`, `13`, `17`, `22` | Quy trình và tiêu chí; chú ý nhãn draft/accepted của từng file. |
 | Audit/evidence/snapshot | `18–19`, `23–36` | Lịch sử quyết định, traceability, test inventory, run queue và acceptance ledger; không coi thống kê cũ là current status. |
 
-Các số file là cách đặt tên lịch sử, không chứng minh thứ tự ưu tiên hay hiệu lực. Ví dụ `docs/06-public-api.md` còn hàng “chưa implement” cho legacy route ở snapshot cũ, trong khi [server hiện tại](../services/orchestrator/src/server.ts) đã gọi `handleLegacyRoute`; kết luận về parity phải dựa route + test + contract hiện hành, không chỉ tiêu đề bảng.
+Các số file là cách đặt tên lịch sử, không chứng minh thứ tự ưu tiên hay hiệu lực. Ví dụ `docs/06-public-api.md` còn hàng “chưa implement” cho legacy route ở snapshot cũ, trong khi [server hiện tại](../orchestrator/services/orchestrator/src/server.ts) đã gọi `handleLegacyRoute`; kết luận về parity phải dựa route + test + contract hiện hành, không chỉ tiêu đề bảng.
 
 ## 3. Quy tắc cập nhật bộ kiến trúc này
 
@@ -35,4 +35,4 @@ Các số file là cách đặt tên lịch sử, không chứng minh thứ tự
 
 ## 4. Phạm vi chưa mô tả ở mức từng hàm
 
-Bộ này là tài liệu **toàn hệ thống**. Cây từng file và trách nhiệm chi tiết của hai service nằm trong [Connector architecture](../services/connector/CODE-ARCHITECTURE.md) và [Orchestrator architecture](../services/orchestrator/CODE-ARCHITECTURE.md). Business và package có README/source riêng; khi cần thay đổi một module, đọc tài liệu đó cùng code và tests tương ứng.
+Bộ này là tài liệu **toàn hệ thống**. Cây từng file và trách nhiệm chi tiết của hai service nằm trong [Connector architecture](../orchestrator/services/connector/CODE-ARCHITECTURE.md) và [Orchestrator architecture](../orchestrator/services/orchestrator/CODE-ARCHITECTURE.md). Business và package có README/source riêng; khi cần thay đổi một module, đọc tài liệu đó cùng code và tests tương ứng.

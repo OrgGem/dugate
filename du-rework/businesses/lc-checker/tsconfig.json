@@ -5,12 +5,12 @@
     "outDir": "dist",
     "rootDir": "src",
     "types": ["node", "jest"],
-    "typeRoots": ["../../packages/worker-sdk/node_modules/@types"],
+    "typeRoots": ["../../orchestrator/packages/worker-sdk/node_modules/@types"],
     "paths": {
-      "@du/contracts": ["../../packages/contracts"],
-      "@du/document-kit": ["../../packages/document-kit"],
-      "@du/worker-sdk": ["../../packages/worker-sdk"],
-      "@du/orchestrator": ["../../services/orchestrator/dist/index.d.ts"]
+      "@du/contracts": ["../../orchestrator/packages/contracts"],
+      "@du/document-kit": ["../../orchestrator/packages/document-kit"],
+      "@du/worker-sdk": ["../../orchestrator/packages/worker-sdk"],
+      "@du/orchestrator": ["../../orchestrator/services/orchestrator/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*.ts"],

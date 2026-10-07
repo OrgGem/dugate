@@ -48,4 +48,4 @@ Với compromise khẩn cấp: Security incident commander phải xác định p
 - Audit chỉ có metadata cần thiết; sink scan không tìm thấy secret sentinel trong DB plaintext, queue, response, logs, traces, HTML hoặc metric labels.
 - Change có người thực hiện/duyệt, thời gian, credential type/version marker, kết quả canary và rollback path; không đính kèm raw secret.
 
-**Tham chiếu:** `../../services/connector/src/services.ts`, `../../services/connector/src/http/server.ts`, `../../services/connector/src/entrypoint.ts`, `../../services/connector/src/db/repository.ts`; plan `../../tasks/SEC-OIDC-VAULT-2026-09-24.md`.
+**Tham chiếu:** `../../orchestrator/services/connector/src/services.ts`, `../../orchestrator/services/connector/src/http/server.ts`, `../../orchestrator/services/connector/src/entrypoint.ts`, `../../orchestrator/services/connector/src/db/repository.ts`; plan `../../tasks/SEC-OIDC-VAULT-2026-09-24.md`.

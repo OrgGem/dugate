@@ -130,7 +130,7 @@ describe('Cross-Service Process E2E (Orchestrator + Connector + Document-Core Wo
   // Suite-owned unique connector ID to prevent deleting shared connector revisions
   const connectorId = `doc-core-conn-${randomUUID().slice(0, 8)}`;
   const credentialRef = `cred-${connectorId}`;
-  const migrationDirectory = path.resolve(__dirname, '../../../services/connector/src/db/migrations');
+  const migrationDirectory = path.resolve(__dirname, '../../../orchestrator/services/connector/src/db/migrations');
 
   let initialExtractProfileRevision = 1;
   let initialConnectorRevision = 1;

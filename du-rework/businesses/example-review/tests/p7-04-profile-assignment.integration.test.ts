@@ -16,12 +16,12 @@ import {
   validateProfileDraft,
   type ProfileDraft,
   type ProfileSchemaInput,
-} from '../../../services/orchestrator/src/app/admin/profile-view-models';
+} from '../../../orchestrator/services/orchestrator/src/app/admin/profile-view-models';
 import {
   evaluateAuthGuard,
   getCanonicalNavItems,
-} from '../../../services/orchestrator/src/app/admin/p6-01-shell-fixtures';
-import { signCookie } from '../../../services/orchestrator/src/app/admin/shell-auth';
+} from '../../../orchestrator/services/orchestrator/src/app/admin/p6-01-shell-fixtures';
+import { signCookie } from '../../../orchestrator/services/orchestrator/src/app/admin/shell-auth';
 import {
   createTestIsolationContext,
   generateSchemaSetupDdl,

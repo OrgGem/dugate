@@ -1,7 +1,7 @@
 import { IngestAction } from '../src/actions/ingest';
 import { MockTaskContext } from './fixtures/mock-context';
-import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
-import { PdfSplitter } from '../../../packages/document-kit/src/formats/pdf-splitter';
+import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
+import { PdfSplitter } from '../../../orchestrator/packages/document-kit/src/formats/pdf-splitter';
 import { createHash } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

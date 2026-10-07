@@ -3,7 +3,7 @@ import { ArtifactRef } from '@du/contracts';
 import { defaultParserFactory, DocumentFormatDetector } from '@du/document-kit';
 import { TaskContext as SdkTaskContext } from '@du/worker-sdk';
 import { documentCoreHandlers } from '../src/worker';
-import { TestFixtures } from '../../../packages/document-kit/tests/fixtures/test-fixtures';
+import { TestFixtures } from '../../../orchestrator/packages/document-kit/tests/fixtures/test-fixtures';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 

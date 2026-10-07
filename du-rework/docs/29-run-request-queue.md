@@ -11,23 +11,23 @@ docs/19 change, NO P4-05/P4-08 adoption. DB column: DB = needs :5433/:6380
 | P0-03 | n/a docs-only (compat narrowed, gaps named) | du-rework | n/a | offline | docs | antigravity (verify only) |
 | P0-06 | n/a docs-only (targets docs/22) | du-rework | n/a | offline | docs | antigravity (verify only) |
 | P1-03 | python du-rework/tools/openapi/validate_openapi.py | repo root | OPENAPI-EXAMPLES-VALIDATED | offline | docs | antigravity |
-| P1-06 | npx jest tests/runtime.test.ts --runInBand -t "RUN-05 composite" | du-rework/services/orchestrator | RUN-05 composite (n=1): concurrent child completions emit exactly one continuation, no deadlock | DB | platform | antigravity |
-| P2-02 | npx jest tests/runtime.test.ts --runInBand -t "W13-C/PRF-01" | du-rework/services/orchestrator | W13-C/PRF-01: profile-mode key submitting an unauthorized action gets 403 and nothing is enqueued | DB | platform | antigravity |
-| P2-03 | npx jest tests/blob-wire-binary.test.ts --runInBand | du-rework/services/orchestrator | invalid-UTF-8 bytes round-trip byte-equal with octet-stream content-type | DB | platform | antigravity |
-| P2-10 | npx jest tests/runtime.test.ts --runInBand -t "runtime vertical slice" | du-rework/services/orchestrator | runtime vertical slice (isolated PG/Redis) | DB | platform | antigravity |
+| P1-06 | npx jest tests/runtime.test.ts --runInBand -t "RUN-05 composite" | du-rework/orchestrator/services/orchestrator | RUN-05 composite (n=1): concurrent child completions emit exactly one continuation, no deadlock | DB | platform | antigravity |
+| P2-02 | npx jest tests/runtime.test.ts --runInBand -t "W13-C/PRF-01" | du-rework/orchestrator/services/orchestrator | W13-C/PRF-01: profile-mode key submitting an unauthorized action gets 403 and nothing is enqueued | DB | platform | antigravity |
+| P2-03 | npx jest tests/blob-wire-binary.test.ts --runInBand | du-rework/orchestrator/services/orchestrator | invalid-UTF-8 bytes round-trip byte-equal with octet-stream content-type | DB | platform | antigravity |
+| P2-10 | npx jest tests/runtime.test.ts --runInBand -t "runtime vertical slice" | du-rework/orchestrator/services/orchestrator | runtime vertical slice (isolated PG/Redis) | DB | platform | antigravity |
 | P4-05 | npx jest tests/integration/p4-05-artifact-streams.integration.test.ts --runInBand | du-rework/tests/integration | uploadArtifact completes the real staged flow: grant -> PUT blob -> finalize READY | DB | sdk | antigravity |
 | P4-08 | npx jest tests/integration/p4-08-sdk-consumer.integration.test.ts --runInBand | du-rework/tests/integration | full cross-service run: submit -> dispatch -> SDK worker -> pending yield -> retry -> stable invocation -> SUCCEEDED | DB | sdk | antigravity |
-| P6-03 | npx jest tests/admin-profile-view-model.test.ts --runInBand | du-rework/services/orchestrator | (suite PASS; view-model slice only, rendered editor still open) | offline | admin-ui | antigravity |
-| P6-04 | npx jest tests/admin-connector-view-model.test.ts --runInBand | du-rework/services/orchestrator | (suite PASS; view-model slice only) | offline | admin-ui | antigravity |
-| P6-05 | npx jest tests/admin-api-key-view-model.test.ts --runInBand | du-rework/services/orchestrator | (suite PASS; view-model slice only) | offline | admin-ui | antigravity |
-| P6-06 | npx jest tests/admin-operation-view-model.test.ts --runInBand | du-rework/services/orchestrator | (suite PASS; view-model slice only) | offline | admin-ui | antigravity |
+| P6-03 | npx jest tests/admin-profile-view-model.test.ts --runInBand | du-rework/orchestrator/services/orchestrator | (suite PASS; view-model slice only, rendered editor still open) | offline | admin-ui | antigravity |
+| P6-04 | npx jest tests/admin-connector-view-model.test.ts --runInBand | du-rework/orchestrator/services/orchestrator | (suite PASS; view-model slice only) | offline | admin-ui | antigravity |
+| P6-05 | npx jest tests/admin-api-key-view-model.test.ts --runInBand | du-rework/orchestrator/services/orchestrator | (suite PASS; view-model slice only) | offline | admin-ui | antigravity |
+| P6-06 | npx jest tests/admin-operation-view-model.test.ts --runInBand | du-rework/orchestrator/services/orchestrator | (suite PASS; view-model slice only) | offline | admin-ui | antigravity |
 | P6-07 | n/a (needs browser screenshots + a11y, no command here) | du-rework | n/a | offline | admin-ui | antigravity (verify only) |
 | P7-03 | npx jest tests/p7-03-registry-live.integration.test.ts --runInBand | du-rework/businesses/example-review | (live registry registration and enablement proof) | DB | platform | antigravity |
 | P7-04 | npx jest tests/p7-04-profile-assignment.integration.test.ts --runInBand | du-rework/businesses/example-review | (live profile binding verification) | DB | platform | antigravity |
 | P7-07 | n/a (guide + digest evidence review) | du-rework | n/a | offline | docs | antigravity (verify only) |
 | P8-01 | n/a (audit docs/19 review) | du-rework | n/a | offline | docs | antigravity (verify only) |
 | P8-02 | npx jest tests/integration/p8-02-fault-recovery.integration.test.ts --runInBand | du-rework/tests/integration | (crash recovery, lease takeover, cancellation fault injection) | DB | platform | antigravity |
-| P8-03 | npx jest tests/p8-03-convergence.test.ts --runInBand | du-rework/services/connector | (usage outbox dispatch and idempotency projection) | DB | platform | antigravity |
+| P8-03 | npx jest tests/p8-03-convergence.test.ts --runInBand | du-rework/orchestrator/services/connector | (usage outbox dispatch and idempotency projection) | DB | platform | antigravity |
 | P8-05 | n/a (needs P0-06 targets + live benchmark run, separate plan) | du-rework | n/a | DB | platform | antigravity (plan only) |
 | P8-06 | n/a (packaging/health/migration/restore verification) | du-rework | n/a | DB | platform | antigravity (plan only) |
 | P8-07 | n/a (dashboards/runbooks verification) | du-rework | n/a | offline | platform | antigravity (verify only) |
@@ -81,16 +81,16 @@ NO DB USED by this file. This lane ran zero tests.
 ## W42-A70 Testing Lane Execution & Ledger Update (2026-09-23 22:46 +07:00, DB RELEASED)
 Source: Testing Lane (Antigravity-6). DB CLAIMED 22:42:30 -> DB RELEASED 22:46:30 +07:00.
 
-- **P2-03 (`services/orchestrator/tests/blob-wire-binary.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 5 passed, 5 total`, Exit Code: **0**, Time: **5.09s**. Successfully transitioned from `[GREEN-EXIT1]` to `[PASS]`. Eligible as acceptance evidence.
-- **P2-04 (`services/orchestrator/tests/ingress-bounded.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 8 passed, 8 total`, Exit Code: **0**, Time: **4.09s**. Successfully transitioned from `[GREEN-EXIT1]` to `[PASS]`.
-- **P2-08 (`services/orchestrator/tests/usage-summary.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 9 passed, 9 total`, Exit Code: **0**, Time: **4.07s**. Successfully transitioned from `[GREEN-EXIT1]` to `[PASS]`.
+- **P2-03 (`orchestrator/services/orchestrator/tests/blob-wire-binary.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 5 passed, 5 total`, Exit Code: **0**, Time: **5.09s**. Successfully transitioned from `[GREEN-EXIT1]` to `[PASS]`. Eligible as acceptance evidence.
+- **P2-04 (`orchestrator/services/orchestrator/tests/ingress-bounded.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 8 passed, 8 total`, Exit Code: **0**, Time: **4.09s**. Successfully transitioned from `[GREEN-EXIT1]` to `[PASS]`.
+- **P2-08 (`orchestrator/services/orchestrator/tests/usage-summary.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 9 passed, 9 total`, Exit Code: **0**, Time: **4.07s**. Successfully transitioned from `[GREEN-EXIT1]` to `[PASS]`.
 - **P4-05 (`tests/integration/p4-05-artifact-streams.integration.test.ts`):** **ANSWERED-FAIL (Exit 1)**. Rerun under MM-13 isolation: `Tests: 1 failed, 6 passed, 7 total`, Exit Code: **1**, Time: **4.07s**. Fails line 280 on base64 JSON payload mismatch (`expect(decoded.equals(payloadCopy)).toBe(true)` received `false`). **DO NOT ADOPT; STAYS [ ]**.
 - **P4-08 (`tests/integration/p4-08-sdk-consumer.integration.test.ts`):** **ANSWERED-BLOCKED (Exit 1)**. Rerun under MM-13 isolation: `Tests: 1 failed, 1 total`, Exit Code: **1**, Time: **70.51s**.
   - **TypeScript compilation:** `TS2345` is **100% CLEARED** (0 compile errors).
   - **Runtime execution:** Mock provider returns HTTP 202 `PROVIDER_PENDING`, worker records `errorCode: PROVIDER_PENDING`. Operation fails to transition to `SUCCEEDED` and times out after 60s -> `FAILED`. Blocked on P3 connector HTTP-202 polling replay contract. **DO NOT ADOPT; STAYS [ ]**.
 - **Package regressions (`worker-sdk` & `connector-client`):** Both rerun offline with `npx jest --runInBand`:
-  - `packages/worker-sdk`: `Tests: 120 passed, 120 total`, Exit Code: 0 (4.244s). Zero regressions.
-  - `packages/connector-client`: `Tests: 1 skipped, 19 passed, 20 total`, Exit Code: 0 (3.082s). Zero regressions.
+  - `orchestrator/packages/worker-sdk`: `Tests: 120 passed, 120 total`, Exit Code: 0 (4.244s). Zero regressions.
+  - `orchestrator/packages/connector-client`: `Tests: 1 skipped, 19 passed, 20 total`, Exit Code: 0 (3.082s). Zero regressions.
 
 ---
 
@@ -98,7 +98,7 @@ Source: Testing Lane (Antigravity-6). DB CLAIMED 22:42:30 -> DB RELEASED 22:46:3
 Source: Testing Lane (Antigravity-6). DB CLAIMED 23:13:00 -> DB RELEASED 23:14:30 +07:00.
 
 - **P4-05 (`tests/integration/p4-05-artifact-streams.integration.test.ts`):** **ANSWERED-FAIL (Exit 1)**. Rerun under MM-13 isolation: `Tests: 1 failed, 6 passed, 7 total`, Exit Code: **1**, Time: **3.10s**. Fails line 280 due to test-side base64 decode shim vs raw wire response. Stays `[ ]`.
-- **P3-07 (`packages/connector-client/tests/real-service.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation with `CONNECTOR_INTEGRATION=1`: `Tests: 1 passed, 1 total`, Exit Code: **0**, Time: **4.08s**. "19/20" resolved: 19 offline pass + 1 live pass = 20/20 total tests pass. Zero regressions from Codex-2 22:32 edit. Confirms `P3-07` [x].
+- **P3-07 (`orchestrator/packages/connector-client/tests/real-service.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation with `CONNECTOR_INTEGRATION=1`: `Tests: 1 passed, 1 total`, Exit Code: **0**, Time: **4.08s**. "19/20" resolved: 19 offline pass + 1 live pass = 20/20 total tests pass. Zero regressions from Codex-2 22:32 edit. Confirms `P3-07` [x].
 - **P5-10 (`businesses/document-core/tests/multi-container-e2e.integration.test.ts`):** **ANSWERED-FAIL (Exit 1)**. Rerun under MM-13 isolation: `Tests: 3 failed, 10 passed, 13 total`, Exit Code: **1**, Time: **54.38s**. 3 functional failures: version pinning (L1522), lease crash recovery leased_by null (L1693), and connector revision pinning barrier timeout 15s (L1858:24). Stays `[~]`.
 - **P4-02 (`businesses/document-core/tests/bullmq-smoke.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 1 passed, 1 total`, Exit Code: **0**, Time: **4.08s**. Consumer startup timing race resolved cleanly. Officially confirms and unblocks `P4-02` [x]!
 
@@ -109,7 +109,7 @@ Source: Testing Lane (Antigravity-6). DB CLAIMED 23:46:45 -> DB RELEASED 23:47:1
 
 - **P4-05 (`tests/integration/p4-05-artifact-streams.integration.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 7 passed, 7 total`, Exit Code: **0**, Time: **5.10s**. Test-side base64 decode shim was removed at line 279 by P4-05 owner; assertion now checks raw byte equality `onDisk.equals(payloadCopy)` directly against raw wire output. 100% green. **OFFICIALLY READY FOR ADOPTION / `P4-05` [x]!**
 - **P2-07 (`tests/integration/artifacts-grants.integration.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 1 passed, 1 total`, Exit Code: **0**, Time: **3.10s**. Re-verifies CR-13 raw byte stream. Confirms `P2-07` [x].
-- **P2-03 (`services/orchestrator/tests/blob-wire-binary.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 5 passed, 5 total`, Exit Code: **0**, Time: **4.07s**. Re-verifies CR-13 binary wire round-trip byte-equal. Confirms `P2-03` [x].
+- **P2-03 (`orchestrator/services/orchestrator/tests/blob-wire-binary.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 5 passed, 5 total`, Exit Code: **0**, Time: **4.07s**. Re-verifies CR-13 binary wire round-trip byte-equal. Confirms `P2-03` [x].
 
 ---
 
@@ -120,7 +120,7 @@ Source: Testing Lane (Antigravity-6). DB CLAIMED 06:11:00 -> DB RELEASED 06:13:4
 - **P4-08 (`tests/integration/p4-08-sdk-consumer.integration.test.ts`):** **ANSWERED-FAIL (Exit 1)**. Rerun under MM-13 isolation: `Tests: 1 failed, 1 total`, Exit Code: **1**, Time: **63.41s**. TS2345 compile clean; runtime poll timeout 60s (last: FAILED). Awaiting P3 connector HTTP-202 polling replay contract. Stays `[ ]`.
 - **P5-10 (`businesses/document-core/tests/multi-container-e2e.integration.test.ts`):** **ANSWERED-FAIL (Exit 1)**. Rerun under MM-13 isolation: `Tests: 3 failed, 10 passed, 13 total`, Exit Code: **1**, Time: **52.32s**. 3 functional failures: version pinning (L1522), lease crash recovery leased_by null (L1693), and connector revision pinning barrier timeout 15s (L1858:24). Reviewer Codex-3 finding R24-02 verified (monkey-patched fetch & base64 fallback present, owned by P5/document-core). Stays `[~]`.
 - **P4-02 (`businesses/document-core/tests/bullmq-smoke.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 1 passed, 1 total`, Exit Code: **0**, Time: **4.10s**. Consumer startup timing race resolved cleanly. Confirms `P4-02` [x].
-- **P2-04/05/06/08/09 (`services/orchestrator/tests/runtime.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 97 passed, 97 total`, Exit Code: **0**, Time: **12.14s**. Fresh live sandbox proof; confirms `P2-04`, `P2-05`, `P2-06`, `P2-08`, and `P2-09` [x].
+- **P2-04/05/06/08/09 (`orchestrator/services/orchestrator/tests/runtime.test.ts`):** **ANSWERED-PASS (Exit 0)**. Rerun under MM-13 isolation: `Tests: 97 passed, 97 total`, Exit Code: **0**, Time: **12.14s**. Fresh live sandbox proof; confirms `P2-04`, `P2-05`, `P2-06`, `P2-08`, and `P2-09` [x].
 
 
 ---
@@ -136,7 +136,7 @@ yêu cầu cập nhật vào docs/29 — đã có sẵn, xác nhận lại rõ r
 | `tests/integration/p4-08-sdk-consumer.integration.test.ts` | P4-08 | **ANSWERED-FAIL** | `Tests: 1 failed, 1 total`, Exit **1**, 63.41s — TS2345 sạch; runtime poll timeout 60s → FAILED; chờ P3 connector HTTP-202 replay contract. P4-08 giữ [ ] |
 | `businesses/document-core/tests/multi-container-e2e.integration.test.ts` | P5-10 | **ANSWERED-FAIL** | `Tests: 3 failed, 10 passed, 13 total`, Exit **1**, 52.32s — L1522 version pinning, L1693 crash lease, L1858 barrier 15s; R24-02 verified. P5-10 giữ [~] |
 | `businesses/document-core/tests/bullmq-smoke.test.ts` | P4-02 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0**, 4.10s — race giải tỏa; P4-02 [x] |
-| `services/orchestrator/tests/runtime.test.ts` | P2-04..09 | **ANSWERED-PASS** | `Tests: 97 passed, 97 total`, Exit **0**, 12.14s — sandbox live mới |
+| `orchestrator/services/orchestrator/tests/runtime.test.ts` | P2-04..09 | **ANSWERED-PASS** | `Tests: 97 passed, 97 total`, Exit **0**, 12.14s — sandbox live mới |
 
 Ghi chú: coordinator W43-Q6 nói batch 07:02 của testing lane sẽ tới — hiện chưa thấy trong
 `antigravity.md` (grep `07:02|ANSWERED` không khớp); nếu batch 07:02 xuất bản thì nó SUPERSEDE
@@ -153,11 +153,11 @@ là nguyên văn từ ledger của testing lane — lane này (Qwen-2) không t�
 
 | Suite / Command | Row | Status | Literal + ExitCode (W42-A77/A78) |
 |---|---|:---:|---|
-| `services/orchestrator/tests/operation-tenant-fence.test.ts` | R24-01 (P2-07/P8-04) | **ANSWERED-PASS** | `Tests: 4 passed, 4 total`, Exit **0**, 4.48s — **R24-01 real-HTTP VERIFIED**: foreign TERMINAL `?wait=30` → 404 sau 41 ms; foreign ACTIVE `?wait=10` → 404 sau 15 ms (zero timing leak); ownership flip mid-poll → 404 sau 1035 ms (re-fence từng vòng); authorized long-poll → 200 terminal. **Blocker an ninh duy nhất còn mở → ĐÃ ĐÓNG bằng bằng chứng live.** RQ-6 RESOLVED. |
+| `orchestrator/services/orchestrator/tests/operation-tenant-fence.test.ts` | R24-01 (P2-07/P8-04) | **ANSWERED-PASS** | `Tests: 4 passed, 4 total`, Exit **0**, 4.48s — **R24-01 real-HTTP VERIFIED**: foreign TERMINAL `?wait=30` → 404 sau 41 ms; foreign ACTIVE `?wait=10` → 404 sau 15 ms (zero timing leak); ownership flip mid-poll → 404 sau 1035 ms (re-fence từng vòng); authorized long-poll → 200 terminal. **Blocker an ninh duy nhất còn mở → ĐÃ ĐÓNG bằng bằng chứng live.** RQ-6 RESOLVED. |
 | `tests/blob-wire-binary.test.ts tests/ingress-bounded.test.ts tests/usage-summary.test.ts tests/operation-tenant-fence.test.ts` (4-suite regression, Claude Code) | CR-11/CR-13/W39-C/R24-01 | **ANSWERED-PASS** | `Test Suites: 4 passed, 4 total; Tests: 26 passed, 26 total`, Exit **0**, 6.98s — zero regression cụm orchestrator. |
 | `tests/integration/p4-05-artifact-streams.integration.test.ts` | P4-05 | **ANSWERED-PASS** | `Tests: 7 passed, 7 total`, Exit **0** (W42-A76/A77 4.10s) — P4-05 [x]. RQ-3 RESOLVED. |
 | `businesses/document-core/tests/bullmq-smoke.test.ts` | P4-02 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0**, 3.56s — P4-02 [x]. RQ-1 RESOLVED. |
-| `services/orchestrator/tests/runtime.test.ts` | P2-04..09 | **ANSWERED-PASS** | `Tests: 97 passed, 97 total`, Exit **0**, 10.04s. |
+| `orchestrator/services/orchestrator/tests/runtime.test.ts` | P2-04..09 | **ANSWERED-PASS** | `Tests: 97 passed, 97 total`, Exit **0**, 10.04s. |
 | `businesses/document-core/tests/multi-container-e2e.integration.test.ts` | P5-10 | **ANSWERED-FAIL (chức năng)** | `Tests: 3 failed, 10 passed, 13 total`, Exit **1**, 50.62s — R24-02: L1522 version pinning, L1693 lease recovery, L1858 15s barrier. P5-10 giữ [~]. RQ-4 RESOLVED-fail. |
 | `tests/integration/p4-08-sdk-consumer.integration.test.ts` | P4-08 | **ANSWERED-FAIL (chức năng)** | `Tests: 1 failed, 1 total`, Exit **1**, 61.98s — TS2345 sạch; timeout 60s `(last: FAILED)`; chờ P3 HTTP-202 replay contract. P4-08 giữ [ ]. RQ-2 RESOLVED-fail. |
 
@@ -217,9 +217,9 @@ Xác minh hoàn tất fix CR-12 của Claude Code (W48-C9):
 
 | Suite | Row / Anchor | Status | Literal + ExitCode (W42-A90) | Ghi Chú |
 |---|---|:---:|---|---|
-| `services/orchestrator/tests/blob-wire-binary.test.ts` | P2-03 | **ANSWERED-PASS** | `Tests: 8 passed, 8 total`, Exit **0** (4.08s) | Sửa fixture token_mode='upload' + rotateGrant cho download. Hồi quy xóa sạch 100%. |
-| `services/orchestrator/tests/ingress-bounded.test.ts` | P2-04 | **ANSWERED-PASS** | `Tests: 8 passed, 8 total`, Exit **0** (4.08s) | Sửa fixture blob PUT. Hồi quy xóa sạch 100%. |
-| `services/orchestrator/tests/usage-summary.test.ts` | P2-08 | **ANSWERED-PASS** | `Tests: 9 passed, 9 total`, Exit **0** (4.11s) | Không có hồi quy. 100% green. |
+| `orchestrator/services/orchestrator/tests/blob-wire-binary.test.ts` | P2-03 | **ANSWERED-PASS** | `Tests: 8 passed, 8 total`, Exit **0** (4.08s) | Sửa fixture token_mode='upload' + rotateGrant cho download. Hồi quy xóa sạch 100%. |
+| `orchestrator/services/orchestrator/tests/ingress-bounded.test.ts` | P2-04 | **ANSWERED-PASS** | `Tests: 8 passed, 8 total`, Exit **0** (4.08s) | Sửa fixture blob PUT. Hồi quy xóa sạch 100%. |
+| `orchestrator/services/orchestrator/tests/usage-summary.test.ts` | P2-08 | **ANSWERED-PASS** | `Tests: 9 passed, 9 total`, Exit **0** (4.11s) | Không có hồi quy. 100% green. |
 | `tests/integration/p4-05-artifact-streams.integration.test.ts` | P4-05 | **ANSWERED-PASS** | `Tests: 7 passed, 7 total`, Exit **0** (3.09s) | Tái xác nhận raw bytes wire 100% green. P4-05 [x]. |
 
 - **Tổng hợp**: 4/4 suite pass, 32/32 tests pass, ExitCode 0. Hồi quy CR-12 được khắc phục hoàn toàn.
@@ -294,8 +294,8 @@ Source: Testing Lane (Antigravity-6). DB CLAIMED 12:31:29 -> DB RELEASED 12:34:5
 Xác minh 2 RUN REQUEST song song trong cùng 1 window:
 
 ### 1. Claude Code RUN REQUEST (`claude.md:1-9`):
-- `services/orchestrator/tests/artifact-grant-fencing.test.ts`: **PASS** (`Tests: 10 passed, 10 total`, ExitCode **0**, 2.486s).
-- `services/orchestrator/tests/operation-tenant-fence.test.ts`: **PASS** (`Tests: 4 passed, 4 total`, ExitCode **0**, 4.235s).
+- `orchestrator/services/orchestrator/tests/artifact-grant-fencing.test.ts`: **PASS** (`Tests: 10 passed, 10 total`, ExitCode **0**, 2.486s).
+- `orchestrator/services/orchestrator/tests/operation-tenant-fence.test.ts`: **PASS** (`Tests: 4 passed, 4 total`, ExitCode **0**, 4.235s).
 - Tổng cộng: **14/14 tests pass, ExitCode 0**. P2-07 / P8-04 / R24-01 live evidence hoàn thành trọn vẹn. Sẵn sàng cho C reconcile P2-07 lên [x].
 
 ### 2. Qwen-3 RUN REQUEST (`qwen3.md:152-162`, R24-02 fix proof):
@@ -313,7 +313,7 @@ Source: Testing Lane (Antigravity-6). DB CLAIMED 12:43:06 -> DB RELEASED 12:48:1
 Xác minh 2 RUN REQUEST đồng thời trong cùng 1 window:
 
 ### 1. Claude Code ADM-BASE-01 Live Route Verification (`server.ts` & `claude.md:9-12`):
-- Suite: `services/orchestrator/tests/admin-base-routes.test.ts`.
+- Suite: `orchestrator/services/orchestrator/tests/admin-base-routes.test.ts`.
 - Kết quả: **PASS** (`Tests: 7 passed, 7 total`, ExitCode **0**, 2.355s).
 - Xác minh: 6 Admin GET routes (`businesses`, `businesses/:id/versions`, `profiles/:b/:v/:name`, `connectors/:id/revisions/:rev`, `api-keys[/:keyId]`, `audit`) đều trả dữ liệu THẬT, đúng wire shape, secret masked, auth-fenced 401 chuẩn. Zero not-found fake panes.
 - **Handoff**: **ADM-BASE-01 HOÀN TẤT VÀ VERIFIED LIVE**. OpenClaude được giải toả (unblocked) sau 153 phút chờ để kích hoạt Playwright browser tests!
@@ -332,9 +332,9 @@ Xác minh 2 RUN REQUEST đồng thời trong cùng 1 window:
 
 | Suite | Row | Status | Literal + ExitCode | Nguồn |
 |---|---|:---:|---|---|
-| `services/orchestrator/tests/admin-base-routes.test.ts` | ADM-BASE-01 (P2-02) | **ANSWERED-PASS** | `Tests: 7 passed, 7 total`, Exit **0**, 2.355s — 6/6 Admin GET routes VERIFIED live, data THẬT, zero fake-pane | A96 §1 |
-| `services/orchestrator/tests/artifact-grant-fencing.test.ts` | P2-07 | **ANSWERED-PASS** | `Tests: 10 passed, 10 total`, Exit **0**, 2.486s (A93 ghi NOT-ON-DISK → A95 đã chạy: tồn tại + pass) | A95 §1 |
-| `services/orchestrator/tests/operation-tenant-fence.test.ts` | R24-01 | **ANSWERED-PASS** (x2) | `4 passed, 4 total` exit 0 (A93 4.372s; A95 4.235s) | A93/A95 |
+| `orchestrator/services/orchestrator/tests/admin-base-routes.test.ts` | ADM-BASE-01 (P2-02) | **ANSWERED-PASS** | `Tests: 7 passed, 7 total`, Exit **0**, 2.355s — 6/6 Admin GET routes VERIFIED live, data THẬT, zero fake-pane | A96 §1 |
+| `orchestrator/services/orchestrator/tests/artifact-grant-fencing.test.ts` | P2-07 | **ANSWERED-PASS** | `Tests: 10 passed, 10 total`, Exit **0**, 2.486s (A93 ghi NOT-ON-DISK → A95 đã chạy: tồn tại + pass) | A95 §1 |
+| `orchestrator/services/orchestrator/tests/operation-tenant-fence.test.ts` | R24-01 | **ANSWERED-PASS** (x2) | `4 passed, 4 total` exit 0 (A93 4.372s; A95 4.235s) | A93/A95 |
 | `businesses/document-core/tests/multi-container-e2e.integration.test.ts` | P5-10 / **R24-02** | **ANSWERED-FAIL — R24-02 KHÔNG done (3 fail)** | `Tests: 3 failed, 10 passed, 13 total (0 skipped)`, Exit **1**, 50.235s — L1485 version pinning (1.1.0≠1.0.0), L1656 crash lease (null), L1821 PRF-02 barrier 15s | A96 §2 |
 
 **Lưu ý phán quyết R24-02 (giữ bằng chứng hai chiều, không diễn giải lại):** A95 tuyên bố "R24-02 chính thức
@@ -355,7 +355,7 @@ provider-poll cho invocation PENDING → mở `P4-08`. p4-08 fail là RUNTIME th
   `RUN REQUEST: npx jest tests/integration/p4-08-sdk-consumer.integration.test.ts --runInBand --forceExit` (toàn bộ, **13/13 executed, không skip**) | cwd `du-rework/tests/integration` | output literal kỳ vọng: `Tests: 13 passed, 13 total`, ExitCode 0 | row cần chứng minh: **P4-08 [ ]** (đồng thời nghiệm thu MM-06/MM-07 poll convergence + replay) | routing: **antigravity (term_47a1d44b, TESTING LANE, chủ window DB duy nhất)** — Qwen-2 KHÔNG tự chạy live.
 - **Điều kiện phát:** Codex-2 ghi RUN REQUEST chính thức trong `reports/codex2.md` + file chỉ số.
 - **[ĐÃ RESOLVED — W42-A98 (13:52) + W42-A99 tái xác nhận (14:44)]: ANSWERED-PASS** `Tests: 1 passed, 1 total`, Exit **0**, 0 skipped — Codex-2 đã nộp poll fix trong `services/connector`; 202→RETRY_PENDING→redelivery→SUCCEEDED 2.8s; timeout 60s lịch sử hết. **Sửa spec của chính tôi ở block này: suite p4-08 chỉ có 1 test (form "13/13 executed" là nhầm với multi-container 13 test); executed-toàn-bộ = 1/1, đạt §1.4.** P4-08 reconcile [x] = quyền coordinator.
-- **Ghi chú skip (luật fleet):** `packages/connector-client` offline = `Tests: 1 skipped, 19 passed, 20 total` exit 0 — **skip KHÔNG tính pass**; test thứ 20 (`real-service.test.ts:152`, gate `CONNECTOR_INTEGRATION=1`) vẫn MỞ ở offline; bằng chứng chỉ hợp lệ khi gated-live (A72 từng 1/1 exit 0 — cần thì chạy lại qua window antigravity).
+- **Ghi chú skip (luật fleet):** `orchestrator/packages/connector-client` offline = `Tests: 1 skipped, 19 passed, 20 total` exit 0 — **skip KHÔNG tính pass**; test thứ 20 (`real-service.test.ts:152`, gate `CONNECTOR_INTEGRATION=1`) vẫn MỞ ở offline; bằng chứng chỉ hợp lệ khi gated-live (A72 từng 1/1 exit 0 — cần thì chạy lại qua window antigravity).
 
 ---
 
@@ -388,12 +388,12 @@ Xác minh cụm RUN REQUEST W44-C2Y của Codex-2 (`codex2.md:472-485`, cross-te
 
 | Suite | Row / Anchor | Status | Literal + ExitCode (W42-A99) | Ghi Chú |
 |---|---|:---:|---|---|
-| `services/connector/tests/invocation-access.test.ts` | SEC-01 / P3 | **ANSWERED-PASS** | `Tests: 2 passed, 2 total`, Exit **0** (2.513s), 0 skipped, 0 failed | Offline security. Result & cancel require signed grant bound to tenant & invocation ID; bad grant 401/403. |
+| `orchestrator/services/connector/tests/invocation-access.test.ts` | SEC-01 / P3 | **ANSWERED-PASS** | `Tests: 2 passed, 2 total`, Exit **0** (2.513s), 0 skipped, 0 failed | Offline security. Result & cancel require signed grant bound to tenant & invocation ID; bad grant 401/403. |
 | `tests/integration/p4-08-sdk-consumer.integration.test.ts` | P4-08 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (2.578s Jest, 7.09s batch), 0 skipped, 0 failed | Tái xác nhận độc lập: live P4-08 chạy qua real P2 + real P3 connector xanh 100%. |
-| `services/connector/tests/runtime-foundations.test.ts` | P3 foundations | **ANSWERED-PASS** | `Tests: 5 passed, 5 total`, Exit **0** (2.008s), 0 skipped, 0 failed | Redis quota eval, header redaction, grant forwarding on read/cancel, outbox dedup. |
-| `services/connector/tests/black-box-durable.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (2.871s), 0 skipped, 0 failed | Gated live DB/Redis (`CONNECTOR_INTEGRATION=1`). Replay after restart, management redaction. |
-| `services/connector/tests/durable-integration.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 2 passed, 2 total`, Exit **0** (1.981s), 0 skipped, 0 failed | Gated live DB/Redis (`CONNECTOR_INTEGRATION=1`). Migrations ping + shared Redis quota. |
-| `packages/connector-client/tests/real-service.test.ts` | P3-07 / P4-07 | **ANSWERED-FAIL (Finding CX2)** | `Tests: 1 failed, 1 total`, Exit **1** (3.047s), 0 skipped | Inlined test helper `httpTransport` thiếu header `x-invocation-grant` khi gọi poll/cancel sau khi P3 siết auth. Handoff trả CX2 sửa. |
+| `orchestrator/services/connector/tests/runtime-foundations.test.ts` | P3 foundations | **ANSWERED-PASS** | `Tests: 5 passed, 5 total`, Exit **0** (2.008s), 0 skipped, 0 failed | Redis quota eval, header redaction, grant forwarding on read/cancel, outbox dedup. |
+| `orchestrator/services/connector/tests/black-box-durable.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (2.871s), 0 skipped, 0 failed | Gated live DB/Redis (`CONNECTOR_INTEGRATION=1`). Replay after restart, management redaction. |
+| `orchestrator/services/connector/tests/durable-integration.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 2 passed, 2 total`, Exit **0** (1.981s), 0 skipped, 0 failed | Gated live DB/Redis (`CONNECTOR_INTEGRATION=1`). Migrations ping + shared Redis quota. |
+| `orchestrator/packages/connector-client/tests/real-service.test.ts` | P3-07 / P4-07 | **ANSWERED-FAIL (Finding CX2)** | `Tests: 1 failed, 1 total`, Exit **1** (3.047s), 0 skipped | Inlined test helper `httpTransport` thiếu header `x-invocation-grant` khi gọi poll/cancel sau khi P3 siết auth. Handoff trả CX2 sửa. |
 
 - **Trạng thái DB**: DB window đã hoàn trả RELEASED lúc 14:44:00 (0 active queries, 0 ungranted locks). Cửa sổ hoàn toàn FREE.
 
@@ -406,8 +406,8 @@ Xác minh RUN REQUEST W44-C2Y (durable DB coverage) từ Codex-2 (`services/conn
 
 | Suite | Row / Anchor | Status | Literal + ExitCode | Ghi Chú |
 |---|---|:---:|---|---|
-| `services/connector/tests/black-box-durable.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (101ms test, 2.063s suite), 0 skipped, 0 failed | Live HTTP invocation + management redaction + restart recovery replay qua real PG :5433 + Redis :6380. |
-| `services/connector/tests/durable-integration.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 2 passed, 2 total`, Exit **0** (22ms test, 2.063s suite), 0 skipped, 0 failed | Migration recognition (20ms) + shared Redis quota in-flight cap (2ms). |
+| `orchestrator/services/connector/tests/black-box-durable.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (101ms test, 2.063s suite), 0 skipped, 0 failed | Live HTTP invocation + management redaction + restart recovery replay qua real PG :5433 + Redis :6380. |
+| `orchestrator/services/connector/tests/durable-integration.test.ts` | P3 durable | **ANSWERED-PASS** | `Tests: 2 passed, 2 total`, Exit **0** (22ms test, 2.063s suite), 0 skipped, 0 failed | Migration recognition (20ms) + shared Redis quota in-flight cap (2ms). |
 
 - **Migrations Applied (`connector_schema_migrations`)**: 4/4 versions applied đầy đủ (`001_connector`, `002_connector_poll_recovery`, `003_connector_quota_carry`, `004_connector_poll_backoff`).
 - **Trạng thái DB**: DB window đã hoàn trả RELEASED lúc 14:51:00 (0 active queries, 0 ungranted locks). Cửa sổ hoàn toàn FREE.
@@ -417,13 +417,13 @@ Xác minh RUN REQUEST W44-C2Y (durable DB coverage) từ Codex-2 (`services/conn
 ## W44-C2Z-1 Real Connector-Client Live Regression Ledger (Testing Lane / Antigravity-6, 15:00 +07:00, DB RELEASED)
 
 Source: Testing Lane (Antigravity-6). DB CLAIMED 14:58:55 -> DB RELEASED 15:00:10 +07:00 (1m15s).
-Xác minh RUN REQUEST W44-C2Z-1 từ Codex-2 (`packages/connector-client`):
+Xác minh RUN REQUEST W44-C2Z-1 từ Codex-2 (`orchestrator/packages/connector-client`):
 
 | Suite | Row / Anchor | Status | Literal + ExitCode | Ghi Chú |
 |---|---|:---:|---|---|
-| `packages/connector-client/tests/real-service.test.ts` | P3-07 / P4-07 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (97ms test, 2.994s suite), 0 skipped, 0 failed | Gated live test (`CONNECTOR_INTEGRATION=1`). Cả 4 thao tác invoke, poll, wait, cancel thi hành 100% qua HTTP thật đối chiếu với `createConnectorComposition` trên PG :5433 + Redis :6380. Finding CX2 tại W42-A99 ĐÓNG HOÀN TOÀN. |
+| `orchestrator/packages/connector-client/tests/real-service.test.ts` | P3-07 / P4-07 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (97ms test, 2.994s suite), 0 skipped, 0 failed | Gated live test (`CONNECTOR_INTEGRATION=1`). Cả 4 thao tác invoke, poll, wait, cancel thi hành 100% qua HTTP thật đối chiếu với `createConnectorComposition` trên PG :5433 + Redis :6380. Finding CX2 tại W42-A99 ĐÓNG HOÀN TOÀN. |
 
-- **Full Package Verification**: Chạy toàn bộ package `packages/connector-client` với `CONNECTOR_INTEGRATION=1` đạt **`Test Suites: 4 passed, 4 total; Tests: 22 passed, 0 skipped, 0 failed, 22 total (ExitCode 0)`**.
+- **Full Package Verification**: Chạy toàn bộ package `orchestrator/packages/connector-client` với `CONNECTOR_INTEGRATION=1` đạt **`Test Suites: 4 passed, 4 total; Tests: 22 passed, 0 skipped, 0 failed, 22 total (ExitCode 0)`**.
 - **Trạng thái DB**: DB window đã hoàn trả RELEASED lúc 15:00:10 (0 active queries, 0 ungranted locks). Cửa sổ hoàn toàn FREE.
 
 ---
@@ -438,8 +438,8 @@ Xác minh RUN REQUEST #5 từ Qwen-3 (`qwen3.md:512-536`, `businesses/document-c
 | `businesses/document-core/tests/multi-container-e2e.integration.test.ts` | P5-10 / R24-02 | **ANSWERED-FAIL (Finding Q3)** | `Tests: 11 passed, 2 failed, 13 total`, Exit **1** (7.221s), 0 skipped | 3 lỗi nền tảng lịch sử (version pinning, crash lease, PRF-02 barrier) + 10 test reasoning: PASS 100%. 2 test fail (Test 2 :905 và Test 3 :941) do gọi `fetch` thiếu header `x-invocation-grant` vừa được siết ở W44-C2Y (Connector trả 403 BINDING_DENIED). Handoff trả Q3 sửa. |
 
 - **Offline Verifications Hoàn Thành**:
-  - `packages/connector-client/tests/transport.test.ts`: `18 passed, 18 total`, Exit **0** (W44-C2Z-2).
-  - `services/connector/tests/connector.test.ts`: `17 passed, 17 total`, Exit **0** (W44-C2Z-3).
+  - `orchestrator/packages/connector-client/tests/transport.test.ts`: `18 passed, 18 total`, Exit **0** (W44-C2Z-2).
+  - `orchestrator/services/connector/tests/connector.test.ts`: `17 passed, 17 total`, Exit **0** (W44-C2Z-3).
 - **Trạng thái DB**: DB window đã hoàn trả RELEASED lúc 15:03:15 (0 active queries, 0 ungranted locks). Cửa sổ hoàn toàn FREE.
 
 ---
@@ -447,11 +447,11 @@ Xác minh RUN REQUEST #5 từ Qwen-3 (`qwen3.md:512-536`, `businesses/document-c
 ## W44-C2Z-4 Live High B/C Connector Proof Ledger (Testing Lane / Antigravity-6, 15:10 +07:00, DB RELEASED)
 
 Source: Testing Lane (Antigravity-6). DB CLAIMED 15:09:00 -> DB RELEASED 15:10:16 +07:00 (1m16s).
-Xác minh RUN REQUEST W44-C2Z-4 từ Codex-2 (`services/connector/tests/black-box-durable.test.ts`):
+Xác minh RUN REQUEST W44-C2Z-4 từ Codex-2 (`orchestrator/services/connector/tests/black-box-durable.test.ts`):
 
 | Suite | Row / Anchor | Status | Literal + ExitCode | Ghi Chú |
 |---|---|:---:|---|---|
-| `services/connector/tests/black-box-durable.test.ts` | P3-07 / P4-07 / High B & C | **ANSWERED-PASS** | `Tests: 3 passed, 3 total`, Exit **0** (3.734s), 0 skipped, 0 failed | Gated black-box suite (`CONNECTOR_INTEGRATION=1`). Full live execution qua real PG :5433 và Redis :6380. High B (crash-lease, restart recovery, stale-token fencing with `INVOCATION_UNKNOWN`) và High C (cross-tenant 202 vs 429 `QUOTA_EXHAUSTED`, 0 provider calls blocked, terminal release) đều PASS 100%. |
+| `orchestrator/services/connector/tests/black-box-durable.test.ts` | P3-07 / P4-07 / High B & C | **ANSWERED-PASS** | `Tests: 3 passed, 3 total`, Exit **0** (3.734s), 0 skipped, 0 failed | Gated black-box suite (`CONNECTOR_INTEGRATION=1`). Full live execution qua real PG :5433 và Redis :6380. High B (crash-lease, restart recovery, stale-token fencing with `INVOCATION_UNKNOWN`) và High C (cross-tenant 202 vs 429 `QUOTA_EXHAUSTED`, 0 provider calls blocked, terminal release) đều PASS 100%. |
 
 - **Chi tiết Assertions High B/C**:
   - Test 1 (103ms): Replay POST `/invocations` không gọi lại provider (`providerCalls = 1`); Redaction credentials trên `/connectors`; GET `/invocations/:id` với `x-invocation-grant` trả `SUCCEEDED`.
@@ -464,12 +464,12 @@ Xác minh RUN REQUEST W44-C2Z-4 từ Codex-2 (`services/connector/tests/black-bo
 ## W44-C2Z-6 Live Public Client Recreated Grant Continuity Ledger (Testing Lane / Antigravity-6, 15:21 +07:00, DB RELEASED)
 
 Source: Testing Lane (Antigravity-6). DB CLAIMED 15:19:24 -> DB RELEASED 15:21:40 +07:00 (2m16s).
-Xác minh RUN REQUEST W44-C2Z-6 từ Codex-2 (`packages/connector-client/tests/transport.test.ts` & `tests/real-service.test.ts`):
+Xác minh RUN REQUEST W44-C2Z-6 từ Codex-2 (`orchestrator/packages/connector-client/tests/transport.test.ts` & `tests/real-service.test.ts`):
 
 | Suite | Row / Anchor | Status | Literal + ExitCode | Ghi Chú |
 |---|---|:---:|---|---|
-| `packages/connector-client/tests/real-service.test.ts` | P3-07 / P4-07 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (95ms test, 2.531s overall), 0 skipped, 0 failed | Gated live test (`CONNECTOR_INTEGRATION=1`). Recreates `ConnectorClient` sau `invoke()`, truyền explicit `invocationGrant` vào `poll()`, `wait()`, và `cancel()`. Terminal rejection (`INVOCATION_UNKNOWN`) và genuine pending cancel (`cancelled`) đều thi hành 100% qua HTTP thật đối chiếu PG :5433 + Redis :6380. |
-| `packages/connector-client/tests/transport.test.ts` | P3-07 / P4-07 | **ANSWERED-PASS** | `Tests: 19 passed, 19 total`, Exit **0** (offline transport shape & error mapping) | Wire assertions: Mang grant tự động từ invoke; nhận explicit `invocationGrant` sau transport recreation; map status, cancel, 429 rate limit, 5xx, contract freezing. |
+| `orchestrator/packages/connector-client/tests/real-service.test.ts` | P3-07 / P4-07 | **ANSWERED-PASS** | `Tests: 1 passed, 1 total`, Exit **0** (95ms test, 2.531s overall), 0 skipped, 0 failed | Gated live test (`CONNECTOR_INTEGRATION=1`). Recreates `ConnectorClient` sau `invoke()`, truyền explicit `invocationGrant` vào `poll()`, `wait()`, và `cancel()`. Terminal rejection (`INVOCATION_UNKNOWN`) và genuine pending cancel (`cancelled`) đều thi hành 100% qua HTTP thật đối chiếu PG :5433 + Redis :6380. |
+| `orchestrator/packages/connector-client/tests/transport.test.ts` | P3-07 / P4-07 | **ANSWERED-PASS** | `Tests: 19 passed, 19 total`, Exit **0** (offline transport shape & error mapping) | Wire assertions: Mang grant tự động từ invoke; nhận explicit `invocationGrant` sau transport recreation; map status, cancel, 429 rate limit, 5xx, contract freezing. |
 
 - **Tổng hợp 2 suite**: `Test Suites: 2 passed, 2 total; Tests: 20 passed, 0 skipped, 0 failed, 20 total` (ExitCode 0).
 - **Trạng thái DB**: DB window đã hoàn trả RELEASED lúc 15:21:40 (0 active queries, 0 ungranted locks). Cửa sổ hoàn toàn FREE.
@@ -527,7 +527,7 @@ Xác minh RUN REQUEST của Claude Code (`reports/claude.md:13-18`):
 - **Output literal kỳ vọng**: `Test Suites: 1 passed, 1 total` + `Tests: 13 passed, 13 total`, **0 skipped / 0 failed**, ExitCode **0** — kèm từng dòng `√ <tên test> (ms)` cho cả 13 test (đặc biệt 2 test idempotent-query + secondary-worker phải có dòng 403-then-200 theo assertion fail-closed mới)
 - **Row cần chứng minh**: `P5-10` [~] / R24-02 — **KHÔNG tick**; reconcile là quyền coordinator khi literal đạt §1.4 (docs/35).
 - **Trạng thái fixture**: bản vá grant ĐÃ ở trên disk (`signedInvocationGrant` :730 + 2 call-sites :959/:1001 kèm assertion 403 trước 200; `npm run lint` document-core exit 0, 17:52). Qwen-2 không mở DB.
-- **Nghiêm cấm kèm theo (theo chỉ đạo)**: không nới lỏng authorization tại `services/connector/src/services.ts:123-127`; mọi fix chỉ nằm trong fixture test.
+- **Nghiêm cấm kèm theo (theo chỉ đạo)**: không nới lỏng authorization tại `orchestrator/services/connector/src/services.ts:123-127`; mọi fix chỉ nằm trong fixture test.
 - **Bối cảnh**: run full được verify gần nhất = `11 passed, 2 failed, 13 total` exit 1 (codex3.md:245, 17:38) — 2 fail là fixture thiếu grant (product 403 đúng); sau vá cần run này để có canonical evidence.
 - **[ĐÃ RESOLVED — W46-A6-7, 18:04:10→18:04:30]: ANSWERED-PASS** `Test Suites: 1 passed, 1 total; Tests: 13 passed, 0 skipped, 0 failed, 13 total`, Exit **0** (6.873s) — đủ 13/13 executed, 2 case grant chạy đúng 403-then-200 fail-closed. Canonical evidence đạt §1.4 đã tồn tại; **P5-10 vẫn [~]** — reconcile [x] là quyền coordinator. Blocker của Qwen-2: ĐÓNG.
 
@@ -540,7 +540,7 @@ Xác minh 3 suite candidate cho P2-07 USE-01/02 usage dedup & projection:
 
 | File Candidate | Trạng Thái File | Test Suites | Tests | ExitCode | Ghi Chú |
 |---|:---:|:---:|:---:|:---:|---|
-| `services/orchestrator/tests/usage-projection.integration.test.ts` | **FILE MISSING** | 0/0 | 0 passed, 0 skipped, 0 failed, 0 total | **1** | File không tồn tại trên đĩa (`Test-Path = False`, Jest `No tests found`). Trong orchestrator chỉ có `usage-summary.test.ts`. |
+| `orchestrator/services/orchestrator/tests/usage-projection.integration.test.ts` | **FILE MISSING** | 0/0 | 0 passed, 0 skipped, 0 failed, 0 total | **1** | File không tồn tại trên đĩa (`Test-Path = False`, Jest `No tests found`). Trong orchestrator chỉ có `usage-summary.test.ts`. |
 | `tests/integration/usage-projection.integration.test.ts` | **EXISTS** | 1/1 passed | 1 passed, 0 skipped, 0 failed, 1 total | **0** | `deduplicates a real HttpUsageSink event and preserves its projection across restart` (537ms): Gửi event 2 lần liên tiếp -> restart Orchestrator -> gửi lại lần 3 -> `projectedAfterRestart.usage` bảo toàn tuyệt đối (`inputTokens: 41, outputTokens: 17, costMicrousd: 725, measurement: 'measured'`). |
 | `tests/integration/connector-usage.integration.test.ts` | **EXISTS** | 1/1 passed | 1 passed, 0 skipped, 0 failed, 1 total | **0** | `Connector HttpUsageSink delivers a usage event to the Orchestrator projection exactly once` (512ms): Append outbox -> dispatch 3 lần mô phỏng replay -> truy vấn SQL `usage_events` cho `operationId` có `count = 1`, `inputTokens = 41`, `outputTokens = 17`, `costMicrousd = 725` (zero double-billing). |
 
@@ -702,7 +702,7 @@ Qwen-2 khong tu chay: browser can trang thai cua OC (W47-C1/C2 dang mo), va quy 
 
 ## W48-A6fb2 RUN REQUEST (vòng 2) — p8-02b sau sửa feedback Agent-6 (routing: Agent-6 `term_47a1d44b`)
 
-- **Phân loại feedback (minh bạch hai phía):** MM-05a/b/c = **BUG TEST CỦA TÔI** (BullMQ v5 `getJob()` trả `undefined`, không phải `null` — đã đổi `toBeNull()`→`toBeUndefined()` tại helper :217). MM-10b = **KHÔNG phải bug test — DEFECT SẢN PHẨM**: heartbeat route chỉ fence theo lease epoch, KHÔNG kiểm terminal state → cancelled task vẫn nhận heartbeat 200 (trái acceptance P8-02 "Cancelled Worker Cannot Keep Leases", OPS-02/RUN-07). Route nằm `services/orchestrator/src` = boundary Claude Code — tôi KHÔNG sửa; đã ghi REQUEST tại reports/qwen2.md mục 28. MM-10b đổi thành DEFECT PROBE pinned 200 + 2 bất biến an toàn (state vẫn CANCELLED sau heartbeat; complete sau heartbeat vẫn 409/410).
+- **Phân loại feedback (minh bạch hai phía):** MM-05a/b/c = **BUG TEST CỦA TÔI** (BullMQ v5 `getJob()` trả `undefined`, không phải `null` — đã đổi `toBeNull()`→`toBeUndefined()` tại helper :217). MM-10b = **KHÔNG phải bug test — DEFECT SẢN PHẨM**: heartbeat route chỉ fence theo lease epoch, KHÔNG kiểm terminal state → cancelled task vẫn nhận heartbeat 200 (trái acceptance P8-02 "Cancelled Worker Cannot Keep Leases", OPS-02/RUN-07). Route nằm `orchestrator/services/orchestrator/src` = boundary Claude Code — tôi KHÔNG sửa; đã ghi REQUEST tại reports/qwen2.md mục 28. MM-10b đổi thành DEFECT PROBE pinned 200 + 2 bất biến an toàn (state vẫn CANCELLED sau heartbeat; complete sau heartbeat vẫn 409/410).
 - **Lệnh (root `du-rework`, 3 LAN lien tiep, ExitCode tung lan):** `set DU_LIVE_INFRA=1` + `npx jest tests/integration/p8-02b-redisloss-sameepoch-fault.integration.test.ts --config tests/integration/jest.config.cjs --runInBand`
 - **Literal kỳ vọng mỗi lần:** `Test Suites: 1 passed, 1 total | Tests: 6 passed, 6 total`, 0 skipped/0 failed, ExitCode 0.
 - **Compile-check offline của tôi (không phải bằng chứng):** `1 skipped | 6 skipped, 6 total`, EXIT=0, 23:51:04.
@@ -793,7 +793,7 @@ Qwen-2 khong tu chay: browser can trang thai cua OC (W47-C1/C2 dang mo), va quy 
 
 ### Static migration review / safety gate
 
-services/connector/src/db/migrations/005_connector_polling_state.sql replaces the state check to admit POLLING, converts only IN_FLIGHT rows that already own a poll token, then rebuilds the expired-poll partial index for POLLING. On the supported runner path, the migration and insertion of 005_connector_polling_state into connector_schema_migrations share one transaction; an error rolls back both. Re-running the SQL against a consistent schema converges to the same constraint, row mapping, and index predicate.
+orchestrator/services/connector/src/db/migrations/005_connector_polling_state.sql replaces the state check to admit POLLING, converts only IN_FLIGHT rows that already own a poll token, then rebuilds the expired-poll partial index for POLLING. On the supported runner path, the migration and insertion of 005_connector_polling_state into connector_schema_migrations share one transaction; an error rolls back both. Re-running the SQL against a consistent schema converges to the same constraint, row mapping, and index predicate.
 
 This is not a zero-lock migration: the constraint and index are dropped/recreated and the state update may touch rows. Do not run it during peak invocation traffic. The migration ledger check in PgSqlClient.migrate() is a read-then-write without a global migration lock; start exactly one migrator and wait for its receipt before starting/scaling other Connector instances. No down migration is supplied. Rollback is a maintenance operation after stopping all new Connector instances, taking/confirming a usable backup, and confirming no active poll owner; POLLING rows must be mapped back to IN_FLIGHT before deploying the old binary. Provider side effects cannot be undone by a schema rollback.
 
@@ -811,7 +811,7 @@ This is not a zero-lock migration: the constraint and index are dropped/recreate
 2. Claim the DB window. Record the source revision and migration SHA-256, identify the target database, and capture an approved pre-change backup or document that this is a disposable isolated test database with no retained data. Record whether these objects/receipt exist before the run. A missing migration table is a valid clean-database baseline; do not force-delete a receipt or reset a volume.
 
         git rev-parse HEAD
-        Get-FileHash du-rework/services/connector/src/db/migrations/005_connector_polling_state.sql -Algorithm SHA256
+        Get-FileHash du-rework/orchestrator/services/connector/src/db/migrations/005_connector_polling_state.sql -Algorithm SHA256
 
         docker compose -f du-rework/infra/docker-compose.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U du -d du_orchestrator_test -Atc "SELECT current_database(), version(); SELECT to_regclass('public.connector_schema_migrations'), to_regclass('public.connector_invocations');"
 
@@ -829,7 +829,7 @@ This is not a zero-lock migration: the constraint and index are dropped/recreate
 
         pnpm --filter @du/connector... build
 
-   Then from du-rework/services/connector, with CONNECTOR_DATABASE_URL set in the shell to the approved target URL (do not put credentials in a report):
+   Then from du-rework/orchestrator/services/connector, with CONNECTOR_DATABASE_URL set in the shell to the approved target URL (do not put credentials in a report):
 
         node -e 'const { PgSqlClient } = require("./dist/db/pg-client"); const db = new PgSqlClient({ connectionString: process.env.CONNECTOR_DATABASE_URL, migrationDirectory: require("node:path").resolve("src/db/migrations") }); db.migrate().then(() => db.close()).catch(async (error) => { console.error(error); await db.close(); process.exitCode = 1; });'
 
@@ -837,7 +837,7 @@ This is not a zero-lock migration: the constraint and index are dropped/recreate
 
 4. Before the integration suite, query the database again and save the output with the receipt. Required postconditions: exactly one 005_connector_polling_state receipt with applied_at; the state check includes POLLING; the named partial index predicate is state = 'POLLING' AND poll_lease_token IS NOT NULL; and the count of IN_FLIGHT rows with non-null poll tokens is zero. Confirm the remaining states and rows match the migration's narrow update; investigate any unexpected transition before proceeding.
 
-5. Run the real-container durable suite. It starts the Connector composition in-process and uses the live PostgreSQL/Redis endpoints; its beforeAll also calls the migration runner, which should now read the receipt and skip already-applied versions. From du-rework/services/connector in PowerShell:
+5. Run the real-container durable suite. It starts the Connector composition in-process and uses the live PostgreSQL/Redis endpoints; its beforeAll also calls the migration runner, which should now read the receipt and skip already-applied versions. From du-rework/orchestrator/services/connector in PowerShell:
 
         $env:CONNECTOR_INTEGRATION = '1'
         $env:CONNECTOR_DATABASE_URL = 'postgres://du:du-test-only@127.0.0.1:5433/du_orchestrator_test'
@@ -893,7 +893,7 @@ Verify the old check/index definitions and absence of POLLING rows before restar
 
 - **Gate tự xác minh bởi Qwen-2 (04:1x, không tin miệng):**
   1. Implement on disk: `runtime.sweepQueueIntegrity({graceMs,limit,maxAttempts})` → `QueueIntegritySweepResult` (runtime.ts:1015-1061; defaults 30s/50/10) + seam `app.runQueueIntegritySweep` / `queueIntegrityHealth` (server.ts:214-247, :381-382 — "test seam parity") + `/health` thêm `queueIntegrity` SAU sweep đầu (server.ts:539-552; D2: SUSPECT vẫn HTTP 200, body `degraded`).
-  2. Offline xanh TÔI TỰ CHẠY: Qwen-1 `services/orchestrator/tests/mm05-queue-integrity-sweep.test.ts` **8/8 exit 0** (1.98s, zero DB — re-arm CAS, alive-skip, cap-stalled, Redis-error≠loss, fail-closed, structural pin §2, batch); probe Qwen-2 **4/4 exit 0**; p8-02c **đã đồng bộ API thật** (bản đầu gọi sweep kiểu `(limit)=>number` — đỏ giả; bản hiện tại dùng result-object + seam wrapper, recompile `5 skipped` exit 0).
+  2. Offline xanh TÔI TỰ CHẠY: Qwen-1 `orchestrator/services/orchestrator/tests/mm05-queue-integrity-sweep.test.ts` **8/8 exit 0** (1.98s, zero DB — re-arm CAS, alive-skip, cap-stalled, Redis-error≠loss, fail-closed, structural pin §2, batch); probe Qwen-2 **4/4 exit 0**; p8-02c **đã đồng bộ API thật** (bản đầu gọi sweep kiểu `(limit)=>number` — đỏ giả; bản hiện tại dùng result-object + seam wrapper, recompile `5 skipped` exit 0).
   3. Dist fresh: `dist/modules/runtime/runtime.js` + `dist/server.js` mtime **04:04:43** > src (03:57:50/03:58:54).
 - **Các bước (Tester / DB-window — hạ tầng đang UP từ 6b):**
   0. `docker compose -f infra/docker-compose.yml ps` ⇒ 2/2 `Up (healthy)` (nếu DOWN: `up -d` như 6b).
@@ -1142,7 +1142,7 @@ Verify the old check/index definitions and absence of POLLING rows before restar
 ## W49-QW1-LIVE-001 RUN REQUEST — OIDC-02 live 2-PROCESS, real Redis :6380 (Reviewer cycle 139)
 
 - **Mục tiêu**: lấy biên nhận LIVE cho 6 ca trong block gated `DU_LIVE_INFRA` —
-  `services/orchestrator/tests/oidc02-process-replicas-offline.test.ts` **dòng 195→400**
+  `orchestrator/services/orchestrator/tests/oidc02-process-replicas-offline.test.ts` **dòng 195→400**
   (6 `it()` tại dòng 291/303/314/325/349/370 — reviewer audit 150-155 đã thêm 2 ca
   revoke cross-process + restart process-thứ-ba vào cuối block). Harness spawn HAI process con node THẬT
   (`tests/fixtures/oidc02-replica-probe.js`, boot từ `dist/`, mỗi child một cổng loopback

@@ -59,9 +59,9 @@ PostgreSQL là nguồn trạng thái durable; BullMQ là delivery transport. Bus
 
 ```text
 orchestrator-repo/
-  apps/orchestrator-portal/   # Orchestrator Portal (MIG-08 target; working tree hiện còn apps/admin-web/ tới MIG-08C)
-  services/orchestrator/     # vai trò Platform API + Runtime + admin backend
-  services/connector/        # service riêng trong cùng repo
+  apps/orchestrator-portal/   # Orchestrator Portal (MIG-08 target; working tree hiện còn orchestrator/apps/admin-web/ tới MIG-08C)
+  orchestrator/services/orchestrator/     # vai trò Platform API + Runtime + admin backend
+  orchestrator/services/connector/        # service riêng trong cùng repo
   contracts/                 # authority và export bundle (layout theo RPK ADR)
   deployment/                # images, compose/ingress, migrations, runbooks
   development/               # worker reference, guides, pinned bundles
@@ -118,7 +118,7 @@ Runtime URL mặc định của **Document Core, LC Checker và Example Review**
 
 Connector root paths hiện có `/invocations`, `/connectors`, `/capabilities`, `/health/live`, `/health/ready` là internal surface. Đồng bộ docs theo wire root này; không tự thêm `/internal/v1`. Internal 3002 và Connector 8080 không được publish trong stack mặc định; debug local chỉ opt-in bằng overlay bind literal `127.0.0.1`, xem [Deployment Guide](12b-deployment-guide.md#11-pm-m02-ingress-matrix). Bỏ host mapping không tạo east-west isolation: peer trên network chung vẫn tới được listener và phải qua auth. Không bật `internal: true` trên network dùng chung khi chưa kiểm nhu cầu outbound.
 
-Đây là topology **SPECIFIED**. Working tree 2026-10-06 đã materialize phần chính: route fence audience (`services/orchestrator/src/http/ingress-guard.ts`); `compose/orchestrator.yml` map Public 3000 + Portal 3001 qua `${BIND_ADDRESS:-127.0.0.1}` và không map 3002; `compose/connector.yml` không còn host mapping cho 8080; `compose/local-debug.yml` là overlay opt-in bind literal `127.0.0.1`; worker fragments mặc định `RUNTIME_URL=http://orchestrator:3002/api/runtime/v1`. [Audit INGRESS-AUDIT-907](../coordination/reports/ingress-audit-907-2026-10-05.md) là snapshot trước migration (một JSON listener 3000, publish Connector, Runtime URL cũ) và đã được thay thế bởi working tree nêu trên. PM-M02 vẫn **OPEN**: full verifier 2026-10-06 dừng ở host TCP check vì một container `nginx-ui` không liên quan chiếm host 8080 (project test không publish 8080); cần chạy lại trong môi trường không va chạm port và hoàn tất firewall probe bằng client tách biệt trước khi đóng.
+Đây là topology **SPECIFIED**. Working tree 2026-10-06 đã materialize phần chính: route fence audience (`orchestrator/services/orchestrator/src/http/ingress-guard.ts`); `compose/orchestrator.yml` map Public 3000 + Portal 3001 qua `${BIND_ADDRESS:-127.0.0.1}` và không map 3002; `compose/connector.yml` không còn host mapping cho 8080; `compose/local-debug.yml` là overlay opt-in bind literal `127.0.0.1`; worker fragments mặc định `RUNTIME_URL=http://orchestrator:3002/api/runtime/v1`. [Audit INGRESS-AUDIT-907](../coordination/reports/ingress-audit-907-2026-10-05.md) là snapshot trước migration (một JSON listener 3000, publish Connector, Runtime URL cũ) và đã được thay thế bởi working tree nêu trên. PM-M02 vẫn **OPEN**: full verifier 2026-10-06 dừng ở host TCP check vì một container `nginx-ui` không liên quan chiếm host 8080 (project test không publish 8080); cần chạy lại trong môi trường không va chạm port và hoàn tất firewall probe bằng client tách biệt trước khi đóng.
 
 Readiness chỉ chứng minh service/dependencies; provider test là thao tác quản trị riêng. Public readiness proxy cần tenant/binding authorization trước outbound probe. Offline tests dùng mock, không inference có tính phí.
 

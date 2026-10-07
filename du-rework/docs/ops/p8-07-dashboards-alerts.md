@@ -64,7 +64,7 @@ Mỗi alert cần có owner, escalation contact, dashboard link, môi trường,
 
 ## Nguồn đối chiếu trong repo
 
-- Health và dispatcher: `../../services/orchestrator/src/server.ts`, `../../services/orchestrator/src/modules/queue/dispatcher.ts`.
-- Outbox webhook/usage: `../../services/orchestrator/src/modules/webhooks/webhooks.ts`, `../../services/connector/src/db/usage-outbox.ts`, `../../services/connector/src/usage-dispatcher.ts`.
-- UNKNOWN/credential: `../../services/connector/src/invoke.ts`, `../../services/connector/src/db/repository.ts`, `../../services/connector/src/services.ts`.
-- Artifact backend/configuration: [`storage-facade.ts`](../../services/orchestrator/src/modules/artifacts/storage-facade.ts), [`main.ts`](../../services/orchestrator/src/main.ts), and [artifact storage runbook](../runbooks/artifact-storage.md). The broader [G-DATA plan](../../tasks/DEPLOY-STORAGE-LOGGING-2026-09-24.md) tracks environment rollout and operational evidence.
+- Health và dispatcher: `../../orchestrator/services/orchestrator/src/server.ts`, `../../orchestrator/services/orchestrator/src/modules/queue/dispatcher.ts`.
+- Outbox webhook/usage: `../../orchestrator/services/orchestrator/src/modules/webhooks/webhooks.ts`, `../../orchestrator/services/connector/src/db/usage-outbox.ts`, `../../orchestrator/services/connector/src/usage-dispatcher.ts`.
+- UNKNOWN/credential: `../../orchestrator/services/connector/src/invoke.ts`, `../../orchestrator/services/connector/src/db/repository.ts`, `../../orchestrator/services/connector/src/services.ts`.
+- Artifact backend/configuration: [`storage-facade.ts`](../../orchestrator/services/orchestrator/src/modules/artifacts/storage-facade.ts), [`main.ts`](../../orchestrator/services/orchestrator/src/main.ts), and [artifact storage runbook](../runbooks/artifact-storage.md). The broader [G-DATA plan](../../tasks/DEPLOY-STORAGE-LOGGING-2026-09-24.md) tracks environment rollout and operational evidence.

@@ -7,8 +7,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createRequire } = require('node:module');
 
-const bffRoot = path.resolve(__dirname, '../../services/orchestrator/src/app/admin/bff');
-const orchRoot = path.resolve(__dirname, '../../services/orchestrator/src');
+const bffRoot = path.resolve(__dirname, '../../orchestrator/services/orchestrator/src/app/admin/bff');
+const orchRoot = path.resolve(__dirname, '../../orchestrator/services/orchestrator/src');
 const localRequire = createRequire(path.join(orchRoot, '../../package.json'));
 const ts = localRequire('typescript');
 require.extensions['.ts'] = (module, filename) => {

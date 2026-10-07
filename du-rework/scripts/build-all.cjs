@@ -15,15 +15,15 @@ const { execSync } = require('node:child_process');
 const WORKSPACE_ROOT = path.resolve(__dirname, '..');
 
 const BUILD_ORDER = [
-  { name: '@du/contracts', dir: 'packages/contracts' },
-  { name: '@du/observability', dir: 'packages/observability' },
-  { name: '@du/egress', dir: 'packages/egress' },
-  { name: '@du/document-kit', dir: 'packages/document-kit' },
-  { name: '@du/worker-sdk', dir: 'packages/worker-sdk' },
-  { name: '@du/connector-client', dir: 'packages/connector-client' },
-  { name: '@du/connector', dir: 'services/connector' },
-  { name: '@du/orchestrator', dir: 'services/orchestrator' },
-  { name: '@du/admin-web', dir: 'apps/admin-web' },
+  { name: '@du/contracts', dir: 'orchestrator/packages/contracts' },
+  { name: '@du/observability', dir: 'orchestrator/packages/observability' },
+  { name: '@du/egress', dir: 'orchestrator/packages/egress' },
+  { name: '@du/document-kit', dir: 'orchestrator/packages/document-kit' },
+  { name: '@du/worker-sdk', dir: 'orchestrator/packages/worker-sdk' },
+  { name: '@du/connector-client', dir: 'orchestrator/packages/connector-client' },
+  { name: '@du/connector', dir: 'orchestrator/services/connector' },
+  { name: '@du/orchestrator', dir: 'orchestrator/services/orchestrator' },
+  { name: '@du/admin-web', dir: 'orchestrator/apps/admin-web' },
   { name: '@du/lc-checker', dir: 'businesses/lc-checker' },
   { name: '@du/example-review', dir: 'businesses/example-review' },
   { name: '@du/document-core', dir: 'businesses/document-core' },
@@ -34,8 +34,8 @@ function log(msg, color = '\x1b[0m') {
 }
 
 function copyConnectorMigrations() {
-  const srcDir = path.join(WORKSPACE_ROOT, 'services/connector/src/db/migrations');
-  const destDir = path.join(WORKSPACE_ROOT, 'services/connector/dist/db/migrations');
+  const srcDir = path.join(WORKSPACE_ROOT, 'orchestrator/services/connector/src/db/migrations');
+  const destDir = path.join(WORKSPACE_ROOT, 'orchestrator/services/connector/dist/db/migrations');
 
   if (fs.existsSync(srcDir)) {
     fs.mkdirSync(destDir, { recursive: true });

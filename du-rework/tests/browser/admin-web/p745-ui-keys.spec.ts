@@ -6,8 +6,8 @@ import {
   buildPublishBody,
   buildRollbackBody,
   buildUpsertBody,
-} from '../../../apps/admin-web/src/features/profiles/command-bodies';
-import { parseProfileDetail } from '../../../apps/admin-web/src/features/profiles/state';
+} from '../../../orchestrator/apps/admin-web/src/features/profiles/command-bodies';
+import { parseProfileDetail } from '../../../orchestrator/apps/admin-web/src/features/profiles/state';
 
 /**
  * P745-UI-KEYS (Δ-UI-1) — the profile.* command bodies must carry the write
@@ -25,8 +25,8 @@ import { parseProfileDetail } from '../../../apps/admin-web/src/features/profile
  */
 
 const SPEC_DIR = __dirname;
-const SCREEN_PATH = join(SPEC_DIR, '../../../apps/admin-web/src/features/profiles/profiles-screen.tsx');
-const CLIENT_PATH = join(SPEC_DIR, '../../../apps/admin-web/src/lib/api/client.ts');
+const SCREEN_PATH = join(SPEC_DIR, '../../../orchestrator/apps/admin-web/src/features/profiles/profiles-screen.tsx');
+const CLIENT_PATH = join(SPEC_DIR, '../../../orchestrator/apps/admin-web/src/lib/api/client.ts');
 
 const KEY_ID = '123e4567-e89b-42d3-a456-426614174000';
 

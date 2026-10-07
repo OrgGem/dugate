@@ -3,7 +3,7 @@
  * Runner for the comprehensive Orchestrator Portal UI E2E suite.
  *
  * 1. Boots tests/browser/admin-web/harness.ts (real Orchestrator admin shell +
- *    real apps/admin-web/dist + scripted upstream stub) via `pnpm dlx tsx`.
+ *    real orchestrator/apps/admin-web/dist + scripted upstream stub) via `pnpm dlx tsx`.
  * 2. Runs tests/orchestrator-portal-all-features.spec.ts on desktop + mobile
  *    with PORTAL_E2E_* env pointing at that harness.
  * 3. Stops the harness and prints the summary paths.
@@ -19,10 +19,10 @@ const REPO_ROOT = path.resolve(BROWSER_DIR, '..', '..');
 const ARTIFACTS = path.join(BROWSER_DIR, 'artifacts');
 const HARNESS_JSON = path.join(ARTIFACTS, 'portal-harness.json');
 const HARNESS_TS = path.join(BROWSER_DIR, 'admin-web', 'harness.ts');
-const DIST_INDEX = path.join(REPO_ROOT, 'apps', 'admin-web', 'dist', 'index.html');
+const DIST_INDEX = path.join(REPO_ROOT, 'orchestrator', 'apps', 'admin-web', 'dist', 'index.html');
 
 if (!fs.existsSync(DIST_INDEX)) {
-  console.error('[portal-e2e] apps/admin-web/dist/index.html is missing. Build it first:');
+  console.error('[portal-e2e] orchestrator/apps/admin-web/dist/index.html is missing. Build it first:');
   console.error('  pnpm --filter @du/admin-web build');
   process.exit(2);
 }

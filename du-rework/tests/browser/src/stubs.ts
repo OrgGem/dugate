@@ -35,11 +35,11 @@ import {
   fetchApiKeys,
   fetchOperationDetail,
   fetchOverview,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 import {
   fetchBusinessVersions,
   type BusinessFetchResult,
-} from '../../../services/orchestrator/dist/app/admin/business-section-data.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/business-section-data.js';
 import type {
   BusinessSectionFetcher,
   ProfileFetchResult,
@@ -52,7 +52,7 @@ import type {
   OperationSectionFetcher,
   OverviewFetchResult,
   OverviewSectionFetcher,
-} from '../../../services/orchestrator/dist/app/admin/index.js';
+} from '../../../orchestrator/services/orchestrator/dist/app/admin/index.js';
 
 // ---------------------------------------------------------------------------
 // Businesses (fetchImpl-driven — fetchBusinessVersions has no catalog path)

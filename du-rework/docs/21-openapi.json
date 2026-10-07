@@ -5528,7 +5528,7 @@
             "description": "live"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:212",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:212",
         "security": [],
         "servers": [
           {
@@ -5553,7 +5553,7 @@
             "description": "not ready"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:213",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:213",
         "security": [],
         "servers": [
           {
@@ -5586,7 +5586,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:217",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:217",
         "x-required-service-scope": "connector:invoke",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
         "servers": [
@@ -5620,7 +5620,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:218",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:218",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "servers": [
@@ -5655,7 +5655,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:222",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:222",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "servers": [
@@ -5692,7 +5692,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:256",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:256",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -5739,7 +5739,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:284",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:284",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -5789,7 +5789,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:309",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:309",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -5842,7 +5842,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:327",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:327",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -5898,7 +5898,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:336",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:336",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -5945,7 +5945,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:342",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:342",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -6001,7 +6001,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:366",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:366",
         "x-required-service-scope": "connector:invoke",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
         "servers": [
@@ -6038,7 +6038,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:353",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:353",
         "x-required-service-scope": "connector:invoke",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
         "parameters": [
@@ -6091,7 +6091,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:376",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:376",
         "x-required-service-scope": "connector:invoke",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:invoke.",
         "parameters": [
@@ -6144,7 +6144,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:389",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:389",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -6188,7 +6188,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:398",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:398",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -6232,7 +6232,7 @@
             "description": "wrong audience or missing required service scope (BINDING_DENIED)"
           }
         },
-        "x-source": "du-rework/services/connector/src/http/server.ts:403",
+        "x-source": "du-rework/orchestrator/services/connector/src/http/server.ts:403",
         "x-required-service-scope": "connector:manage",
         "description": "Signed HS256 Bearer JWT, aud=connector, integer exp; required scopes claim includes connector:manage.",
         "parameters": [
@@ -6329,7 +6329,7 @@
             "description": "Required management/workflow composition unavailable"
           }
         },
-        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:324",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:324",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6367,7 +6367,7 @@
             "description": "Management store not composed or upstream unavailable"
           }
         },
-        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:543",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:543",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6422,7 +6422,7 @@
             "description": "Admin scope denied"
           }
         },
-        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:532",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:532",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6480,7 +6480,7 @@
             "description": "Invalid upstream response"
           }
         },
-        "x-source": "du-rework/services/orchestrator/src/http/routes/admin.ts:570",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:570",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6532,7 +6532,7 @@
           }
         },
         "operationId": "portalSecretsGetSecrets",
-        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/secrets.ts",
         "x-implementation-status": "BFF only; upstream catalog API absent",
         "parameters": [
           {
@@ -6836,7 +6836,7 @@
           }
         },
         "operationId": "portalSecretsPostSecrets",
-        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/secrets.ts",
         "x-implementation-status": "BFF only; upstream catalog API absent",
         "description": "BFF method dispatch is implemented, not unconditional 405. Reads never return secret values. Create requires tenantId in the body or resolved tenantId query scope; differing body/query tenant is rejected. Upstream availability, storage and idempotency remain unimplemented in this snapshot.",
         "servers": [
@@ -6959,7 +6959,7 @@
           }
         },
         "operationId": "portalSecretsPostRotate",
-        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/secrets.ts",
         "x-implementation-status": "BFF only; upstream catalog API absent",
         "servers": [
           {
@@ -7063,7 +7063,7 @@
           }
         },
         "operationId": "portalSecretsPostDisable",
-        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/secrets.ts",
         "x-implementation-status": "BFF only; upstream catalog API absent",
         "servers": [
           {
@@ -7136,7 +7136,7 @@
           }
         },
         "operationId": "portalSecretsPostTest",
-        "x-source": "du-rework/services/orchestrator/src/app/admin/bff/secrets.ts",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/app/admin/bff/secrets.ts",
         "x-implementation-status": "BFF only; upstream catalog API absent",
         "description": "Accepts a bounded JSON object and forwards {}; does not prove a live secret availability probe.",
         "servers": [

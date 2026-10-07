@@ -38,7 +38,7 @@ Connector Vault revision requests carry `{credentialSource, tenantId, accountId}
 | PUT /workers/{instanceId}/heartbeat | business/version,digest,capacity | 200 health lease; scope check |
 | POST /tasks/{id}/claim | deliveryId,workerInstanceId | 200 ClaimResult; 409 busy; 410 terminal delivery |
 | POST /tasks/{id}/heartbeat | leaseEpoch | 200 leaseExpiresAt; 409 stale |
-| GET /tasks/{id}/context | leaseEpoch | **Chưa implement trong router.** Dòng này giữ lại để lưu ý: `services/orchestrator/src/server.ts` không có matcher cho route này, nên không phải chờ config mà là chưa từng được cài. Xem [catalog giao tiếp](../architecture/16-interface-catalog.md). |
+| GET /tasks/{id}/context | leaseEpoch | **Chưa implement trong router.** Dòng này giữ lại để lưu ý: `orchestrator/services/orchestrator/src/server.ts` không có matcher cho route này, nên không phải chờ config mà là chưa từng được cài. Xem [catalog giao tiếp](../architecture/16-interface-catalog.md). |
 | PUT /tasks/{id}/steps/{stepKey} | leaseEpoch,inputHash,outputRef,sessionRef | 201 success; 200 identical replay; 409 conflict |
 | POST /tasks/{id}/progress | leaseEpoch,percent,message | 200, throttled/coalesced |
 | POST /tasks/{id}/children | leaseEpoch,children[],joinPolicy,continuationRef | 202 durable children+dependency+wait+outbox transaction |

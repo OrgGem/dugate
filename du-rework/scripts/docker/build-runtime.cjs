@@ -4,8 +4,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const SERVICES = {
-  orchestrator: 'services/orchestrator',
-  connector: 'services/connector',
+  orchestrator: 'orchestrator/services/orchestrator',
+  connector: 'orchestrator/services/connector',
   'document-core': 'businesses/document-core',
   'lc-checker': 'businesses/lc-checker',
   'example-review': 'businesses/example-review',
@@ -13,7 +13,8 @@ const SERVICES = {
 
 function workspaceManifests(root) {
   const entries = new Map();
-  for (const group of ['packages', 'services', 'businesses']) {
+  for (const group of ['orchestrator/packages', 'orchestrator/services', 'orchestrator/apps', 'businesses']) {
+    if (!fs.existsSync(path.join(root, group))) continue;
     for (const dir of fs.readdirSync(path.join(root, group))) {
       const file = path.join(root, group, dir, 'package.json');
       if (!fs.existsSync(file)) continue;
@@ -55,8 +56,8 @@ function deploymentLockfile(lock, root = process.cwd()) {
   // Deploy resolves local tarballs relative to its output directory. Keep the
   // pinned integrity, but point build-only resolutions at the source artifact
   // so offline worker deployment does not look for /deploy/<worker>/vendor.
-  lock = lock.replace(/tarball: file:vendor\/([^,}\r\n]+)/g, (_match, file) =>
-    `tarball: file:${path.join(root, 'vendor', file).split(path.sep).join('/')}`);
+  lock = lock.replace(/tarball: file:orchestrator\/vendor\/([^,}\r\n]+)/g, (_match, file) =>
+    `tarball: file:${path.join(root, 'orchestrator/vendor', file).split(path.sep).join('/')}`);
   if (!/^settings:\r?\n/m.test(lock)) throw new Error('Lockfile settings are missing');
   if (/^  injectWorkspacePackages:/m.test(lock)) {
     return lock.replace(/^  injectWorkspacePackages:.*$/m, '  injectWorkspacePackages: true');
@@ -90,7 +91,7 @@ function buildRuntime(service, root = process.cwd(), output = '/deploy') {
   run(root, ['--filter', name, '--prod', '--offline', '--config.inject-workspace-packages=true', 'deploy', path.join(output, service)]);
   if (service === 'orchestrator') {
     run(root, ['--filter', '@du/admin-web', 'build']);
-    fs.cpSync(path.join(root, 'apps/admin-web/dist'), path.join(output, service, 'admin-web'), { recursive: true });
+    fs.cpSync(path.join(root, 'orchestrator/apps/admin-web/dist'), path.join(output, service, 'admin-web'), { recursive: true });
   }
 }
 

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { CURL_IMPORT_LIMITS, isSecretTokenName, parseCurlImport, summarizeCurlImport } from "../../../apps/admin-web/src/features/connectors/curl-import";
-import { draftFromCurlImport } from "../../../apps/admin-web/src/features/connectors/state";
+import { CURL_IMPORT_LIMITS, isSecretTokenName, parseCurlImport, summarizeCurlImport } from "../../../orchestrator/apps/admin-web/src/features/connectors/curl-import";
+import { draftFromCurlImport } from "../../../orchestrator/apps/admin-web/src/features/connectors/state";
 
 /**
  * P730-CURL-IMPORT (CFGADM-07) - bounded cURL text parser.
@@ -24,9 +24,9 @@ import { draftFromCurlImport } from "../../../apps/admin-web/src/features/connec
 // CJS-safe: the admin-web Playwright config transpiles specs to CJS, so
 // `import.meta` is unavailable (`__dirname` is). CURL-SPEC-FIX 2026-10-04.
 const SPEC_DIR = __dirname;
-const PARSER_PATH = join(SPEC_DIR, "../../../apps/admin-web/src/features/connectors/curl-import.ts");
-const PREVIEW_PATH = join(SPEC_DIR, "../../../apps/admin-web/src/features/connectors/curl-import-preview.tsx");
-const SCREEN_PATH = join(SPEC_DIR, "../../../apps/admin-web/src/features/connectors/connectors-screen.tsx");
+const PARSER_PATH = join(SPEC_DIR, "../../../orchestrator/apps/admin-web/src/features/connectors/curl-import.ts");
+const PREVIEW_PATH = join(SPEC_DIR, "../../../orchestrator/apps/admin-web/src/features/connectors/curl-import-preview.tsx");
+const SCREEN_PATH = join(SPEC_DIR, "../../../orchestrator/apps/admin-web/src/features/connectors/connectors-screen.tsx");
 
 /** Single quote, kept as a character code so the fixtures stay quote-free. */
 const SQ = String.fromCharCode(39);

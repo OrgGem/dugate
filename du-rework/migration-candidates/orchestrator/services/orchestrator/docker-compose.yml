@@ -1,4 +1,0 @@
-name: du-orchestrator
-include:
-  - ../../compose/infra.yml
-  - ../../compose/orchestrator.yml

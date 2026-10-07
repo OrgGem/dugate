@@ -47,7 +47,7 @@ Repository mapping nằm [reference-compatibility](14-reference-compatibility.md
 ### Accepted for this rework
 
 - **Router:** raw `node:http` + regex-based path matching + manual JSON
-  serialisation (`services/orchestrator/src/server.ts`). This is the delivery
+  serialisation (`orchestrator/services/orchestrator/src/server.ts`). This is the delivery
   foundation: all registry, submission, runtime lifecycle, artifacts, grants,
   usage, and migration modules are wired through it today.
 - **Auth model:** single global bearer tokens — separate `adminToken` (Admin
@@ -73,7 +73,7 @@ Repository mapping nằm [reference-compatibility](14-reference-compatibility.md
   wraps existing handler functions). No DB migration needed; route table maps 1:1.
   A future wave may require this but does not alter the handler contract.
 - **Production object storage:** artifacts are currently in PG
-  (`services/orchestrator/src/modules/artifacts/artifacts.ts`). ADR-10
+  (`orchestrator/services/orchestrator/src/modules/artifacts/artifacts.ts`). ADR-10
   S3 storage is mandatory before production; the PG slice is a bounded
   deliverable, not a permanent design. See [G-DATA plan](../tasks/DEPLOY-STORAGE-LOGGING-2026-09-24.md).
 - **Session/RBAC/CSRF admin auth:** the target admin auth model per
@@ -160,7 +160,7 @@ authority from an ambiguous claim. The bearer/API surface is stricter:
 when the claim shape is ambiguous or cannot establish one trusted tenant,
 rather than inventing a viewer principal. Both paths consume the same canonical
 claim-shape rules exported by
-[`@du/contracts` OIDC claim shapes](../packages/contracts/src/oidc-claim-shapes.ts),
+[`@du/contracts` OIDC claim shapes](../orchestrator/packages/contracts/src/oidc-claim-shapes.ts),
 so the difference is an intentional boundary policy, not parser drift.
 
 ### Tenant/account isolation và role matrix
