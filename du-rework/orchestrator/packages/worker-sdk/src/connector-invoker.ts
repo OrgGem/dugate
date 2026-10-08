@@ -129,7 +129,8 @@ export function createConnectorInvoker(opts: ConnectorClientOptions) {
 
   return async function invokeConnector(
     _grant: InvocationGrant,
-    payload: ConnectorInvocationPayload
+    payload: ConnectorInvocationPayload,
+    signal?: AbortSignal
   ): Promise<InvocationResponse> {
     // Validate outgoing payload against the frozen wire contract before send.
     const request = InvocationRequestSchema.parse(payload);
@@ -145,6 +146,36 @@ export function createConnectorInvoker(opts: ConnectorClientOptions) {
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // A REAL cancellation must reach the CONNECTOR too: aborting only this socket
+    // would leave the provider call running there - exactly the work the caller
+    // asked to stop. The cancel call is best-effort and never changes this
+    // request's own outcome. It is sent for a cancellation ONLY: a lease-lost
+    // abort fences this delivery (the task is redelivered under a new epoch and
+    // replays the same stable invocationId), so terminalising the ledger row
+    // there would make the recovered workflow replay a CANCELLED invocation and
+    // fail with no provider call to blame (WFA-T26).
+    const notifyConnectorCancel = (): void => {
+      const invocationId = typeof request.invocationId === 'string' ? request.invocationId : '';
+      if (invocationId === '') return;
+      const cancelHeaders: Record<string, string> = { 'content-type': 'application/json' };
+      if (typeof serviceToken === 'string' && serviceToken.trim().length > 0) {
+        cancelHeaders.authorization = `Bearer ${serviceToken}`;
+      }
+      cancelHeaders['x-invocation-grant'] = _grant.grant;
+      void fetchImpl(`${opts.baseUrl.replace(/\/$/, '')}/invocations/${encodeURIComponent(invocationId)}/cancel`, {
+        method: 'POST',
+        headers: cancelHeaders,
+        body: JSON.stringify({ reason: 'task cancelled or lease lost' }),
+      }).catch(() => undefined);
+    };
+    const onAbort = (): void => {
+      if (signal?.reason === 'cancel') notifyConnectorCancel();
+      controller.abort(signal?.reason);
+    };
+    if (signal) {
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
     let response: Response;
     try {
       response = await fetchImpl(`${opts.baseUrl.replace(/\/$/, '')}/invocations`, {
@@ -154,6 +185,9 @@ export function createConnectorInvoker(opts: ConnectorClientOptions) {
         signal: controller.signal,
       });
     } catch {
+      if (signal?.aborted) {
+        throw new ConnectorTransportError(409, 'CANCELLED', 'connector invocation was cancelled before it completed');
+      }
       // Transport failure with unknown outcome: surface as UNKNOWN so the
       // runtime/business reconcile instead of blind-retrying the provider.
       throw new ConnectorTransportError(
@@ -163,6 +197,7 @@ export function createConnectorInvoker(opts: ConnectorClientOptions) {
       );
     } finally {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
     }
 
     if (!response.ok) {

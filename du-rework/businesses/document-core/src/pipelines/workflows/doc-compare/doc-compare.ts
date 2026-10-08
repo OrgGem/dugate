@@ -49,7 +49,7 @@ import {
 } from './types';
 
 export const DOC_COMPARE_BUSINESS_ID = 'document-core' as const;
-export const DOC_COMPARE_BUSINESS_VERSION = '1.0.0' as const;
+export const DOC_COMPARE_BUSINESS_VERSION = '1.1.0' as const;
 
 /**
  * Stable step ids. They must not change across resumes or a checkpoint written

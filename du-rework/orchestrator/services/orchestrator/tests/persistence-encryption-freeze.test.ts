@@ -75,11 +75,36 @@ const brokenKeyProvider: KeyProvider = {
 describe('SEC-ENC-01 freeze parity', () => {
   it('keeps the contract purpose taxonomy equal to the enforced runtime slots', () => {
     expect([...METADATA_SLOTS].sort()).toEqual([...ENFORCED_METADATA_PURPOSES].sort());
+    expect(METADATA_SLOTS.slice(0, 8)).toEqual([
+      'operations.input_ref',
+      'tasks.payload_ref',
+      'human_waits.response_ref',
+      'step_checkpoints.output_ref',
+      'step_checkpoints.session_ref',
+      'operations.prompt_overrides_ref',
+      'tasks.result_ref',
+      'operations.result_ref',
+    ]);
+    expect(METADATA_SLOTS[8]).toBe('legacy_workflow_schemas.schema_ref');
     for (const slot of METADATA_SLOTS) {
       expect(PersistencePurposeSchema.safeParse(slot).success).toBe(true);
     }
     expect(ENFORCED_PERSISTENCE_PURPOSES).toContain('artifact-storage');
     expect(new Set(ENFORCED_PERSISTENCE_PURPOSES).size).toBe(ENFORCED_PERSISTENCE_PURPOSES.length);
+  });
+
+  it('seals workflow catalog schemas with tenant, slug/revision identity in AAD', async () => {
+    const crypto = createMetadataCrypto(adaptKeyProviderForMetadata(keyProvider), 'du-orch-metadata-v1');
+    const value = { slug: 'lc-review', revision: 3, auth: { token: 'synthetic-inline-secret' } };
+    const context = { tenantId: 'tenant-1', slot: 'legacy_workflow_schemas.schema_ref' as const, refId: 'lc-review:3' };
+    const sealed = await crypto.seal(value, context);
+    expect(SealedMetadataEnvelopeSchema.safeParse(sealed).success).toBe(true);
+    expect(PersistencePurposeSchema.safeParse(context.slot).success).toBe(true);
+    expect(JSON.stringify(sealed)).not.toContain('synthetic-inline-secret');
+    await expect(crypto.open(sealed, context)).resolves.toEqual(value);
+    await expect(crypto.open(sealed, { ...context, tenantId: 'tenant-2' })).rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
+    await expect(crypto.open(sealed, { ...context, refId: 'lc-review:4' })).rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
+    await expect(crypto.open(sealed, { ...context, refId: 'other-slug:3' })).rejects.toMatchObject({ code: 'CONTEXT_MISMATCH' });
   });
 
   it('parses a real metadata seal() envelope with the frozen schema and still refuses a foreign context', async () => {

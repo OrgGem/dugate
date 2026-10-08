@@ -33,6 +33,11 @@ import {
 } from '../../modules/admin-read/api-key-list';
 import { listAuditEventPage, parseAdminAuditListQuery } from '../../modules/admin-read/audit-list';
 import {
+  listTenantPage,
+  parseTenantListQuery,
+  toTenantWire,
+} from '../../modules/admin-read/tenant-list';
+import {
   EMPTY_PROFILE_POLICY_READ,
   loadProfileDetail,
   profileDetailCurrentValues,
@@ -390,6 +395,41 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     };
   }
 
+  // Admin: GET /api/v1/admin/tenants  (tenant roster / picker source)
+  // The wire item is exactly { id, name, state }, ordered by (lower(name), id)
+  // — see the contract note on TENANT_LIST_QUERY_PARAMS for why this list
+  // carries no `sort` parameter while the other admin lists do.
+  //
+  // Scope comes from the CREDENTIAL, never from a query parameter (this route
+  // accepts none): the platform bearer sees the whole roster, a tenant operator
+  // sees exactly its own row and the predicate rides in SQL.
+  //
+  // NOTE on `authorizeAuditTenantRead(principal, '')` returning '': on the
+  // audit/api-keys lists '' means "honest empty page", because those tables are
+  // always tenant-scoped rows. Here '' is the platform principal's "no
+  // narrowing" answer — the roster itself is the tenant directory, so an
+  // unnarrowed platform read is every tenant, not none. Reading it as an empty
+  // page would hide the roster from the only principal allowed to see it.
+  if (method === 'GET' && pathname === '/api/v1/admin/tenants') {
+    const tenantsPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+    if (!tenantsPrincipal) {
+      throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+    }
+    const query = parseTenantListQuery(ctx.searchParams);
+    const scope = authorizeAuditTenantRead(tenantsPrincipal, '');
+    const page = await listTenantPage(ctx.db, scope === '' ? null : scope, query);
+    return {
+      status: 200,
+      body: listPage({
+        items: page.rows.map(toTenantWire),
+        nextCursor: page.nextCursor,
+        prevCursor: page.prevCursor,
+        total: page.total,
+        limit: query.limit,
+      }),
+    };
+  }
+
   // Admin: GET /api/v1/admin/businesses/:id/versions  (ADM-BASE-01)
   // Shell wire-up: `{ businessId, activeVersion, rows: [...] }`. Unknown
   // business → 404 (the fetcher maps it to `not-found`).
@@ -526,9 +566,10 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
 
   // CONNECTOR-WIRE-A: platform connector management surface — thin reads over
   // the composed store (no business logic in a route); mutations ride
-  // /api/v1/admin/actions (connector.*). Capabilities are composition-derived
-  // booleans, never configuration values; without the store the management
-  // calls fail closed (503) and the advertisement says management:false.
+  // /api/v1/admin/actions (connector.*). Capabilities include composition
+  // booleans and configured connector ID keys only; configuration values
+  // never leave this route. Without the store, management calls fail closed
+  // (503) while ID suggestions remain available.
   if (method === 'GET' && pathname === '/api/v1/admin/connectors/capabilities') {
     assertAdminAuth(ctx);
     return {
@@ -537,6 +578,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         management: !!ctx.connectorManagement,
         credentialWorkflow: !!ctx.credentialWorkflow,
         test: !!ctx.connectorManagement,
+        knownConnectorIds: Object.keys(ctx.config.connectorBaseUrls ?? {}),
       },
     };
   }

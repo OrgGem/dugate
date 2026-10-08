@@ -7,6 +7,7 @@ import {
   connectorActionGating,
   connectorActiveRevision,
   connectorConfigFromDraft,
+  connectorIdSuggestions,
   parseConnectorCapabilities,
   parseConnectorList,
   parseConnectorRevisionRead,
@@ -96,11 +97,28 @@ const LEGACY_PLACEHOLDER = {
 };
 
 test.describe('CONNECTOR-WIRE-B — capability advertisement', () => {
+  test('management:false still feeds configured connector IDs to revision lookup suggestions', () => {
+    const knownConnectorIds = ['vendor-alpha', 'vendor-beta'];
+    const capabilities = parseConnectorCapabilities({
+      management: false,
+      credentialWorkflow: false,
+      test: false,
+      knownConnectorIds,
+    });
+    expect(capabilities?.knownConnectorIds).toEqual(knownConnectorIds);
+    expect(connectorIdSuggestions(capabilities, [])).toEqual(knownConnectorIds);
+
+    const screen = readFileSync(SCREEN_PATH, 'utf8');
+    expect(screen).toContain('connectorIdSuggestions(caps, listRows)');
+    expect(screen).toContain('connector-id-suggestions');
+  });
+
   test('1. all three booleans are required and unknown keys are rejected', () => {
-    expect(parseConnectorCapabilities({ management: true, credentialWorkflow: false, test: true })).toEqual({
+    expect(parseConnectorCapabilities({ management: true, credentialWorkflow: false, test: true, knownConnectorIds: [] })).toEqual({
       management: true,
       credentialWorkflow: false,
       test: true,
+      knownConnectorIds: [],
     });
     // `.strict()` upstream: an extra key means the advertisement is not trusted.
     expect(
@@ -130,6 +148,7 @@ test.describe('CONNECTOR-WIRE-B — capability advertisement', () => {
       management: true,
       credentialWorkflow: false,
       test: false,
+      knownConnectorIds: [],
     });
     expect([managementOnly.upsert, managementOnly.activate, managementOnly.disable, managementOnly.retire]).toEqual([
       true,
@@ -139,7 +158,7 @@ test.describe('CONNECTOR-WIRE-B — capability advertisement', () => {
     ]);
     expect([managementOnly.test, managementOnly.rotate]).toEqual([false, false]);
 
-    const all = connectorActionGating({ management: true, credentialWorkflow: true, test: true });
+    const all = connectorActionGating({ management: true, credentialWorkflow: true, test: true, knownConnectorIds: [] });
     expect([all.upsert, all.activate, all.disable, all.retire, all.test, all.rotate]).toEqual([
       true,
       true,
@@ -150,7 +169,7 @@ test.describe('CONNECTOR-WIRE-B — capability advertisement', () => {
     ]);
     expect(all.reason).toBe('');
 
-    const testOnly = connectorActionGating({ management: false, credentialWorkflow: false, test: true });
+    const testOnly = connectorActionGating({ management: false, credentialWorkflow: false, test: true, knownConnectorIds: [] });
     expect(testOnly.test).toBe(true);
     expect(testOnly.upsert).toBe(false);
   });

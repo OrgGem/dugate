@@ -8,6 +8,7 @@
  *   GET  /admin/api/session            → principal/role/scope/CSRF (no-store)
  *   GET  /admin/api/audit              → tenant-fenced audit read (ACUI-M07)
  *   GET  /admin/api/api-keys[/:id]     → principal-aware key reads
+ *   GET  /admin/api/tenants            → platform roster or tenant-operator own row
  *   GET  /admin/api/connectors         → connector list (CONNECTOR-WIRE-B)
  *   GET  /admin/api/connectors/capabilities → composition-derived capabilities
  *   GET  /admin/api/connectors/:id/revisions/:rev → connector revision read
@@ -69,6 +70,7 @@ const AUDIT_PARAM_ALLOWLIST = [
   'sort',
 ] as const;
 const API_KEY_PARAM_ALLOWLIST = ['limit', 'cursor', 'status', 'prefix', 'sort'] as const;
+const TENANT_PARAM_ALLOWLIST = ['limit', 'cursor'] as const;
 const MAX_ACTION_LENGTH = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 
@@ -91,6 +93,10 @@ export async function handleBffRequest(
     if (relative === '/audit') {
       assertMethod(method, ['GET']);
       return await handleAudit(res, request, query, config, runtime, correlationId);
+    }
+    if (relative === '/tenants') {
+      assertMethod(method, ['GET']);
+      return await handleTenantRead(res, request, query, config, runtime, correlationId);
     }
     if (relative === '/api-keys' || relative.startsWith('/api-keys/')) {
       assertMethod(method, ['GET']);
@@ -365,6 +371,55 @@ async function handleApiKeys(
   if (scope !== '') upstream.searchParams.set('tenantId', scope);
   else upstream.searchParams.delete('tenantId');
 
+  const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+  await relayUpstream(res, response, correlationId);
+}
+
+/**
+ * The platform credential reads the full tenant directory; a tenant-operator
+ * credential scopes upstream to that operator's own tenant. The browser's
+ * tenantId/sort query values are intentionally not copied; only the contract's
+ * pagination parameters (`limit` and `cursor`) pass through.
+ */
+async function handleTenantRead(
+  res: ServerResponse,
+  request: AdminShellRequest,
+  query: URLSearchParams,
+  config: ShellRuntimeConfig,
+  runtime: BffRuntimeConfig,
+  correlationId: string,
+): Promise<void> {
+  const ctx = await resolveBffContext(config, request);
+  if (!ctx) {
+    writeProblem(res, 401, 'UNAUTHENTICATED', 'sign in to use the Admin API', correlationId);
+    return;
+  }
+  const principal = ctx.principal;
+  if (principal.kind === 'unscoped') {
+    writeProblem(res, 403, 'PERMISSION_DENIED', 'administrator role is required', correlationId);
+    return;
+  }
+  const platformAdmin = ctx.role === 'admin' && principal.kind === 'platform';
+  const tenantOperator = ctx.role === 'operator' && principal.kind === 'tenant_operator';
+  if (!platformAdmin && !tenantOperator) {
+    writeProblem(res, 403, 'PERMISSION_DENIED', 'administrator role is required', correlationId);
+    return;
+  }
+  const credential = credentialFor(principal, runtime);
+  if (credential === null) {
+    writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
+    return;
+  }
+  if (!hasJsonBase(runtime)) {
+    writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
+    return;
+  }
+
+  const upstream = new URL('/api/v1/admin/tenants', runtime.jsonBaseUrl);
+  for (const name of TENANT_PARAM_ALLOWLIST) {
+    const value = query.get(name);
+    if (value !== null) upstream.searchParams.set(name, value);
+  }
   const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
   await relayUpstream(res, response, correlationId);
 }

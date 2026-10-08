@@ -5,7 +5,7 @@
  * they are now module-level and only this family calls them.
  */
 import { Readable } from 'node:stream';
-import { HttpError, zodIssuesToProblem } from '../errors';
+import { HttpError, isHttpError, zodIssuesToProblem } from '../errors';
 import { MULTIPART_MIN_TOTAL_BYTES, UsageEventDrilldownQuerySchema } from '@du/contracts';
 import { publicUploadToken } from '../../modules/artifacts/multipart-service';
 import { DeliveryEncryptionError } from '../../modules/public-api';
@@ -56,6 +56,30 @@ function deliveryEncryptionHttpError(err: DeliveryEncryptionError): HttpError {
     return new HttpError(409, 'STATE_CONFLICT', 'delivery encryption is not enabled for this tenant');
   }
   return new HttpError(503, 'TEMPORARY_UNAVAILABLE', 'encrypted delivery is unavailable');
+}
+
+/**
+ * Operation reads behind a tenant/profile fence must not expose the ID-bearing
+ * message from runtime.getOperation when its global lookup misses. Keep the
+ * public 404 identical to the one emitted by the subsequent ownership fence.
+ */
+function throwFencedOperationNotFound(err: unknown, message: string): never {
+  if (isHttpError(err) && err.status === 404 && err.code === 'NOT_FOUND') {
+    throw new HttpError(404, 'NOT_FOUND', message);
+  }
+  throw err;
+}
+
+async function getFencedOperation(
+  ctx: RouteContext,
+  operationId: string,
+  notFoundMessage: string,
+): Promise<Record<string, unknown>> {
+  try {
+    return await ctx.runtime.getOperation(operationId);
+  } catch (err) {
+    return throwFencedOperationNotFound(err, notFoundMessage);
+  }
 }
 
 /**
@@ -463,8 +487,15 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
       const detailPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
       if (detailPrincipal) {
         if (detailPrincipal.role === 'tenant_operator') {
-          const op = await ctx.runtime.getOperation(m[1]!);
+          const op = await getFencedOperation(ctx, m[1]!, 'not found');
           requireResourceTenant(detailPrincipal, String(op.tenant_id));
+          try {
+            return { status: 200, body: await buildAdminOperationDetail(ctx, m[1]!) };
+          } catch (err) {
+            // buildAdminOperationDetail performs a second read. A row deleted
+            // between the fenced read and this read must stay indistinguishable.
+            return throwFencedOperationNotFound(err, 'not found');
+          }
         }
         return { status: 200, body: await buildAdminOperationDetail(ctx, m[1]!) };
       }
@@ -492,8 +523,16 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
     const m = /^\/api\/v1\/operations\/([^/]+)\/result$/.exec(pathname);
     if (m && method === 'GET') {
       const apiKey = await resolveApiKey(ctx);
-      const op = await ctx.runtime.getOperation(m[1]!);
+      const op = await getFencedOperation(ctx, m[1]!, 'operation not found');
       if ((op.tenant_id as string) !== apiKey.tenantId) throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      // Legacy workflow operations carry user-derived results in an encrypted
+      // resultRef. Keep that projection bound to the API key/profile that
+      // admitted the immutable workflow snapshot, even when another key shares
+      // the same tenant.
+      if (typeof op.endpoint_slug === 'string' && op.endpoint_slug.startsWith('workflows:')
+          && String(op.api_key_id) !== apiKey.id) {
+        throw new HttpError(404, 'NOT_FOUND', 'operation not found');
+      }
       const status = resultHttpStatus(op.state as string);
       if (status !== 200) {
         if (status === 410) {

@@ -1,0 +1,141 @@
+﻿node : FAIL orchestrator/services/orchestrator/tests/tenant-list-bff-offline.test.ts
+At line:3 char:1
++ node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL orchestrat...offline.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  ΓùÅ Test suite failed to run
+
+    SyntaxError: D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\tenant-list-bff-offline.test.ts: 
+Unexpected token, expected "from" (6:12)
+
+    [0m [90m 4 |[39m [36mimport[39m http [36mfrom[39m [32m'node:http'[39m[33m;[39m
+     [90m 5 |[39m [36mimport[39m { createAdminShellServer } [36mfrom[39m 
+[32m'../src/app/admin/shell-server'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m type { [33mAdminShellHandle[39m } [36mfrom[39m 
+[32m'../src/app/admin/shell-server'[39m[33m;[39m
+     [90m   |[39m             [31m[1m^[22m[39m
+     [90m 7 |[39m [36mimport[39m type { [33mShellRuntimeConfig[39m } [36mfrom[39m 
+[32m'../src/app/admin/shell-router'[39m[33m;[39m
+     [90m 8 |[39m [36mimport[39m { signCookie } [36mfrom[39m [32m'../src/app/admin/shell-auth'[39m[33m;[39m
+     [90m 9 |[39m [36mimport[39m type { [33mAdminSessionStore[39m[33m,[39m [33mAdminSessionView[39m } 
+[36mfrom[39m [32m'../src/modules/admin-actions/rbac'[39m[33m;[39m[0m
+
+      at constructor (node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parse-error.ts:96:45)
+      at Parser.toParseError [as raise] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/tokenizer/index.ts:1504:19)
+      at Parser.raise [as unexpected] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/tokenizer/index.ts:1544:16)
+      at Parser.unexpected [as expectContextual] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/util.ts:114:12)
+      at Parser.expectContextual [as parseImportSpecifiersAndAfter] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:3180:10)
+      at Parser.parseImportSpecifiersAndAfter [as parseImport] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:3148:17)
+      at Parser.parseImport [as parseStatementContent] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:647:25)
+      at Parser.parseStatementContent [as parseStatementLike] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:482:17)
+      at Parser.parseStatementLike [as parseModuleItem] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:419:17)
+      at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:1443:16)
+      at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:1417:10)
+      at Parser.parseBlockBody [as parseProgram] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:229:10)
+      at Parser.parseProgram [as parseTopLevel] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:203:25)
+      at Parser.parseTopLevel [as parse] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/index.ts:83:25)
+      at parse (node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/index.ts:86:38)
+      at parser (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/parser/index.ts:29:19)
+          at parser.next (<anonymous>)
+      at normalizeFile 
+(node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transformation/normalize-file.ts:49:24)
+          at normalizeFile.next (<anonymous>)
+      at run (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transformation/index.ts:41:36)
+          at run.next (<anonymous>)
+      at transform (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transform.ts:29:20)
+          at transform.next (<anonymous>)
+      at evaluateSync (node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:251:28)
+      at sync (node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:89:14)
+      at fn (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/errors/rewrite-stack-trace.ts:99:14)
+      at transformSync (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transform.ts:66:52)
+      at ScriptTransformer.transformSource 
+(node_modules/.pnpm/@jest+transform@29.7.0/node_modules/@jest/transform/build/ScriptTransformer.js:545:31)
+      at ScriptTransformer._transformAndBuildScript 
+(node_modules/.pnpm/@jest+transform@29.7.0/node_modules/@jest/transform/build/ScriptTransformer.js:674:40)
+      at ScriptTransformer.transform 
+(node_modules/.pnpm/@jest+transform@29.7.0/node_modules/@jest/transform/build/ScriptTransformer.js:726:19)
+
+FAIL orchestrator/services/orchestrator/tests/tenant-list-cursor-codec-offline.test.ts
+  ΓùÅ Test suite failed to run
+
+    SyntaxError: 
+D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\tenant-list-cursor-codec-offline.test.ts: Unexpected 
+token, expected "from" (2:12)
+
+    [0m [90m 1 |[39m [90m/** Offline coverage for the tenant roster cursor codec and SQL keyset fence. */[39m
+    [31m[1m>[22m[39m[90m 2 |[39m [36mimport[39m type { [33mQueryResult[39m[33m,[39m 
+[33mQueryResultRow[39m } [36mfrom[39m [32m'pg'[39m[33m;[39m
+     [90m   |[39m             [31m[1m^[22m[39m
+     [90m 3 |[39m [36mimport[39m { [33mADMIN_LIST_LIMIT_MAX[39m[33m,[39m [33mLIST_CURSOR_MAX_LEN[39m } 
+[36mfrom[39m [32m'@du/contracts'[39m[33m;[39m
+     [90m 4 |[39m [36mimport[39m type { [33mDb[39m } [36mfrom[39m [32m'../src/db/db'[39m[33m;[39m
+     [90m 5 |[39m [36mimport[39m {[0m
+
+      at constructor (node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parse-error.ts:96:45)
+      at Parser.toParseError [as raise] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/tokenizer/index.ts:1504:19)
+      at Parser.raise [as unexpected] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/tokenizer/index.ts:1544:16)
+      at Parser.unexpected [as expectContextual] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/util.ts:114:12)
+      at Parser.expectContextual [as parseImportSpecifiersAndAfter] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:3180:10)
+      at Parser.parseImportSpecifiersAndAfter [as parseImport] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:3148:17)
+      at Parser.parseImport [as parseStatementContent] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:647:25)
+      at Parser.parseStatementContent [as parseStatementLike] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:482:17)
+      at Parser.parseStatementLike [as parseModuleItem] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:419:17)
+      at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:1443:16)
+      at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:1417:10)
+      at Parser.parseBlockBody [as parseProgram] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:229:10)
+      at Parser.parseProgram [as parseTopLevel] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/statement.ts:203:25)
+      at Parser.parseTopLevel [as parse] 
+(node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/parser/index.ts:83:25)
+      at parse (node_modules/.pnpm/@babel+parser@7.29.9/node_modules/@babel/parser/src/index.ts:86:38)
+      at parser (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/parser/index.ts:29:19)
+          at parser.next (<anonymous>)
+      at normalizeFile 
+(node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transformation/normalize-file.ts:49:24)
+          at normalizeFile.next (<anonymous>)
+      at run (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transformation/index.ts:41:36)
+          at run.next (<anonymous>)
+      at transform (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transform.ts:29:20)
+          at transform.next (<anonymous>)
+      at evaluateSync (node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:251:28)
+      at sync (node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:89:14)
+      at fn (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/errors/rewrite-stack-trace.ts:99:14)
+      at transformSync (node_modules/.pnpm/@babel+core@7.29.7/node_modules/@babel/core/src/transform.ts:66:52)
+      at ScriptTransformer.transformSource 
+(node_modules/.pnpm/@jest+transform@29.7.0/node_modules/@jest/transform/build/ScriptTransformer.js:545:31)
+      at ScriptTransformer._transformAndBuildScript 
+(node_modules/.pnpm/@jest+transform@29.7.0/node_modules/@jest/transform/build/ScriptTransformer.js:674:40)
+      at ScriptTransformer.transform 
+(node_modules/.pnpm/@jest+transform@29.7.0/node_modules/@jest/transform/build/ScriptTransformer.js:726:19)
+
+Test Suites: 2 failed, 2 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        2.241 s
+Ran all test suites matching /tests\\tenant-list-cursor-codec-offline.test.ts|tests\\tenant-list-bff-offline.test.ts/i.

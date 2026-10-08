@@ -1,6 +1,0 @@
-﻿COMMAND: docker exec psql: install task-local alternating read view over migration ledger rows
-LITERAL_EXIT_CODE: 0
-
-ALTER TABLE
-CREATE SEQUENCE
-CREATE VIEW

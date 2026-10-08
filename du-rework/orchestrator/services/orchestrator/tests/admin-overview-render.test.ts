@@ -344,7 +344,10 @@ describe("admin-overview renderer (P6-07)", () => {
         }) as unknown as typeof fetch,
       });
       expect(r.kind).toBe('ok');
-      expect(calls.length).toBe(6);
+      // F-2: the overview also reads the tenant roster for the picker
+      // (GET /api/v1/admin/tenants) — 6 platform reads + 1 roster read.
+      expect(calls.length).toBe(7);
+      expect(calls.filter((url) => url.includes('/api/v1/admin/tenants'))).toHaveLength(1);
     });
 
     it('returns unauthorized when any endpoint returns 401', async () => {

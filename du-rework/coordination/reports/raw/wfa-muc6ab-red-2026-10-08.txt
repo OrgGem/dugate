@@ -1,0 +1,65 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: pnpm exec jest tests/wfa-api-lifecycle.test.ts tests/legacy-http-mount.test.ts --runInBand --config jest.unit.config.cjs
+timestamp: 2026-10-08T03:37:08.1633582+07:00
+status: PRE-FIX (fail-first: 2 tests must be RED)
+--- output ---
+node.exe : FAIL tests/legacy-http-mount.test.ts
+At C:\nvm4w\nodejs\pnpm.ps1:16 char:5
++     & "$basedir/node$exe"  "$basedir/node_modules/corepack/dist/pnpm. ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL tests/legacy-http-mount.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  ΓùÅ legacy mount ΓÇö billing and discoverability ΓÇ║ answers 200 with an empty service list when the catalogue is 
+not wired
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 444 |[39m   it([32m'answers 200 with an empty service list when the catalogue is not 
+wired'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+     [90m 445 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m handleLegacyRoute(req({ pathname[33m:[39m 
+[32m'/api/v1/services'[39m })[33m,[39m host())[33m;[39m
+    [31m[1m>[22m[39m[90m 446 |[39m     
+expect(r[33m?[39m[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                       [31m[1m^[22m[39m
+     [90m 447 |[39m     expect(r[33m?[39m[33m.[39mbody)[33m.[39mtoMatchObject({ status[33m:[39m 
+[35m200[39m[33m,[39m services[33m:[39m [] })[33m;[39m
+     [90m 448 |[39m     expect((r[33m?[39m[33m.[39mbody [36mas[39m { message[33m:[39m string 
+})[33m.[39mmessage)[33m.[39mtoBe([32m'Lß║Ñy danh s├ích c├íc dß╗ïch vß╗Ñ AI khß║ú dß╗Ñng th├ánh 
+c├┤ng.'[39m)[33m;[39m
+     [90m 449 |[39m   })[33m;[39m[0m
+
+      at Object.<anonymous> (tests/legacy-http-mount.test.ts:446:23)
+
+FAIL tests/wfa-api-lifecycle.test.ts
+  ΓùÅ WFA legacy operation lifecycle adapters ΓÇ║ serves a file-backend output by reading its artifact blob
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "# file backed"
+    Received: undefined
+
+    [0m [90m 263 |[39m     [36mconst[39m bytes [33m=[39m [36mawait[39m 
+host[33m.[39mloadOutputContent[33m?[39m[33m.[39m([32m'operation-a'[39m[33m,[39m 
+[33mPRINCIPAL[39m[33m.[39mtenantId[33m,[39m [33mPRINCIPAL[39m[33m.[39mapiKeyId)[33m;[39m
+     [90m 264 |[39m
+    [31m[1m>[22m[39m[90m 265 |[39m     
+expect(bytes[33m?[39m[33m.[39mtoString([32m'utf8'[39m))[33m.[39mtoBe([32m'# file backed'[39m)[33m;[39m
+     [90m     |[39m                                     [31m[1m^[22m[39m
+     [90m 266 |[39m     expect(getBlob)[33m.[39mtoHaveBeenCalledWith([32m'art-output-1'[39m)[33m;[39m
+     [90m 267 |[39m   })[33m;[39m
+     [90m 268 |[39m[0m
+
+      at Object.<anonymous> (tests/wfa-api-lifecycle.test.ts:265:37)
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 42 passed, 44 total
+Snapshots:   0 total
+Time:        2.712 s, estimated 4 s
+Ran all test suites matching tests/wfa-api-lifecycle.test.ts|tests/legacy-http-mount.test.ts.
+
+--- end ---
+exit=1

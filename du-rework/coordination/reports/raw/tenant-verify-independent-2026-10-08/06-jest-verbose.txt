@@ -1,0 +1,12 @@
+﻿{"subsystem":"admin-shell","timestamp":"2026-10-07T20:50:52.744Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"40a5a6d2-4087-4a84-91b2-dc181bf9ccb8","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+node : Test Suites: 2 passed, 2 total
+At line:3 char:1
++ node node_modules/jest/bin/jest.js --runInBand --verbose --config jes ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Test Suites: 2 passed, 2 total:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        3.245 s, estimated 8 s
+Ran all test suites matching tests/tenant-list-cursor-codec-offline.test.ts|tests/tenant-list-bff-offline.test.ts.

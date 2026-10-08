@@ -276,6 +276,26 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
     expect(stub.requests).toHaveLength(0);
   });
 
+  it('platform usage without tenantId fails at BFF with actionable error and no upstream request', async () => {
+    const response = await httpRequest(`${baseUrl}/admin/api/usage?from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z`, {
+      headers: { cookie: adminCookie },
+    });
+    expect(response.status).toBe(422);
+    expect(JSON.parse(response.body)).toMatchObject({ code: 'INVALID_SCHEMA', title: 'usage requires a tenantId for platform sessions' });
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  it('tenant usage defaults to session scope and rejects a foreign tenant', async () => {
+    const url = `${baseUrl}/admin/api/usage?from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z`;
+    const headers = { cookie: `du_session=${OPERATOR_SESSION}` };
+    expect((await httpRequest(url, { headers })).status).toBe(200);
+    expect(last()?.path).toContain(`tenantId=${TENANT_A}`);
+    expect(last()?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);
+    stub.requests.length = 0;
+    expect((await httpRequest(`${url}&tenantId=${TENANT_B}`, { headers })).status).toBe(403);
+    expect(stub.requests).toHaveLength(0);
+  });
+
   it('usage requires from/to (422 before upstream) and forwards the tenant scope', async () => {
     const cookie = adminCookie;
     const missing = await httpRequest(`${baseUrl}/admin/api/usage`, { headers: { cookie } });

@@ -9,14 +9,14 @@ describe('Document Core Manifest & Recipe Registry (P5-01)', () => {
     if (result.ok) {
       expect(result.digest).toBeDefined();
       expect(result.digest).toBe(hashManifest(documentCoreManifest));
-      expect(result.queue).toBe('du-business-document-core-1.0.0');
+      expect(result.queue).toBe('du-business-document-core-1.1.0');
     }
   });
 
   it('manifest specifies contractVersion 1 and exact businessId', () => {
     expect(documentCoreManifest.contractVersion).toBe(WIRE_CONTRACT_VERSION);
     expect(documentCoreManifest.businessId).toBe('document-core');
-    expect(documentCoreManifest.version).toBe('1.0.0');
+    expect(documentCoreManifest.version).toBe('1.1.0');
     expect(documentCoreManifest.imageDigest).toBeDefined();
     expect(documentCoreManifest.capabilities).toEqual({
       cancel: true,

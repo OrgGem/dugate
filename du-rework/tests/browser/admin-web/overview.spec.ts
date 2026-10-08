@@ -77,7 +77,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     await expect(page.getByRole('table', { name: 'Audit events' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'admin.profile.publish', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'admin.connector.rotate_credential', exact: true })).toBeVisible();
-    await expect(page.getByText('requires backend')).toHaveCount(2);
+    await expect(page.getByText('requires backend')).toHaveCount(1);
     await expect(page.getByText('Usage rollup')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Operations' })).toBeVisible();
     await shot(page, 'overview-01-ready.png');
@@ -103,11 +103,11 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     await sessionCookie(page, OPERATOR);
     await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByText('UPSTREAM_ERROR')).toBeVisible();
-    await expect(page.getByText('502')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Audit ledger', exact: true }).locator('xpath=../..').getByText('502')).toBeVisible();
     await shot(page, 'overview-03-error.png');
 
     await setScenario('rows');
-    await page.getByRole('button', { name: 'Try again' }).click();
+    await page.getByRole('heading', { name: 'Audit ledger', exact: true }).locator('xpath=../..').getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByRole('cell', { name: 'admin.profile.publish', exact: true })).toBeVisible();
     await shot(page, 'overview-04-error-retried.png');
   });
@@ -139,8 +139,8 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     );
     await sessionCookie(page, OPERATOR);
     await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
-    await expect(page.getByRole('link', { name: 'Sign in again' })).toBeVisible();
-    await expect(page.getByText('UNAUTHENTICATED')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Session', exact: true }).locator('xpath=../..').getByRole('link', { name: 'Sign in again' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Session', exact: true }).locator('xpath=../..').getByText('UNAUTHENTICATED')).toBeVisible();
     await shot(page, 'overview-06-session-401.png');
   });
 

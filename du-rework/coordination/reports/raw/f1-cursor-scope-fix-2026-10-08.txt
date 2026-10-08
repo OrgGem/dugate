@@ -1,0 +1,36 @@
+F-1 cursor subquery scope fix — test transcript
+Scope: du-rework
+Package cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+
+RED, before source fix
+Command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --runTestsByPath tests/tenant-list-cursor-codec-offline.test.ts -t "reuses a cursor under a new scope"
+Exit: 1
+Result: the page was empty as expected, but SQL assertion failed. Received subquery:
+(SELECT lower(name) FROM tenants WHERE id = $2)
+Expected:
+(SELECT lower(name) FROM tenants WHERE id = $2 AND id = $1)
+Test Suites: 1 failed, 1 total
+Tests: 1 failed, 5 skipped, 6 total
+
+Intermediate focused run, after source fix and before updating the pre-existing assertion
+Command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --runTestsByPath tests/tenant-list-cursor-codec-offline.test.ts -t "reuses a cursor under a new scope"
+Exit: 1
+Result: existing assertion expected [TENANT_B] for a cursor outside scope; scoped-boundary behavior correctly returned []. Updated the assertion to fail closed and assert the scoped subquery.
+
+Focused GREEN
+Command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --runTestsByPath tests/tenant-list-cursor-codec-offline.test.ts -t "reuses a cursor under a new scope"
+Exit: 0
+Test Suites: 1 passed, 1 total
+Tests: 1 passed, 5 skipped, 6 total
+
+Full tenant-list suites
+Command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent --runTestsByPath tests/tenant-list-cursor-codec-offline.test.ts tests/tenant-list-bff-offline.test.ts
+Exit: 0
+Test Suites: 2 passed, 2 total
+Tests: 9 passed, 9 total
+
+Backend typecheck
+Command: pnpm run typecheck
+Exit: 0
+Output: tsc --noEmit -p tsconfig.json completed without errors.
+Environment warning: package requires Node >=24.21.0 <25; runner was Node v22.16.0 (pnpm 10.18.3).

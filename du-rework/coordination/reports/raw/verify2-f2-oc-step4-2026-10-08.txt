@@ -1,0 +1,16 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: Select-String -Path tests/<11 suite>.test.ts -Pattern 'overview|tenantOptions|fetchOverview' (case-insensitive)
+timestamp: 2026-10-08T05:52:03.8252298+07:00
+--- results ---
+admin-audit-mount :: 0 hits
+admin-audit-query :: 0 hits
+admin-error-boundary-offline :: 0 hits
+admin-operations-sort :: 0 hits
+admin-operations-sort-http-offline :: 0 hits
+admin-operations-sql :: 0 hits
+admin-shell-session-lifecycle :: 0 hits
+artifact-read-authorization :: 0 hits
+enc-meta-sentinel-runtime-refs :: 0 hits
+public-upload-encryption-gateway :: 0 hits
+v1-boot-typed-denial :: 0 hits
+TOTAL HITS: 0

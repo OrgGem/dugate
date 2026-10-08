@@ -28,7 +28,7 @@
 import http from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
-import { isHttpError } from '../src/http/errors';
+import { HttpError, isHttpError } from '../src/http/errors';
 import { readBoundedBody, type IngressBody } from '../src/http/ingress';
 import { route, type RouteContext } from '../src/server';
 import { writePublicArtifact } from '../src/compat/legacy-public-artifact';
@@ -74,6 +74,7 @@ function newOperation(over: OpRow = {}): OpRow {
     updated_at: '2026-10-01T10:00:01.000Z',
     deadline_at: null,
     deleted_at: null,
+    root_task_id: null,
     result_ref: null,
     submit_artifacts: null,
     pipeline_json: null,
@@ -108,12 +109,16 @@ function newOperation(over: OpRow = {}): OpRow {
  */
 class FakeDb {
   operations: OpRow[] = [];
+  tasks: Record<string, unknown>[] = [];
+  humanWaits: Record<string, unknown>[] = [];
   apiKeys: Record<string, unknown>[] = [];
   artifacts: Record<string, unknown>[] = [];
   readonly statements: string[] = [];
 
   reset(): void {
     this.operations = [];
+    this.tasks = [];
+    this.humanWaits = [];
     this.apiKeys = [];
     this.artifacts = [];
     this.statements.length = 0;
@@ -146,19 +151,55 @@ class FakeDb {
         mime_type: params[3],
         size_bytes: params[4],
         sha256: params[5],
+        state: 'STAGING',
+        storage_key: params[7],
+        storage_backend: params[8],
+        upload_token: params[9],
       });
       return pgResult([]);
     }
 
+    if (low.startsWith("update artifacts set state='ready'")) {
+      const row = this.artifacts.find((a) => a.id === params[0] && a.tenant_id === params[2]);
+      if (row) row.state = 'READY';
+      return { ...pgResult([]), rowCount: row ? 1 : 0 };
+    }
+
+    if (low.startsWith("update artifacts set state='aborted'")) {
+      const row = this.artifacts.find((a) => a.id === params[0] && a.tenant_id === params[2]);
+      if (row) row.state = 'ABORTED';
+      return { ...pgResult([]), rowCount: row ? 1 : 0 };
+    }
+
     // cancelLegacy
     if (low.startsWith("update operations set state = 'cancel_requested'")) {
-      const row = this.live(String(params[0]), String(params[1]));
+      const row = this.live(String(params[0]), String(params[1]), String(params[2]));
       if (row === undefined) return pgResult([]);
       if (TERMINAL.has(String(row.state))) return pgResult([]);
       row.state = 'CANCEL_REQUESTED';
       row.state_version = Number(row.state_version) + 1;
       row.updated_at = '2026-10-01T12:00:00.000Z';
-      return pgResult([{ ...row }]);
+      return { ...pgResult([{ state: row.state }]), rowCount: 1 };
+    }
+
+    if (low.startsWith('select id, root_task_id, state, state_version from operations')) {
+      const row = this.live(String(params[0]), String(params[1]), String(params[2]));
+      return pgResult(row === undefined ? [] : [{
+        id: row.id,
+        root_task_id: row.root_task_id,
+        state: row.state,
+        state_version: row.state_version,
+      }]);
+    }
+
+    if (low.startsWith('select wait_id from human_waits')) {
+      const wait = this.humanWaits.find((candidate) =>
+        candidate.operation_id === params[0]
+        && candidate.task_id === params[1]
+        && candidate.status === 'OPEN'
+        && candidate.expires_at !== 'expired',
+      );
+      return pgResult(wait === undefined ? [] : [{ wait_id: wait.wait_id }]);
     }
 
     // softDeleteOperation
@@ -170,7 +211,7 @@ class FakeDb {
     }
 
     if (low.startsWith('select output_content from operations')) {
-      const row = this.live(String(params[0]), String(params[1]));
+      const row = this.live(String(params[0]), String(params[1]), params[2] === undefined ? undefined : String(params[2]));
       return pgResult(row === undefined ? [] : [{ output_content: row.output_content }]);
     }
 
@@ -219,20 +260,60 @@ class FakeDb {
       );
     }
 
+    if (low.startsWith('select state from operations where id =')) {
+      const row = this.live(String(params[0]), String(params[1]), params[2] === undefined ? undefined : String(params[2]));
+      return pgResult(row === undefined ? [] : [{ state: row.state }]);
+    }
+
     if (low.startsWith('select * from operations where id =')) {
-      const row = this.live(String(params[0]), String(params[1]));
+      const row = this.live(String(params[0]), String(params[1]), params[2] === undefined ? undefined : String(params[2]));
       return pgResult(row === undefined ? [] : [{ ...row }]);
     }
 
+    if (low.includes('from legacy_workflow_schemas')) return pgResult([]);
+
     if (low.startsWith('select * from operations')) {
+      return pgResult(this.selectOperations(low, params).map((r) => ({ ...r })));
+    }
+
+    if (low.startsWith('select *, to_char(created_at')) {
       return pgResult(this.selectOperations(low, params).map((r) => ({ ...r })));
     }
 
     throw new Error('fake db received an unmodelled statement: ' + norm);
   }
 
-  private live(id: string, tenantId: string): OpRow | undefined {
-    return this.operations.find((o) => o.id === id && o.tenant_id === tenantId && o.deleted_at === null);
+  async tx<T>(work: (client: { query: (sql: string, params?: unknown[]) => Promise<PgResult> }) => Promise<T>): Promise<T> {
+    return work({ query: (sql, params = []) => this.queryTx(sql, params) });
+  }
+
+  private async queryTx(sql: string, params: unknown[]): Promise<PgResult> {
+    this.statements.push(sql);
+    const low = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (low.startsWith('select id, state from operations where')) {
+      const row = this.live(String(params[0]), String(params[1]), String(params[2]));
+      return pgResult(row === undefined ? [] : [{ id: row.id, state: row.state }]);
+    }
+    if (low.includes('from tasks where operation_id')) {
+      const rows = this.tasks
+        .filter((task) => task.operation_id === params[0])
+        .map((task) => ({ id: task.id, state: task.state, lease_active: task.lease_active === true }));
+      return pgResult(rows);
+    }
+    if (low.startsWith("update operations set state='cancel_requested'")) {
+      const row = this.live(String(params[0]), String(params[1]), String(params[2]));
+      if (row === undefined || TERMINAL.has(String(row.state))) return pgResult([]);
+      row.state = 'CANCEL_REQUESTED';
+      row.state_version = Number(row.state_version) + 1;
+      row.updated_at = '2026-10-01T12:00:00.000Z';
+      return { ...pgResult([]), rowCount: 1 };
+    }
+    throw new Error('fake db received an unmodelled transactional statement: ' + sql.replace(/\s+/g, ' ').trim());
+  }
+
+  private live(id: string, tenantId: string, apiKeyId?: string): OpRow | undefined {
+    return this.operations.find((o) => o.id === id && o.tenant_id === tenantId
+      && (apiKeyId === undefined || o.api_key_id === apiKeyId) && o.deleted_at === null);
   }
 
   /**
@@ -470,6 +551,10 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   let base = '';
   const artifacts: RecordedArtifact[] = [];
   const submissions: SubmissionCall[] = [];
+  const workflowUploads: Record<string, unknown>[] = [];
+  const workflowPreflights: Record<string, unknown>[] = [];
+  let workflowPreflightFailure: HttpError | undefined;
+  let workflowEncryptionReadinessChecks = 0;
   const resumes: unknown[] = [];
   const idempotency = new Map<string, string>();
 
@@ -571,6 +656,10 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     db.reset();
     artifacts.length = 0;
     submissions.length = 0;
+    workflowUploads.length = 0;
+    workflowPreflights.length = 0;
+    workflowPreflightFailure = undefined;
+    workflowEncryptionReadinessChecks = 0;
     resumes.length = 0;
     idempotency.clear();
     db.apiKeys.push({
@@ -606,7 +695,7 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
       ...(input.bodyStream ? { bodyStream: input.bodyStream } : {}),
       correlationId: input.correlationId,
       host: input.host,
-      db: { query: (sql: string, params?: unknown[]) => db.query(sql, params ?? []) },
+      db,
       config: { adminToken: ADMIN_TOKEN },
       artifacts: {
         putPublicArtifact: async (a: {
@@ -614,9 +703,44 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
           fileName: string | null;
           mimeType: string;
           bytes: Buffer;
-        }) => writePublicArtifact(artifactDeps(), a),
+          requireEncryption?: boolean;
+        }) => {
+          if (a.requireEncryption) {
+            const artifactId = randomUUID();
+            workflowUploads.push({
+              tenantId: a.tenantId,
+              fileName: a.fileName,
+              mimeType: a.mimeType,
+              sizeBytes: a.bytes.length,
+              requireEncryption: true,
+              storageBackend: 'encrypted-test-seam',
+            });
+            db.artifacts.push({
+              id: artifactId,
+              tenant_id: a.tenantId,
+              file_name: a.fileName,
+              mime_type: a.mimeType,
+              size_bytes: a.bytes.length,
+              state: 'READY',
+              storage_backend: 'encrypted-test-seam',
+            });
+            return { artifactId, state: 'READY' };
+          }
+          return writePublicArtifact(artifactDeps(), a);
+        },
+        assertPublicArtifactEncryptionReady: () => {
+          workflowEncryptionReadinessChecks += 1;
+        },
+        cleanupUnlinkedPublicArtifacts: async (_tenantId: string, _artifactIds: readonly string[]) => ({
+          deleted: 0,
+          deferred: 0,
+        }),
       },
       submission: {
+        preflightLegacyWorkflow: async (input: Record<string, unknown>) => {
+          workflowPreflights.push(input);
+          if (workflowPreflightFailure) throw workflowPreflightFailure;
+        },
         submit: async (s: SubmissionCall) => {
           submissions.push(s);
           const prior =
@@ -671,10 +795,31 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
           resumes.push({ id, tenantId, body });
           const row = db.operations.find((o) => o.id === id && o.tenant_id === tenantId);
           if (row !== undefined) {
-            row.state = 'RUNNING';
+            row.state = 'QUEUED';
             row.state_version = Number(row.state_version) + 1;
+            for (const wait of db.humanWaits) {
+              if (wait.operation_id === id && wait.status === 'OPEN') wait.status = 'ANSWERED';
+            }
           }
           return { replayed: false };
+        },
+      },
+      lifecycle: {
+        cancelOperation: async (operationId: string, tenantId: string) => {
+          const row = db.operations.find((candidate) => candidate.id === operationId && candidate.tenant_id === tenantId);
+          if (row !== undefined) {
+            row.state = 'CANCELLED';
+            row.state_version = Number(row.state_version) + 1;
+            for (const task of db.tasks) {
+              if (task.operation_id === operationId && task.state !== 'SUCCEEDED' && task.state !== 'FAILED') {
+                task.state = 'CANCELLED';
+              }
+            }
+            for (const wait of db.humanWaits) {
+              if (wait.operation_id === operationId && wait.status === 'OPEN') wait.status = 'CANCELLED';
+            }
+          }
+          return { operationId, state: 'CANCELLED', replayed: false };
         },
       },
     } as unknown as RouteContext;
@@ -1012,14 +1157,17 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   });
 
   it('cancel moves a running operation to CANCEL_REQUESTED, never to a terminal state', async () => {
-    const row = newOperation({ state: 'RUNNING' });
+    const taskId = randomUUID();
+    const row = newOperation({ state: 'RUNNING', root_task_id: taskId });
     db.operations.push(row);
+    db.tasks.push({ id: taskId, operation_id: row.id, state: 'RUNNING', lease_active: true });
     const res = await wireRequest(base, 'POST', `/api/v1/operations/${String(row.id)}/cancel`, keyHeaders());
     expect(res.status).toBe(200);
     const body = json(res);
     expect((body.metadata as Record<string, unknown>).state).toBe('CANCEL_REQUESTED');
     expect(body.done).toBe(false);
     expect(row.state).toBe('CANCEL_REQUESTED');
+    expect(db.tasks[0]?.state).toBe('RUNNING');
   });
 
   // RV01-F2 (KNOWN DEFECT - currently RED against legacy).
@@ -1059,8 +1207,17 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
   });
 
   it('resume requeues a WAITING_INPUT operation and answers {success:true}', async () => {
-    const row = newOperation({ state: 'WAITING_INPUT' });
+    const taskId = randomUUID();
+    const waitId = randomUUID();
+    const row = newOperation({ state: 'WAITING_INPUT', root_task_id: taskId });
     db.operations.push(row);
+    db.humanWaits.push({
+      wait_id: waitId,
+      operation_id: row.id,
+      task_id: taskId,
+      status: 'OPEN',
+      expires_at: '2026-10-08T00:00:00.000Z',
+    });
     const res = await wireRequest(
       base,
       'POST',
@@ -1070,11 +1227,17 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     );
     expect(res.status).toBe(200);
     expect(json(res)).toEqual({ success: true, message: 'Resumed successfully' });
-    expect(resumes).toEqual([{ id: String(row.id), tenantId: TENANT, body: {} }]);
+    expect(resumes).toEqual([{
+      id: String(row.id),
+      tenantId: TENANT,
+      body: { waitId, input: {}, expectedStateVersion: 1 },
+    }]);
+    expect(row.state).toBe('QUEUED');
+    expect(db.humanWaits[0]?.status).toBe('ANSWERED');
   });
 
   it('a bad resume answers {error} - not problem+json - because legacy used NextResponse.json', async () => {
-    const running = newOperation({ state: 'RUNNING' });
+    const running = newOperation({ state: 'RUNNING', root_task_id: randomUUID() });
     db.operations.push(running);
     const wrong = await wireRequest(
       base,
@@ -1356,32 +1519,128 @@ describe('RV01 legacy compat facade over real loopback HTTP', () => {
     expect(String(body.detail)).not.toContain('not-the-key');
   });
 
-  it('the workflow facade claims its path with an explicit 503, never a silent 404', async () => {
-    const res = await postAction('workflows', [{ name: 'x', value: 'y' }]);
-    expect(res.status).toBe(503);
-    const body = json(res);
-    expect(body.type).toBe('https://dugate.vn/errors/service-not-available');
-    expect(body.title).toBe('Service Not Available');
-    expect(body.status).toBe(503);
+  it('named workflow uses shared submission with its legacy 202 envelope and ignores sync/idempotency', async () => {
+    const parts = [{ name: 'process', value: ' disbursement ' }, { name: 'resolution_data', value: '{"invoice":"A"}' }, filePart('files[]', 'invoice.pdf')];
+    const first = await postAction('workflows', parts, { query: '?sync=true', headers: { 'idempotency-key': 'ignored' } });
+    expect(first.status).toBe(202);
+    const firstBody = json(first);
+    const firstId = String(firstBody.name).replace('operations/', '');
+    expect(first.headers['operation-location']).toBe(`/api/v1/operations/${firstId}`);
+    expect(firstBody).toMatchObject({
+      name: `operations/${firstId}`,
+      done: false,
+      metadata: {
+        state: 'RUNNING', workflow: 'disbursement', progress_percent: 0,
+        progress_message: 'Initializing workflow...',
+      },
+    });
+    expect(Object.keys(firstBody).sort()).toEqual(['done', 'metadata', 'name']);
+    expect(submissions[0]).toMatchObject({
+      tenantId: TENANT,
+      apiKeyId: KEY_ID,
+      businessId: 'document-core',
+      action: 'disbursement',
+      submission: { input: {
+        variables: { resolution_data: '{"invoice":"A"}' },
+        legacyWorkflow: { version: 'legacy-workflow-named-input-v1', process: 'disbursement' },
+      } },
+    });
+    expect(submissions[0]!.idempotencyKey).toBeUndefined();
+    expect(workflowPreflights[0]).toMatchObject({
+      businessId: 'document-core',
+      action: 'disbursement',
+      input: {
+        variables: { resolution_data: '{"invoice":"A"}' },
+        // WFA stand-in contract: preflight validates the request shape with
+        // never-persisted stand-in refs; submit() re-validates the real ones.
+        artifactIds: [expect.any(String)],
+        fileNames: ['invoice.pdf'],
+        artifacts: [{ artifactId: expect.any(String), role: 'files-1' }],
+        legacyWorkflow: { version: 'legacy-workflow-named-input-v1', process: 'disbursement' },
+      },
+      fileNames: ['invoice.pdf'],
+    });
+    expect(workflowEncryptionReadinessChecks).toBe(1);
+    expect(workflowUploads).toEqual([
+      expect.objectContaining({ fileName: 'invoice.pdf', requireEncryption: true, storageBackend: 'encrypted-test-seam' }),
+    ]);
+
+    const second = await postAction('workflows', parts, { query: '?sync=true', headers: { 'idempotency-key': 'ignored' } });
+    expect(second.status).toBe(202);
+    expect(json(second).name).not.toBe(firstBody.name);
+    expect(submissions).toHaveLength(2);
+    expect(workflowPreflights).toHaveLength(2);
+    expect(workflowEncryptionReadinessChecks).toBe(2);
+    expect(workflowUploads).toHaveLength(2);
   });
 
-  it('the workflow schema route is claimed too', async () => {
-    const mp = multipart([{ name: 'x', value: 'y' }]);
+  it('an unknown schema slug returns the old not-imported contract without admission', async () => {
+    const mp = multipart([{ name: 'schemaSlug', value: 'invoice-v4' }, { name: 'input', value: '{"account":"A"}' }]);
     const res = await wireRequest(base, 'POST', '/api/v1/docs/workflows/schema', {
       ...keyHeaders(),
       'content-type': mp.contentType,
       'content-length': String(mp.body.length),
     }, mp.body);
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(404);
+    expect(json(res)).toMatchObject({ title: 'Schema Not Found', status: 404 });
+    expect(submissions).toHaveLength(0);
   });
 
-  it('GET /api/v1/services answers 500 while unwired, never an empty catalogue', async () => {
+  it('schema input must be a JSON object and fails before artifact publication', async () => {
+    const mp = multipart([{ name: 'schemaSlug', value: 'invoice-v4' }, { name: 'input', value: '[]' }, filePart('file', 'invoice.pdf')]);
+    const res = await wireRequest(base, 'POST', '/api/v1/docs/workflows/schema', {
+      ...keyHeaders(),
+      'content-type': mp.contentType,
+      'content-length': String(mp.body.length),
+    }, mp.body);
+    // The tenant catalog is empty, so lookup intentionally precedes input
+    // decoding and produces the old missing-schema result first.
+    expect(res.status).toBe(404);
+    expect(submissions).toHaveLength(0);
+    expect(db.artifacts).toHaveLength(0);
+  });
+
+  it('workflow submissions require an active public key and never use ADMIN fallback', async () => {
+    const res = await postAction('workflows', [{ name: 'process', value: 'doc-compare' }, filePart('file', 'one.pdf')], {
+      headers: { 'x-api-key': 'not-the-key' },
+    });
+    expect(res.status).toBe(401);
+    expect(json(res).type).toBe('https://dugate.vn/errors/unauthorized');
+    expect(submissions).toHaveLength(0);
+  });
+
+  it('runs workflow action/profile preflight before publishing uploaded bytes', async () => {
+    workflowPreflightFailure = new HttpError(403, 'PERMISSION_DENIED', 'workflow action is not authorized');
+    const res = await postAction('workflows', [
+      { name: 'process', value: 'disbursement' },
+      filePart('file', 'invoice.pdf'),
+    ]);
+    expect(res.status).toBe(403);
+    expect(workflowPreflights).toHaveLength(1);
+    expect(workflowPreflights[0]).toMatchObject({
+      businessId: 'document-core',
+      action: 'disbursement',
+      // WFA stand-in contract: a denied preflight still sees never-persisted
+      // stand-in refs, and publication has not happened (asserted below).
+      input: {
+        variables: {},
+        artifactIds: [expect.any(String)],
+        fileNames: ['invoice.pdf'],
+        artifacts: [{ artifactId: expect.any(String), role: 'file' }],
+      },
+      fileNames: ['invoice.pdf'],
+    });
+    expect(db.artifacts).toHaveLength(0);
+    expect(submissions).toHaveLength(0);
+  });
+
+  it('GET /api/v1/services answers 200 with an empty catalogue while unwired', async () => {
     const res = await wireRequest(base, 'GET', '/api/v1/services', keyHeaders());
-    expect(res.status).toBe(500);
+    // WFA 6b: the unwired catalogue degrades to an empty list, never a 500.
+    expect(res.status).toBe(200);
     const body = json(res);
-    expect(body.title).toBe('Internal Error');
-    // An empty list would read as "you may call nothing".
-    expect(body.services).toBeUndefined();
+    expect(body.message).toBe('Lấy danh sách các dịch vụ AI khả dụng thành công.');
+    expect(body.services).toEqual([]);
   });
 
   // RV01-F5 (KNOWN DEFECT - currently RED).

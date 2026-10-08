@@ -59,6 +59,10 @@ export const METADATA_SLOTS = [
   // the operation row, and vice versa.
   'tasks.result_ref',
   'operations.result_ref',
+  // WFA-03: immutable tenant-scoped legacy workflow catalog payload. Schema
+  // definitions may contain inline connector auth values and are sealed with
+  // their tenant/slug/revision identity before any durable write.
+  'legacy_workflow_schemas.schema_ref',
 ] as const;
 
 export type MetadataSlot = (typeof METADATA_SLOTS)[number];

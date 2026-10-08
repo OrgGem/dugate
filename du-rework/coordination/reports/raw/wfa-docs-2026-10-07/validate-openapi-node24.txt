@@ -1,0 +1,27 @@
+﻿WORKFLOW-FACADE-CONTRACTS-VALIDATED routes=2 runtime-acceptance=separate
+paths=60 x-absent=9
+SC-CB-CANONICAL-SCHEMAS-VALIDATED count=37 refs=resolved operationIds=unique
+PASS SubmissionSchema
+PASS ListOperationsQuerySchema
+PASS SubmitAckSchema
+PASS OperationViewSchema
+PASS ResultEnvelopeSchema
+PASS ArtifactUploadGrantRequestSchema
+PASS ArtifactFinalizeRequestSchema
+PASS ArtifactAccessRequestSchema
+PASS InvocationGrantRequestSchema
+PASS InvocationGrantSchema
+PASS UsageEventSchema
+PASS UsageIngestBatchSchema
+PASS ClaimTaskRequestSchema
+PASS TaskHeartbeatRequestSchema
+PASS SaveStepRequestSchema
+PASS SpawnChildrenRequestSchema
+PASS WaitInputRequestSchema
+PASS CompleteTaskRequestSchema
+PASS FailTaskRequestSchema
+PASS InvocationRequestSchema
+PASS InvocationResponseSchema
+PASS OperationDetailSchema
+PASS HumanWaitViewSchema
+OPENAPI-EXAMPLES-VALIDATED

@@ -1,0 +1,9 @@
+﻿  ok  a: option labels are tenant names and no raw id reaches any text node
+  ok  b: a non-ACTIVE tenant is labelled with its state
+  ok  c: a value outside the roster selects nothing and never fires onValueChange
+  ok  d1: loading state before the roster resolves
+  ok  d2: failed state clears the roster and raises an alert
+  ok  d3: empty roster is its own state, not an error
+  ok  d4: a repeating cursor is treated as a failed read, not an endless loop
+  ok  d5: a multi-page roster is concatenated and stays name-labelled
+PASS: real TenantSelect element tree ΓÇö 8 scenarios (names-not-ids, state suffix, unknown value, loading/failed/empty/cycle/multi-page)

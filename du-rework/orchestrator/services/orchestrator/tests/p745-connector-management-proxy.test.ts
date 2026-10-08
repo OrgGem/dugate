@@ -172,14 +172,47 @@ describe('CONNECTOR-WIRE-A management store', () => {
 describe('CONNECTOR-WIRE-A admin routes (thin reads + capability advertisement)', () => {
   const okStore = store(scriptedFetch(() => jsonResponse(200, [REVISION])).fetchImpl);
 
-  it('capabilities are composition-derived booleans and flip together with the store', async () => {
+  it('advertises only configured connector IDs when management is not composed', async () => {
+    const response = await handleAdminRoutes(
+      ctx({
+        pathname: '/api/v1/admin/connectors/capabilities',
+        config: {
+          adminToken: 'cw-admin-token',
+          connectorBaseUrls: {
+            'vendor-alpha': 'https://user:do-not-leak@private.example/api?token=hidden',
+            'vendor-beta': 'http://another-private.example:9003',
+          },
+        },
+      }),
+    );
+
+    expect(response).toEqual({
+      status: 200,
+      body: {
+        management: false,
+        credentialWorkflow: false,
+        test: false,
+        knownConnectorIds: ['vendor-alpha', 'vendor-beta'],
+      },
+    });
+    expect(JSON.stringify(response)).not.toContain('private.example');
+    expect(JSON.stringify(response)).not.toContain('do-not-leak');
+  });
+
+  it('capabilities are composition-derived and flip together with the store', async () => {
     const without = await handleAdminRoutes(ctx({ pathname: '/api/v1/admin/connectors/capabilities' }));
-    expect(without).toEqual({ status: 200, body: { management: false, credentialWorkflow: false, test: false } });
+    expect(without).toEqual({
+      status: 200,
+      body: { management: false, credentialWorkflow: false, test: false, knownConnectorIds: [] },
+    });
 
     const with_ = await handleAdminRoutes(
       ctx({ pathname: '/api/v1/admin/connectors/capabilities', connectorManagement: okStore, credentialWorkflow: {} }),
     );
-    expect(with_).toEqual({ status: 200, body: { management: true, credentialWorkflow: true, test: true } });
+    expect(with_).toEqual({
+      status: 200,
+      body: { management: true, credentialWorkflow: true, test: true, knownConnectorIds: [] },
+    });
   });
 
   it('list: 503 without the store (fail closed); {items} passthrough with it', async () => {

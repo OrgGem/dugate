@@ -6,6 +6,7 @@ import { ConfirmDialog, Modal } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { AlertBanner, DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
+import { TenantSelect } from '@/components/ui/tenant-select';
 import {
   Table,
   TableBody,
@@ -31,6 +32,7 @@ import {
   buildConnectorUpsertParams,
   connectorActionGating,
   connectorActiveRevision,
+  connectorIdSuggestions,
   connectorStateVariant,
   draftFromCurlImport,
   parseConnectorCapabilities,
@@ -96,6 +98,7 @@ export function ConnectorsScreen() {
   const [draftCredentialRef, setDraftCredentialRef] = useState('');
   const [actionProblem, setActionProblem] = useState<AdminApiProblem | null>(null);
   const [sessionFailed, setSessionFailed] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<{
@@ -128,6 +131,7 @@ export function ConnectorsScreen() {
       setCapabilities({ kind: 'failed', problem: sessionResult.problem });
       return;
     }
+    setIsAdmin(sessionResult.data.role === 'admin');
     const capsResult = await client.getConnectorCapabilities();
     if (!capsResult.ok) {
       setCapabilities({ kind: 'failed', problem: capsResult.problem });
@@ -276,6 +280,7 @@ export function ConnectorsScreen() {
   const readConnectorId = read === null ? '' : read.revision.connectorId;
   const readRevisionNumber = read === null ? 0 : read.revision.revision;
   const activeRevision = read === null ? null : connectorActiveRevision(listRows, readConnectorId);
+  const connectorSuggestions = connectorIdSuggestions(caps, listRows);
 
   return (
     <section aria-labelledby="connectors-title" className="flex flex-col gap-5 min-w-0">
@@ -329,6 +334,13 @@ export function ConnectorsScreen() {
               endpoint-only projection.
             </>
           )}
+        </AlertBanner>
+      ) : null}
+
+      {caps?.management === false ? (
+        <AlertBanner variant="warning" title="Full connector management unavailable">
+          Set DU_CONNECTOR_BASE_URLS and SERVICE_IDENTITY_SECRET to enable connector management. Known connector IDs
+          remain available for revision lookup.
         </AlertBanner>
       ) : null}
 
@@ -478,7 +490,7 @@ export function ConnectorsScreen() {
                 placeholder="openai"
               />
               <datalist id="connector-id-suggestions">
-                {[...new Set(listRows.map((row) => row.connectorId))].map((id) => <option key={id} value={id} />)}
+                {connectorSuggestions.map((id) => <option key={id} value={id} />)}
               </datalist>
             </FormField>
           </div>
@@ -604,7 +616,7 @@ export function ConnectorsScreen() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {read.kind === 'management' ? (
-              <ManageRevisionFacts read={read} activeRevision={activeRevision} />
+              <ManageRevisionFacts read={read} activeRevision={activeRevision} isPlatformAdmin={isAdmin} />
             ) : (
               <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm min-w-0">
                 <dt className="text-[var(--text-sub)]">Endpoint</dt>
@@ -755,9 +767,11 @@ export function ConnectorsScreen() {
 function ManageRevisionFacts({
   read,
   activeRevision,
+  isPlatformAdmin,
 }: {
   read: Extract<ConnectorRevisionRead, { kind: 'management' }>;
   activeRevision: number | null;
+  isPlatformAdmin: boolean;
 }) {
   const config = summarizeConnectorConfig(read.revision.config);
   const sourceKeys =
@@ -787,11 +801,25 @@ function ManageRevisionFacts({
       <dd className="min-w-0 break-words">
         {sourceKeys.length === 0 ? 'not reported' : sourceKeys.join(', ')}
       </dd>
-      <dt className="text-[var(--text-sub)]">Binding</dt>
+      <dt className="text-[var(--text-sub)]">Tenant</dt>
       <dd className="min-w-0 break-words text-xs">
-        tenant <code>{read.revision.tenantId ?? '—'}</code> · account{' '}
-        <code>{read.revision.accountId ?? '—'}</code>
+        {read.revision.tenantId === undefined
+          ? '—'
+          : isPlatformAdmin
+            ? (
+                <TenantSelect
+                  id="connector-revision-tenant"
+                  label={null}
+                  ariaLabel="Revision tenant"
+                  value={read.revision.tenantId}
+                  onValueChange={() => undefined}
+                  disabled
+                />
+              )
+            : 'Tenant name unavailable'}
       </dd>
+      <dt className="text-[var(--text-sub)]">Account</dt>
+      <dd className="min-w-0 break-words text-xs"><code>{read.revision.accountId ?? '—'}</code></dd>
     </dl>
   );
 }

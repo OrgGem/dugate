@@ -1,0 +1,11 @@
+﻿node : 
+At line:2 char:1
++ node node_modules/jest/bin/jest.js --runInBand --config jest.unit.con ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 1 passed, 1 total
+Tests:       31 skipped, 1 passed, 32 total
+Snapshots:   0 total
+Time:        3.651 s

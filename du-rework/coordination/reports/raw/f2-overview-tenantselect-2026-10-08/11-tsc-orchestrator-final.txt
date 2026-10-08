@@ -1,0 +1,4 @@
+﻿# tsc --noEmit -p tsconfig.json (cwd: orchestrator/services/orchestrator)
+# after F-2 fix, restored state (node v24.21.0)
+exit_code=0
+output_bytes=0

@@ -46,6 +46,7 @@ import {
   buildApiKeyListView,
 } from './api-key-view-models';
 import { safeTransportErrorText } from '../../http/errors';
+import { fetchTenantOptions } from './overview-section-data';
 
 // ---------------------------------------------------------------------------
 // Wire shape (raw rows as the platform's GET would return them)
@@ -184,12 +185,21 @@ export interface ApiKeyListOkResult {
   selectedKeyId: string;
 }
 
+export interface ApiKeyTenantOption {
+  id: string;
+  name: string;
+  state: string;
+}
+
 export type ApiKeyFetchResult =
-  | ApiKeyListOkResult
-  | { kind: 'empty'; message: string }
-  | { kind: 'unauthorized'; message: string }
-  | { kind: 'not-found'; keyId: string; message: string }
-  | { kind: 'error'; message: string };
+  (ApiKeyListOkResult
+    | { kind: 'empty'; message: string }
+    | { kind: 'unauthorized'; message: string }
+    | { kind: 'not-found'; keyId: string; message: string }
+    | { kind: 'error'; message: string }) & {
+      /** F-6 roster options; empty on missing credentials or roster failure. */
+      tenantOptions?: readonly ApiKeyTenantOption[];
+    };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -246,6 +256,21 @@ function grantToWireRow(g: ApiKeyGrantRow): ApiKeyGrantWireRow {
  * into `{ kind: 'error', ... }`.
  */
 export async function fetchApiKeys(
+  input: ApiKeyFetcherInput,
+): Promise<ApiKeyFetchResult> {
+  const [fetchResult, tenantOptions] = await Promise.all([
+    fetchApiKeysCore(input),
+    fetchTenantOptions({
+      jsonBaseUrl: input.jsonBaseUrl,
+      adminToken: input.adminToken,
+      fetchImpl: input.fetchImpl,
+      timeoutMs: input.timeoutMs,
+    }),
+  ]);
+  return { ...fetchResult, tenantOptions };
+}
+
+async function fetchApiKeysCore(
   input: ApiKeyFetcherInput,
 ): Promise<ApiKeyFetchResult> {
   const keyId = input.keyId;

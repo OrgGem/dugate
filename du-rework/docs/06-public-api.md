@@ -12,7 +12,7 @@ Trạng thái theo **code hiện tại** (`orchestrator/services/orchestrator/sr
 | GET /businesses | **Chưa implement** (`x-absent`) | cursor, limit | 200 enabled actions đã được profile cấp | 401 |
 | GET /businesses/{id}/actions/{action}/schema | **Chưa implement** (`x-absent`) | none | 200 schema theo version profile pin | 404 nếu không được cấp |
 | POST /businesses/{id}/actions/{action} | Implement | Submission | 202 Operation; 200 nếu idempotent replay | 400,401,403,409,413,415,422,429,503 |
-| POST /docs/{action} | **Chưa implement** — `x-absent` liệt kê `POST /docs/{action}`; legacy thật là `POST /api/v1/docs/{service}` (xem docs/14) | JSON hoặc multipart facade | 202 Operation | Như generic |
+| POST /api/v1/docs/{action} | Implement (facade compat; `action` ∈ `ingest, extract, analyze, transform, generate, compare`) — handler tại `legacy-http-mount.ts:600-646`, danh sách tại `legacy-wire-decoders.ts:12-19`. Mục `POST /docs/{action}` trong `x-absent` là tên rút gọn (thiếu `/api/v1`) **không** mô tả trạng thái route; 6 action path chưa có entry trong `docs/21-openapi.json` | JSON hoặc multipart facade | 202 Operation; 200 khi `?sync=true` hoặc idempotent replay | Như generic |
 | POST /artifacts (upload standalone) | **Chưa implement** (`x-absent`) | multipart file | 201 ArtifactRef | 413,415,422 |
 | GET /artifacts/{id} | **Chưa implement** (`x-absent`) | none | 200 metadata | 404 không có quyền |
 | GET /artifacts/{id}/download | Implement | none | 200 raw bytes + artifact MIME (plain) hoặc 200 JSON {schemaVersion, encrypted, delivery, artifactId, mimeType} (encrypted) | 404,410 |
@@ -26,12 +26,59 @@ Trạng thái theo **code hiện tại** (`orchestrator/services/orchestrator/sr
 | POST /uploads, POST /uploads/{id}/{part,complete,abort} | Implement (multipart upload gateway) | multipart | 200/201 | 413,415,422 |
 | GET/POST /api/v1/admin/audit, /api/v1/admin/crypto-config, /api/v1/admin/businesses*, /api/v1/admin/profiles*, /api/v1/admin/connectors*, /api/v1/admin/api-keys* | Implement (surface admin — không phải public client API) | admin bearer | 200 | 401,403,404,422 |
 | Surface runtime `/api/runtime/v1/**` (tasks claim/heartbeat/steps/complete, artifacts finalize/access/multipart, invocation-grants, workspace-reference) | Implement (internal worker; worker credentials bị chặn khỏi surface public tại `route(ctx)`) | runtime auth | 200 | 401,403,404 |
-| GET /api/v1/services, GET /api/v1/billing/balance, GET /api/v1/billing/usage | **Chưa implement** — projection legacy theo API key thuộc COMP-08 (không bịa balance từ tenant usage) | legacy query | 200 | 401 |
-| POST /api/v1/docs/workflows, POST /api/v1/docs/workflows/schema | **Chưa implement** — thuộc COMP-09/P9 (legacy path thật, xem docs/14) | multipart + process/schemaSlug | 202 | 400,401,403,422 |
+| GET /api/v1/services | Implement (facade) — **hiện trả 500 `Internal Error`** vì `serviceCatalogue` chưa được wire trong host adapter (known gap; pin bởi test `rv01-loopback-http-offline.test.ts` "answers 500 while unwired, never an empty catalogue") | legacy query | 200 khi catalogue được wire | 401*,500 |
+| GET /api/v1/billing/balance, GET /api/v1/billing/usage | Implement (facade, projection per API key) — handler tại `legacy-http-mount.ts:806-884`; `billingFor` wired tại `legacy-host-adapter.ts:428` (`loadLegacyBilling` đọc `api_keys.spending_limit/total_used` từ migration `0024_legacy_parity_columns.sql` + aggregate `operations`); **không** lấy từ tenant usage. OPEN: chưa có cơ chế cập nhật `total_used` trong cây | legacy query | 200 | 400,401*,404,500 |
+| POST /api/v1/docs/workflows, POST /api/v1/docs/workflows/schema | Facade admission đã implement; admission/error/auth + schema pin có evidence độc lập; runtime còn lại OPEN theo WFA plan (chia theo nhóm acceptance ở mục Workflow compatibility facade) | multipart + process/schemaSlug | 202 + Operation-Location | 400,401,403,404,409,413,415,422,429,503 |
 
 **Known gap của generator OpenAPI:** `tools/openapi/gen_openapi.py` sinh `docs/21` từ router + contracts nhưng chưa cover đủ các route admin/uploads/runtime liệt kê trên; khi chạy generator, path mới hơn `x-absent` cũ có thể chưa vào spec. Không sửa tay `docs/21` (serialize-point) — mở task cho docs/COMP-11 owner mở rộng generator thay vì patch JSON.
 
-V1 không expose arbitrary public route registration. `/docs/workflows` là facade tương lai ánh xạ process → registered business; xem compatibility scope.
+**Known gap auth của facade (RV01-F4, còn RED):** các nhánh legacy read dùng `safePrincipal` (operations, billing, services) khi thiếu hoặc sai key hiện trả **500 `Internal Error`** thay vì 401 — pin bằng `it.failing` trong `orchestrator/services/orchestrator/tests/rv01-loopback-http-offline.test.ts:1499-1510`; các ô `401*` ở bảng trên là mục tiêu contract, chưa phải hành vi hiện tại. `RV01-F5` (unknown `/api/v1/docs/<slug>` rơi về 404 canonical thay vì namespace legacy) cũng còn RED — owner: compat/API lane.
+
+V1 không expose arbitrary public route registration. `/api/v1/docs/workflows` giữ route/tham số legacy và ánh xạ nội bộ tới registered business/action qua cùng admission/submission service, không redirect hoặc gọi HTTP vòng lại route business.
+
+### Workflow compatibility facade (WFA, 2026-10-07)
+
+Plan và acceptance matrix: [WORKFLOW-API-BACKWARD-COMPAT-2026-10-07](../tasks/WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md). Facade đã được nối trong `orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts`; bằng chứng admission và schema catalog nằm trong [verification receipt](../coordination/reports/wfa-verification-2026-10-07.md). Đây chưa phải xác nhận hoàn tất runtime hoặc cutover.
+
+`POST /api/v1/docs/workflows` nhận multipart `process` thuộc `disbursement`, `lc-checker`, `doc-compare`; nhận `resolution_data` cho disbursement. File được lấy theo thứ tự `files[]`, `source_file`, `target_file`, `file`, bỏ file rỗng; named process yêu cầu ít nhất một file. Mapping tương ứng là `document-core/disbursement`, `lc-checker/lc-checker`, `document-core/doc-compare`; adapter phải giữ semantics legacy thay vì chỉ đổi tên.
+
+`POST /api/v1/docs/workflows/schema` nhận multipart `schemaSlug`, `input` là chuỗi JSON object (mặc định `{}`), cùng các file fields trên. Schema hợp lệ có thể không cần file. Schema được resolve theo tenant của API key, chốt revision/digest tại admission và lưu mã hoá; worker phải dùng pin đó cả khi resume, không đọc lại latest mutable schema.
+
+Hai route trả operation mới `202`, `Operation-Location` là URL polling tương đối và envelope `{name,done:false,metadata:{state:"RUNNING",workflow,progress_percent:0,progress_message}}`. Giữ hành vi legacy: **luôn tạo operation mới** và **bỏ qua `?sync`/`Idempotency-Key`** — phạm vi "bỏ qua" chỉ đúng cho hai route workflow này; sáu core action `POST /api/v1/docs/{action}` tôn trọng cả hai (`?sync=true` trả 200 và idempotent replay trả 200 cùng operation — `legacy-http-mount.ts` `submitOptions`/`legacySubmitResponse`, xem [docs/39](39-legacy-parity-contract.md) §4.1). `x-api-key` đang hoạt động là bắt buộc; `apiKeyId` nếu gửi chỉ được khớp caller đã xác thực, không chọn identity khác và không fallback ADMIN key. Việc chỉ nhận JSON object là hardening được ghi riêng trong WFA plan. OpenAPI của hai route được sinh bằng generator, không sửa JSON trực tiếp.
+
+Ví dụ client Bash sau khi admin đã đăng ký/activate business version, gắn profile/action/connector bindings, provision schema tenant và cấu hình mã hoá metadata/artifact. `DU_API_KEY` là biến môi trường của client; không đưa giá trị thật vào tài liệu hoặc git:
+
+```bash
+curl -i -X POST http://localhost:3000/api/v1/docs/workflows \
+  -H "x-api-key: $DU_API_KEY" \
+  -F 'process=disbursement' \
+  -F 'resolution_data=approved-resolution' \
+  -F 'files[]=@./synthetic-document.pdf'
+
+curl -i -X POST http://localhost:3000/api/v1/docs/workflows/schema \
+  -H "x-api-key: $DU_API_KEY" \
+  -F 'schemaSlug=example-input-only' \
+  -F 'input={"message":"synthetic-input"}'
+```
+
+Lấy URL từ `Operation-Location` để polling với cùng API key. Schema không tồn tại trả 404; deployment thiếu cấu hình mã hoá workflow trả lỗi trước khi upload/admission. Không provision bằng cách ghi JSON plaintext trực tiếp vào `legacy_workflow_schemas`.
+
+#### Trạng thái kiểm chứng WFA (2026-10-07)
+
+Chỉ các nhóm dưới đây có evidence độc lập tại [wfa-verification](../coordination/reports/wfa-verification-2026-10-07.md) / [wfa-integration](../coordination/reports/wfa-integration-2026-10-07.md); phần còn lại **OPEN** — không suy ra ACCEPTED.
+
+| Nhóm acceptance (WFA) | Trạng thái | Evidence / còn lại |
+|---|---|---|
+| T04–T13, T29–T32 — admission/error/auth, không side-effect | **VERIFIED (real HTTP, pre-admission)** | 401/400/403/404 đúng contract; số operation/task/outbox/artifact/idempotency không đổi sau reject; admin fallback bị từ chối; route-projection giữ đúng 202 + envelope dù có `sync`/`Idempotency-Key` |
+| T14, T37 — schema pin bất biến + provision/load trên DB sạch | **VERIFIED** | Worker giữ revision-1 admission pin dù active schema tiến revision 2; catalog test trên schema PostgreSQL mới (4 suites / 11 tests), teardown sạch |
+| T16/T17, T23/T24 — node `parallel`/`join`/`human`/`input` | **VERIFIED (schema executor)** | Worker thật + rerun riêng; HITL resume tuần tự và parallel join với encrypted branch artifacts |
+| T01–T03 — named chains thật | **OPEN** — owner: API/runtime + verifier | `disbursement`/`lc-checker` chưa có e2e độc lập; `doc-compare` mới có nhánh fail async; next: success chains trên stack cô lập |
+| T15, T18–T22 — node adapters còn lại | **OPEN** — owner: runtime/API | connector/file_parse/file_url_download/callback/archive_compress/archive_extract chưa có worker evidence |
+| T25–T28 — lifecycle ngoài case đã test | **OPEN** — owner: verifier | restart/retry tránh side effect, cancel dừng provider work; paused cancel đã nằm trong suite 8/8 |
+| T33–T36 — security bounds | **OPEN** — owner: runtime + verifier | SSRF/egress/callback policy, archive/path/prototype, size bounds, redaction |
+| T38 — docs + OpenAPI | **IMPLEMENTED (docs owner)** | Generator 61 paths · 0 drop, regen byte-identical qua 2 lan regen, validate exit 0; [wfa-docs receipt](../coordination/reports/wfa-docs-2026-10-07.md) — reviewer độc lập quyết định close |
+
+Suite điều khiển đầy đủ HTTP → PostgreSQL → outbox → Redis → production worker **8/8** (10/7 19:35) là mốc lịch sử cho pin/HITL/cancel ở trên; trong cùng ngày nó đã được supersede bởi các full-file run **10/10 → 11/11 ×2 → 13/13 ×3** (mới nhất, đã gồm named T01–T03 và leaf-node/fence — bảng run: [wfa-qwen-handover-2026-10-07.md](../coordination/reports/wfa-qwen-handover-2026-10-07.md) §2–§3). Raw log nằm ở `tests/workflow-api/logs/` dạng file cục bộ (thư mục untracked, `*.log` bị gitignore) nên chỉ receipt `.md` là con trỏ citable; sau đợt T26/T27 fail-first, full file hiện RED ở đúng 2 test đó. Provider vẫn là loopback mock, **chưa** phải provider bên thứ ba.
 
 ## GET /operations — filter, keyset cursor, envelope
 

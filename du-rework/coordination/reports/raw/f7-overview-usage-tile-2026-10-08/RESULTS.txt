@@ -1,0 +1,57 @@
+# F-7 overview usage tile — consolidated results
+# Lane: F-7 fix lane (test-only harness + one product file). No commit, no push, no VERIFIED/ACCEPTED tick.
+# HEAD: df3f955e877fe87bd190461736c40861e2fe78d5 (branch codex/fix-workflow-builder), working tree dirty (other lanes).
+# Node: v22.23.3, TypeScript 5.9.3 (apps/admin-web), Windows.
+# cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator unless stated.
+#
+# FILES IN LEASE
+#   modified: orchestrator/apps/admin-web/src/features/overview/overview-screen.tsx
+#   new test: orchestrator/services/orchestrator/tests/f7-overview-usage-tile-offline.cjs
+#   NOT touched: api-key-section-renderer.ts, overview-section-renderer.ts, tenant-list.ts,
+#                apps/admin-web/src/lib/api/client.ts, packages/**, businesses/**, docs/21-openapi.json
+
+## 1. FAIL-FIRST
+red-1-harness-v1-no-component-expansion.log | exit=1 | 7/8 failed
+  harness v1 did not expand function components, so its Card lookup missed the tiles; the red was
+  real but its reasons were partly harness artefacts (kept for honesty, superseded by red-2).
+red-2-before-fix.log | exit=1 | 7/8 failed — the meaningful red, on the pre-fix screen:
+  scenario 1: "the usage read must be issued exactly once" (0 !== 1) — the tile never read usage;
+  scenarios 2/4/5/7/8: stale claim /not exposed/i still rendered, literal text captured:
+    "Usage rollup | requires backend | Per-tenant usage aggregation is not exposed by the platform
+     BFF yet. The tile will render real counts once the usage read endpoint lands."
+  scenario 3: no usage read attempted;
+  scenario 6 (Operations tile) PASSED — the harness could see the tiles, and Operations must stay.
+
+## 2. FIX ATTEMPTS
+green-attempt1-missing-usememo-import.log | exit=1 | 8/8 failed — "useMemo is not defined":
+  the fix used useMemo without importing it; the harness caught it before any green run.
+  (Then the harness itself was corrected: textOf must collect NUMBER children like React does, and the
+   Operations tile must be located by its own copy because the usage tile now contains the word
+   "Operations" as a totals label.)
+
+## 3. GREEN
+green.log | exit=0 | 8/8 scenarios passed
+green-after-restore.log | exit=0 | 8/8 scenarios passed (after the mutation control restore)
+
+## 4. MUTATION CONTROL (required)
+mutation-red.log | exit=1 | 7/8 failed
+  the fix was reverted to the HEAD blob (byte content = pre-fix revision, stale copy present,
+  `git show HEAD:<file>`), harness re-run -> RED for the stale-claim/read assertions.
+  fix restored from a byte backup: RESTORED_HASH == 6335ff7a139c370938024512fa86df877e5805ba3d5340e9c93d89b200285337
+  (RESTORE_BYTE_EXACT=True), then green-after-restore.log = exit 0.
+
+## 5. VERIFY COMMANDS (literal)
+verify1-f7-harness.log | exit=0 | node tests/f7-overview-usage-tile-offline.cjs  (cwd services/orchestrator)
+verify2-adminweb-tsc.log | exit=0 | node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json (cwd apps/admin-web)
+   NOTE: the packet's suggested path `../../node_modules/typescript/bin/tsc` does not exist in this
+   workspace (orchestrator/node_modules has no typescript); the equivalent local path is
+   apps/admin-web/node_modules/typescript/bin/tsc — used instead. Output empty, tsc 5.9.3.
+verify3-tenant-select-offline.log | exit=0 | node tests/tenant-select-offline.cjs (F-4 harness, no regression)
+
+## 6. COLLATERAL FOUND (outside this lease, NOT edited)
+du-rework/tests/browser/admin-web/overview.spec.ts:80 asserts
+  `await expect(page.getByText('requires backend')).toHaveCount(2);`
+After this fix only the Operations tile carries that badge -> the count becomes 1 and that browser
+spec must be updated by its owner (2 -> 1). Not run here (needs the Playwright harness + stub).
+Other specs are unaffected by the title: orchestrator-portal-all-features.spec.ts:259 only asserts
+`getByText('Usage rollup')` is visible, and the title is unchanged.

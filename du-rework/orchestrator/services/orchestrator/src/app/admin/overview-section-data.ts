@@ -40,6 +40,7 @@
  * zero `any`.
  */
 
+import { ADMIN_LIST_LIMIT_MAX } from '@du/contracts';
 import { sanitizeUpstreamErrorBody } from './upstream-error-body';
 import {
   buildAuditListView,
@@ -163,7 +164,12 @@ export interface OverviewTriageSnapshot {
 
 /** Inputs the fetcher needs from the shell. */
 export interface OverviewFetcherInput {
-  /** Tenant whose usage / audit to load. Empty → loader skips usage + audit. */
+  /**
+   * Tenant whose usage / audit to load. Empty → usage + audit are NOT
+   * requested at all (F-2: the upstream answers 422 for an admin principal
+   * without a tenant, which would fail the whole pane), and the pane asks
+   * for a tenant instead.
+   */
   tenantId: string;
   /** ISO window start. Empty → defaults to the current UTC day. */
   from?: string;
@@ -214,13 +220,27 @@ export interface OverviewOkResult {
   from: string;
   to: string;
   bundle: OverviewBundle;
+  /**
+   * F-2: true when no tenant was selected, so usage/audit were NOT read and
+   * the pane must ask for a tenant instead of showing empty tables.
+   */
+  tenantRequired?: boolean;
+  /** F-2: roster for the tenant picker (empty when it could not be read). */
+  tenantOptions?: readonly OverviewTenantOption[];
+}
+
+/** One tenant-picker option: the id is a value, the name is the label. */
+export interface OverviewTenantOption {
+  id: string;
+  name: string;
+  state: string;
 }
 
 export type OverviewFetchResult =
   | OverviewOkResult
-  | { kind: 'empty'; message: string; tenantId?: string; from?: string; to?: string; triage?: OverviewTriageSnapshot }
-  | { kind: 'unauthorized'; message: string; tenantId?: string; from?: string; to?: string; triage?: OverviewTriageSnapshot }
-  | { kind: 'error'; message: string; tenantId?: string; from?: string; to?: string; triage?: OverviewTriageSnapshot };
+  | { kind: 'empty'; message: string; tenantId?: string; from?: string; to?: string; triage?: OverviewTriageSnapshot; tenantOptions?: readonly OverviewTenantOption[] }
+  | { kind: 'unauthorized'; message: string; tenantId?: string; from?: string; to?: string; triage?: OverviewTriageSnapshot; tenantOptions?: readonly OverviewTenantOption[] }
+  | { kind: 'error'; message: string; tenantId?: string; from?: string; to?: string; triage?: OverviewTriageSnapshot; tenantOptions?: readonly OverviewTenantOption[] };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -525,6 +545,7 @@ function buildOkFromCatalog(
     from: fromIso,
     to: toIso,
     bundle: { usage, audit, health, serverNow, triage },
+    tenantRequired: tenantId.length === 0,
   };
 }
 
@@ -570,14 +591,44 @@ function parseHealth(raw: unknown): NonNullable<OverviewBundle['health']> | { er
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch the overview (usage + audit + health) for the shell. Returns
- * a discriminated result the renderer can map onto a screen state.
+ * Fetch the overview (usage + audit + health + tenant roster) for the shell.
+ * Returns a discriminated result the renderer can map onto a screen state.
  * **Never throws** — transport errors collapse into `{ kind: 'error', ... }`.
+ *
+ * F-2: the roster read rides the same request as the bundle so the picker
+ * and the panes always describe the same snapshot. It is fail-closed
+ * (`fetchTenantOptions` never throws and never surfaces upstream text), so a
+ * roster failure can only ever empty the picker, never fail the pane.
  */
 export async function fetchOverview(
   input: OverviewFetcherInput,
 ): Promise<OverviewFetchResult> {
+  const [result, tenantOptions] = await Promise.all([
+    fetchOverviewCore(input),
+    fetchTenantOptions({
+      jsonBaseUrl: input.jsonBaseUrl,
+      adminToken: input.adminToken,
+      fetchImpl: input.fetchImpl,
+      timeoutMs: input.timeoutMs,
+    }),
+  ]);
+  switch (result.kind) {
+    case 'ok':
+      return { ...result, tenantOptions };
+    case 'empty':
+      return { ...result, tenantOptions };
+    case 'unauthorized':
+      return { ...result, tenantOptions };
+    case 'error':
+      return { ...result, tenantOptions };
+  }
+}
+
+async function fetchOverviewCore(
+  input: OverviewFetcherInput,
+): Promise<OverviewFetchResult> {
   const tenantId = input.tenantId;
+  const tenantRequired = tenantId.length === 0;
   const auditLimit = input.auditLimit ?? 50;
   const nowMs = Date.now();
   const { from: fromIso, to: toIso } = input.timePreset
@@ -667,9 +718,13 @@ export async function fetchOverview(
           __err: err instanceof Error && err.name === 'AbortError' ? 'aborted' : errorClassOf(err),
         }));
 
+    // F-2: with no tenant selected, usage and audit are NOT requested — the
+    // upstream answers 422 for an admin principal without a tenant, and that
+    // single 422 used to fail the whole pane. Health and the operation counts
+    // stay platform-wide, exactly as before.
     const [usageRaw, auditRaw, healthRaw, failedRaw, timedOutRaw, pendingRaw] = await Promise.all([
-      requestJson(usageUrl),
-      requestJson(auditUrl),
+      tenantRequired ? Promise.resolve(null) : requestJson(usageUrl),
+      tenantRequired ? Promise.resolve(null) : requestJson(auditUrl),
       requestJson(healthUrl, true),
       requestJson(operationCountUrls[0]!),
       requestJson(operationCountUrls[1]!),
@@ -735,13 +790,13 @@ export async function fetchOverview(
     }
 
     // Parse each payload.
-    const usage = parseUsageSummary(usageRaw, tenantId, fromIso, toIso);
-    const audit = parseAuditEvents(auditRaw, tenantId);
+    const usage = tenantRequired ? null : parseUsageSummary(usageRaw, tenantId, fromIso, toIso);
+    const audit = tenantRequired ? null : parseAuditEvents(auditRaw, tenantId);
     const health = parseHealth(healthRaw);
-    if ('error' in usage) {
+    if (usage !== null && 'error' in usage) {
       return { kind: 'error', message: usage.error, tenantId, from: fromIso, to: toIso, triage };
     }
-    if ('error' in audit) {
+    if (audit !== null && 'error' in audit) {
       return { kind: 'error', message: audit.error, tenantId, from: fromIso, to: toIso, triage };
     }
     if ('error' in health) {
@@ -754,6 +809,7 @@ export async function fetchOverview(
       from: fromIso,
       to: toIso,
       bundle: { usage, audit, health, serverNow, triage },
+      tenantRequired,
     };
   } catch (err) {
     const aborted =
@@ -771,6 +827,90 @@ export async function fetchOverview(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Tenant roster (F-2 — the overview picker's options)
+// ---------------------------------------------------------------------------
+
+/** One roster page is capped by the shared admin list limit (200). */
+const TENANT_ROSTER_PAGE_LIMIT = ADMIN_LIST_LIMIT_MAX;
+/** Bounded walk: the picker is a convenience, never an unbounded crawl. */
+const TENANT_ROSTER_MAX_PAGES = 10;
+
+/**
+ * Read the tenant roster for the overview picker (F-2).
+ *
+ * Fail-closed by construction: a missing token / base URL, a transport error,
+ * a non-2xx status or an unreadable body yields the options read so far —
+ * empty on the first page — and never a thrown error, an upstream message, a
+ * response body or a stack. The scope is the credential's: the route derives
+ * it through the same `authorizeAuditTenantRead` path the roster list uses,
+ * so a tenant operator only ever receives its own row and this reader cannot
+ * widen it. Rows without a usable id AND name are dropped rather than
+ * rendered as a bare id.
+ */
+export async function fetchTenantOptions(input: {
+  jsonBaseUrl: string;
+  adminToken: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<OverviewTenantOption[]> {
+  if (input.jsonBaseUrl.length === 0 || input.adminToken.length === 0) return [];
+  const fetchImpl = input.fetchImpl ?? globalThis.fetch;
+  const timeoutMs = input.timeoutMs ?? 4000;
+  const options: OverviewTenantOption[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+
+  for (let page = 0; page < TENANT_ROSTER_MAX_PAGES; page += 1) {
+    let url: URL;
+    try {
+      url = new URL('/api/v1/admin/tenants', input.jsonBaseUrl);
+      url.searchParams.set('limit', String(TENANT_ROSTER_PAGE_LIMIT));
+      if (cursor !== null) url.searchParams.set('cursor', cursor);
+    } catch {
+      return options;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetchImpl(url.toString(), {
+        method: 'GET',
+        headers: { authorization: `Bearer ${input.adminToken}`, accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (!res.ok) return options;
+      const body: unknown = await res.json().catch(() => null);
+      if (!isRecord(body) || !Array.isArray(body['items'])) return options;
+      for (const item of body['items']) {
+        const option = toTenantOption(item);
+        if (option) options.push(option);
+      }
+      const next = typeof body['nextCursor'] === 'string' && body['nextCursor'].length > 0
+        ? body['nextCursor']
+        : null;
+      if (next === null || seenCursors.has(next)) return options;
+      seenCursors.add(next);
+      cursor = next;
+    } catch {
+      return options;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return options;
+}
+
+/** Strict-enough row mapping: no id or no name → the row is not offered. */
+function toTenantOption(raw: unknown): OverviewTenantOption | null {
+  if (!isRecord(raw)) return null;
+  const id = typeof raw['id'] === 'string' ? raw['id'] : '';
+  const name = typeof raw['name'] === 'string' ? raw['name'] : '';
+  if (id.length === 0 || name.length === 0) return null;
+  const state = typeof raw['state'] === 'string' ? raw['state'] : '';
+  return { id, name, state };
 }
 
 // ---------------------------------------------------------------------------

@@ -77,7 +77,9 @@ describe('admin overview triage viewport', () => {
     expect(new Date(result.from).getTime()).toBeGreaterThanOrEqual(before - 24 * 60 * 60 * 1000 - 1000);
     expect(new Date(result.to).getTime()).toBeGreaterThanOrEqual(before);
     expect(new Date(result.to).getTime()).toBeLessThanOrEqual(after + 1000);
-    expect(calls).toHaveLength(6);
+    // F-2: 6 platform reads + the roster read that feeds the tenant picker.
+    expect(calls).toHaveLength(7);
+    expect(calls.filter((url) => url.includes('/api/v1/admin/tenants'))).toHaveLength(1);
     expect(calls.filter((url) => url.includes('/api/v1/operations')).every((url) =>
       new URL(url).searchParams.get('tenant') === tenantId,
     )).toBe(true);
@@ -568,11 +570,13 @@ describe('W-ADM-UX-14: hostile tenant and severity payloads never reach the DOM 
       selectedTimePreset: 'BOGUS' as never,
     } as never).html;
     expect(html).not.toContain('<script>');
-    // No <option> is marked selected: the unknown preset matches nothing in
-    // the preset list. Scoped to the option tag because the string 'selected'
-    // also appears in data-overview-tenant-selected.
-    expect(html).not.toMatch(/<option[^>]*\bselected/);
-    expect(html).toContain('<option value="today">');
+    // No time-window <option> is marked selected: the unknown preset matches
+    // nothing in the preset list. Scoped to the timeRange select because F-2
+    // added a second select (the tenant picker) whose placeholder is
+    // legitimately selected when the roster does not hold the current tenant.
+    const timeWindow = /<select name="timeRange"[^>]*>(.*?)<\/select>/.exec(html)?.[1] ?? '';
+    expect(timeWindow).not.toMatch(/<option[^>]*\bselected/);
+    expect(timeWindow).toContain('<option value="today">');
   });
 });
 

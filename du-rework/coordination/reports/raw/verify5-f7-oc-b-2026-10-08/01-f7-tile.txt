@@ -1,0 +1,9 @@
+﻿  ok  1: tenant session renders real usage totals and drops the stale copy
+  ok  2: platform session without a tenant does not call usage and asks for a tenant
+  ok  3: a denied usage read renders a denied pane and never fabricates counts
+  ok  4: an unreadable usage payload fails closed without fabricated numbers
+  ok  5: an empty window renders the empty state
+  ok  6: the Operations tile keeps its own unavailable copy
+  ok  7: a failed session fails the usage tile closed without a stale claim
+  ok  8: a session without an admin principal renders an honest pane
+PASS: real OverviewScreen usage tile ΓÇö 8 scenarios (real totals, tenant from session, platform/unscoped/failed fail-closed, unreadable payload, empty window, Operations tile intact)

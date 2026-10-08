@@ -128,7 +128,7 @@ describe('Document Core Worker Configuration & Process Lifecycle', () => {
 
       const mockWorkerHandle = {
         workerInstanceId: 'inst-123',
-        queueName: 'du-business-document-core-1.0.0',
+        queueName: 'du-business-document-core-1.1.0',
         stop: jest.fn().mockResolvedValue(undefined),
         stopped: false,
       };

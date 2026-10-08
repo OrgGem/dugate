@@ -2204,3 +2204,7 @@ Focused BFF/dispatcher/list/projection suites plus dedicated PostgreSQL and real
 
 
 LOCAL-DEV-ALIGN-20261006: 10 runner checks plus 12 package builds on Node 24.21.0; isolated temporary env, occupied-port TCP fixture, no DU DB/service startup. Harness/receipt under coordination/reports/local-dev-*. Independent full-stack verification OPEN.
+
+## WFA-DOCS-20261007
+
+Docs/OpenAPI reconciliation receipt only; no new product tests. `python tools/openapi/gen_openapi.py` on Node 24.21.0: exit 0, `NO-DROP paths=0 operations=0`, `path-count=61`, `dropped-paths=0`, `schemas=53`; `docs/21-openapi.json` regenerates byte-identical to the pre-run artifact (SHA-256 `661703ED1251792B3F25A2DE6DA09D14B4C718A8F4BE20644AEE2B4B9459004E`, unchanged after regen). `python tools/openapi/validate_openapi.py`: exit 0, workflow facade contracts validated (routes=2), `paths=61 x-absent=9`, example schemas validated. Existing WFA test evidence lives in [wfa-verification-2026-10-07.md](../coordination/reports/wfa-verification-2026-10-07.md) (admission/catalog/worker) and [wfa-integration-2026-10-07.md](../coordination/reports/wfa-integration-2026-10-07.md) (8/8 control suite); no runtime acceptance is added or promoted here. Cap nhat 2026-10-08: generator da cover them `GET /api/v1/admin/tenants` (path-count 61, schemas 53; muc hash o tren la sau khi regen); 21 van chi do generator ghi. Owner receipt: [wfa-docs-2026-10-07.md](../coordination/reports/wfa-docs-2026-10-07.md).

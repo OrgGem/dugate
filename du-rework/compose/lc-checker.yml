@@ -7,7 +7,7 @@ services:
       target: lc-checker
     environment:
       RUNTIME_URL: ${RUNTIME_URL:-http://orchestrator:3002/api/runtime/v1}
-      RUNTIME_TOKEN: ${LC_RUNTIME_TOKEN:-${RUNTIME_TOKEN:?Set RUNTIME_TOKEN}}
+      RUNTIME_TOKEN: ${LC_RUNTIME_TOKEN:?Set the lc-checker business identity token}
       REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
       CONCURRENCY: ${LC_CONCURRENCY:-4}
       HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-10000}

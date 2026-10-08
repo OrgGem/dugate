@@ -605,7 +605,12 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
       if (url.pathname === '/api/v1/admin/connectors/capabilities' && req.method === 'GET') {
         if (state.connectorMgmt === 'error') return json(500, { code: 'INTERNAL' });
         const composed = state.connectorMgmt === 'composed';
-        return json(200, { management: composed, credentialWorkflow: composed, test: composed });
+        return json(200, {
+          management: composed,
+          credentialWorkflow: composed,
+          test: composed,
+          knownConnectorIds: state.connectorRows.map((row) => row.connectorId),
+        });
       }
       if (url.pathname === '/api/v1/admin/connectors' && req.method === 'GET') {
         if (state.connectorMgmt === 'error') return json(500, { code: 'INTERNAL' });

@@ -1,0 +1,106 @@
+# WFA-T26 lease-recovery — consolidated results (DSH lane, 2026-10-08)
+# Scope: WFA-T26 only. WFA-T27 cancel semantics belongs to qwen_2 and is NOT claimed here.
+# No commit, no push; the e2e test file was NOT modified; docs/21-openapi.json untouched.
+# Node: v24.21.0 for the WFA harness (%TEMP%\du-node24-security-c025dd92\node-v24.21.0-win-x64\node.exe);
+#       v22.23.3 for the package-level jest/tsc runs. OS: Windows.
+# cwd: D:\Git\dugate\du-rework for the harness; package dirs for the focused/regression runs.
+# HEAD: df3f955e877fe87bd190461736c40861e2fe78d5 (working tree dirty: WFA lanes).
+
+## 1. FAIL-FIRST (no source change yet)
+step1-fail-first.log / step1-runner-receipt.log | exit=1 | 1 failed, 14 skipped, 15 total
+  command: <node24> tests/workflow-api/run-jest.cjs wfa-t26-diag-NODE24.log tests/workflow-api/http-worker.integration.test.ts
+           -t "recovers an expired lease without repeating the completed provider stage"
+  literal: "lease-recovered schema workflow failed with LEGACY_WORKFLOW_CONNECTOR_FAILED;
+            provider calls=["generate_disbursement_report"];
+            taskRows=[{"task_key":"root","state":"FAILED","attempt":3,"lease_epoch":4,
+            "error_code":"LEGACY_WORKFLOW_CONNECTOR_FAILED"}]"
+  Worker log (same run): 00:22:56.493 handler failed retryable=true retryAfterMs=5000;
+            00:22:56.906 "lease lost during heartbeat; aborting context";
+            00:22:56.912 handler failed retryable=false; 00:22:56.918 "fail report fenced" LEASE_LOST.
+
+## 2. DIAGNOSIS (read-only) — the ledger timeline captured live
+probe-ledger-poller.cjs + step2-ledger-timeline.log (SELECT-only poller on the WFA PG :55498 while
+the focused test ran). Captured task and connector-ledger rows:
+  TASK 00:32:09.643 RUNNING attempt=1/3 epoch=1
+  INV  00:32:09.738 id=06087b9c-fe2 state=IN_FLIGHT
+  TASK 00:32:09.812 READY   attempt=1/3 epoch=2      <- sweep (lease expiry)
+  TASK 00:32:09.990 RETRY_PENDING attempt=2/3 epoch=3 error=LEGACY_WORKFLOW_CONNECTOR_FAILED due=+5s
+  INV  00:32:10.543 id=06087b9c-fe2 state=CANCELLED error=CANCELLED   <- terminalised!
+  TASK 00:32:15.208 RUNNING attempt=3/3 epoch=4      <- retry after the 5s delay
+  TASK (terminal) FAILED attempt=3/3 epoch=4 LEGACY_WORKFLOW_CONNECTOR_FAILED
+Earlier runs show the same pattern (00:22:56.216 -> CANCELLED 00:22:56.917; 00:29:11 -> 00:29:12;
+00:30:01 -> 00:30:02). So the provider is called once (dedupe holds) but the ledger row is turned
+CANCELLED right after the sweep, and the redelivered attempt replays a terminal CANCELLED invocation.
+
+Seam (file:line, before the fix):
+  orchestrator/packages/worker-sdk/src/task-context.ts:346-349
+      abort(reason: 'lease-lost' | 'cancel' | 'shutdown') { if (reason==='cancel') cancelFlag=true;
+      this.abortController.abort(); }            <- the reason never reached the signal
+  orchestrator/packages/worker-sdk/src/connector-invoker.ts:167-170
+      const onAbort = () => { notifyConnectorCancel(); controller.abort(signal?.reason); };
+                                                 <- ANY abort (lease loss included) POSTed a terminal
+                                                    /invocations/:id/cancel to the Connector
+  connector side: services/connector/src/services.ts:180-197 (cancel -> ledger.cancel + abort provider),
+      invoke.ts:106-109 (IN_FLIGHT replay = INVOCATION_UNKNOWN), invoke.ts:103 (CANCELLED replay =
+      non-retryable CANCELLED), businesses/document-core/.../legacy-schema-runtime.ts:800-820 (wrap).
+  Why attempts 2/3 kept failing: attempt 2 raced the still-running provider call (IN_FLIGHT ->
+  INVOCATION_UNKNOWN, retryable, +5s) and attempt 3 replayed the CANCELLED row (terminal,
+  non-retryable) -> attempt budget exhausted -> FAILED.
+
+## 3. FAIL-FIRST FOCUSED TEST (written before the fix)
+step3-focused-red.log | exit=1 | 5 failed, 2 passed, 7 total
+  new offline suite: orchestrator/packages/worker-sdk/tests/wfa-t26-lease-loss-abort.test.ts
+  red: ctx.abort('lease-lost') -> signal.reason = {} (not 'lease-lost');
+       lease-lost / pre-aborted / shutdown / no-reason aborts each POSTed
+       http://connector/invocations/invocation-1/cancel (expected 0);
+  green by construction: a real cancel still POSTs the cancel (WFA-T27 semantics guard).
+  (A first attempt of this run failed with "Cannot find module .../jest/bin/jest.js" — a wrong
+   runner path in MY command, not a product red; the log was deleted and re-run correctly.)
+
+## 4. FIX (minimal, two lines of behaviour)
+  task-context.ts:348      this.abortController.abort(reason);          (reason carried)
+  connector-invoker.ts:171 if (signal?.reason === 'cancel') notifyConnectorCancel();
+  No change to the Connector service (T27 territory), none to the e2e test, none to document-core.
+
+## 5. GREEN
+step3-focused-green.log | exit=0 | 7 passed, 7 total
+step11-focused-green-restored.log | exit=0 | 7 passed (after the A/B revert-restore, hashes verified)
+step12-final-focused.log | exit=0 | 1 passed, 14 skipped
+step12-final-full.log | exit=0 | 15 passed, 15 total
+step7-full-suite.log / step7-full-run2.log / step7-full-run3.log | exit=0 each | 15 passed, 15 total
+Post-fix ledger (step6-ledger-timeline-fixed.log):
+  INV 00:46:54.127 IN_FLIGHT -> 00:46:55.651 SUCCEEDED (no CANCELLED)
+  TASK attempt1 RUNNING -> sweep -> attempt2 RETRY_PENDING (+5s) -> attempt3 RUNNING -> SUCCEEDED
+
+## 6. TYPECHECK + REGRESSION
+step8-document-core-tsc.log | exit=0 | businesses/document-core: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+step8-worker-sdk-tsc.log    | exit=0 | packages/worker-sdk: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+step5-worker-sdk-build.log  | exit=0 | packages/worker-sdk build (tsc -p tsconfig.json) — REQUIRED: the harness resolves
+                                      @du/worker-sdk to dist/index.js, so the fix only takes effect after a rebuild
+                                      (the first post-fix e2e still showed CANCELLED until the rebuild).
+step9-connector-abort-suites.log | exit=0 | services/connector (wfa-t7-abort-invoke + r1-d-lifecycle-offline):
+                                      35 passed, 8 skipped, 0 failed — the Connector-side abort path still works.
+step9-worker-sdk-full.log   | exit=1 | 3 failed suites, 12 failed tests, 712 passed (PRE-EXISTING, see §7)
+step9-document-core-abort-suites.log | exit=1 | 8 failed suites, 11 failed tests, 978 passed (PRE-EXISTING, see §7)
+
+## 7. ATTRIBUTION (A/B: my fix reverted in src + dist rebuilt, then restored byte-exact)
+step10-prefix-rebuild.log (pre-fix build exit 0), step10-prefix-worker-sdk-suites.log,
+step10-prefix-document-core-suites.log
+  worker-sdk full: PRE-fix 4 failed suites / 17 failed tests -> POST-fix 3 / 12.
+    - failing ONLY post-fix (regressions): NONE.
+    - failing ONLY pre-fix: exactly the 5 new WFA-T26 tests this lane fixed.
+    - failing in BOTH (pre-existing, not this lane): 10x connector-invoker error-contract cases
+      (409 taxonomy / lost response / unresolvable endpoint / timeout-signal), 1x classifyFailure
+      ConnectorTransportError case, 1x crypto-seam byte-identity port check.
+  document-core full: identical in both runs (8 failed suites / 11 failed tests / 978 passed):
+    bullmq-smoke, package-boundary, sdk-consumer, manifest, missing-variants,
+    legacy-workflow-mapping, p9-03-doc-compare-registration, worker.test.ts — pre-existing.
+  restore proof: src hashes back to cc8aca7e…c221 (connector-invoker.ts) and f56c6a3a…01e3
+    (task-context.ts), dist rebuilt, focused + full suites green again.
+
+## 8. WFA-T27 (NOT this lane)
+WFA-T27 was red in the mục-5 receipt (3/3 runs, Expected CANCELLED / Received FAILED) and is GREEN
+in every run after this lane's change (3x full + final: 15/15). The only file change in that window is
+this lane's worker-sdk edit (connector src mtimes 06:48 local, before the red runs at ~07:22 local),
+so the flip is very likely a side effect of the same lease-loss-cancel defect — but this lane does NOT
+claim T27: its owner (qwen_2) must verify cancel semantics independently.

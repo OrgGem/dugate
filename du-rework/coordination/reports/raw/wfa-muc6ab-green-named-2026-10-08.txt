@@ -1,0 +1,10 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+timestamp: 2026-10-08T03:43:24.7560083+07:00
+command: pnpm exec jest tests/wfa-api-lifecycle.test.ts tests/legacy-http-mount.test.ts --runInBand --config jest.unit.config.cjs --json --outputFile=<temp> (exit 0)
+note: per-test evidence extracted from jest JSON; full-suite summary in wfa-muc6ab-green-2026-10-08.txt
+--- matched tests: 5 passed ---
+passed :: legacy mount — billing and discoverability answers 200 with an empty service list when the catalogue is not wired
+passed :: WFA legacy operation lifecycle adapters serves a file-backend output by reading its artifact blob
+passed :: WFA legacy operation lifecycle adapters prefers an inline output over the file path and skips storage entirely
+passed :: WFA legacy operation lifecycle adapters returns null (the documented no-output answer) when neither backend has content
+passed :: WFA legacy operation lifecycle adapters answers null when the file-backend reference no longer resolves

@@ -165,6 +165,13 @@ def ts_default_literal(src, name, key):
 _c = io.open(CONTRACT, encoding="utf-8").read()
 
 QUERY_PARAMS = ts_list(_c, "OPERATIONS_LIST_QUERY_PARAMS")
+# WFA-ADMIN-TENANTS. Same reason as the operations list: the allow-list is read
+# from the contract instead of retyped, so a new parameter cannot be published
+# without documenting it and a removed one cannot keep its parameter.
+TENANT_LIST_QUERY_PARAMS = ts_list(_c, "TENANT_LIST_QUERY_PARAMS")
+assert TENANT_LIST_QUERY_PARAMS == ["limit", "cursor"], (
+    "tenant list allow-list changed to %r; the advertised parameters follow the contract"
+    % (TENANT_LIST_QUERY_PARAMS,))
 SORT_FIELDS = ts_list(_c, "OPERATIONS_LIST_SORT_FIELDS")
 SORT_DIRECTIONS = ts_list(_c, "OPERATIONS_LIST_SORT_DIRECTIONS")
 # OPERATIONS_LIST_SORT_VALUES is a flatMap in the contract; reproduce it exactly.
@@ -486,9 +493,36 @@ USAGE_EVENTS_PARAMS = [
     param("cursor", "Opaque base64url keyset position over (timeField, event_id). It carries the tenant and a sha256 of the eleven-key filter binding, so re-using it with another tenant, filter, window, clock or page size is 422 INVALID_ARGUMENT, refused before SQL is built. A non-canonical base64url spelling is rejected too, so one cursor has exactly one encoding.", {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[A-Za-z0-9_-]+$"}),
 ]
 
+# WFA-ADMIN-TENANTS: the roster item and its five-field page. The shape is the
+# contract one (AdminTenantSchema / AdminTenantsPageSchema, public-api.ts); both
+# zod objects are .strict(), so strict=True copies the contract honestly.
+TENANT_SCHEMA = obj_schema({
+    "id": {"type": "string", "format": "uuid",
+           "description": "Tenant id; the tie-break half of the (lower(name), id) keyset order."},
+    "name": {"type": "string",
+             "description": "Display name. The picker orders on lower(name), which is why this list exposes no sort parameter."},
+    "state": {"type": "string",
+              "description": "Tenant lifecycle state as stored; not an allow-listed enum at this boundary."},
+}, ["id", "name", "state"], strict=True)
+
+TENANTS_PAGE_SCHEMA = obj_schema({
+    "items": {"type": "array", "items": ref("AdminTenant")},
+    "nextCursor": {"type": "string", "nullable": True,
+                   "description": "Opaque forward token, null on the last page. The tenant module mints its own id+direction token bounded by LIST_CURSOR_MAX_LEN, not the shared timestamp cursor dialect."},
+    "prevCursor": {"type": "string", "nullable": True,
+                   "description": "Opaque backward token, null on page one."},
+    "total": {"type": "integer",
+              "description": "COUNT(*) of the filtered set, never items.length."},
+    "limit": {"type": "integer",
+              "description": "The clamped page size actually used."},
+}, ["items", "nextCursor", "prevCursor", "total", "limit"], strict=True)
+
 # Assembled here, after every schema constant above it is defined.
 SCHEMAS = {
+
     "ArtifactDownloadResponse": ARTIFACT_DOWNLOAD_RESPONSE_SCHEMA,
+    "AdminTenant": TENANT_SCHEMA,
+    "AdminTenantsPage": TENANTS_PAGE_SCHEMA,
     "ArtifactRef": ARTIFACT_REF_SCHEMA,
     "EncryptedArtifactDownload": ENCRYPTED_ARTIFACT_DOWNLOAD_SCHEMA,
     "EncryptedResultEnvelope": ENCRYPTED_RESULT_ENVELOPE_SCHEMA,
@@ -511,6 +545,53 @@ USAGETOK = {"UsageBearer": []}
 SVC = {"Svc": []}
 
 paths = {}
+# Legacy workflow facade contracts are implemented by the compat mount, not
+# separate server.ts branches. Guard those sources before publishing the paths.
+_workflow_mount = Path('du-rework/orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts').read_text(encoding='utf-8-sig')
+_workflow_decoder = Path('du-rework/orchestrator/services/orchestrator/src/compat/legacy-workflow-decoders.ts').read_text(encoding='utf-8-sig')
+assert 'await host.submitLegacyWorkflow(' in _workflow_mount, 'Workflow facade submission is not wired'
+_process_match = re.search(r'LEGACY_WORKFLOW_PROCESSES\s*=\s*\[([^\]]+)\]', _workflow_decoder)
+assert _process_match, 'Legacy process contract missing'
+_workflow_processes = re.findall(r"'([^']+)'", _process_match.group(1))
+assert _workflow_processes == ['disbursement', 'lc-checker', 'doc-compare'], 'Legacy workflow process contract drift'
+for _schema_route in [False, True]:
+    _workflow_path = '/api/v1/docs/workflows' + ('/schema' if _schema_route else '')
+    _selector = 'schemaSlug' if _schema_route else 'process'
+    _properties = {
+        _selector: {'type': 'string'},
+        'files[]': {'type': 'array', 'items': {'type': 'string', 'format': 'binary'}},
+        'source_file': {'type': 'string', 'format': 'binary'},
+        'target_file': {'type': 'string', 'format': 'binary'},
+        'file': {'type': 'string', 'format': 'binary'},
+        'apiKeyId': {'type': 'string', 'description': 'Optional compatibility field; must match the authenticated caller. Never selects another identity.'},
+    }
+    if _schema_route:
+        _properties['input'] = {'type': 'string', 'description': 'JSON object string; defaults to {}. Arrays/scalars are rejected. Schema revision is pinned at admission.'}
+    else:
+        _properties['process']['enum'] = _workflow_processes
+        _properties['resolution_data'] = {'type': 'string', 'description': 'Optional disbursement process parameter.'}
+    _workflow = op('Legacy schema workflow submission' if _schema_route else 'Legacy named workflow submission', APIKEY,
+        {'required': True, 'content': {'multipart/form-data': {'schema': {
+            'type': 'object', 'required': [_selector], 'properties': _properties}}}},
+        {str(code): {'description': description} for code, description in [
+            (202, 'Fresh asynchronous workflow operation; sync and Idempotency-Key are ignored for legacy parity.'),
+            (400, 'Missing selector/files or invalid input/schema'), (401, 'Missing or invalid active API key'),
+            (403, 'Caller/profile/action denied or mismatched body apiKeyId'), (404, 'Unknown process or schema'),
+            (409, 'Schema has no active revision or admission conflict'), (413, 'Upload/file-count limit exceeded'),
+            (415, 'Unsupported content type'), (422, 'Profile/business validation failure'),
+            (429, 'Quota exceeded'), (503, 'Required service/profile/encryption unavailable'),
+            (500, 'Redacted internal failure')]})
+    _workflow['description'] = ('Compatibility facade maps internally to registered business/action through shared admission and outbox. '
+        'No HTTP redirect. Uploaded files are selected as files[], then source_file, target_file, file; empty uploads are ignored. '
+        'Named workflows require at least one file; valid schema workflows can be fileless. Implementation and acceptance evidence: WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md; full runtime acceptance remains a separate gate.')
+    _workflow['responses']['202'].update({
+        'headers': {'Operation-Location': {'description': 'Relative polling URL', 'schema': {'type': 'string'}}},
+        'content': {'application/json': {'schema': {'type': 'object', 'required': ['name', 'done', 'metadata'],
+            'properties': {'name': {'type': 'string'}, 'done': {'type': 'boolean', 'enum': [False]},
+                'metadata': {'type': 'object', 'required': ['state', 'workflow', 'progress_percent', 'progress_message'],
+                    'properties': {'state': {'type': 'string', 'enum': ['RUNNING']}, 'workflow': {'type': 'string'},
+                        'progress_percent': {'type': 'integer', 'enum': [0]}, 'progress_message': {'type': 'string'}}}}}}}})
+    paths[_workflow_path] = {'post': _workflow}
 paths["/health"] = {"get": op("Liveness alias, no auth. server.ts:315.", None, None, {"200": {"description": "ok|degraded {status,db,redis,activeLeases}"}, "503": {"description": "degraded"}})}
 paths["/api/v1/health"] = {"get": op("Liveness alias, no auth. server.ts:315.", None, None, {"200": {"description": "ok|degraded"}, "503": {"description": "degraded"}})}
 paths["/api/v1/businesses/{id}/actions/{action}"] = {"post": op("Generic business submission. server.ts:559.", APIKEY, {"required": True, **ex({"input": {"type": "invoice"}, "artifacts": [], "output": {"format": "json"}})}, {"202": {"description": "SubmitAck, replayed=false"}, "200": {"description": "SubmitAck replayed=true"}})}
@@ -667,6 +748,16 @@ paths["/api/v1/admin/operations/sweep-deadlines"] = {"post": op("Deadline sweep 
 rt = [("post", "/api/runtime/v1/usage-events", "Usage ingest (usageToken). server.ts:348", USAGETOK), ("put", "/api/runtime/v1/businesses/{id}/versions/{version}", "Register version. server.ts:451", RUNTIME), ("put", "/api/runtime/v1/workers/{id}/heartbeat", "Worker heartbeat. server.ts:460", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/claim", "Claim. server.ts:467", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/heartbeat", "Heartbeat. server.ts:478", RUNTIME), ("put", "/api/runtime/v1/tasks/{id}/steps/{step}", "Save step. server.ts:489", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/progress", "Progress. server.ts:499", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/complete", "Complete. server.ts:509", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/fail", "Fail. server.ts:519", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/children", "Spawn children 202. server.ts:529", RUNTIME), ("get", "/api/runtime/v1/tasks/{id}/children", "Join view. server.ts:539", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/wait-input", "Human wait. server.ts:549", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/artifacts", "Upload grant 201. server.ts:388", RUNTIME), ("post", "/api/runtime/v1/artifacts/{id}/finalize", "Finalize. server.ts:399", RUNTIME), ("post", "/api/runtime/v1/artifacts/{id}/access", "Access grant. server.ts:408", RUNTIME), ("post", "/api/runtime/v1/tasks/{id}/invocation-grants", "Grant 201. server.ts:421", RUNTIME), ("put", "/api/runtime/v1/artifacts/blob/{key}", "Blob put 204 ?grant=. server.ts:432", RUNTIME), ("get", "/api/runtime/v1/artifacts/blob/{key}", "Blob get ?grant=. server.ts:432", RUNTIME)]
 for method, pth, summ, auth in rt:
     paths.setdefault(pth, {})[method] = op(summ, auth, None, {"200": {"description": "ok"}, "201": {"description": "created"}, "202": {"description": "accepted"}, "204": {"description": "no content"}})
+_grant_source = Path('du-rework/orchestrator/packages/contracts/src/runtime.ts').read_text(encoding='utf-8-sig')
+assert "storageEncryption: z.literal('server').optional()" in _grant_source, 'Runtime upload encryption negotiation drift'
+paths['/api/runtime/v1/tasks/{id}/artifacts']['post']['responses']['201'] = {
+    'description': 'Authenticated upload grant. Optional storageEncryption=server is minted only when the runtime uses its configured server encryption seam. SDK sends plaintext on the authorized internal transport; runtime stores ciphertext and manifest before finalization. Absence preserves existing worker sealing behavior; never infer mode from a URL.',
+    'content': {'application/json': {'schema': {'type': 'object',
+        'required': ['artifactId', 'uploadUrl', 'expiresAt'],
+        'properties': {'artifactId': {'type': 'string', 'format': 'uuid'},
+            'uploadUrl': {'type': 'string', 'format': 'uri'}, 'expiresAt': {'type': 'string'},
+            'storageEncryption': {'type': 'string', 'enum': ['server']}}}}},
+}
 _connector_source = io.open(CONN, encoding="utf-8").read()
 assert "path.startsWith('/connectors') ? 'connector:manage' : 'connector:invoke'" in _connector_source, (
     "Connector scope selection changed; review the documented auth matrix")
@@ -768,6 +859,20 @@ paths['/api/v1/admin/connectors/{id}/revisions/{rev}'] = {'get': op(
     [{'name': name, 'in': 'path', 'required': True, 'schema': {'type': 'string'},
       'description': 'Connector id' if name == 'id' else 'latest/current or positive integer revision'} for name in ['id', 'rev']])}
 paths['/api/v1/admin/connectors/{id}/revisions/{rev}']['get']['x-source'] = admin_source('const revSeg = decodeURIComponent(m[2]!);')
+
+# WFA-ADMIN-TENANTS. The route landed in the admin router without a generator
+# entry, so it was missing from the spec entirely. Source is admin.ts, never the
+# previous JSON artifact.
+paths['/api/v1/admin/tenants'] = {'get': op(
+    'Admin tenant roster page. Ordered by (lower(name), id): its only consumer is the tenant picker, a picker that is not alphabetical is unusable, and the tenants table (migration 0001) has no updated_at column, so this list deliberately exposes no sort parameter. Scope comes from the CREDENTIAL, never from a query parameter - this route accepts none: the platform bearer sees the whole roster, a tenant operator sees exactly its own row and the predicate rides in SQL.',
+    ADMIN, None,
+    {'200': {'description': 'The shared five-field page envelope {items, nextCursor, prevCursor, total, limit}; each item is the whole wire row {id, name, state}, with nothing else projected.',
+             'content': {'application/json': {'schema': ref('AdminTenantsPage')}}},
+     '401': {'description': 'missing or invalid admin bearer'},
+     '403': {'description': 'tenant outside the credential scope; the credential is the only scope input this route accepts'}},
+    [param('limit', 'Page size, clamped like the other list routes.', {'type': 'integer'}),
+     param('cursor', 'Opaque keyset token. The tenant module carries a small id+direction token bounded by LIST_CURSOR_MAX_LEN rather than the shared timestamp cursor dialect, because the order is (lower(name), id).', {'type': 'string'})])}
+paths['/api/v1/admin/tenants']['get']['x-source'] = admin_source("if (method === 'GET' && pathname === '/api/v1/admin/tenants')")
 
 # ---- SC-04 / CB-05: canonical models and existing Portal BFF routes ---------
 _projection = subprocess.run(
@@ -900,7 +1005,10 @@ doc = {"openapi": "3.0.3", "info": {"title": "DUGate rework API (code-derived, W
 doc["components"]["schemas"] = SCHEMAS
 doc['components']['securitySchemes']['PortalSession'] = {'type': 'apiKey', 'in': 'cookie', 'name': 'du_session',
     'description': 'Server-side Portal session; mutations additionally require x-csrf-token and platform admin.'}
-doc['info']['version'] = '1.4.0'
+doc['info']['version'] = '1.5.0'
+doc['info']['description'] = ('Since 1.5.0: legacy workflow multipart admission facades at '
+    '/api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; '
+    'runtime compatibility acceptance is tracked separately in the WFA plan. ' + doc['info']['description'])
 doc['x-contract-models'] = {'secretCatalog': 'Canonical models + existing BFF routes; /api/v1/admin/secrets upstream absent.',
     'callbackPolicy': 'Frozen contract models and offline dispatcher implementation; profile/admission policy.callbackPolicy and production resolver wiring absent. Not a new endpoint.'}
 doc['x-absent'].extend(['Secret catalog upstream /api/v1/admin/secrets* and any plaintext resolve endpoint',
@@ -938,6 +1046,7 @@ assert [p["name"] for p in _written_ops["parameters"]] == QUERY_PARAMS, "operati
 assert _written_ops["parameters"][QUERY_PARAMS.index("sort")]["schema"]["enum"] == SORT_VALUES, "sort enum drifted from the contract"
 assert set(_written_ops["responses"]) == {"200", "401", "403", "422"}, "operations responses drifted"
 assert "/api/v1/admin/audit" in after, "admin audit surface missing"
+assert "/api/v1/admin/tenants" in after, "admin tenant roster surface missing"
 # SWAGGER-ORIGIN-DOCS-ALIGNMENT guard. The written artifact must never carry
 # the legacy 2023 origin, and each operation must point at the listener of its
 # own PM-M02 family with matching tags/x-api-family metadata. Checked on the
@@ -1010,6 +1119,20 @@ assert _schemas['SecretCatalogEntryRead']['additionalProperties'] is False
 assert 'value' not in _schemas['SecretCatalogEntryRead']['properties']
 assert _schemas['LiteralValueSource']['properties']['value']['writeOnly'] is True
 assert _schemas['CallbackMode']['enum'] == ['notification_only', 'notification_with_result']
+# WFA-ADMIN-TENANTS guard. The roster is the one admin list whose allow-list,
+# page envelope and item shape are all pinned here, because retyped ones drift.
+_tenants_get = written["paths"]["/api/v1/admin/tenants"]["get"]
+assert [p["name"] for p in _tenants_get["parameters"]] == TENANT_LIST_QUERY_PARAMS, (
+    "tenant list parameters drifted from the contract: %r"
+    % ([p["name"] for p in _tenants_get["parameters"]],))
+assert _tenants_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+    "#/components/schemas/AdminTenantsPage"), "tenant list 200 points at the wrong page schema"
+assert _schemas["AdminTenantsPage"]["properties"]["items"]["items"]["$ref"] == (
+    "#/components/schemas/AdminTenant"), "tenant list page lost its item schema"
+assert _schemas["AdminTenantsPage"]["additionalProperties"] is False, (
+    "the tenant page is strict in the contract; do not publish it as open")
+assert sorted(_schemas["AdminTenant"]["properties"]) == ["id", "name", "state"], (
+    "the roster item is the contract shape {id, name, state}; do not invent fields")
 assert all(path in written['paths'] for path in _portal_paths)
 print('NO-DROP paths=%d operations=%d' % (len(before - after), len(before_operations - _current_operations)))
 print("OPENAPI-JSON path-count=%d operations-params=%d sort-values=%d usage-events-params=%d dropped-paths=%d schemas=%d origins=public:%s|internal:%s|connector:%s"

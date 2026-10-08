@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components/ui/state-panel';
+import { TenantSelect } from '@/components/ui/tenant-select';
 import { createAdminApiClient, type AdminApiProblem, type AdminWebSession } from '@/lib/api';
 
 type CryptoLoadable =
@@ -105,9 +106,18 @@ export function SecurityScreen() {
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="w-full max-w-sm">
-            <FormField id="crypto-tenant" label="Tenant ID">
-              <Input id="crypto-tenant" value={tenantId} onChange={(e) => setTenantId(e.target.value)} placeholder="11111111-1111-4111-8111-111111111111" />
-            </FormField>
+            {isAdmin ? (
+              <TenantSelect
+                id="crypto-tenant"
+                label="Tenant"
+                description="Choose a tenant or All tenants."
+                value={tenantId.length > 0 ? tenantId : null}
+                allowAll
+                onValueChange={(selectedTenant) => setTenantId(selectedTenant ?? '')}
+              />
+            ) : (
+              <p className="pb-2 text-xs text-[var(--text-sub)]">Tenant scope is controlled by your session.</p>
+            )}
           </div>
           <Button onClick={() => void load()}>Load configuration</Button>
         </CardContent>
@@ -162,7 +172,7 @@ export function SecurityScreen() {
           <Card>
             <CardHeader>
               <CardTitle>Effective view</CardTitle>
-              <CardDescription>Tenant: {String(state.body['tenantId'] ?? '—')} · secrets never ride this wire.</CardDescription>
+              <CardDescription>Configuration is shown for the selected tenant scope; secrets never ride this wire.</CardDescription>
             </CardHeader>
             <CardContent>
               <pre className="max-h-72 overflow-auto rounded-[var(--radius-sm)] bg-[var(--bg-subtle)] p-3 text-xs">

@@ -122,7 +122,7 @@ describe('Worker-SDK Consumer Compatibility (WORKLOAD-REBALANCE-02)', () => {
       expect(validation.ok).toBe(true);
 
       expect(documentCoreBusinessDefinition.manifest.businessId).toBe('document-core');
-      expect(documentCoreBusinessDefinition.manifest.version).toBe('1.0.0');
+      expect(documentCoreBusinessDefinition.manifest.version).toBe('1.1.0');
 
       const declaredKinds = documentCoreManifest.runtime.handlerKinds;
       expect(declaredKinds).toEqual([

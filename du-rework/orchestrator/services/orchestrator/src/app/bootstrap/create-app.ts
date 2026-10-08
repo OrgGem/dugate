@@ -503,6 +503,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   // multipart sessions at all (the lifecycle answers 409 and creates no
   // rows), so the hook is disabled there rather than querying every tick.
   const runMultipartSweep = createMultipartSweepHook(multipart, Boolean(s3StorageFacade));
+  const runPublicArtifactCleanup = createPublicArtifactCleanupHook(artifacts);
   const connectorId = config.connectorId ?? 'default-connector';
   const connectorRevision = config.connectorRevision ?? 1;
   const grants: GrantService | null = config.invocationGrantSecret
@@ -934,6 +935,9 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     // W-DATA02-PUB-1 test seam: the multipart sweep hook wired into the
     // recovery timer above (no-ops on a postgres-only deployment).
     runMultipartSweep,
+    // WFA-02: durable cleanup intents for workflow uploads whose admission
+    // failed are retried on the same recovery cadence.
+    runPublicArtifactCleanup,
     queueIntegrityHealth: () => queueIntegrity,
     getQueue,
     // Rendered Admin shell (P6-01): lifecycle owned here so app.close()
@@ -1020,6 +1024,9 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           // DATA-02: expired multipart sessions (both branches) are swept to
           // ABORTED with their storage cleanup, single-flight per tick.
           runMultipartSweep().catch(() => undefined);
+          // WFA-02: retry exact-version cleanup for newly uploaded workflow
+          // inputs that failed admission before linking to an operation.
+          runPublicArtifactCleanup().catch(() => undefined);
         }, recoveryIntervalMs);
         recoveryTimer.unref?.();
       }
@@ -1125,6 +1132,23 @@ export function createMultipartSweepHook(
     if (active) return active;
     const sweep: Promise<MultipartSweepSummary | undefined> =
       multipart.sweepExpiredSessions().catch(() => undefined);
+    active = sweep;
+    void sweep.finally(() => {
+      if (active === sweep) active = undefined;
+    });
+    return sweep;
+  };
+}
+
+/** Single-flight retry hook for durable public-artifact compensation intents. */
+export function createPublicArtifactCleanupHook(
+  artifacts: Pick<ArtifactService, 'sweepPublicArtifactCleanup'>,
+): () => Promise<{ scanned: number; deleted: number; deferred: number } | undefined> {
+  let active: Promise<{ scanned: number; deleted: number; deferred: number } | undefined> | undefined;
+  return () => {
+    if (active) return active;
+    const sweep: Promise<{ scanned: number; deleted: number; deferred: number } | undefined> =
+      artifacts.sweepPublicArtifactCleanup().catch(() => undefined);
     active = sweep;
     void sweep.finally(() => {
       if (active === sweep) active = undefined;

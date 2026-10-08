@@ -1,0 +1,58 @@
+{
+  "source": {
+    "acceptance": "acceptance-cases.json (WFA-T22 traversal, WFA-T33 SSRF/egress, WFA-T34 unsafe archives/prototype, WFA-T35 bounds)",
+    "contract": "legacy-contract-baseline.json (securityExceptions, schemaSemantics)"
+  },
+  "note": "Negative vectors for the leaf-node fences. Mock providers/receivers used by positive cases are LOOPBACK ONLY with a run-assigned port. Every ssrf vector below must be refused before network access; every traversal vector must be refused by archive_extract/file handling; prototype keys must be rejected by bindings.",
+  "loopbackMockPolicy": {
+    "allowedHosts": ["127.0.0.1", "localhost"],
+    "requiresRunAssignedPort": true,
+    "note": "Mocks bind 127.0.0.1 only; ports are allocated per test run. https is not required for loopback mocks; non-loopback destinations are never used."
+  },
+  "pathTraversal": [
+    "../wfa-escape.txt",
+    "..\\wfa-escape.txt",
+    "....//....//wfa-escape.txt",
+    "/etc/passwd",
+    "C:\\Windows\\win.ini",
+    "%2e%2e%2fwfa-escape.txt",
+    "a/../../wfa-escape.txt",
+    "\\..\\wfa-escape.txt"
+  ],
+  "prototype": [
+    "__proto__",
+    "constructor.prototype",
+    "prototype",
+    "__defineGetter__"
+  ],
+  "ssrf": [
+    "http://169.254.169.254/latest/meta-data/",
+    "http://metadata.google.internal/computeMetadata/v1/",
+    "http://10.0.0.5/wfa/internal",
+    "http://192.168.1.10/wfa/router",
+    "http://172.16.9.9/wfa/private",
+    "http://[::1]/wfa/loopback-v6-metadata-shape",
+    "file:///etc/passwd",
+    "gopher://127.0.0.1:6379/_PING",
+    "ftp://127.0.0.1/wfa/file"
+  ],
+  "ssrfRedirect": [
+    { "from": "http://127.0.0.1:<mock-port>/wfa/redirect", "to": "http://169.254.169.254/latest/meta-data/" }
+  ],
+  "bounds": {
+    "archiveExtract": { "maxTotalBytes": 1048576, "maxEntries": 8 },
+    "archiveCompress": { "maxTotalBytes": 1048576, "maxEntries": 32 },
+    "connector": { "timeoutMs": 5000, "maxResponseBytes": 65536 },
+    "fileParse": { "maxBytes": 1048576 },
+    "fileUrlDownload": { "maxBytes": 1048576, "maxRedirects": 0 },
+    "callback": { "maxPayloadBytes": 262144 },
+    "maxFilesPerRequest": 20,
+    "maxFanout": null
+  },
+  "boundsNote": "maxFanout has no frozen legacy number; the WFA-03 contract must declare an explicit bound before T35 can pass. Other values mirror the synthetic schema fixture conditions and are scaffolding defaults, not release limits.",
+  "rejectionExpectations": {
+    "beforeNetworkAccess": true,
+    "noOperationOrArtifactOnRefusal": true,
+    "errorsAreBoundedAndSecretFree": true
+  }
+}

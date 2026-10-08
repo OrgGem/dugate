@@ -1,0 +1,14 @@
+Command: pnpm exec jest tests/wfa-runtime-join-merge.test.ts --runInBand --verbose --no-colors
+cwd: D:\Git\dugate\du-rework\businesses\document-core
+Exit code: 1
+
+FAIL tests/wfa-runtime-join-merge.test.ts
+  WFA 6d legacy schema join combine semantics
+    FAIL combine=merge merges two object outputs into one object
+    PASS combine=merge keeps the documented fallback (array) for non-object outputs
+    PASS combine=concat still returns the array of outputs
+    PASS combine=first still returns the first output
+
+Failure: Expected {"alpha":1,"beta":2}; received [{"alpha":1},{"beta":2}].
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 3 passed, 4 total

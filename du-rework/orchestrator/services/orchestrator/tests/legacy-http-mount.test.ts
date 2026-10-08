@@ -137,11 +137,120 @@ describe('legacy mount — submit wire', () => {
     expect((r?.body as { type: string }).type).toBe('https://dugate.vn/errors/invalid-parameter');
   });
 
-  it('answers 503, not a silent 404, for the workflow facade', async () => {
-    for (const p of ['/api/v1/docs/workflows', '/api/v1/docs/workflows/schema']) {
-      const r = await handleLegacyRoute(req({ method: 'POST', pathname: p }), host());
-      expect(r?.status).toBe(503);
-    }
+  it('submits named workflows with the old 202 envelope and ignores sync/idempotency options', async () => {
+    const mp = multipart('', [['process', ' disbursement '], ['resolution_data', '{"account":"A"}']], [['files[]', 'PDF']]);
+    let received: unknown;
+    const r = await handleLegacyRoute(
+      req({
+        method: 'POST',
+        pathname: '/api/v1/docs/workflows',
+        headers: { ...mp.headers, 'idempotency-key': 'ignored' },
+        bodyStream: mp.bodyStream,
+        searchParams: new URLSearchParams('sync=true'),
+      }),
+      host({ submitLegacyWorkflow: async (_principal, decoded) => {
+        received = decoded;
+        return { operationId: 'workflow-op' };
+      } }),
+    );
+    expect(r).toMatchObject({
+      status: 202,
+      headers: { 'Operation-Location': '/api/v1/operations/workflow-op' },
+      body: {
+        name: 'operations/workflow-op',
+        done: false,
+        metadata: {
+          state: 'RUNNING',
+          workflow: 'disbursement',
+          progress_percent: 0,
+          progress_message: 'Initializing workflow...',
+        },
+      },
+    });
+    expect(received).toMatchObject({
+      kind: 'named',
+      process: 'disbursement',
+      variables: { resolution_data: '{"account":"A"}' },
+    });
+  });
+
+  it('resolves and pins a tenant schema before admitting input-only schemas', async () => {
+    const mp = multipart('', [['schemaSlug', ' invoice-v2 '], ['input', '{"account":"A"}']]);
+    const pin = {
+      tenantId: 't-1', slug: 'invoice-v2', revision: 3, digest: `sha256:${'a'.repeat(64)}`,
+      schema: { nodes: [], flow: [], output: null },
+    } as never;
+    let resolvedTenant = '';
+    let receivedPin: unknown;
+    const r = await handleLegacyRoute(
+      req({
+        method: 'POST',
+        pathname: '/api/v1/docs/workflows/schema',
+        headers: mp.headers,
+        bodyStream: mp.bodyStream,
+      }),
+      host({
+        resolveLegacyWorkflowSchema: async (tenantId, slug) => {
+          resolvedTenant = `${tenantId}:${slug}`;
+          return pin;
+        },
+        submitLegacyWorkflow: async (_principal, decoded, admittedPin) => {
+          receivedPin = admittedPin;
+          expect(decoded).toMatchObject({ kind: 'schema', schemaSlug: 'invoice-v2', input: { account: 'A' }, files: [] });
+          return { operationId: 'schema-op' };
+        },
+      }),
+    );
+    expect(resolvedTenant).toBe('t-1:invoice-v2');
+    expect(receivedPin).toBe(pin);
+    expect(r).toMatchObject({
+      status: 202,
+      headers: { 'Operation-Location': '/api/v1/operations/schema-op' },
+      body: { name: 'operations/schema-op', done: false, metadata: { workflow: 'invoice-v2', progress_message: 'Initializing schema workflow...' } },
+    });
+  });
+
+  it('rejects non-object schema input before submission even when the slug resolves', async () => {
+    const mp = multipart('', [['schemaSlug', 'invoice-v2'], ['input', '[]']]);
+    let submitted = false;
+    const r = await handleLegacyRoute(
+      req({
+        method: 'POST',
+        pathname: '/api/v1/docs/workflows/schema',
+        headers: mp.headers,
+        bodyStream: mp.bodyStream,
+      }),
+      host({
+        resolveLegacyWorkflowSchema: async () => ({
+          tenantId: 't-1', slug: 'invoice-v2', revision: 1, digest: `sha256:${'a'.repeat(64)}`,
+          schema: { slug: 'invoice-v2', name: 'Invoice', nodes: [{ id: 'n', type: 'input', key: 'x' }], flow: ['n'] },
+        } as never),
+        submitLegacyWorkflow: async () => { submitted = true; return { operationId: 'never' }; },
+      }),
+    );
+    expect(r?.status).toBe(400);
+    expect(submitted).toBe(false);
+  });
+
+  it('rejects a body apiKeyId that differs from the authenticated key', async () => {
+    const mp = multipart('', [['process', 'doc-compare'], ['apiKeyId', 'another-principal']], [['file', 'PDF']]);
+    let submitted = false;
+    const r = await handleLegacyRoute(
+      req({ method: 'POST', pathname: '/api/v1/docs/workflows', headers: { ...mp.headers, 'x-api-key': 'presented-key' }, bodyStream: mp.bodyStream }),
+      host({ submitLegacyWorkflow: async () => { submitted = true; return { operationId: 'never' }; } }),
+    );
+    expect(r?.status).toBe(403);
+    expect(submitted).toBe(false);
+  });
+
+  it('keeps legacy one-file doc-compare admission asynchronous', async () => {
+    const mp = multipart('', [['process', 'doc-compare']], [['file', 'only one document']]);
+    const r = await handleLegacyRoute(
+      req({ method: 'POST', pathname: '/api/v1/docs/workflows', headers: mp.headers, bodyStream: mp.bodyStream }),
+      host({ submitLegacyWorkflow: async () => ({ operationId: 'compare-op' }) }),
+    );
+    expect(r?.status).toBe(202);
+    expect(r?.headers['Operation-Location']).toBe('/api/v1/operations/compare-op');
   });
 });
 
@@ -328,6 +437,16 @@ describe('legacy mount — billing and discoverability', () => {
     expect(r?.body).toMatchObject({ status: 200, services: [{ serviceId: 'extract' }] });
     expect((r?.body as { message: string }).message).toBe('Lấy danh sách các dịch vụ AI khả dụng thành công.');
   });
+
+  // WFA 6b (fail-first): an unwired catalogue is an empty list with the legacy
+  // 200 shape, not a 500. Discovery must not depend on a host capability that
+  // this slice has no source for.
+  it('answers 200 with an empty service list when the catalogue is not wired', async () => {
+    const r = await handleLegacyRoute(req({ pathname: '/api/v1/services' }), host());
+    expect(r?.status).toBe(200);
+    expect(r?.body).toMatchObject({ status: 200, services: [] });
+    expect((r?.body as { message: string }).message).toBe('Lấy danh sách các dịch vụ AI khả dụng thành công.');
+  });
 });
 
 describe('legacy mount — auth and error hygiene', () => {
@@ -353,6 +472,4 @@ describe('legacy mount — auth and error hygiene', () => {
     expect(JSON.stringify(r?.body)).not.toMatch(/secret|SQL|password/i);
   });
 });
-
-
 

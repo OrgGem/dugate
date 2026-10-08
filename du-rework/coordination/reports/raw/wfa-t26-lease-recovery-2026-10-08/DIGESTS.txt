@@ -1,0 +1,9 @@
+cc8aca7e54d4b8a00c4625822107d41f2d4564289a4321c04b8f12334b7bc221  du-rework/orchestrator/packages/worker-sdk/src/connector-invoker.ts
+f56c6a3a75e71a212abbc364878b18652abf551aafaccf3074fb5e23698601e3  du-rework/orchestrator/packages/worker-sdk/src/task-context.ts
+ab7b43701334f9d8ea1cfec0b59fa0fda83316852f67b605fbf40c2dc2789932  du-rework/orchestrator/packages/worker-sdk/tests/wfa-t26-lease-loss-abort.test.ts
+c6886882fbc04aa616d9739eea28998f38861b78f16f08e6849eccb5c8e1e5f2  du-rework/orchestrator/packages/worker-sdk/dist/connector-invoker.js
+91275a8985a5064cd231204be58c2257b80f28b1e9936af3907d6ea77289338f  du-rework/orchestrator/packages/worker-sdk/dist/task-context.js
+b52aa97056be49c62c033837b4d0c0cfe669651cb9c47fc43ce4170cff5bfe5a  du-rework/tests/workflow-api/http-worker.integration.test.ts
+8967a6b71e70e417af5ae0c3379e20f2fbf54b67893fc4ecb392f1e8e7b411bc  du-rework/orchestrator/services/connector/src/invoke.ts
+55aa2043111cd739cab424f0b464bef5cc1603aeaee0a9933a99587ddb2f0a6a  du-rework/orchestrator/services/connector/src/services.ts
+552a2c31120c450477e2cb481bb641c6492d7259a820c4fdcd5b4f601a2fe0de  du-rework/businesses/document-core/src/pipelines/workflows/schema/legacy-schema-runtime.ts

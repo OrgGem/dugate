@@ -2,6 +2,7 @@ export * from './button';
 export * from './input';
 export * from './field';
 export * from './select';
+export * from './tenant-select';
 export * from './dialog';
 export * from './badge';
 export * from './card';

@@ -34,6 +34,22 @@ export type AdminApiResult<T> =
   | { ok: true; status: number; data: T }
   | { ok: false; status: number; problem: AdminApiProblem };
 
+/** A tenant roster row, with the id kept as a selection value only. */
+export interface TenantRow {
+  id: string;
+  name: string;
+  state: string;
+}
+
+/** Page returned by GET /admin/api/tenants. */
+export interface TenantPage {
+  items: TenantRow[];
+  nextCursor: string | null;
+  prevCursor: string | null;
+  total: number;
+  limit: number;
+}
+
 // ---------------------------------------------------------------------------
 // AWEB-05 wire shapes (BFF /admin/api/*)
 // ---------------------------------------------------------------------------
@@ -116,11 +132,12 @@ export interface ConnectorListPage {
   skipped: number;
 }
 
-/** Composition-derived advertisement (booleans only, never configuration). */
+/** Composition booleans plus known connector ID keys, never configuration values. */
 export interface ConnectorCapabilities {
   management: boolean;
   credentialWorkflow: boolean;
   test: boolean;
+  knownConnectorIds: string[];
 }
 
 /**

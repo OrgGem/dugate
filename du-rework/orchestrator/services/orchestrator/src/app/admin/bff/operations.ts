@@ -213,6 +213,10 @@ export async function handleOperationsRoute(
       }
       throw err;
     }
+    if (scope === '') {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'usage requires a tenantId for platform sessions', correlationId);
+      return;
+    }
     const upstream = new URL('/api/v1/usage', base);
     upstream.searchParams.set('from', from);
     upstream.searchParams.set('to', to);

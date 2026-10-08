@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { validateGrant } from './grants';
 import { hashInvocationInput } from './hash';
-import { invokeAdapter, type ProviderTransport } from './invoke';
+import { abortInFlightProviderDispatch, invokeAdapter, type ProviderTransport } from './invoke';
 import { redactConnectorRevision } from './config';
 import { ConnectorError } from './errors';
 import type { ConnectorHttpStore, ConnectorRuntime, HttpInvocationResult } from './http/server';
@@ -182,6 +182,9 @@ export class DurableConnectorRuntime implements ConnectorRuntime {
     if (!record) throw new ConnectorError('INVALID_INPUT', 'Invocation not found.');
     await this.authorizeInvocation(record, invocationGrant);
     const cancelled = await this.ledger.cancel(invocationId);
+    // WFA-T7 layer 3: reach the provider socket. Flipping the ledger row alone
+    // leaves the outbound provider request running until its own deadline.
+    abortInFlightProviderDispatch(invocationId);
     if (record.quotaLease) {
       try {
         await this.quota.release(record.quotaLease);

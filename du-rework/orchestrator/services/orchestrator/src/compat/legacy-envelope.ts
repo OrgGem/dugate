@@ -43,6 +43,8 @@ export interface LegacyOperationRow {
   readonly updatedAt?: string | Date | null;
   readonly outputFormat?: string | null;
   readonly outputContent?: string | null;
+  /** File-backend output reference (legacy local OUTPUT_DIR path or S3 key). */
+  readonly outputFilePath?: string | null;
   readonly extractedData?: string | null;
   readonly totalInputTokens?: number | null;
   readonly totalOutputTokens?: number | null;
@@ -55,6 +57,10 @@ export interface LegacyOperationRow {
   readonly failedAtStep?: number | null;
   /** Present only on the list projection, never on submit or by-id reads. */
   readonly endpointSlug?: string | null;
+  /** Additive identity marker for workflow polls; absent on ordinary actions. */
+  readonly workflow?: string | null;
+  readonly schemaRevision?: number | null;
+  readonly schemaDigest?: string | null;
 }
 
 function safeParse<T>(json: string | null | undefined, fallback: T): T {
@@ -94,19 +100,23 @@ function timeOf(value: string | Date | null | undefined): unknown {
  */
 export function toLegacyEnvelope(row: LegacyOperationRow): Record<string, unknown> {
   const steps = safeParse<unknown>(row.stepsResultJson, []);
+  const metadata: Record<string, unknown> = {
+    state: row.state,
+    pipeline: processorsOf(row.pipelineJson),
+    current_step: row.currentStep ?? null,
+    progress_percent: row.progressPercent ?? null,
+    progress_message: row.progressMessage ?? null,
+    create_time: timeOf(row.createdAt),
+    update_time: timeOf(row.updatedAt),
+    pipeline_steps: steps,
+  };
+  if (row.workflow) metadata.workflow = row.workflow;
+  if (row.schemaRevision !== null && row.schemaRevision !== undefined) metadata.schema_revision = row.schemaRevision;
+  if (row.schemaDigest) metadata.schema_digest = row.schemaDigest;
   const body: Record<string, unknown> = {
     name: `operations/${row.id}`,
     done: row.done,
-    metadata: {
-      state: row.state,
-      pipeline: processorsOf(row.pipelineJson),
-      current_step: row.currentStep ?? null,
-      progress_percent: row.progressPercent ?? null,
-      progress_message: row.progressMessage ?? null,
-      create_time: timeOf(row.createdAt),
-      update_time: timeOf(row.updatedAt),
-      pipeline_steps: steps,
-    },
+    metadata,
   };
 
   if (row.done && row.state === 'SUCCEEDED') {
@@ -162,18 +172,22 @@ export function toLegacyEnvelope(row: LegacyOperationRow): Record<string, unknow
  * would make a list response heavier than the one clients parse today.
  */
 export function toLegacyListItem(row: LegacyOperationRow): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {
+    state: row.state,
+    endpoint_slug: row.endpointSlug,
+    current_step: row.currentStep,
+    progress_percent: row.progressPercent,
+    progress_message: row.progressMessage,
+    create_time: row.createdAt,
+    update_time: row.updatedAt,
+  };
+  if (row.workflow) metadata.workflow = row.workflow;
+  if (row.schemaRevision !== null && row.schemaRevision !== undefined) metadata.schema_revision = row.schemaRevision;
+  if (row.schemaDigest) metadata.schema_digest = row.schemaDigest;
   const item: Record<string, unknown> = {
     name: `operations/${row.id}`,
     done: row.done,
-    metadata: {
-      state: row.state,
-      endpoint_slug: row.endpointSlug,
-      current_step: row.currentStep,
-      progress_percent: row.progressPercent,
-      progress_message: row.progressMessage,
-      create_time: row.createdAt,
-      update_time: row.updatedAt,
-    },
+    metadata,
   };
 
   if (row.done && row.state === 'FAILED') {

@@ -63,6 +63,8 @@ export type {
   SecretService,
   SecretState,
   SecretUsageReference,
+  TenantPage,
+  TenantRow,
   VaultReferenceProvider,
   VaultVersionMode,
   FileUrlAuthConfigWrite,

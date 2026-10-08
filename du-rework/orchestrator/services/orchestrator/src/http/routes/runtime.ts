@@ -418,8 +418,8 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
   {
     const m = /^\/api\/runtime\/v1\/tasks\/([^/]+)\/progress$/.exec(pathname);
     if (m && method === 'POST') {
-      await assertTaskRuntimeAuth(ctx, m[1]!);
-      await ctx.runtime.reportProgress(m[1]!, ctx.body as never);
+      const workerBusinessId = await assertTaskRuntimeAuth(ctx, m[1]!);
+      await ctx.runtime.reportProgress(m[1]!, ctx.body as never, workerBusinessId);
       return { status: 200, body: {} };
     }
   }

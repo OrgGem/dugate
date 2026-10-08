@@ -1,0 +1,12 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent tests/rv01-loopback-http-offline.test.ts
+timestamp: 2026-10-08T04:30:23.8489422+07:00
+phase: POST-FIX (expect 48 passed / exit 0)
+--- output ---
+
+Test Suites: 1 passed, 1 total
+Tests:       48 passed, 48 total
+Snapshots:   0 total
+Time:        4.01 s
+
+--- exit=0 ---

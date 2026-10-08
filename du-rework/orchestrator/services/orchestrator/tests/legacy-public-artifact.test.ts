@@ -2,11 +2,9 @@ import { createHash } from 'node:crypto';
 import { writePublicArtifact, PublicArtifactTooLargeError, type PublicArtifactWriterDeps } from '../src/compat/legacy-public-artifact';
 
 /**
- * The writer is the only place a legacy upload becomes a durable artifact, so
- * the two properties that matter are both pinned here: the bytes are verified
- * before the row is written, and the cap refuses BEFORE anything is stored.
- * A test that only checked the happy path would pass even if the cap were
- * checked after `putBlob` and had already written the blob.
+ * The writer records a bounded STAGING row before bytes are stored, then pins
+ * and marks READY. Failures leave a durable retry intent; the cap still refuses
+ * before either the row or storage is touched.
  */
 
 interface Call {
@@ -92,11 +90,13 @@ describe('writePublicArtifact', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('leaves no row when the digest check fails', async () => {
+  it('leaves a durable cleanup intent and invokes compensation when digest verification fails', async () => {
+    let cleanupCalled = false;
     const { deps: d, calls, blobs } = deps({
       verifyAndPin: async () => {
         throw new Error('CHECKSUM_MISMATCH');
       },
+      cleanupAfterFailure: async () => { cleanupCalled = true; },
     });
     await expect(
       writePublicArtifact(d, {
@@ -106,9 +106,11 @@ describe('writePublicArtifact', () => {
         bytes: Buffer.from('x'),
       }),
     ).rejects.toThrow('CHECKSUM_MISMATCH');
-    expect(calls.filter((c) => c.sql.includes('INSERT INTO artifacts'))).toHaveLength(0);
-    // The blob may linger, but no READY row points at it, so it is inert and
-    // swept as an orphan rather than served.
+    expect(calls.filter((c) => c.sql.includes('INSERT INTO artifacts'))).toHaveLength(1);
+    expect(calls.some((c) => c.sql.includes("state='ABORTED'") && c.sql.includes("abort_reason='failed'"))).toBe(true);
+    expect(cleanupCalled).toBe(true);
+    // The cleanup callback owns physical deletion; when it fails or is absent,
+    // the ABORTED/failed row keeps the unique storage key for the recovery GC.
     expect(blobs).toHaveLength(1);
   });
 

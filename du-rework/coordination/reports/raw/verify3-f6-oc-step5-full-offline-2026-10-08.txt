@@ -1,0 +1,2375 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent
+timestamp: 2026-10-08T06:24:29.3535743+07:00
+--- output ---
+FAIL tests/admin-shell-session-lifecycle.test.ts (5.764 s)
+  ● W-SEC-AUDIT-TAXONOMY-1 default console sink through the REAL shell listener › mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"kind": "auth.login_failed", "method": "POST", "pathname": "/admin/login", "reason": "invalid_token"}
+    Received: undefined
+
+    [0m [90m 819 |[39m     [36mif[39m ([33m![39mfirst) [36mthrow[39m [36mnew[39m [33mError[39m([32m'unreachable: length was asserted 1'[39m)[33m;[39m
+     [90m 820 |[39m     [36mconst[39m record [33m=[39m [33mJSON[39m[33m.[39mparse(first) [36mas[39m { event[33m:[39m [33mAdminSecurityEvent[39m }[33m;[39m
+    [31m[1m>[22m[39m[90m 821 |[39m     expect(record[33m.[39mevent)[33m.[39mtoEqual({
+     [90m     |[39m                          [31m[1m^[22m[39m
+     [90m 822 |[39m       kind[33m:[39m [32m'auth.login_failed'[39m[33m,[39m
+     [90m 823 |[39m       reason[33m:[39m [32m'invalid_token'[39m[33m,[39m
+     [90m 824 |[39m       method[33m:[39m [32m'POST'[39m[33m,[39m[0m
+
+      at Object.<anonymous> (tests/admin-shell-session-lifecycle.test.ts:821:26)
+
+FAIL tests/admin-operations-sql.test.ts
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › platform admin without a tenant param reads cross-tenant and gets the documented keys
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:105:17)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › total is the server COUNT of the filtered population, never the row count
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:122:19)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › a short page ends the list (no next cursor); a full page with an extra row continues
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:133:24)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › the keyset cursor round-trips: page 1 hands out a cursor page 2 can page with
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:169:26)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › page 1 reports no previous page
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:193:13)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › a page-2 request with nothing above it reports no previous page
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE (created_at, id) < ($1::timestamptz, $2::uuid) ORDER BY created_at DESC, id DESC LIMIT $3
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:202:19)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › page 1 -> page 2 -> back to page 1 returns the identical rows
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:292:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › walks three pages deep and back up one at a time without skipping or repeating
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:313:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › a backward cursor is an ASC query with a > predicate, and its rows come back newest-first
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:330:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › a backward arrival on the first page offers no previous page (no self-link)
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:345:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › a partial last page still offers a previous page
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:356:16)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › state expands to a bound ANY() over the wire states, never into SQL text
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE state = ANY($1::text[]) ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:377:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › the RUNNING group covers every state an operator still has to look at
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE state = ANY($1::text[]) ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:393:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › the tenant filter is an exact bound equality
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:411:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › the id search is a bound substring, not a LIKE with wildcard semantics
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE strpos(lower(id::text), lower($1)) > 0 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:424:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › no caller-supplied value is ever concatenated into the SQL text
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 AND state = ANY($2::text[]) AND strpos(lower(id::text), lower($3)) > 0 ORDER BY created_at DESC, id DESC LIMIT $4
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:437:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › a tenant operator is fenced to its own tenant in SQL, and 403s a foreign filter
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:452:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › an admin bearer reaches the CANONICAL branch, not the compat facade
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:540:18)
+
+FAIL tests/public-upload-encryption-gateway.test.ts
+  ● public upload encryption gateway › completes the public grant, binary upload, finalize replay, and submit route journey
+
+    unexpected test DB query: UPDATE artifacts SET operation_id=$2 WHERE id = ANY($1::uuid[]) AND tenant_id=$3 AND state='READY' AND operation_id IS NULL AND task_id IS NULL
+
+    [0m [90m 384 |[39m       [36mreturn[39m { rowCount[33m:[39m [35m1[39m[33m,[39m rows[33m:[39m [{ id[33m:[39m [33mARTIFACT_ID[39m }] }[33m;[39m
+     [90m 385 |[39m     }
+    [31m[1m>[22m[39m[90m 386 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected test DB query: '[39m [33m+[39m query)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 387 |[39m   }[33m;[39m
+     [90m 388 |[39m   [36mconst[39m db [33m=[39m {
+     [90m 389 |[39m     query[33m:[39m execute[33m,[39m[0m
+
+      at Object.execute [as query] (tests/public-upload-encryption-gateway.test.ts:386:11)
+      at src/modules/operations/submission.ts:660:24
+      at Object.submit (src/modules/operations/submission.ts:530:23)
+      at handlePublicRoutes (src/http/routes/public.ts:374:22)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/public-upload-encryption-gateway.test.ts:550:23)
+
+FAIL tests/admin-operations-sort-http-offline.test.ts
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › serves page 1 of the default order over the wire
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 333 |[39m   it([32m'serves page 1 of the default order over the wire'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+     [90m 334 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit=2'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 335 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 336 |[39m     expect(r[33m.[39mcontentType)[33m.[39mtoContain([32m'application/json'[39m)[33m;[39m
+     [90m 337 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 338 |[39m     expect(p[33m.[39mitems[33m.[39mmap((x) [33m=>[39m x[33m.[39mid))[33m.[39mtoEqual(oracleOrder([33mOPERATIONS_LIST_SORT_DEFAULT[39m)[33m.[39mslice([35m0[39m[33m,[39m [35m2[39m))[33m;[39m[0m
+
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:335:22)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted created_at:desc cursor replayed on deadline_at:asc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted created_at:asc cursor replayed on updated_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted updated_at:desc cursor replayed on deadline_at:asc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted deadline_at:asc cursor replayed on created_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted updated_at:asc cursor replayed on deadline_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › omitting sort is no escape: a created_at:asc cursor lands on the default and is refused
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:366:20)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a legacy 2-slot cursor still pages the default order over the wire
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 375 |[39m     [36mconst[39m legacy [33m=[39m buildToken([32m'2026-09-25T12:00:02.000Z'[39m[33m,[39m [32m'22222222-2222-4222-8222-222222222222'[39m)[33m;[39m
+     [90m 376 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit=5&cursor='[39m [33m+[39m encodeURIComponent(legacy))[33m;[39m
+    [31m[1m>[22m[39m[90m 377 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 378 |[39m     [36mconst[39m ids [33m=[39m pageOf(r)[33m.[39mitems[33m.[39mmap((x) [33m=>[39m x[33m.[39mid)[33m;[39m
+     [90m 379 |[39m     expect(ids)[33m.[39mtoContain([32m'33333333-3333-4333-8333-333333333333'[39m)[33m;[39m
+     [90m 380 |[39m     expect(ids)[33m.[39mnot[33m.[39mtoContain([32m'22222222-2222-4222-8222-222222222222'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:377:22)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a legacy BACKWARD token still walks back under the default sort
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 391 |[39m     [36mconst[39m legacy [33m=[39m buildToken([32m'2026-09-25T12:00:02.000Z'[39m[33m,[39m [32m'22222222-2222-4222-8222-222222222222'[39m[33m,[39m undefined[33m,[39m [36mtrue[39m)[33m;[39m
+     [90m 392 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit=5&cursor='[39m [33m+[39m encodeURIComponent(legacy))[33m;[39m
+    [31m[1m>[22m[39m[90m 393 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 394 |[39m     expect(pageOf(r)[33m.[39mitems[33m.[39mmap((x) [33m=>[39m x[33m.[39mid))[33m.[39mtoEqual([
+     [90m 395 |[39m       [32m'55555555-5555-5555-8555-555555555555'[39m[33m,[39m
+     [90m 396 |[39m       [32m'44444444-4444-4444-8444-444444444444'[39m[33m,[39m[0m
+
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:393:22)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a malformed sort is answered before the cursor is ever considered
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:411:20)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under created_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under created_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under updated_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under updated_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under deadline_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under deadline_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under created_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under created_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under updated_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under updated_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under deadline_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under deadline_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a cursor minted inside tenant A pages ONLY tenant B windows when replayed scoped to B - and never leaks A ids
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:463:20)
+
+{"subsystem":"api","timestamp":"2026-10-07T23:24:39.027Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"6b71bd04-a34a-4823-b05c-c0a1cf76501b","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:24:39.036Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"da1d8853-ab07-424d-8aab-a06c2b188f3e","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:24:39.038Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"96d04ad2-8501-46b0-9d59-f49e48c13ca7","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:24:39.041Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"9c05728d-cf3a-48a5-8ce0-d8dfca7df122","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:24:39.066Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0fd259cb-1740-48d9-a6fb-81615828eea6","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+FAIL tests/enc-meta-sentinel-runtime-refs.test.ts
+  ● ENC-META-SENTINEL G2: result_ref / human_waits / resume through the real createApp › GREEN: resumeOperation seals response_ref + resume payload; the dispatch row carries references only
+
+    HttpError: operation not found
+
+    [0m [90m 52 |[39m   [36mnew[39m [33mHttpError[39m([35m401[39m[33m,[39m [32m'UNAUTHENTICATED'[39m[33m,[39m msg)[33m;[39m
+     [90m 53 |[39m [36mexport[39m [36mconst[39m forbidden [33m=[39m (msg [33m=[39m [32m'action not permitted'[39m) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m403[39m[33m,[39m [32m'PERMISSION_DENIED'[39m[33m,[39m msg)[33m;[39m
+    [31m[1m>[22m[39m[90m 54 |[39m [36mexport[39m [36mconst[39m notFound [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m404[39m[33m,[39m [32m'NOT_FOUND'[39m[33m,[39m msg)[33m;[39m
+     [90m    |[39m                                          [31m[1m^[22m[39m
+     [90m 55 |[39m [36mexport[39m [36mconst[39m conflict [33m=[39m (code[33m:[39m string[33m,[39m msg[33m:[39m string[33m,[39m extra[33m?[39m[33m:[39m [33mPartial[39m[33m<[39m[33mProblemDetails[39m[33m>[39m) [33m=>[39m
+     [90m 56 |[39m   [36mnew[39m [33mHttpError[39m([35m409[39m[33m,[39m code[33m,[39m msg[33m,[39m extra)[33m;[39m
+     [90m 57 |[39m [36mexport[39m [36mconst[39m gone [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m410[39m[33m,[39m [32m'TASK_TERMINAL'[39m[33m,[39m msg)[33m;[39m[0m
+
+      at notFound (src/http/errors.ts:54:42)
+      at run (src/modules/runtime/runtime.ts:1433:44)
+      at Object.tx (src/db/db.ts:28:24)
+      at Object.<anonymous> (tests/enc-meta-sentinel-runtime-refs.test.ts:369:17)
+
+FAIL tests/admin-operations-sort.test.ts
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › created_at:asc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › created_at:desc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › updated_at:asc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY updated_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › updated_at:desc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY updated_at DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › deadline_at:asc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz) ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › deadline_at:desc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › no deadline-less operation is ever lost, in either direction
+
+    unexpected SQL: SELECT *, to_char(COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:272:20)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › a page boundary inside a duplicate-key group neither skips nor repeats a row
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:282:20)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › the tiebreak orders equal keys by id in the SAME direction as the key
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:290:24)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › a backward hop returns the identical page under a reversed primary order
+
+    unexpected SQL: SELECT *, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY updated_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:304:16)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › sort reorders the page but never the population count
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:314:20)
+
+FAIL tests/artifact-read-authorization.test.ts
+  ● R1-A artifact read authorization and storage-facade boundary › does not grant reads for STAGING artifacts, even in the same operation
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+    [0m [90m 368 |[39m     [36mconst[39m service [33m=[39m makeService(db)[33m;[39m
+     [90m 369 |[39m
+    [31m[1m>[22m[39m[90m 370 |[39m     [36mawait[39m expect(service[33m.[39mrequestAccess([33mSTAGING_OUTPUT[39m[33m,[39m readRequest()))[33m.[39mrejects[33m.[39mtoMatchObject({
+     [90m     |[39m                                                                                [31m[1m^[22m[39m
+     [90m 371 |[39m       code[33m:[39m [32m'STATE_CONFLICT'[39m[33m,[39m
+     [90m 372 |[39m     })[33m;[39m
+     [90m 373 |[39m     expect(db[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:370:80)
+
+  ● R1-A artifact read authorization and storage-facade boundary › rejects expired and fenced requesters before minting a read grant
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    [0m [90m 379 |[39m     [36mawait[39m expect(
+     [90m 380 |[39m       makeService(expiredDb)[33m.[39mrequestAccess([33mSAME_OPERATION_CHECKPOINT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 381 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ status[33m:[39m [35m403[39m[33m,[39m code[33m:[39m [32m'PERMISSION_DENIED'[39m })[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 382 |[39m     expect(expiredDb[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 383 |[39m
+     [90m 384 |[39m     [36mconst[39m staleDb [33m=[39m [36mnew[39m [33mOfflineArtifactAccessDb[39m()[33m;[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:381:15)
+
+  ● R1-A artifact read authorization and storage-facade boundary › keeps writes producer-scoped and hides storage keys from the public upload grant
+
+    HttpError: lease has expired for task 55555555-5555-4555-8555-555555555555
+
+    [0m [90m 54 |[39m [36mexport[39m [36mconst[39m notFound [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m404[39m[33m,[39m [32m'NOT_FOUND'[39m[33m,[39m msg)[33m;[39m
+     [90m 55 |[39m [36mexport[39m [36mconst[39m conflict [33m=[39m (code[33m:[39m string[33m,[39m msg[33m:[39m string[33m,[39m extra[33m?[39m[33m:[39m [33mPartial[39m[33m<[39m[33mProblemDetails[39m[33m>[39m) [33m=>[39m
+    [31m[1m>[22m[39m[90m 56 |[39m   [36mnew[39m [33mHttpError[39m([35m409[39m[33m,[39m code[33m,[39m msg[33m,[39m extra)[33m;[39m
+     [90m    |[39m   [31m[1m^[22m[39m
+     [90m 57 |[39m [36mexport[39m [36mconst[39m gone [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m410[39m[33m,[39m [32m'TASK_TERMINAL'[39m[33m,[39m msg)[33m;[39m
+     [90m 58 |[39m [36mexport[39m [36mconst[39m unprocessable [33m=[39m (code[33m:[39m string[33m,[39m msg[33m:[39m string[33m,[39m extra[33m?[39m[33m:[39m [33mPartial[39m[33m<[39m[33mProblemDetails[39m[33m>[39m) [33m=>[39m
+     [90m 59 |[39m   [36mnew[39m [33mHttpError[39m([35m422[39m[33m,[39m code[33m,[39m msg[33m,[39m extra)[33m;[39m[0m
+
+      at conflict (src/http/errors.ts:56:3)
+      at assertLease (src/modules/artifacts/artifacts.ts:345:21)
+      at Object.requestUpload (src/modules/artifacts/artifacts.ts:352:21)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:410:19)
+
+  ● CR28-03 artifact read authorization: negatives and boundaries › declared references array › reports a state conflict, not a permission denial, for a declared cross-operation STAGING artifact
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+    [0m [90m 590 |[39m       [36mawait[39m expect(
+     [90m 591 |[39m         makeService(db)[33m.[39mrequestAccess([33mFOREIGN_STAGING_OUTPUT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 592 |[39m       )[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'STATE_CONFLICT'[39m })[33m;[39m
+     [90m     |[39m                 [31m[1m^[22m[39m
+     [90m 593 |[39m       expect(db[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 594 |[39m     })[33m;[39m
+     [90m 595 |[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:592:17)
+
+  ● CR28-03 worker lease boundaries › prefers expiry over task state when both are wrong
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    [0m [90m 725 |[39m     [36mawait[39m expect(
+     [90m 726 |[39m       makeService(db)[33m.[39mrequestAccess([33mSAME_OPERATION_CHECKPOINT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 727 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ status[33m:[39m [35m403[39m[33m,[39m code[33m:[39m [32m'PERMISSION_DENIED'[39m })[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 728 |[39m     expect(db[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 729 |[39m   })[33m;[39m
+     [90m 730 |[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:727:15)
+
+  ● CR28-03 worker lease boundaries › FINDING: the lease_active boolean collapses a missing expiry and a past one
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    [0m [90m 735 |[39m     [36mawait[39m expect(
+     [90m 736 |[39m       makeService(db)[33m.[39mrequestAccess([33mSAME_OPERATION_CHECKPOINT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 737 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ status[33m:[39m [35m403[39m[33m,[39m code[33m:[39m [32m'PERMISSION_DENIED'[39m })[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 738 |[39m
+     [90m 739 |[39m     [90m// The query projects (lease_expires_at IS NOT NULL AND lease_expires_at[39m
+     [90m 740 |[39m     [90m// > now()) AS lease_active, so a task that never received an expiry denies[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:737:15)
+
+{"subsystem":"api","errorName":"Error","timestamp":"2026-10-07T23:25:22.289Z","level":"error","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0e6b0593-6bc7-45c8-ab5f-ca861c2bf7ee","operationId":null,"taskId":null,"invocationId":null,"message":"unhandled request error"}
+[rfx08] artifact=12582912 bound=5242880 retained=4194304 peakRssDelta=-193679360 code=SIZE_LIMIT
+{"subsystem":"api","timestamp":"2026-10-07T23:25:33.303Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"694d0030-5cc9-4013-8b07-c4d581a31abe","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:38.327Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"4aa45bb8-379e-40de-a7a7-da01df16be81","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:41.456Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"8ba883a5-57a3-4663-9d70-9062f0698972","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:41.466Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"1a923a50-e10d-4bd1-9b65-8f195a2d951d","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:41.479Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"46642cb4-a169-41ac-a82b-0a7c56afbd7d","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:41.485Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"4ae1ffb1-e526-48e1-8309-bfdfde2c624d","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:42.656Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"edcc4f1a-91d1-4c1b-bc5c-805e01fbd46f","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:42.684Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"e1e3a98f-d351-42d0-8f73-410d8e6dcca3","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:42.693Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"66112d48-f750-482f-bc46-fc60790f8400","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:45.332Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"e1ca9bee-d27c-4755-ad5d-d5f78c8c9b4c","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:45.363Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"96b1649d-d940-4149-aae1-23b9ebc9b0c6","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:45.369Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"82666d26-2e6b-48a9-90cc-58f65d6e74bb","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:45.374Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"32bfebed-61ef-497e-92ce-83951da27e89","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"api","timestamp":"2026-10-07T23:25:45.385Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"f0347a83-e624-4c13-90d6-51edd173a3c7","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:49.926Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"ebea359b-2c07-4b68-91f3-ec47de8230ed","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:50.769Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"5bc5dd32-6f25-400b-b032-c2b6309833e3","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:52.077Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"1e3bb1d8-66a3-441d-9a8a-4675d71ab830","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:52.117Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"b29af0a9-cc7a-4da8-a8e4-51863cdf065b","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-07T23:25:52.122Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"f5ccf8c7-5002-4342-a035-adf2b642d771","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:54.059Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"e78d0484-9f20-4ddd-99b8-039e66781063","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","status":200,"timestamp":"2026-10-07T23:25:54.098Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"888edcaa-553f-43ee-8a77-6c96d5e65d24","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] settings read did not match the settings DTO"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:56.206Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"81afb02f-a31b-4f4a-a3bf-d498253c28b1","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:57.403Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"57dc7295-4b1c-4af8-aa2f-ca05620d7539","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:58.560Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"c0dc4094-5062-4e6a-a35c-46339f1ec397","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:25:59.249Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"3dcf46d2-211c-4ef3-a8b5-82d9cf574f28","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:00.918Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"8762b2de-119d-4d68-a133-d5af704f44de","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:00.932Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"1a997565-0e77-4d25-abb7-81ef20e34fcb","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:00.936Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"6b294828-3ed8-4c78-b37e-c2df6ce8330e","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:00.950Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"f1b895c8-536f-4953-a637-599e93d8a7f1","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] DU_ADMIN_WEB_ROUTES ignored unknown route names"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:00.950Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"01cddfa6-1f43-41ac-867b-3a0a126c7cfc","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:00.956Z","level":"info","service":"orchestrator","version":"unknown","environment":"test","correlationId":"079e02cc-3796-4369-a924-10b25eb6f968","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:01.574Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"af3610b8-bf24-44da-bda1-d2c78834b555","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","errorClass":"VaultError","routeId":"error","timestamp":"2026-10-07T23:26:09.419Z","level":"error","service":"orchestrator","version":"unknown","environment":"test","correlationId":"12648d10-9cf8-4ff7-8963-52f1c33c8d97","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] unhandled request error"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T23:26:10.234Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"ce07106e-5ed9-4320-bcdf-073435344c97","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+
+--- synthetic seqscan plan ---
+Limit  (cost=88.70..90.01 rows=51 width=420)
+  ->  Sort  (cost=88.70..90.01 rows=510 width=420)
+        Sort Key: ((COALESCE(deadline_at, '0001-01-01'::timestamp with time zone)) DESC), id DESC
+        ->  Seq Scan on operations  (cost=0.00..55.70 rows=4770 width=420)
+              Filter: (tenant_id = 'x')
+
+--- synthetic other-index plan ---
+Limit  (cost=99.00..99.10 rows=51 width=420)
+  ->  Sort  (cost=99.00..120.00 rows=4770 width=420)
+        Sort Key: ((COALESCE(deadline_at, '0001-01-01'::timestamp with time zone)) DESC), id DESC
+        ->  Index Scan using operations_tenant_created_id_idx on operations  (cost=0.29..55.70 rows=4770 width=420)
+
+--- synthetic clean plan ---
+Limit  (cost=0.42..12.30 rows=51 width=420)
+  ->  Index Scan using operations_deadline_id_idx on operations  (cost=0.42..30.10 rows=3720 width=420)
+        Filter: (tenant_id = 'x')
+
+--- synthetic 0019 name plan ---
+Limit  (cost=0.42..12.30 rows=51 width=420)
+  ->  Index Scan using operations_tenant_deadline_coalesce_desc_id_idx on operations  (cost=0.42..30.10 rows=3720 width=420)
+        Filter: (tenant_id = 'x')
+
+--- synthetic bounded-sort plan ---
+Limit  (cost=80.10..80.71 rows=51 width=420) (actual time=1.100..1.200 rows=51 loops=1)
+  ->  Sort  (cost=80.10..80.71 rows=244 width=420) (actual time=1.090..1.150 rows=15 loops=1)
+        Sort Method: quicksort  Memory: 25kB
+        ->  Index Scan using operations_tenant_deadline_id_idx on operations  (cost=0.42..70.00 rows=244 width=420) (actual time=0.05..0.60 rows=244 loops=1)
+
+--- synthetic material-sort plan ---
+Limit  (cost=80.10..80.71 rows=51 width=420) (actual time=1.100..1.200 rows=51 loops=1)
+  ->  Sort  (cost=80.10..80.71 rows=4770 width=420) (actual time=1.090..90.00 rows=4770 loops=1)
+        Sort Method: quicksort  Memory: 25kB
+        ->  Index Scan using operations_tenant_deadline_id_idx on operations  (cost=0.42..70.00 rows=244 width=420) (actual time=0.05..0.60 rows=244 loops=1)
+
+Summary of all failing tests
+FAIL tests/admin-shell-session-lifecycle.test.ts (5.764 s)
+  ● W-SEC-AUDIT-TAXONOMY-1 default console sink through the REAL shell listener › mount default: a bad token over the socket logs exactly one parseable, sentinel-free security line
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"kind": "auth.login_failed", "method": "POST", "pathname": "/admin/login", "reason": "invalid_token"}
+    Received: undefined
+
+    [0m [90m 819 |[39m     [36mif[39m ([33m![39mfirst) [36mthrow[39m [36mnew[39m [33mError[39m([32m'unreachable: length was asserted 1'[39m)[33m;[39m
+     [90m 820 |[39m     [36mconst[39m record [33m=[39m [33mJSON[39m[33m.[39mparse(first) [36mas[39m { event[33m:[39m [33mAdminSecurityEvent[39m }[33m;[39m
+    [31m[1m>[22m[39m[90m 821 |[39m     expect(record[33m.[39mevent)[33m.[39mtoEqual({
+     [90m     |[39m                          [31m[1m^[22m[39m
+     [90m 822 |[39m       kind[33m:[39m [32m'auth.login_failed'[39m[33m,[39m
+     [90m 823 |[39m       reason[33m:[39m [32m'invalid_token'[39m[33m,[39m
+     [90m 824 |[39m       method[33m:[39m [32m'POST'[39m[33m,[39m[0m
+
+      at Object.<anonymous> (tests/admin-shell-session-lifecycle.test.ts:821:26)
+
+FAIL tests/admin-operations-sql.test.ts
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › platform admin without a tenant param reads cross-tenant and gets the documented keys
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:105:17)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › total is the server COUNT of the filtered population, never the row count
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:122:19)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › a short page ends the list (no next cursor); a full page with an extra row continues
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:133:24)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › the keyset cursor round-trips: page 1 hands out a cursor page 2 can page with
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:169:26)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › page 1 reports no previous page
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:193:13)
+
+  ● W-ADMUX02-SRV-1: GET /api/v1/operations envelope › a page-2 request with nothing above it reports no previous page
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE (created_at, id) < ($1::timestamptz, $2::uuid) ORDER BY created_at DESC, id DESC LIMIT $3
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:202:19)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › page 1 -> page 2 -> back to page 1 returns the identical rows
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:292:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › walks three pages deep and back up one at a time without skipping or repeating
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:313:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › a backward cursor is an ASC query with a > predicate, and its rows come back newest-first
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:330:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › a backward arrival on the first page offers no previous page (no self-link)
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:345:16)
+
+  ● W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop › a partial last page still offers a previous page
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 252 |[39m           }
+     [90m 253 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 254 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 255 |[39m           }
+     [90m 256 |[39m           [36mconst[39m backwards [33m=[39m [35m/ORDER BY created_at ASC, id ASC/i[39m[33m.[39mtest(sql)[33m;[39m
+     [90m 257 |[39m           [36mconst[39m op [33m=[39m [35m/\(created_at, id\) > \(/[39m[33m.[39mtest(sql) [33m?[39m [32m'>'[39m [33m:[39m [32m'<'[39m[33m;[39m[0m
+
+      at Object.query (tests/admin-operations-sql.test.ts:254:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sql.test.ts:285:17)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:356:16)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › state expands to a bound ANY() over the wire states, never into SQL text
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE state = ANY($1::text[]) ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:377:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › the RUNNING group covers every state an operator still has to look at
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE state = ANY($1::text[]) ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:393:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › the tenant filter is an exact bound equality
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:411:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › the id search is a bound substring, not a LIKE with wildcard semantics
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE strpos(lower(id::text), lower($1)) > 0 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:424:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › no caller-supplied value is ever concatenated into the SQL text
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 AND state = ANY($2::text[]) AND strpos(lower(id::text), lower($3)) > 0 ORDER BY created_at DESC, id DESC LIMIT $4
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:437:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › a tenant operator is fenced to its own tenant in SQL, and 403s a foreign filter
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:452:5)
+
+  ● W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced › an admin bearer reaches the CANONICAL branch, not the compat facade
+
+    unexpected operations-list SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+
+    [0m [90m 108 |[39m       [36mreturn[39m pgResult(fixture[33m.[39mpage [33m?[39m[33m?[39m [])[33m;[39m
+     [90m 109 |[39m     }
+    [31m[1m>[22m[39m[90m 110 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m`unexpected operations-list SQL: ${sql}`[39m)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 111 |[39m   }[33m;[39m
+     [90m 112 |[39m   [90m// Only the fields this route reads are wired; the cast keeps the fixture[39m
+     [90m 113 |[39m   [90m// from having to fabricate 20 unrelated services.[39m[0m
+
+      at Object.query (tests/helpers/operations-page-fixture.ts:110:11)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/admin-operations-sql.test.ts:540:18)
+
+FAIL tests/public-upload-encryption-gateway.test.ts
+  ● public upload encryption gateway › completes the public grant, binary upload, finalize replay, and submit route journey
+
+    unexpected test DB query: UPDATE artifacts SET operation_id=$2 WHERE id = ANY($1::uuid[]) AND tenant_id=$3 AND state='READY' AND operation_id IS NULL AND task_id IS NULL
+
+    [0m [90m 384 |[39m       [36mreturn[39m { rowCount[33m:[39m [35m1[39m[33m,[39m rows[33m:[39m [{ id[33m:[39m [33mARTIFACT_ID[39m }] }[33m;[39m
+     [90m 385 |[39m     }
+    [31m[1m>[22m[39m[90m 386 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected test DB query: '[39m [33m+[39m query)[33m;[39m
+     [90m     |[39m           [31m[1m^[22m[39m
+     [90m 387 |[39m   }[33m;[39m
+     [90m 388 |[39m   [36mconst[39m db [33m=[39m {
+     [90m 389 |[39m     query[33m:[39m execute[33m,[39m[0m
+
+      at Object.execute [as query] (tests/public-upload-encryption-gateway.test.ts:386:11)
+      at src/modules/operations/submission.ts:660:24
+      at Object.submit (src/modules/operations/submission.ts:530:23)
+      at handlePublicRoutes (src/http/routes/public.ts:374:22)
+      at route (src/server.ts:376:24)
+      at Object.<anonymous> (tests/public-upload-encryption-gateway.test.ts:550:23)
+
+FAIL tests/admin-operations-sort-http-offline.test.ts
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › serves page 1 of the default order over the wire
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 333 |[39m   it([32m'serves page 1 of the default order over the wire'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+     [90m 334 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit=2'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 335 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 336 |[39m     expect(r[33m.[39mcontentType)[33m.[39mtoContain([32m'application/json'[39m)[33m;[39m
+     [90m 337 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 338 |[39m     expect(p[33m.[39mitems[33m.[39mmap((x) [33m=>[39m x[33m.[39mid))[33m.[39mtoEqual(oracleOrder([33mOPERATIONS_LIST_SORT_DEFAULT[39m)[33m.[39mslice([35m0[39m[33m,[39m [35m2[39m))[33m;[39m[0m
+
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:335:22)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted created_at:desc cursor replayed on deadline_at:asc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted created_at:asc cursor replayed on updated_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted updated_at:desc cursor replayed on deadline_at:asc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted deadline_at:asc cursor replayed on created_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a route-minted updated_at:asc cursor replayed on deadline_at:desc is a 422 problem+json ON THE WIRE
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at tests/admin-operations-sort-http-offline.test.ts:349:20
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › omitting sort is no escape: a created_at:asc cursor lands on the default and is refused
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:366:20)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a legacy 2-slot cursor still pages the default order over the wire
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 375 |[39m     [36mconst[39m legacy [33m=[39m buildToken([32m'2026-09-25T12:00:02.000Z'[39m[33m,[39m [32m'22222222-2222-4222-8222-222222222222'[39m)[33m;[39m
+     [90m 376 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit=5&cursor='[39m [33m+[39m encodeURIComponent(legacy))[33m;[39m
+    [31m[1m>[22m[39m[90m 377 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 378 |[39m     [36mconst[39m ids [33m=[39m pageOf(r)[33m.[39mitems[33m.[39mmap((x) [33m=>[39m x[33m.[39mid)[33m;[39m
+     [90m 379 |[39m     expect(ids)[33m.[39mtoContain([32m'33333333-3333-4333-8333-333333333333'[39m)[33m;[39m
+     [90m 380 |[39m     expect(ids)[33m.[39mnot[33m.[39mtoContain([32m'22222222-2222-4222-8222-222222222222'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:377:22)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a legacy BACKWARD token still walks back under the default sort
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 391 |[39m     [36mconst[39m legacy [33m=[39m buildToken([32m'2026-09-25T12:00:02.000Z'[39m[33m,[39m [32m'22222222-2222-4222-8222-222222222222'[39m[33m,[39m undefined[33m,[39m [36mtrue[39m)[33m;[39m
+     [90m 392 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit=5&cursor='[39m [33m+[39m encodeURIComponent(legacy))[33m;[39m
+    [31m[1m>[22m[39m[90m 393 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 394 |[39m     expect(pageOf(r)[33m.[39mitems[33m.[39mmap((x) [33m=>[39m x[33m.[39mid))[33m.[39mtoEqual([
+     [90m 395 |[39m       [32m'55555555-5555-5555-8555-555555555555'[39m[33m,[39m
+     [90m 396 |[39m       [32m'44444444-4444-4444-8444-444444444444'[39m[33m,[39m[0m
+
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:393:22)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a malformed sort is answered before the cursor is ever considered
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:411:20)
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under created_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under created_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under updated_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under updated_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under deadline_at:asc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › HTTP keyset walk under deadline_at:desc visits every row exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 424 |[39m       [36mconst[39m search [33m=[39m [32m'limit=2&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 425 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 426 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 427 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 428 |[39m       expect([33mOperationsListPageSchema[39m[33m.[39msafeParse(p)[33m.[39msuccess)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 429 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:426:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under created_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under created_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under updated_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under updated_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under deadline_at:asc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › tenant-scoped walk under deadline_at:desc shows ONLY tenant A rows
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 447 |[39m         [33m+[39m (cursor [33m?[39m [32m'&cursor='[39m [33m+[39m encodeURIComponent(cursor) [33m:[39m [32m''[39m)[33m;[39m
+     [90m 448 |[39m       [36mconst[39m r [33m=[39m [36mawait[39m apiGet(search)[33m;[39m
+    [31m[1m>[22m[39m[90m 449 |[39m       expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                        [31m[1m^[22m[39m
+     [90m 450 |[39m       [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 451 |[39m       expect(p[33m.[39mtotal)[33m.[39mtoBe([35m3[39m)[33m;[39m
+     [90m 452 |[39m       [36mfor[39m ([36mconst[39m item [36mof[39m p[33m.[39mitems) seen[33m.[39mpush(item[33m.[39mid)[33m;[39m[0m
+
+      at tests/admin-operations-sort-http-offline.test.ts:449:24
+
+  ● W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP › a cursor minted inside tenant A pages ONLY tenant B windows when replayed scoped to B - and never leaks A ids
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+    [0m [90m 325 |[39m   [36masync[39m [36mfunction[39m mintNext(sort[33m:[39m string[33m,[39m limit [33m=[39m [35m2[39m[33m,[39m extra [33m=[39m [32m''[39m)[33m:[39m [33mPromise[39m[33m<[39m[33mstring[39m[33m>[39m {
+     [90m 326 |[39m     [36mconst[39m r [33m=[39m [36mawait[39m apiGet([32m'limit='[39m [33m+[39m [33mString[39m(limit) [33m+[39m [32m'&sort='[39m [33m+[39m encodeURIComponent(sort) [33m+[39m extra)[33m;[39m
+    [31m[1m>[22m[39m[90m 327 |[39m     expect(r[33m.[39mstatus)[33m.[39mtoBe([35m200[39m)[33m;[39m
+     [90m     |[39m                      [31m[1m^[22m[39m
+     [90m 328 |[39m     [36mconst[39m p [33m=[39m pageOf(r)[33m;[39m
+     [90m 329 |[39m     expect(p[33m.[39mnextCursor)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+     [90m 330 |[39m     [36mreturn[39m p[33m.[39mnextCursor [36mas[39m string[33m;[39m[0m
+
+      at mintNext (tests/admin-operations-sort-http-offline.test.ts:327:22)
+      at Object.<anonymous> (tests/admin-operations-sort-http-offline.test.ts:463:20)
+
+FAIL tests/enc-meta-sentinel-runtime-refs.test.ts
+  ● ENC-META-SENTINEL G2: result_ref / human_waits / resume through the real createApp › GREEN: resumeOperation seals response_ref + resume payload; the dispatch row carries references only
+
+    HttpError: operation not found
+
+    [0m [90m 52 |[39m   [36mnew[39m [33mHttpError[39m([35m401[39m[33m,[39m [32m'UNAUTHENTICATED'[39m[33m,[39m msg)[33m;[39m
+     [90m 53 |[39m [36mexport[39m [36mconst[39m forbidden [33m=[39m (msg [33m=[39m [32m'action not permitted'[39m) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m403[39m[33m,[39m [32m'PERMISSION_DENIED'[39m[33m,[39m msg)[33m;[39m
+    [31m[1m>[22m[39m[90m 54 |[39m [36mexport[39m [36mconst[39m notFound [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m404[39m[33m,[39m [32m'NOT_FOUND'[39m[33m,[39m msg)[33m;[39m
+     [90m    |[39m                                          [31m[1m^[22m[39m
+     [90m 55 |[39m [36mexport[39m [36mconst[39m conflict [33m=[39m (code[33m:[39m string[33m,[39m msg[33m:[39m string[33m,[39m extra[33m?[39m[33m:[39m [33mPartial[39m[33m<[39m[33mProblemDetails[39m[33m>[39m) [33m=>[39m
+     [90m 56 |[39m   [36mnew[39m [33mHttpError[39m([35m409[39m[33m,[39m code[33m,[39m msg[33m,[39m extra)[33m;[39m
+     [90m 57 |[39m [36mexport[39m [36mconst[39m gone [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m410[39m[33m,[39m [32m'TASK_TERMINAL'[39m[33m,[39m msg)[33m;[39m[0m
+
+      at notFound (src/http/errors.ts:54:42)
+      at run (src/modules/runtime/runtime.ts:1433:44)
+      at Object.tx (src/db/db.ts:28:24)
+      at Object.<anonymous> (tests/enc-meta-sentinel-runtime-refs.test.ts:369:17)
+
+FAIL tests/admin-operations-sort.test.ts
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › created_at:asc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › created_at:desc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › updated_at:asc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY updated_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › updated_at:desc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY updated_at DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › deadline_at:asc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY COALESCE(deadline_at, '9999-12-31T23:59:59.999Z'::timestamptz) ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › deadline_at:desc: a full walk returns the oracle order exactly
+
+    unexpected SQL: SELECT *, to_char(COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at tests/admin-operations-sort.test.ts:264:12
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › no deadline-less operation is ever lost, in either direction
+
+    unexpected SQL: SELECT *, to_char(COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY COALESCE(deadline_at, '0001-01-01T00:00:00.000Z'::timestamptz) DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:272:20)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › a page boundary inside a duplicate-key group neither skips nor repeats a row
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at walkAll (tests/admin-operations-sort.test.ts:248:16)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:282:20)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › the tiebreak orders equal keys by id in the SAME direction as the key
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at DESC, id DESC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:290:24)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › a backward hop returns the identical page under a reversed primary order
+
+    unexpected SQL: SELECT *, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY updated_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:304:16)
+
+  ● W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort › sort reorders the page but never the population count
+
+    unexpected SQL: SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS __cursor_sort_key FROM operations ORDER BY created_at ASC, id ASC LIMIT $1
+
+    [0m [90m 223 |[39m           }
+     [90m 224 |[39m           [36mif[39m ([33m![39m[35m/^SELECT \* FROM operations/i[39m[33m.[39mtest(sql)) {
+    [31m[1m>[22m[39m[90m 225 |[39m             [36mthrow[39m [36mnew[39m [33mError[39m([32m'unexpected SQL: '[39m [33m+[39m sql)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 226 |[39m           }
+     [90m 227 |[39m           [36mreturn[39m pgResult(execute(sql[33m,[39m params))[33m;[39m
+     [90m 228 |[39m         }[33m,[39m[0m
+
+      at Object.query (tests/admin-operations-sort.test.ts:225:19)
+      at listOperationsPage (src/modules/operations/list-query.ts:563:29)
+      at handlePublicRoutes (src/http/routes/public.ts:427:39)
+      at route (src/server.ts:376:24)
+      at Object.get (tests/admin-operations-sort.test.ts:235:17)
+      at Object.<anonymous> (tests/admin-operations-sort.test.ts:314:20)
+
+FAIL tests/artifact-read-authorization.test.ts
+  ● R1-A artifact read authorization and storage-facade boundary › does not grant reads for STAGING artifacts, even in the same operation
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+    [0m [90m 368 |[39m     [36mconst[39m service [33m=[39m makeService(db)[33m;[39m
+     [90m 369 |[39m
+    [31m[1m>[22m[39m[90m 370 |[39m     [36mawait[39m expect(service[33m.[39mrequestAccess([33mSTAGING_OUTPUT[39m[33m,[39m readRequest()))[33m.[39mrejects[33m.[39mtoMatchObject({
+     [90m     |[39m                                                                                [31m[1m^[22m[39m
+     [90m 371 |[39m       code[33m:[39m [32m'STATE_CONFLICT'[39m[33m,[39m
+     [90m 372 |[39m     })[33m;[39m
+     [90m 373 |[39m     expect(db[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:370:80)
+
+  ● R1-A artifact read authorization and storage-facade boundary › rejects expired and fenced requesters before minting a read grant
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    [0m [90m 379 |[39m     [36mawait[39m expect(
+     [90m 380 |[39m       makeService(expiredDb)[33m.[39mrequestAccess([33mSAME_OPERATION_CHECKPOINT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 381 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ status[33m:[39m [35m403[39m[33m,[39m code[33m:[39m [32m'PERMISSION_DENIED'[39m })[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 382 |[39m     expect(expiredDb[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 383 |[39m
+     [90m 384 |[39m     [36mconst[39m staleDb [33m=[39m [36mnew[39m [33mOfflineArtifactAccessDb[39m()[33m;[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:381:15)
+
+  ● R1-A artifact read authorization and storage-facade boundary › keeps writes producer-scoped and hides storage keys from the public upload grant
+
+    HttpError: lease has expired for task 55555555-5555-4555-8555-555555555555
+
+    [0m [90m 54 |[39m [36mexport[39m [36mconst[39m notFound [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m404[39m[33m,[39m [32m'NOT_FOUND'[39m[33m,[39m msg)[33m;[39m
+     [90m 55 |[39m [36mexport[39m [36mconst[39m conflict [33m=[39m (code[33m:[39m string[33m,[39m msg[33m:[39m string[33m,[39m extra[33m?[39m[33m:[39m [33mPartial[39m[33m<[39m[33mProblemDetails[39m[33m>[39m) [33m=>[39m
+    [31m[1m>[22m[39m[90m 56 |[39m   [36mnew[39m [33mHttpError[39m([35m409[39m[33m,[39m code[33m,[39m msg[33m,[39m extra)[33m;[39m
+     [90m    |[39m   [31m[1m^[22m[39m
+     [90m 57 |[39m [36mexport[39m [36mconst[39m gone [33m=[39m (msg[33m:[39m string) [33m=>[39m [36mnew[39m [33mHttpError[39m([35m410[39m[33m,[39m [32m'TASK_TERMINAL'[39m[33m,[39m msg)[33m;[39m
+     [90m 58 |[39m [36mexport[39m [36mconst[39m unprocessable [33m=[39m (code[33m:[39m string[33m,[39m msg[33m:[39m string[33m,[39m extra[33m?[39m[33m:[39m [33mPartial[39m[33m<[39m[33mProblemDetails[39m[33m>[39m) [33m=>[39m
+     [90m 59 |[39m   [36mnew[39m [33mHttpError[39m([35m422[39m[33m,[39m code[33m,[39m msg[33m,[39m extra)[33m;[39m[0m
+
+      at conflict (src/http/errors.ts:56:3)
+      at assertLease (src/modules/artifacts/artifacts.ts:345:21)
+      at Object.requestUpload (src/modules/artifacts/artifacts.ts:352:21)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:410:19)
+
+  ● CR28-03 artifact read authorization: negatives and boundaries › declared references array › reports a state conflict, not a permission denial, for a declared cross-operation STAGING artifact
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+    [0m [90m 590 |[39m       [36mawait[39m expect(
+     [90m 591 |[39m         makeService(db)[33m.[39mrequestAccess([33mFOREIGN_STAGING_OUTPUT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 592 |[39m       )[33m.[39mrejects[33m.[39mtoMatchObject({ code[33m:[39m [32m'STATE_CONFLICT'[39m })[33m;[39m
+     [90m     |[39m                 [31m[1m^[22m[39m
+     [90m 593 |[39m       expect(db[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 594 |[39m     })[33m;[39m
+     [90m 595 |[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:592:17)
+
+  ● CR28-03 worker lease boundaries › prefers expiry over task state when both are wrong
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    [0m [90m 725 |[39m     [36mawait[39m expect(
+     [90m 726 |[39m       makeService(db)[33m.[39mrequestAccess([33mSAME_OPERATION_CHECKPOINT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 727 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ status[33m:[39m [35m403[39m[33m,[39m code[33m:[39m [32m'PERMISSION_DENIED'[39m })[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 728 |[39m     expect(db[33m.[39mgrantUpdates)[33m.[39mtoBe([35m0[39m)[33m;[39m
+     [90m 729 |[39m   })[33m;[39m
+     [90m 730 |[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:727:15)
+
+  ● CR28-03 worker lease boundaries › FINDING: the lease_active boolean collapses a missing expiry and a past one
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    [0m [90m 735 |[39m     [36mawait[39m expect(
+     [90m 736 |[39m       makeService(db)[33m.[39mrequestAccess([33mSAME_OPERATION_CHECKPOINT[39m[33m,[39m readRequest())
+    [31m[1m>[22m[39m[90m 737 |[39m     )[33m.[39mrejects[33m.[39mtoMatchObject({ status[33m:[39m [35m403[39m[33m,[39m code[33m:[39m [32m'PERMISSION_DENIED'[39m })[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 738 |[39m
+     [90m 739 |[39m     [90m// The query projects (lease_expires_at IS NOT NULL AND lease_expires_at[39m
+     [90m 740 |[39m     [90m// > now()) AS lease_active, so a task that never received an expiry denies[39m[0m
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-authorization.test.ts:737:15)
+
+
+Test Suites: 7 failed, 13 skipped, 221 passed, 228 of 241 total
+Tests:       61 failed, 116 skipped, 5038 passed, 5215 total
+Snapshots:   0 total
+Time:        112.832 s
+
+--- exit=1 ---

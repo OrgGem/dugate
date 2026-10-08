@@ -1,0 +1,42 @@
+﻿node :   FAIL 1: tenant session renders real usage totals and drops the stale copy
+At line:5 char:1
++ node "$tmp\services\orchestrator\tests\f7-overview-usage-tile-offline ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  FAIL 1: tenan... the stale copy:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+       the usage read must be issued exactly once
+
+0 !== 1
+
+  FAIL 2: platform session without a tenant does not call usage and asks for a tenant
+       platform usage tile: stale claim /not exposed/i must be gone ΓÇö got: Usage rollup | requires backend | 
+Per-tenant usage aggregation is not exposed by the platform BFF yet. The tile will render real counts once the usage 
+read endpoint lands. | Nothing is shown here until the backing read endpoint exists ΓÇö no placeholder data.
+  FAIL 3: a denied usage read renders a denied pane and never fabricates counts
+       the read was attempted
+
+0 !== 1
+
+  FAIL 4: an unreadable usage payload fails closed without fabricated numbers
+       unreadable usage tile: stale claim /not exposed/i must be gone ΓÇö got: Usage rollup | requires backend | 
+Per-tenant usage aggregation is not exposed by the platform BFF yet. The tile will render real counts once the usage 
+read endpoint lands. | Nothing is shown here until the backing read endpoint exists ΓÇö no placeholder data.
+  FAIL 5: an empty window renders the empty state
+       empty usage tile: stale claim /not exposed/i must be gone ΓÇö got: Usage rollup | requires backend | Per-tenant 
+usage aggregation is not exposed by the platform BFF yet. The tile will render real counts once the usage read 
+endpoint lands. | Nothing is shown here until the backing read endpoint exists ΓÇö no placeholder data.
+  ok  6: the Operations tile keeps its own unavailable copy
+  FAIL 7: a failed session fails the usage tile closed without a stale claim
+       session-failed usage tile: stale claim /not exposed/i must be gone ΓÇö got: Usage rollup | requires backend | 
+Per-tenant usage aggregation is not exposed by the platform BFF yet. The tile will render real counts once the usage 
+read endpoint lands. | Nothing is shown here until the backing read endpoint exists ΓÇö no placeholder data.
+  FAIL 8: a session without an admin principal renders an honest pane
+       unscoped usage tile: stale claim /not exposed/i must be gone ΓÇö got: Usage rollup | requires backend | 
+Per-tenant usage aggregation is not exposed by the platform BFF yet. The tile will render real counts once the usage 
+read endpoint lands. | Nothing is shown here until the backing read endpoint exists ΓÇö no placeholder data.
+FAILED 7/8: 1: tenant session renders real usage totals and drops the stale copy; 2: platform session without a tenant 
+does not call usage and asks for a tenant; 3: a denied usage read renders a denied pane and never fabricates counts; 
+4: an unreadable usage payload fails closed without fabricated numbers; 5: an empty window renders the empty state; 7: 
+a failed session fails the usage tile closed without a stale claim; 8: a session without an admin principal renders an 
+honest pane

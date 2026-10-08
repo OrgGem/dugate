@@ -74,6 +74,18 @@ import {
   type DocCompareStage,
   type DocCompareState,
 } from './pipelines/workflows/doc-compare';
+import {
+  handleLegacyWorkflowBranch,
+  handleLegacyWorkflowSchema,
+} from './pipelines/workflows/schema/legacy-schema-runtime';
+import {
+  handleLegacyNamedDocCompare,
+  LegacyNamedDocCompareError,
+} from './pipelines/workflows/legacy-named-doc-compare';
+import {
+  handleLegacyNamedDisbursement,
+  LegacyNamedDisbursementError,
+} from './pipelines/workflows/legacy-named-disbursement';
 
 export type { TaskDisposition, TaskHandler, BusinessDefinition, WorkerConfig, WorkerHandle, QueueConsumer };
 export type BusinessTaskHandler = TaskHandler;
@@ -1300,6 +1312,17 @@ async function handleDisbursement(
   const internal = toInternalContext(ctx);
   const raw = payload ?? sdk.input;
 
+  if (isRecord(raw) && Object.prototype.hasOwnProperty.call(raw, 'legacyWorkflow')) {
+    try {
+      return await handleLegacyNamedDisbursement(sdk, raw);
+    } catch (error) {
+      if (error instanceof LegacyNamedDisbursementError) {
+        throw disbursementFailure(error.code, error.message);
+      }
+      throw error;
+    }
+  }
+
   if (requireChildTask(raw, sdk)) {
     return runDisbursementChild(ctx, sdk, internal, raw);
   }
@@ -1859,9 +1882,19 @@ async function handleDocCompare(
 ): Promise<TaskDisposition> {
   assertActive(ctx);
   const sdk = requireDocCompareSdkContext(ctx);
+  const raw = payload ?? sdk.input;
+  if (isRecord(raw) && Object.prototype.hasOwnProperty.call(raw, 'legacyWorkflow')) {
+    try {
+      return await handleLegacyNamedDocCompare(sdk, raw);
+    } catch (error) {
+      if (error instanceof LegacyNamedDocCompareError) {
+        throw docCompareFailure(error.code, error.message);
+      }
+      throw error;
+    }
+  }
   assertRequiredDocCompareSlots(sdk);
   const internal = toInternalContext(ctx);
-  const raw = payload ?? sdk.input;
 
   if (requireDocCompareChunkTask(raw, sdk)) {
     return runDocCompareChunk(ctx, sdk, internal, raw);
@@ -2079,6 +2112,12 @@ export const documentCoreHandlers: Record<string, DualTaskHandler> = {
   // yields chunk fan-out and an optional review wait, and its terminal failure
   // is a coded throw so the runtime records FAILED rather than a clean success.
   'doc-compare': async (ctx, payload) => handleDocCompare(ctx, payload),
+
+  // Schema-workflow pins a tenant-owned immutable schema revision at admission;
+  // branch children run under a distinct durable handler kind and never query
+  // the live schema catalog.
+  'schema-workflow': async (ctx, payload) => handleLegacyWorkflowSchema(ctx as SdkTaskContext, payload),
+  'legacy-workflow-branch': async (ctx, payload) => handleLegacyWorkflowBranch(ctx as SdkTaskContext, payload),
 };
 
 /**

@@ -127,7 +127,7 @@ describe('Cross-Service Multi-Container E2E Boundary Readiness (P2-07 Boundary P
 
   it('confirms documentCoreManifest registers queue compatible with multi-container deployment', () => {
     expect(documentCoreManifest.businessId).toBe('document-core');
-    expect(documentCoreManifest.version).toBe('1.0.0');
+    expect(documentCoreManifest.version).toBe('1.1.0');
     expect(documentCoreManifest.runtime.handlerKinds).toContain('extract');
     const extractAction = documentCoreManifest.actions.find((a) => a.name === 'extract');
     expect(extractAction?.connectorSlots?.some((s) => s.name === 'reasoning')).toBe(true);

@@ -36,6 +36,7 @@ import type {
 import type {
   ApiKeyFetchResult,
   ApiKeyListOkResult,
+  ApiKeyTenantOption,
 } from './api-key-section-data';
 
 // ---------------------------------------------------------------------------
@@ -248,31 +249,52 @@ function renderDetailPanel(ok: ApiKeyListOkResult, csrfToken = '', canManage = t
   ].join('');
 }
 
-function renderCreateForm(csrfToken = ''): string {
+function renderCreateForm(
+  csrfToken = '',
+  tenantOptions: readonly ApiKeyTenantOption[] = [],
+  selectedTenantId = '',
+): string {
   // The create affordance. The form posts to the shell route
   // `POST /admin/api-keys/new`, which `handleAdminMutationPost`
   // (`app/admin/mutation-dispatch.ts`) forwards as the `apikey.issue`
   // admin action to the BFF (`POST /api/v1/admin/actions`).
-  // Renderer never invents a default raw key.
+  // The tenant id is a value only; a failed/empty roster leaves a required
+  // blank placeholder so the form cannot issue a key for an empty tenant.
+  const inRoster = tenantOptions.some((tenant) => tenant.id === selectedTenantId);
+  const tenantChoices = [
+    `<option value=""${inRoster ? '' : ' selected'}>Select a tenant</option>`,
+    ...tenantOptions.map((tenant) => {
+      const label = tenant.state.length === 0 || tenant.state === 'ACTIVE'
+        ? tenant.name
+        : `${tenant.name} (${tenant.state})`;
+      return `<option value="${esc(tenant.id)}"${tenant.id === selectedTenantId ? ' selected' : ''}>${esc(label)}</option>`;
+    }),
+  ].join('');
   return [
     '<section class="api-key-section__create">',
     '<header><h3>Issue new API key</h3></header>',
     '<form method="POST" action="/admin/api-keys/new" class="api-key-section__create-form">',
     '<input type="hidden" name="csrf" value="' + esc(csrfToken) + '">',
-    '<label for="apiKeyTenantId">Tenant ID</label>',
-    '<input id="apiKeyTenantId" name="tenantId" type="text" maxlength="64" required>',
+    '<label>Tenant',
+    `<select name="tenantId" aria-label="Tenant" required>${tenantChoices}</select>`,
+    '</label>',
     '<button type="submit" class="api-key-section__create-submit" data-action="create-api-key">Issue key</button>',
     '</form>',
     '</section>',
   ].join('');
 }
 
-function renderEmpty(message: string, csrfToken = '', canManage = true): string {
+function renderEmpty(
+  message: string,
+  csrfToken = '',
+  canManage = true,
+  tenantOptions: readonly ApiKeyTenantOption[] = [],
+): string {
   return [
     '<section class="api-key-section api-key-section--empty" role="status">',
     '<h2>API key management</h2>',
     `<p>${esc(message)}</p>`,
-    canManage ? renderCreateForm(csrfToken) : '',
+    canManage ? renderCreateForm(csrfToken, tenantOptions) : '',
     '</section>',
   ].join('');
 }
@@ -323,7 +345,7 @@ export function renderApiKeySection(input: ApiKeySectionRenderInput): ApiKeySect
         '<section class="api-key-section" data-key-total="' + esc(String(f.total)) + '" data-key-selected="' + esc(f.selectedKeyId) + '" data-copy-once-available="' + esc(f.createCopyOnce ? 'true' : 'false') + '">',
         picker,
         copyOnce,
-        input.canManage === false ? '' : renderCreateForm(input.csrfToken),
+        input.canManage === false ? '' : renderCreateForm(input.csrfToken, f.tenantOptions ?? [], f.selected?.tenantId ?? ''),
         f.selected ? '' : renderListTable(f.rows),
         renderDetailPanel(f, input.csrfToken, input.canManage),
         '</section>',
@@ -332,7 +354,7 @@ export function renderApiKeySection(input: ApiKeySectionRenderInput): ApiKeySect
     };
   }
   if (f.kind === 'empty') {
-    return { html: renderEmpty(f.message, input.csrfToken, input.canManage), isReady: false };
+    return { html: renderEmpty(f.message, input.csrfToken, input.canManage, f.tenantOptions ?? []), isReady: false };
   }
   if (f.kind === 'unauthorized') {
     return { html: renderUnauthorized(f.message), isReady: false };

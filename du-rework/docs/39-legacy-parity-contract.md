@@ -7,13 +7,15 @@
 > **Quan hệ:** `docs/06-public-api.md` là spec canonical của rework; file này là **lớp compat wire** mà `docs/06` trỏ tới. `docs/14-reference-compatibility.md` là policy; file này là contract đo được.
 > **Gate:** `G-COMP` phải đạt trước cutover. Không tick gate từ file này.
 
+> **WFA implementation delta (2026-10-07):** Hai workflow facade đã được nối vào shared admission/outbox; encrypted tenant schema catalog và production `document-core@1.1.0` manifest đã có. Runtime/end-to-end acceptance vẫn OPEN trong [WFA plan](../tasks/WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md). Schema `input` hiện bị giới hạn thành JSON object, cùng các giới hạn DAG/file/egress; đây là hardening delta được ghi riêng, không được suy diễn toàn bộ wire parity đã ACCEPTED. Workflow luôn tạo operation mới 202, bỏ qua sync/idempotency như route workflow cũ; quyết định sync cho document routes không áp dụng vào hai route này.
+
 ## 0. Quyết định chốt
 
 | # | Quyết định | Trạng thái |
 |---|---|---|
 | 1 | Mọi public API trả **wire giống hệ cũ** | **CHỐT** (user, 2026-10-02) |
 | 2 | Identity được **hardening**, không copy lỗ hổng hệ cũ | **CHỐT** (user: *"làm theo khuyến nghị"*) |
-| 3 | `billing/balance` cần cột `spending_limit`/`total_used` trên `api_keys` | **P0 DEPENDENCY** — chưa có (mục 5.2) |
+| 3 | `billing/balance` cần cột `spending_limit`/`total_used` trên `api_keys` | **Cột đã có** (migration `0024_legacy_parity_columns.sql`); cơ chế cập nhật `total_used` còn OPEN (mục 5.2) |
 | 4 | `?sync=true` trả 200 **kể cả khi `done:false`** | **CHỐT** — theo hệ cũ (mục 4.1) |
 
 Câu hỏi `API-COMPAT-DUGATE-2026-09-28.md:108` (yêu cầu 200 chỉ khi hoàn tất, *"đừng làm yếu yêu cầu này để khớp legacy"*) **bị đảo** bởi quyết định #4. Mục 4.1 ghi lý do để không tái tạo mâu thuẫn.
@@ -22,12 +24,12 @@ Câu hỏi `API-COMPAT-DUGATE-2026-09-28.md:108` (yêu cầu 200 chỉ khi hoàn
 
 | # | Legacy endpoint (path thật) | Method | Rework hiện tại | Hành động |
 |---|---|---|---|---|
-| 1 | `/api/v1/docs/{ingest,extract,analyze,transform,generate,compare}` | POST | **không có route** | Dựng facade, adapter đã có |
-| 2 | `/api/v1/docs/workflows` | POST | **không có route** | Dựng (COMP-09) |
-| 3 | `/api/v1/docs/workflows/schema` | POST | **không có route** | Dựng (COMP-09) |
-| 4 | `/api/v1/services` | GET | **không có route** | Dựng (COMP-08) |
-| 5 | `/api/v1/billing/balance` | GET | **không có route** | Dựng + **cột DB mới** (mục 5.2) |
-| 6 | `/api/v1/billing/usage` | GET | `/api/v1/usage*` (shape khác) | Dựng route legacy (COMP-08) |
+| 1 | `/api/v1/docs/{ingest,extract,analyze,transform,generate,compare}` | POST | Facade compat đã implement (`legacy-http-mount.ts:600-646`; 6 slug tại `legacy-wire-decoders.ts:12-19`); wire parity từng variant chưa có receipt | Kiểm chứng 31 fixture + status/header/body theo §8 (COMP-10) |
+| 2 | `/api/v1/docs/workflows` | POST | Facade admission đã implement (WFA); runtime acceptance OPEN | Kiểm chứng ba process thực tế theo WFA matrix |
+| 3 | `/api/v1/docs/workflows/schema` | POST | Facade + encrypted revision catalog đã implement (WFA); runtime acceptance OPEN | Kiểm chứng executor, pin, HITL/resume/cancel theo WFA matrix |
+| 4 | `/api/v1/services` | GET | Route + auth + shape đã implement trong facade; **hiện trả 500** vì catalogue chưa wire (`serviceCatalogue`; pin bởi test rv01) | Wire catalogue rồi so fixture (§5.1, COMP-08 phần còn lại) |
+| 5 | `/api/v1/billing/balance` | GET | Handler đã implement (per-API-key; cột `api_keys` từ migration `0024_legacy_parity_columns.sql`; `billingFor` wired) | OPEN: cơ chế cập nhật `total_used` (mục 5.2) + fixture §8 |
+| 6 | `/api/v1/billing/usage` | GET | Handler đã implement (route legacy riêng; canonical `/api/v1/usage*` giữ nguyên) | Fixture §8 + chốt `total_used` theo §5.2 |
 | 7 | `/api/v1/operations/{id}/download` | GET | chỉ có `/artifacts/{id}/download` | Dựng route legacy (COMP-07) |
 | 8 | `/api/v1/operations/{id}` | GET | có, **envelope khác** | Đổi sang legacy envelope |
 | 9 | `/api/v1/operations/{id}` | DELETE | **không có** | Dựng soft-delete 204 |
@@ -35,7 +37,9 @@ Câu hỏi `API-COMPAT-DUGATE-2026-09-28.md:108` (yêu cầu 200 chỉ khi hoàn
 | 11 | `/api/v1/operations/{id}/cancel` | POST | có, **status khác** | Khớp status + body |
 | 12 | `/api/v1/operations/{id}/resume` | POST | có, **body khác** | Trả `{success,message}` |
 
-Xác minh "không có route" = `grep "/api/v1/docs|billing|services" orchestrator/services/orchestrator/src/server.ts` → **0 hit**, và `server.ts` **0 tham chiếu** `compat/`. Không suy đoán từ tài liệu.
+Vị trí facade: mount tại `orchestrator/services/orchestrator/src/http/routes/public.ts:13-14` (import) và `:299` (gọi `handleLegacyRoute`); `server.ts` **0 tham chiếu** `compat/` sau khi CONV-02 tách route family, và `handleLegacyRoute` trả `null` cho path nó không sở hữu. Các dòng "đã implement" ở bảng trên đối chiếu trực tiếp compat mount + host adapter; không suy đoán từ tài liệu.
+
+**WFA evidence split (2026-10-07):** đã verify độc lập — T04–T13/T29–T32 (admission/error/auth, không side-effect, real HTTP), T14/T37 (schema pin + provision/load trên DB sạch), T16/T17/T23/T24 (node `parallel`/`join`/`human`/`input` qua worker thật), cộng suite điều khiển 8/8 HTTP→PG→outbox→Redis→production worker. Vẫn **OPEN**: T01–T03 (named chains thật), T15/T18–T22 (node adapters còn lại), T25–T28 (lifecycle ngoài case đã test), T33–T36 (security bounds). Không tick ACCEPTED. Nguồn: [wfa-verification](../coordination/reports/wfa-verification-2026-10-07.md) + [wfa-integration](../coordination/reports/wfa-integration-2026-10-07.md).
 
 ## 2. Submit — 6 core action route
 
@@ -318,7 +322,7 @@ Giữ hành vi hardening; shape 500 vẫn là `{type,title,status,detail}` như 
 Điểm dễ sót: `subCases` được **flatten từ registry** — một sub-case bị khoá generic sẽ không xuất hiện,
 không phải trả `enabled:false`.
 
-### 5.2 `GET /api/v1/billing/balance` — **CẦN MIGRATION**
+### 5.2 `GET /api/v1/billing/balance` — cột DB đã có; writer `total_used` còn OPEN
 
 ```json
 { "object": "billing_balance", "api_key_id": "...", "api_key_name": "...",
@@ -331,19 +335,22 @@ Quy tắc tính (`billing/balance/route.ts:35-49`): nếu `spending_limit > 0` t
 `balance = spending_limit - total_used`, **ngược lại `balance = null`** và `spending_limit = null`.
 Không có ledger, không có bảng usage — đọc thẳng **hai cột trên bảng API key**.
 
-**P0 DEPENDENCY — đã kiểm chứng trên source:**
+**Đối chiếu source (cập nhật 2026-10-07):**
 
 | Kiểm tra | Kết quả |
 |---|---|
-| `migrations/0001_platform_v1.sql:14-22` | `api_keys` chỉ có `id, tenant_id, hash, prefix, status, created_at` |
-| `grep -i spending orchestrator/services/orchestrator/src/db/*.ts` | **0 hit** |
+| `migrations/0024_legacy_parity_columns.sql:80-83` | `api_keys` nay có `name`, `spending_limit`, `total_used` (`ADD COLUMN IF NOT EXISTS`) |
+| `orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts:620-664` (`loadLegacyBilling`) | đọc `name`/`spending_limit`/`total_used` từ `api_keys`; aggregate per-key từ `operations` (`state = 'SUCCEEDED' AND deleted_at IS NULL`) |
+| `grep "total_used"` toàn cây | **không có writer** cập nhật cột khi operation `SUCCEEDED` |
 
-=> **Không có nguồn dữ liệu.** Cần migration thêm `spending_limit` + `total_used` **và** cơ chế
-cập nhật `total_used` khi operation `SUCCEEDED`. `COMP-08:57` cho phép `DEFER` balance nếu chưa có
-ledger — nhưng đó **không phải parity**, nên với quyết định #1 thì lối thoát defer bị loại.
+=> **Còn OPEN:** cơ chế cập nhật `total_used` khi operation `SUCCEEDED` (grep toàn cây: không có writer).
+Route đã trả đúng shape legacy, nhưng cho tới khi có writer thì `total_used` chỉ phản ánh dữ liệu được
+ghi ngoài đường operation — chưa đủ để coi là parity hoàn chỉnh. `COMP-08:57` cho phép `DEFER` balance
+nếu chưa có ledger — nhưng đó **không phải parity**, nên với quyết định #1 thì lối thoát defer bị loại.
 
-**Cấm tuyệt đối:** tính `balance` từ tenant usage. `docs/06-public-api.md:29` đã cảnh báo và
-`API-COMPAT:57` nói rõ: không được đổi tenant total thành key total. Balance là **per API key**.
+**Cấm tuyệt đối:** tính `balance` từ tenant usage. Mục Endpoint catalog của `docs/06-public-api.md`
+(hàng billing) đã cảnh báo và `API-COMPAT:57` nói rõ: không được đổi tenant total thành key total.
+Balance là **per API key**.
 
 ### 5.3 `GET /api/v1/billing/usage`
 

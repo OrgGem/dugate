@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
+import { TenantSelect } from '@/components/ui/tenant-select';
 import { createAdminApiClient, type UsageSummary } from '@/lib/api';
 import type { Loadable, PaneState } from '@/features/overview/state';
 
@@ -19,17 +20,38 @@ export function UsageScreen() {
   const [to, setTo] = useState(now.toISOString().slice(0, 16));
   const validWindow = from.length > 0 && to.length > 0 && Number.isFinite(Date.parse(from + 'Z')) && Number.isFinite(Date.parse(to + 'Z')) && Date.parse(from + 'Z') < Date.parse(to + 'Z');
   const [summary, setSummary] = useState<Loadable<UsageSummary> | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>('');
+  const [sessionReady, setSessionReady] = useState(false);
+  const [tenantScoped, setTenantScoped] = useState(false);
+  const validTenant = typeof tenantId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId);
+
+  useEffect(() => {
+    let active = true;
+    void client.getSession().then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setSummary({ kind: 'failed', problem: result.problem });
+        return;
+      }
+      if (result.data.scope?.kind === 'tenant') {
+        setTenantId(result.data.scope.tenantId);
+        setTenantScoped(true);
+      }
+      setSessionReady(true);
+    });
+    return () => { active = false; };
+  }, [client]);
 
   const load = useCallback(async (): Promise<void> => {
-    if (!validWindow) return;
+    if (!sessionReady || !validWindow || !validTenant || tenantId === null) return;
     setSummary({ kind: 'loading' });
-    const result = await client.getUsage({ from: new Date(from + 'Z').toISOString(), to: new Date(to + 'Z').toISOString() });
+    const result = await client.getUsage({ tenantId, from: new Date(from + 'Z').toISOString(), to: new Date(to + 'Z').toISOString() });
     if (!result.ok) {
       setSummary({ kind: 'failed', problem: result.problem });
       return;
     }
     setSummary({ kind: 'ready', data: result.data });
-  }, [client, from, to, validWindow]);
+  }, [client, from, to, validWindow, tenantId, validTenant, sessionReady]);
 
   useEffect(() => {
     void load();
@@ -60,9 +82,23 @@ export function UsageScreen() {
       <Card>
         <CardHeader>
           <CardTitle>Window</CardTitle>
-          <CardDescription>GET /admin/api/usage?from&to — the tenant comes from the session scope.</CardDescription>
+          <CardDescription>Usage requires a tenant and time window. Tenant sessions use their own scope; platform sessions must select a tenant.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="w-full max-w-sm">
+            <TenantSelect
+              id="usage-tenant"
+              label="Tenant"
+              description={tenantScoped ? 'Locked to your tenant session.' : 'Select a tenant. Usage summaries require a single tenant.'}
+              value={tenantId}
+              allowAll={!tenantScoped}
+              disabled={!sessionReady || tenantScoped}
+              onValueChange={(nextTenantId) => {
+                setTenantId(nextTenantId);
+                setSummary(null);
+              }}
+            />
+          </div>
           <div className="w-full max-w-sm">
             <FormField id="usage-from" label="From (UTC)">
               <Input id="usage-from" type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -73,7 +109,9 @@ export function UsageScreen() {
               <Input id="usage-to" type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
             </FormField>
           </div>
-          <Button onClick={() => void load()} disabled={!validWindow}>Load usage</Button>
+          <Button onClick={() => void load()} disabled={!sessionReady || !validWindow || !validTenant || tenantId === null}>Load usage</Button>
+          {sessionReady && tenantId === null ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Usage summaries require a single tenant. Select a tenant instead of All tenants.</p> : null}
+          {sessionReady && tenantId === '' ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Select a tenant to load usage.</p> : null}
           {!validWindow ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Choose a start time before the end time.</p> : null}
         </CardContent>
       </Card>

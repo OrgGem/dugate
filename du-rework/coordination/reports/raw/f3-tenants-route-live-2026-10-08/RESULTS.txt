@@ -1,0 +1,84 @@
+# F-3 tenant roster live suite — consolidated results
+# Lane: F-3 (test-only, coverage gap). No product source edited, no old test edited, no commit/push.
+# HEAD: df3f955e877fe87bd190461736c40861e2fe78d5 (branch codex/fix-workflow-builder), working tree dirty (other lanes).
+# Node: v22.23.3 (packages declare >=24.21.0 <25). OS: Windows.
+# cwd for every jest/tsc run: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+#
+# DB / WINDOW (repo convention, not invented):
+#   PostgreSQL: du-live-postgres container, 127.0.0.1:5433, PostgreSQL 16.11, database du_orchestrator_test
+#   connection string: postgresql://du:du-test-only@127.0.0.1:5433/du_orchestrator_test  (same default as the
+#   live suites in tests/, e.g. admin-audit.test.ts:18, usage-summary.test.ts:6)
+#   Redis: du-live-redis container, redis://127.0.0.1:6380
+#   Isolation: tests/isolation/namespace.ts -> per-run schema du_test_f3_tenants_<rand> + Redis DB index 1-14;
+#   schema created before boot and DROPped in afterAll; verified no leftover schema after the runs.
+#   Window measurements: other_sessions=0 on du_orchestrator_test before the claim and at release;
+#   no competing jest process (the single 'jest'-matching node process was the DSH harness itself).
+#   Claim 2026-10-08 05:50:02 +07:00 -> Release 2026-10-08 05:58:34 +07:00.
+#   (RUN-1 below fired at ~05:45:42, during the pre-claim measurement step; it is the harness-red run.)
+
+## RUN-1 — first execution of the new suite, as first written (public listener) -> RED (harness error)
+run1-wrong-listener-red.log | exit=1 | 1 suite failed | 10 failed, 0 passed, 10 total
+  cause: the suite called the PUBLIC listener; /api/v1/admin/** is fenced off it by PM-M02-ROUTE
+  (src/http/ingress-guard.ts:26) -> every roster request answered 404. Harness corrected to the
+  INTERNAL listener; no product change. Kept as the fail-first red.
+
+## RUN-2 — isolation + internal listener, first oracle (exact 3-row roster) -> RED (expectation error)
+run2-f3-live.log | exit=1 | 1 suite failed | 7 failed, 4 passed, 11 total
+  cause: the isolated schema is NOT empty - createApp seeds the RFX-10 dev-fallback tenant
+  (00000000-0000-0000-0000-000000000001 'default', create-app.ts:290-295) under autoMigrate:true.
+  Oracle changed to a direct-SQL snapshot of the same schema (exact equality, environment-independent).
+
+## RUN-3 — SQL-snapshot oracle -> RED (2 cases)
+run3-f3-live.log | exit=1 | 1 suite failed | 2 failed, 9 passed, 11 total
+  (d) 'standard-base64 padding' expectation was mislabeled: base64 of the 36-char UUID carries no
+      padding and no '+'/'/', so it is byte-identical to the base64url spelling and is accepted as a
+      canonical cursor (correct product behaviour); replaced with a genuinely padded token (422).
+  (e) expectation was written against an OLDER revision of tenant-list.ts. The working tree now carries
+      the scope-fenced boundary subquery (tenant-list.ts:132-133 'AND id = $scope'), so an out-of-scope
+      boundary resolves to NULL -> empty page. Expectation updated to the hardened, fail-closed semantics.
+
+## RUN-4 — corrected (d)/(e) -> RED (1 case, my own arithmetic)
+run4-f3-live.log | exit=1 | 1 suite failed | 1 failed, 10 passed, 11 total
+  the positive control replayed B's cursor on the platform path and wrongly expected []; the rows after
+  B (i.e. C) are returned. Fixed to the snapshot-derived expectation.
+
+## RUN-5 — final suite, unchanged expectations -> GREEN
+run5-f3-live-green.log | exit=0 | 1 suite passed, 1 total | 11 passed, 11 total | 5256 ms
+
+## Negative control (harness mutation of MY OWN new file, reverted) -> RED as designed
+negative-control-red.log | exit=1 | 1 failed, 10 skipped, 11 total
+  mutation: tenantAdminTokens OP_B -> TENANT_A (i.e. the operator token bound to the WRONG tenant);
+  case (a) went red on the leak assertion -> the suite is not vacuous. File hash before == after
+  (fe98e8fa110a35bc1545cd6498c03808e9e2e83c74bf3359b7d592d112fa8050). Not a product red.
+
+## Regression: the two pre-existing tenant-list suites (unit config, offline)
+old-tenant-suites.log | exit=0 | 2 suites passed, 2 total | 9 passed, 9 total
+  command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent
+           tests/tenant-list-cursor-codec-offline.test.ts tests/tenant-list-bff-offline.test.ts
+
+## The new suite offline (must skip, not fail)
+new-suite-offline-skip.log | exit=0 | 1 suite skipped | 11 skipped, 11 total
+  command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent
+           tests/f3-tenants-route-live.test.ts   (DU_LIVE_INFRA unset)
+
+## Typecheck
+tsc-noemit.log | exit=0 (no output)  command: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+  NOTE: tsconfig.json has rootDir src + include src/**/*.ts (tests excluded), so this covers product src.
+  The new test file was typechecked twice: (a) ts-jest diagnostics during RUN-5 (green) and
+  (b) a test-inclusive temporary config (probe-tsconfig-test-inclusive.json, outside the repo) -> exit 0.
+
+## Auxiliary probes (copied into this directory)
+probe-window.cjs         read-only DB/window probe (version, db, tenants count, sessions, columns)
+probe-roster-sql.cjs     runs the EXACT roster SQL shapes in a throwaway schema; shows the scope+cursor
+                         query returning B (used to separate product SQL from harness expectations)
+probe-regex-check.cjs    scoped_boundary_regex_matches=false, platform_boundary_regex_matches=true
+probe-cleanup.cjs        leftover_isolation_schemas=[] , other_sessions=0, public_tenants=3
+
+## Diagnostic runs (temporary instrumentation inside the NEW test file only, since reverted)
+diag-e.log / diag-e2.log | exit=1 | single-case runs of (e) with a temporary console.log and a temporary
+  wrapper around app.db.query. diag-e2 captured the SQL the app actually executes:
+  "SELECT id, name, state FROM tenants WHERE id = $1 AND (lower(name), id) > ((SELECT lower(name) FROM
+   tenants WHERE id = $2 AND id = $1), $2::uuid) ORDER BY lower(name) ASC, id ASC LIMIT $3"
+  params ["f3b2...","f3a1...",3] -> proves the boundary subquery carries the scope predicate
+  (tenant-list.ts:132-133) and explains the fail-closed empty page in case (e).
+  The file was restored to its RUN-5 content afterwards (hash verified).

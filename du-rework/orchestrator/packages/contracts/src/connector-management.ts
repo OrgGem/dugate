@@ -45,12 +45,13 @@ export const ConnectorListResponseSchema = z
   .strict();
 export type ConnectorListResponse = z.infer<typeof ConnectorListResponseSchema>;
 
-/** Composition-derived advertisement — booleans only, no configuration. */
+/** Composition-derived advertisement — booleans and connector ID keys only, no configuration values. */
 export const ConnectorCapabilitiesSchema = z
   .object({
     management: z.boolean(),
     credentialWorkflow: z.boolean(),
     test: z.boolean(),
+    knownConnectorIds: z.array(z.string().min(1)),
   })
   .strict();
 export type ConnectorCapabilities = z.infer<typeof ConnectorCapabilitiesSchema>;

@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeniedState, EmptyState, ErrorState, LoadingState, AlertBanner } from '@/components/ui/state-panel';
+import { TenantSelect } from '@/components/ui/tenant-select';
 import {
   Table,
   TableBody,
@@ -33,6 +34,7 @@ export function OperationsScreen() {
   const detailRequest = useRef(0);
   useEffect(() => { void client.getSession().then(r => { if (r.ok) setRole(r.data.role); }); }, [client]);
   const [stateFilter, setStateFilter] = useState('ALL');
+  const [tenantFilter, setTenantFilter] = useState<string | null>(null);
   const [page, setPage] = useState<Loadable<OperationsPage>>({ kind: 'loading' });
   const [detail, setDetail] = useState<OperationDetail | null>(null);
   const [detailProblem, setDetailProblem] = useState<AdminApiProblem | null>(null);
@@ -43,7 +45,13 @@ export function OperationsScreen() {
     setPage({ kind: 'loading' });
     setDetail(null);
     setDetailProblem(null);
-    const result = await client.listOperations({ limit, state: stateFilter, sort: 'created_at:desc', ...(cursor ? { cursor } : {}) });
+    const result = await client.listOperations({
+      limit,
+      state: stateFilter,
+      sort: 'created_at:desc',
+      ...(tenantFilter === null ? {} : { tenant: tenantFilter }),
+      ...(cursor ? { cursor } : {}),
+    });
     if (seq !== listRequest.current) return;
     if (!result.ok) {
       setPage({ kind: 'failed', problem: result.problem });
@@ -55,7 +63,7 @@ export function OperationsScreen() {
         ? { kind: 'failed', problem: { status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable operations page.' } }
         : { kind: 'ready', data: parsed },
     );
-  }, [client, stateFilter, cursor, limit]);
+  }, [client, stateFilter, tenantFilter, cursor, limit]);
 
   useEffect(() => {
     void load();
@@ -141,6 +149,18 @@ export function OperationsScreen() {
               ))}
             </select>
           </div>
+          {role === 'admin' ? (
+            <div className="w-full max-w-xs">
+              <TenantSelect
+                id="ops-tenant"
+                label="Tenant"
+                description="Filter by one tenant or All tenants."
+                value={tenantFilter}
+                allowAll
+                onValueChange={(tenantId) => { setCursor(null); setTenantFilter(tenantId); }}
+              />
+            </div>
+          ) : null}
           <div><label htmlFor="ops-limit" className="text-xs">Requests per page</label>
             <select id="ops-limit" value={limit} onChange={e => { setCursor(null); setLimit(e.target.value); }} className="ml-2 rounded border p-2">
               {['20', '50', '100'].map(v => <option key={v} value={v}>{v}</option>)}

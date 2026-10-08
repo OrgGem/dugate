@@ -1,0 +1,4 @@
+﻿# tsc --noEmit -p tsconfig.json (cwd: orchestrator/apps/admin-web)
+# command: pnpm exec tsc --noEmit -p tsconfig.json
+exit_code=0
+output_bytes=0

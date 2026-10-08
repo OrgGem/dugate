@@ -13,7 +13,7 @@ import { route, parseOperationsListQuery, type RouteContext } from '../src/serve
 import type { QueryResult, QueryResultRow } from 'pg';
 import type { OperationDetail } from '@du/contracts';
 import { OPERATIONS_LIST_QUERY_PARAMS, OPERATIONS_LIST_SORT_VALUES, isOperationsListFilterToken } from '@du/contracts';
-import { TENANT_A, TENANT_B, ADMIN_TOKEN, OPERATOR_TOKEN, pgResult, dbRow, listRoute, pageQuery, countQuery, decodeCursor, calls_with_page } from './helpers/operations-page-fixture';
+import { TENANT_A, TENANT_B, ADMIN_TOKEN, OPERATOR_TOKEN, pgResult, dbRow, listRoute, pageQuery, countQuery, decodeCursor, calls_with_page, OPERATIONS_LIST_PAGE_SQL_RE } from './helpers/operations-page-fixture';
 
 
 
@@ -250,7 +250,7 @@ describe('W-ADMUX02-SRV-1-FIX: prev cursor is a real backward hop', () => {
           if (/SELECT count\(\*\)::int AS total FROM operations/i.test(sql)) {
             return pgResult([{ total: rows.length }]);
           }
-          if (!/^SELECT \* FROM operations/i.test(sql)) {
+          if (!OPERATIONS_LIST_PAGE_SQL_RE.test(sql)) {
             throw new Error(`unexpected SQL: ${sql}`);
           }
           const backwards = /ORDER BY created_at ASC, id ASC/i.test(sql);
@@ -436,10 +436,27 @@ describe('W-ADMUX02-SRV-1: filters are server-side, bound, and tenant-fenced', (
     });
     await route(ctx);
     expect(calls.length).toBeGreaterThan(0);
+    // The statement legitimately carries the module's COMPILE-TIME literals: the
+    // projection's zone + format (list-query.ts:564) and the NULL sentinel a
+    // deadline sort coalesces to (list-query.ts:423-426). Strip exactly those,
+    // then the proxy still trips on ANY other quote, `;` or `--` — i.e. on any
+    // caller text that reached the SQL text instead of being bound. (Before the
+    // projection existed the default sort happened to carry no quotes at all,
+    // which is why the bare proxy used to pass.)
+    const compileTimeSqlLiterals = [
+      `AT TIME ZONE 'UTC'`,
+      `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`,
+      `'0001-01-01T00:00:00.000Z'::timestamptz`,
+      `'9999-12-31T23:59:59.999Z'::timestamptz`,
+    ];
     for (const c of calls) {
       expect(c.sql).not.toContain(TENANT_A);
       expect(c.sql).not.toContain('op-4');
-      expect(c.sql).not.toMatch(/'|;|--/);
+      let withoutCompileTimeLiterals = c.sql;
+      for (const literal of compileTimeSqlLiterals) {
+        withoutCompileTimeLiterals = withoutCompileTimeLiterals.split(literal).join('');
+      }
+      expect(withoutCompileTimeLiterals).not.toMatch(/'|;|--/);
     }
   });
 

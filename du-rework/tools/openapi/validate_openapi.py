@@ -42,6 +42,19 @@ def main():
             "/invocations", "/health/ready"]
     missing = [p for p in need if p not in paths]
     assert not missing, "missing paths: %s" % missing
+    for workflow_path, selector in [('/api/v1/docs/workflows', 'process'),
+                                     ('/api/v1/docs/workflows/schema', 'schemaSlug')]:
+        workflow = paths[workflow_path]['post']
+        assert workflow['security'] == [{'ApiKey': []}], 'Workflow auth drift'
+        assert workflow['x-api-family'] == 'public', 'Workflow ingress drift'
+        form = workflow['requestBody']['content']['multipart/form-data']['schema']
+        assert form['required'] == [selector], 'Workflow selector contract drift'
+        assert all(field in form['properties'] for field in ['files[]', 'source_file', 'target_file', 'file']), 'Workflow file fields missing'
+        assert 'Operation-Location' in workflow['responses']['202']['headers'], 'Workflow poll header missing'
+        assert '200' not in workflow['responses'], 'Legacy workflows are always async'
+        assert {'400', '401', '403', '404', '413', '422', '503'}.issubset(workflow['responses']), 'Workflow errors missing'
+    assert paths['/api/v1/docs/workflows']['post']['requestBody']['content']['multipart/form-data']['schema']['properties']['process']['enum'] == ['disbursement', 'lc-checker', 'doc-compare']
+    print('WORKFLOW-FACADE-CONTRACTS-VALIDATED routes=2 runtime-acceptance=separate')
     assert isinstance(spec.get("x-absent"), list) and len(spec["x-absent"]) >= 5, "x-absent"
     print("paths=%d x-absent=%d" % (len(paths), len(spec["x-absent"])))
     projection = subprocess.run(['node', 'du-rework/tools/openapi/catalog_callback_schemas.cjs'],

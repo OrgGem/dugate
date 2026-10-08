@@ -43,7 +43,7 @@ import {
 } from './types';
 
 export const DISBURSEMENT_BUSINESS_ID = 'document-core' as const;
-export const DISBURSEMENT_BUSINESS_VERSION = '1.0.0' as const;
+export const DISBURSEMENT_BUSINESS_VERSION = '1.1.0' as const;
 
 /** Stable step ids: they must not change across resumes or checkpoints are orphaned. */
 export const DISBURSEMENT_STEP_IDS = {

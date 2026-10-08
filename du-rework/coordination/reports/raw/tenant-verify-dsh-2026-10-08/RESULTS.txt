@@ -1,0 +1,54 @@
+# tenant-verify-dsh-2026-10-08 — consolidated raw results
+# Lane: independent verification (read-only product source). No commit, no push.
+# HEAD: df3f955e877fe87bd190461736c40861e2fe78d5 (branch codex/fix-workflow-builder), working tree dirty (other lanes).
+# Node: v22.23.3 (packages declare >=24.21.0 <25). OS: Windows.
+# cwd for every jest run: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+# command template: node node_modules/jest/bin/jest.js --runInBand --config <cfg> --silent <file>
+# NOTE: raw jest output was UTF-16LE with ANSI escapes; files below were re-encoded to UTF-8
+#       and ANSI escapes stripped (text content unchanged) for readability.
+
+## STEP 1 — mandatory packet command (config jest.unit.config.cjs)
+step1-tenant-tests.log | exit=0 | Test Suites: 2 passed, 2 total | Tests: 9 passed, 9 total | 2.649 s
+  files: tests/tenant-list-cursor-codec-offline.test.ts tests/tenant-list-bff-offline.test.ts
+  expectation of the packet: 9 pass -> MET
+
+## STEP 2a — tenant-UUID-query-param / usage-422 offline suites (config jest.unit.config.cjs)
+usage-drilldown.test.log                        | exit=0 | 1 passed, 1 total | 10 passed, 10 total
+usage-contracts-integration-offline.test.log    | exit=0 | 1 passed, 1 total | 19 passed, 19 total
+usage-aggregation.test.log                      | exit=0 | 1 passed, 1 total | 2 passed, 2 total
+admin-list-contract-conformance.test.log        | exit=0 | 1 passed, 1 total | 23 passed, 23 total
+admin-audit-scope.test.log                      | exit=0 | 1 passed, 1 total | 21 passed, 21 total
+aweb06-bff-operations.test.log                  | exit=0 | 1 passed, 1 total | 12 passed, 12 total
+oidc03-role-action-tenant-offline.test.log      | exit=0 | 1 passed, 1 total | 17 passed, 17 total
+admin-oidc04-claims-tenant-offline.test.log     | exit=0 | 1 passed, 1 total | 11 passed, 11 total
+  subtotal: 8 files, 8 x exit 0, 115 passed / 115 total, 0 failed, 0 skipped
+
+## STEP 2b — offline-runnable subset of the grep head-10 window (config jest.unit.config.cjs)
+admin-actions-vault04-offline.functional.test.log | exit=0 | 1 passed, 1 total | 24 passed, 24 total
+admin-overview-view-model.test.log                | exit=0 | 1 passed, 1 total | 193 passed, 193 total
+admin-crypto-config.test.log                      | exit=0 | 1 passed, 1 total | 84 passed, 84 total
+aweb02b-tenant-token-env.test.log                 | exit=0 | 1 passed, 1 total | 8 passed, 8 total
+admin-operations-sort-http-offline.test.log       | exit=1 | 1 failed, 1 total | 29 failed, 3 passed, 32 total   <-- FAIL (pre-existing at HEAD, see receipt F1)
+admin-keyset-explain.test.log                     | exit=0 | 1 passed, 1 total | 13 skipped, 5 passed, 18 total  <-- partial (DU_LIVE_INFRA gate)
+admin-local-users-migration.test.log              | exit=0 | 1 skipped, 0 of 1 total | 1 skipped, 1 total      <-- SKIPPED, not a pass
+
+## STEP 2c — UI harness (node, not jest)
+usage-screen-offline.log | exit=0 | "PASS: platform gating, TenantSelect selection, All tenants guard, forwarding, tenant session prefill and lock"
+
+## STEP 2d — live probe (outside the packet; no DB window claimed)
+usage-summary-live.log | exit=0 | 1 suite skipped, 0 of 1 total | 10 skipped, 10 total
+  gate: tests/usage-summary.test.ts:143-149 requires DU_LIVE_INFRA=1 -> SKIPPED is NOT a pass.
+
+## STEP 3 — sibling operations-list suites (context for F1; config jest.unit.config.cjs)
+admin-operations-sql.test.log                     | exit=1 | 1 failed, 1 total | 18 failed, 24 passed, 42 total  <-- FAIL (same parser/SQL-shape cause)
+admin-operations-sort.test.log                    | exit=1 | 1 failed, 1 total | 11 failed, 11 total             <-- FAIL (same cause)
+operations-list-contract-conformance.test.log     | exit=0 | 1 passed, 1 total | 19 passed, 19 total
+operations-list-cursor-sort-binding.test.log      | exit=0 | 1 passed, 1 total | 54 passed, 54 total
+
+ops-sort-verbose.log | single-test rerun (no --silent) of
+  'serves page 1 of the default order over the wire' -> exit=1, Expected 200 / Received 500.
+
+## grep evidence
+grep-tenant-hits.txt | 48 files under orchestrator/services/orchestrator/tests/ match tenants|TenantList
+  (equivalent of: grep -rln 'tenants\|TenantList' <tests dir> | head). No suite asserts a 422 for a
+  malformed ?tenantId= on the tenant-roster route; the BFF suite asserts tenantId is DROPPED.

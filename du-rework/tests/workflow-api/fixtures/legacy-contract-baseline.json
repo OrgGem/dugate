@@ -1,0 +1,144 @@
+{
+  "sourceEvidence": {
+    "namedRoute": "app/api/v1/docs/workflows/route.ts:17-118",
+    "schemaRoute": "app/api/v1/docs/workflows/schema/route.ts:14-113",
+    "processRegistry": "lib/endpoints/registry.ts:373-420",
+    "processHandlers": "lib/pipelines/workflow-engine.ts:415-425",
+    "schemaTypes": "lib/workflow-builder/types.ts:24-163",
+    "schemaValidationAndExecution": "lib/workflow-builder/interpreter.ts:38-177",
+    "schemaBindings": "lib/workflow-builder/binding.ts:7-94",
+    "schemaLeafExecution": "lib/workflow-builder/real-exec.ts:44-203",
+    "operationEnvelope": "lib/pipelines/format.ts:17-72",
+    "operationPoll": "app/api/v1/operations/[id]/route.ts:14-38",
+    "resume": "app/api/v1/operations/[id]/resume/route.ts:20-103",
+    "cancel": "app/api/v1/operations/[id]/cancel/route.ts:13-47"
+  },
+  "namedProcesses": [
+    {
+      "process": "disbursement",
+      "endpointSlug": "workflows:disbursement",
+      "requiredAtSubmit": { "fileCountMinimum": 1 },
+      "formVariables": ["resolution_data"],
+      "formVariableIncludedWhen": "truthy",
+      "runtime": "classify each uploaded file, extract each file, pause for human review, cross-check against resolution_data when supplied, generate report",
+      "profilePromptKeys": ["classify", "extract", "crosscheck", "report"],
+      "expectedWorkflowResult": "Generated report plus cross-check extracted data"
+    },
+    {
+      "process": "lc-checker",
+      "endpointSlug": "workflows:lc-checker",
+      "requiredAtSubmit": { "fileCountMinimum": 1 },
+      "formVariables": [],
+      "formVariableIncludedWhen": "none",
+      "runtime": "OCR each uploaded file, perform UCP 600 / ISBP 821 compliance check, generate report",
+      "profilePromptKeys": ["classify", "compliance", "report"],
+      "expectedWorkflowResult": "Generated LC checking report plus compliance extracted data"
+    },
+    {
+      "process": "doc-compare",
+      "endpointSlug": "workflows:doc-compare",
+      "requiredAtSubmit": { "fileCountMinimum": 1, "workerFileCountMinimum": 2 },
+      "formVariables": [],
+      "formVariableIncludedWhen": "none",
+      "runtime": "OCR files, compare the first two documents' sections, generate report; handler rejects fewer than two files",
+      "profilePromptKeys": ["classify", "toc", "compare", "report"],
+      "expectedWorkflowResult": "Generated comparison report plus comparison extracted data"
+    }
+  ],
+  "namedSubmit": {
+    "method": "POST",
+    "path": "/api/v1/docs/workflows",
+    "processSelector": "trimmed multipart field process",
+    "fileFields": ["files[]", "source_file", "target_file", "file"],
+    "acceptedFileBehavior": "Non-empty files[] values are appended first, then non-empty source_file, target_file, and file fields in that order; only the first value of each single-file field is used.",
+    "missingProcess": { "status": 400, "title": "Missing Parameter", "detail": "Form field 'process' is required." },
+    "unknownProcess": { "status": 404, "title": "Workflow Not Found" },
+    "missingFiles": { "status": 400, "title": "Missing Files", "detail": "Workflow requires at least 1 document." },
+    "success": {
+      "status": 202,
+      "operationLocation": "/api/v1/operations/{id}",
+      "body": {
+        "name": "operations/{id}",
+        "done": false,
+        "metadata": {
+          "state": "RUNNING",
+          "workflow": "{trimmed process}",
+          "progress_percent": 0,
+          "progress_message": "Initializing workflow..."
+        }
+      }
+    },
+    "replay": "The legacy route did not pass an idempotency key into submitPipelineJob; no workflow-specific replay contract was implemented here.",
+    "profilePins": "The worker loads _workflowPrompts for the operation apiKeyId and endpointSlug when creating its context; the legacy workflow route does not persist an immutable prompt snapshot at admission."
+  },
+  "schemaSubmit": {
+    "method": "POST",
+    "path": "/api/v1/docs/workflows/schema",
+    "schemaSlugSelector": "trimmed multipart field schemaSlug",
+    "inputSelector": "optional multipart field input containing JSON text",
+    "filesOptional": true,
+    "missingSlug": { "status": 400, "title": "Missing Parameter", "detail": "Form field 'schemaSlug' is required." },
+    "unknownSlug": { "status": 404, "title": "Schema Not Found" },
+    "invalidSchema": { "status": 400, "title": "Invalid Schema" },
+    "invalidJsonInput": { "status": 400, "title": "Invalid Input", "detail": "Form field \"input\" must be a valid JSON object string." },
+    "oldInputObjectGuard": "The route JSON.parse'd input but did not verify it was a non-null, non-array object; a strict object check is an approved security exception and must reject such values.",
+    "oldSchemaSlugOverride": "The old placeholder variables used { schemaSlug, ...input }, so a supplied input.schemaSlug overwrote the route selector. A safe implementation must pin the selected schema and reject or ignore this override.",
+    "success": {
+      "status": 202,
+      "operationLocation": "/api/v1/operations/{id}",
+      "body": {
+        "name": "operations/{id}",
+        "done": false,
+        "metadata": {
+          "state": "RUNNING",
+          "workflow": "{trimmed schemaSlug}",
+          "progress_percent": 0,
+          "progress_message": "Initializing schema workflow..."
+        }
+      }
+    },
+    "schemaStorage": "Legacy loader reads JSON from appSettings key wb_schema:{slug}; it has no tenant fence or revision pin."
+  },
+  "securityExceptions": [
+    "New admission must require an authenticated active public API key, tenant/profile/action authorization, and must not fall back to the oldest ADMIN key.",
+    "A multipart apiKeyId cannot choose another principal; reject mismatch or ignore it without changing the authenticated caller.",
+    "Legacy operation GET/resume/cancel code does not consistently authenticate and tenant-fence all requests; new operation surfaces must enforce caller tenant ownership.",
+    "Legacy schema callback/URL-download execution did not have an explicit safe egress policy; enforce bounded egress/callback policy and test rejection."
+  ],
+  "operationLifecycle": {
+    "pollMethodPath": "GET /api/v1/operations/{id}",
+    "initialState": "RUNNING",
+    "hitlState": "WAITING_USER_INPUT",
+    "terminalStates": ["SUCCEEDED", "FAILED", "CANCELLED", "TIMED_OUT"],
+    "done": "Operation row done boolean; successful and failed rows include a result block; cancelled rows include neither result nor error.",
+    "successEnvelope": ["name", "done", "metadata.state", "metadata.pipeline", "metadata.current_step", "metadata.progress_percent", "metadata.progress_message", "metadata.create_time", "metadata.update_time", "metadata.pipeline_steps", "result.output_format", "result.content", "result.extracted_data", "result.pipeline_steps", "result.usage", "result.download_url"],
+    "progress": "metadata.state, current_step, progress_percent, progress_message, and pipeline_steps reflect persisted operation state.",
+    "resume": "POST /api/v1/operations/{id}/resume; legacy body may edit step/extracted_data; resume is allowed only while WAITING_USER_INPUT and re-enqueues the same workflow.",
+    "cancel": "POST /api/v1/operations/{id}/cancel; legacy code immediately sets done=true/state=CANCELLED without waiting for child/provider work to stop; new safe cancellation must stop work and is an intentional lifecycle strengthening."
+  },
+  "schemaNodeTypes": [
+    "connector",
+    "parallel",
+    "join",
+    "file_parse",
+    "file_url_download",
+    "callback",
+    "archive_compress",
+    "archive_extract",
+    "human",
+    "input"
+  ],
+  "schemaSemantics": {
+    "bindings": ["$input.path", "$files", "$node", "$node.content", "$node.extractedData", "$node.files", "$node.data.path", "$node.output.path", "literal values"],
+    "nestedParallel": "Parallel branches are arrays of ordered node sequences and may include nested control nodes.",
+    "join": "first returns the first accumulated output; legacy concat and merge both return the accumulated output array.",
+    "connector": "Binds declared inputs, supports node prompt/static-fields/header/response-path/timeout overrides, otherwise resolves a profile prompt override.",
+    "fileParse": "Accepts a bound single file, an array, or an object with files; records parsed text/markdown and returns one output per file.",
+    "fileUrlDownload": "Requires a non-empty URL array, supports auth and allowed extensions, and downloads to operation-scoped storage.",
+    "callback": "Defaults to POST with JSON payload; legacy runner ignores response status and returns callback sent after fetch resolves.",
+    "archiveCompress": "Bundles path or named-content entries into a ZIP buffer.",
+    "archiveExtract": "Reads a ZIP buffer or path and extracts using maxTotalBytes/maxEntries limits when provided.",
+    "human": "Pauses before later flow nodes, persists prior node results, and resumes after operator input.",
+    "input": "Declares a business variable; output is input[key]."
+  }
+}

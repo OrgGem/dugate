@@ -20,6 +20,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TenantSelect,
 } from '@/components/ui';
 import {
   SECRET_PURPOSES,
@@ -109,6 +110,7 @@ export function SecretsScreen(): React.JSX.Element {
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [tenantScope, setTenantScope] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft>(emptyCreateDraft);
@@ -124,6 +126,12 @@ export function SecretsScreen(): React.JSX.Element {
   const [disableError, setDisableError] = useState<AdminApiProblem | null>(null);
 
   const [testResults, setTestResults] = useState<Record<string, SecretProbeResult | 'pending'>>({});
+
+  useEffect(() => {
+    void client.getSession().then((result) => {
+      if (result.ok) setIsAdmin(result.data.role === 'admin');
+    });
+  }, [client]);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -303,14 +311,18 @@ export function SecretsScreen(): React.JSX.Element {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-3">
-            <FormField id="secrets-tenant" label="Tenant scope" description="Platform admins may narrow to one tenant.">
-              <Input
+            {isAdmin ? (
+              <TenantSelect
                 id="secrets-tenant"
-                value={tenantScope}
-                placeholder="(session scope)"
-                onChange={(event) => setTenantScope(event.target.value)}
+                label="Tenant scope"
+                description="Choose a tenant or All tenants."
+                value={tenantScope.length > 0 ? tenantScope : null}
+                allowAll
+                onValueChange={(tenantId) => setTenantScope(tenantId ?? '')}
               />
-            </FormField>
+            ) : (
+              <p className="pb-2 text-xs text-[var(--text-sub)]">Tenant scope is controlled by your session.</p>
+            )}
             <Button type="button" variant="outline" onClick={() => void load()} isLoading={loading}>
               Refresh
             </Button>

@@ -15,11 +15,11 @@ export const LC_CHECKER_HANDLER_KINDS = ['lc-checker', 'lc-checker-ocr', 'lc-che
 export const lcCheckerManifest: BusinessManifest = {
   contractVersion: WIRE_CONTRACT_VERSION,
   businessId: 'lc-checker',
-  version: '1.0.0',
+  version: '1.1.0',
   displayName: 'LC Document Checker',
   description:
     'Examines a Letter of Credit document set against a versioned UCP 600 / ISBP 821 rules base and produces a cited, evidence-bearing checking report.',
-  imageDigest: 'sha256:placeholder-lc-checker-v1',
+  imageDigest: 'sha256:placeholder-lc-checker-v1.1.0',
   runtime: {
     wireVersion: '1',
     handlerKinds: [...LC_CHECKER_HANDLER_KINDS],
@@ -45,8 +45,47 @@ export const lcCheckerManifest: BusinessManifest = {
           maxConcurrency: { type: 'integer', minimum: 1, maximum: 8 },
           failurePolicy: { type: 'string', enum: ['fail-closed', 'continue-on-partial'] },
           requireEncryptedEvidence: { type: 'boolean' },
+          // The legacy public route has a separate, explicit discriminator.
+          // Its worker branch uses the original OCR → hybrid compliance →
+          // report prompts and the three legacy provider slots below. The
+          // versioned ruleset input remains required when this marker is absent.
+          variables: { type: 'object', maxProperties: 0 },
+          artifacts: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 50,
+            items: {
+              type: 'object',
+              properties: {
+                artifactId: { type: 'string', minLength: 1 },
+                role: { type: 'string', minLength: 1, maxLength: 128 },
+              },
+              required: ['artifactId', 'role'],
+              additionalProperties: false,
+            },
+          },
+          legacyWorkflow: {
+            type: 'object',
+            properties: {
+              version: { type: 'string', const: 'legacy-workflow-named-input-v1' },
+              process: { type: 'string', const: 'lc-checker' },
+            },
+            required: ['version', 'process'],
+            additionalProperties: false,
+          },
         },
-        required: ['inputVersion', 'artifactIds', 'fileNames', 'ruleSetVersion', 'failurePolicy'],
+        allOf: [
+          {
+            if: { required: ['legacyWorkflow'] },
+            then: {
+              required: ['legacyWorkflow', 'variables', 'artifactIds', 'fileNames', 'artifacts'],
+              not: { anyOf: [{ required: ['inputVersion'] }, { required: ['ruleSetVersion'] }] },
+            },
+            else: {
+              required: ['inputVersion', 'artifactIds', 'fileNames', 'ruleSetVersion', 'failurePolicy'],
+            },
+          },
+        ],
         additionalProperties: false,
       },
       outputSchema: {
@@ -192,6 +231,25 @@ export const lcCheckerManifest: BusinessManifest = {
         {
           name: 'report',
           required: true,
+          acceptedCapabilities: ['chat-completion'],
+        },
+        {
+          // Only the legacy compatibility branch invokes these fixed semantic
+          // stages. They are optional at manifest level so canonical v1 input
+          // does not need a second set of connector bindings; the legacy HTTP
+          // preflight and worker both require all three before provider egress.
+          name: 'legacy-ocr',
+          required: false,
+          acceptedCapabilities: ['ocr', 'pdf-text', 'document-layout'],
+        },
+        {
+          name: 'legacy-compliance',
+          required: false,
+          acceptedCapabilities: ['chat-completion', 'structured-output'],
+        },
+        {
+          name: 'legacy-report',
+          required: false,
           acceptedCapabilities: ['chat-completion'],
         },
       ],

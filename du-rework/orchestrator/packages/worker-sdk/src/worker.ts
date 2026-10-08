@@ -536,15 +536,27 @@ export function classifyFailure(err: unknown): FailureClassification {
     };
   }
   if (ConnectorTransportErrorLike(err)) {
+    if (err.code === 'INVOCATION_UNKNOWN') {
+      // The Connector refused a replay while its ledger still holds this
+      // logical invocation (IN_FLIGHT, deliberately without a recovery lease),
+      // so the refusal itself never re-sends provider work. The task-level
+      // reconciliation is to come back after the first dispatch has settled:
+      // the STABLE invocationId then replays the stored result. This is a
+      // settle-and-retry, never a blind retry - the ledger still refuses a
+      // second send, so the retry cannot execute provider work twice.
+      return {
+        errorCode: err.code,
+        retryable: true,
+        retryAfterMs: 5_000,
+        detail: err.message.slice(0, 2048),
+      };
+    }
     const nonRetryableConnectorCode =
       err.code === 'INPUT_HASH_MISMATCH'
       || err.code === 'CANCELLED'
-      || err.code === 'CONNECTOR_DISABLED'
-      || err.code === 'INVOCATION_UNKNOWN';
+      || err.code === 'CONNECTOR_DISABLED';
     return {
       errorCode: err.code,
-      // Ambiguous invocation outcomes must be reconciled against the Connector
-      // ledger; replaying the task could execute provider work twice.
       retryable: !nonRetryableConnectorCode && (err.status === 429 || err.status === 503),
       detail: err.message.slice(0, 2048),
     };

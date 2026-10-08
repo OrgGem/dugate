@@ -27,7 +27,7 @@ function deliver(harness: ReturnType<typeof makeHarness>, joinSummary: Record<st
 describe('P9-02 manifest', () => {
   it('declares the business the result claims to come from', () => {
     expect(lcCheckerManifest.businessId).toBe('lc-checker');
-    expect(lcCheckerManifest.version).toBe('1.0.0');
+    expect(lcCheckerManifest.version).toBe('1.1.0');
     expect(lcCheckerManifest.capabilities).toEqual({ cancel: true, resume: true, parallel: true });
   });
 
@@ -41,10 +41,13 @@ describe('P9-02 manifest', () => {
 
   it('binds visual inspection to its own slot, not to the text OCR one', () => {
     const slots = action.connectorSlots.map((slot) => slot.name).sort();
-    expect(slots).toEqual(['crosscheck', 'ocr', 'report', 'vision']);
-    for (const slot of action.connectorSlots) {
+    expect(slots).toEqual([
+      'crosscheck', 'legacy-compliance', 'legacy-ocr', 'legacy-report', 'ocr', 'report', 'vision',
+    ]);
+    for (const slot of action.connectorSlots.filter((entry) => !entry.name.startsWith('legacy-'))) {
       expect(slot.required).toBe(true);
     }
+    expect(action.connectorSlots.filter((entry) => entry.name.startsWith('legacy-')).every((entry) => !entry.required)).toBe(true);
     const vision = action.connectorSlots.find((slot) => slot.name === 'vision');
     expect(vision?.acceptedCapabilities).toContain('vision');
   });

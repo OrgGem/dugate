@@ -605,6 +605,39 @@ export type AdminApiKeysPage = ListPageBase & {
   createCopyOnce: Record<string, unknown> | null;
 };
 
+/* ------------------------------------------------------------------ */
+/* Admin tenant list — GET /api/v1/admin/tenants                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The tenant roster is ordered by NAME, not by a timestamp: its only consumer
+ * is the tenant picker, and a picker that is not alphabetical is unusable.
+ * The shared `AdminResourceListSort` vocabulary is created_at/updated_at only,
+ * and `tenants` (migration 0001) has no updated_at column at all, so this list
+ * exposes no `sort` parameter — the order is fixed by the endpoint as
+ * `(lower(name), id)`. The keyset cursor therefore cannot be the shared
+ * timestamp dialect (encodeListCursor / encodeAdminResourceListSortCursor,
+ * which encode a micros instant); the tenant module carries a small
+ * id+direction token bounded by LIST_CURSOR_MAX_LEN instead.
+ */
+export const TENANT_LIST_QUERY_PARAMS = ['limit', 'cursor'] as const;
+export type TenantListQueryParam = (typeof TENANT_LIST_QUERY_PARAMS)[number];
+
+/** One roster row; the full wire item (nothing else is projected). */
+export const AdminTenantSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    state: z.string(),
+  })
+  .strict();
+export type AdminTenant = z.infer<typeof AdminTenantSchema>;
+
+export const AdminTenantsPageSchema = ListPageBaseSchema.extend({
+  items: z.array(AdminTenantSchema),
+}).strict();
+export type AdminTenantsPage = ListPageBase & { items: AdminTenant[] };
+
 /** Builds any admin list page so no producer can drop a page field by hand. */
 export function listPage<T>(input: {
   items: T[];

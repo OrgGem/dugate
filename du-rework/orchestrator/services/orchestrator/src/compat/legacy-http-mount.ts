@@ -27,10 +27,17 @@
  */
 
 import { HttpError } from '../http/errors';
-import { readMultipartBody } from './legacy-multipart';
+import type { LegacyWorkflowSchemaPin as ContractLegacyWorkflowSchemaPin } from '@du/contracts';
+import { readMultipartBody, type MultipartBody } from './legacy-multipart';
 import { LegacyFormData, legacyFieldsToRecord } from './legacy-form-bridge';
 import { decodeLegacyWire, LegacyWireDecodeError, LEGACY_CORE_ACTIONS, type LegacyDecodedRequest } from './legacy-wire-decoders';
 import { toLegacyEnvelope, toLegacyListItem, toLegacyListPage, type LegacyOperationRow } from './legacy-envelope';
+import {
+  decodeLegacyNamedWorkflow,
+  decodeLegacySchemaWorkflow,
+  LegacyWorkflowDecodeError,
+  type LegacyWorkflowRequest,
+} from './legacy-workflow-decoders';
 
 /** Re-exported so the host adapter types its loader without reaching into the envelope module. */
 export type { LegacyOperationRow } from './legacy-envelope';
@@ -45,15 +52,18 @@ export interface LegacyPrincipal {
   readonly apiKeyId: string;
 }
 
+/** Immutable, tenant-scoped executable schema reference returned by the catalog. */
+export type LegacyWorkflowSchemaPin = ContractLegacyWorkflowSchemaPin;
+
 /** What the mount needs from the host, so it never reaches into server.ts. */
 export interface LegacyCompatHost {
   readonly db: {
     query(sql: string, params?: unknown[]): Promise<{ rowCount: number | null; rows: unknown[] }>;
   };
   /** Reads the operation row for the legacy projection columns. */
-  loadOperation(operationId: string, tenantId: string): Promise<LegacyOperationRow | null>;
+  loadOperation(operationId: string, tenantId: string, apiKeyId: string): Promise<LegacyOperationRow | null>;
   /** Raw bytes of the operation's output, or null when it lives in storage. */
-  loadOutputContent(operationId: string, tenantId: string): Promise<Buffer | null>;
+  loadOutputContent(operationId: string, tenantId: string, apiKeyId: string): Promise<Buffer | null>;
   /**
    * Perform the actual submit. The host owns admission, artifact creation,
    * tenant fencing and the queue — this module owns none of that, it only
@@ -64,12 +74,30 @@ export interface LegacyCompatHost {
     action: string,
     decoded: LegacyDecodedRequest,
   ): Promise<{ operationId: string; replayed: boolean } | undefined>;
+  /** Submit a legacy workflow through the shared operation/outbox lifecycle. */
+  submitLegacyWorkflow?(
+    principal: LegacyPrincipal,
+    request: LegacyWorkflowRequest,
+    schemaPin?: LegacyWorkflowSchemaPin,
+  ): Promise<{ operationId: string } | undefined>;
+  /** Resolve only within the authenticated tenant and return an immutable pin. */
+  resolveLegacyWorkflowSchema?(
+    tenantId: string,
+    slug: string,
+  ): Promise<LegacyWorkflowSchemaPin | null>;
   /** Soft-delete an operation; resolves false when the row is absent. */
-  softDeleteOperation?(operationId: string, tenantId: string): Promise<boolean>;
+  softDeleteOperation?(operationId: string, tenantId: string, apiKeyId: string): Promise<boolean>;
   /** Cancel an operation; resolves the current row after the transition. */
-  cancelLegacy?(operationId: string, tenantId: string): Promise<{ ok: true; row: LegacyOperationRow } | { ok: false; status: 404 | 409 }>;
+  cancelLegacy?(
+    operationId: string,
+    principal: LegacyPrincipal,
+  ): Promise<{ ok: true; row: LegacyOperationRow } | { ok: false; status: 404 | 409 }>;
   /** Requeue a WAITING_INPUT operation; resolves null when not resumable. */
-  resumeLegacy?(operationId: string, tenantId: string, body: unknown): Promise<{ ok: true } | { ok: false; status: 404 | 400; state: string }>;
+  resumeLegacy?(
+    operationId: string,
+    principal: LegacyPrincipal,
+    body: unknown,
+  ): Promise<{ ok: true } | { ok: false; status: 404 | 400; state: string }>;
   /** One page of legacy operation rows for the list route. */
   listLegacyOperations?(input: {
     tenantId: string;
@@ -82,9 +110,10 @@ export interface LegacyCompatHost {
   /** Per-key spend for the billing balance/usage routes. */
   billingFor?(apiKeyId: string): Promise<LegacyBillingSnapshot | null>;
   /**
-   * The service catalogue with profile locks already applied. Returning
-   * `undefined` means "not wired"; the mount answers 500 rather than an
-   * empty list, because an empty catalogue reads as "you may call nothing".
+   * The service catalogue with profile locks already applied. Unwired (or an
+   * `undefined` answer) degrades to an empty list with the legacy 200 shape —
+   * WFA 6b: discovery must answer even while this slice has no catalogue
+   * source to wire. A host that wires it controls the contents.
    */
   serviceCatalogue?(apiKeyId: string): Record<string, unknown>[] | undefined;
 }
@@ -123,7 +152,8 @@ function hasAdminBearer(request: LegacyRouteRequest): boolean {
 /**
  * Legacy download content type. The old route derived it from
  * `outputFormat` for the inline branch and from the file extension for the
- * file branch; only the inline branch is reachable from an operation row.
+ * file branch; the compat surface always has the row's `outputFormat`, so
+ * both backends use it.
  */
 function legacyDownloadContentType(outputFormat: string | null | undefined): string {
   if (outputFormat === 'html') return 'text/html; charset=utf-8';
@@ -376,6 +406,72 @@ function decoded0CorrelationId(request: LegacyRouteRequest): string | undefined 
   return correlationIdOf(request);
 }
 
+function workflowDecodeErrorResponse(
+  error: LegacyWorkflowDecodeError,
+  correlationId: string | undefined,
+): LegacyRouteResponse {
+  if (error.code === 'UNKNOWN_PROCESS') {
+    return legacyError(404, 'Workflow Not Found', error.message, correlationId);
+  }
+  if (error.code === 'MISSING_FILES') {
+    return legacyError(400, 'Missing Files', error.message, correlationId);
+  }
+  if (error.code === 'INVALID_INPUT') {
+    return legacyError(400, 'Invalid Input', error.message, correlationId);
+  }
+  if (error.code === 'TOO_MANY_FILES') {
+    return legacyError(413, 'Payload Too Large', error.message, correlationId);
+  }
+  return legacyError(400, 'Missing Parameter', error.message, correlationId);
+}
+
+function workflowHostErrorResponse(
+  error: unknown,
+  correlationId: string | undefined,
+): LegacyRouteResponse {
+  if (error instanceof HttpError) {
+    const title = error.status === 422 ? 'Invalid Parameter' : titleForStatus(error.status);
+    return legacyError(error.status, title, error.message, correlationId);
+  }
+  const code = typeof error === 'object' && error !== null
+    ? (error as { code?: unknown }).code
+    : undefined;
+  if (code === 'SCHEMA_NOT_ACTIVE') {
+    return legacyError(409, 'Conflict', 'The requested workflow schema has no active revision.', correlationId);
+  }
+  if (code === 'SCHEMA_INVALID') {
+    return legacyError(400, 'Invalid Schema', 'The requested workflow schema is invalid.', correlationId);
+  }
+  if (code === 'SCHEMA_CRYPTO_UNAVAILABLE') {
+    return legacyError(503, 'Service Not Available', 'Workflow schema storage is temporarily unavailable.', correlationId);
+  }
+  return internalError(correlationId);
+}
+
+async function readLegacyWorkflowMultipart(request: LegacyRouteRequest): Promise<MultipartBody> {
+  if (request.bodyStream === undefined) {
+    throw new HttpError(400, 'MALFORMED_BODY', 'multipart body stream is required');
+  }
+  return readMultipartBody(
+    request.bodyStream as AsyncIterable<Buffer>,
+    request.headers['content-type'],
+  );
+}
+
+function firstMultipartField(body: MultipartBody, name: string): string | undefined {
+  return body.fields.get(name)?.[0];
+}
+
+function bodyApiKeyMatches(
+  bodyApiKeyId: string | undefined,
+  principal: LegacyPrincipal,
+  request: LegacyRouteRequest,
+): boolean {
+  if (bodyApiKeyId === undefined || bodyApiKeyId === '') return true;
+  const presentedKey = request.headers['x-api-key'];
+  return bodyApiKeyId === principal.apiKeyId || (typeof presentedKey === 'string' && bodyApiKeyId === presentedKey);
+}
+
 
 /**
  * Handle one request against the legacy surface.
@@ -397,21 +493,113 @@ export async function handleLegacyRoute(
   const docs = parseLegacyDocsPath(pathname);
   if (docs !== null) {
     if (method !== 'POST') {
-      const label = docs.kind === 'action' ? docs.action : 'workflows';
+      const label = docs.kind === 'action'
+        ? docs.action
+        : docs.kind === 'workflow-schema'
+          ? 'workflow schema'
+          : 'workflows';
       return legacyError(405, 'Method Not Allowed', `${label} accepts POST only`, correlationId);
     }
-    if (docs.kind !== 'action') {
-      // The workflow facade is a separate task (COMP-09): it needs the three
-      // legacy workflow businesses registered, and the mapping table is not
-      // in this repo yet. Answering 503 keeps the path claimed and the
-      // failure explicit instead of silently 404ing a documented endpoint.
-      return legacyError(
-        503,
-        'Service Not Available',
-        'The legacy workflow facade is not available on this deployment.',
-        correlationId,
-      );
+    if (docs.kind === 'workflows' || docs.kind === 'workflow-schema') {
+      const principal = await safePrincipal(request);
+      if (principal === null) {
+        return legacyError(401, 'Unauthorized', 'A valid API key is required.', correlationId);
+      }
+
+      let multipart: MultipartBody;
+      try {
+        multipart = await readLegacyWorkflowMultipart(request);
+      } catch (error: unknown) {
+        if (error instanceof HttpError) {
+          return legacyError(error.status, titleForStatus(error.status), error.message, correlationId);
+        }
+        return internalError(correlationId);
+      }
+
+      let workflowRequest: LegacyWorkflowRequest;
+      let schemaPin: LegacyWorkflowSchemaPin | undefined;
+      if (docs.kind === 'workflow-schema') {
+        const rawSlug = firstMultipartField(multipart, 'schemaSlug');
+        const schemaSlug = rawSlug?.trim() ?? '';
+        if (schemaSlug === '') {
+          return workflowDecodeErrorResponse(
+            new LegacyWorkflowDecodeError('MISSING_SELECTOR', "Form field 'schemaSlug' is required."),
+            correlationId,
+          );
+        }
+        if (!bodyApiKeyMatches(firstMultipartField(multipart, 'apiKeyId'), principal, request)) {
+          return legacyError(403, 'Forbidden', 'The supplied API key does not match the authenticated caller.', correlationId);
+        }
+        if (host.resolveLegacyWorkflowSchema === undefined) {
+          return legacyError(503, 'Service Not Available', 'Workflow schema storage is not available on this deployment.', correlationId);
+        }
+        try {
+          const resolved = await host.resolveLegacyWorkflowSchema(principal.tenantId, schemaSlug);
+          if (resolved === null) {
+            return legacyError(
+              404,
+              'Schema Not Found',
+              `Workflow schema '${schemaSlug}' is not imported. Import it via /workflow-builder first.`,
+              correlationId,
+            );
+          }
+          schemaPin = resolved;
+        } catch (error: unknown) {
+          return workflowHostErrorResponse(error, correlationId);
+        }
+        try {
+          workflowRequest = decodeLegacySchemaWorkflow(multipart);
+        } catch (error: unknown) {
+          if (error instanceof LegacyWorkflowDecodeError) return workflowDecodeErrorResponse(error, correlationId);
+          return internalError(correlationId);
+        }
+      } else {
+        try {
+          workflowRequest = decodeLegacyNamedWorkflow(multipart);
+        } catch (error: unknown) {
+          if (error instanceof LegacyWorkflowDecodeError) return workflowDecodeErrorResponse(error, correlationId);
+          return internalError(correlationId);
+        }
+        if (!bodyApiKeyMatches(workflowRequest.bodyApiKeyId, principal, request)) {
+          return legacyError(403, 'Forbidden', 'The supplied API key does not match the authenticated caller.', correlationId);
+        }
+      }
+
+      if (host.submitLegacyWorkflow === undefined) {
+        return legacyError(503, 'Service Not Available', 'The legacy workflow submission service is not available on this deployment.', correlationId);
+      }
+      let outcome: { operationId: string } | undefined;
+      try {
+        outcome = await host.submitLegacyWorkflow(principal, workflowRequest, schemaPin);
+      } catch (error: unknown) {
+        return workflowHostErrorResponse(error, correlationId);
+      }
+      if (outcome === undefined) return internalError(correlationId);
+
+      const workflow = workflowRequest.kind === 'named'
+        ? workflowRequest.process
+        : workflowRequest.schemaSlug;
+      return {
+        status: 202,
+        headers: { 'Operation-Location': `/api/v1/operations/${outcome.operationId}` },
+        body: {
+          name: `operations/${outcome.operationId}`,
+          done: false,
+          metadata: {
+            state: 'RUNNING',
+            workflow,
+            progress_percent: 0,
+            progress_message: workflowRequest.kind === 'named'
+              ? 'Initializing workflow...'
+              : 'Initializing schema workflow...',
+          },
+        },
+      };
     }
+
+    // The two workflow variants are represented by one discriminated member
+    // in parseLegacyDocsPath; establish the action-only branch explicitly.
+    if (!('action' in docs)) return null;
 
     let principal: LegacyPrincipal;
     try {
@@ -451,7 +639,7 @@ export async function handleLegacyRoute(
       decoded.decoded,
     );
     if (outcome === undefined) return internalError(correlationId);
-    const row = await host.loadOperation(outcome.operationId, principal.tenantId);
+    const row = await host.loadOperation(outcome.operationId, principal.tenantId, principal.apiKeyId);
     if (row === null) return internalError(correlationId);
     return legacySubmitResponse({
       decoded: decoded.decoded,
@@ -476,7 +664,7 @@ export async function handleLegacyRoute(
       const principal = await safePrincipal(request);
       if (principal === null) return internalError(correlationId);
       if (host.softDeleteOperation === undefined) return internalError(correlationId);
-      const ok = await host.softDeleteOperation(id, principal.tenantId);
+      const ok = await host.softDeleteOperation(id, principal.tenantId, principal.apiKeyId);
       if (!ok) {
         return legacyError(404, 'Not Found', `Operation '${id}' not found.`, correlationId);
       }
@@ -488,7 +676,7 @@ export async function handleLegacyRoute(
     }
     const principal = await safePrincipal(request);
     if (principal === null) return internalError(correlationId);
-    const row = await host.loadOperation(id, principal.tenantId);
+    const row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
     if (row === null) {
       return {
         status: 404,
@@ -551,7 +739,7 @@ export async function handleLegacyRoute(
         return legacyError(405, 'Method Not Allowed', 'cancel accepts POST only', correlationId);
       }
       if (host.cancelLegacy === undefined) return internalError(correlationId);
-      const outcome = await host.cancelLegacy(id, principal.tenantId);
+      const outcome = await host.cancelLegacy(id, principal);
       if (!outcome.ok) {
         return outcome.status === 404
           ? legacyError(404, 'Not Found', `Operation '${id}' not found.`, correlationId)
@@ -565,7 +753,7 @@ export async function handleLegacyRoute(
         return legacyError(405, 'Method Not Allowed', 'resume accepts POST only', correlationId);
       }
       if (host.resumeLegacy === undefined) return internalError(correlationId);
-      const outcome = await host.resumeLegacy(id, principal.tenantId, request.body);
+      const outcome = await host.resumeLegacy(id, principal, request.body);
       if (!outcome.ok) {
         // The legacy resume route used NextResponse.json directly for both
         // branches, so its error bodies are `{error}` — NOT problem+json. A
@@ -593,14 +781,14 @@ export async function handleLegacyRoute(
     if (method !== 'GET') {
       return legacyError(405, 'Method Not Allowed', 'download accepts GET only', correlationId);
     }
-    const row = await host.loadOperation(id, principal.tenantId);
+    const row = await host.loadOperation(id, principal.tenantId, principal.apiKeyId);
     if (row === null) {
       return legacyError(404, 'Not Found', `Operation '${id}' not found.`, correlationId);
     }
     if (!row.done || row.state !== 'SUCCEEDED') {
       return legacyError(409, 'Not Ready', 'Operation has not completed successfully.', correlationId);
     }
-    const bytes = await host.loadOutputContent(id, principal.tenantId);
+    const bytes = await host.loadOutputContent(id, principal.tenantId, principal.apiKeyId);
     if (bytes === null) {
       return legacyError(404, 'No Output', 'No output content or file available.', correlationId);
     }
@@ -704,8 +892,7 @@ export async function handleLegacyRoute(
     }
     const principal = await safePrincipal(request);
     if (principal === null) return internalError(correlationId);
-    const catalogue = host.serviceCatalogue?.(principal.apiKeyId);
-    if (catalogue === undefined) return internalError(correlationId);
+    const catalogue = host.serviceCatalogue?.(principal.apiKeyId) ?? [];
     return {
       status: 200,
       body: {
@@ -719,9 +906,3 @@ export async function handleLegacyRoute(
 
   return null;
 }
-
-
-
-
-
-

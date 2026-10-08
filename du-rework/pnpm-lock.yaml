@@ -26,6 +26,9 @@ importers:
       '@du/document-kit':
         specifier: workspace:*
         version: link:../../orchestrator/packages/document-kit
+      '@du/egress':
+        specifier: workspace:*
+        version: link:../../orchestrator/packages/egress
       '@du/worker-sdk':
         specifier: workspace:*
         version: link:../../orchestrator/packages/worker-sdk

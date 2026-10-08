@@ -351,7 +351,9 @@ export interface WorkerConfig {
  */
 export type ConnectorInvokeFunction = (
   grant: InvocationGrant,
-  payload: ConnectorInvocationPayloadShape
+  payload: ConnectorInvocationPayloadShape,
+  /** Cancellation/lease-loss signal: aborts the in-flight connector request. */
+  signal?: AbortSignal
 ) => Promise<InvocationResponse>;
 
 /** Structural mirror of `ConnectorInvocationPayload` (task-context.ts). */

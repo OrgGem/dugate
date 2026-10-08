@@ -1,0 +1,75 @@
+{
+  "source": {
+    "contract": "legacy-contract-baseline.json (namedProcesses, namedSubmit)",
+    "acceptance": "acceptance-cases.json (WFA-T01..T03)",
+    "observedBaseline": "tests/workflow-api/logs/named-success-first-node24-2026-10-07.log (qwen lane, 2026-10-07 20:50)"
+  },
+  "note": "Synthetic case manifests for the three legacy named processes. Consumed by named-processes-admission.integration.test.ts (admission-level) and available to the full worker suite for poll/result/download completion. No secrets; synthetic document markers only.",
+  "cases": [
+    {
+      "id": "WFA-T01",
+      "process": "disbursement",
+      "endpointSlug": "workflows:disbursement",
+      "apiKeyRole": "disbursement",
+      "files": [
+        { "field": "files[]", "name": "disbursement-invoice.pdf", "content": "synthetic disbursement source document" }
+      ],
+      "variables": { "resolution_data": "synthetic resolution data for cross-check" },
+      "expectedAdmission": {
+        "status": 202,
+        "operationLocation": "/api/v1/operations/{id}",
+        "name": "operations/{id}",
+        "done": false,
+        "metadataRequired": { "state": "RUNNING", "workflow": "disbursement", "progress_percent": 0 }
+      },
+      "workflowPath": ["classify", "extract", "human-pause", "crosscheck", "report"],
+      "expectedLifecycle": ["RUNNING", "WAITING_USER_INPUT", "resume", "SUCCEEDED"],
+      "profilePromptKeys": ["classify", "extract", "crosscheck", "report"],
+      "baselineState": "BASELINE-FAIL (expected): worker ended FAILED/DISBURSEMENT_ARTIFACT_UNAVAILABLE on 2026-10-07; pending implementation"
+    },
+    {
+      "id": "WFA-T02",
+      "process": "lc-checker",
+      "endpointSlug": "workflows:lc-checker",
+      "apiKeyRole": "lc",
+      "files": [
+        { "field": "files[]", "name": "lc-document-set.pdf", "content": "synthetic letter-of-credit document set" }
+      ],
+      "variables": {},
+      "expectedAdmission": {
+        "status": 202,
+        "operationLocation": "/api/v1/operations/{id}",
+        "name": "operations/{id}",
+        "done": false,
+        "metadataRequired": { "state": "RUNNING", "workflow": "lc-checker", "progress_percent": 0 }
+      },
+      "workflowPath": ["ocr", "compliance-check", "human-pause", "report"],
+      "expectedLifecycle": ["RUNNING", "WAITING_USER_INPUT", "resume", "SUCCEEDED"],
+      "profilePromptKeys": ["classify", "compliance", "report"],
+      "baselineState": "BASELINE-FAIL (expected): admission returned HTTP 422 'input failed action schema' on 2026-10-07; pending legacy input adapter"
+    },
+    {
+      "id": "WFA-T03",
+      "process": "doc-compare",
+      "endpointSlug": "workflows:doc-compare",
+      "apiKeyRole": "named",
+      "files": [
+        { "field": "files[]", "name": "compare-a.pdf", "content": "synthetic document A for comparison" },
+        { "field": "files[]", "name": "compare-b.pdf", "content": "synthetic document B for comparison" }
+      ],
+      "variables": {},
+      "requiredAtSubmit": { "fileCountMinimum": 1, "workerFileCountMinimum": 2 },
+      "expectedAdmission": {
+        "status": 202,
+        "operationLocation": "/api/v1/operations/{id}",
+        "name": "operations/{id}",
+        "done": false,
+        "metadataRequired": { "state": "RUNNING", "workflow": "doc-compare", "progress_percent": 0 }
+      },
+      "workflowPath": ["ocr", "toc", "compare", "human-pause", "report"],
+      "expectedLifecycle": ["RUNNING", "WAITING_USER_INPUT", "resume", "SUCCEEDED"],
+      "profilePromptKeys": ["classify", "toc", "compare", "report"],
+      "baselineState": "BASELINE-FAIL (expected): not yet attempted in prep harness (two-file success still open per WFA-T03)"
+    }
+  ]
+}

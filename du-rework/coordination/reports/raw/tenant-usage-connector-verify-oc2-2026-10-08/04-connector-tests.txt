@@ -1,0 +1,14 @@
+﻿{"subsystem":"admin-shell","timestamp":"2026-10-07T21:45:25.044Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"cf268eec-9abe-430b-b26e-9488da75fab4","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T21:45:25.094Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"2ce7dc0a-dfe7-4968-8e2b-b48d96f0ba8d","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-07T21:45:25.098Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"c1fcba27-3163-4993-9b78-5047fd526ade","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+node : 
+At line:2 char:1
++ node node_modules/jest/bin/jest.js --runInBand --config jest.unit.con ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 4 passed, 4 total
+Tests:       53 passed, 53 total
+Snapshots:   0 total
+Time:        3.258 s, estimated 12 s

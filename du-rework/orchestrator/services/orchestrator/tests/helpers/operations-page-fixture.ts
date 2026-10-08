@@ -87,6 +87,37 @@ export interface ListDbFixture {
   apiKey?: { id: string; tenantId: string } | null;
 }
 
+/**
+ * The modern page statement `listOperationsPage` issues: the `SELECT *` list PLUS
+ * the exact sort-key projection `to_char(<key> AT TIME ZONE 'UTC', …) AS
+ * __cursor_sort_key` (list-query.ts:564).
+ *
+ * The projection is contract-pinned, not incidental:
+ * operations-list-cursor-sort-binding.test.ts:341-343 asserts the whole
+ * statement verbatim, operations-list-contract-conformance.test.ts:70 matches
+ * this same shape, and it exists because `pg` truncates microseconds off a Date
+ * — the boundary a cursor carries has to come from SQL (list-query.ts:468-469).
+ *
+ * A double that only accepted the pre-projection `SELECT * FROM operations`
+ * rejected valid SQL and reported it as "unexpected … SQL", which is how three
+ * suites (52 tests) went red while the route itself was correct.
+ */
+export const OPERATIONS_LIST_PAGE_SQL_RE =
+  /^SELECT \*, to_char\(.+ AS __cursor_sort_key FROM operations/i;
+
+/**
+ * Any statement the operations LIST can issue on this route: the modern keyset
+ * page above, or the LEGACY compat facade's own list statement
+ * (`SELECT * FROM operations … ORDER BY created_at DESC LIMIT $n` — served to an
+ * x-api-key caller before the canonical block, server.ts:1744 vs :1816).
+ *
+ * The shared helper routes BOTH, so its dispatcher and its call-finders must
+ * accept both. Suites that drive only the modern page keep using the stricter
+ * OPERATIONS_LIST_PAGE_SQL_RE above.
+ */
+export const OPERATIONS_LIST_ANY_SQL_RE =
+  /^SELECT \*(?:, to_char\(.+ AS __cursor_sort_key)? FROM operations/i;
+
 export function listRoute(options: {
   search: string;
   headers?: Record<string, string>;
@@ -104,7 +135,7 @@ export function listRoute(options: {
     if (/SELECT count\(\*\)::int AS total FROM operations/i.test(sql)) {
       return pgResult([{ total: fixture.total ?? 0 }]);
     }
-    if (/^SELECT \* FROM operations/i.test(sql)) {
+    if (OPERATIONS_LIST_ANY_SQL_RE.test(sql)) {
       return pgResult(fixture.page ?? []);
     }
     throw new Error(`unexpected operations-list SQL: ${sql}`);
@@ -127,7 +158,7 @@ export function listRoute(options: {
 }
 
 export function pageQuery(calls: { sql: string; params: unknown[] }[]): { sql: string; params: unknown[] } {
-  const found = calls.find((c) => /^SELECT \* FROM operations/i.test(c.sql));
+  const found = calls.find((c) => OPERATIONS_LIST_ANY_SQL_RE.test(c.sql));
   if (!found) throw new Error('no page query was issued');
   return found;
 }
@@ -144,7 +175,7 @@ export function decodeCursor(cursor: string): { createdAt: string; id: string } 
 }
 
 export function calls_with_page(calls: { sql: string; params: unknown[] }[]): string {
-  const found = calls.filter((c) => /^SELECT \* FROM operations/i.test(c.sql));
+  const found = calls.filter((c) => OPERATIONS_LIST_ANY_SQL_RE.test(c.sql));
   return found.length > 0 ? found[found.length - 1]!.sql : '';
 }
 

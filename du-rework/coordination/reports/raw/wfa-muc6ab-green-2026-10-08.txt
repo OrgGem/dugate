@@ -1,0 +1,24 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+timestamp: 2026-10-08T03:42:12.0144333+07:00
+status: POST-FIX
+
+[run 1] pnpm exec jest tests/wfa-api-lifecycle.test.ts tests/legacy-http-mount.test.ts --runInBand --config jest.unit.config.cjs --no-colors
+--- output ---
+
+Test Suites: 2 passed, 2 total
+Tests:       45 passed, 45 total
+Snapshots:   0 total
+Time:        3.183 s
+Ran all test suites matching tests/wfa-api-lifecycle.test.ts|tests/legacy-http-mount.test.ts.
+
+--- run 1 exit=0 ---
+
+[run 2] pnpm exec jest tests/rv01-loopback-http-offline.test.ts --runInBand --config jest.unit.config.cjs --no-colors -t "empty catalogue while unwired"
+--- output ---
+Test Suites: 1 passed, 1 total
+Tests:       47 skipped, 1 passed, 48 total
+Snapshots:   0 total
+Time:        3.194 s, estimated 4 s
+Ran all test suites matching tests/rv01-loopback-http-offline.test.ts with tests matching "empty catalogue while unwired".
+
+--- run 2 exit=0 ---

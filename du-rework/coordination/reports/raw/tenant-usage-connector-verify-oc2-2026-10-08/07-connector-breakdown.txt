@@ -1,0 +1,12 @@
+D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\bff-connectors-actions.test.ts -> passed | tests: 17 | passed: 17
+D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\p745-connector-management-proxy.test.ts -> passed | tests: 12 | passed: 12
+D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\admin-connector-render.test.ts -> passed | tests: 16 | passed: 16
+D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\admin-config-cockpit.test.ts -> passed | tests: 8 | passed: 8
+TOTAL passed: 53 failed: 0
+---- tests mentioning known ----
+- passed | unknown connector action → upstream 404 ACTION_NOT_FOUND, detail dropped
+- passed | list: passthrough keeps redaction; unknown connector fields FAIL CLOSED (strict DTO, never widen)
+- passed | renders the picker when knownConnectorIds is supplied
+- passed | unknown selected business version renders an honest not-found state without detail data
+- passed | an unknown explicit profile version does not reuse another revision fixture
+- passed | an unknown connector catalog revision does not fall back to another revision

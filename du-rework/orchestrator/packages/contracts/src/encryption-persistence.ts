@@ -63,12 +63,13 @@ export const ENFORCED_METADATA_PURPOSES = [
   'operations.prompt_overrides_ref',
   'tasks.result_ref',
   'operations.result_ref',
+  'legacy_workflow_schemas.schema_ref',
 ] as const;
 
 /** Storage purpose the crypto-storage facade applies when none is named. */
 export const DEFAULT_STORAGE_PURPOSE = 'artifact-storage' as const;
 
-/** Enforced today: the eight metadata slots plus the storage default. */
+/** Enforced today: metadata slots plus the storage default. */
 export const ENFORCED_PERSISTENCE_PURPOSES = [
   ...ENFORCED_METADATA_PURPOSES,
   DEFAULT_STORAGE_PURPOSE,

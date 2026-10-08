@@ -34,6 +34,7 @@ import type {
   SecretCatalogListPage,
   SecretCatalogRotateBody,
   SecretProbeResult,
+  TenantPage,
   UsageSummary,
 } from './types';
 
@@ -56,6 +57,7 @@ export interface PostActionResult {
 
 export interface AdminApiClient {
   getSession(): Promise<AdminApiResult<AdminWebSession>>;
+  listTenants(query?: Record<string, string>): Promise<AdminApiResult<TenantPage>>;
   listAudit(query?: Record<string, string>): Promise<AdminApiResult<unknown>>;
   listApiKeys(query?: Record<string, string>): Promise<AdminApiResult<ApiKeyPage>>;
   getApiKey(keyId: string): Promise<AdminApiResult<ApiKeyPage>>;
@@ -247,6 +249,9 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
       const result = await request<AdminWebSession>('GET', '/session', {});
       if (result.ok) csrfToken = result.data.csrfToken;
       return result;
+    },
+    listTenants(query) {
+      return request<TenantPage>('GET', '/tenants', { query });
     },
     listAudit(query) {
       return request<unknown>('GET', '/audit', { query });

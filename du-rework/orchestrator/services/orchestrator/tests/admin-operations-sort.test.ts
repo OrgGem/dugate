@@ -13,7 +13,7 @@ import { route, parseOperationsListQuery, type RouteContext } from '../src/serve
 import type { QueryResult, QueryResultRow } from 'pg';
 import type { OperationDetail } from '@du/contracts';
 import { OPERATIONS_LIST_QUERY_PARAMS, OPERATIONS_LIST_SORT_VALUES, isOperationsListFilterToken } from '@du/contracts';
-import { ADMIN_TOKEN, pgResult, dbRow } from './helpers/operations-page-fixture';
+import { ADMIN_TOKEN, pgResult, dbRow, OPERATIONS_LIST_PAGE_SQL_RE } from './helpers/operations-page-fixture';
 
 
 
@@ -221,7 +221,7 @@ describe('W-ADMUX02-SORT-ALLOWLIST-1: keyset paging stays exact under every sort
           if (/SELECT count\(\*\)::int AS total FROM operations/i.test(sql)) {
             return pgResult([{ total: FIXTURE.length }]);
           }
-          if (!/^SELECT \* FROM operations/i.test(sql)) {
+          if (!OPERATIONS_LIST_PAGE_SQL_RE.test(sql)) {
             throw new Error('unexpected SQL: ' + sql);
           }
           return pgResult(execute(sql, params));

@@ -1,0 +1,11 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: pnpm run typecheck (tsc --noEmit -p tsconfig.json)
+timestamp: 2026-10-08T03:39:53.4421134+07:00
+--- output ---
+ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+
+> @du/orchestrator@0.1.0 typecheck D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> tsc --noEmit -p tsconfig.json
+
+
+--- exit=0 ---

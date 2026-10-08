@@ -1,0 +1,15 @@
+﻿node : PASS orchestrator/services/orchestrator/tests/tenant-list-cursor-codec-offline.test.ts (5.569 s)
+At line:2 char:1
++ node orchestrator/services/orchestrator/node_modules/jest/bin/jest.js ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PASS orchestrat...st.ts (5.569 s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+PASS orchestrator/services/orchestrator/tests/tenant-list-bff-offline.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        8.215 s
+Ran all test suites matching /tests\\tenant-list-cursor-codec-offline.test.ts|tests\\tenant-list-bff-offline.test.ts/i.
+{"subsystem":"admin-shell","timestamp":"2026-10-07T20:47:58.613Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"441ced17-97b9-428d-bd45-43535e173ade","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}

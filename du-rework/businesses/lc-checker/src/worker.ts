@@ -36,6 +36,7 @@ import {
 } from '@du/worker-sdk';
 
 import { LcCheckerError } from './errors';
+import { legacyLcCheckerHandler } from './legacy-workflow';
 import {
   LC_CHECKER_STEP_IDS,
   advanceLcChecker,
@@ -389,6 +390,11 @@ function buildPorts(ctx: TaskContext): LcCheckerPorts {
 /** Root handler: drive the machine, persisting its state at every fan-out boundary. */
 export const mainLcCheckerHandler: TaskHandler = async (ctx: TaskContext): Promise<TaskDisposition> => {
   assertActive(ctx);
+
+  // The versioned ruleset workflow remains the canonical branch. Only the
+  // exact legacy action marker enters the compatibility adapter, which uses
+  // separately pinned providers and the frozen original three-stage flow.
+  if (Object.hasOwn(ctx.input, 'legacyWorkflow')) return legacyLcCheckerHandler(ctx);
 
   const input = normalizeLcCheckerInput(ctx.input);
   const ruleSet = getRuleSet(input.ruleSetVersion);

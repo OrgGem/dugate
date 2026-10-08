@@ -1,0 +1,12 @@
+﻿{"subsystem":"admin-shell","timestamp":"2026-10-07T21:44:29.404Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"06903daf-2d2d-47ae-99b8-8e808fbea10b","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+node : 
+At line:3 char:1
++ node node_modules/jest/bin/jest.js --runInBand --config jest.unit.con ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 2 passed, 2 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        2.97 s

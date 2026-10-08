@@ -6,6 +6,8 @@ import {
   PROFILE_JOB_PRIORITY_DEFAULT,
   ProfileCallbackPolicySnapshotSchema,
   ProfilePolicySnapshotSchema,
+  LegacyWorkflowSchemaPinSchema,
+  legacyWorkflowConnectorNames,
   findSecretParameterKeys,
   SubmissionSchema,
   canonicalRequestHash,
@@ -30,7 +32,7 @@ import {
 import { bullMqPriorityFor, extensionDeniedReason, fileUrlEntryName } from '../profiles/policy';
 import { fileUrlAuthConfigCarriesSecret } from '../profiles/file-url-auth';
 import type { PromptOverrideService } from '../profiles/prompt-overrides';
-import { HttpError, badRequest, conflict, notFound, unprocessable } from '../../http/errors';
+import { HttpError, badRequest, conflict, notFound, unprocessable, unavailable, forbidden } from '../../http/errors';
 import type { DbClient } from '../webhooks/webhooks';
 import Ajv from 'ajv';
 
@@ -62,8 +64,37 @@ export interface SubmitContext {
   idempotencyKey?: string;
   correlationId?: string;
   submission: unknown;
+  /**
+   * Immutable legacy schema pin carried with the root task payload. This is
+   * intentionally separate from action input so the registered action schema
+   * still validates only business input while the worker receives the exact
+   * admitted schema snapshot.
+   */
+  workflowSchemaPin?: unknown;
+  /** Safe fields projected into the legacy operation columns at admission. */
+  legacyProjection?: {
+    endpointSlug: string;
+    pipelineJson: readonly Record<string, unknown>[];
+    progressMessage: string;
+  };
   /** Seconds an idempotency record is retained (>= retry/replay window). */
   idempotencyTtlSeconds?: number;
+}
+
+/**
+ * Non-writing authorization and schema checks performed by the legacy
+ * multipart facade before it publishes caller bytes. `input` contains the
+ * decoded variables and empty artifact arrays; final submission repeats the
+ * complete admission against the concrete artifacts and current profile.
+ */
+export interface LegacyWorkflowPreflightContext {
+  tenantId: string;
+  apiKeyId: string;
+  businessId: string;
+  action: string;
+  input: Record<string, unknown>;
+  fileNames: readonly string[];
+  workflowSchemaPin?: unknown;
 }
 
 export interface SubmitResult {
@@ -199,7 +230,82 @@ export function createSubmissionService(
   const promptOverrides = options.promptOverrides;
 
   return {
+    async preflightLegacyWorkflow(ctx: LegacyWorkflowPreflightContext): Promise<void> {
+      if (!metadataCrypto) {
+        throw unavailable('workflow submissions require configured metadata encryption');
+      }
+      const canonicalAction = ctx.action;
+      const { version, manifest } = await resolveEnabledVersion(db, ctx.businessId, canonicalAction);
+      const actionDef = manifest.actions.find((action) => action.name === canonicalAction);
+      if (!actionDef) throw badRequest(`action ${canonicalAction} not declared by ${ctx.businessId}@${version}`);
+
+      const profile = await profiles.resolveEffectiveProfile(
+        ctx.apiKeyId,
+        ctx.businessId,
+        version,
+        canonicalAction,
+        ctx.input,
+        declaredParameterKeys(actionDef.inputSchema as object).filter((key) => key !== 'legacyWorkflow'),
+      );
+      const effectiveInput = profile.mode === 'pinned' ? profile.effectiveInput : ctx.input;
+      const validate = ajv.compile(actionDef.inputSchema as object);
+      if (!validate(effectiveInput)) {
+        throw unprocessable('INVALID_SCHEMA', 'input failed action schema', {
+          errors: (validate.errors ?? []).slice(0, 50).map((error) => ({
+            pointer: error.instancePath || '/',
+            message: error.message ?? 'invalid',
+          })),
+        });
+      }
+
+      if (profile.mode === 'pinned') {
+        for (const fileName of ctx.fileNames) {
+          const reason = extensionDeniedReason(profile.policy.allowedFileExtensions, fileName);
+          if (reason) {
+            throw unprocessable('PROFILE_EXTENSION_DENIED', `file ${fileName}: ${reason}`, {
+              errors: [{ pointer: '/artifacts', message: reason }],
+            });
+          }
+        }
+      }
+
+      const legacyNamedProcess = legacyNamedWorkflowProcess(ctx.businessId, canonicalAction, ctx.input);
+      if (legacyNamedProcess !== null) {
+        requireLegacyNamedWorkflowBindings(profile, legacyNamedProcess);
+      }
+
+      if (ctx.workflowSchemaPin === undefined) return;
+      if (canonicalAction !== 'schema-workflow') {
+        throw badRequest('workflow schema pin is only valid for schema-workflow submissions');
+      }
+      const parsedPin = LegacyWorkflowSchemaPinSchema.safeParse(ctx.workflowSchemaPin);
+      if (!parsedPin.success || parsedPin.data.tenantId !== ctx.tenantId
+          || parsedPin.data.slug !== parsedPin.data.schema.slug) {
+        throw unprocessable('INVALID_SCHEMA', 'workflow schema pin is invalid for this tenant');
+      }
+      const names = legacyWorkflowConnectorNames(parsedPin.data.schema);
+      const slots = parsedPin.data.connectorSlotMap ?? {};
+      const mapped = names.map((name) => slots[name]);
+      if (names.length > 32 || mapped.some((slot) => typeof slot !== 'string')
+          || new Set(mapped).size !== mapped.length) {
+        throw unprocessable('INVALID_SCHEMA', 'workflow schema connector slot map is missing or invalid');
+      }
+      if (mapped.length > 0) {
+        if (profile.mode !== 'pinned') {
+          throw forbidden('workflow connectors require a profile with explicit connector revision pins');
+        }
+        for (const slot of mapped) {
+          if (slot === undefined || profile.bindings[slot] === undefined) {
+            throw forbidden(`workflow connector slot ${String(slot)} is not pinned by the authorized profile`);
+          }
+        }
+      }
+    },
+
     async submit(ctx: SubmitContext): Promise<SubmitResult> {
+      if (ctx.legacyProjection && !metadataCrypto) {
+        throw unavailable('workflow submissions require configured metadata encryption');
+      }
       const parsed = SubmissionSchema.safeParse(ctx.submission);
       if (!parsed.success) {
         throw unprocessable('INVALID_SCHEMA', 'submission validation failed', {
@@ -228,7 +334,9 @@ export function createSubmissionService(
       // built from the new defaults — hashing the merged map would turn every
       // admin edit into an IDEMPOTENCY_CONFLICT for in-flight clients.
       const requestHash = canonicalRequestHash({
-        input: submission.input,
+        input: ctx.workflowSchemaPin === undefined
+          ? submission.input
+          : { input: submission.input, legacyWorkflowSchema: ctx.workflowSchemaPin },
         artifacts: submission.artifacts,
         output: submission.output,
         callback: submission.callback,
@@ -306,7 +414,9 @@ export function createSubmissionService(
         version,
         canonicalAction,
         submission.input as Record<string, unknown>,
-        declaredParameterKeys(actionDef.inputSchema as object)
+        declaredParameterKeys(actionDef.inputSchema as object).filter((key) =>
+          ctx.legacyProjection === undefined || key !== 'legacyWorkflow'
+        )
       );
       // The profile already split its managed keys from the rest; the merged
       // result is what the worker runs, and AJV still judges the remainder.
@@ -329,6 +439,13 @@ export function createSubmissionService(
             message: e.message ?? 'invalid',
           })),
         });
+      }
+
+      const legacyNamedProcess = ctx.legacyProjection
+        ? legacyNamedWorkflowProcess(ctx.businessId, canonicalAction, effectiveInput)
+        : null;
+      if (legacyNamedProcess !== null) {
+        requireLegacyNamedWorkflowBindings(profile, legacyNamedProcess);
       }
 
       // T-SUB-04 note: the idempotency hash / replay lookup now run BEFORE
@@ -373,9 +490,11 @@ export function createSubmissionService(
       // to re-derive (or ignore) the merge. The idempotency hash above is the
       // deliberate exception: it stays on the raw body so an admin edit cannot
       // turn a retry into IDEMPOTENCY_CONFLICT.
-      const taskPayloadValue = submission.sourceUrl
-        ? { input: effectiveInput, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' }
-        : effectiveInput;
+      const taskPayloadValue = ctx.workflowSchemaPin !== undefined
+        ? { input: effectiveInput, legacyWorkflowSchema: ctx.workflowSchemaPin }
+        : submission.sourceUrl
+          ? { input: effectiveInput, sourceUrl: submission.sourceUrl, ingestionState: 'PENDING' }
+          : effectiveInput;
       const sealedInputRef = await sealSubmitMetadata(metadataCrypto, effectiveInput, ctx.tenantId, 'operations.input_ref', operationId);
       const sealedTaskPayload = await sealSubmitMetadata(metadataCrypto, taskPayloadValue, ctx.tenantId, 'tasks.payload_ref', rootTaskId);
       // P745-CARRIER-IMPL-A (Δ-PC-1): adjudication 1c — no seam OR no rows ⇒
@@ -440,7 +559,7 @@ export function createSubmissionService(
         // same-key retry still replays its original operation even if an admin
         // has since narrowed the profile, and BEFORE the first INSERT so a
         // refused submission leaves zero rows behind.
-        if (profile.mode === 'pinned') {
+      if (profile.mode === 'pinned') {
           assertProfileExtensionAllowed(
             profile.policy.allowedFileExtensions,
             lockedArtifacts,
@@ -454,8 +573,10 @@ export function createSubmissionService(
              (id, tenant_id, api_key_id, business_id, business_version, action, state, state_version,
               root_task_id, input_ref, correlation_id, callback_url,
               profile_id, profile_revision, connector_bindings, submit_artifacts,
-              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref, callback_policy)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+              profile_policy_snapshot, prompt_revisions_pin, prompt_overrides_ref, callback_policy,
+              pipeline_json, current_step, progress_percent, progress_message, endpoint_slug)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+                     $20,$21,$22,$23,$24)`,
           [
             operationId,
             ctx.tenantId,
@@ -509,6 +630,14 @@ export function createSubmissionService(
             // (migration 0035 column). Secret REFERENCES only; NULL keeps the
             // legacy notification-only path byte-identical.
             callbackPolicyPin === null ? null : JSON.stringify(callbackPolicyPin),
+            // Legacy workflow projection only. It stores non-secret workflow
+            // identity/progress markers; request variables and the schema
+            // snapshot remain in the encrypted task payload.
+            ctx.legacyProjection ? JSON.stringify(ctx.legacyProjection.pipelineJson) : null,
+            ctx.legacyProjection ? 0 : null,
+            ctx.legacyProjection ? 0 : null,
+            ctx.legacyProjection?.progressMessage ?? null,
+            ctx.legacyProjection?.endpointSlug ?? null,
           ]
         );
 
@@ -519,6 +648,22 @@ export function createSubmissionService(
             sealedTaskPayload,
             submission.sourceUrl ? 'PENDING_INGESTION' : 'READY']
         );
+
+        // Admission-time uploads (legacy facade, public upload) start with a
+        // NULL operation_id, and the worker access-grant route joins artifacts
+        // to operations — leaving them unlinked 404s every worker read of the
+        // submitted document. Attach them inside the same transaction, fenced
+        // to same-tenant READY rows this admission already locked and only
+        // while they are still unlinked; a row claimed by another operation is
+        // never re-pointed and stays reachable through its declared reference.
+        if (referencedArtifactIds.length > 0) {
+          await client.query(
+            `UPDATE artifacts SET operation_id=$2
+              WHERE id = ANY($1::uuid[]) AND tenant_id=$3 AND state='READY'
+                AND operation_id IS NULL AND task_id IS NULL`,
+            [referencedArtifactIds, operationId, ctx.tenantId],
+          );
+        }
 
         if (ctx.idempotencyKey) {
           await client.query(
@@ -797,6 +942,36 @@ export function declaredParameterKeys(inputSchema: object): string[] {
     return [];
   }
   return Object.keys(properties as Record<string, unknown>);
+}
+
+const LEGACY_NAMED_WORKFLOW_CONNECTOR_SLOTS: Readonly<Record<string, readonly string[]>> = {
+  'lc-checker': ['legacy-ocr', 'legacy-compliance', 'legacy-report'],
+  'doc-compare': ['legacy-ocr', 'legacy-toc', 'legacy-compare', 'legacy-report'],
+};
+
+function legacyNamedWorkflowProcess(businessId: string, action: string, input: unknown): string | null {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return null;
+  const marker = (input as Record<string, unknown>)['legacyWorkflow'];
+  if (typeof marker !== 'object' || marker === null || Array.isArray(marker)) return null;
+  const value = marker as Record<string, unknown>;
+  if (value['version'] !== 'legacy-workflow-named-input-v1' || typeof value['process'] !== 'string') return null;
+  const process = value['process'];
+  if (process === 'lc-checker' && businessId === 'lc-checker' && action === 'lc-checker') return process;
+  if (process === 'doc-compare' && businessId === 'document-core' && action === 'doc-compare') return process;
+  return null;
+}
+
+function requireLegacyNamedWorkflowBindings(profile: EffectiveProfile, process: string): void {
+  const requiredSlots = LEGACY_NAMED_WORKFLOW_CONNECTOR_SLOTS[process];
+  if (!requiredSlots) return;
+  if (profile.mode !== 'pinned') {
+    throw forbidden(`legacy ${process} workflow requires a pinned profile for its dedicated connector slots`);
+  }
+  for (const slot of requiredSlots) {
+    if (profile.bindings[slot] === undefined) {
+      throw forbidden(`legacy ${process} workflow connector slot ${slot} is not pinned by the authorized profile`);
+    }
+  }
 }
 
 /** Validate URL syntax and the same outbound policy used by callback delivery. */

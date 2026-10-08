@@ -88,7 +88,18 @@ export interface ArtifactService {
     fileName: string | null;
     mimeType: string;
     bytes: Buffer;
+    /** Workflow compatibility uploads must never use the plaintext fallback. */
+    requireEncryption?: boolean;
   }): Promise<{ artifactId: string; state: string }>;
+  /** Fail before the first artifact row when encrypted public upload is unavailable. */
+  assertPublicArtifactEncryptionReady(): void;
+  /**
+   * Compensate only caller-uploaded, tenant-owned artifacts from this submit.
+   * Failed physical deletion leaves an ABORTED/failed row for the retry sweep.
+   */
+  cleanupUnlinkedPublicArtifacts(tenantId: string, artifactIds: readonly string[]): Promise<{ deleted: number; deferred: number }>;
+  /** Retry durable compensation intents; safe to call from the recovery loop. */
+  sweepPublicArtifactCleanup(limit?: number): Promise<{ scanned: number; deleted: number; deferred: number }>;
 }
 
 export interface ArtifactServiceOptions {
@@ -166,6 +177,141 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
     if (backend === 'postgres') return postgresStorage;
     if (backend === 's3' && options.storageFacade) return options.storageFacade;
     throw unavailable('artifact storage backend is not configured');
+  }
+
+  interface PublicArtifactCleanupRow {
+    id: string;
+    tenantId: string;
+    storageKey: string;
+    storageBackend: string;
+    storageVersionId: string | null;
+    manifestVersionId: string | null;
+  }
+
+  async function claimPublicArtifactCleanup(tenantId: string, artifactId: string): Promise<PublicArtifactCleanupRow | null> {
+    return db.tx(async (client) => {
+      const selected = await client.query<PublicArtifactCleanupRow & { state: string; abortReason: string | null }>(
+        `SELECT id, tenant_id AS "tenantId", storage_key AS "storageKey", storage_backend AS "storageBackend",
+                storage_version_id AS "storageVersionId", manifest_version_id AS "manifestVersionId",
+                state, abort_reason AS "abortReason"
+         FROM artifacts
+         WHERE id=$1 AND tenant_id=$2 AND purpose='input' AND operation_id IS NULL AND task_id IS NULL
+           AND part_count IS NULL
+         FOR UPDATE`,
+        [artifactId, tenantId],
+      );
+      if (!selected.rowCount) return null;
+      const row = selected.rows[0]!;
+      if (row.state === 'ABORTED' && row.abortReason === 'failed') return row;
+      if (row.state !== 'READY') return null;
+
+      // This reference check is a separate statement after the row lock. A
+      // submission takes FOR SHARE on the same artifact row before inserting
+      // its operation; after waiting for either lock, READ COMMITTED sees the
+      // winner's committed reference state.
+      const references = await client.query<{ linked: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM operations o
+           WHERE o.tenant_id=$1
+             AND COALESCE(o.submit_artifacts, '[]'::jsonb) @>
+                 jsonb_build_array(jsonb_build_object('artifactId', $2::text))
+         ) AS linked`,
+        [tenantId, artifactId],
+      );
+      if ((references.rows[0] as { linked?: unknown } | undefined)?.linked === true) return null;
+
+      const marked = await client.query(
+        `UPDATE artifacts SET state='ABORTED', abort_reason='failed'
+         WHERE id=$1 AND tenant_id=$2 AND purpose='input' AND state='READY'
+           AND operation_id IS NULL AND task_id IS NULL AND part_count IS NULL`,
+        [artifactId, tenantId],
+      );
+      return marked.rowCount ? row : null;
+    });
+  }
+
+  async function finishPublicArtifactCleanup(row: PublicArtifactCleanupRow): Promise<boolean> {
+    if (!row.storageKey) return false;
+    if (row.storageBackend === 'postgres') {
+      const removeOwnedBlob = async (storageKey: string): Promise<boolean> => {
+        // Both the ciphertext key and its derived sidecar key are unique to
+        // this artifact. The row/tenant/ABORTED fence prevents this fallback
+        // from deleting a key after ownership or linkage changed.
+        const removedBlob = await db.query(
+          `DELETE FROM artifact_blobs b
+           WHERE b.storage_key=$1 AND b.tenant_id=$2
+             AND EXISTS (SELECT 1 FROM artifacts a
+                         WHERE a.id=$3 AND a.tenant_id=$2 AND a.state='ABORTED'
+                           AND a.abort_reason='failed' AND a.operation_id IS NULL AND a.task_id IS NULL)`,
+          [storageKey, row.tenantId, row.id],
+        ).catch(() => null);
+        return removedBlob !== null;
+      };
+      const store = storageFor(row.storageBackend);
+      try {
+        if (!row.storageVersionId || row.storageVersionId === 'null') {
+          throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+        }
+        await store.delete({ objectKey: row.storageKey, versionId: row.storageVersionId });
+      } catch {
+        // PostgreSQL stores one immutable blob per unique artifact key. On a
+        // missing/bad digest, remove the bytes by that fenced unique key.
+        if (!await removeOwnedBlob(row.storageKey)) return false;
+      }
+      const sidecarKey = manifestKeyFor(row.storageKey);
+      try {
+        if (!row.manifestVersionId || row.manifestVersionId === 'null') {
+          throw new ArtifactStorageError('OBJECT_VERSION_REQUIRED');
+        }
+        await store.delete({ objectKey: sidecarKey, versionId: row.manifestVersionId });
+      } catch {
+        // Sealed artifacts have a second physical object. It is cleaned with
+        // the same owner fence; otherwise an admission rollback would leave a
+        // durable encrypted sidecar after its artifact row was removed.
+        if (!await removeOwnedBlob(sidecarKey)) return false;
+      }
+    } else {
+      // S3 data and encrypted sidecars are removed by exact pinned versions.
+      // No unversioned/latest delete is allowed. Current public inline uploads
+      // fail before S3 writes; if a future versioned writer reaches this path
+      // without a version pin, retain the cleanup row for the storage GC.
+      if (!row.storageVersionId || row.storageVersionId === 'null') return false;
+      try {
+        const store = storageFor(row.storageBackend);
+        await store.delete({ objectKey: row.storageKey, versionId: row.storageVersionId });
+        if (row.manifestVersionId) {
+          await store.delete({ objectKey: manifestKeyFor(row.storageKey), versionId: row.manifestVersionId });
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    const removed = await db.tx(async (client) => {
+      const references = await client.query<{ linked: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM operations o
+           WHERE o.tenant_id=$1
+             AND COALESCE(o.submit_artifacts, '[]'::jsonb) @>
+                 jsonb_build_array(jsonb_build_object('artifactId', $2::text))
+         ) AS linked`,
+        [row.tenantId, row.id],
+      );
+      if ((references.rows[0] as { linked?: unknown } | undefined)?.linked === true) return false;
+      const deleted = await client.query(
+        `DELETE FROM artifacts
+         WHERE id=$1 AND tenant_id=$2 AND purpose='input' AND state='ABORTED'
+           AND abort_reason='failed' AND operation_id IS NULL AND task_id IS NULL AND part_count IS NULL`,
+        [row.id, row.tenantId],
+      );
+      return Boolean(deleted.rowCount);
+    });
+    return removed;
+  }
+
+  async function compensatePublicArtifact(tenantId: string, artifactId: string): Promise<boolean> {
+    const claimed = await claimPublicArtifactCleanup(tenantId, artifactId);
+    return claimed === null ? false : finishPublicArtifactCleanup(claimed);
   }
 
   /**
@@ -263,6 +409,7 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
         artifactId,
         uploadUrl: storageGrant.url,
         expiresAt,
+        ...(encryption ? { storageEncryption: 'server' as const } : {}),
       };
     },
 
@@ -775,25 +922,111 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
 
 
     async putPublicArtifact(input) {
-      if (encryption) {
-        // The legacy compat writer owns its own INS/DELETE transaction and has
-        // no envelope carrier, so it cannot satisfy the sealing policy. Refuse
-        // before any plaintext byte is written rather than degrade the policy.
-        throw unavailable('legacy inline uploads are unavailable while artifact encryption is configured');
+      if (input.requireEncryption) {
+        // This check is intentionally before writePublicArtifact inserts its
+        // STAGING row. `encryption` is the same server-mediated worker
+        // artifact seam used for ciphertext and sidecar storage.
+        if (!encryption) throw unavailable('encrypted workflow artifact storage is not configured');
+        const writer = storageFor(storageBackend);
+        if (typeof writer.putServerObject !== 'function' || typeof writer.openRead !== 'function') {
+          throw unavailable('encrypted workflow artifact storage is not available on this backend');
+        }
       }
       return writePublicArtifact(
         {
           query: (sql, params) => db.query(sql, params as unknown[]),
           putBlob: async (storageKey, tenantId, bytes) => {
-            // PostgreSQL fallback only. On S3 the bytes must travel through a
-            // pre-signed upload grant, so a caller that already holds the bytes
-            // in memory has no supported write path here — the facade reports
-            // that as unavailable rather than pretending the object landed.
+            if (encryption) {
+              const rowResult = await db.query<{ id: string; uploadToken: string | null }>(
+                `SELECT id, upload_token AS "uploadToken" FROM artifacts
+                 WHERE storage_key=$1 AND tenant_id=$2 AND state='STAGING'
+                   AND purpose='input' AND operation_id IS NULL AND task_id IS NULL`,
+                [storageKey, tenantId],
+              );
+              if (!rowResult.rowCount) throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+              const row = rowResult.rows[0]!;
+              if (!row.uploadToken) throw new ArtifactStorageError('ENCRYPTION_REQUIRED');
+              const identity: WorkerArtifactIdentity = {
+                tenantId,
+                artifactId: row.id,
+                objectVersion: row.uploadToken,
+              };
+              const sealed = await sealWorkerArtifact({ bytes, identity, seam: encryption });
+              const manifestKey = manifestKeyFor(storageKey);
+              const writer = storageFor(storageBackend);
+              if (typeof writer.putServerObject !== 'function') {
+                throw new ArtifactStorageError('ENCRYPTION_UNAVAILABLE');
+              }
+              let ciphertextVersion: string | null = null;
+              let sidecarVersion: string | null = null;
+              try {
+                ciphertextVersion = (await writer.putServerObject({
+                  objectKey: storageKey,
+                  tenantId,
+                  body: sealed.ciphertext,
+                  contentType: ARTIFACT_CIPHERTEXT_CONTENT_TYPE,
+                  metadata: sealedObjectMetadata({ artifactId: row.id, tenantId, manifestKey }),
+                })).versionId;
+                const pinnedCiphertext = await db.query(
+                  `UPDATE artifacts SET storage_version_id=$2
+                   WHERE id=$1 AND tenant_id=$3 AND state='STAGING' AND upload_token=$4
+                     AND purpose='input' AND operation_id IS NULL AND task_id IS NULL`,
+                  [row.id, ciphertextVersion, tenantId, row.uploadToken],
+                );
+                if (!pinnedCiphertext.rowCount) throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+
+                sidecarVersion = (await writer.putServerObject({
+                  objectKey: manifestKey,
+                  tenantId,
+                  body: sealed.sidecar,
+                  contentType: ARTIFACT_SIDECAR_CONTENT_TYPE,
+                  metadata: manifestObjectMetadata({ artifactId: row.id, tenantId }),
+                })).versionId;
+                const pinnedSidecar = await db.query(
+                  `UPDATE artifacts SET manifest_version_id=$2
+                   WHERE id=$1 AND tenant_id=$3 AND state='STAGING' AND upload_token=$4
+                     AND purpose='input' AND operation_id IS NULL AND task_id IS NULL`,
+                  [row.id, sidecarVersion, tenantId, row.uploadToken],
+                );
+                if (!pinnedSidecar.rowCount) throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+              } catch (error) {
+                // Remove exact generations on the immediate path. If a delete
+                // fails, persist those exact pins into the existing cleanup row.
+                let ciphertextDeleted = ciphertextVersion === null;
+                let sidecarDeleted = sidecarVersion === null;
+                if (sidecarVersion) {
+                  try {
+                    await writer.delete({ objectKey: manifestKey, versionId: sidecarVersion });
+                    sidecarDeleted = true;
+                  } catch { /* retry through the durable artifact intent */ }
+                }
+                if (ciphertextVersion) {
+                  try {
+                    await writer.delete({ objectKey: storageKey, versionId: ciphertextVersion });
+                    ciphertextDeleted = true;
+                  } catch { /* retry through the durable artifact intent */ }
+                }
+                await db.query(
+                  `UPDATE artifacts SET state='ABORTED', abort_reason='failed',
+                                        storage_version_id=COALESCE($2, storage_version_id),
+                                        manifest_version_id=COALESCE($3, manifest_version_id), expires_at=NULL
+                   WHERE id=$1 AND tenant_id=$4 AND purpose='input'
+                     AND operation_id IS NULL AND task_id IS NULL AND part_count IS NULL`,
+                  [row.id, ciphertextDeleted ? null : ciphertextVersion,
+                    sidecarDeleted ? null : sidecarVersion, tenantId],
+                ).catch(() => undefined);
+                throw storageErrorToHttp(error);
+              }
+              return;
+            }
+
+            // Unencrypted inline bytes have no server-mediated S3 upload path.
+            // Keep them on the explicit PostgreSQL compatibility backend only.
             if (storageBackend !== 'postgres') {
               throw new HttpError(
                 503,
                 'TEMPORARY_UNAVAILABLE',
-                'inline legacy uploads require the PostgreSQL storage backend',
+                'inline legacy uploads require encryption when using S3 storage',
               );
             }
             await db.query(
@@ -803,17 +1036,150 @@ export function createArtifactService(db: Db, options: ArtifactServiceOptions = 
             );
           },
           verifyAndPin: async (pin) => {
+            if (!encryption) {
+              try {
+                return await storageFor(storageBackend).verifyAndPin(pin);
+              } catch (error) {
+                throw storageErrorToHttp(error);
+              }
+            }
             try {
-              return await storageFor(storageBackend).verifyAndPin(pin);
+              const rowResult = await db.query<{
+                id: string;
+                uploadToken: string | null;
+                storageVersionId: string | null;
+                manifestVersionId: string | null;
+              }>(
+                `SELECT id, upload_token AS "uploadToken", storage_version_id AS "storageVersionId",
+                        manifest_version_id AS "manifestVersionId"
+                 FROM artifacts WHERE id=$1 AND tenant_id=$2 AND state='STAGING'
+                   AND purpose='input' AND operation_id IS NULL AND task_id IS NULL`,
+                [pin.artifactId, pin.tenantId],
+              );
+              if (!rowResult.rowCount) throw new ArtifactStorageError('ARTIFACT_METADATA_MISMATCH');
+              const row = rowResult.rows[0]!;
+              if (!row.uploadToken || !row.storageVersionId || !row.manifestVersionId) {
+                throw new ArtifactStorageError('ENCRYPTION_REQUIRED');
+              }
+              const store = storageFor(storageBackend);
+              const sidecarBytes = await collectReadable(await store.openRead({
+                objectKey: manifestKeyFor(pin.objectKey),
+                versionId: row.manifestVersionId,
+              }), maxArtifactBytes);
+              const sidecar = parseWorkerArtifactSidecar(JSON.parse(sidecarBytes.toString('utf8')) as unknown);
+              const ciphertext = await collectReadable(await store.openRead({
+                objectKey: pin.objectKey,
+                versionId: row.storageVersionId,
+              }), maxArtifactBytes);
+              const verified = await verifyWorkerArtifact({
+                sidecar,
+                ciphertext,
+                context: artifactEncryptionContext({
+                  tenantId: pin.tenantId,
+                  artifactId: pin.artifactId,
+                  objectVersion: row.uploadToken,
+                }),
+                seam: encryption,
+              });
+              if (verified.plaintextSizeBytes !== pin.expectedSizeBytes) {
+                throw new ArtifactStorageError('SIZE_MISMATCH');
+              }
+              if (verified.plaintextSha256 !== pin.expectedSha256) {
+                throw new ArtifactStorageError('CHECKSUM_MISMATCH');
+              }
+              return {
+                objectKey: pin.objectKey,
+                versionId: row.storageVersionId,
+                sizeBytes: verified.plaintextSizeBytes,
+                sha256: verified.plaintextSha256,
+              };
             } catch (error) {
               throw storageErrorToHttp(error);
             }
           },
+          cleanupAfterFailure: async (tenantId, artifactId) => compensatePublicArtifact(tenantId, artifactId),
           storageBackend,
           maxArtifactBytes,
         },
         input,
       );
+    },
+
+    assertPublicArtifactEncryptionReady() {
+      if (!encryption) throw unavailable('encrypted workflow artifact storage is not configured');
+      const writer = storageFor(storageBackend);
+      if (typeof writer.putServerObject !== 'function' || typeof writer.openRead !== 'function') {
+        throw unavailable('encrypted workflow artifact storage is not available on this backend');
+      }
+    },
+
+    async cleanupUnlinkedPublicArtifacts(tenantId, artifactIds) {
+      let deleted = 0;
+      let deferred = 0;
+      for (const artifactId of new Set(artifactIds)) {
+        try {
+          if (await compensatePublicArtifact(tenantId, artifactId)) deleted += 1;
+          else deferred += 1;
+        } catch {
+          // The durable intent may already have been marked. Count as deferred
+          // and let the recovery sweep retry it rather than masking the
+          // original admission failure.
+          deferred += 1;
+        }
+      }
+      return { deleted, deferred };
+    },
+
+    async sweepPublicArtifactCleanup(limit = 50) {
+      const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 1000);
+      const staleStaging = await db.query<{ id: string; tenantId: string }>(
+        `SELECT id, tenant_id AS "tenantId"
+         FROM artifacts
+         WHERE state='STAGING' AND expires_at IS NOT NULL AND expires_at <= now()
+           AND purpose='input' AND operation_id IS NULL AND task_id IS NULL
+           AND upload_token IS NOT NULL AND part_count IS NULL
+         ORDER BY expires_at
+         LIMIT $1`,
+        [boundedLimit],
+      );
+      for (const stale of staleStaging.rows) {
+        await db.tx(async (client) => {
+          const locked = await client.query(
+            `SELECT id FROM artifacts
+             WHERE id=$1 AND tenant_id=$2 AND state='STAGING' AND expires_at <= now()
+               AND purpose='input' AND operation_id IS NULL AND task_id IS NULL
+               AND upload_token IS NOT NULL AND part_count IS NULL
+             FOR UPDATE`,
+            [stale.id, stale.tenantId],
+          );
+          if (!locked.rowCount) return;
+          await client.query(
+            `UPDATE artifacts SET state='ABORTED', abort_reason='failed', expires_at=NULL
+             WHERE id=$1 AND tenant_id=$2 AND state='STAGING'`,
+            [stale.id, stale.tenantId],
+          );
+        }).catch(() => undefined);
+      }
+      const candidates = await db.query<{ id: string; tenantId: string }>(
+        `SELECT id, tenant_id AS "tenantId"
+         FROM artifacts
+         WHERE state='ABORTED' AND abort_reason='failed' AND purpose='input'
+           AND operation_id IS NULL AND task_id IS NULL AND part_count IS NULL
+         ORDER BY created_at
+         LIMIT $1`,
+        [boundedLimit],
+      );
+      let deleted = 0;
+      let deferred = 0;
+      for (const row of candidates.rows) {
+        try {
+          if (await compensatePublicArtifact(row.tenantId, row.id)) deleted += 1;
+          else deferred += 1;
+        } catch {
+          deferred += 1;
+        }
+      }
+      return { scanned: (staleStaging.rowCount ?? staleStaging.rows.length) + (candidates.rowCount ?? candidates.rows.length), deleted, deferred };
     },
 
     async getBlob(storageKey): Promise<Readable> {

@@ -2,6 +2,7 @@ import {
   BusinessManifest,
   ActionManifest,
   ConnectorSlotManifest,
+  LEGACY_WORKFLOW_CONNECTOR_SLOTS,
   WIRE_CONTRACT_VERSION,
 } from '@du/contracts';
 
@@ -92,10 +93,10 @@ const DOC_COMPARE_EVIDENCE_SCHEMA: Record<string, unknown> = {
 export const documentCoreManifest: BusinessManifest = {
   contractVersion: WIRE_CONTRACT_VERSION,
   businessId: 'document-core',
-  version: '1.0.0',
+  version: '1.1.0',
   displayName: 'Document Core Business',
   description: 'Document understanding business providing 31 document variants and the multi-turn disbursement and doc-compare workflows.',
-  imageDigest: 'sha256:placeholder-document-core-v1',
+  imageDigest: 'sha256:placeholder-document-core-v1.1.0',
   runtime: {
     wireVersion: '1',
     handlerKinds: [
@@ -108,6 +109,8 @@ export const documentCoreManifest: BusinessManifest = {
       'compare',
       'disbursement',
       'doc-compare',
+      'schema-workflow',
+      'legacy-workflow-branch',
     ],
   },
   capabilities: {
@@ -343,8 +346,8 @@ export const documentCoreManifest: BusinessManifest = {
         type: 'object',
         properties: {
           inputVersion: { type: 'string', enum: ['disbursement-input-v1'] },
-          artifactIds: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
-          fileNames: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+          artifactIds: { type: 'array', maxItems: 64, items: { type: 'string', minLength: 1 } },
+          fileNames: { type: 'array', maxItems: 64, items: { type: 'string', minLength: 1 } },
           referenceData: {
             type: 'array',
             items: {
@@ -357,8 +360,29 @@ export const documentCoreManifest: BusinessManifest = {
           maxConcurrency: { type: 'integer', minimum: 1, maximum: 8 },
           failurePolicy: { type: 'string', enum: ['fail-closed', 'continue-on-partial'] },
           requireEncryptedEvidence: { type: 'boolean' },
+          legacyWorkflow: {
+            type: 'object',
+            properties: {
+              version: { type: 'string', const: 'legacy-workflow-named-input-v1' },
+              process: { type: 'string', const: 'disbursement' },
+            },
+            required: ['version', 'process'],
+            additionalProperties: false,
+          },
+          variables: { type: 'object' },
+          artifacts: {
+            type: 'array', maxItems: 64,
+            items: {
+              type: 'object',
+              properties: { artifactId: { type: 'string', format: 'uuid' }, role: { type: 'string', minLength: 1, maxLength: 128 } },
+              required: ['artifactId', 'role'], additionalProperties: false,
+            },
+          },
         },
-        required: ['inputVersion', 'artifactIds', 'fileNames', 'failurePolicy'],
+        anyOf: [
+          { required: ['inputVersion', 'artifactIds', 'fileNames', 'failurePolicy'] },
+          { required: ['legacyWorkflow', 'variables', 'artifactIds', 'fileNames', 'artifacts'] },
+        ],
         additionalProperties: false,
       },
       outputSchema: {
@@ -441,8 +465,31 @@ export const documentCoreManifest: BusinessManifest = {
           maxConcurrency: { type: 'integer', minimum: 1, maximum: 8 },
           continueOnPartialFailure: { type: 'boolean' },
           requireHumanReview: { type: 'boolean' },
+          legacyWorkflow: {
+            type: 'object',
+            properties: {
+              version: { type: 'string', const: 'legacy-workflow-named-input-v1' },
+              process: { type: 'string', const: 'doc-compare' },
+            },
+            required: ['version', 'process'],
+            additionalProperties: false,
+          },
+          variables: { type: 'object' },
+          artifactIds: { type: 'array', maxItems: 64, items: { type: 'string', format: 'uuid' } },
+          fileNames: { type: 'array', maxItems: 64, items: { type: 'string', minLength: 1, maxLength: 255 } },
+          artifacts: {
+            type: 'array', maxItems: 64,
+            items: {
+              type: 'object',
+              properties: { artifactId: { type: 'string', format: 'uuid' }, role: { type: 'string', minLength: 1, maxLength: 128 } },
+              required: ['artifactId', 'role'], additionalProperties: false,
+            },
+          },
         },
-        required: ['inputVersion', 'left', 'right'],
+        anyOf: [
+          { required: ['inputVersion', 'left', 'right'] },
+          { required: ['legacyWorkflow', 'variables', 'artifactIds', 'fileNames', 'artifacts'] },
+        ],
         additionalProperties: false,
       },
       outputSchema: {
@@ -462,11 +509,57 @@ export const documentCoreManifest: BusinessManifest = {
       // binding (DEFAULT_DOC_COMPARE_BINDING.slot = 'reasoning') and switches the
       // provider task per stage instead of the slot.
       connectorSlots: [
-        { name: 'reasoning', required: true, acceptedCapabilities: ['chat-completion', 'structured-output'] },
+        { name: 'reasoning', required: false, acceptedCapabilities: ['chat-completion', 'structured-output'] },
+        { name: 'legacy-ocr', required: false, acceptedCapabilities: ['ocr', 'pdf-text', 'vision'] },
+        { name: 'legacy-toc', required: false, acceptedCapabilities: ['chat-completion', 'structured-output'] },
+        { name: 'legacy-compare', required: false, acceptedCapabilities: ['chat-completion', 'structured-output'] },
+        { name: 'legacy-report', required: false, acceptedCapabilities: ['chat-completion'] },
       ],
       artifactPolicy: { minFiles: 1, maxFiles: 20 },
       capabilities: { cancel: true, resume: true },
       defaultLimits: { timeoutSeconds: 3600 },
+    },
+    {
+      name: 'schema-workflow',
+      displayName: 'Legacy Workflow Schema Runtime',
+      description: 'Executes a tenant-pinned legacy workflow schema with bounded durable node execution.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          variables: { type: 'object' },
+          artifactIds: { type: 'array', maxItems: 64, items: { type: 'string', format: 'uuid' } },
+          fileNames: { type: 'array', maxItems: 64, items: { type: 'string', minLength: 1, maxLength: 255 } },
+          artifacts: {
+            type: 'array', maxItems: 64,
+            items: {
+              type: 'object',
+              properties: { artifactId: { type: 'string', format: 'uuid' }, role: { type: 'string', minLength: 1, maxLength: 128 } },
+              required: ['artifactId', 'role'], additionalProperties: false,
+            },
+          },
+        },
+        required: ['variables', 'artifactIds', 'fileNames', 'artifacts'],
+        additionalProperties: false,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          schemaVersion: { type: 'string', const: 'legacy-workflow-result-v1' },
+          outputFormat: { type: 'string' }, content: { type: ['string', 'null'] },
+          extractedData: {}, pipelineSteps: { type: 'array', maxItems: 128 }, usage: { type: 'object' },
+        },
+        required: ['schemaVersion', 'outputFormat', 'content', 'extractedData', 'pipelineSteps', 'usage'],
+        additionalProperties: false,
+      },
+      profileSchema: { type: 'object', properties: {} },
+      connectorSlots: LEGACY_WORKFLOW_CONNECTOR_SLOTS.map((name) => ({
+        name,
+        required: false,
+        acceptedCapabilities: ['chat-completion', 'structured-output', 'ocr', 'pdf-text', 'vision', 'handwriting'],
+      })),
+      artifactPolicy: { minFiles: 0, maxFiles: 64 },
+      capabilities: { cancel: true, resume: true },
+      defaultLimits: { maxParallelTasks: 32, timeoutSeconds: 3600 },
     },
   ],
 };

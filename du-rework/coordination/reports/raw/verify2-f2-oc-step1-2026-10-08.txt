@@ -1,0 +1,11 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent --runTestsByPath tests/f2-overview-tenant-select-offline.test.ts tests/admin-overview-render.test.ts tests/admin-overview-triage.test.ts
+timestamp: 2026-10-08T05:51:28.8859126+07:00
+--- output ---
+
+Test Suites: 3 passed, 3 total
+Tests:       183 passed, 183 total
+Snapshots:   0 total
+Time:        3.161 s
+
+--- exit=0 ---

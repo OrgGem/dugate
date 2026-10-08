@@ -1,0 +1,9 @@
+{
+  "extends": "D:/Git/dugate/du-rework/orchestrator/services/orchestrator/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "D:/Git/dugate/du-rework/orchestrator/services/orchestrator",
+    "noEmit": true,
+    "typeRoots": ["D:/Git/dugate/du-rework/orchestrator/services/orchestrator/node_modules/@types"]
+  },
+  "include": ["D:/Git/dugate/du-rework/orchestrator/services/orchestrator/src/**/*.ts", "D:/Git/dugate/du-rework/orchestrator/services/orchestrator/tests/f3-tenants-route-live.test.ts"]
+}

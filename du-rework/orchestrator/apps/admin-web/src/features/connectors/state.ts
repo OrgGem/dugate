@@ -95,7 +95,7 @@ const MANAGEMENT_REVISION_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /** Exactly the keys ConnectorCapabilitiesSchema declares (`.strict()` upstream). */
-const CAPABILITIES_KEYS: ReadonlySet<string> = new Set(['management', 'credentialWorkflow', 'test']);
+const CAPABILITIES_KEYS: ReadonlySet<string> = new Set(['management', 'credentialWorkflow', 'test', 'knownConnectorIds']);
 
 function hasOnlyKeys(record: Record<string, unknown>, allowed: ReadonlySet<string>): boolean {
   return Object.keys(record).every((key) => allowed.has(key));
@@ -149,17 +149,32 @@ export function parseConnectorManagementRevision(value: unknown): ConnectorManag
   };
 }
 
-/** Composition advertisement. All three booleans must be real or the read fails. */
+/** Composition advertisement. All booleans and the ID-only key list must be valid. */
 export function parseConnectorCapabilities(value: unknown): ConnectorCapabilities | null {
   if (!isRecord(value)) return null;
   if (!hasOnlyKeys(value, CAPABILITIES_KEYS)) return null;
   const management = value['management'];
   const credentialWorkflow = value['credentialWorkflow'];
   const test = value['test'];
+  const knownConnectorIds = value['knownConnectorIds'];
   if (typeof management !== 'boolean') return null;
   if (typeof credentialWorkflow !== 'boolean') return null;
   if (typeof test !== 'boolean') return null;
-  return { management, credentialWorkflow, test };
+  if (!Array.isArray(knownConnectorIds)) return null;
+  if (!knownConnectorIds.every((id): id is string => typeof id === 'string' && id.length > 0)) return null;
+  return { management, credentialWorkflow, test, knownConnectorIds };
+}
+
+/** Suggestions come from the management list when composed, otherwise from ID-only capabilities. */
+export function connectorIdSuggestions(
+  capabilities: ConnectorCapabilities | null,
+  listItems: ConnectorManagementRevision[],
+): string[] {
+  const ids =
+    capabilities?.management === true
+      ? listItems.map((item) => item.connectorId)
+      : capabilities?.knownConnectorIds ?? [];
+  return [...new Set(ids)];
 }
 
 /**

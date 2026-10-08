@@ -1,0 +1,2 @@
+﻿NO-DROP paths=0 operations=0
+OPENAPI-JSON path-count=60 operations-params=6 sort-values=6 usage-events-params=13 dropped-paths=0 schemas=51 origins=public:http://localhost:3000|internal:http://localhost:3002|connector:http://localhost:8080

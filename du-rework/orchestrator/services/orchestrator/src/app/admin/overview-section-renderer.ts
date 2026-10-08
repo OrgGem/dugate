@@ -27,6 +27,7 @@ import type {
   OverviewFetchResult,
   OverviewOkResult,
   OverviewBundle,
+  OverviewTenantOption,
   OverviewTriageMetric,
   OverviewTriageSnapshot,
   OverviewTimePreset,
@@ -262,8 +263,8 @@ function renderOverviewFilters(
   timePreset: OverviewTimePreset,
   from: string,
   to: string,
+  tenantOptions: readonly OverviewTenantOption[],
 ): string {
-  const tenantValue = tenantId.length > 0 ? esc(tenantId) : '';
   const presets: Array<[OverviewTimePreset, string]> = [
     ['today', 'Today (UTC)'],
     ['24h', 'Last 24 hours (UTC)'],
@@ -273,10 +274,24 @@ function renderOverviewFilters(
   const options = presets.map(([value, label]) =>
     `<option value="${value}"${timePreset === value ? ' selected' : ''}>${label}</option>`,
   ).join('');
+  // F-2: roster-backed picker. Option labels are tenant NAMES; the id is a
+  // value only. The placeholder stays selected whenever the current tenant is
+  // not in the roster, so a failed roster read can never silently re-point the
+  // filter at a different tenant on submit.
+  const inRoster = tenantOptions.some((tenant) => tenant.id === tenantId);
+  const tenantChoices = [
+    `<option value=""${inRoster ? '' : ' selected'}>Select a tenant</option>`,
+    ...tenantOptions.map((tenant) => {
+      const label = tenant.state.length === 0 || tenant.state === 'ACTIVE'
+        ? tenant.name
+        : `${tenant.name} (${tenant.state})`;
+      return `<option value="${esc(tenant.id)}"${tenant.id === tenantId ? ' selected' : ''}>${esc(label)}</option>`;
+    }),
+  ].join('');
   return [
     '<form class="overview-section__filters" method="get" action="/admin" aria-label="Overview filters">',
     '<label>Tenant',
-    `<input name="tenantId" value="${tenantValue}" placeholder="All tenants" autocomplete="off">`,
+    `<select name="tenantId" aria-label="Tenant">${tenantChoices}</select>`,
     '</label>',
     '<label>Time window',
     `<select name="timeRange" aria-label="Overview time window">${options}</select>`,
@@ -295,9 +310,10 @@ function renderTriagePanel(
   timePreset: OverviewTimePreset,
   from: string,
   to: string,
+  tenantOptions: readonly OverviewTenantOption[],
 ): string {
   return [
-    renderOverviewFilters(tenantId, timePreset, from, to),
+    renderOverviewFilters(tenantId, timePreset, from, to, tenantOptions),
     '<section class="overview-section__triage" aria-label="Operational triage metrics" data-overview-triage="true">',
     '<header class="overview-section__triage-header"><h2>Operational triage</h2>',
     `<p class="overview-section__updated" data-overview-updated-at="${esc(triage.updatedAt)}">Updated <time datetime="${esc(triage.updatedAt)}">${esc(triage.updatedAt)}</time> UTC</p>`,
@@ -326,6 +342,8 @@ function renderBundle(
   from: string,
   to: string,
   timePreset: OverviewTimePreset,
+  tenantOptions: readonly OverviewTenantOption[],
+  tenantRequired: boolean,
 ): string {
   const sections: string[] = [];
   sections.push(
@@ -345,8 +363,16 @@ function renderBundle(
       timePreset,
       from,
       to,
+      tenantOptions,
     ),
   );
+  if (tenantRequired) {
+    sections.push(
+      '<p class="overview-section__tenant-required" data-overview-tenant-required="true">',
+      'Select a tenant',
+      '</p>',
+    );
+  }
   if (bundle.usage !== null) {
     sections.push(renderUsageTable(bundle.usage));
   }
@@ -356,7 +382,7 @@ function renderBundle(
   if (bundle.health !== null) {
     sections.push(renderHealthPanel(bundle.health, bundle.serverNow));
   }
-  if (bundle.usage === null && bundle.audit === null && bundle.health === null) {
+  if (!tenantRequired && bundle.usage === null && bundle.audit === null && bundle.health === null) {
     sections.push(
       '<p class="overview-section__empty" data-overview-empty="true">',
       'No overview data is currently available from the platform.',
@@ -384,7 +410,15 @@ function renderOkRoot(
     `data-overview-pending-available="${triage.pending.status !== 'unavailable' ? 'true' : 'false'}"`,
     `data-overview-tenant-selected="${esc(selectedTenantId)}"`,
     '>',
-    renderBundle(ok.bundle, ok.tenantId, ok.from, ok.to, timePreset),
+    renderBundle(
+      ok.bundle,
+      ok.tenantId,
+      ok.from,
+      ok.to,
+      timePreset,
+      ok.tenantOptions ?? [],
+      ok.tenantRequired === true,
+    ),
     '</section>',
   ].join('');
 }
@@ -397,11 +431,12 @@ function renderFallbackRoot(
   to: string,
   triage: OverviewTriageSnapshot,
   timePreset: OverviewTimePreset,
+  tenantOptions: readonly OverviewTenantOption[],
 ): string {
   return [
     `<section class="overview-section overview-section--${kind}" data-overview-tenant="${esc(tenantId)}" data-overview-from="${esc(from)}" data-overview-to="${esc(to)}">`,
     '<header class="overview-section__header"><h2 class="overview-section__title">Overview</h2></header>',
-    renderTriagePanel(triage, tenantId, timePreset, from, to),
+    renderTriagePanel(triage, tenantId, timePreset, from, to, tenantOptions),
     `<p class="overview-section__${kind}" data-${kind}-message="true">${esc(message)}</p>`,
     '</section>',
   ].join('');
@@ -416,6 +451,9 @@ export function renderOverviewSection(
 ): OverviewSectionRenderOutput {
   const f = input.fetch;
   const timePreset: OverviewTimePreset = input.selectedTimePreset ?? 'today';
+  // F-2: the roster travels with the result so the picker renders in every
+  // pane (ok and fallback alike); a result without one renders an empty picker.
+  const tenantOptions: readonly OverviewTenantOption[] = f.tenantOptions ?? [];
   switch (f.kind) {
     case 'ok':
       return {
@@ -432,6 +470,7 @@ export function renderOverviewSection(
           f.to ?? '',
           f.triage ?? unavailableTriage(new Date().toISOString()),
           timePreset,
+          tenantOptions,
         ),
         isReady: false,
       };
@@ -445,6 +484,7 @@ export function renderOverviewSection(
           f.to ?? '',
           f.triage ?? unavailableTriage(new Date().toISOString()),
           timePreset,
+          tenantOptions,
         ),
         isReady: false,
       };
@@ -458,6 +498,7 @@ export function renderOverviewSection(
           f.to ?? '',
           f.triage ?? unavailableTriage(new Date().toISOString()),
           timePreset,
+          tenantOptions,
         ),
         isReady: false,
       };

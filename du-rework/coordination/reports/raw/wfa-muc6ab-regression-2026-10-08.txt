@@ -1,0 +1,13 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+timestamp: 2026-10-08T03:42:12.0144333+07:00
+command: pnpm exec jest tests/legacy- tests/rcr-luna-verification tests/wfa-api-lifecycle --runInBand --config jest.unit.config.cjs --no-colors
+note: rv01 full-suite excluded; its two pre-existing workflow failures are recorded in wfa-muc6ab-rv01-full-2026-10-08.txt
+--- output ---
+
+Test Suites: 12 passed, 12 total
+Tests:       261 passed, 261 total
+Snapshots:   0 total
+Time:        3.571 s, estimated 10 s
+Ran all test suites matching tests/legacy-|tests/rcr-luna-verification|tests/wfa-api-lifecycle.
+
+--- exit=0 ---

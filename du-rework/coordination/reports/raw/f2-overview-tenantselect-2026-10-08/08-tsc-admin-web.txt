@@ -1,0 +1,4 @@
+﻿# tsc --noEmit -p tsconfig.json (cwd: orchestrator/apps/admin-web)
+# F-2 touched NO apps/admin-web file; run as cross-surface evidence.
+exit_code=0
+output_bytes=0

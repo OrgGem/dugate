@@ -1,0 +1,42 @@
+VERIFY-2AGENT (WFA-T26) — raw evidence metadata
+Date: 2026-10-08
+Workspace: D:\Git\dugate\du-rework
+Node 24 binary: C:\Users\Gem\AppData\Local\Temp\du-node24-security-c025dd92\node-v24.21.0-win-x64\node.exe
+Node version: v24.21.0
+
+Command 1 (unit, worker-sdk):
+  cwd: D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+  verbatim: <node24> node_modules/jest/bin/jest.js --runInBand --config jest.config.cjs --silent --runTestsByPath tests/wfa-t26-lease-loss-abort.test.ts
+  start: 2026-10-08T07:55:56 local
+  end:   2026-10-08T07:55:58 local
+  exit: 0
+  result: Test Suites: 1 passed, 1 total / Tests: 7 passed, 7 total
+  log: cmd1-unit-worker-sdk.log
+
+Command 2 (E2E) run 1:
+  cwd: D:\Git\dugate\du-rework
+  verbatim: <node24> tests/workflow-api/run-jest.cjs wfa-t26-verify-oc-node24-2026-10-08.log tests/workflow-api/http-worker.integration.test.ts -t "recovers an expired lease without repeating the completed provider stage"
+  inner receipt (from run-jest.cjs): cwd D:\Git\dugate\du-rework; node v24.21.0; command node node_modules/.pnpm/node_modules/jest/bin/jest.js --config tests/workflow-api/jest.config.cjs --runInBand tests/workflow-api/http-worker.integration.test.ts -t recovers an expired lease without repeating the completed provider stage; exit: 0
+  result: PASS tests/workflow-api/http-worker.integration.test.ts (8.169 s) / Test Suites: 1 passed, 1 total / Tests: 14 skipped, 1 passed, 15 total / exit: 0
+  worker-log signature counts: handler-failed=2, lease-lost=1, fail-report-fenced=1, LEGACY_WORKFLOW_CONNECTOR_FAILED=2
+  log: cmd2-e2e-run-jest.log ; receipt copy: cmd2-run-jest-receipt-run1.log
+
+Command 2 (E2E) run 2 (confirmation, same command):
+  start: 2026-10-08T07:58:11 local
+  end:   2026-10-08T07:58:19 local
+  exit: 1
+  result: FAIL tests/workflow-api/http-worker.integration.test.ts (7.998 s) / Test Suites: 1 failed, 1 total / Tests: 1 failed, 14 skipped, 15 total / exit: 1
+  worker-log signature counts: handler-failed=3, lease-lost=1, fail-report-fenced=1, LEGACY_WORKFLOW_CONNECTOR_FAILED=6
+  diagnostic (verbatim): lease-recovered schema workflow failed with LEGACY_WORKFLOW_CONNECTOR_FAILED; provider calls=["generate_disbursement_report"]; taskRows=[{"task_key":"root","state":"FAILED","attempt":3,"lease_epoch":4,"error_code":"LEGACY_WORKFLOW_CONNECTOR_FAILED"}]; worker frames (messages redacted):
+  stack (verbatim): at executeConnectorNode (businesses/document-core/src/pipelines/workflows/schema/legacy-schema-runtime.ts:803:21)
+  log: cmd2b-e2e-confirmation.log ; receipt copy: cmd2-run-jest-receipt-run2.log
+
+Revision hashes (working tree, no edits by this lane):
+  tests/workflow-api/http-worker.integration.test.ts (untracked ??): B52AA97056BE49C62C033837B4D0C0CFE669651CB9C47FC43CE4170CFF5BFE5A (mtime 2026-10-08T02:58:51)
+  orchestrator/packages/worker-sdk/tests/wfa-t26-lease-loss-abort.test.ts (untracked ??): AB7B43701334F9D8EA1CFEC0B59FA0FDA83316852F67B605FBF40C2DC2789932 (mtime 2026-10-08T07:41:10)
+
+Repo log file written by run-jest.cjs (prescribed): tests/workflow-api/logs/wfa-t26-verify-oc-node24-2026-10-08.log
+  — gitignored: du-rework/.gitignore:15 *.log
+
+Infrastructure: NOT a "NOT RUN" case — the real PG/Redis stack executed both runs (~8s each);
+run 1 passed, run 2 failed. No infra-missing condition observed.

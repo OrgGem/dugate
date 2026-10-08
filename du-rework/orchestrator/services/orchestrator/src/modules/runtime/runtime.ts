@@ -4,6 +4,7 @@ import {
   contentHash,
   jobIdForDelivery,
   SaveStepRequestSchema,
+  ProgressReportSchema,
   SpawnChildrenRequestSchema,
   WaitInputRequestSchema,
   type ClaimResult,
@@ -777,15 +778,50 @@ export function createRuntimeService(
         return { stepKey, generation: nextGen, replayed: false };
       });
     },
-    async reportProgress(taskId: string, body: { leaseEpoch: number; percent: number; message?: string }): Promise<void> {
-      const res = await db.query('SELECT lease_epoch FROM tasks WHERE id=$1', [taskId]);
-      if (!res.rowCount) throw new HttpError(404, 'NOT_FOUND', `task ${taskId} not found`);
-      if ((res.rows[0] as { lease_epoch: number }).lease_epoch !== body.leaseEpoch) {
-        throw conflict('LEASE_LOST', 'stale leaseEpoch');
-      }
-      // Slice: coalesced — update operation progress only. Real impl throttles.
-      const opRes = await db.query('SELECT id FROM tasks WHERE id=$1', [taskId]);
-      void opRes;
+    async reportProgress(
+      taskId: string,
+      body: { leaseEpoch: number; percent: number; message?: string },
+      workerBusinessId?: string,
+    ): Promise<void> {
+      const parsed = ProgressReportSchema.safeParse(body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'Invalid progress report');
+      await db.tx(async (client) => {
+        const selected = await client.query<ActiveLeaseRow & {
+          operation_id: string; task_key: string; op_state: string;
+          cancel_requested: boolean; endpoint_slug: string | null;
+        }>(
+          `SELECT t.lease_epoch, t.state, t.operation_id, t.task_key, o.business_id,
+                  o.state AS op_state, o.cancel_requested, o.endpoint_slug,
+                  (t.lease_expires_at > clock_timestamp()) AS lease_active
+           FROM tasks t JOIN operations o ON o.id=t.operation_id
+           WHERE t.id=$1 FOR UPDATE OF t`,
+          [taskId],
+        );
+        if (!selected.rowCount) throw notFound('task not found');
+        const task = selected.rows[0]!;
+        assertTaskBusiness(task.business_id, workerBusinessId);
+        assertLeaseEpoch(task, parsed.data.leaseEpoch);
+        assertActiveLease(task);
+        if (['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(task.op_state)) {
+          throw gone('operation is terminal');
+        }
+        if (hasCancelSignal(task) || task.task_key !== 'root') return;
+        // Messages from worker/provider input can contain sensitive content.
+        // Only a fixed stage label is persisted in the public projection.
+        // Content-bearing step results remain in encrypted checkpoints/results.
+        const message = task.endpoint_slug?.startsWith('workflows:')
+          ? 'Processing workflow...'
+          : 'Processing...';
+        await client.query(
+          `UPDATE operations o SET progress_percent=$2, progress_message=$3
+           FROM tasks t
+           WHERE o.id=$1 AND t.id=$4 AND t.operation_id=o.id AND t.task_key='root'
+             AND t.lease_epoch=$5 AND t.state='RUNNING'
+             AND t.lease_expires_at > clock_timestamp()
+             AND o.state='RUNNING' AND NOT o.cancel_requested`,
+          [task.operation_id, Math.floor(parsed.data.percent), message, taskId, parsed.data.leaseEpoch],
+        );
+      });
     },
 
     async completeTask(
@@ -881,7 +917,10 @@ export function createRuntimeService(
           return { taskId, state: 'SUCCEEDED', operationState: opState, replayed: false };
         }
         await client.query(
-          `UPDATE operations SET state='SUCCEEDED', state_version = state_version + 1, result_ref=$2, updated_at=now() WHERE id=$1`,
+          `UPDATE operations SET state='SUCCEEDED', state_version = state_version + 1, result_ref=$2,
+             progress_percent=CASE WHEN endpoint_slug LIKE 'workflows:%' THEN 100 ELSE progress_percent END,
+             progress_message=CASE WHEN endpoint_slug LIKE 'workflows:%' THEN NULL ELSE progress_message END,
+             updated_at=now() WHERE id=$1`,
           [t.operation_id, sealedOperationResultRef]
         );
         // P2-08: schedule the terminal webhook in the same tx (idempotent).
@@ -899,6 +938,7 @@ export function createRuntimeService(
         const tRes = await client.query(
           `SELECT t.lease_epoch, t.lease_expires_at, t.state, t.operation_id, t.attempt, t.max_attempts, t.kind,
                   o.business_id, o.business_version, o.action, o.correlation_id,
+                  o.cancel_requested, o.state AS op_state,
                   (t.lease_expires_at > clock_timestamp()) AS lease_active
            FROM tasks t JOIN operations o ON o.id = t.operation_id
            WHERE t.id = $1 FOR UPDATE OF t`,
@@ -917,6 +957,8 @@ export function createRuntimeService(
           business_version: string;
           action: string;
           correlation_id: string;
+          cancel_requested?: boolean | null;
+          op_state?: string | null;
         };
         assertTaskBusiness(t.business_id, workerBusinessId);
         assertLeaseEpoch(t, body.leaseEpoch);
@@ -927,6 +969,32 @@ export function createRuntimeService(
         }
         if (t.state === 'TIMED_OUT') throw gone(`task ${taskId} is terminal ${t.state}`);
         assertActiveLease(t);
+
+        // WFA-T27: the legacy cancel path records CANCEL_REQUESTED (and
+        // cancel_requested) while a worker still holds a live lease, then
+        // answers the caller 200. When that worker reports the failure produced
+        // while aborting, the acknowledged cancel IS the terminal outcome:
+        // writing FAILED or RETRY_PENDING here would overwrite the requested
+        // cancel and contradict the response the caller already received.
+        if (hasCancelSignal({ cancel_requested: t.cancel_requested ?? false, op_state: t.op_state ?? undefined })) {
+          const cancelled = await client.query(
+            `UPDATE tasks t SET state='CANCELLED', updated_at=now()
+             FROM operations o
+             WHERE t.id=$1 AND t.operation_id=o.id AND t.lease_epoch=$2
+               AND t.state='RUNNING' AND t.lease_expires_at > clock_timestamp()
+               AND ($3::text IS NULL OR o.business_id=$3)
+             RETURNING t.id`,
+            [taskId, body.leaseEpoch, workerBusinessId ?? null]
+          );
+          if (!cancelled.rowCount) throw conflict('LEASE_LOST', 'task lease is no longer active');
+          await client.query(
+            `UPDATE operations SET state='CANCELLED', state_version = state_version + 1, updated_at=now() WHERE id=$1`,
+            [t.operation_id]
+          );
+          // P2-08: the terminal transition schedules the webhook in the same tx.
+          await maybeScheduleWebhook(client, t.operation_id);
+          return { taskId, state: 'CANCELLED', operationState: 'CANCELLED', replayed: false };
+        }
 
         if (body.retryable && t.attempt < t.max_attempts) {
           const dueAt = new Date(Date.now() + (body.retryAfterMs ?? 5000)).toISOString();
@@ -1388,11 +1456,11 @@ export function createRuntimeService(
       // the FIXED message (no id echo — X2 rule).
       const run = async (client: PoolClient): Promise<{ operationId: string; state: string; stateVersion: number; replayed: boolean; taskId: string }> => {
         const opRes = await client.query(
-          'SELECT id, tenant_id, state, state_version FROM operations WHERE id=$1 FOR UPDATE',
+          'SELECT id, tenant_id, state, state_version, endpoint_slug FROM operations WHERE id=$1 FOR UPDATE',
           [operationId]
         );
         if (!opRes.rowCount) throw notFound('operation not found');
-        const op = opRes.rows[0] as { tenant_id: string; state: string; state_version: number };
+        const op = opRes.rows[0] as { tenant_id: string; state: string; state_version: number; endpoint_slug?: string };
         if (op.tenant_id !== tenantId) throw notFound('operation not found');
         if (['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(op.state)) {
           throw conflict('STATE_CONFLICT', `operation ${operationId} is terminal ${op.state}`);
@@ -1452,7 +1520,7 @@ export function createRuntimeService(
           JSON.stringify(answeredPayload),
         ]);
         const taskRes = await client.query(
-          `SELECT t.id, t.state, o.business_id, o.business_version, o.action, o.correlation_id
+          `SELECT t.id, t.state, t.payload_ref, o.business_id, o.business_version, o.action, o.correlation_id
            FROM tasks t JOIN operations o ON o.id = t.operation_id WHERE t.id=$1 FOR UPDATE OF t`,
           [wait.task_id]
         );
@@ -1460,6 +1528,7 @@ export function createRuntimeService(
         const wt = taskRes.rows[0] as {
           id: string;
           state: string;
+          payload_ref?: unknown;
           business_id: string;
           business_version: string;
           action: string;
@@ -1469,9 +1538,39 @@ export function createRuntimeService(
           throw conflict('STATE_CONFLICT', `task ${wait.task_id} is ${wt.state}, not WAITING_INPUT`);
         }
         const deliveryId = `${wt.id}:resume:${op.state_version + 1}`;
+        let resumePayload: Record<string, unknown> = { resumeInput: b.input, waitId: wait.wait_id };
+        if (wt.action === 'schema-workflow'
+            || (op.endpoint_slug?.startsWith('workflows:') === true
+                && (wt.action === 'disbursement' || wt.action === 'doc-compare'))) {
+          // Preserve the admitted immutable schema/input through HITL resume.
+          // The stored payload is opened with this task's tenant-bound AAD and
+          // resealed below; a corrupt/missing pin never falls back to plaintext.
+          const original = await openMetadata(reader, wt.payload_ref, {
+            tenantId: op.tenant_id, slot: 'tasks.payload_ref', refId: wt.id,
+          });
+          if (original === null || typeof original !== 'object' || Array.isArray(original)) {
+            throw conflict('STATE_CONFLICT', 'Pinned workflow resume payload is unavailable');
+          }
+          if (wt.action === 'schema-workflow') {
+            if (!Object.hasOwn(original, 'legacyWorkflowSchema') || !Object.hasOwn(original, 'input')) {
+              throw conflict('STATE_CONFLICT', 'Pinned workflow resume payload is unavailable');
+            }
+            resumePayload = { ...original, ...resumePayload };
+          } else if (Object.hasOwn(original, 'legacyWorkflow')) {
+            const marker = (original as Record<string, unknown>)['legacyWorkflow'];
+            if (marker === null || typeof marker !== 'object' || Array.isArray(marker)
+                || (marker as Record<string, unknown>)['version'] !== 'legacy-workflow-named-input-v1'
+                || (marker as Record<string, unknown>)['process'] !== wt.action) {
+              throw conflict('STATE_CONFLICT', 'Pinned named workflow resume payload is unavailable');
+            }
+            resumePayload = { ...original, ...resumePayload };
+          } else {
+            throw conflict('STATE_CONFLICT', 'Pinned named workflow resume payload is unavailable');
+          }
+        }
         const sealedResumePayload = await sealMetadata(
           metadataCrypto,
-          { resumeInput: b.input, waitId: wait.wait_id },
+          resumePayload,
           { tenantId: op.tenant_id, slot: 'tasks.payload_ref', refId: wt.id },
         );
         await client.query(`UPDATE tasks SET state='QUEUED', payload_ref=$2, updated_at=now() WHERE id=$1`, [

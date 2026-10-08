@@ -6,6 +6,7 @@ export type LcCheckerErrorCode =
   | 'CHILD_RESULT_INCOMPLETE'
   | 'CHILD_RESULT_MISMATCH'
   | 'COMPLIANCE_INVALID'
+  | 'OUTPUT_INVALID'
   | 'PORT_MISCONFIGURED';
 
 export class LcCheckerError extends Error {

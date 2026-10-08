@@ -1,0 +1,13 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent --runTestsByPath tests/admin-shell-server.test.ts tests/admin-shell-platform-mount.test.ts tests/admin-crypto-config-shell.test.ts tests/admin-crypto-config.test.ts
+timestamp: 2026-10-08T05:51:42.5469941+07:00
+--- output ---
+{"subsystem":"admin-shell","timestamp":"2026-10-07T22:51:46.463Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"7a4ea07f-1332-40ac-8b4a-c16c2224a0f1","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T22:51:47.466Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"5f3aaf88-bc29-4d70-83d6-41e0a880a1a5","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] security event"}
+
+Test Suites: 4 passed, 4 total
+Tests:       189 passed, 189 total
+Snapshots:   0 total
+Time:        4.668 s
+
+--- exit=0 ---

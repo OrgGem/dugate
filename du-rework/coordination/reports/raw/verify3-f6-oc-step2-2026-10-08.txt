@@ -1,0 +1,11 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent --runTestsByPath tests/f6-api-key-tenant-select-offline.test.ts tests/admin-api-key-render.test.ts tests/admin-api-key-view-model.test.ts tests/admin-api-keys.test.ts tests/admin-shell-render.test.ts
+timestamp: 2026-10-08T06:24:15.5994302+07:00
+--- output ---
+
+Test Suites: 5 passed, 5 total
+Tests:       157 passed, 157 total
+Snapshots:   0 total
+Time:        2.76 s, estimated 3 s
+
+--- exit=0 ---

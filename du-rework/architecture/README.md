@@ -18,7 +18,7 @@ Bộ **kiến trúc hiện hành** dưới đây tổng hợp toàn bộ workspa
 
 Sơ đồ code riêng của [Orchestrator](../orchestrator/services/orchestrator/CODE-ARCHITECTURE.md) và [Connector](../orchestrator/services/connector/CODE-ARCHITECTURE.md) đi sâu đến thư mục/module từng service.
 
-Hai hình minh họa có ở [kiến trúc thành phần](diagrams/system-components.svg) và [topology deployment](diagrams/deployment-topology.svg); bản [draw.io của kiến trúc](diagrams/system-components.drawio) và [draw.io của deployment](diagrams/deployment-topology.drawio) có thể mở/chỉnh sửa bằng diagrams.net.
+Hai hình minh họa có ở [kiến trúc thành phần](diagrams/system-components.svg) và [topology deployment](diagrams/deployment-topology.svg); bản [draw.io của kiến trúc](diagrams/system-components.drawio) và [draw.io của deployment](diagrams/deployment-topology.drawio) có thể mở/chỉnh sửa bằng diagrams.net. Sơ đồ sequence end-to-end và AWS architecture diagram (EKS/EC2) nằm ở [diagrams/visual-architecture.md](diagrams/visual-architecture.md).
 
 ## Hồ sơ thiết kế và go-live ban đầu (01–09)
 

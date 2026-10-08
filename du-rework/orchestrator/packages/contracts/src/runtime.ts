@@ -273,6 +273,8 @@ export const ArtifactUploadGrantSchema = z.object({
   artifactId: z.string().uuid(),
   uploadUrl: z.string().url(), // short-lived storage-facade grant URL
   expiresAt: z.string(),
+  /** Authenticated runtime promises server-mediated encryption at rest. */
+  storageEncryption: z.literal('server').optional(),
 });
 export type ArtifactUploadGrant = z.infer<typeof ArtifactUploadGrantSchema>;
 

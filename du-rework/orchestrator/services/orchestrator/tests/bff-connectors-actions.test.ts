@@ -153,7 +153,7 @@ function startStub(port: number): Promise<Stub> {
 
       if (url.pathname === '/api/v1/admin/connectors/capabilities') {
         res.statusCode = 200;
-        res.end(JSON.stringify({ management: true, credentialWorkflow: false, test: true }));
+        res.end(JSON.stringify({ management: true, credentialWorkflow: false, test: true, knownConnectorIds: ['vendor-a'] }));
         return;
       }
       if (url.pathname === '/api/v1/admin/connectors') {
@@ -356,12 +356,17 @@ describe('CONNECTOR-WIRE-B BFF connector reads + actions', () => {
     expect(upstream?.cookie).toBeNull();
   });
 
-  it('platform admin capabilities → booleans relayed verbatim (false is not flattened)', async () => {
+  it('platform admin capabilities → fields relayed verbatim (false is not flattened)', async () => {
     const res = await httpRequest(`${baseUrl}/admin/api/connectors/capabilities`, {
       headers: { cookie: adminCookie },
     });
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ management: true, credentialWorkflow: false, test: true });
+    expect(JSON.parse(res.body)).toEqual({
+      management: true,
+      credentialWorkflow: false,
+      test: true,
+      knownConnectorIds: ['vendor-a'],
+    });
     expect(last()?.path).toBe('/api/v1/admin/connectors/capabilities');
     expect(last()?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
   });

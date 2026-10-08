@@ -57,6 +57,21 @@ export interface InvokeAdapterOptions {
   providerTimeoutMs?: number;
 }
 
+/**
+ * WFA-T7 layer 3: provider dispatches currently awaiting a response, keyed by
+ * invocationId. `cancel()` in services.ts aborts these so a cancel stops the
+ * outbound provider request instead of only flipping the ledger row.
+ */
+const inFlightProviderDispatches = new Map<string, AbortController>();
+
+/** Abort the provider request running for this invocation, if any. */
+export function abortInFlightProviderDispatch(invocationId: string): boolean {
+  const controller = inFlightProviderDispatches.get(invocationId);
+  if (!controller) return false;
+  controller.abort(new Error('invocation cancelled'));
+  return true;
+}
+
 export async function invokeAdapter(
   request: LocalInvocationRequest,
   options: InvokeAdapterOptions,
@@ -344,6 +359,7 @@ export async function invokeAdapter(
       }
     }
     const controller = new AbortController();
+    inFlightProviderDispatches.set(request.invocationId, controller);
     let quotaRenewalFailed = false;
     const renewal = startQuotaLeaseRenewal(
       options.quota,
@@ -390,6 +406,9 @@ export async function invokeAdapter(
       throw error;
     } finally {
       clearTimeout(timeout);
+      if (inFlightProviderDispatches.get(request.invocationId) === controller) {
+        inFlightProviderDispatches.delete(request.invocationId);
+      }
       await renewal.stop();
       lease = renewal.getLease();
     }

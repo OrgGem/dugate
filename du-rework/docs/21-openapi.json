@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "DUGate rework API (code-derived, W40-CX)",
-    "version": "1.4.0",
-    "description": "From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
+    "version": "1.5.0",
+    "description": "Since 1.5.0: legacy workflow multipart admission facades at /api/v1/docs/workflows and /api/v1/docs/workflows/schema are documented; runtime compatibility acceptance is tracked separately in the WFA plan. From orchestrator server.ts + connector http/server.ts. Absent surfaces in x-absent. Since 1.3.0: server origins are family-scoped to the PM-M02 ingress - public JSON Orchestrator 3000, admin/management and runtime internal JSON Orchestrator 3002, Connector service 8080 - with tags/x-api-family on every operation and generation-time overrides DU_OPENAPI_PUBLIC_ORIGIN / DU_OPENAPI_INTERNAL_ORIGIN / DU_OPENAPI_CONNECTOR_ORIGIN. Try-it-out stays disabled by default in any Portal rendering; this document grants no interactive access. Since 1.2.0: GET /api/v1/usage/events (COST-03) is published with its query, cursor, ledger-record and page schemas. Since 1.1.0: the RESULT-WIRE-01 delivery surfaces are published - components.schemas carries ResultEnvelope v1, EncryptedResultEnvelope v1, RecipientDeliveryEnvelope and EncryptedArtifactDownload, and GET /api/v1/artifacts/{id}/download is a documented path instead of an x-absent entry."
   },
   "servers": [
     {
@@ -73,6 +73,67 @@
           }
         ],
         "description": "ArtifactDownloadResponseSchema (operations.ts) = plain bytes | EncryptedArtifactDownload. The plain branch is a byte string or an async byte stream, which JSON Schema cannot express, so it is published as format: binary and the response content map names its media type."
+      },
+      "AdminTenant": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Tenant id; the tie-break half of the (lower(name), id) keyset order."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name. The picker orders on lower(name), which is why this list exposes no sort parameter."
+          },
+          "state": {
+            "type": "string",
+            "description": "Tenant lifecycle state as stored; not an allow-listed enum at this boundary."
+          }
+        },
+        "additionalProperties": false
+      },
+      "AdminTenantsPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor",
+          "prevCursor",
+          "total",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTenant"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque forward token, null on the last page. The tenant module mints its own id+direction token bounded by LIST_CURSOR_MAX_LEN, not the shared timestamp cursor dialect."
+          },
+          "prevCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque backward token, null on page one."
+          },
+          "total": {
+            "type": "integer",
+            "description": "COUNT(*) of the filtered set, never items.length."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "The clamped page size actually used."
+          }
+        },
+        "additionalProperties": false
       },
       "ArtifactRef": {
         "type": "object",
@@ -739,7 +800,7 @@
           "source.auth",
           "generic"
         ],
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretPurposeSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretPurposeSchema"
       },
       "SecretService": {
         "type": "string",
@@ -747,7 +808,7 @@
           "orchestrator",
           "connector"
         ],
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretServiceSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretServiceSchema"
       },
       "SecretState": {
         "type": "string",
@@ -756,7 +817,7 @@
           "DISABLED",
           "REVOKED"
         ],
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretStateSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretStateSchema"
       },
       "LiteralValueSource": {
         "type": "object",
@@ -780,7 +841,7 @@
           "value"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#LiteralValueSourceSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#LiteralValueSourceSchema"
       },
       "SecretRefValueSource": {
         "type": "object",
@@ -801,7 +862,7 @@
           "secretId"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretRefValueSourceSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretRefValueSourceSchema"
       },
       "ValueSource": {
         "oneOf": [
@@ -851,7 +912,7 @@
         "discriminator": {
           "propertyName": "kind"
         },
-        "x-source": "packages/contracts/src/secret-catalog.ts#ValueSourceSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#ValueSourceSchema"
       },
       "LiteralValueSourceRead": {
         "type": "object",
@@ -874,7 +935,7 @@
           "configured"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#LiteralValueSourceReadSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#LiteralValueSourceReadSchema"
       },
       "SecretRefReadMetadata": {
         "type": "object",
@@ -915,7 +976,7 @@
           "revision"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretRefReadMetadataSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretRefReadMetadataSchema"
       },
       "ValueSourceRead": {
         "oneOf": [
@@ -985,7 +1046,7 @@
         "discriminator": {
           "propertyName": "kind"
         },
-        "x-source": "packages/contracts/src/secret-catalog.ts#ValueSourceReadSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#ValueSourceReadSchema"
       },
       "ManagedValueProvider": {
         "type": "object",
@@ -1001,7 +1062,7 @@
           "kind"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#ManagedValueProviderSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#ManagedValueProviderSchema"
       },
       "VaultVersionMode": {
         "oneOf": [
@@ -1044,7 +1105,7 @@
         "discriminator": {
           "propertyName": "mode"
         },
-        "x-source": "packages/contracts/src/secret-catalog.ts#VaultVersionModeSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#VaultVersionModeSchema"
       },
       "VaultReferenceProvider": {
         "type": "object",
@@ -1129,7 +1190,7 @@
         ],
         "additionalProperties": false,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/secret-catalog.ts#VaultReferenceProviderSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#VaultReferenceProviderSchema"
       },
       "SecretProvider": {
         "anyOf": [
@@ -1233,7 +1294,7 @@
             "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection."
           }
         ],
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretProviderSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretProviderSchema"
       },
       "SecretUsageReference": {
         "type": "object",
@@ -1262,7 +1323,7 @@
           "refId"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretUsageReferenceSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretUsageReferenceSchema"
       },
       "SecretRotationMetadata": {
         "type": "object",
@@ -1284,7 +1345,7 @@
           "intervalDays"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretRotationMetadataSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretRotationMetadataSchema"
       },
       "SecretCatalogEntry": {
         "type": "object",
@@ -1483,7 +1544,7 @@
         ],
         "additionalProperties": false,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogEntrySchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogEntrySchema"
       },
       "SecretCatalogEntryRead": {
         "type": "object",
@@ -1719,7 +1780,7 @@
         ],
         "additionalProperties": false,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogEntryReadSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogEntryReadSchema"
       },
       "SecretCatalogCreate": {
         "type": "object",
@@ -1894,7 +1955,7 @@
         ],
         "additionalProperties": false,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogCreateSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogCreateSchema"
       },
       "SecretCatalogRotate": {
         "type": "object",
@@ -1937,7 +1998,7 @@
           "value"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogRotateSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogRotateSchema"
       },
       "SecretCatalogDisable": {
         "type": "object",
@@ -1962,7 +2023,7 @@
           "reason"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogDisableSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogDisableSchema"
       },
       "SecretCatalogListPage": {
         "type": "object",
@@ -2218,7 +2279,7 @@
           "nextCursor"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogListPageSchema"
+        "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogListPageSchema"
       },
       "CallbackMode": {
         "type": "string",
@@ -2226,7 +2287,7 @@
           "notification_only",
           "notification_with_result"
         ],
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackModeSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackModeSchema"
       },
       "CallbackSecretRef": {
         "type": "object",
@@ -2249,7 +2310,7 @@
           "ref"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackSecretRefSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackSecretRefSchema"
       },
       "CallbackAuthMethod": {
         "type": "string",
@@ -2258,7 +2319,7 @@
           "configured_headers",
           "oauth2_client_credentials"
         ],
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackAuthMethodSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackAuthMethodSchema"
       },
       "ConfiguredHeader": {
         "type": "object",
@@ -2302,7 +2363,7 @@
           "secretRef"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#ConfiguredHeaderSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#ConfiguredHeaderSchema"
       },
       "ConfiguredHeadersAuth": {
         "type": "object",
@@ -2367,7 +2428,7 @@
           "headers"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#ConfiguredHeadersAuthSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#ConfiguredHeadersAuthSchema"
       },
       "AdditionalHeader": {
         "type": "object",
@@ -2390,7 +2451,7 @@
           "value"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#AdditionalHeaderSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#AdditionalHeaderSchema"
       },
       "OAuth2ClientCredentialsAuth": {
         "type": "object",
@@ -2518,7 +2579,7 @@
           "clientAuthMethod"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#OAuth2ClientCredentialsAuthSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#OAuth2ClientCredentialsAuthSchema"
       },
       "CallbackAuth": {
         "oneOf": [
@@ -2733,7 +2794,7 @@
           "propertyName": "method"
         },
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackAuthSchema",
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackAuthSchema",
         "description": "Managed-secret opaque refs only; catalog secretId ValueSource and callback managed-secret ref formats are distinct until consumer mapping is implemented. OAuth2 lifetime absent means acquire per delivery; redirects denied."
       },
       "CallbackApprovedOrigin": {
@@ -2741,7 +2802,7 @@
         "format": "uri",
         "maxLength": 2048,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackApprovedOriginSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackApprovedOriginSchema"
       },
       "CallbackDestinationAuthorization": {
         "type": "object",
@@ -2772,7 +2833,7 @@
           "approvedOrigins"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackDestinationAuthorizationSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackDestinationAuthorizationSchema"
       },
       "CallbackResultOmitReason": {
         "type": "string",
@@ -2782,7 +2843,7 @@
           "UNAVAILABLE",
           "ENCRYPTED_ONLY"
         ],
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackResultOmitReasonSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackResultOmitReasonSchema"
       },
       "CallbackArtifactDescriptor": {
         "type": "object",
@@ -2838,7 +2899,7 @@
           "download"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackArtifactDescriptorSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackArtifactDescriptorSchema"
       },
       "CallbackResultEnvelope": {
         "type": "object",
@@ -2966,7 +3027,7 @@
         ],
         "additionalProperties": false,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/profile-callback.ts#CallbackResultEnvelopeSchema",
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#CallbackResultEnvelopeSchema",
         "description": "Outgoing receiver body, not a new platform endpoint. Inline result <=256 KiB, whole delivery <=512 KiB, <=32 descriptors; null result requires explicit omission reason; never truncate or expose storage URLs. Retry replays the terminal snapshot; deduplicate x-du-delivery-id."
       },
       "ProfileCallbackPolicy": {
@@ -3241,7 +3302,7 @@
         ],
         "additionalProperties": false,
         "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-        "x-source": "packages/contracts/src/profile-callback.ts#ProfileCallbackPolicySchema",
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#ProfileCallbackPolicySchema",
         "description": "Contract model; policy.callbackPolicy profile/admission plumbing is not implemented in the current router snapshot. Credential auth requires approved exact HTTPS destinations; no redirects. Endpoint policy > profile default > legacy notification_only. Runtime refinements reject reserved/duplicate headers and private destinations."
       },
       "ProfileCallbackPolicySnapshot": {
@@ -3559,7 +3620,7 @@
           "policy"
         ],
         "additionalProperties": false,
-        "x-source": "packages/contracts/src/profile-callback.ts#ProfileCallbackPolicySnapshotSchema"
+        "x-source": "orchestrator/packages/contracts/src/profile-callback.ts#ProfileCallbackPolicySnapshotSchema"
       },
       "WebhookNotificationEnvelope": {
         "type": "object",
@@ -3617,11 +3678,344 @@
         ],
         "additionalProperties": false,
         "description": "Legacy notification_only canonical body; dispatcher additionally stamps stable deliveryId. Receiver must also deduplicate x-du-delivery-id.",
-        "x-source": "packages/contracts/src/public-api.ts#WebhookPayloadSchema"
+        "x-source": "orchestrator/packages/contracts/src/public-api.ts#WebhookPayloadSchema"
       }
     }
   },
   "paths": {
+    "/api/v1/docs/workflows": {
+      "post": {
+        "summary": "Legacy named workflow submission",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "process"
+                ],
+                "properties": {
+                  "process": {
+                    "type": "string",
+                    "enum": [
+                      "disbursement",
+                      "lc-checker",
+                      "doc-compare"
+                    ]
+                  },
+                  "files[]": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "source_file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "target_file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "apiKeyId": {
+                    "type": "string",
+                    "description": "Optional compatibility field; must match the authenticated caller. Never selects another identity."
+                  },
+                  "resolution_data": {
+                    "type": "string",
+                    "description": "Optional disbursement process parameter."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Fresh asynchronous workflow operation; sync and Idempotency-Key are ignored for legacy parity.",
+            "headers": {
+              "Operation-Location": {
+                "description": "Relative polling URL",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "done",
+                    "metadata"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "done": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "required": [
+                        "state",
+                        "workflow",
+                        "progress_percent",
+                        "progress_message"
+                      ],
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "RUNNING"
+                          ]
+                        },
+                        "workflow": {
+                          "type": "string"
+                        },
+                        "progress_percent": {
+                          "type": "integer",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "progress_message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing selector/files or invalid input/schema"
+          },
+          "401": {
+            "description": "Missing or invalid active API key"
+          },
+          "403": {
+            "description": "Caller/profile/action denied or mismatched body apiKeyId"
+          },
+          "404": {
+            "description": "Unknown process or schema"
+          },
+          "409": {
+            "description": "Schema has no active revision or admission conflict"
+          },
+          "413": {
+            "description": "Upload/file-count limit exceeded"
+          },
+          "415": {
+            "description": "Unsupported content type"
+          },
+          "422": {
+            "description": "Profile/business validation failure"
+          },
+          "429": {
+            "description": "Quota exceeded"
+          },
+          "503": {
+            "description": "Required service/profile/encryption unavailable"
+          },
+          "500": {
+            "description": "Redacted internal failure"
+          }
+        },
+        "description": "Compatibility facade maps internally to registered business/action through shared admission and outbox. No HTTP redirect. Uploaded files are selected as files[], then source_file, target_file, file; empty uploads are ignored. Named workflows require at least one file; valid schema workflows can be fileless. Implementation and acceptance evidence: WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md; full runtime acceptance remains a separate gate.",
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
+    "/api/v1/docs/workflows/schema": {
+      "post": {
+        "summary": "Legacy schema workflow submission",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "schemaSlug"
+                ],
+                "properties": {
+                  "schemaSlug": {
+                    "type": "string"
+                  },
+                  "files[]": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "source_file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "target_file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "apiKeyId": {
+                    "type": "string",
+                    "description": "Optional compatibility field; must match the authenticated caller. Never selects another identity."
+                  },
+                  "input": {
+                    "type": "string",
+                    "description": "JSON object string; defaults to {}. Arrays/scalars are rejected. Schema revision is pinned at admission."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Fresh asynchronous workflow operation; sync and Idempotency-Key are ignored for legacy parity.",
+            "headers": {
+              "Operation-Location": {
+                "description": "Relative polling URL",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "done",
+                    "metadata"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "done": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "required": [
+                        "state",
+                        "workflow",
+                        "progress_percent",
+                        "progress_message"
+                      ],
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "RUNNING"
+                          ]
+                        },
+                        "workflow": {
+                          "type": "string"
+                        },
+                        "progress_percent": {
+                          "type": "integer",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "progress_message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing selector/files or invalid input/schema"
+          },
+          "401": {
+            "description": "Missing or invalid active API key"
+          },
+          "403": {
+            "description": "Caller/profile/action denied or mismatched body apiKeyId"
+          },
+          "404": {
+            "description": "Unknown process or schema"
+          },
+          "409": {
+            "description": "Schema has no active revision or admission conflict"
+          },
+          "413": {
+            "description": "Upload/file-count limit exceeded"
+          },
+          "415": {
+            "description": "Unsupported content type"
+          },
+          "422": {
+            "description": "Profile/business validation failure"
+          },
+          "429": {
+            "description": "Quota exceeded"
+          },
+          "503": {
+            "description": "Required service/profile/encryption unavailable"
+          },
+          "500": {
+            "description": "Redacted internal failure"
+          }
+        },
+        "description": "Compatibility facade maps internally to registered business/action through shared admission and outbox. No HTTP redirect. Uploaded files are selected as files[], then source_file, target_file, file; empty uploads are ignored. Named workflows require at least one file; valid schema workflows can be fileless. Implementation and acceptance evidence: WORKFLOW-API-BACKWARD-COMPAT-2026-10-07.md; full runtime acceptance remains a separate gate.",
+        "servers": [
+          {
+            "url": "http://localhost:3000",
+            "description": "PM-M02 Public JSON ingress (Orchestrator 3000). Admin and runtime routes are rejected on this listener."
+          }
+        ],
+        "tags": [
+          "public"
+        ],
+        "x-api-family": "public"
+      }
+    },
     "/health": {
       "get": {
         "summary": "Liveness alias, no auth. server.ts:315.",
@@ -5271,7 +5665,38 @@
             "description": "ok"
           },
           "201": {
-            "description": "created"
+            "description": "Authenticated upload grant. Optional storageEncryption=server is minted only when the runtime uses its configured server encryption seam. SDK sends plaintext on the authorized internal transport; runtime stores ciphertext and manifest before finalization. Absence preserves existing worker sealing behavior; never infer mode from a URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "artifactId",
+                    "uploadUrl",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "artifactId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "uploadUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "storageEncryption": {
+                      "type": "string",
+                      "enum": [
+                        "server"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           },
           "202": {
             "description": "accepted"
@@ -6329,7 +6754,7 @@
             "description": "Required management/workflow composition unavailable"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:324",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:329",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6367,7 +6792,7 @@
             "description": "Management store not composed or upstream unavailable"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:543",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:585",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6422,7 +6847,7 @@
             "description": "Admin scope denied"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:532",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:573",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6480,7 +6905,64 @@
             "description": "Invalid upstream response"
           }
         },
-        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:570",
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:612",
+        "servers": [
+          {
+            "url": "http://localhost:3002",
+            "description": "PM-M02 Internal JSON ingress (Orchestrator 3002, unpublished by default). Admin/management family; authorization is unchanged by the listener."
+          }
+        ],
+        "tags": [
+          "admin"
+        ],
+        "x-api-family": "admin"
+      }
+    },
+    "/api/v1/admin/tenants": {
+      "get": {
+        "summary": "Admin tenant roster page. Ordered by (lower(name), id): its only consumer is the tenant picker, a picker that is not alphabetical is unusable, and the tenants table (migration 0001) has no updated_at column, so this list deliberately exposes no sort parameter. Scope comes from the CREDENTIAL, never from a query parameter - this route accepts none: the platform bearer sees the whole roster, a tenant operator sees exactly its own row and the predicate rides in SQL.",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, clamped like the other list routes.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque keyset token. The tenant module carries a small id+direction token bounded by LIST_CURSOR_MAX_LEN rather than the shared timestamp cursor dialect, because the order is (lower(name), id).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The shared five-field page envelope {items, nextCursor, prevCursor, total, limit}; each item is the whole wire row {id, name, state}, with nothing else projected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTenantsPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid admin bearer"
+          },
+          "403": {
+            "description": "tenant outside the credential scope; the credential is the only scope input this route accepts"
+          }
+        },
+        "x-source": "du-rework/orchestrator/services/orchestrator/src/http/routes/admin.ts:413",
         "servers": [
           {
             "url": "http://localhost:3002",
@@ -6806,7 +7288,7 @@
                 ],
                 "additionalProperties": false,
                 "x-runtime-validation": "Canonical Zod refinements apply in addition to this structural projection.",
-                "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogCreateSchema",
+                "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogCreateSchema",
                 "description": "Canonical create DTO after BFF tenant scope injection. tenantId must be supplied in body or resolved query scope; managed_value requires write-only literal, vault_reference forbids value. Canonical Zod refinements apply."
               }
             }
@@ -6930,7 +7412,7 @@
                   "value"
                 ],
                 "additionalProperties": false,
-                "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogRotateSchema"
+                "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogRotateSchema"
               }
             }
           }
@@ -7034,7 +7516,7 @@
                   "reason"
                 ],
                 "additionalProperties": false,
-                "x-source": "packages/contracts/src/secret-catalog.ts#SecretCatalogDisableSchema"
+                "x-source": "orchestrator/packages/contracts/src/secret-catalog.ts#SecretCatalogDisableSchema"
               }
             }
           }

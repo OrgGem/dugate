@@ -1,0 +1,50 @@
+Independent verification: usage 422 + knownConnectorIds
+Scope: du-rework only
+
+1) Usage BFF test
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent tests/aweb06-bff-operations.test.ts
+exit: 0
+{"subsystem":"admin-shell","timestamp":"2026-10-07T21:18:00.909Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"bfc1bb48-bdef-431b-96aa-fe519658888a","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+Test Suites: 1 passed, 1 total
+Tests: 12 passed, 12 total
+
+2) Connector test discovery
+command: grep -rln 'knownConnectorIds' orchestrator/services/orchestrator/tests/
+exit: 1 (grep is not installed / recognized in this PowerShell environment)
+fallback command: rg -l 'knownConnectorIds' orchestrator/services/orchestrator/tests/
+fallback exit: 0
+files:
+  orchestrator/services/orchestrator/tests/admin-config-cockpit.test.ts
+  orchestrator/services/orchestrator/tests/admin-connector-render.test.ts
+  orchestrator/services/orchestrator/tests/bff-connectors-actions.test.ts
+  orchestrator/services/orchestrator/tests/p745-connector-management-proxy.test.ts
+
+3) Connector test runs; cwd for each:
+D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent tests/admin-config-cockpit.test.ts
+exit: 0
+Test Suites: 1 passed, 1 total
+Tests: 8 passed, 8 total
+
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent tests/admin-connector-render.test.ts
+exit: 0
+Test Suites: 1 passed, 1 total
+Tests: 16 passed, 16 total
+
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent tests/bff-connectors-actions.test.ts
+exit: 0
+{"subsystem":"admin-shell","timestamp":"2026-10-07T21:18:29.504Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0d217577-ed11-4002-a389-de5701e8b70a","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T21:18:29.559Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"e5b3ec17-7832-46d0-a4b7-f173e59f1101","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-07T21:18:29.564Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"a6f245a4-07ba-4df5-a42d-964f888e88a6","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+Test Suites: 1 passed, 1 total
+Tests: 17 passed, 17 total
+
+command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --silent tests/p745-connector-management-proxy.test.ts
+exit: 0
+Test Suites: 1 passed, 1 total
+Tests: 12 passed, 12 total
+
+Total connector suites: 4 passed
+Total connector tests: 53 passed, 0 failed

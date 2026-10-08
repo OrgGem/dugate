@@ -1,0 +1,13 @@
+﻿{"subsystem":"admin-shell","timestamp":"2026-10-07T21:44:45.584Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"7020f07c-b09f-4f55-9357-09d6463a6d97","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-07T21:44:45.728Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"92e53f03-9a45-4437-b8f6-4a025ac1ab7d","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+node : 
+At line:2 char:1
++ node node_modules/jest/bin/jest.js --runInBand --config jest.unit.con ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Test Suites: 3 passed, 3 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        3.526 s, estimated 6 s

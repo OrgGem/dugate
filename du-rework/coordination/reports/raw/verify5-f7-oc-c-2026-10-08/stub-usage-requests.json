@@ -1,0 +1,37 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/usage?from=2026-10-07T01%3A34%3A03.962Z&to=2026-10-08T01%3A34%3A03.962Z&tenantId=11111111-1111-4111-8111-111111111111",
+    "tenantId": "11111111-1111-4111-8111-111111111111",
+    "authHeaderPresent": true,
+    "action": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/usage?from=2026-10-07T01%3A34%3A04.849Z&to=2026-10-08T01%3A34%3A04.849Z&tenantId=11111111-1111-4111-8111-111111111111",
+    "tenantId": "11111111-1111-4111-8111-111111111111",
+    "authHeaderPresent": true,
+    "action": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/usage?from=2026-10-07T01%3A34%3A05.671Z&to=2026-10-08T01%3A34%3A05.671Z&tenantId=11111111-1111-4111-8111-111111111111",
+    "tenantId": "11111111-1111-4111-8111-111111111111",
+    "authHeaderPresent": true,
+    "action": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/usage?from=2026-10-07T01%3A34%3A05.671Z&to=2026-10-08T01%3A34%3A05.671Z&tenantId=11111111-1111-4111-8111-111111111111",
+    "tenantId": "11111111-1111-4111-8111-111111111111",
+    "authHeaderPresent": true,
+    "action": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/usage?from=2026-10-07T01%3A34%3A08.385Z&to=2026-10-08T01%3A34%3A08.385Z&tenantId=11111111-1111-4111-8111-111111111111",
+    "tenantId": "11111111-1111-4111-8111-111111111111",
+    "authHeaderPresent": true,
+    "action": null
+  }
+]

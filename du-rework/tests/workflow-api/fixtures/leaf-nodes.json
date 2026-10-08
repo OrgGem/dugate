@@ -1,0 +1,70 @@
+{
+  "source": {
+    "inventory": "legacy-contract-baseline.json (schemaNodeTypes, schemaSemantics)",
+    "acceptance": "acceptance-cases.json (WFA-T15, WFA-T18..WFA-T22, WFA-T33..T35)",
+    "schemaShape": "fixtures/schema-primitives.json"
+  },
+  "note": "Scaffolding manifests for the six executable leaf node types. Safe examples bind to LOOPBACK-ONLY mocks owned by the test run; unsafe vectors live in security-vectors.json. Execution evidence is produced by the worker lane; this fixture fixes the case identity, inputs, output selection and required fences so case IDs cannot disappear.",
+  "cases": [
+    {
+      "id": "WFA-T15",
+      "nodeType": "connector",
+      "mockKind": "loopback-json-provider",
+      "mockUrlPlaceholder": "http://127.0.0.1:<provider-port>/v1/extract",
+      "safeInput": { "prompt": "synthetic extraction prompt", "reference": "synthetic reference", "files": "$files" },
+      "outputSelection": { "outputPath": "content" },
+      "requiredFences": ["destination-allowlist", "timeout", "response-size-bound"],
+      "securityVectorGroups": ["ssrf", "bounds"]
+    },
+    {
+      "id": "WFA-T18",
+      "nodeType": "file_parse",
+      "mockKind": "none-local-artifact",
+      "mockUrlPlaceholder": null,
+      "safeInput": { "source": "$files", "parser": "auto" },
+      "outputSelection": { "returns": "one output per file with parsed text/markdown" },
+      "requiredFences": ["parse-size-bound", "reject-unsupported-format"],
+      "securityVectorGroups": ["bounds"]
+    },
+    {
+      "id": "WFA-T19",
+      "nodeType": "file_url_download",
+      "mockKind": "loopback-http-resource",
+      "mockUrlPlaceholder": "http://127.0.0.1:<download-port>/wfa/source.txt",
+      "safeInput": { "urls": ["http://127.0.0.1:<download-port>/wfa/source.txt"], "allowedExtensions": "txt,pdf" },
+      "outputSelection": { "returns": "operation-scoped stored artifact" },
+      "requiredFences": ["non-loopback-egress-denied", "extension-allowlist", "download-size-bound", "redirect-refusal"],
+      "securityVectorGroups": ["ssrf", "bounds"]
+    },
+    {
+      "id": "WFA-T20",
+      "nodeType": "callback",
+      "mockKind": "loopback-http-receiver",
+      "mockUrlPlaceholder": "http://127.0.0.1:<receiver-port>/wfa/callback",
+      "safeInput": { "url": "http://127.0.0.1:<receiver-port>/wfa/callback", "payload": "$joined_review", "method": "POST" },
+      "outputSelection": { "returns": "callback sent after fetch resolves" },
+      "requiredFences": ["destination-policy-allowlist", "no-metadata/private-targets", "payload-size-bound"],
+      "securityVectorGroups": ["ssrf", "bounds"]
+    },
+    {
+      "id": "WFA-T21",
+      "nodeType": "archive_compress",
+      "mockKind": "none-local-artifact",
+      "mockUrlPlaceholder": null,
+      "safeInput": { "source": "$download_sources", "name": "wfa-source-bundle.zip", "level": 5 },
+      "outputSelection": { "returns": "usable bounded ZIP artifact" },
+      "requiredFences": ["total-size-bound", "entry-count-bound", "no-absolute-entry-names"],
+      "securityVectorGroups": ["traversal", "bounds"]
+    },
+    {
+      "id": "WFA-T22",
+      "nodeType": "archive_extract",
+      "mockKind": "none-local-artifact",
+      "mockUrlPlaceholder": null,
+      "safeInput": { "source": "$compress_sources", "destName": "wfa-extracted", "maxTotalBytes": 1048576, "maxEntries": 8 },
+      "outputSelection": { "returns": "safe extracted files" },
+      "requiredFences": ["reject traversal entries", "maxTotalBytes", "maxEntries", "reject absolute paths", "reject symlink/device entries"],
+      "securityVectorGroups": ["traversal", "prototype", "bounds"]
+    }
+  ]
+}

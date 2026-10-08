@@ -92,7 +92,7 @@ export interface TaskContextDeps {
   /** DATA-04 Step C auto-branch threshold; default = maxArtifactBytes. */
   multipartThresholdBytes?: number;
   /** Performs the actual HTTP invocation against the connector service. */
-  invokeConnector: (grant: InvocationGrant, req: ConnectorInvocationPayload) => Promise<InvocationResponse>;
+  invokeConnector: (grant: InvocationGrant, req: ConnectorInvocationPayload, signal?: AbortSignal) => Promise<InvocationResponse>;
   /**
    * W-ENC-04-SEAM: optional application-encryption seam for artifact bytes.
    *
@@ -345,7 +345,11 @@ export class DefaultTaskContext implements TaskContext {
   /** Called by the worker loop when heartbeat detects lease loss/cancel. */
   abort(reason: 'lease-lost' | 'cancel' | 'shutdown'): void {
     if (reason === 'cancel') this.cancelFlag = true;
-    this.abortController.abort();
+    // The reason rides on the signal: business code and docs/16 already branch on
+    // `ctx.signal.reason === 'cancel'`, and the connector invoker must tell a real
+    // cancellation (terminal for the invocation) from a fenced delivery (which is
+    // redelivered and must replay the same invocation).
+    this.abortController.abort(reason);
   }
 
   markTerminalReported(): void {
@@ -731,13 +735,18 @@ export class DefaultTaskContext implements TaskContext {
       // upload whenever the seam was absent. With encryptionEnabled that is
       // now a typed refusal: an encryption-enabled deployment must never
       // degrade into writing the clear.
-      if (self.deps.encryptionEnabled && !self.deps.crypto) {
+      const serverSealing = grant.storageEncryption === 'server';
+      if (self.deps.encryptionEnabled && !self.deps.crypto && !serverSealing) {
         throw new ArtifactEncryptionError(
           'ENCRYPTION_REQUIRED_UNAVAILABLE',
           'artifact encryption is enabled but no crypto seam is configured for this worker',
         );
       }
-      const sealed = self.deps.crypto
+      // Only an explicit authenticated runtime grant may negotiate server
+      // sealing. Internal plaintext transit is allowed in this mode; the
+      // server encrypts and persists its complete manifest before finalize.
+      // URL shape or a caller-controlled upload option never enables it.
+      const sealed = self.deps.crypto && !serverSealing
         ? await self.sealArtifactBytes(content, grant.artifactId, purpose, expectedSha256)
         : null;
       const integrity = sealed
@@ -916,7 +925,7 @@ export class DefaultTaskContext implements TaskContext {
           sessionRef,
           deadlineAt,
         };
-        const response = await self.deps.invokeConnector(grant, payload);
+        const response = await self.deps.invokeConnector(grant, payload, self.signal);
         return InvocationResponseSchema.parse(response);
       },
     };

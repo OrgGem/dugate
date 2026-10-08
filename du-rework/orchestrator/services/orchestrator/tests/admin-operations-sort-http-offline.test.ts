@@ -29,6 +29,7 @@ import { isHttpError } from '../src/http/errors';
 import { route, type RouteContext } from '../src/server';
 import { createAdminShellServer, type AdminShellHandle } from '../src/app/admin/shell-server';
 import type { QueryResult, QueryResultRow } from 'pg';
+import { OPERATIONS_LIST_PAGE_SQL_RE } from './helpers/operations-page-fixture';
 
 const ADMIN_TOKEN = 'cross-sort-http-admin-token';
 const COOKIE_SECRET = 'cross-sort-http-cookie-secret';
@@ -178,7 +179,7 @@ function opsQuery(sql: string, params: unknown[]): QueryResult<QueryResultRow> {
   if (/^SELECT count\(\*\)::int AS total FROM operations/i.test(s)) {
     return pgResult([{ total: tenantPool(s, params).length }]);
   }
-  if (/^SELECT \* FROM operations/i.test(s)) {
+  if (OPERATIONS_LIST_PAGE_SQL_RE.test(s)) {
     const order = ORDER_RE.exec(s);
     if (!order) throw new Error('unparsed page SQL: ' + s);
     const keyExpr = order[1] ?? '';
@@ -320,7 +321,7 @@ describe('W-ADMUX02-CROSS-SORT-422-1 A: real route() over loopback HTTP', () => 
     return JSON.parse(res.body) as Page;
   }
   function pageQueries(): number {
-    return calls.filter((c) => /^SELECT \* FROM operations/i.test(c.sql.replace(/\s+/g, ' '))).length;
+    return calls.filter((c) => OPERATIONS_LIST_PAGE_SQL_RE.test(c.sql.replace(/\s+/g, ' '))).length;
   }
   async function mintNext(sort: string, limit = 2, extra = ''): Promise<string> {
     const r = await apiGet('limit=' + String(limit) + '&sort=' + encodeURIComponent(sort) + extra);
@@ -682,6 +683,13 @@ describe('W-ADMUX02-CROSS-SORT-422-1 B: real shell over HTTP against a wire-fait
       cookieSecret: COOKIE_SECRET,
       adminToken: ADMIN_TOKEN,
       jsonBaseUrl: platBase,
+      // Offline suite over plain HTTP: pin the cookie posture instead of
+      // inheriting it from the ambient NODE_ENV. Without this, NODE_ENV=production
+      // makes parseCookieSecurePolicy set requireSecure (oidc-boot.ts), the shell
+      // refuses to mint an unprotectable cookie and POST /admin/login answers 503
+      // (auth-dispatch.ts:120-130) instead of the 302 this suite logs in with.
+      // Same pin as admin-shell-server.test.ts:121, aweb0x/bff-* and f5/tenant-list.
+      cookiePolicy: { requireSecure: false, trustProxyProtocol: false },
     });
     await shell.listen();
     shellBase = shell.url;

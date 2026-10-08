@@ -40,6 +40,23 @@ guarantee.
 | `src/manifest.ts` | Business manifest. |
 | `src/registry-tool.ts` | Three-step register / enable / activate. |
 
+## Legacy workflow adapter
+
+Manifest and worker version **1.1.0** add an explicit
+`legacy-workflow-named-input-v1` branch for `POST /api/v1/docs/workflows` with
+`process=lc-checker`. That branch preserves the former three stages: parallel
+`ext-doc-layout` OCR, `ext-fact-verifier` compliance using both OCR text and the
+original PDFs, then `ext-content-gen` report generation. It does not enter the
+canonical ruleset checker.
+
+Register, enable, and activate 1.1.0 using the existing registry procedure;
+deployments pinned to 1.0.0 are not changed in place. The active API-key profile
+must bind all three optional slots to approved connector revisions before a
+legacy request can upload files: `legacy-ocr`, `legacy-compliance`, and
+`legacy-report`. These slots are only required for the legacy branch. Canonical
+`lc-checker-input-v1` calls continue to use the existing `ocr`, `vision`,
+`crosscheck`, and `report` slots.
+
 ## The five stages
 
 1. `ocr` — bounded fan-out, one child per document, ceiling `MAX_FANOUT_CONCURRENCY = 8`.

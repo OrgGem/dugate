@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const net = require('node:net');
 const readline = require('node:readline');
 const { parseEnv } = require('node:util');
+const { serviceEnvironment, validateRuntimeEnvironment, signedConnectorToken } = require('./runtime-env.cjs');
 const ROOT = path.resolve(__dirname, '..');
 const ALL_WORKERS = ['document-core', 'lc-checker', 'example-review'];
 const children = [];
@@ -49,7 +50,7 @@ async function ready(url) {
 }
 function start(name, entry) {
   const args = process.argv.includes('--watch') ? ['--watch', path.join(ROOT, entry)] : [path.join(ROOT, entry)];
-  const child = spawn(process.execPath, args, { cwd: ROOT, env: process.env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, args, { cwd: ROOT, env: serviceEnvironment(process.env, name), detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
   children.push(child);
   for (const stream of [child.stdout, child.stderr]) readline.createInterface({ input: stream }).on('line', line => console.log(`[${name}] ${line}`));
   child.once('error', () => { console.error(`[${name}] Failed to start`); shutdown(1); });
@@ -60,12 +61,12 @@ function start(name, entry) {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help')) {
-    console.log('node scripts/dev.cjs [--env-file=PATH] [--workers=all|none|document-core,lc-checker,example-review] [--skip-build] [--skip-migrate] [--watch] [--check]');
+    console.log('node scripts/dev.cjs [--env-file=PATH] [--workers=all|none|document-core,lc-checker,example-review] [--services=all|orchestrator|connector|workers] [--workflow] [--local-identity] [--skip-build] [--skip-migrate] [--watch] [--check]');
     return;
   }
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major !== 24 || minor < 21) throw new Error('Use Node >=24.21.0 <25');
-  for (const arg of args) if (!['--skip-build', '--skip-migrate', '--watch', '--check'].includes(arg) && !arg.startsWith('--env-file=') && !arg.startsWith('--workers=')) throw new Error('Unknown dev option');
+  for (const arg of args) if (!['--skip-build', '--skip-migrate', '--watch', '--check', '--workflow', '--local-identity'].includes(arg) && !arg.startsWith('--env-file=') && !arg.startsWith('--workers=') && !arg.startsWith('--services=')) throw new Error('Unknown dev option');
   const explicit = args.find(arg => arg.startsWith('--env-file='));
   const envFile = path.resolve(ROOT, explicit ? explicit.slice('--env-file='.length) : fs.existsSync(path.join(ROOT, '.env.local')) ? '.env.local' : '.env');
   if (!fs.existsSync(envFile)) throw new Error('Copy .env.local.sample to .env.local and configure local infrastructure first');
@@ -81,27 +82,39 @@ async function main() {
   process.env.RUNTIME_URL ??= `${process.env.ORCHESTRATOR_INTERNAL_BASE_URL}/api/runtime/v1`;
   process.env.CONNECTOR_URL ??= `http://127.0.0.1:${connectorPort}`;
   if (new URL(process.env.RUNTIME_URL).port === String(publicPort)) throw new Error('RUNTIME_URL points to Public ingress; use the Internal listener');
-  const selection = args.find(arg => arg.startsWith('--workers='))?.slice('--workers='.length) ?? 'all';
+  const services = args.find(arg => arg.startsWith('--services='))?.slice('--services='.length) ?? 'all';
+  if (!['all', 'orchestrator', 'connector', 'workers'].includes(services)) throw new Error('Invalid service selection');
+  const selection = args.find(arg => arg.startsWith('--workers='))?.slice('--workers='.length) ?? (['all', 'workers'].includes(services) ? 'all' : 'none');
   const workers = selection === 'all' ? ALL_WORKERS : selection === 'none' ? [] : selection.split(',');
   if (new Set(workers).size !== workers.length || workers.some(worker => !ALL_WORKERS.includes(worker))) throw new Error('Invalid worker selection');
+  if (['orchestrator', 'connector'].includes(services) && workers.length) throw new Error('Invalid worker selection for single-service launch');
+  if (args.includes('--local-identity')) process.env.CONNECTOR_SERVICE_TOKEN = signedConnectorToken(process.env.SERVICE_IDENTITY_SECRET);
+  validateRuntimeEnvironment(process.env, { workers, services, workflow: args.includes('--workflow') });
   console.log(`Public API: http://127.0.0.1:${publicPort}\nInternal API: http://127.0.0.1:${internalPort}\nOrchestrator Portal: http://127.0.0.1:${portalPort}/admin/web/\nConnector: http://127.0.0.1:${connectorPort}\nWorkers: ${workers.join(', ') || 'none'}`);
+  console.log('Runtime configuration: valid. Business/profile/schema provisioning and provider connectivity require separate setup.');
   if (args.includes('--check')) return; // No build, migrations, bind or process launch.
-  for (const port of ports) await available(port);
+  const selectedPorts = services === 'all' ? ports : services === 'orchestrator' ? ports.slice(0, 3) : services === 'connector' ? [connectorPort] : [];
+  for (const port of selectedPorts) await available(port);
   if (!args.includes('--skip-build')) runNode(['scripts/build-all.cjs']);
   for (const entry of ['orchestrator/services/orchestrator/dist/main.js', 'orchestrator/services/connector/dist/entrypoint.js', 'orchestrator/apps/admin-web/dist/index.html', ...workers.map(worker => `businesses/${worker}/dist/main.js`)]) {
     if (!fs.existsSync(path.join(ROOT, entry))) throw new Error(`Missing build artifact: ${entry}`);
   }
-  if (!args.includes('--skip-migrate')) runNode(['scripts/migrate-local.cjs', `--env-file=${envFile}`]);
-  start('orchestrator', 'orchestrator/services/orchestrator/dist/main.js');
-  start('connector', 'orchestrator/services/connector/dist/entrypoint.js');
-  await Promise.all([ready(`http://127.0.0.1:${internalPort}/health`), ready(`http://127.0.0.1:${connectorPort}/health/ready`)]);
+  if (['all', 'orchestrator'].includes(services)) {
+    if (!args.includes('--skip-migrate')) runNode(['scripts/migrate-local.cjs', `--env-file=${envFile}`]);
+    start('orchestrator', 'orchestrator/services/orchestrator/dist/main.js');
+  }
+  if (['all', 'connector'].includes(services)) start('connector', 'orchestrator/services/connector/dist/entrypoint.js');
+  const readiness = [];
+  if (services !== 'connector') readiness.push(ready(`http://127.0.0.1:${internalPort}/health`));
+  if (services !== 'orchestrator') readiness.push(ready(`http://127.0.0.1:${connectorPort}/health/ready`));
+  await Promise.all(readiness);
   if (!stopping) for (const worker of workers) start(worker, `businesses/${worker}/dist/main.js`);
 }
 process.on('SIGINT', () => shutdown());
 process.on('SIGTERM', () => shutdown());
 main().catch(error => {
   // Only runner-generated diagnostics are exposed; URL parsing errors may contain credentials.
-  const safe = ['Use Node', 'Unknown dev', 'Copy .env', 'Listener ports', 'RUNTIME_URL points', 'Invalid worker', 'Port ', 'Missing build', 'Prerequisite command', 'Service readiness'];
+  const safe = ['Use Node', 'Unknown dev', 'Copy .env', 'Listener ports', 'RUNTIME_URL points', 'Invalid worker', 'Invalid service', 'Port ', 'Missing build', 'Prerequisite command', 'Service readiness', 'Worker tokens', 'Missing worker identity', 'Vault encrypt', 'Metadata plaintext', 'Workflow runtime', 'DU_', 'CONNECTOR_', 'INVOCATION_GRANT_SECRET', 'SERVICE_IDENTITY_SECRET', 'WORKER_IDENTITY_TOKENS_BY_BUSINESS', 'DOCUMENT_CORE_RUNTIME_TOKEN', 'LC_RUNTIME_TOKEN', 'EXAMPLE_REVIEW_RUNTIME_TOKEN', 'DATABASE_URL is required', 'REDIS_URL is required', 'RUNTIME_TOKEN is required', 'ADMIN_TOKEN is required', 'ENCRYPTION_KEY is required', 'ADMIN_SHELL_COOKIE_SECRET is required'];
   console.error('[dev] ' + (safe.some(prefix => error.message.startsWith(prefix)) ? error.message : 'Invalid configuration; credentials are not printed'));
   shutdown(1);
 });

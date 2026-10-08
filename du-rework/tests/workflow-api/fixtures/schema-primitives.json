@@ -1,0 +1,114 @@
+{
+  "slug": "wfa-primitives-v1",
+  "name": "Legacy schema primitive coverage",
+  "version": 1,
+  "description": "Synthetic schema fixture covering all ten supported legacy node types.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "reference": { "type": "string", "required": true },
+      "download_urls": { "type": "string[]", "required": false },
+      "callback_url": { "type": "string", "required": false },
+      "prompt": { "type": "string", "required": false }
+    }
+  },
+  "nodes": [
+    {
+      "id": "reference",
+      "type": "input",
+      "key": "reference"
+    },
+    {
+      "id": "parallel_review",
+      "type": "parallel",
+      "branches": [
+        [
+          {
+            "id": "local_connector",
+            "type": "connector",
+            "connector": "wfa-local-mock",
+            "promptOverrideKey": "review",
+            "inputs": {
+              "prompt": "$input.prompt",
+              "reference": "$input.reference",
+              "files": "$files"
+            },
+            "outputPath": "content"
+          }
+        ],
+        [
+          {
+            "id": "parallel_file_parse",
+            "type": "file_parse",
+            "source": "$files",
+            "parser": "auto"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "joined_review",
+      "type": "join",
+      "combine": "merge"
+    },
+    {
+      "id": "download_sources",
+      "type": "file_url_download",
+      "urls": "$input.download_urls",
+      "allowedExtensions": "txt,pdf"
+    },
+    {
+      "id": "callback_result",
+      "type": "callback",
+      "url": "$input.callback_url",
+      "payload": "$joined_review",
+      "method": "POST"
+    },
+    {
+      "id": "compress_sources",
+      "type": "archive_compress",
+      "source": "$download_sources",
+      "name": "wfa-source-bundle.zip",
+      "level": 5
+    },
+    {
+      "id": "extract_sources",
+      "type": "archive_extract",
+      "source": "$compress_sources",
+      "destName": "wfa-extracted",
+      "maxTotalBytes": 1048576,
+      "maxEntries": 8
+    },
+    {
+      "id": "human_approval",
+      "type": "human",
+      "message": "Review the synthetic workflow output.",
+      "resumeInputs": ["joined_review", "extract_sources"]
+    },
+    {
+      "id": "final_result",
+      "type": "connector",
+      "connector": "wfa-local-mock",
+      "promptOverrideKey": "final",
+      "inputs": {
+        "review": "$joined_review",
+        "files": "$extract_sources.files"
+      }
+    }
+  ],
+  "flow": [
+    "reference",
+    "parallel_review",
+    "joined_review",
+    "download_sources",
+    "callback_result",
+    "compress_sources",
+    "extract_sources",
+    "human_approval",
+    "final_result"
+  ],
+  "output": {
+    "from": "final_result",
+    "extra_data_from": "joined_review"
+  }
+}

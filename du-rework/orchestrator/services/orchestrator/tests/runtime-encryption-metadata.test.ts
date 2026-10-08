@@ -273,6 +273,7 @@ describe('ENC-META-01 slot inventory', () => {
   it('covers the currently declared encrypted metadata columns', () => {
     expect([...METADATA_SLOTS].sort()).toEqual([
       'human_waits.response_ref',
+      'legacy_workflow_schemas.schema_ref',
       'operations.input_ref',
       'operations.prompt_overrides_ref',
       'operations.result_ref',

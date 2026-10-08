@@ -38,3 +38,4 @@ export * from './identity';
 export * from './request-redaction';
 export * from './profile-callback';
 export * from './secret-catalog';
+export * from './legacy-workflow';

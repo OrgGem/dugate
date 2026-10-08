@@ -67,7 +67,7 @@ test('320px navigation and UTC calendar validation', async ({ page }) => {
 });
 
 test('connector suggestions come from the advertised management list', async ({ page }) => {
-  await page.route('**/admin/api/connectors/capabilities', (route) => route.fulfill({ json: { management: true, credentialWorkflow: false, test: false } }));
+  await page.route('**/admin/api/connectors/capabilities', (route) => route.fulfill({ json: { management: true, credentialWorkflow: false, test: false, knownConnectorIds: [] } }));
   await page.route('**/admin/api/connectors', (route) => route.fulfill({ json: { items: [
     { connectorId: 'vendor-a', revision: 2, adapter: 'http-json', state: 'ACTIVE', config: {} },
     { connectorId: 'vendor-b', revision: 7, adapter: 'http-json', state: 'ACTIVE', config: {} },

@@ -161,7 +161,7 @@ Cả bốn phải trả 200. Mở `http://127.0.0.1:3001/admin/login`; profile m
 
 Startup/health thành công chưa chứng minh xử lý document: submit public request cần business version, profile, API key và provider bindings tương ứng. External client dùng `x-api-key`, không dùng admin/runtime token. Contract và ví dụ: [Public API](../docs/06-public-api.md); OpenAPI được build vào API Reference của Portal từ `../docs/21-openapi.json`.
 
-`CONNECTOR_SERVICE_TOKEN` do helper tạo chỉ là fixture để worker qua bước kiểm tra cấu hình startup. Gọi provider cần thay bằng signed service identity đúng audience/scope/expiry theo [Connector API](../docs/08-connector-api.md); token fixture không vượt qua xác thực Connector.
+Helper mới sinh signed `CONNECTOR_SERVICE_TOKEN` có hạn 24 giờ, token riêng cho từng business và khóa mã hóa invocation. Dùng `--local-identity` với local runner để ký token mới trong bộ nhớ mỗi lần chạy; production dùng identity issuer. Profile synthetic mặc định chưa bật mã hóa workflow. Full workflow dùng `--workflow` và Vault Transit đã provision; xem [hướng dẫn runtime](../scripts/README.md#workflow-runtime-configuration).
 
 ### 8. Dừng và chạy lại
 
