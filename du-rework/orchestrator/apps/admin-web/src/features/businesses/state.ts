@@ -55,6 +55,6 @@ export function businessStatusVariant(status: string): 'success' | 'warning' | '
   const value = status.toUpperCase();
   if (value === 'ENABLED' || value === 'ACTIVE') return 'success';
   if (value === 'DRAINING') return 'warning';
-  if (value === 'DISABLED' || value === 'RETIRED') return 'danger';
+  if (value === 'DISABLED' || value === 'RETIRED' || value === 'INACTIVE') return 'neutral';
   return 'neutral';
 }

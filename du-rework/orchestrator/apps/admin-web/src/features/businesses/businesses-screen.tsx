@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTenant } from '@/lib/tenant-context';
 import {
   createAdminApiClient,
   type AdminApiProblem,
@@ -19,7 +20,7 @@ import {
   type BusinessVersions,
 } from '@/lib/api';
 import type { Loadable, PaneState } from '@/features/overview/state';
-import { businessStatusVariant, parseBusinessPage, parseBusinessVersions } from './state';
+import { parseBusinessPage, parseBusinessVersions } from './state';
 
 /**
  * Business registry (AWEB-06) — platform-scoped reads + real version actions.
@@ -27,6 +28,7 @@ import { businessStatusVariant, parseBusinessPage, parseBusinessVersions } from 
  * already shipped); everything else stays read-only.
  */
 export function BusinessesScreen() {
+  const { tenantId, tenant } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
   const [page, setPage] = useState<Loadable<BusinessPage>>({ kind: 'loading' });
   const [versions, setVersions] = useState<Loadable<BusinessVersions> | null>(null);
@@ -76,20 +78,37 @@ export function BusinessesScreen() {
     );
   }
 
-  async function runAction(businessId: string, version: string, action: 'enable' | 'activate' | 'deactivate'): Promise<void> {
+  async function toggleActive(businessId: string, version: string, makeActive: boolean): Promise<void> {
     setBusy(true);
     setNotice(null);
     setProblem(null);
     try {
-      const result = await client.businessVersionAction(businessId, version, action);
-      if (!result.ok) {
-        setProblem(result.problem);
-        return;
+      if (makeActive) {
+        // Automatically ensure the version is enabled if currently in draft/registered state
+        const row = versions?.kind === 'ready' ? versions.data.rows.find((r) => r.version === version) : null;
+        if (row && row.status !== 'ENABLED') {
+          const enableResult = await client.businessVersionAction(businessId, version, 'enable');
+          if (!enableResult.ok) {
+            setProblem(enableResult.problem);
+            return;
+          }
+        }
+        const result = await client.businessVersionAction(businessId, version, 'activate');
+        if (!result.ok) {
+          setProblem(result.problem);
+          return;
+        }
+        setNotice(`Version ${version} activated.`);
+      } else {
+        const result = await client.businessVersionAction(businessId, version, 'deactivate');
+        if (!result.ok) {
+          setProblem(result.problem);
+          return;
+        }
+        setNotice(`Version ${version} deactivated.`);
       }
-      // Reload first (openVersions resets the notice), then report the action.
       await openVersions(businessId);
       await load();
-      setNotice(`Version ${version} ${action}d.`);
     } finally {
       setBusy(false);
     }
@@ -113,6 +132,17 @@ export function BusinessesScreen() {
           Businesses
         </h1>
         <Badge variant="neutral">registry</Badge>
+        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-xs">
+          <span className="text-[var(--text-sub)]">Global Tenant:</span>
+          <span className="font-semibold text-[var(--text-main)]">
+            {tenant?.name || (tenantId ? `Tenant (${tenantId.slice(0, 8)}...)` : 'Platform')}
+          </span>
+          {tenant && (
+            <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-1">
+              {tenant.state}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {problem !== null ? (
@@ -150,33 +180,39 @@ export function BusinessesScreen() {
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
-                <TableHead>Version</TableHead>
+                <TableHead>Active Version</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pane.data.items.map((row) => (
-                <TableRow key={row.businessId}>
-                  <TableCell className="font-mono text-xs">{row.businessId}</TableCell>
-                  <TableCell className="text-xs">
-                    {row.activeVersion ?? row.version ?? '—'}
-                    {row.activeVersion === null ? <span className="ml-1 text-[var(--text-sub)]">(none active)</span> : null}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={businessStatusVariant(row.status)} dot>
-                      {row.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-[var(--text-sub)]">{row.updatedAt ?? '—'}</TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => void openVersions(row.businessId)}>
-                      Versions
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {pane.data.items.map((row) => {
+                const isActive = row.activeVersion !== null;
+                return (
+                  <TableRow key={row.businessId}>
+                    <TableCell className="font-mono text-xs font-medium">{row.businessId}</TableCell>
+                    <TableCell className="text-xs">
+                      {row.activeVersion !== null ? (
+                        <span className="font-mono text-xs font-semibold">{row.activeVersion}</span>
+                      ) : (
+                        <span className="text-[var(--text-sub)]">None</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={isActive ? 'success' : 'neutral'} dot>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-[var(--text-sub)]">{row.updatedAt ?? '—'}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="outline" onClick={() => void openVersions(row.businessId)}>
+                        Versions
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
@@ -194,7 +230,9 @@ export function BusinessesScreen() {
         <Card>
           <CardHeader>
             <CardTitle>Versions — {versions.data.businessId}</CardTitle>
-            <CardDescription>Active version: {versions.data.activeVersion ?? 'none'}</CardDescription>
+            <CardDescription>
+              Active version: <span className="font-mono font-medium">{versions.data.activeVersion ?? 'None'}</span>
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {versions.data.rows.length === 0 ? (
@@ -206,47 +244,38 @@ export function BusinessesScreen() {
                     <TableRow>
                       <TableHead>Version</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Active</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {versions.data.rows.map((row) => (
                       <TableRow key={row.version}>
-                        <TableCell className="text-xs">{row.version}</TableCell>
+                        <TableCell className="font-mono text-xs font-medium">{row.version}</TableCell>
                         <TableCell>
-                          <Badge variant={businessStatusVariant(row.status)} dot>
-                            {row.status}
+                          <Badge variant={row.isActive ? 'success' : 'neutral'} dot>
+                            {row.isActive ? 'Active' : 'Inactive'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-xs">{row.isActive ? 'yes' : 'no'}</TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-2">
+                          {row.isActive ? (
                             <Button
                               size="sm"
                               variant="outline"
                               disabled={busy}
-                              onClick={() => void runAction(versions.data.businessId, row.version, 'enable')}
-                            >
-                              Enable
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={busy || row.isActive}
-                              onClick={() => void runAction(versions.data.businessId, row.version, 'activate')}
-                            >
-                              Activate
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={busy || !row.isActive}
-                              onClick={() => void runAction(versions.data.businessId, row.version, 'deactivate')}
+                              onClick={() => void toggleActive(versions.data.businessId, row.version, false)}
                             >
                               Deactivate
                             </Button>
-                          </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              disabled={busy}
+                              onClick={() => void toggleActive(versions.data.businessId, row.version, true)}
+                            >
+                              Activate
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

@@ -88,7 +88,7 @@ Profile dùng **dữ liệu giả lập **: `DU_DATA_MODE=synthetic` kèm acknow
 | Redis dev riêng | `127.0.0.1:16380` |
 | Public API | `http://127.0.0.1:3000` |
 | Internal admin/runtime API | `http://127.0.0.1:3002` |
-| Portal + BFF | `http://127.0.0.1:3001/admin/web/` |
+| Portal + BFF | `http://127.0.0.1:3001admin/` |
 | Connector | `http://127.0.0.1:8088` |
 
 Runtime worker dùng `http://127.0.0.1:3002/api/runtime/v1`. Public port 3000 chặn admin/runtime. Connector host-dev port 8088 khác container port 8080.

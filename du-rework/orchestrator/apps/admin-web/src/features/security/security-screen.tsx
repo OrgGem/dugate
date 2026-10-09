@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components/ui/state-panel';
-import { TenantSelect } from '@/components/ui/tenant-select';
+import { useTenant } from '@/lib/tenant-context';
 import { createAdminApiClient, type AdminApiProblem, type AdminWebSession } from '@/lib/api';
 
 type CryptoLoadable =
@@ -21,9 +21,10 @@ type CryptoLoadable =
  * deployment" and is shown as the honest unavailable state.
  */
 export function SecurityScreen() {
+  const { tenantId: globalTenantId, tenant } = useTenant();
+  const tenantId = globalTenantId ?? '';
   const client = useMemo(() => createAdminApiClient(), []);
   const [session, setSession] = useState<AdminWebSession | null>(null);
-  const [tenantId, setTenantId] = useState('');
   const [state, setState] = useState<CryptoLoadable>({ kind: 'idle' });
   const [storageKeyRef, setStorageKeyRef] = useState('');
   const [deliveryEncryption, setDeliveryEncryption] = useState(false);
@@ -39,13 +40,6 @@ export function SecurityScreen() {
     const sessionResult = await client.getSession();
     if (sessionResult.ok) {
       setSession(sessionResult.data);
-      setTenantId((current) =>
-        current.length > 0
-          ? current
-          : sessionResult.data.scope?.kind === 'tenant'
-            ? sessionResult.data.scope.tenantId
-            : current,
-      );
     }
     const result = await client.getCryptoConfig(tenantId.trim());
     if (!result.ok) {
@@ -57,9 +51,7 @@ export function SecurityScreen() {
 
   useEffect(() => {
     void load();
-    // Initial load only: tenantId edits reload explicitly via the button.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   async function save(): Promise<void> {
     setBusy(true);
@@ -106,20 +98,22 @@ export function SecurityScreen() {
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="w-full max-w-sm">
-            {isAdmin ? (
-              <TenantSelect
-                id="crypto-tenant"
-                label="Tenant"
-                description="Choose a tenant or All tenants."
-                value={tenantId.length > 0 ? tenantId : null}
-                allowAll
-                onValueChange={(selectedTenant) => setTenantId(selectedTenant ?? '')}
-              />
-            ) : (
-              <p className="pb-2 text-xs text-[var(--text-sub)]">Tenant scope is controlled by your session.</p>
-            )}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-[var(--text-sub)]">Active Tenant</span>
+              <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-sm">
+                <span className="font-medium text-[var(--text-main)] truncate">
+                  {tenant?.name || (tenantId ? `Tenant (${tenantId.slice(0, 8)}...)` : 'No Tenant Selected')}
+                </span>
+                {tenant && (
+                  <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-auto">
+                    {tenant.state}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-sub)]">Configured via Global Tenant in Left Navigator.</p>
+            </div>
           </div>
-          <Button onClick={() => void load()}>Load configuration</Button>
+          <Button onClick={() => void load()}>Reload configuration</Button>
         </CardContent>
       </Card>
 

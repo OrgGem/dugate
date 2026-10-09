@@ -8,8 +8,18 @@ import { HttpError, isHttpError } from '../errors';
 import {
   ADMIN_BUSINESS_LIST_QUERY_PARAMS,
   ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS,
+  SecretCatalogCreateSchema,
+  SecretCatalogDisableSchema,
+  SecretCatalogRotateSchema,
   listPage,
 } from '@du/contracts';
+import {
+  createSecretInDb,
+  disableSecretInDb,
+  listSecretsFromDb,
+  rotateSecretInDb,
+  testSecretInDb,
+} from '../../modules/secrets/secret-catalog-store';
 import { canonicalPayloadHash, executeIdempotent, readIdempotencyKey } from '../../modules/idempotency/idempotency';
 import { auditedMutation } from '../../modules/audit/audit';
 import {
@@ -43,6 +53,7 @@ import {
   profileDetailCurrentValues,
   profileDetailPolicyRead,
 } from '../../modules/admin-read/profile-detail';
+import { listAdminWorkflows, getAdminWorkflowDetail } from '../../modules/admin-read/workflow-list';
 import { hashKey } from './api-key-auth';
 import type { RouteContext, RouteResult } from '../route-context';
 
@@ -357,6 +368,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         connectorTest: (connectorId: string) => ctx.connectors.testConnector(connectorId) as unknown as Promise<Record<string, unknown>>,
         hashApiKey: hashKey,
         correlationId: ctx.correlationId,
+        metadataCrypto: ctx.metadataCrypto,
       },
       actionAuth,
       { action, params, idempotencyKey: readIdempotencyKey(ctx.headers) }
@@ -428,6 +440,48 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         limit: query.limit,
       }),
     };
+  }
+
+  // Admin: GET /api/v1/admin/workflows  (WFA-03 catalog read)
+  if (method === 'GET' && pathname === '/api/v1/admin/workflows') {
+    const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+    if (!principal) {
+      throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+    }
+    const requestedTenant = ctx.searchParams.get('tenantId') || null;
+    const scope = authorizeAuditTenantRead(principal, requestedTenant ?? '');
+    const effectiveTenant = scope === '' ? requestedTenant : scope;
+    const items = await listAdminWorkflows(ctx.db, effectiveTenant, ctx.metadataCrypto);
+    return {
+      status: 200,
+      body: { items, total: items.length },
+    };
+  }
+
+  // Admin: GET /api/v1/admin/workflows/:slug  (WFA-03 detail read)
+  {
+    const m = /^\/api\/v1\/admin\/workflows\/([^/]+)$/.exec(pathname);
+    if (m && method === 'GET') {
+      const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+      if (!principal) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+      }
+      const slug = decodeURIComponent(m[1]!);
+      const requestedTenant = ctx.searchParams.get('tenantId') || null;
+      const scope = authorizeAuditTenantRead(principal, requestedTenant ?? '');
+      const effectiveTenant = scope === '' ? requestedTenant : scope;
+      if (!effectiveTenant) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'tenantId is required for workflow detail read');
+      }
+      const detail = await getAdminWorkflowDetail(ctx.db, effectiveTenant, slug, ctx.metadataCrypto);
+      if (!detail.active && detail.revisions.length === 0) {
+        throw new HttpError(404, 'NOT_FOUND', `workflow schema '${slug}' not found for tenant '${effectiveTenant}'`);
+      }
+      return {
+        status: 200,
+        body: detail,
+      };
+    }
   }
 
   // Admin: GET /api/v1/admin/businesses/:id/versions  (ADM-BASE-01)
@@ -846,6 +900,78 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       status: 200,
       body: await listAuditEventPage(ctx, scope, query),
     };
+  }
+
+  // Admin: Secret Catalog (SC-01 / SC-03)
+  // GET /api/v1/admin/secrets
+  if (method === 'GET' && pathname === '/api/v1/admin/secrets') {
+    assertAdminAuth(ctx);
+    const tenantId = ctx.searchParams.get('tenantId') ?? undefined;
+    const limit = ctx.searchParams.get('limit') ? Number(ctx.searchParams.get('limit')) : undefined;
+    const cursor = ctx.searchParams.get('cursor') ?? undefined;
+    const state = ctx.searchParams.get('state') ?? undefined;
+    const purpose = ctx.searchParams.get('purpose') ?? undefined;
+
+    const page = await listSecretsFromDb(ctx.db, {
+      tenantId,
+      limit,
+      cursor,
+      state,
+      purpose,
+    });
+    return { status: 200, body: page };
+  }
+
+  // POST /api/v1/admin/secrets (create/link)
+  if (method === 'POST' && pathname === '/api/v1/admin/secrets') {
+    assertAdminAuth(ctx);
+    const parsed = SecretCatalogCreateSchema.safeParse(ctx.body);
+    if (!parsed.success) {
+      throw new HttpError(422, 'INVALID_SCHEMA', parsed.error.issues[0]?.message ?? 'invalid secret create payload');
+    }
+    const created = await createSecretInDb(ctx.db, parsed.data);
+    return { status: 201, body: created };
+  }
+
+  // POST /api/v1/admin/secrets/:secretId/rotate
+  {
+    const m = /^\/api\/v1\/admin\/secrets\/([^/]+)\/rotate$/.exec(pathname);
+    if (m && method === 'POST') {
+      assertAdminAuth(ctx);
+      const secretId = decodeURIComponent(m[1]!);
+      const parsed = SecretCatalogRotateSchema.safeParse({ ...(ctx.body as object), secretId });
+      if (!parsed.success) {
+        throw new HttpError(422, 'INVALID_SCHEMA', parsed.error.issues[0]?.message ?? 'invalid secret rotate payload');
+      }
+      const rotated = await rotateSecretInDb(ctx.db, secretId, parsed.data);
+      return { status: 200, body: rotated };
+    }
+  }
+
+  // POST /api/v1/admin/secrets/:secretId/disable
+  {
+    const m = /^\/api\/v1\/admin\/secrets\/([^/]+)\/disable$/.exec(pathname);
+    if (m && method === 'POST') {
+      assertAdminAuth(ctx);
+      const secretId = decodeURIComponent(m[1]!);
+      const parsed = SecretCatalogDisableSchema.safeParse({ ...(ctx.body as object), secretId });
+      if (!parsed.success) {
+        throw new HttpError(422, 'INVALID_SCHEMA', parsed.error.issues[0]?.message ?? 'invalid secret disable payload');
+      }
+      const disabled = await disableSecretInDb(ctx.db, secretId, parsed.data);
+      return { status: 200, body: disabled };
+    }
+  }
+
+  // POST /api/v1/admin/secrets/:secretId/test (probe)
+  {
+    const m = /^\/api\/v1\/admin\/secrets\/([^/]+)\/test$/.exec(pathname);
+    if (m && method === 'POST') {
+      assertAdminAuth(ctx);
+      const secretId = decodeURIComponent(m[1]!);
+      const probe = await testSecretInDb(ctx.db, secretId);
+      return { status: 200, body: probe };
+    }
   }
 
   return null;

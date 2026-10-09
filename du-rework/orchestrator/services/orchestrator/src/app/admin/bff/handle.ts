@@ -48,6 +48,7 @@ import { handleSecurityRoute, matchSecurityRoute } from './security';
 import { handleSettingsRoute, matchSettingsRoute } from './settings';
 import { handleIdentityRoute, matchIdentityRoute } from './identity';
 import { handleSecretsRoute, matchSecretsRoute } from './secrets';
+import { handleHealthRoute } from './health';
 
 const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'admin-bff' } });
 
@@ -90,6 +91,10 @@ export async function handleBffRequest(
       assertMethod(method, ['GET']);
       return await handleSession(res, request, config, correlationId);
     }
+    if (relative === '/health') {
+      assertMethod(method, ['GET']);
+      return await handleHealthRoute(res, request, config, runtime, correlationId);
+    }
     if (relative === '/audit') {
       assertMethod(method, ['GET']);
       return await handleAudit(res, request, query, config, runtime, correlationId);
@@ -101,6 +106,10 @@ export async function handleBffRequest(
     if (relative === '/api-keys' || relative.startsWith('/api-keys/')) {
       assertMethod(method, ['GET']);
       return await handleApiKeys(res, request, relative, query, config, runtime, correlationId);
+    }
+    if (relative === '/workflows' || relative.startsWith('/workflows/')) {
+      assertMethod(method, ['GET']);
+      return await handleWorkflowsRead(res, request, relative, query, config, runtime, correlationId);
     }
     // CONNECTOR-WIRE-B: connector management reads. Matched BEFORE the
     // revision pattern so `/connectors/capabilities` can never be read as a
@@ -370,6 +379,66 @@ async function handleApiKeys(
   }
   if (scope !== '') upstream.searchParams.set('tenantId', scope);
   else upstream.searchParams.delete('tenantId');
+
+  const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+  await relayUpstream(res, response, correlationId);
+}
+
+async function handleWorkflowsRead(
+  res: ServerResponse,
+  request: AdminShellRequest,
+  relative: string,
+  query: URLSearchParams,
+  config: ShellRuntimeConfig,
+  runtime: BffRuntimeConfig,
+  correlationId: string,
+): Promise<void> {
+  const ctx = await resolveBffContext(config, request);
+  if (!ctx) {
+    writeProblem(res, 401, 'UNAUTHENTICATED', 'sign in to use the Admin API', correlationId);
+    return;
+  }
+  const principal = ctx.principal;
+  if (principal.kind === 'unscoped') {
+    writeProblem(res, 403, 'PERMISSION_DENIED', 'this session has no admin principal', correlationId);
+    return;
+  }
+  const slug = relative === '/workflows' ? null : decodePathSegment(relative.slice('/workflows/'.length));
+  if (relative !== '/workflows' && slug === null) {
+    writeProblem(res, 404, 'NOT_FOUND', 'no workflow matches this request', correlationId);
+    return;
+  }
+
+  let scope: string;
+  try {
+    scope = authorizeAuditTenantRead(rbacPrincipal(principal), query.get('tenantId') ?? '');
+  } catch (err) {
+    if (isHttpError(err)) {
+      writeProblem(res, err.status, err.code, boundedMessage(err.message) ?? 'request denied', correlationId);
+      return;
+    }
+    throw err;
+  }
+
+  const credential = credentialFor(principal, runtime);
+  if (credential === null) {
+    writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this tenant', correlationId);
+    return;
+  }
+  if (!hasJsonBase(runtime)) {
+    writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
+    return;
+  }
+
+  const upstream = new URL(
+    '/api/v1/admin/workflows' + (slug === null ? '' : '/' + encodeURIComponent(slug)),
+    runtime.jsonBaseUrl,
+  );
+  if (scope !== '') {
+    upstream.searchParams.set('tenantId', scope);
+  } else if (query.get('tenantId')) {
+    upstream.searchParams.set('tenantId', query.get('tenantId')!);
+  }
 
   const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
   await relayUpstream(res, response, correlationId);

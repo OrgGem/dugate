@@ -36,6 +36,8 @@ import type {
   SecretProbeResult,
   TenantPage,
   UsageSummary,
+  WorkflowCatalogPage,
+  WorkflowDetailResponse,
 } from './types';
 
 export interface AdminApiClientOptions {
@@ -55,8 +57,24 @@ export interface PostActionResult {
   [key: string]: unknown;
 }
 
+export interface AdminHealthSnapshot {
+  status: 'ok' | 'degraded' | 'unknown';
+  db: boolean | null;
+  redis: boolean | null;
+  activeLeases: number | null;
+  queueIntegrity: {
+    state: 'OK' | 'RECONSTRUCTING' | 'SUSPECT';
+    orphansLast: number | null;
+    stalled: number | null;
+    lastSweepAt: string | null;
+  } | null;
+  outboxBacklog: number | null;
+  sampledAt: string;
+}
+
 export interface AdminApiClient {
   getSession(): Promise<AdminApiResult<AdminWebSession>>;
+  getHealth(): Promise<AdminApiResult<AdminHealthSnapshot>>;
   listTenants(query?: Record<string, string>): Promise<AdminApiResult<TenantPage>>;
   listAudit(query?: Record<string, string>): Promise<AdminApiResult<unknown>>;
   listApiKeys(query?: Record<string, string>): Promise<AdminApiResult<ApiKeyPage>>;
@@ -159,6 +177,16 @@ export interface AdminApiClient {
     params: Record<string, unknown>,
     options?: ActionOptions,
   ): Promise<AdminApiResult<PostActionResult>>;
+  listWorkflows(query?: Record<string, string>): Promise<AdminApiResult<WorkflowCatalogPage>>;
+  getWorkflow(slug: string, query?: Record<string, string>): Promise<AdminApiResult<WorkflowDetailResponse>>;
+  provisionWorkflow(
+    params: { tenantId?: string; schema: unknown; approvedEgressOrigins?: string[]; expectedRevision?: number | null },
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<PostActionResult>>;
+  retireWorkflow(
+    params: { tenantId?: string; slug: string; expectedRevision: number },
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<PostActionResult>>;
 }
 
 const TRANSPORT_PROBLEM: AdminApiProblem = {
@@ -180,7 +208,29 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     const url = basePath + path + buildQuery(init.query);
     const headers: Record<string, string> = { accept: 'application/json' };
     if (init.body !== undefined) headers['content-type'] = 'application/json';
-    if (init.csrf === true && csrfToken !== null) headers['x-csrf-token'] = csrfToken;
+    if (init.csrf === true) {
+      if (csrfToken === null) {
+        try {
+          const sessionRes = await fetchImpl(basePath + '/session', {
+            method: 'GET',
+            headers: { accept: 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
+          });
+          if (sessionRes.ok) {
+            const sessionData = (await sessionRes.json().catch(() => null)) as { csrfToken?: string } | null;
+            if (sessionData && typeof sessionData.csrfToken === 'string') {
+              csrfToken = sessionData.csrfToken;
+            }
+          }
+        } catch {
+          // Transport error during session retrieval; proceed and let request fail-closed if needed
+        }
+      }
+      if (csrfToken !== null) {
+        headers['x-csrf-token'] = csrfToken;
+      }
+    }
     if (init.idempotencyKey !== undefined) headers['idempotency-key'] = init.idempotencyKey;
 
     let response: Response;
@@ -249,6 +299,9 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
       const result = await request<AdminWebSession>('GET', '/session', {});
       if (result.ok) csrfToken = result.data.csrfToken;
       return result;
+    },
+    getHealth() {
+      return request<AdminHealthSnapshot>('GET', '/health', {});
     },
     listTenants(query) {
       return request<TenantPage>('GET', '/tenants', { query });
@@ -407,6 +460,18 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     },
     postAction(action, params, actionOptions) {
       return runAction(action, params, actionOptions);
+    },
+    listWorkflows(query) {
+      return request<WorkflowCatalogPage>('GET', '/workflows', { query });
+    },
+    getWorkflow(slug, query) {
+      return request<WorkflowDetailResponse>('GET', `/workflows/${encodeURIComponent(slug)}`, { query });
+    },
+    provisionWorkflow(params, idempotencyKey) {
+      return runAction('workflow.provision', params, { idempotencyKey });
+    },
+    retireWorkflow(params, idempotencyKey) {
+      return runAction('workflow.retire', params, { idempotencyKey });
     },
   };
 }

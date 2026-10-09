@@ -103,6 +103,76 @@ async function trackingTableExists(db: Db): Promise<boolean> {
 }
 
 /**
+ * MED-1 (WFA section 8): the table/index objects a migration file declares as
+ * its own — `CREATE [UNIQUE] [TABLE|INDEX] [CONCURRENTLY] [IF NOT EXISTS]
+ * <name>`. Comment lines are stripped first (0019 carries commented-out DDL)
+ * and column-level ALTERs are deliberately not covered: a dropped table or
+ * index is the drift this guard exists to catch.
+ */
+function declaredSchemaObjects(sql: string): string[] {
+  const names: string[] = [];
+  for (const rawLine of sql.split(/\r?\n/)) {
+    const line = rawLine.replace(/--.*$/, '');
+    const match = /^\s*CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX)\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_$]*)/i.exec(line);
+    if (match) names.push(match[1]!.toLowerCase());
+  }
+  return names;
+}
+
+/**
+ * MED-1: does `name` still exist as a table or an index in the current
+ * schema? Tables are visible through information_schema, indexes through
+ * pg_indexes — both read-only catalog probes.
+ */
+async function schemaObjectExists(db: Db, name: string): Promise<boolean> {
+  const res = await db.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.tables
+       WHERE table_schema = current_schema() AND table_name = $1
+     ) OR EXISTS (
+       SELECT 1 FROM pg_indexes
+       WHERE schemaname = current_schema() AND indexname = $1
+     ) AS exists`,
+    [name],
+  );
+  return res.rows[0]?.exists === true;
+}
+
+interface RecordedMigrationDrift {
+  sequence: number;
+  filename: string;
+  objects: string[];
+}
+
+/**
+ * MED-1 (WFA section 8 security review): a ledger row claims its file was
+ * applied — but the shipped DDL is `CREATE ... IF NOT EXISTS`, so the loop in
+ * `migrate()` skips the file even if the object was dropped since. Return the
+ * recorded migrations whose declared table/index objects are missing so the
+ * caller can fail closed instead of booting against an incomplete schema.
+ */
+async function recordedMigrationsMissingObjects(
+  db: Db,
+  files: MigrationFile[],
+  done: Map<number, string>,
+): Promise<RecordedMigrationDrift[]> {
+  const drift: RecordedMigrationDrift[] = [];
+  for (const file of files) {
+    if (!done.has(file.sequence)) continue;
+    const declared = declaredSchemaObjects(file.sql);
+    if (declared.length === 0) continue;
+    const missing: string[] = [];
+    for (const name of declared) {
+      if (!(await schemaObjectExists(db, name))) missing.push(name);
+    }
+    if (missing.length > 0) {
+      drift.push({ sequence: file.sequence, filename: file.filename, objects: missing });
+    }
+  }
+  return drift;
+}
+
+/**
  * Run all pending migrations in sequence order, recording each in
  * `schema_migrations`.  On failure the tracking row is NOT inserted
  * (the INSERT is inside the same transaction via `db.tx`), so the
@@ -112,6 +182,27 @@ export async function migrate(db: Db): Promise<{ applied: string[] }> {
   const files = loadMigrationFiles(MIGRATIONS_DIR);
   await ensureTrackingTable(db);
   const done = await appliedMigrations(db);
+
+  // MED-1 (WFA section 8 security review): the loop below SKIPS every recorded
+  // sequence. Because the shipped DDL is `CREATE ... IF NOT EXISTS`, a ledger
+  // row whose object was dropped would be skipped in silence and the boot
+  // would false-green against an incomplete schema. Validate the recorded
+  // migrations' declared tables/indexes first and refuse to skip on drift.
+  const drifted = await recordedMigrationsMissingObjects(db, files, done);
+  if (drifted.length > 0) {
+    const detail = drifted
+      .map((d) => `${d.filename} → missing ${d.objects.join(', ')}`)
+      .join('; ');
+    throw new Error(
+      `refusing to skip recorded migrations against an incomplete schema: ${detail}. `
+        + 'schema_migrations claims these files were applied, but the database no longer has the '
+        + 'table/index object(s) they declare (an object was dropped while the ledger row stayed). '
+        + 'Restore the object(s), or delete the stale ledger row(s) and re-run migrate after verifying '
+        + `the schema, e.g. DELETE FROM schema_migrations WHERE sequence IN (${drifted.map((d) => d.sequence).join(', ')}); `
+        + '— never trust the ledger past this point.'
+    );
+  }
+
   const applied: string[] = [];
 
   for (const file of files) {
@@ -210,6 +301,19 @@ export async function verifyMigrations(db: Db): Promise<void> {
     const names = missing.map((f) => f.filename).join(', ');
     throw new Error(
       `schema is not up-to-date: missing migrations [${names}]. Run "npm run migrate" before starting the server.`
+    );
+  }
+
+  const drifted = await recordedMigrationsMissingObjects(db, files, done);
+  if (drifted.length > 0) {
+    const detail = drifted
+      .map((d) => `${d.filename} → missing ${d.objects.join(', ')}`)
+      .join('; ');
+    throw new Error(
+      `schema verification failed: recorded migrations have missing table/index objects: ${detail}. `
+        + 'schema_migrations claims these files were applied, but the database no longer has the '
+        + 'table/index object(s) they declare. Restore the object(s), or delete the stale ledger '
+        + 'row(s) and re-run migrate after verifying the schema, then run verify again.'
     );
   }
 }

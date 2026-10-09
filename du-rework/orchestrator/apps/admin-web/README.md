@@ -2,7 +2,7 @@
 
 React + TypeScript (strict) + Vite + React Router (Data Mode) + Tailwind CSS v4
 Orchestrator Portal for DU Platform, served by the Orchestrator Backend under
-`/admin/web/` behind a **per-route server flag** (default off; the legacy
+`admin/` behind a **per-route server flag** (default off; the legacy
 rendered shell keeps serving every other route). The package/folder identity
 (`@du/admin-web`, `apps/admin-web`) is frozen until the MIG-08C rename.
 
@@ -50,7 +50,7 @@ The Orchestrator serves them when `DU_ADMIN_WEB` is enabled — see the mount in
 
 - `DU_ADMIN_WEB` unset/empty → mount disabled (route falls through to the legacy
   404, exactly as today).
-- `DU_ADMIN_WEB=1` or `=true` → mount at `/admin/web` (default path).
+- `DU_ADMIN_WEB=1` or `=true` → mount at `admin` (default path).
 - `DU_ADMIN_WEB=/custom/path` → mount at a custom path.
 - `DU_ADMIN_WEB_DIST=<dir>` → override the bundle directory (default resolution:
   `apps/admin-web/dist` relative to the working directory, then relative to the
@@ -65,7 +65,7 @@ The Orchestrator serves them when `DU_ADMIN_WEB` is enabled — see the mount in
   | absent / blank | unchanged: every route is served (today's behaviour) |
   | `overview,security` | those two routes render; every other route answers one consistent 404 document |
   | `overview,bogus` | unknown names are dropped (logged), `overview` still applies |
-  | `,` (present, empty after parse) | only the shell root `/admin/web` stays reachable |
+  | `,` (present, empty after parse) | only the shell root `admin` stays reachable |
 
   Decision for a route outside the allow-list: the **server answers the same
   404 document for every gated route** (“Route not enabled on this deployment”)
@@ -79,10 +79,10 @@ Every mount request passes the existing admin-shell session gate; unauthenticate
 browsers are redirected to `/admin/login`. Assets are immutable-cached; the shell
 document is `no-store`.
 
-### API Reference (`/admin/web/api-docs`)
+### API Reference (`admin/api-docs`)
 
 The Portal renders the generated OpenAPI artifact `docs/21-openapi.json` at
-`/api-docs` (mounted as `/admin/web/api-docs`). The spec is imported as a raw
+`/api-docs` (mounted as `admin/api-docs`). The spec is imported as a raw
 string at build time, so it ships inside the Portal bundle and loads offline
 from the image — no CDN, no runtime fetch, no second spec source. Operations
 are grouped/filtered by the `tags` / `x-api-family` metadata the generator
@@ -101,7 +101,7 @@ request or a credential.
 
 Notes:
 
-- The built asset URLs are fixed to the Vite `base` (`/admin/web/`). A custom
+- The built asset URLs are fixed to the Vite `base` (`admin/`). A custom
   `DU_ADMIN_WEB` path therefore only works for the environment flag format
   (`1`/`true`); a non-default path needs a rebuild with a matching `base`.
 - Dev loops: `pnpm --filter @du/admin-web dev` serves the UI on its own port for

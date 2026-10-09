@@ -19,7 +19,7 @@ import { NotFound } from '@/routes/not-found';
 
 /**
  * React Router Data Mode. `basename` is derived from Vite's BASE_URL so the
- * same build works behind the Orchestrator mount (`/admin/web/`) and in the
+ * same build works behind the Orchestrator mount (`admin/`) and in the
  * Vite dev server.
  */
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '');

@@ -102,8 +102,5 @@ Header, layout, navigation, brand, and footer primitives for application framing
 - Used in `src/app-shell/app-shell.tsx` with navigation links to `Overview` (`/overview`) and `Bootstrap` (`/`) (F6).
 
 ### 12. Barrel Exports & Subpaths (F4)
-- **Production Barrel** (`@/components/ui` via `./index.ts`): Exports only production UI primitives. Demo components and fixtures are excluded to keep bundle size minimal.
-- **Fixtures & Demo**: Available via explicit subpaths `@/components/ui/fixtures` and `@/components/ui/demo`.
+- **Production Barrel** (`@/components/ui` via `./index.ts`): Exports only production UI primitives. The demo component and its fixtures were removed as dead code (they had no importer); nothing ships them anymore.
 - **Subpath Imports**: Integrators may continue importing components via subpaths (e.g. `@/components/ui/button`) or from the root barrel.
-
-- `ComponentDemo`: Interactive showcase component demonstrating all primitives, light/dark mode toggling, long text handling, and all 5 screen states.

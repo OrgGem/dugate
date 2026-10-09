@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ConfirmDialog, Modal } from '@/components/ui/dialog';
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/select';
 import { AlertBanner, DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
-import { TenantSelect } from '@/components/ui/tenant-select';
 import {
   Table,
   TableBody,
@@ -89,6 +89,7 @@ export function ConnectorsScreen() {
   const [capabilities, setCapabilities] = useState<Loadable<ConnectorCapabilities>>({ kind: 'loading' });
   const [list, setList] = useState<ListState>({ kind: 'idle' });
   const [connectorId, setConnectorId] = useState('');
+  const [customConnectorIdMode, setCustomConnectorIdMode] = useState(false);
   const [revision, setRevision] = useState('latest');
   const [lookup, setLookup] = useState<LookupState>({ kind: 'idle' });
   const [importOpen, setImportOpen] = useState(false);
@@ -480,19 +481,45 @@ export function ConnectorsScreen() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="w-full max-w-xs">
-            <FormField id="connector-id" label="Connector ID">
-              <Input
-                id="connector-id"
-                list="connector-id-suggestions"
-                value={connectorId}
-                onChange={(event) => setConnectorId(event.target.value)}
-                placeholder="openai"
-              />
-              <datalist id="connector-id-suggestions">
-                {connectorSuggestions.map((id) => <option key={id} value={id} />)}
-              </datalist>
-            </FormField>
+          <div className="w-full max-w-xs flex flex-col gap-2">
+            {customConnectorIdMode ? (
+              <FormField
+                id="custom-connector-id"
+                label="Custom Connector ID"
+                description="Leading and trailing spaces are trimmed before lookup."
+              >
+                <Input
+                  id="custom-connector-id"
+                  value={connectorId}
+                  onChange={(event) => setConnectorId(event.target.value)}
+                  placeholder="vendor-extract"
+                />
+              </FormField>
+            ) : (
+              <FormField id="connector-id" label="Connector ID">
+                <NativeSelect
+                  id="connector-id"
+                  value={connectorId}
+                  onChange={(event) => setConnectorId(event.currentTarget.value)}
+                >
+                  <option value="">
+                    {connectorSuggestions.length === 0 ? 'No connector IDs available' : 'Select a connector ID'}
+                  </option>
+                  {connectorSuggestions.map((id) => <option key={id} value={id}>{id}</option>)}
+                </NativeSelect>
+              </FormField>
+            )}
+            <Button
+              size="sm"
+              variant="link"
+              className="self-start"
+              onClick={() => {
+                setCustomConnectorIdMode(!customConnectorIdMode);
+                setConnectorId('');
+              }}
+            >
+              {customConnectorIdMode ? 'Choose a suggested ID' : 'Enter a custom ID'}
+            </Button>
           </div>
           <div className="w-full max-w-[10rem]">
             <FormField id="connector-revision" label="Revision">
@@ -767,7 +794,7 @@ export function ConnectorsScreen() {
 function ManageRevisionFacts({
   read,
   activeRevision,
-  isPlatformAdmin,
+  isPlatformAdmin: _isPlatformAdmin,
 }: {
   read: Extract<ConnectorRevisionRead, { kind: 'management' }>;
   activeRevision: number | null;
@@ -803,20 +830,11 @@ function ManageRevisionFacts({
       </dd>
       <dt className="text-[var(--text-sub)]">Tenant</dt>
       <dd className="min-w-0 break-words text-xs">
-        {read.revision.tenantId === undefined
-          ? '—'
-          : isPlatformAdmin
-            ? (
-                <TenantSelect
-                  id="connector-revision-tenant"
-                  label={null}
-                  ariaLabel="Revision tenant"
-                  value={read.revision.tenantId}
-                  onValueChange={() => undefined}
-                  disabled
-                />
-              )
-            : 'Tenant name unavailable'}
+        {read.revision.tenantId ? (
+          <code>{read.revision.tenantId}</code>
+        ) : (
+          '—'
+        )}
       </dd>
       <dt className="text-[var(--text-sub)]">Account</dt>
       <dd className="min-w-0 break-words text-xs"><code>{read.revision.accountId ?? '—'}</code></dd>

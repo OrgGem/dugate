@@ -125,8 +125,34 @@ jest.mock('pg', () => {
       };
     }
     // resumeOperation: the operation under lock.
-    if (/SELECT id, tenant_id, state, state_version FROM operations WHERE id=\$1 FOR UPDATE/.test(text)) {
-      return { rows: [{ id: 'op-1', tenant_id: TENANT, state: 'WAITING_INPUT', state_version: 2 }], rowCount: 1 };
+    // Model the CURRENT product column list (runtime.ts resumeOperation now
+    // also selects endpoint_slug). Tolerant regex: extra columns must not be
+    // mistaken for "no row" - the catch-all below answers rowCount 0 and the
+    // resume 404s before any sentinel write is reached. endpoint_slug is null:
+    // this scripted op is a plain (non-workflow) operation, so resume takes the
+    // plain-payload branch this test asserts on. No sentinel/assertion changed.
+    if (/SELECT id, tenant_id, state, state_version[\w, ]* FROM operations WHERE id=\$1 FOR UPDATE/.test(text)) {
+      return { rows: [{ id: 'op-1', tenant_id: TENANT, state: 'WAITING_INPUT', state_version: 2, endpoint_slug: null }], rowCount: 1 };
+    }
+    // resumeOperation's task under lock (runtime.ts): joined operations row,
+    // matched on the stable JOIN+WHERE part so future column additions are not
+    // mistaken for "no row". Model a PLAIN (non-workflow) action on purpose:
+    // this test asserts the plain sealed resume payload, so a workflow action
+    // here would take the pinned-payload branch instead. payload_ref is null
+    // because the plain branch never reads it.
+    if (/FROM tasks t JOIN operations o ON o\.id = t\.operation_id WHERE t\.id=\$1 FOR UPDATE OF t/.test(text)) {
+      return {
+        rows: [{
+          id: 'task-1',
+          state: 'WAITING_INPUT',
+          payload_ref: null,
+          business_id: BUSINESS,
+          business_version: '1.0.0',
+          action: 'extract',
+          correlation_id: 'sentinel-resume',
+        }],
+        rowCount: 1,
+      };
     }
     if (/FROM operations WHERE id=\$1/i.test(text)) return { rows: [], rowCount: 0 };
     if (/information_schema\.tables/i.test(text)) return { rows: [{ exists: true }], rowCount: 1 };

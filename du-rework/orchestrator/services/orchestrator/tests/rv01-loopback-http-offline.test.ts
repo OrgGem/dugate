@@ -328,6 +328,12 @@ class FakeDb {
     const tenant = /tenant_id = \$(\d+)/.exec(low);
     if (tenant) rows = rows.filter((o) => o.tenant_id === String(params[Number(tenant[1]) - 1]));
 
+    const apiKeyFence = /\(pipeline_json->0->>'workflow' is null or api_key_id = \$(\d+)\)/.exec(low);
+    if (apiKeyFence) {
+      const apiKeyId = String(params[Number(apiKeyFence[1]) - 1]);
+      rows = rows.filter((o) => this.matchesApiKeyFence(o, apiKeyId));
+    }
+
     if (low.includes('deleted_at is null')) rows = rows.filter((o) => o.deleted_at === null);
 
     const state = /state = any\(\$(\d+)::text\[\]\)/.exec(low);
@@ -346,6 +352,28 @@ class FakeDb {
     return rows;
   }
 
+  private matchesApiKeyFence(row: OpRow, apiKeyId: string): boolean {
+    const rawPipeline = row.pipeline_json;
+    if (rawPipeline === null || rawPipeline === undefined) return true;
+
+    let pipeline: unknown = rawPipeline;
+    if (typeof rawPipeline === 'string') {
+      try {
+        pipeline = JSON.parse(rawPipeline) as unknown;
+      } catch {
+        // PostgreSQL jsonb cannot contain malformed JSON. Fail closed if a
+        // fixture violates that storage invariant.
+        return false;
+      }
+    }
+
+    if (!Array.isArray(pipeline)) return true;
+    const first = pipeline[0];
+    if (typeof first !== 'object' || first === null || Array.isArray(first)) return true;
+    const workflow = (first as Record<string, unknown>).workflow;
+    return workflow === null || workflow === undefined || String(row.api_key_id) === apiKeyId;
+  }
+
   private selectOperations(low: string, params: unknown[]): OpRow[] {
     let rows = this.applyFilters(low, params);
 
@@ -359,12 +387,22 @@ class FakeDb {
     };
 
     // page boundary: the legacy uuid lookup, or the canonical row value.
-    const legacyBoundary = /\(created_at, id\) < \(select created_at, id from operations where id = \$(\d+)\)/.exec(low);
+    const legacyBoundary = /\(created_at, id\) < \(select created_at, id from operations where id = \$(\d+)(?: and tenant_id = \$(\d+))?(?: and \(pipeline_json->0->>'workflow' is null or api_key_id = \$(\d+)\))?\)/.exec(low);
     const canonicalBoundary = /\(created_at, id\) [<>] \(\$(\d+)::timestamptz, \$(\d+)::uuid\)/.exec(low);
     if (legacyBoundary !== null) {
-      const anchor = this.operations.find((o) => o.id === String(params[Number(legacyBoundary[1]) - 1]));
-      if (anchor === undefined) throw new Error('legacy page_token named no operation: ' + params[Number(legacyBoundary[1]) - 1]);
-      rows = rows.filter((o) =>
+      const cursorId = String(params[Number(legacyBoundary[1]) - 1]);
+      let anchor = this.operations.find((o) => o.id === cursorId);
+      if (anchor !== undefined && legacyBoundary[2] !== undefined) {
+        const tenantId = String(params[Number(legacyBoundary[2]) - 1]);
+        if (String(anchor.tenant_id) !== tenantId) anchor = undefined;
+      }
+      if (anchor !== undefined && legacyBoundary[3] !== undefined) {
+        const apiKeyId = String(params[Number(legacyBoundary[3]) - 1]);
+        if (!this.matchesApiKeyFence(anchor, apiKeyId)) anchor = undefined;
+      }
+      // A scalar SELECT with no visible anchor yields NULL; the row-value
+      // comparison is then unknown for every row, so the page is empty.
+      rows = anchor === undefined ? [] : rows.filter((o) =>
         String(o.created_at) < String(anchor.created_at) ||
         (String(o.created_at) === String(anchor.created_at) && String(o.id) < String(anchor.id)),
       );

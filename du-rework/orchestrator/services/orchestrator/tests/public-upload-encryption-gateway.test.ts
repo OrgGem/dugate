@@ -1,5 +1,9 @@
 import { createHash, createHmac } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
+import { mkdtemp, open, rmdir, unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
@@ -13,6 +17,7 @@ import {
 } from '@aws-sdk/client-s3';
 import type { Db } from '../src/db/db';
 import {
+  CRYPTO_STORAGE_CHUNK_SIZE_BYTES,
   CryptoStorageFacade,
   CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES,
 } from '../src/modules/encryption/crypto-storage-facade';
@@ -35,6 +40,15 @@ interface MemoryObject {
   body: Buffer;
   versionId: string;
   metadata: Record<string, string>;
+  contentLength?: number;
+}
+
+interface StreamedObjectSummary {
+  byteCount: number;
+  sha256: string;
+  chunkCount: number;
+  maxChunkBytes: number;
+  producerActiveAtFirstChunk: boolean | null;
 }
 
 interface MemoryMultipart {
@@ -59,6 +73,7 @@ async function bytesOf(body: unknown, afterChunk?: () => Promise<void>): Promise
 class MemoryS3 {
   public readonly objects = new Map<string, MemoryObject>();
   public readonly versions = new Map<string, Map<string, MemoryObject>>();
+  public readonly streamedObjects = new Map<string, StreamedObjectSummary>();
   public readonly commands: string[] = [];
   public readonly versionRequests: Array<{ command: string; key: string; versionId?: string }> = [];
   public readonly deletedVersions: Array<{ key: string; versionId: string }> = [];
@@ -67,12 +82,93 @@ class MemoryS3 {
   public state: () => string = () => 'unknown';
   public sourcePullsAtFirstEncryptedRead: number | null = null;
   public sourcePulls: () => number = () => 0;
+  public producerFinished: () => boolean = () => false;
+  public sinkEncryptedObjects = false;
+  public afterFirstEncryptedChunk?: () => Promise<void>;
   public delayReadsMs = 0;
   public beforeFirstEncryptedPut?: () => Promise<void>;
   private readonly multiparts = new Map<string, MemoryMultipart>();
+  private readonly streamedObjectFiles = new Map<string, Map<string, string>>();
+  private readonly sinkFiles = new Set<string>();
+  private sinkDirectory: string | null = null;
+  private sinkFileCount = 0;
   private version = 0;
   private upload = 0;
   private encryptedPutCount = 0;
+
+  public async enableEncryptedStreamSink(): Promise<void> {
+    this.sinkDirectory = await mkdtemp(join(tmpdir(), 'du-public-upload-sink-'));
+    this.sinkEncryptedObjects = true;
+  }
+
+  public async cleanupEncryptedStreamSink(): Promise<void> {
+    const directory = this.sinkDirectory;
+    if (!directory) return;
+    if (dirname(directory) !== tmpdir() || !basename(directory).startsWith('du-public-upload-sink-')) {
+      throw new Error('test S3 sink cleanup refused an unexpected temporary directory');
+    }
+    for (const file of this.sinkFiles) await unlink(file);
+    await rmdir(directory);
+    this.sinkFiles.clear();
+    this.streamedObjectFiles.clear();
+    this.sinkDirectory = null;
+  }
+
+  private async consumeEncryptedObject(key: string, body: unknown, metadata: Record<string, string>): Promise<{ summary: StreamedObjectSummary; versionId: string }> {
+    const directory = this.sinkDirectory;
+    if (!directory) throw new Error('test S3 encrypted stream sink was not initialized');
+    const filePath = join(directory, `ciphertext-${++this.sinkFileCount}.bin`);
+    const file = await open(filePath, 'wx');
+    this.sinkFiles.add(filePath);
+    const hash = createHash('sha256');
+    let byteCount = 0;
+    let chunkCount = 0;
+    let maxChunkBytes = 0;
+    let producerActiveAtFirstChunk: boolean | null = null;
+    const consumeChunk = async (chunk: Uint8Array): Promise<void> => {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      if (chunkCount === 0) {
+        this.sourcePullsAtFirstEncryptedRead = this.sourcePulls();
+        producerActiveAtFirstChunk = !this.producerFinished();
+      }
+      await file.writeFile(bytes);
+      hash.update(bytes);
+      byteCount += bytes.byteLength;
+      chunkCount++;
+      maxChunkBytes = Math.max(maxChunkBytes, bytes.byteLength);
+      if (chunkCount === 1) await this.afterFirstEncryptedChunk?.();
+    };
+    try {
+      if (body instanceof Uint8Array) {
+        await consumeChunk(body);
+      } else if (body && typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of body as AsyncIterable<Uint8Array>) await consumeChunk(chunk);
+      } else {
+        throw new Error('test S3 received a body that is not a byte stream');
+      }
+    } finally {
+      await file.close();
+    }
+    const versionId = `version-${++this.version}`;
+    const versions = this.streamedObjectFiles.get(key) ?? new Map<string, string>();
+    versions.set(versionId, filePath);
+    this.streamedObjectFiles.set(key, versions);
+    const summary = {
+      byteCount,
+      sha256: hash.digest('hex'),
+      chunkCount,
+      maxChunkBytes,
+      producerActiveAtFirstChunk,
+    };
+    this.streamedObjects.set(key, summary);
+    this.storeObject(key, {
+      body: Buffer.alloc(0),
+      versionId,
+      metadata: { ...metadata },
+      contentLength: byteCount,
+    });
+    return { summary, versionId };
+  }
 
   private storeObject(key: string, object: MemoryObject): void {
     const versions = this.versions.get(key) ?? new Map<string, MemoryObject>();
@@ -108,6 +204,10 @@ class MemoryS3 {
         this.stateAtEncryptedPut.push(this.state());
         this.encryptedPutCount++;
         if (this.encryptedPutCount === 1) await this.beforeFirstEncryptedPut?.();
+      }
+      if (isEncryptedObject && this.sinkEncryptedObjects) {
+        const stored = await this.consumeEncryptedObject(command.input.Key!, body, metadata);
+        return { VersionId: stored.versionId };
       }
       let firstChunk = true;
       const bytes = await bytesOf(body, isEncryptedObject
@@ -160,7 +260,7 @@ class MemoryS3 {
       const object = this.getObject(key, versionId);
       if (!object) throw new Error('test object not found');
       return {
-        ContentLength: object.body.length,
+        ContentLength: object.contentLength ?? object.body.length,
         VersionId: object.versionId,
         Metadata: { ...object.metadata },
       };
@@ -172,7 +272,12 @@ class MemoryS3 {
       this.versionRequests.push({ command: 'GetObject', key, ...(versionId ? { versionId } : {}) });
       const object = this.getObject(key, versionId);
       if (!object) throw new Error('test object not found');
-      return { Body: Readable.from([Buffer.from(object.body)]) };
+      const streamedFile = this.streamedObjectFiles.get(key)?.get(object.versionId);
+      return {
+        Body: streamedFile
+          ? createReadStream(streamedFile)
+          : Readable.from([Buffer.from(object.body)]),
+      };
     }
     if (command instanceof DeleteObjectCommand) {
       this.commands.push('DeleteObject');
@@ -248,6 +353,8 @@ function createDb(initialSize: number, initiallyExists = true): {
   const control = { releaseFailuresRemaining: 0 };
   let exists = initiallyExists;
   let submittedOperation: Record<string, unknown> | null = null;
+  let linkedOperationId: string | null = null;
+  const linkedTaskId: string | null = null;
   const execute = async (sql: string, params: unknown[] = []) => {
     const query = sql.replace(/\s+/g, ' ').trim();
     if (query.startsWith('SELECT') && query.includes('FROM api_keys')) {
@@ -382,6 +489,21 @@ function createDb(initialSize: number, initiallyExists = true): {
       row.multipartUploadId = null;
       row.claimExpiresAt = null;
       return { rowCount: 1, rows: [{ id: ARTIFACT_ID }] };
+    }
+    if (query.startsWith('UPDATE artifacts SET operation_id=$2')) {
+      const ids = Array.isArray(params[0]) ? params[0] as string[] : [];
+      if (
+        !exists ||
+        !ids.includes(row.artifactId) ||
+        params[2] !== row.tenantId ||
+        row.state !== 'READY' ||
+        linkedOperationId !== null ||
+        linkedTaskId !== null
+      ) {
+        return { rowCount: 0, rows: [] };
+      }
+      linkedOperationId = String(params[1]);
+      return { rowCount: 1, rows: [{ id: row.artifactId }] };
     }
     throw new Error('unexpected test DB query: ' + query);
   };
@@ -661,35 +783,72 @@ describe('public upload encryption gateway', () => {
 
   test('streams chunked encryption with downstream backpressure and keeps the object size exact', async () => {
     const size = CRYPTO_STORAGE_SINGLE_SHOT_LIMIT_BYTES + 20 * 1024 * 1024;
-    const { gateway, s3 } = gatewayFor({ size });
+    const { gateway, s3, row } = gatewayFor({ size });
+    await s3.enableEncryptedStreamSink();
     let pulls = 0;
+    let producerFinished = false;
+    let producerFinishedAtFirstEncryptedChunk: boolean | null = null;
+    let signalFirstEncryptedChunk!: () => void;
+    const firstEncryptedChunk = new Promise<void>((resolve) => { signalFirstEncryptedChunk = resolve; });
+    let resumeSink!: () => void;
+    const sinkResume = new Promise<void>((resolve) => { resumeSink = resolve; });
     s3.sourcePulls = () => pulls;
-    s3.delayReadsMs = 1;
+    s3.producerFinished = () => producerFinished;
+    s3.afterFirstEncryptedChunk = async () => {
+      producerFinishedAtFirstEncryptedChunk = producerFinished;
+      signalFirstEncryptedChunk();
+      await sinkResume;
+    };
     async function* slowSource(): AsyncGenerator<Uint8Array> {
       for (let offset = 0; offset < size; offset += 1024 * 1024) {
         pulls++;
         yield Buffer.alloc(Math.min(size - offset, 1024 * 1024), pulls % 251);
       }
+      producerFinished = true;
     }
-    const rssBefore = process.memoryUsage.rss();
-    const ack = await gateway.upload({ artifactId: ARTIFACT_ID, tenantId: TENANT_ID, source: slowSource() });
-    const rssGrowth = process.memoryUsage.rss() - rssBefore;
-    const stored = s3.objects.get(STORAGE_KEY)!;
-    const manifest = JSON.parse(s3.objects.get(STORAGE_KEY + '.crypto-manifest.json')!.body.toString('utf8')) as {
-      kind: string;
-      encryption: { totalSizeBytes: number; fileSha256: string; chunks: readonly unknown[] };
-    };
+    try {
+      const upload = gateway.upload({ artifactId: ARTIFACT_ID, tenantId: TENANT_ID, source: slowSource() });
+      try {
+        await Promise.race([
+          firstEncryptedChunk,
+          upload.then(() => { throw new Error('upload finished before the sink consumed ciphertext'); }),
+        ]);
+        expect(producerFinishedAtFirstEncryptedChunk).toBe(false);
+      } finally {
+        resumeSink();
+      }
 
-    expect(s3.sourcePullsAtFirstEncryptedRead).not.toBeNull();
-    expect(s3.sourcePullsAtFirstEncryptedRead).toBeLessThan(pulls);
-    expect(manifest.kind).toBe('chunked');
-    expect(manifest.encryption.totalSizeBytes).toBe(size);
-    expect(manifest.encryption.chunks.length).toBeGreaterThan(1);
-    expect(stored.body.length).toBe(size);
-    expect(ack.ciphertextSizeBytes).toBe(size);
-    // The mock object store retains ciphertext; this budget includes that
-    // copy and bounded stream buffers, while rejecting another full-file copy.
-    expect(rssGrowth).toBeLessThan(size * 4 + 64 * 1024 * 1024);
+      const ack = await upload;
+      const stored = s3.objects.get(STORAGE_KEY)!;
+      const retainedWrite = s3.objectWrites.find((write) => write.key === STORAGE_KEY)!;
+      const streamed = s3.streamedObjects.get(STORAGE_KEY)!;
+      const manifest = JSON.parse(s3.objects.get(STORAGE_KEY + '.crypto-manifest.json')!.body.toString('utf8')) as {
+        kind: string;
+        ciphertextSizeBytes: number;
+        ciphertextSha256: string;
+        encryption: { totalSizeBytes: number; fileSha256: string; chunks: readonly { sizeBytes: number }[] };
+      };
+
+      expect(s3.sourcePullsAtFirstEncryptedRead).not.toBeNull();
+      expect(s3.sourcePullsAtFirstEncryptedRead).toBeLessThan(pulls);
+      expect(streamed.producerActiveAtFirstChunk).toBe(true);
+      expect(streamed.byteCount).toBe(size);
+      expect(streamed.chunkCount).toBeGreaterThan(1);
+      expect(streamed.sha256).toBe(ack.ciphertextSha256);
+      expect(manifest.kind).toBe('chunked');
+      expect(manifest.ciphertextSizeBytes).toBe(size);
+      expect(manifest.ciphertextSha256).toBe(streamed.sha256);
+      expect(manifest.encryption.totalSizeBytes).toBe(size);
+      expect(manifest.encryption.chunks.length).toBeGreaterThan(1);
+      expect(manifest.encryption.chunks.every((chunk) => chunk.sizeBytes <= CRYPTO_STORAGE_CHUNK_SIZE_BYTES)).toBe(true);
+      expect(manifest.encryption.chunks.reduce((total, chunk) => total + chunk.sizeBytes, 0)).toBe(size);
+      expect(stored.body.length).toBe(0);
+      expect(retainedWrite.body.length).toBe(0);
+      expect(ack.ciphertextSizeBytes).toBe(size);
+      expect(row.sizeBytes).toBe(size);
+    } finally {
+      await s3.cleanupEncryptedStreamSink();
+    }
   });
 
   test('uses S3 multipart only for ciphertext and commits the completed immutable generation', async () => {

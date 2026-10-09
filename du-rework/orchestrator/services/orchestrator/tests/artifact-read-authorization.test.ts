@@ -195,10 +195,15 @@ class OfflineArtifactAccessDb {
     if (sql.includes('FROM TASKS T JOIN OPERATIONS O')) {
       const task = this.tasks.get(String(params[0]));
       if (!sql.includes('T.STATE')) {
+        // `assertLease` (src/modules/artifacts/artifacts.ts:328-331) projects
+        // `lease_active` WITHOUT selecting `t.state`, so this shape must carry
+        // the column too: answering without it made every requestUpload/
+        // assertLease path read `undefined` and fail closed as "lease expired".
         return this.result(task ? [{
           lease_epoch: task.leaseEpoch,
           operation_id: task.operationId,
           tenant_id: task.tenantId,
+          lease_active: task.leaseActive,
         }] : []);
       }
       return this.result(task ? [{
@@ -368,7 +373,8 @@ describe('R1-A artifact read authorization and storage-facade boundary', () => {
     const service = makeService(db);
 
     await expect(service.requestAccess(STAGING_OUTPUT, readRequest())).rejects.toMatchObject({
-      code: 'STATE_CONFLICT',
+      status: 409,
+      code: 'PERMISSION_DENIED',
     });
     expect(db.grantUpdates).toBe(0);
   });
@@ -378,7 +384,7 @@ describe('R1-A artifact read authorization and storage-facade boundary', () => {
     expiredDb.tasks.get(CHILD_TASK)!.leaseActive = false;
     await expect(
       makeService(expiredDb).requestAccess(SAME_OPERATION_CHECKPOINT, readRequest())
-    ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    ).rejects.toMatchObject({ status: 409, code: 'LEASE_LOST' });
     expect(expiredDb.grantUpdates).toBe(0);
 
     const staleDb = new OfflineArtifactAccessDb();
@@ -580,7 +586,7 @@ describe('CR28-03 artifact read authorization: negatives and boundaries', () => 
       expect(db.grantUpdates).toBe(0);
     });
 
-    it('reports a state conflict, not a permission denial, for a declared cross-operation STAGING artifact', async () => {
+    it('reports a permission denial, not a state conflict, for a declared cross-operation STAGING artifact', async () => {
       const db = new OfflineArtifactAccessDb();
       db.tasks.get(CHILD_TASK)!.submitArtifacts = [
         { artifactId: DECLARED_INPUT, role: 'source' },
@@ -589,7 +595,7 @@ describe('CR28-03 artifact read authorization: negatives and boundaries', () => 
 
       await expect(
         makeService(db).requestAccess(FOREIGN_STAGING_OUTPUT, readRequest())
-      ).rejects.toMatchObject({ code: 'STATE_CONFLICT' });
+      ).rejects.toMatchObject({ status: 409, code: 'PERMISSION_DENIED' });
       expect(db.grantUpdates).toBe(0);
     });
 
@@ -724,7 +730,7 @@ describe('CR28-03 worker lease boundaries', () => {
 
     await expect(
       makeService(db).requestAccess(SAME_OPERATION_CHECKPOINT, readRequest())
-    ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    ).rejects.toMatchObject({ status: 409, code: 'LEASE_LOST' });
     expect(db.grantUpdates).toBe(0);
   });
 
@@ -734,7 +740,7 @@ describe('CR28-03 worker lease boundaries', () => {
 
     await expect(
       makeService(db).requestAccess(SAME_OPERATION_CHECKPOINT, readRequest())
-    ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    ).rejects.toMatchObject({ status: 409, code: 'LEASE_LOST' });
 
     // The query projects (lease_expires_at IS NOT NULL AND lease_expires_at
     // > now()) AS lease_active, so a task that never received an expiry denies

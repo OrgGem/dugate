@@ -169,7 +169,7 @@ export function matchShellRoute(
   const p = pathname.length > 0 && pathname[0] === '/' ? pathname : '/' + pathname;
 
   // Root → admin home
-  if (m === 'GET' && (p === '/' || p === '/admin' || p === '/admin/')) {
+  if (m === 'GET' && (p === '/' || p === '/admin' || p === '/admin/' || p === '/admin/legacy' || p === '/admin/legacy/')) {
     return { id: 'admin-root', section: null, requiredRole: 'viewer' };
   }
 
@@ -199,8 +199,9 @@ export function matchShellRoute(
 
   // Section routes — `/admin/<section>` or `/admin/<section>/...`
   if (p.startsWith('/admin/')) {
+    const checkPath = p.startsWith('/admin/legacy/') ? p.replace('/admin/legacy', '/admin') : p;
     for (const item of navItems) {
-      if (p === item.path || p.startsWith(item.path + '/')) {
+      if (checkPath === item.path || checkPath.startsWith(item.path + '/')) {
         return { id: 'section:' + item.section, section: item.section, requiredRole: item.requiredRole };
       }
     }

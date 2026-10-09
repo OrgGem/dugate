@@ -1,5 +1,5 @@
 export { createAdminApiClient } from './client';
-export type { ActionOptions, AdminApiClient, AdminApiClientOptions, PostActionResult } from './client';
+export type { ActionOptions, AdminApiClient, AdminApiClientOptions, AdminHealthSnapshot, PostActionResult } from './client';
 export { SECRET_PURPOSES, SECRET_SERVICES } from './types';
 export type {
   AdminApiProblem,
@@ -9,6 +9,7 @@ export type {
   ApiKeyIdRef,
   ApiKeyPage,
   ApiKeyRow,
+  BffHealthResponse,
   BusinessPage,
   BusinessRow,
   BusinessVersionRow,
@@ -69,4 +70,7 @@ export type {
   VaultVersionMode,
   FileUrlAuthConfigWrite,
   UsageSummary,
+  WorkflowCatalogItem,
+  WorkflowCatalogPage,
+  WorkflowDetailResponse,
 } from './types';

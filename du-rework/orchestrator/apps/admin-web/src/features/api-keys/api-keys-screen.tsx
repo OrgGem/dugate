@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { AlertBanner, DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
-import { TenantSelect } from '@/components/ui/tenant-select';
 import {
   Table,
   TableBody,
@@ -14,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTenant } from '@/lib/tenant-context';
 import {
   createAdminApiClient,
   type AdminApiProblem,
@@ -29,12 +29,10 @@ import { apiKeyStatusVariant, parseApiKeyPage } from './state';
  * Rotate/disable stay visibly `requires backend` (F7): no fake buttons.
  */
 export function ApiKeysScreen() {
-  // ONE client instance per screen: the CSRF token from getSession is held by
-  // this client and must ride every later mutation.
+  const { tenantId, tenant } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
   const [session, setSession] = useState<Loadable<AdminWebSession>>({ kind: 'loading' });
   const [keys, setKeys] = useState<Loadable<ApiKeyPage>>({ kind: 'loading' });
-  const [issueTenant, setIssueTenant] = useState('');
   const [issuing, setIssuing] = useState(false);
   const [actionProblem, setActionProblem] = useState<AdminApiProblem | null>(null);
   const [copyOnce, setCopyOnce] = useState<string | null>(null);
@@ -48,11 +46,11 @@ export function ApiKeysScreen() {
       return;
     }
     setSession({ kind: 'ready', data: sessionResult.data });
-    setIssueTenant((current) =>
-      current.length > 0 ? current : sessionResult.data.scope?.kind === 'tenant' ? sessionResult.data.scope.tenantId : '',
-    );
 
-    const keysResult = await client.listApiKeys({ limit: '25' });
+    const keysResult = await client.listApiKeys({
+      limit: '50',
+      ...(tenantId ? { tenantId } : {}),
+    });
     if (!keysResult.ok) {
       setKeys({ kind: 'failed', problem: keysResult.problem });
       return;
@@ -66,7 +64,7 @@ export function ApiKeysScreen() {
           }
         : { kind: 'ready', data: page },
     );
-  }, [client]);
+  }, [client, tenantId]);
 
   useEffect(() => {
     void load();
@@ -75,18 +73,19 @@ export function ApiKeysScreen() {
   const isAdmin = session.kind === 'ready' && session.data.role === 'admin';
 
   async function refreshKeys(): Promise<void> {
-    const result = await client.listApiKeys({ limit: '25' });
+    const result = await client.listApiKeys({ limit: '50', ...(tenantId ? { tenantId } : {}) });
     const page = result.ok ? parseApiKeyPage(result.data) : null;
     if (page !== null) setKeys({ kind: 'ready', data: page });
   }
 
   async function issueKey(): Promise<void> {
+    if (!tenantId) return;
     setActionProblem(null);
     setIssuing(true);
     try {
       const result = await client.postAction(
         'apikey.issue',
-        { tenantId: issueTenant.trim() },
+        { tenantId: tenantId.trim() },
         { idempotencyKey: crypto.randomUUID() },
       );
       if (!result.ok) {
@@ -192,30 +191,30 @@ export function ApiKeysScreen() {
             response only; reads never project it.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          {isAdmin ? (
-            <div className="w-full max-w-xs">
-              <TenantSelect
-                id="issue-tenant"
-                label="Tenant"
-                description="A tenant is required to issue a key."
-                value={issueTenant.length > 0 ? issueTenant : null}
-                onValueChange={(tenantId) => setIssueTenant(tenantId ?? '')}
-                disabled={issuing}
-              />
+        <CardContent className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-[var(--text-sub)]">Target Tenant (active)</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">{tenant?.name ?? 'No tenant selected'}</span>
+              {tenant ? (
+                <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} dot>
+                  {tenant.state}
+                </Badge>
+              ) : null}
             </div>
-          ) : (
-            <p className="pb-2 text-xs text-[var(--text-sub)]">A tenant is selected by your session.</p>
-          )}
+            {tenantId ? (
+              <span className="font-mono text-xs text-[var(--text-sub)]">{tenantId}</span>
+            ) : null}
+          </div>
           <Button
             onClick={() => void issueKey()}
             isLoading={issuing}
-            disabled={!isAdmin || issueTenant.trim().length === 0}
+            disabled={!isAdmin || !tenantId}
           >
             Issue key
           </Button>
           <p className="text-xs text-[var(--text-sub)] basis-full">
-            Rotate and Disable have no backend action yet (F7) — they are shown as disabled, not faked.
+            The API key will be issued directly for the active tenant selected in the left navigation.
           </p>
         </CardContent>
       </Card>

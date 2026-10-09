@@ -20,8 +20,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TenantSelect,
 } from '@/components/ui';
+import { useTenant } from '@/lib/tenant-context';
 import {
   SECRET_PURPOSES,
   SECRET_SERVICES,
@@ -35,7 +35,7 @@ import {
 import { parseSecretListPage, providerDetail, providerLabel, secretStateVariant } from './state';
 
 /**
- * SC-03 — Secret catalog screen (`/admin/web/secrets`).
+ * SC-03 — Secret catalog screen (`admin/secrets`).
  *
  * Lists tenant-scoped catalog metadata, creates managed values (write-only
  * password input) or Vault KV links, rotates and disables with CAS, and runs a
@@ -104,13 +104,13 @@ function newIdempotencyKey(): string {
 }
 
 export function SecretsScreen(): React.JSX.Element {
+  const { tenantId: globalTenantId, tenant } = useTenant();
+  const tenantScope = globalTenantId ?? '';
   const client = useMemo(() => createAdminApiClient(), []);
   const [entries, setEntries] = useState<SecretCatalogEntryRead[]>([]);
   const [loading, setLoading] = useState(false);
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [tenantScope, setTenantScope] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<CreateDraft>(emptyCreateDraft);
@@ -126,12 +126,6 @@ export function SecretsScreen(): React.JSX.Element {
   const [disableError, setDisableError] = useState<AdminApiProblem | null>(null);
 
   const [testResults, setTestResults] = useState<Record<string, SecretProbeResult | 'pending'>>({});
-
-  useEffect(() => {
-    void client.getSession().then((result) => {
-      if (result.ok) setIsAdmin(result.data.role === 'admin');
-    });
-  }, [client]);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -311,18 +305,22 @@ export function SecretsScreen(): React.JSX.Element {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-3">
-            {isAdmin ? (
-              <TenantSelect
-                id="secrets-tenant"
-                label="Tenant scope"
-                description="Choose a tenant or All tenants."
-                value={tenantScope.length > 0 ? tenantScope : null}
-                allowAll
-                onValueChange={(tenantId) => setTenantScope(tenantId ?? '')}
-              />
-            ) : (
-              <p className="pb-2 text-xs text-[var(--text-sub)]">Tenant scope is controlled by your session.</p>
-            )}
+            <div className="w-full max-w-sm">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-[var(--text-sub)]">Active Tenant</span>
+                <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-sm">
+                  <span className="font-medium text-[var(--text-main)] truncate">
+                    {tenant?.name || (tenantScope ? `Tenant (${tenantScope.slice(0, 8)}...)` : 'No Tenant Selected')}
+                  </span>
+                  {tenant && (
+                    <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-auto">
+                      {tenant.state}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--text-sub)]">Inherited from Global Tenant in Left Navigator.</p>
+              </div>
+            </div>
             <Button type="button" variant="outline" onClick={() => void load()} isLoading={loading}>
               Refresh
             </Button>

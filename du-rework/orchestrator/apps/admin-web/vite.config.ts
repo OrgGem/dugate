@@ -4,13 +4,13 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 /**
- * Orchestrator Portal is served by the Orchestrator Backend under `/admin/web/`
+ * Orchestrator Portal is served by the Orchestrator Backend under `/admin/`
  * behind a per-route server flag (DU_ADMIN_WEB, default off — see
  * services/orchestrator/src/app/admin/shell-server.ts). Assets are emitted
  * with content hashes so the server can cache them immutably.
  */
 export default defineConfig({
-  base: '/admin/web/',
+  base: '/admin/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

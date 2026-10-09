@@ -129,7 +129,7 @@ export interface CreateAdminShellServerOptions {
    * Default OFF: when neither this option nor the `DU_ADMIN_WEB` env flag is
    * set the route does not exist and the legacy rendered shell is untouched.
    * Tests inject here; the platform uses the env flag
-   * (`DU_ADMIN_WEB=1` → `/admin/web`, or `DU_ADMIN_WEB=/path`).
+   * (`DU_ADMIN_WEB=1` → `admin`, or `DU_ADMIN_WEB=/path`).
    */
   adminWeb?: AdminWebMountOptions;
   /**
@@ -297,9 +297,9 @@ function writeResponse(res: ServerResponse, payload: AdminShellResponse, correla
 // it is unset nothing changes for the legacy routes.
 //
 // Serving contract:
-//   - `/admin/web`, `/admin/web/`, and any non-asset deep link -> index.html,
+//   - `admin`, `admin/`, and any non-asset deep link -> index.html,
 //     `cache-control: no-store`, strict CSP, and the session gate above.
-//   - `/admin/web/assets/<hashed-file>` -> immutable (max-age 1 year), a small
+//   - `admin/assets/<hashed-file>` -> immutable (max-age 1 year), a small
 //     content-type allow-list; a missing asset is a 404 (never the SPA HTML).
 //   - No session -> 302 to `/admin/login` (same destination as the rendered
 //     shell's protected-route gate).
@@ -308,7 +308,7 @@ function writeResponse(res: ServerResponse, payload: AdminShellResponse, correla
 
 /** Options for the static Admin Web mount (Vite build served by this shell). */
 export interface AdminWebMountOptions {
-  /** URL path prefix. Default: `/admin/web`. */
+  /** URL path prefix. Default: `admin`. */
   path?: string;
   /** Absolute directory holding the Vite build (index.html + assets/). */
   distDir: string;
@@ -329,14 +329,14 @@ interface ResolvedAdminWebMount {
   routes: readonly string[] | null;
 }
 
-const DEFAULT_ADMIN_WEB_PATH = '/admin/web';
+const DEFAULT_ADMIN_WEB_PATH = '/admin';
 
 /** The SPA route names the rollout flag understands (path segment = name). */
 const ADMIN_WEB_ROUTE_NAMES = [
   'overview',
   'profiles',
   // Swagger UI surface. Recognised so a deployment can opt into
-  // /admin/web/api-docs via DU_ADMIN_WEB_ROUTES without the name being
+  // admin/api-docs via DU_ADMIN_WEB_ROUTES without the name being
   // dropped as unknown (and the route answering the generic 404).
   'api-docs',
   'api-keys',
@@ -349,6 +349,7 @@ const ADMIN_WEB_ROUTE_NAMES = [
   'secrets',
   'identity',
   'settings',
+  'workflows',
 ] as const;
 
 const ADMIN_WEB_CSP = [
@@ -477,7 +478,26 @@ function resolveAdminWebMount(
 }
 
 function isAdminWebPath(pathname: string, base: string): boolean {
-  return pathname === base || pathname.startsWith(base + '/');
+  if (
+    isBffPath(pathname) ||
+    pathname === '/admin/login' ||
+    pathname === '/admin/logout' ||
+    pathname === '/admin/oidc/callback' ||
+    pathname === '/admin/legacy' ||
+    pathname.startsWith('/admin/legacy/')
+  ) {
+    return false;
+  }
+  return (
+    pathname === base ||
+    pathname.startsWith(base + '/') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname === '/admin/web' ||
+    pathname.startsWith('/admin/web/') ||
+    pathname === '/admin/portal' ||
+    pathname.startsWith('/admin/portal/')
+  );
 }
 
 /** Escape a URL-derived value before it lands in the gate's HTML document. */
@@ -579,7 +599,11 @@ async function handleAdminWebRequest(
     return;
   }
 
-  const rawRelative = pathname.slice(mount.path.length).replace(/^\/+/, '');
+  const effectiveBase = mount.path === '/admin' ? '/admin' : mount.path;
+  const cleaned = pathname
+    .replace(/^\/admin\/(web|portal)/, effectiveBase)
+    .replace(/^\/(web|portal)/, effectiveBase);
+  const rawRelative = (cleaned.startsWith(effectiveBase) ? cleaned.slice(effectiveBase.length) : pathname.slice(mount.path.length)).replace(/^\/+/, '');
   let decoded: string;
   try {
     decoded = decodeURIComponent(rawRelative);
@@ -811,11 +835,6 @@ export function createAdminShellServer(
       const qIdx = url.indexOf('?');
       const pathname = qIdx < 0 ? url : url.slice(0, qIdx);
       const query = qIdx < 0 ? '' : url.slice(qIdx + 1);
-      if (adminWebMount && isAdminWebPath(pathname, adminWebMount.path)) {
-        lastRouteId = 'admin-web';
-        await handleAdminWebRequest(req, res, pathname, adminWebMount, config, correlationId);
-        return;
-      }
       if (adminWebMount && isBffPath(pathname)) {
         lastRouteId = 'admin-bff';
         const bffRequest = buildRequest(req, pathname, query, '');
@@ -828,6 +847,25 @@ export function createAdminShellServer(
           bffRuntime,
           correlationId,
         );
+        return;
+      }
+      if (
+        adminWebMount &&
+        (pathname === '/portal' || pathname.startsWith('/portal/'))
+      ) {
+        lastRouteId = 'admin-portal-redirect';
+        const sub = pathname.replace(/^\/portal\/?/, '');
+        const targetUrl = sub ? `/admin/${sub}` + (query ? `?${query}` : '') : `/admin` + (query ? `?${query}` : '');
+        res.statusCode = 302;
+        res.setHeader('location', targetUrl);
+        res.setHeader('cache-control', 'no-store');
+        res.setHeader('x-correlation-id', correlationId);
+        res.end();
+        return;
+      }
+      if (adminWebMount && isAdminWebPath(pathname, adminWebMount.path)) {
+        lastRouteId = 'admin-web';
+        await handleAdminWebRequest(req, res, pathname, adminWebMount, config, correlationId);
         return;
       }
       const bodyText =

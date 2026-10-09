@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { DeniedState, EmptyState, ErrorState, LoadingState } from '@/components/ui/state-panel';
-import { TenantSelect } from '@/components/ui/tenant-select';
+import { useTenant } from '@/lib/tenant-context';
 import { createAdminApiClient, type UsageSummary } from '@/lib/api';
 import type { Loadable, PaneState } from '@/features/overview/state';
 
@@ -13,17 +13,58 @@ import type { Loadable, PaneState } from '@/features/overview/state';
  * Usage (AWEB-06) — reads the real tenant-scoped summary through the BFF.
  * The route requires from/to; the UI defaults to the last 24h.
  */
+
+/** OPU-G2: polling cadence; polling starts only after the operator opts in. */
+const AUTO_REFRESH_MS = 10_000;
+
+function formatDataAge(milliseconds: number): string {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
+/**
+ * OPU-G2: the age of the data currently on screen, derived from when the last
+ * successful load completed. Never loaded → Unavailable (never a zero or a
+ * fake age). A failed refresh keeps the last good data and says so.
+ */
+function DataAgeLabel({ lastSuccessAt, stale }: { lastSuccessAt: number | null; stale: boolean }) {
+  return (
+    <span
+      className="text-xs text-[var(--text-sub)]"
+      data-portal-data-age="true"
+      data-data-age-state={lastSuccessAt === null ? 'unavailable' : stale ? 'stale' : 'fresh'}
+    >
+      {lastSuccessAt === null
+        ? 'Data age: Unavailable (no successful load yet)'
+        : `Data age: ${formatDataAge(Date.now() - lastSuccessAt)}${
+            stale ? ' · stale (last refresh failed; showing last good data)' : ''
+          }`}
+    </span>
+  );
+}
+
 export function UsageScreen() {
+  const { tenantId: globalTenantId, tenant } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
   const now = useMemo(() => new Date(), []);
   const [from, setFrom] = useState(new Date(now.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 16));
   const [to, setTo] = useState(now.toISOString().slice(0, 16));
   const validWindow = from.length > 0 && to.length > 0 && Number.isFinite(Date.parse(from + 'Z')) && Number.isFinite(Date.parse(to + 'Z')) && Date.parse(from + 'Z') < Date.parse(to + 'Z');
   const [summary, setSummary] = useState<Loadable<UsageSummary> | null>(null);
-  const [tenantId, setTenantId] = useState<string | null>('');
+  const tenantId = globalTenantId;
   const [sessionReady, setSessionReady] = useState(false);
-  const [tenantScoped, setTenantScoped] = useState(false);
   const validTenant = typeof tenantId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null);
+  // Stable box that lets `load` know synchronously whether a prior success
+  // exists (the offline element-tree harnesses predate `useRef` support, so a
+  // never-set state slot is used instead).
+  const [lastSuccess] = useState<{ current: number | null }>({ current: null });
 
   useEffect(() => {
     let active = true;
@@ -33,10 +74,6 @@ export function UsageScreen() {
         setSummary({ kind: 'failed', problem: result.problem });
         return;
       }
-      if (result.data.scope?.kind === 'tenant') {
-        setTenantId(result.data.scope.tenantId);
-        setTenantScoped(true);
-      }
       setSessionReady(true);
     });
     return () => { active = false; };
@@ -44,18 +81,38 @@ export function UsageScreen() {
 
   const load = useCallback(async (): Promise<void> => {
     if (!sessionReady || !validWindow || !validTenant || tenantId === null) return;
-    setSummary({ kind: 'loading' });
+    // A refresh must not blank the screen: only the first load shows Loading.
+    if (lastSuccess.current === null) setSummary({ kind: 'loading' });
     const result = await client.getUsage({ tenantId, from: new Date(from + 'Z').toISOString(), to: new Date(to + 'Z').toISOString() });
     if (!result.ok) {
-      setSummary({ kind: 'failed', problem: result.problem });
+      if (lastSuccess.current === null) {
+        setSummary({ kind: 'failed', problem: result.problem });
+      } else {
+        // Keep the last good summary visible; mark the data stale.
+        setStale(true);
+      }
       return;
     }
+    const stamp = Date.now();
+    lastSuccess.current = stamp;
+    setLastSuccessAt(stamp);
+    setStale(false);
     setSummary({ kind: 'ready', data: result.data });
-  }, [client, from, to, validWindow, tenantId, validTenant, sessionReady]);
+  }, [client, from, to, validWindow, tenantId, validTenant, sessionReady, lastSuccess]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // OPU-G2: one interval, created only after opt-in; the cleanup covers both
+  // toggle-off and unmount, so no interval can leak.
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    const timer = setInterval(() => {
+      void load();
+    }, AUTO_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [autoRefresh, load]);
 
   const pane: PaneState<UsageSummary> | null =
     summary === null
@@ -86,18 +143,20 @@ export function UsageScreen() {
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="w-full max-w-sm">
-            <TenantSelect
-              id="usage-tenant"
-              label="Tenant"
-              description={tenantScoped ? 'Locked to your tenant session.' : 'Select a tenant. Usage summaries require a single tenant.'}
-              value={tenantId}
-              allowAll={!tenantScoped}
-              disabled={!sessionReady || tenantScoped}
-              onValueChange={(nextTenantId) => {
-                setTenantId(nextTenantId);
-                setSummary(null);
-              }}
-            />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-[var(--text-sub)]">Active Tenant</span>
+              <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-sm">
+                <span className="font-medium text-[var(--text-main)] truncate">
+                  {tenant?.name || (tenantId ? `Tenant (${tenantId.slice(0, 8)}...)` : 'No Tenant Selected')}
+                </span>
+                {tenant && (
+                  <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-auto">
+                    {tenant.state}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-sub)]">Inherited from Global Tenant in Left Navigator.</p>
+            </div>
           </div>
           <div className="w-full max-w-sm">
             <FormField id="usage-from" label="From (UTC)">
@@ -109,12 +168,24 @@ export function UsageScreen() {
               <Input id="usage-to" type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
             </FormField>
           </div>
-          <Button onClick={() => void load()} disabled={!sessionReady || !validWindow || !validTenant || tenantId === null}>Load usage</Button>
-          {sessionReady && tenantId === null ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Usage summaries require a single tenant. Select a tenant instead of All tenants.</p> : null}
-          {sessionReady && tenantId === '' ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Select a tenant to load usage.</p> : null}
+          <Button onClick={() => void load()} disabled={!sessionReady || !validWindow || !validTenant || !tenantId}>Load usage</Button>
+          {sessionReady && !tenantId ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Select an active tenant in the left navigator to load usage.</p> : null}
           {!validWindow ? <p role="alert" className="w-full text-sm text-[var(--badge-danger-text)]">Choose a start time before the end time.</p> : null}
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          size="sm"
+          variant={autoRefresh ? 'secondary' : 'ghost'}
+          aria-pressed={autoRefresh}
+          data-portal-auto-refresh-toggle="true"
+          onClick={() => setAutoRefresh(!autoRefresh)}
+        >
+          Auto refresh: {autoRefresh ? 'On' : 'Off'}
+        </Button>
+        <DataAgeLabel lastSuccessAt={lastSuccessAt} stale={stale} />
+      </div>
 
       {pane?.kind === 'loading' ? <LoadingState title="Loading usage…" /> : null}
       {pane?.kind === 'denied' ? (

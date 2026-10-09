@@ -51,9 +51,10 @@ export function parseOperationDetail(value: unknown): OperationDetail | null {
   const artifacts: OperationArtifactWire[] = [];
   for (const raw of artifactsRaw) {
     if (!isRecord(raw)) continue;
+    const st = str(raw['status'] ?? raw['state']);
     artifacts.push({
-      role: str(raw['role']) ?? '—',
-      status: str(raw['status']) ?? '—',
+      role: str(raw['role']) ?? 'output',
+      status: st ?? (raw['download'] || raw['downloadUrl'] ? 'READY' : '—'),
       downloadUrl: str(raw['downloadUrl'] ?? raw['download']),
       contentType: str(raw['contentType'] ?? raw['mimeType']),
     });

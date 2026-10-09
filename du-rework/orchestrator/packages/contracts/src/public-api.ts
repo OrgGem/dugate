@@ -76,6 +76,7 @@ export const OPERATIONS_STATE_FILTER_VALUES = [
   'RUNNING',
   'COMPLETED',
   'FAILED',
+  'CANCELLED',
   'TIMED_OUT',
 ] as const;
 export type OperationsStateFilter = (typeof OPERATIONS_STATE_FILTER_VALUES)[number];
@@ -96,6 +97,7 @@ export const OPERATIONS_STATE_FILTER_WIRE_STATES: Readonly<
   ],
   COMPLETED: ['SUCCEEDED'],
   FAILED: ['FAILED'],
+  CANCELLED: ['CANCELLED'],
   TIMED_OUT: ['TIMED_OUT'],
 };
 

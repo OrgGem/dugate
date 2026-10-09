@@ -32,6 +32,8 @@ export interface OpenApiMediaType {
 export interface OpenApiResponse {
   description?: string;
   content?: Record<string, OpenApiMediaType>;
+  headers?: Record<string, { description?: string; schema?: unknown }>;
+  schema?: unknown;
 }
 
 export interface OpenApiOperation {

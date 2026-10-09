@@ -479,6 +479,7 @@ const STATE_FILTER_LABEL: Record<OperationStateFilter, string> = {
   RUNNING: 'Running',
   COMPLETED: 'Completed',
   FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
   TIMED_OUT: 'Timed out',
 };
 

@@ -55,7 +55,7 @@ describe('operations-list request contract', () => {
       expect(ListOperationsQuerySchema.safeParse({ state: value }).success).toBe(true);
     }
     // The route 422s these; the schema must not imply they are legal.
-    for (const machine of ['QUEUED', 'ACCEPTED', 'SUCCEEDED', 'CANCELLED', 'running']) {
+    for (const machine of ['QUEUED', 'ACCEPTED', 'SUCCEEDED', 'running']) {
       expect(ListOperationsQuerySchema.safeParse({ state: machine }).success).toBe(false);
     }
   });

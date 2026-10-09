@@ -359,6 +359,21 @@ export interface BusinessVersions {
   rows: BusinessVersionRow[];
 }
 
+export interface BffHealthResponse {
+  status: 'ok' | 'degraded' | 'unknown';
+  db: boolean | null;
+  redis: boolean | null;
+  activeLeases: number;
+  queueIntegrity: {
+    state: 'OK' | 'RECONSTRUCTING' | 'SUSPECT';
+    orphansLast: number;
+    stalled: number;
+    lastSweepAt: string | null;
+  } | null;
+  outboxBacklog: number | null;
+  sampledAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // AWEB-07 Security wire
 // ---------------------------------------------------------------------------
@@ -520,4 +535,30 @@ export interface ProfileCallbackPolicy {
   auth: CallbackAuth;
   destination?: CallbackDestinationAuthorization | null;
   forceReferenceOnly?: boolean;
+}
+
+export interface WorkflowCatalogItem {
+  tenantId: string;
+  slug: string;
+  revision: number;
+  digest: string;
+  status: 'active' | 'retired';
+  createdAt: string;
+  name?: string;
+  description?: string;
+  nodesCount?: number;
+  stages?: string[];
+  schema?: unknown;
+  connectorSlotMap?: Record<string, string>;
+  approvedEgressOrigins?: string[];
+}
+
+export interface WorkflowCatalogPage {
+  items: WorkflowCatalogItem[];
+  total: number;
+}
+
+export interface WorkflowDetailResponse {
+  active: WorkflowCatalogItem | null;
+  revisions: WorkflowCatalogItem[];
 }

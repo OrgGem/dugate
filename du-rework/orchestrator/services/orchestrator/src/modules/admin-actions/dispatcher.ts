@@ -28,6 +28,12 @@ import {
   ConnectorTargetParamsSchema,
   ConnectorUpsertParamsSchema,
 } from '@du/contracts';
+import {
+  provisionLegacyWorkflowSchema,
+  retireLegacyWorkflowSchema,
+  LegacyWorkflowSchemaCatalogError,
+} from '../workflow-schemas/workflow-schemas';
+import type { MetadataCrypto } from '../runtime/metadata-crypto';
 
 /**
  * ADM-BASE-02 action dispatcher (cycle 84): the admin mutations that
@@ -86,6 +92,8 @@ export interface AdminActionDeps {
   connectorManagement?: ConnectorManagementStore;
   /** VAULT-04: probe passthrough (ctx.connectors.testConnector). */
   connectorTest?: (connectorId: string) => Promise<Record<string, unknown>>;
+  /** WFA-03: metadata crypto seam for legacy workflow schemas. */
+  metadataCrypto?: MetadataCrypto;
 }
 
 export interface AdminActionCall {
@@ -155,6 +163,9 @@ export const ADMIN_ACTIONS: Record<string, ActionDef> = {
   'connector.disable': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'connector.retire': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'connector.test': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  // WFA-03: workflow schema provisioning & retirement
+  'workflow.provision': { bearerRoles: ['platform', 'tenant_operator'], cookieRoles: ['admin', 'operator'] },
+  'workflow.retire': { bearerRoles: ['platform', 'tenant_operator'], cookieRoles: ['admin', 'operator'] },
 };
 
 export type AdminActionDecision =
@@ -1217,6 +1228,107 @@ export async function dispatchAdminAction(
           ...(probe.errorCode === undefined ? {} : { errorCode: probe.errorCode }),
         },
       };
+    }
+    case 'workflow.provision': {
+      const callerTenant = auth ? callerTenantOf(auth) : undefined;
+      const requestedTenant = typeof call.params.tenantId === 'string' && call.params.tenantId.length > 0
+        ? call.params.tenantId
+        : callerTenant;
+      if (!requestedTenant) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.tenantId is required');
+      }
+      if (callerTenant && callerTenant !== requestedTenant) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'mutations are scoped to the caller tenant');
+      }
+      const schemaInput = call.params.schema;
+      if (!schemaInput || typeof schemaInput !== 'object') {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.schema is required and must be an object');
+      }
+      const approvedEgressOrigins = Array.isArray(call.params.approvedEgressOrigins)
+        ? (call.params.approvedEgressOrigins as string[])
+        : undefined;
+      const expectedRevision = typeof call.params.expectedRevision === 'number'
+        ? call.params.expectedRevision
+        : null;
+
+      try {
+        const pin = await provisionLegacyWorkflowSchema(
+          deps.db,
+          {
+            tenantId: requestedTenant,
+            schema: schemaInput,
+            approvedEgressOrigins,
+            expectedRevision,
+          },
+          deps.metadataCrypto,
+        );
+
+        await deps.audit.record({
+          tenantId: requestedTenant,
+          actor,
+          action: 'workflow.provision',
+          resource: `workflow:${pin.slug}:${pin.revision}`,
+          ...principalFields,
+          severity: 'info',
+          correlationId: deps.correlationId,
+        });
+
+        return { status: 201, body: { pin } };
+      } catch (err: unknown) {
+        if (err instanceof LegacyWorkflowSchemaCatalogError) {
+          if (err.code === 'SCHEMA_INVALID') throw new HttpError(422, 'INVALID_SCHEMA', err.message);
+          if (err.code === 'SCHEMA_REVISION_CONFLICT') throw new HttpError(409, 'CONFLICT', err.message);
+          if (err.code === 'SCHEMA_CRYPTO_UNAVAILABLE') throw new HttpError(503, 'SCHEMA_CRYPTO_UNAVAILABLE', err.message);
+          if (err.code === 'SCHEMA_NOT_ACTIVE') throw new HttpError(404, 'NOT_FOUND', err.message);
+        }
+        throw err;
+      }
+    }
+    case 'workflow.retire': {
+      const callerTenant = auth ? callerTenantOf(auth) : undefined;
+      const requestedTenant = typeof call.params.tenantId === 'string' && call.params.tenantId.length > 0
+        ? call.params.tenantId
+        : callerTenant;
+      if (!requestedTenant) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.tenantId is required');
+      }
+      if (callerTenant && callerTenant !== requestedTenant) {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'mutations are scoped to the caller tenant');
+      }
+      const slug = typeof call.params.slug === 'string' ? call.params.slug : '';
+      if (!slug) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.slug is required');
+      }
+      const expectedRevision = typeof call.params.expectedRevision === 'number'
+        ? call.params.expectedRevision
+        : 1;
+
+      try {
+        const retired = await retireLegacyWorkflowSchema(deps.db, {
+          tenantId: requestedTenant,
+          slug,
+          expectedRevision,
+        });
+        if (!retired) {
+          throw new HttpError(404, 'NOT_FOUND', `active workflow schema '${slug}' revision ${expectedRevision} not found`);
+        }
+        await deps.audit.record({
+          tenantId: requestedTenant,
+          actor,
+          action: 'workflow.retire',
+          resource: `workflow:${slug}:${expectedRevision}`,
+          ...principalFields,
+          severity: 'info',
+          correlationId: deps.correlationId,
+        });
+        return { status: 200, body: { retired: true, slug, revision: expectedRevision } };
+      } catch (err: unknown) {
+        if (err instanceof LegacyWorkflowSchemaCatalogError) {
+          if (err.code === 'SCHEMA_INVALID') throw new HttpError(422, 'INVALID_SCHEMA', err.message);
+          if (err.code === 'SCHEMA_REVISION_CONFLICT') throw new HttpError(409, 'CONFLICT', err.message);
+        }
+        throw err;
+      }
     }
     default:
       // unreachable: authorizeAdminAction 404s anything not in the table.

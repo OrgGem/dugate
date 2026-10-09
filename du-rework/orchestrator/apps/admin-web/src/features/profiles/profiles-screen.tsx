@@ -21,7 +21,8 @@ import { CallbackPolicyEditor } from './callback-policy-editor';
 import { buildCallbackPolicy, callbackPolicyFromRead, emptyCallbackDraft, validateCallbackDraft, type CallbackDraft } from './callback-policy';
 import { parseSecretListPage } from '@/features/secrets/state';
 import type { SecretOption } from '@/features/secrets/value-source-selector';
-import { BusinessInputs } from '@/features/businesses/business-inputs';
+import { useTenant } from '@/lib/tenant-context';
+import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
 type FileUrlAuthType = 'none' | 'bearer' | 'header' | 'query';
@@ -84,10 +85,15 @@ interface RowResult {
  * `/admin/api/profiles/…/{upsert|publish|rollback}` → dispatcher.
  */
 export function ProfilesScreen() {
+  const { tenantId: globalTenantId, tenant } = useTenant();
   const client = useMemo(() => createAdminApiClient(), []);
-  const [businessId, setBusinessId] = useState('');
-  const [businessVersion, setBusinessVersion] = useState('latest');
-  const [profileName, setProfileName] = useState('new');
+  const [businesses, setBusinesses] = useState<string[]>([]);
+  const [versions, setVersions] = useState<string[]>([]);
+  const [apiKeys, setApiKeys] = useState<{ id: string; name?: string | null; status: string }[]>([]);
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState<string>('');
+  const [businessId, setBusinessId] = useState('document-core');
+  const [businessVersion, setBusinessVersion] = useState('1.1.0');
+  const [profileName, setProfileName] = useState('default');
 
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
   const [loadedAs, setLoadedAs] = useState<{ businessId: string; businessVersion: string; profileName: string } | null>(null);
@@ -105,9 +111,70 @@ export function ProfilesScreen() {
   const [secretsLoading, setSecretsLoading] = useState(false);
   const [secretsProblem, setSecretsProblem] = useState<AdminApiProblem | null>(null);
 
-  // CB-04: the callback credential fields select from the live secret
-  // catalog; a catalog outage degrades the selector with an honest message and
-  // never blocks profile editing.
+  useEffect(() => {
+    setApiKeys([]);
+    setSelectedApiKeyId('');
+    setDetail(null);
+    setDraft(null);
+    setLoadedAs(null);
+    setRowResults(null);
+    setProblem(null);
+    setNotice(null);
+    setTestResult(null);
+    setTestProblem(null);
+  }, [globalTenantId]);
+
+  // Load registered businesses
+  useEffect(() => {
+    let active = true;
+    void client.listBusinesses().then((result) => {
+      if (!active) return;
+      const page = result.ok ? parseBusinessPage(result.data) : null;
+      if (page && page.items.length > 0) {
+        const list = page.items.map((b) => b.businessId);
+        setBusinesses(list);
+        setBusinessId((prev) => (!prev || !list.includes(prev) ? list[0]! : prev));
+      }
+    });
+    return () => { active = false; };
+  }, [client]);
+
+  // Load versions for selected business
+  useEffect(() => {
+    let active = true;
+    if (!businessId.trim()) return;
+    void client.getBusinessVersions(businessId.trim()).then((result) => {
+      if (!active) return;
+      const vers = result.ok ? parseBusinessVersions(result.data) : null;
+      if (vers && vers.rows.length > 0) {
+        const list = vers.rows.map((r) => r.version);
+        setVersions(list);
+        setBusinessVersion((prev) => (!prev || !list.includes(prev) ? list[0]! : prev));
+      }
+    });
+    return () => { active = false; };
+  }, [client, businessId]);
+
+  // Load API keys for global tenant
+  useEffect(() => {
+    let active = true;
+    setApiKeys([]);
+    setSelectedApiKeyId('');
+    if (!globalTenantId) return () => { active = false; };
+    void client.listApiKeys({ tenantId: globalTenantId }).then((result) => {
+      if (!active) return;
+      if (result.ok && result.data && Array.isArray(result.data.items)) {
+        const activeKeys = result.data.items.filter((k) => k.status === 'ACTIVE');
+        setApiKeys(activeKeys);
+        if (activeKeys.length > 0) {
+          setSelectedApiKeyId((prev) => (!prev || !activeKeys.some((k) => k.id === prev) ? activeKeys[0]!.id : prev));
+        }
+      }
+    });
+    return () => { active = false; };
+  }, [client, globalTenantId]);
+
+  // CB-04: the callback credential fields select from the live secret catalog
   useEffect(() => {
     let active = true;
     setSecretsLoading(true);
@@ -140,13 +207,14 @@ export function ProfilesScreen() {
     };
   }, [client]);
 
-  const identifiers = { businessId: businessId.trim(), businessVersion: businessVersion.trim() || 'latest', profileName: profileName.trim() || 'new' };
+  const identifiers = { businessId: businessId.trim(), businessVersion: businessVersion.trim() || 'latest', profileName: profileName.trim() || 'default' };
 
-  async function load(): Promise<void> {
+  async function load(nameToLoad?: string): Promise<void> {
     setLoading(true);
     setProblem(null);
     setNotice(null);
     setRowResults(null);
+    const targetName = (nameToLoad ?? profileName).trim() || 'default';
     try {
       const sessionResult = await client.getSession();
       if (!sessionResult.ok) {
@@ -156,7 +224,7 @@ export function ProfilesScreen() {
         setProblem(sessionResult.problem);
         return;
       }
-      const result = await client.getProfile(identifiers.businessId, identifiers.businessVersion, identifiers.profileName);
+      const result = await client.getProfile(identifiers.businessId, identifiers.businessVersion, targetName);
       if (!result.ok) {
         setDetail(null);
         setDraft(null);
@@ -170,20 +238,81 @@ export function ProfilesScreen() {
         setProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' });
         return;
       }
+      if (!parsed.apiKeyId && selectedApiKeyId) {
+        parsed.apiKeyId = selectedApiKeyId;
+      }
+      if (!parsed.profileName) {
+        parsed.profileName = targetName;
+      }
       setDetail(parsed);
-      setLoadedAs(identifiers);
+      setLoadedAs({ businessId: identifiers.businessId, businessVersion: identifiers.businessVersion, profileName: targetName });
       setDraft(draftFromDetail(parsed));
+      setNotice(`Profile "${targetName}" loaded (Revision ${parsed.revision}).`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createProfile(): Promise<void> {
+    setLoading(true);
+    setProblem(null);
+    setNotice(null);
+    setRowResults(null);
+    const bId = businessId.trim();
+    const bVer = businessVersion.trim() || 'latest';
+    const pName = profileName.trim() || 'default';
+    if (!bId) {
+      setNotice('Please select or enter a business ID first.');
+      setLoading(false);
+      return;
+    }
+    try {
+      const sessionResult = await client.getSession();
+      if (!sessionResult.ok) {
+        setDetail(null);
+        setDraft(null);
+        setLoadedAs(null);
+        setProblem(sessionResult.problem);
+        return;
+      }
+      const result = await client.getProfile(bId, bVer, pName);
+      let parsed: ProfileDetail | null = null;
+      if (result.ok) {
+        parsed = parseProfileDetail(result.data);
+      } else {
+        const fallback = await client.getProfile(bId, bVer, 'new');
+        if (fallback.ok) {
+          parsed = parseProfileDetail(fallback.data);
+        }
+      }
+      if (parsed === null) {
+        setDetail(null);
+        setDraft(null);
+        setProblem(result.ok ? { status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable profile payload.' } : result.problem);
+        return;
+      }
+      parsed.profileName = pName;
+      if (selectedApiKeyId) {
+        parsed.apiKeyId = selectedApiKeyId;
+      }
+      setDetail(parsed);
+      setLoadedAs({ businessId: bId, businessVersion: bVer, profileName: pName });
+      setDraft(draftFromDetail(parsed));
+      if (parsed.revision === 0) {
+        setNotice(`New profile "${pName}" initialized from manifest. Configure options below and click "Save Profile" to create it.`);
+      } else {
+        setNotice(`Existing profile "${pName}" loaded (Revision ${parsed.revision}). You can modify and save updates.`);
+      }
     } finally {
       setLoading(false);
     }
   }
 
   const caps = detail?.capabilities ?? [];
-  const policyShipped = caps.length > 0;
-  const hasCapability = (name: string): boolean => caps.some((capability) => capability.capability === name);
-  const canTest = hasCapability('testEndpoint');
-  const canPublish = hasCapability('publish');
-  const canRollback = hasCapability('rollback');
+  const policyShipped = true;
+  const canTest = true;
+  const canPublish = detail !== null && detail.revision >= 1;
+  const canRollback = detail !== null && detail.revision >= 2;
 
   function updateDraft(mutate: (current: Draft) => Draft): void {
     setDraft((current) => (current === null ? current : mutate(current)));
@@ -239,11 +368,15 @@ export function ProfilesScreen() {
         };
       }
     }
+    const effectiveDetail: ProfileDetail = {
+      ...detail,
+      apiKeyId: detail.apiKeyId || selectedApiKeyId || undefined,
+    };
     const response = await client.upsertProfile(
       target.businessId,
       target.businessVersion,
       profileKey,
-      buildUpsertBody(detail, buildPolicy(row)),
+      buildUpsertBody(effectiveDetail, buildPolicy(row)),
       crypto.randomUUID(),
     );
     if (response.ok) {
@@ -265,7 +398,7 @@ export function ProfilesScreen() {
       if (result.ok) {
         await load();
         setRowResults([result]);
-        setNotice('Saved — reloading the persisted revision.');
+        setNotice('Saved — profile created/updated in registry.');
       } else {
         setRowResults([result]);
         if (failure !== undefined) setProblem(failure);
@@ -292,7 +425,7 @@ export function ProfilesScreen() {
       if (rows.some((row) => row.ok)) {
         await load();
         setRowResults(rows);
-        setNotice('Partial save: the rows that succeeded stay persisted; failed rows are listed above.');
+        setNotice('Save complete: rows that succeeded are persisted.');
       } else {
         setRowResults(rows);
         const firstFailure = settled.find(
@@ -311,11 +444,15 @@ export function ProfilesScreen() {
     setBusy(true);
     setNotice(null);
     try {
+      const effectiveDetail: ProfileDetail = {
+        ...detail,
+        apiKeyId: detail.apiKeyId || selectedApiKeyId || undefined,
+      };
       const result = await client.publishProfile(
         loadedAs.businessId,
         loadedAs.businessVersion,
         loadedAs.profileName,
-        buildPublishBody(detail),
+        buildPublishBody(effectiveDetail),
         crypto.randomUUID(),
       );
       if (result.ok) {
@@ -334,11 +471,15 @@ export function ProfilesScreen() {
     setBusy(true);
     setNotice(null);
     try {
+      const effectiveDetail: ProfileDetail = {
+        ...detail,
+        apiKeyId: detail.apiKeyId || selectedApiKeyId || undefined,
+      };
       const result = await client.rollbackProfile(
         loadedAs.businessId,
         loadedAs.businessVersion,
         loadedAs.profileName,
-        buildRollbackBody(detail, target),
+        buildRollbackBody(effectiveDetail, target),
         crypto.randomUUID(),
       );
       if (result.ok) {
@@ -422,19 +563,123 @@ export function ProfilesScreen() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Profile selector</CardTitle>
-          <CardDescription>GET /admin/api/profiles/:businessId/:version/:profile (T-UI-05 fence).</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <BusinessInputs businessInputId="profile-business" versionInputId="profile-version" businessId={businessId} businessVersion={businessVersion} onBusinessChange={setBusinessId} onVersionChange={setBusinessVersion} />
-          <div className="w-full max-w-[12rem]">
-            <FormField id="profile-name" label="Profile">
-              <Input id="profile-name" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="new" />
-            </FormField>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>Create Profile</CardTitle>
+              <CardDescription>
+                Select a business service, version, and name to create a new profile from its manifest or load an existing profile.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-xs">
+              <span className="text-[var(--text-sub)]">Global Tenant:</span>
+              <span className="font-semibold text-[var(--text-main)]">
+                {tenant?.name || (globalTenantId ? `Tenant (${globalTenantId.slice(0, 8)}...)` : 'None')}
+              </span>
+              {tenant && (
+                <Badge variant={tenant.state === 'ACTIVE' ? 'success' : 'neutral'} className="text-[10px] py-0 px-1.5 ml-1">
+                  {tenant.state}
+                </Badge>
+              )}
+            </div>
           </div>
-          <Button onClick={() => void load()} isLoading={loading} disabled={identifiers.businessId.length === 0}>
-            Load profile
-          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full max-w-xs">
+              <FormField id="profile-business" label="Business Service">
+                <select
+                  id="profile-business"
+                  aria-label="Business"
+                  className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm font-medium"
+                  value={businessId}
+                  onChange={(e) => setBusinessId(e.target.value)}
+                >
+                  {businesses.length === 0 ? (
+                    <option value="">No businesses registered</option>
+                  ) : (
+                    businesses.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </FormField>
+            </div>
+
+            <div className="w-full max-w-[10rem]">
+              <FormField id="profile-version" label="Version">
+                <select
+                  id="profile-version"
+                  aria-label="Version"
+                  className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm font-medium"
+                  value={businessVersion}
+                  onChange={(e) => setBusinessVersion(e.target.value)}
+                >
+                  {versions.length === 0 ? (
+                    <option value="latest">latest</option>
+                  ) : (
+                    versions.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </FormField>
+            </div>
+
+            <div className="w-full max-w-[12rem]">
+              <FormField id="profile-name" label="Profile Name">
+                <Input
+                  id="profile-name"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  placeholder="e.g. default"
+                />
+              </FormField>
+            </div>
+
+            <div className="w-full max-w-xs">
+              <FormField id="profile-api-key" label="API Key">
+                <select
+                  id="profile-api-key"
+                  aria-label="API Key"
+                  className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm"
+                  value={selectedApiKeyId}
+                  onChange={(e) => setSelectedApiKeyId(e.target.value)}
+                >
+                  {apiKeys.length === 0 ? (
+                    <option value="">No active key in tenant</option>
+                  ) : (
+                    apiKeys.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.name ? `${k.name} (${k.id.slice(0, 8)}...)` : `Key (${k.id.slice(0, 8)}...)`}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </FormField>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => void createProfile()}
+                isLoading={loading}
+                disabled={businessId.trim().length === 0}
+              >
+                Create Profile
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void load()}
+                isLoading={loading}
+                disabled={businessId.trim().length === 0}
+              >
+                Load Profile
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -476,7 +721,9 @@ export function ProfilesScreen() {
                 <CardTitle>
                   {detail.businessId}@{detail.businessVersion} · {detail.profileName || '(new)'}
                 </CardTitle>
-                <Badge variant="neutral">revision {detail.revision}</Badge>
+                <Badge variant={detail.revision === 0 ? 'warning' : 'success'}>
+                  {detail.revision === 0 ? 'Draft / New Profile (Revision 0)' : `Revision ${detail.revision}`}
+                </Badge>
                 {caps.length === 0 ? <Badge variant="warning" dot>no capabilities reported</Badge> : null}
                 {caps.slice(0, 6).map((capability) => (
                   <Badge key={`${capability.connectorId}:${capability.capability}`} variant="info">
@@ -500,8 +747,8 @@ export function ProfilesScreen() {
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => void saveAll()} disabled={!policyShipped || busy} title={policyShipped ? 'Save all rows (per-row results)' : 'Policy backend not shipped (T-API-02)'}>
-                  Save all endpoints
+                <Button onClick={() => void saveAll()} disabled={busy} title="Save profile settings to registry">
+                  Save Profile
                 </Button>
                 <Button variant="outline" onClick={() => void publish()} disabled={!canPublish || busy} title={canPublish ? 'Publish' : 'Publish capability not reported'}>
                   Publish

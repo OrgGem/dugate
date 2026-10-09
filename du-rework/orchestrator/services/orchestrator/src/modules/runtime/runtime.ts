@@ -1843,9 +1843,14 @@ export function createRuntimeService(
     },
 
     async listOperations(tenantId: string, limit: number, cursor?: string) {
+      // The cursor subquery is scoped to the SAME tenant as the outer query
+      // (WFA §8 LOW): by id alone it resolved a boundary from another tenant's
+      // row, so a foreign cursor leaked an ordering bit about that row and the
+      // page was computed from it. Scoped, a foreign cursor resolves NULL, the
+      // comparison is NULL for every row, and the page is empty — fail-closed.
       const res = await db.query(
         `SELECT * FROM operations WHERE tenant_id=$1
-         ${cursor ? 'AND created_at < (SELECT created_at FROM operations WHERE id=$2)' : ''}
+         ${cursor ? 'AND created_at < (SELECT created_at FROM operations WHERE id=$2 AND tenant_id=$1)' : ''}
          ORDER BY created_at DESC LIMIT $${cursor ? 3 : 2}`,
         cursor ? [tenantId, cursor, limit] : [tenantId, limit]
       );

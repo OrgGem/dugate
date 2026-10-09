@@ -91,7 +91,7 @@ export async function buildAdminOperationDetail(ctx: AdminOperationDetailContext
   let artifacts: unknown[] = [];
   if (terminal) {
     const arts = await ctx.db.query(
-      `SELECT a.id, a.purpose, a.mime_type, a.size_bytes, a.sha256,
+      `SELECT a.id, a.state, a.purpose, a.mime_type, a.size_bytes, a.sha256,
               COALESCE(o.submit_artifacts, '[]'::jsonb) AS submit_roles
        FROM operations o
        LEFT JOIN artifacts a
@@ -119,13 +119,15 @@ export async function buildAdminOperationDetail(ctx: AdminOperationDetailContext
       break;
     }
     artifacts = (arts.rows as {
-      id: string | null; purpose: string | null; mime_type: string | null;
+      id: string | null; state: string | null; purpose: string | null; mime_type: string | null;
       size_bytes: number | string | null; sha256: string | null;
     }[])
       .filter((r) => r.id !== null)
       .map((r) => ({
         artifactId: r.id as string,
         role: submitRoles.get(r.id as string) ?? r.purpose ?? 'output',
+        status: r.state ?? 'READY',
+        state: r.state ?? 'READY',
         mimeType: r.mime_type ?? undefined,
         sizeBytes: r.size_bytes === null ? undefined : Number(r.size_bytes),
         hashSha256: r.sha256 ?? undefined,

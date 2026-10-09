@@ -432,6 +432,11 @@ function renderShellChrome(view: AdminShellView): string {
   return renderNode(
     h('header', { class: 'admin-shell__header' },
       h('h1', undefined, 'Admin'),
+      h('a', {
+        href: '/admin/web',
+        class: 'admin-shell__portal-link',
+        style: 'color: #0051C3; background: #FFF; padding: 4px 10px; border-radius: 4px; font-weight: 600; text-decoration: none; font-size: 13px; margin-left: 12px;',
+      }, 'Go to Orchestrator Portal →'),
       h('span', { class: 'admin-shell__role', 'data-role': view.role },
         `Role: ${esc(view.role)}`,
       ),

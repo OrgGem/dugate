@@ -404,10 +404,17 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
     },
     listLegacyOperations: async (input) => {
       const params: unknown[] = [input.tenantId, input.pageSize + 1, input.apiKeyId];
+      // The caller's AUTHORIZATION scope, named once and used by BOTH the outer
+      // WHERE and the page-token subquery below, so the two can never drift
+      // apart (WFA §8 LOW). `deleted_at IS NULL` is deliberately NOT part of it:
+      // that is row visibility, not authorization, and folding it in would turn
+      // a soft-deleted boundary row into an empty page mid-walk.
+      const tenantScope = 'tenant_id = $1';
+      const apiKeyFence = "(pipeline_json->0->>'workflow' IS NULL OR api_key_id = $3)";
       const where: string[] = [
-        'tenant_id = $1',
+        tenantScope,
         'deleted_at IS NULL',
-        "(pipeline_json->0->>'workflow' IS NULL OR api_key_id = $3)",
+        apiKeyFence,
       ];
       if (input.states.length > 0) {
         params.push(input.states);
@@ -419,10 +426,16 @@ export function legacyCompatHost(ctx: RouteContext): LegacyCompatHost {
       }
       if (input.pageToken !== null) {
         // The legacy page_token is the id of the last row on the previous
-        // page, read back through an equality lookup on id.
+        // page, read back through an equality lookup on id — SCOPED exactly
+        // like the outer query. Unscoped, the subquery resolved a boundary from
+        // a row the caller may not read (another tenant, or another key's
+        // workflow row): the token leaked an ordering bit about that row and
+        // the page was computed from it. Scoped, a foreign token resolves NULL,
+        // the row-value comparison is NULL for every row, and the page comes
+        // back empty — fail-closed.
         params.push(input.pageToken);
         where.push(
-          `(created_at, id) < (SELECT created_at, id FROM operations WHERE id = $${params.length})`,
+          `(created_at, id) < (SELECT created_at, id FROM operations WHERE id = $${params.length} AND ${tenantScope} AND ${apiKeyFence})`,
         );
       }
       const rows = await ctx.db.query(

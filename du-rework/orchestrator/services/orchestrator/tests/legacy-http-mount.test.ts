@@ -252,6 +252,68 @@ describe('legacy mount — submit wire', () => {
     expect(r?.status).toBe(202);
     expect(r?.headers['Operation-Location']).toBe('/api/v1/operations/compare-op');
   });
+
+  it('returns a legacy 503 when workflow submission is not configured and echoes the correlation id', async () => {
+    const correlationId = 'legacy-workflow-submit-unavailable';
+    const mp = multipart('', [['process', 'disbursement'], ['resolution_data', '{"account":"A"}']], [['files[]', 'PDF']]);
+    const r = await handleLegacyRoute(
+      req({
+        method: 'POST',
+        pathname: '/api/v1/docs/workflows',
+        headers: { ...mp.headers, 'x-correlation-id': correlationId },
+        bodyStream: mp.bodyStream,
+      }),
+      host({}),
+    );
+    expect(r).toMatchObject({
+      status: 503,
+      body: {
+        type: 'https://dugate.vn/errors/service-not-available',
+        title: 'Service Not Available',
+        status: 503,
+        detail: 'The legacy workflow submission service is not available on this deployment.',
+        correlationId,
+      },
+    });
+  });
+
+  it('returns a legacy 503 when workflow schema resolution is not configured', async () => {
+    const mp = multipart('', [['schemaSlug', 'invoice-v2'], ['input', '{"account":"A"}']]);
+    const r = await handleLegacyRoute(
+      req({ method: 'POST', pathname: '/api/v1/docs/workflows/schema', headers: mp.headers, bodyStream: mp.bodyStream }),
+      host({}),
+    );
+    expect(r).toMatchObject({
+      status: 503,
+      body: {
+        type: 'https://dugate.vn/errors/service-not-available',
+        title: 'Service Not Available',
+        status: 503,
+        detail: 'Workflow schema storage is not available on this deployment.',
+      },
+    });
+  });
+
+  it('maps unavailable schema crypto to a legacy 503', async () => {
+    const mp = multipart('', [['schemaSlug', 'invoice-v2'], ['input', '{"account":"A"}']]);
+    const r = await handleLegacyRoute(
+      req({ method: 'POST', pathname: '/api/v1/docs/workflows/schema', headers: mp.headers, bodyStream: mp.bodyStream }),
+      host({
+        resolveLegacyWorkflowSchema: async () => {
+          throw Object.assign(new Error('schema crypto unavailable'), { code: 'SCHEMA_CRYPTO_UNAVAILABLE' });
+        },
+      }),
+    );
+    expect(r).toMatchObject({
+      status: 503,
+      body: {
+        type: 'https://dugate.vn/errors/service-not-available',
+        title: 'Service Not Available',
+        status: 503,
+        detail: 'Workflow schema storage is temporarily unavailable.',
+      },
+    });
+  });
 });
 
 describe('legacy mount — operations', () => {
@@ -472,4 +534,3 @@ describe('legacy mount — auth and error hygiene', () => {
     expect(JSON.stringify(r?.body)).not.toMatch(/secret|SQL|password/i);
   });
 });
-

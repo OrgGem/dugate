@@ -21,11 +21,134 @@ import {
  * BFF proxy; the page performs zero requests. Try-it-out is intentionally not
  * implemented: nothing here sends a request or a credential.
  *
- * Route: /api-docs behind the Orchestrator shell mount (/admin/web/api-docs),
+ * Route: /api-docs behind the Orchestrator shell mount (admin/api-docs),
  * so the server-side session gate already protects it exactly like the other
  * Portal screens. See apps/admin-web/README.md for the DU_ADMIN_WEB_ROUTES note.
  */
+const SPEC_SOURCE = 'docs/21-openapi.json';
+const SPEC_RAW_BYTES = new TextEncoder().encode(specRaw).length;
+
+/**
+ * Non-cryptographic FNV-1a fingerprint of the bundled spec text. It lets an
+ * operator compare the spec a running build actually shipped against a locally
+ * generated artifact; it is not a security primitive.
+ */
+function apiDocsSpecFingerprint(raw: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < raw.length; index += 1) {
+    hash ^= raw.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+const SPEC_FINGERPRINT = apiDocsSpecFingerprint(specRaw);
 const PARSED = parseOpenApiDocument(specRaw);
+
+type ApiDocsBuildState = 'ok' | 'parse-error' | 'missing-artifact';
+
+/**
+ * OPU-REF-1: an empty page must say WHY it is empty. `missing-artifact` means
+ * the `?raw` import produced zero bytes (bad path or empty generated file);
+ * `parse-error` means bytes were there but not a usable OpenAPI document; `ok`
+ * means the artifact loaded and any emptiness is a filter result.
+ */
+const BUILD_STATE: ApiDocsBuildState =
+  specRaw.trim().length === 0 ? 'missing-artifact' : PARSED.ok ? 'ok' : 'parse-error';
+
+/** AP-03: what the bundle actually declares about itself, read from the
+ * artifact itself. `x-absent` is the generator's own list of surfaces it does
+ * NOT cover, so counting it is evidence shipped with the spec, not a guess. */
+const SPEC_VERSION = PARSED.ok ? (PARSED.doc.info.version ?? null) : null;
+const SPEC_ABSENT_COUNT = PARSED.ok ? PARSED.doc['x-absent']?.length ?? 0 : 0;
+
+/**
+ * Freshness states. The bundle carries no generation timestamp and this page
+ * performs zero runtime requests, so age is NOT measurable here and no build
+ * date is guessed: every state below names what is known and what is not.
+ */
+type ApiDocsFreshness =
+  | 'artifact-missing'
+  | 'unreadable'
+  | 'version-unknown'
+  | 'snapshot-age-unknown';
+
+const FRESHNESS_BY_BUILD_STATE: Record<ApiDocsBuildState, ApiDocsFreshness> = {
+  'missing-artifact': 'artifact-missing',
+  'parse-error': 'unreadable',
+  ok: SPEC_VERSION === null ? 'version-unknown' : 'snapshot-age-unknown',
+};
+
+const FRESHNESS_LABEL: Record<ApiDocsFreshness, string> = {
+  'artifact-missing': 'no spec artifact',
+  unreadable: 'spec unreadable',
+  'version-unknown': 'spec version unknown',
+  'snapshot-age-unknown': 'snapshot \u00b7 age unknown',
+};
+
+const FRESHNESS_VARIANT: Record<ApiDocsFreshness, BadgeProps['variant']> = {
+  'artifact-missing': 'danger',
+  unreadable: 'danger',
+  'version-unknown': 'warning',
+  'snapshot-age-unknown': 'warning',
+};
+
+const FRESHNESS_ADVICE: Record<ApiDocsFreshness, string> = {
+  'artifact-missing':
+    'The ?raw import produced no bytes, so there is nothing to compare against a local artifact.',
+  unreadable:
+    'Bytes were bundled but the document did not parse, so no freshness signal can be derived from it.',
+  'version-unknown':
+    'The bundle declares no info.version, so the shipped revision cannot be named.',
+  'snapshot-age-unknown':
+    'The bundle records no generation timestamp, so age cannot be measured on this page \u2014 compare the fingerprint against a locally regenerated artifact.',
+};
+
+/** Evaluated once per document load. This SPA renders client-side only
+ * (createRoot in main.tsx, no SSR pass), so a module-scope instant cannot
+ * disagree with what the operator sees. */
+const BUNDLE_LOADED_AT = new Date();
+
+/** One line telling the operator what the bundle DOES declare, then what it
+ * cannot tell them. Assembled here rather than in JSX so the separators are
+ * explicit and no empty JSX text node is relied on. */
+function freshnessSentence(freshness: ApiDocsFreshness, state: ApiDocsBuildState): string {
+  const version = SPEC_VERSION === null ? 'spec version unknown' : `bundled spec v${SPEC_VERSION}`;
+  const gaps =
+    state === 'ok' ? ` · ${SPEC_ABSENT_COUNT} surface(s) declared absent in this bundle` : '';
+  const loaded = ` · bundle loaded in this browser at ${BUNDLE_LOADED_AT.toLocaleString()}`;
+  return `${version}${gaps}${loaded} · ${FRESHNESS_ADVICE[freshness]}`;
+}
+
+function SpecBuildLabel({ state }: { state: ApiDocsBuildState }) {
+  const freshness = FRESHNESS_BY_BUILD_STATE[state];
+  return (
+    <div
+      className="space-y-1"
+      data-api-docs-build-label="true"
+      data-api-docs-build-state={state}
+      data-api-docs-freshness={freshness}
+      data-spec-source={SPEC_SOURCE}
+      data-spec-bytes={String(SPEC_RAW_BYTES)}
+      data-spec-fingerprint={SPEC_FINGERPRINT}
+      data-spec-version={SPEC_VERSION ?? 'unknown'}
+      data-spec-absent-count={String(SPEC_ABSENT_COUNT)}
+      data-bundle-loaded-at={BUNDLE_LOADED_AT.toISOString()}
+    >
+      <p className="text-xs text-[var(--text-sub)]">
+        Spec build: <code>{SPEC_SOURCE}</code> · {SPEC_RAW_BYTES} bytes · fingerprint{' '}
+        <code>{SPEC_FINGERPRINT}</code> · bundled at build time with zero runtime requests.
+      </p>
+      <p
+        className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-sub)]"
+        data-api-docs-freshness-note="true"
+      >
+        <Badge variant={FRESHNESS_VARIANT[freshness]}>{FRESHNESS_LABEL[freshness]}</Badge>
+        <span>{freshnessSentence(freshness, state)}</span>
+      </p>
+    </div>
+  );
+}
 
 const METHOD_VARIANT: Record<string, BadgeProps['variant']> = {
   get: 'info',
@@ -53,6 +176,25 @@ function familyLabel(family: string): string {
 }
 
 export function ApiDocsScreen() {
+  if (BUILD_STATE === 'missing-artifact') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>API Reference</CardTitle>
+          <CardDescription>
+            The build imported <code>{SPEC_SOURCE}</code> but the artifact contains no bytes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <SpecBuildLabel state="missing-artifact" />
+          <p className="text-sm text-[var(--badge-danger-text)]" role="alert">
+            Empty spec import: the <code>?raw</code> import path or the generated artifact is wrong. Rebuild after
+            regenerating <code>{SPEC_SOURCE}</code>; nothing can be rendered from an empty import.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
   if (!PARSED.ok) {
     return (
       <Card>
@@ -60,7 +202,8 @@ export function ApiDocsScreen() {
           <CardTitle>API Reference</CardTitle>
           <CardDescription>The generated OpenAPI artifact could not be read.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
+          <SpecBuildLabel state="parse-error" />
           <p className="text-sm text-[var(--badge-danger-text)]" role="alert">
             docs/21-openapi.json did not parse: {PARSED.error}
           </p>
@@ -142,6 +285,7 @@ function ApiDocsView({ doc, entries }: { doc: OpenApiDocument; entries: Operatio
             runtime on the internal 3002 listener, Connector on 8080. <strong>Try-it-out is intentionally
             disabled</strong> — this page never sends a request or a credential.
           </CardDescription>
+          <SpecBuildLabel state="ok" />
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {families.map(([name, count]) => {
@@ -210,12 +354,18 @@ function ApiDocsView({ doc, entries }: { doc: OpenApiDocument; entries: Operatio
         </CardHeader>
         <CardContent>
           {filtered.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No operation matches the current filter.</p>
+            <p className="text-sm text-[var(--text-muted)]" data-api-docs-empty-filter="true">
+              No operation matches the current filter ({filtered.length} of {entries.length} operations shown
+              {search.trim() === '' ? '' : `; search "${search.trim()}"`}
+              {family === 'all' ? '' : `; family ${familyLabel(family)}`}). The spec loaded from{' '}
+              <code>{SPEC_SOURCE}</code> ({SPEC_RAW_BYTES} bytes); clear the filter to see all {entries.length}{' '}
+              operations.
+            </p>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:h-[calc(100vh-14rem)] lg:min-h-[580px] lg:max-h-[850px]">
               <ul
                 tabIndex={0}
-                className="max-h-[32rem] divide-y divide-[var(--border-subtle)] overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border-subtle)]"
+                className="h-full overflow-y-auto divide-y divide-[var(--border-subtle)] rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-base)]"
                 aria-label="OpenAPI operations"
               >
                 {filtered.map((entry) => {
@@ -246,8 +396,18 @@ function ApiDocsView({ doc, entries }: { doc: OpenApiDocument; entries: Operatio
                   );
                 })}
               </ul>
-              <div className="min-w-0" role="region" aria-label="Operation detail">
-                {selected !== undefined ? <OperationDetail entry={selected} /> : null}
+              <div
+                className="h-full overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-base)] p-3"
+                role="region"
+                aria-label="Operation detail"
+              >
+                {selected !== undefined ? (
+                  <OperationDetail entry={selected} />
+                ) : (
+                  <div className="flex h-full items-center justify-center p-8 text-center text-xs text-[var(--text-sub)]">
+                    Chọn một API operation từ danh sách bên trái để xem tài liệu chi tiết.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -319,6 +479,34 @@ function ApiDocsView({ doc, entries }: { doc: OpenApiDocument; entries: Operatio
       </Card>
     </section>
   );
+}
+
+function responseBadgeVariant(code: string): BadgeProps['variant'] {
+  const num = Number(code);
+  if (num >= 200 && num < 300) return 'success';
+  if (num >= 300 && num < 400) return 'info';
+  if (num >= 400 && num < 500) return 'warning';
+  if (num >= 500) return 'danger';
+  return 'neutral';
+}
+
+function responseStatusText(code: string): string {
+  const map: Record<string, string> = {
+    '200': 'OK',
+    '201': 'Created',
+    '202': 'Accepted',
+    '204': 'No Content',
+    '400': 'Bad Request',
+    '401': 'Unauthorized',
+    '403': 'Forbidden',
+    '404': 'Not Found',
+    '409': 'Conflict',
+    '422': 'Unprocessable Entity',
+    '500': 'Internal Server Error',
+    '502': 'Bad Gateway',
+    '503': 'Service Unavailable',
+  };
+  return map[code] ?? '';
 }
 
 function OperationDetail({ entry }: { entry: OperationEntry }) {
@@ -414,14 +602,103 @@ function OperationDetail({ entry }: { entry: OperationEntry }) {
         <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-sub)]">
           Responses ({responses.length})
         </h4>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {responses.map(([code, response]) => (
-            <details key={code} className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-2">
-              <summary className="cursor-pointer text-xs">
-                <code className="font-semibold">{code}</code>
-                {response.description !== undefined ? ` — ${response.description}` : ''}
+            <details
+              key={code}
+              className="group rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-base)] p-3 transition-colors hover:border-[var(--border-dark)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs select-none">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Badge variant={responseBadgeVariant(code)} className="font-mono text-xs font-bold shrink-0">
+                    {code}
+                  </Badge>
+                  {responseStatusText(code) ? (
+                    <span className="font-semibold text-[var(--text-main)] shrink-0">
+                      {responseStatusText(code)}
+                    </span>
+                  ) : null}
+                  <span className="truncate text-[var(--text-sub)]">
+                    {response.description ? `— ${response.description}` : ''}
+                  </span>
+                </div>
+                <span className="text-[11px] text-[var(--text-sub)] shrink-0 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
               </summary>
-              {response.content !== undefined ? <ContentBlocks content={response.content} /> : null}
+
+              <div className="mt-3 space-y-3 border-t border-[var(--border-subtle)] pt-3 text-xs">
+                {/* Description */}
+                <div>
+                  <span className="font-semibold text-[var(--text-sub)] uppercase tracking-wider text-[10px]">
+                    Mô tả / Description
+                  </span>
+                  <p className="mt-1 text-[var(--text-main)] bg-[var(--surface-muted)] p-2.5 rounded border border-[var(--border-subtle)] leading-relaxed">
+                    {response.description || 'Không có mô tả chi tiết.'}
+                  </p>
+                </div>
+
+                {/* Headers if any */}
+                {response.headers && Object.keys(response.headers).length > 0 && (
+                  <div>
+                    <span className="font-semibold text-[var(--text-sub)] uppercase tracking-wider text-[10px]">
+                      Response Headers
+                    </span>
+                    <div className="mt-1 space-y-1.5">
+                      {Object.entries(response.headers).map(([hdrName, hdr]) => (
+                        <div
+                          key={hdrName}
+                          className="rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <code className="font-semibold text-[var(--text-main)]">{hdrName}</code>
+                            {hdr.schema && typeof hdr.schema === 'object' && 'type' in hdr.schema ? (
+                              <span className="text-[var(--text-sub)] font-mono text-[11px]">
+                                ({String((hdr.schema as Record<string, unknown>).type)})
+                              </span>
+                            ) : null}
+                          </div>
+                          {hdr.description && <p className="mt-1 text-[var(--text-sub)]">{hdr.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Response Body / Content */}
+                {response.content !== undefined ? (
+                  <div>
+                    <span className="font-semibold text-[var(--text-sub)] uppercase tracking-wider text-[10px]">
+                      Payload Body & Schema
+                    </span>
+                    <div className="mt-1">
+                      <ContentBlocks content={response.content} />
+                    </div>
+                  </div>
+                ) : response.schema !== undefined ? (
+                  <div>
+                    <span className="font-semibold text-[var(--text-sub)] uppercase tracking-wider text-[10px]">
+                      Response Schema
+                    </span>
+                    <div className="mt-1">
+                      <JsonBlock value={response.schema} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-[var(--radius-sm)] border border-dashed border-[var(--border-subtle)] bg-[var(--surface-muted)] p-2.5 text-xs text-[var(--text-sub)]">
+                    <span className="font-semibold text-[var(--text-main)]">Response Body: </span>
+                    {Number(code) >= 400 ? (
+                      <span>
+                        Tiêu chuẩn RFC 7807 (<code>application/problem+json</code>). Phản hồi mang cấu trúc mã lỗi gồm <code>status: {code}</code>, <code>code</code>, <code>title</code>, <code>correlationId</code>.
+                      </span>
+                    ) : Number(code) === 204 ? (
+                      <span>204 No Content (Phản hồi không mang nội dung thân body).</span>
+                    ) : (
+                      <span>Trạng thái phản hồi không yêu cầu nội dung payload body bổ sung.</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </details>
           ))}
         </div>
