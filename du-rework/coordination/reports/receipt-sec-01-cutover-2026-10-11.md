@@ -168,10 +168,35 @@ Ba thu tu phai dung la:
 ## 6. Viec con mo - **can owner/Reviewer**, khong phai lane nay
 
 1. **Khong tick SEC-01.** Spec §5.7: *Khong tu nhan SEC-01 da dong*. Can reviewer lap doc lap quyet dinh ACCEPT.
-2. **Khong phat sinh ID dispatch.** Spec §6: `Owner: PENDING`, phai inspect runtime that qua `orca terminal list --json`. **Khong co request/dispatch ID => khong co bang chung dispatch.** Receipt nay khong tu nhan da duoc giao.
+2. **Da dispatch reviewer lap doc lap - khong phai toi ACCEPT.** Boi vi toi la nguoi implement, khong the self-accept. Da inspect runtime that truoc khi giao (spec §6), chon `term_16fef1c3` (Qwen, 80.6% context luc do - sau do terminal nay da `/compress` xuong 16.1%, du cho lam viec). Bang chung dispatch that xem muc 6 duoi. **Toi khong tick gate.**
 3. **`bff/handle.ts:123` - regression fence worker-instances** (**High, khac lane**). Nhanh `/worker-instances` phuc vu truoc `matchOperationsRoute`, bo qua fence `bff/operations.ts:118`; `handleAdminGetRelay` (`:503`) khong co kiem tra role nen **operator session nhan 200** cho inventory platform-scoped thay vi 403. Day la **san pham AWEB-11C**, ngoai lease SEC-01. **De nguyen, khong tu sua.**
 4. **`/admin/api-keys` he thong + `/admin/grants` mat san** - chu da quyet dinh chap nhan (spec §1). Client `GET /api-keys` con nguyen tai `lib/api/client.ts`; khi can thi dung man moi tren do. **Khong lam gi them trong task nay.**
 5. **SEC-01F van phai lam** - cutover chi chan `/admin/legacy/*` o topology A (`DU_ADMIN_WEB` bat). Topology B (`DU_ADMIN_WEB=0`) van lo: `/admin/businesses` va `/admin/audit` van ra du lieu cross-tenant. Khong bo task vi da cutover.
+
+   > **DA BI PHU NHAN BOI REVERSER.** Reviewer phat hien SEC-01F **da land cung wave**, nen topology B hien tai **da co** `sectionHasProtectedRead` fencing - va do la **thay doi moi so voi gia dinh cua spec**, khong phai loi cua SEC-01. Ca spec §5 lan muc 6.5 nay deu ghi sai. **Can cap nhat tai lieu cho khop cay.**
+
+6. **Bang chung dispatch reviewer (that, khong suy dien):**
+
+- **Run:** `run_bc477a944452` (coordinator `term_25de3310` = toi)
+- **Task:** `task_85465c9eed60`
+- **Dispatch:** `ctx_b4eb4721c7a6` - `assignee_handle: term_16fef1c3`, `status: dispatched`, `dispatched_at: 2026-10-11 07:47:24`
+- **Dispatch spec:** `coordination/dispatch-specs/2026-10-11-SEC-01V-review.md`
+- **Prompt dua vao terminal:** 2551 byte, `accepted: true`, requestId `7d5a4f4d-215a-45ee-8206-451380839b43`
+- **Da quan sat:** reviewer doc source, khong chi doc receipt - chay `git show ae6fc72`, `git show ae6fc72~1`, `git log -S`, doc `normalizeCorrelationId` va 4 call site, doan `sectionHasProtectedRead` fencing.
+
+**VERDICT - goc, tu receipt da ghi cua reviewer:**
+
+    SEC-01V: ACCEPTED
+
+**Bang chung da xac minh (khong phai suy dien):**
+
+- **File:** `coordination/reports/receipt-sec-01-review-2026-10-11.md`
+- **So dong:** 150
+- **sha256:** `0d6d4b14c73188346da1ec6df4d31e5a84bbbb8ca403fe52671096d0516e292d`
+- **Dong ket thuc file** chinh la `SEC-01V: ACCEPTED` - dung theo mau da quy dinh
+- **Doc lai bang read_file**, khong tin vao vet chu tren man hinh
+
+**Lich su bang chung nay (de trinh bay trung thuc):** lan doc dau tien tai khoang 08:37, file **chua ton tai** - reviewer loi cu phap khi goi `tools.write_file` (template literal trong exec source -> `expecting ;`). Toi gui 608 byte huong dan cach ghi dung va doi 4 phut, roi doc lai. Hien tai file da ghi. **Toi khong tick gate** - verdict duoc ghi lai day du, phep chot thuoc ve owner.
 
 ---
 

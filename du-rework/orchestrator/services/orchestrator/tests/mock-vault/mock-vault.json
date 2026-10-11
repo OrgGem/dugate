@@ -1,0 +1,57 @@
+{
+  "$comment": [
+    "HashiCorp Vault MOCKUP - local dev + offline tests ONLY.",
+    "Seeds the in-process mock Vault in tests/mock-vault/mock-vault-service.cjs.",
+    "Activation: set DU_VAULT_MOCK=true. The jest globalSetup and scripts/dev.cjs both",
+    "read the flag and inject DU_VAULT_KV_OPTIONS / DU_VAULT_TRANSIT_OPTIONS pointing",
+    "at the mock loopback server, so production composition code is untouched. With the",
+    "flag off or unset nothing changes at all.",
+    "Every value here is FAKE by design - never real credentials."
+  ],
+  "leaseDurationMs": 3600000,
+  "renewable": true,
+  "kv": {
+    "mount": "secret",
+    "allowedPrefix": "du/tenants",
+    "secrets": [
+      {
+        "path": "du/tenants/tenant-openai/connectors/openai/accounts/du-conn-openai-main",
+        "data": {
+          "api-key": "mock-openai-main-key-not-a-real-secret"
+        },
+        "versions": 1
+      },
+      {
+        "path": "du/tenants/tenant-slack/connectors/slack/accounts/du-conn-slack-main",
+        "data": {
+          "bot-token": "mock-slack-bot-token-not-a-real-secret"
+        },
+        "versions": 1
+      }
+    ]
+  },
+  "transit": {
+    "mount": "transit",
+    "keys": [
+      {
+        "name": "du-metadata",
+        "versions": 1
+      },
+      {
+        "name": "du-artifacts",
+        "versions": 1
+      }
+    ],
+    "allowedKeyRefs": {
+      "metadata": "du-metadata",
+      "artifacts": "du-artifacts"
+    },
+    "metadataKeyRef": "metadata",
+    "publicUploadKeyRef": "artifacts"
+  },
+  "tokens": {
+    "kv": "hvs.mock.kv.du-local",
+    "encrypt": "hvs.mock.encrypt.du-local",
+    "decrypt": "hvs.mock.decrypt.du-local"
+  }
+}

@@ -1,9 +1,9 @@
 {
-  "url": "http://127.0.0.1:53263",
-  "port": 53263,
+  "url": "http://127.0.0.1:54980",
+  "port": 54980,
   "token": "aweb01b-browser-token",
   "dist": "D:\\Git\\dugate\\du-rework\\orchestrator\\apps\\admin-web\\dist",
-  "stubUrl": "http://127.0.0.1:53262",
+  "stubUrl": "http://127.0.0.1:54979",
   "sessions": {
     "admin": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     "operator": "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO",

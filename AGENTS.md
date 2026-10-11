@@ -62,6 +62,6 @@ Docker: `docker compose up -d` starts the app, worker, PostgreSQL, Redis, and mo
 
 
 
-## Coordinator role boundary (2026-10-06)
+## Coordinator role boundary (2026-10-08)
 
-Agents acting as coordinator must follow [COORDINATOR-CONTRACT.md](du-rework/coordination/COORDINATOR-CONTRACT.md). Antigravity is the single dispatcher. Coordinator writes plan/coordination metadata only, never product code/tests, including legacy files. Requests to split tasks require actual worker delivery and independent verification. Explicit repo scope/canonical plan required; never implement personally or infer functional success from exit codes.
+Agents acting as coordinator must follow [COORDINATOR-CONTRACT.md](du-rework/coordination/COORDINATOR-CONTRACT.md). Claude Code is the single dispatcher. Coordinator writes plan/coordination metadata only, never product code/tests, including legacy files. Requests to split tasks require actual worker delivery and independent verification. Explicit repo scope/canonical plan required; never implement personally or infer functional success from exit codes.

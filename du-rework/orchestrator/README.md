@@ -5,10 +5,15 @@ Promoted platform boundary: Orchestrator Backend, Orchestrator Portal
 Business workers live in `../businesses/` (document-core, lc-checker,
 example-review).
 
-Use Node 24.21.0 and pnpm 10.18.3. All commands run from the parent
-`du-rework/` workspace root (this directory is not a standalone workspace;
-the pnpm workspace, lockfile, Dockerfile, and `tsconfig.base.json` live at
-the root):
+Use Node 24.21.0 and pnpm 10.18.3. Orchestrator can be operated as a **standalone workspace** directly inside `du-rework/orchestrator` (with its own `package.json`, `pnpm-workspace.yaml`, local `tsconfig.base.json`, and scripts):
+
+```sh
+cd du-rework/orchestrator
+pnpm run docker:up  # Khởi chạy PostgreSQL (15433) và Redis (16380)
+pnpm run dev        # Tự động build, migrate và start toàn bộ services
+```
+
+Hoặc chạy từ parent `du-rework/` workspace:
 
 ```sh
 corepack enable

@@ -11,9 +11,18 @@ const ROOT = path.resolve(__dirname, '..');
 const ALL_WORKERS = ['document-core', 'lc-checker', 'example-review'];
 const children = [];
 let stopping = false;
+let mockVaultService;
+// The DU_VAULT_MOCK server is in THIS process; nothing may close it early (it
+// keeps the event loop alive) and nothing may leave it listening.
+function stopMockVault() {
+  const service = mockVaultService;
+  mockVaultService = undefined;
+  if (service !== undefined) service.stop().catch(() => {});
+}
 function shutdown(code = 0) {
   if (stopping) return;
   stopping = true;
+  stopMockVault();
   for (const child of children) {
     if (!child.pid || child.exitCode !== null) continue;
     if (process.platform === 'win32') spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
@@ -89,10 +98,27 @@ async function main() {
   if (new Set(workers).size !== workers.length || workers.some(worker => !ALL_WORKERS.includes(worker))) throw new Error('Invalid worker selection');
   if (['orchestrator', 'connector'].includes(services) && workers.length) throw new Error('Invalid worker selection for single-service launch');
   if (args.includes('--local-identity')) process.env.CONNECTOR_SERVICE_TOKEN = signedConnectorToken(process.env.SERVICE_IDENTITY_SECRET);
+  // DU_VAULT_MOCK=true: boot the in-process mock Vault (orchestrator
+  // services/orchestrator/tests/mock-vault, seeded from its mock-vault.json)
+  // and point the DU_VAULT_* seams at it, so local dev needs no live Vault.
+  // Unset or false is a no-op; a typo or a bad fixture fails the boot.
+  let mockVault;
+  try {
+    mockVault = await require('../orchestrator/services/orchestrator/tests/mock-vault/bootstrap.cjs').applyMockVaultEnv(process.env);
+  } catch (error) {
+    console.error('[dev] ' + error.message);
+    shutdown(1);
+    return;
+  }
+  if (mockVault) {
+    mockVaultService = mockVault;
+    console.log('[dev] DU_VAULT_MOCK=true - mock Vault on ' + mockVault.url);
+  }
   validateRuntimeEnvironment(process.env, { workers, services, workflow: args.includes('--workflow') });
   console.log(`Public API: http://127.0.0.1:${publicPort}\nInternal API: http://127.0.0.1:${internalPort}\nOrchestrator Portal: http://127.0.0.1:${portalPort}/admin/\nConnector: http://127.0.0.1:${connectorPort}\nWorkers: ${workers.join(', ') || 'none'}`);
   console.log('Runtime configuration: valid. Business/profile/schema provisioning and provider connectivity require separate setup.');
-  if (args.includes('--check')) return; // No build, migrations, bind or process launch.
+  // No build, migrations, bind or process launch - so no mock Vault either.
+  if (args.includes('--check')) { stopMockVault(); return; }
   const selectedPorts = services === 'all' ? ports : services === 'orchestrator' ? ports.slice(0, 3) : services === 'connector' ? [connectorPort] : [];
   for (const port of selectedPorts) await available(port);
   if (!args.includes('--skip-build')) runNode(['scripts/build-all.cjs']);

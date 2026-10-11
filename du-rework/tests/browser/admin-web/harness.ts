@@ -127,6 +127,10 @@ interface StubState {
   }[];
   /** Monotonic counter so a second rotate does not reuse the previous id. */
   rotateSeq: number;
+  /** BIZ-09 cockpit scenario control, one per card read. */
+  workers: 'rows' | 'empty' | 'error';
+  profiles: 'rows' | 'empty' | 'error';
+  profileWorkflows: 'rows' | 'empty' | 'error';
 }
 
 function seedKeysRows(): StubState['keysRows'] {
@@ -212,6 +216,9 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
     keysRows: seedKeysRows(),
     profileKeysRows: seedProfileKeysRows(),
     rotateSeq: 0,
+    workers: 'rows',
+    profiles: 'rows',
+    profileWorkflows: 'rows',
   };
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -263,6 +270,9 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
         state.keysRows = seedKeysRows();
         state.profileKeysRows = seedProfileKeysRows();
         state.rotateSeq = 0;
+        state.workers = 'rows';
+        state.profiles = 'rows';
+        state.profileWorkflows = 'rows';
         state.keysRows = seedKeysRows();
         writes.length = 0;
         json(200, { reset: true });
@@ -303,6 +313,14 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
       const cryptoWrite = url.searchParams.get('cryptoWrite');
       if (crypto === 'ok' || crypto === 'unconfigured' || crypto === 'error') state.crypto = crypto;
       if (cryptoWrite === 'ok' || cryptoWrite === 'error') state.cryptoWrite = cryptoWrite;
+      const workers = url.searchParams.get('workers');
+      const profiles = url.searchParams.get('profiles');
+      const profileWorkflows = url.searchParams.get('profileWorkflows');
+      if (workers === 'rows' || workers === 'empty' || workers === 'error') state.workers = workers;
+      if (profiles === 'rows' || profiles === 'empty' || profiles === 'error') state.profiles = profiles;
+      if (profileWorkflows === 'rows' || profileWorkflows === 'empty' || profileWorkflows === 'error') {
+        state.profileWorkflows = profileWorkflows;
+      }
       json(200, {
         audit: state.audit,
         keys: state.keys,
@@ -938,6 +956,110 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
           ],
         });
       }
+      // BIZ-09 cockpit reads -----------------------------------------------
+      // Worker instances. Two states on purpose: the card must render the
+      // SERVER's health column, not one it derived from lastSeenAt.
+      if (url.pathname === '/api/v1/admin/worker-instances' && req.method === 'GET') {
+        if (state.workers === 'error') return json(500, { code: 'INTERNAL' });
+        const items = state.workers === 'empty'
+          ? []
+          : [
+              {
+                businessId: url.searchParams.get('businessId') ?? 'doc-core',
+                instanceId: 'worker-a',
+                businessVersion: '3',
+                state: 'ONLINE',
+                health: 'HEALTHY',
+                capacity: 4,
+                activeLeases: 2,
+                lastSeenAt: '2026-10-11T02:00:00.000Z',
+                observedAt: '2026-10-11T02:00:05.000Z',
+              },
+              {
+                businessId: url.searchParams.get('businessId') ?? 'doc-core',
+                instanceId: 'worker-b',
+                businessVersion: '3',
+                state: 'DRAINING',
+                health: 'DEGRADED',
+                capacity: 2,
+                activeLeases: 2,
+                lastSeenAt: '2026-10-10T23:50:00.000Z',
+                observedAt: '2026-10-11T02:00:05.000Z',
+              },
+            ];
+        return json(200, {
+          items,
+          sampledAt: '2026-10-11T02:00:06.000Z',
+          truncated: false,
+        });
+      }
+
+      // Profile catalog list (the cockpit Profiles card). The second row has
+      // revision 0 so the `unsaved` rendering is exercised, not just asserted.
+      if (url.pathname === '/api/v1/admin/profiles' && req.method === 'GET') {
+        if (state.profiles === 'error') return json(500, { code: 'INTERNAL' });
+        const items = state.profiles === 'empty'
+          ? []
+          : [
+              {
+                tenantId: OPERATOR_TENANT,
+                businessId: url.searchParams.get('businessId') ?? 'doc-core',
+                businessVersion: '3',
+                profileName: 'default',
+                revision: 3,
+                status: 'ACTIVE',
+                keyCount: 2,
+                boundActions: ['extract', 'ingest'],
+                createdAt: '2026-10-01T08:00:00.000Z',
+                updatedAt: '2026-10-10T12:00:00.000Z',
+              },
+              {
+                tenantId: OPERATOR_TENANT,
+                businessId: url.searchParams.get('businessId') ?? 'doc-core',
+                businessVersion: '3',
+                profileName: 'not-saved-yet',
+                revision: 0,
+                status: 'UNKNOWN',
+                keyCount: 0,
+                boundActions: [],
+                createdAt: '2026-10-09T08:00:00.000Z',
+                updatedAt: '2026-10-09T08:00:00.000Z',
+              },
+            ];
+        return json(200, { items, nextCursor: null, prevCursor: null, total: items.length, limit: 50 });
+      }
+
+      // Profile workflow bindings (BIZ-07/AWEB-14). One bound and one not, so
+      // `enabled` is visibly a separate fact from the schema status.
+      const profileWorkflowsMatch = /^\/api\/v1\/admin\/profiles\/([^/]+)\/([^/]+)\/([^/]+)\/workflows$/.exec(url.pathname);
+      if (profileWorkflowsMatch && req.method === 'GET') {
+        if (state.profileWorkflows === 'error') return json(404, { code: 'NOT_FOUND' });
+        const items = state.profileWorkflows === 'empty'
+          ? []
+          : [
+              {
+                slug: 'disbursement:workflow',
+                revision: 2,
+                status: 'active',
+                enabled: true,
+                createdAt: '2026-10-02T09:00:00.000Z',
+              },
+              {
+                slug: 'lc-checker:workflow',
+                revision: 1,
+                status: 'retired',
+                enabled: false,
+                createdAt: '2026-09-20T09:00:00.000Z',
+              },
+            ];
+        return json(200, {
+          businessId: decodeURIComponent(profileWorkflowsMatch[1] ?? ''),
+          businessVersion: decodeURIComponent(profileWorkflowsMatch[2] ?? ''),
+          items,
+          total: items.length,
+        });
+      }
+
       const bizActionMatch = /^\/api\/v1\/admin\/businesses\/([^/]+)\/versions\/([^/]+)\/(enable|activate|deactivate)$/.exec(url.pathname);
       if (bizActionMatch && req.method === 'PUT') {
         if (state.bizAction === 'error') return json(500, { code: 'INTERNAL' });

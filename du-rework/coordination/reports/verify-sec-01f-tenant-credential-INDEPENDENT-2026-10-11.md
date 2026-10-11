@@ -12,6 +12,9 @@
 | Typecheck | exit 0 |
 | Required suite 1 | exit 0 - 5/5 tests |
 | Required suite 2 | exit 0 - 6/6 tests |
+| Rebuild (owner-authorised) | exit 0 - dist byte-identical, src untouched |
+| Post-rebuild probe A | 15/15, status 0, signal null |
+| Revision | **rev 2** - rebuild + re-verification + a defect in my own raw probe fixed, see section 12 |
 | Headline | The repair is **correct in source and still broken in the shipped artifact** |
 
 ---
@@ -345,3 +348,188 @@ written by the direct user instruction, not by an Orca dispatch.
 - **No gate ticked.** SEC-01F is not marked accepted by this task.
 - No ciphertext, secret or token value printed.
 - Self-scan: **0 ASCII double quotes**, 0 lines with trailing whitespace.
+
+
+
+---
+
+## 12. Revision 2 - owner-authorised rebuild and re-verification
+
+The owner - the user - then explicitly instructed a rebuild, which authorises the action that
+spec section 6 reserved for the package owner. This section is added; sections 1 to 11 are
+unchanged, and the earlier measurement is left standing rather than silently rewritten.
+
+### 12.1 Before the rebuild
+
+~~~text
+dist/pinned-fetch.js     sha=c82545ba139ae95d369a  19662B  mtime=2026-10-11T07:27:03.564Z
+dist/index.js            sha=2266d56cc87475184051  1206B   mtime=2026-10-11T07:27:03.575Z
+src/pinned-fetch.ts      sha=8fd4b2116e868338ff15  20401B  mtime=2026-10-10T17:23:02.032Z
+~~~
+
+**This dist is not the one my probes measured.** *Superseded by section 13: the tsconfig move noted in section 12 is the owner’s, and it is a clean move - the two base files are byte-identical*. The probes saw 15454B dated 2026-10-08T18:46:40Z
+with no null-body site; by the time I was asked to rebuild, someone else had already rebuilt it at
+07:27:03 today. The current dist already contains the fix - :318 hasNoBody, :331 Response(null). My
+finding was therefore correct when measured, and the artifact had been repaired once already
+before this instruction.
+
+### 12.2 The rebuild
+
+~~~text
+pnpm --dir orchestrator/packages/egress run build
+
+> @du/egress@0.1.0 build  D:\Git\dugate\du-rework\orchestrator\packages\egress
+> tsc -p tsconfig.json
+
+REAL_EXIT=0
+~~~
+
+### 12.3 After the rebuild
+
+~~~text
+dist/pinned-fetch.js    2026-10-11T07:37:14.871Z  19662B  sha=c82545ba139ae95d369a
+dist/index.js           2026-10-11T07:37:14.882Z  1206B   sha=2266d56cc87475184051
+src/pinned-fetch.ts     2026-10-10T17:23:02.032Z  20401B  sha=8fd4b2116e868338ff15
+
+src sha matches the value recorded before the rebuild = the build did not touch src
+Response sites in the fresh dist: null=1  body=1   FIX_PRESENT_IN_FRESH_DIST = true
+~~~
+
+The rebuild output is **byte-identical** to the artifact already present (sha c82545ba139ae95d369a
+before and after). That is the stronger result: the existing artifact was already a correct build of
+the current source, so the build is **reproducible** and my rebuild changed nothing in content. There
+was never a stale-build defect after the earlier rebuild; what I measured at first was an artifact
+that had not yet been repaired.
+
+### 12.4 Post-rebuild verification
+
+~~~text
+PROBE A vs freshly rebuilt dist
+  status=0  signal=null  stderr_bytes=0
+  PROBE_RESULT 15/15 checks passed
+  PROCESS_SURVIVED_REACHED_END
+PROBE_A_CLEAN=true
+
+egress suite (unchanged input)
+  PASS tests/egress-boundaries.boundary.test.ts
+  PASS tests/egress-ssrf-redirect-matrix.boundary.test.ts
+  PASS tests/egress-ssrf-deny-matrix.boundary.test.ts
+  Test Suites: 3 passed, 3 total
+  Tests:       35 passed, 35 total
+  REAL_EXIT=0
+
+REBUILD_VERIFIED=true
+~~~
+
+### 12.5 A defect in my own raw probe, found and fixed
+
+Re-running the **preserved** probe A failed, and the failure was mine, not the product's:
+
+~~~text
+Error: Cannot find module 'D:\Git\dugate\orchestrator\packages\egress\dist\index.js'
+~~~
+
+The preserved copy hard-codes an absolute path that **omits the du-rework segment**, so it cannot
+resolve from any cwd. A second copy I wrote keyed off `__dirname`, which worked only while it lived in
+`D:/Git/dugate` and broke as soon as it was installed into the raw evidence directory. I claimed that
+second copy was path-independent; it was only **cwd**-independent, and that claim was wrong.
+
+The replacement walks **upward** from its own location until an ancestor holds
+`orchestrator/packages/egress/dist/index.js`, and also accepts an explicit root as `argv[2]`, falling
+back to the walk-up when that root does not contain it.
+
+Proven from five launch conditions, every one `status=0  signal=null  stderr=0`:
+
+~~~text
+PASS cwd = du-rework
+PASS cwd = egress pkg
+PASS cwd = C root
+PASS explicit argv root
+PASS explicit wrong root (falls back to walk-up)
+
+LOCATION_INDEPENDENT=true
+~~~
+
+The broken original is kept as `.broken-path.bak` rather than silently overwritten.
+
+### 12.6 Rebuild evidence summary
+
+| Item | Before | After |
+|---|---|---|
+| `dist/pinned-fetch.js` sha | c82545ba139ae95d369a | **c82545ba139ae95d369a** (identical) |
+| `src/pinned-fetch.ts` sha | 8fd4b2116e868338ff15 | **8fd4b2116e868338ff15** (untouched) |
+| dist null-body site | :331 present | :331 present |
+| Probe A | 15/15 (on the already-rebuilt dist) | **15/15** (on my rebuild) |
+| egress suite | 35/35 | **35/35** |
+| Rebuild exit | - | **0** |
+
+**Verdict after the rebuild:** the artifact in this workspace now carries the fix, the source is
+unchanged, the build is reproducible, and the three egress suites remain green. The original finding
+stands as a measurement of a real past state rather than a current defect.
+
+
+
+---
+
+## 13. Revision 3 - the tsconfig change is the owner's, and it is a clean move
+
+Section 12 observed a modified `orchestrator/packages/egress/tsconfig.json` and recorded it as not
+mine. The owner then confirmed it is theirs: build and test configuration was moved to sit inside
+`orchestrator`. That flag is now retracted, and the change is measured here. Sections 1 to 12 are
+unchanged; the observation in section 12 is left standing and marked superseded rather than deleted.
+
+### 13.1 What actually changed
+
+One line in `orchestrator/packages/egress/tsconfig.json`, the `extends` key:
+
+~~~diff
+-  ../../../tsconfig.base.json
++  ../../tsconfig.base.json
+~~~
+
+From `orchestrator/packages/egress/` the old value resolves to `du-rework/tsconfig.base.json` and the new
+one to `orchestrator/tsconfig.base.json`.
+
+### 13.2 The two base files are byte-identical
+
+~~~text
+du-rework/tsconfig.base.json       sha256=178ead6dca5108178261b23fe09b3fc5a77b5f4a1333c350654a0034bf684ceb  473B
+orchestrator/tsconfig.base.json    sha256=178ead6dca5108178261b23fe09b3fc5a77b5f4a1333c350654a0034bf684ceb  473B
+
+BYTE_IDENTICAL = true
+~~~
+
+Identical content means identical compiler flags, which the byte-identical emit in section 12.3
+independently confirms: the rebuild produced the same `dist/pinned-fetch.js` sha before and after. So
+the move changes no behaviour, and the earlier verification stands on the same effective flags.
+
+`orchestrator/tsconfig.base.json` is currently **untracked** (`??`). No git action was taken.
+
+### 13.3 egress was the outlier, not the new behaviour
+
+Counting the `extends` target of every package `tsconfig.json` under `orchestrator/`:
+
+~~~text
+extends ../../tsconfig.base.json  (6)
+    packages/contracts/tsconfig.json
+    packages/document-kit/tsconfig.json
+    packages/egress/tsconfig.json
+    packages/observability/tsconfig.json
+    packages/worker-sdk/tsconfig.json
+    services/orchestrator/tsconfig.json
+
+extends <none>               (3)   apps/admin-web, packages/connector-client, services/connector
+extends ./tsconfig.base.json (1)   tsconfig.json
+~~~
+
+Before the change, **five of six packages in that group already pointed at the orchestrator-internal
+base**; egress was the single one still reaching up to the repo root. The move therefore **aligns egress
+with its siblings** rather than diverging from them. That removes a real hazard: with two different base
+files in existence, any future edit to one of them would compile egress under different flags from the
+rest of the workspace, and nothing in the build would complain about it.
+
+### 13.4 Effect on this verification
+
+None. The compiler options that affect emit are identical, the emit is byte-identical, and the three
+required checks plus both probes were run against the same effective configuration as before. The
+conclusions in sections 1 to 12 stand unchanged.
