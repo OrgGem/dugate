@@ -960,7 +960,12 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
       // Worker instances. Two states on purpose: the card must render the
       // SERVER's health column, not one it derived from lastSeenAt.
       if (url.pathname === '/api/v1/admin/worker-instances' && req.method === 'GET') {
-        if (state.workers === 'error') return json(500, { code: 'INTERNAL' });
+        // A problem+json envelope, not a plain body: the BFF relays a
+        // non-problem error body as 502 UPSTREAM_ERROR, so a plain {code} would
+        // make the card show the WRONG status and the test would pin that lie.
+        if (state.workers === 'error') {
+          return problem(500, 'INTERNAL', 'worker instance read failed');
+        }
         const items = state.workers === 'empty'
           ? []
           : [

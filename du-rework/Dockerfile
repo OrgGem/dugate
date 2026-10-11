@@ -9,6 +9,9 @@ RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
 COPY orchestrator/patches ./orchestrator/patches
 COPY orchestrator/vendor ./orchestrator/vendor
+# orchestrator/** packages resolve their extends as orchestrator/tsconfig.base.json,
+# not the root config. Without this every tsc falls back to ES3/ES5 defaults.
+COPY orchestrator/tsconfig.base.json ./orchestrator/tsconfig.base.json
 RUN --mount=type=cache,id=du-pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store \
     && pnpm fetch --frozen-lockfile --ignore-scripts --fetch-retries=5

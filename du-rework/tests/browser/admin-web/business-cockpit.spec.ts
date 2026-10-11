@@ -51,28 +51,33 @@ async function openCockpit(page: Page): Promise<void> {
 }
 
 test('1. four cards render four reads, with the server state and health columns', async ({ page }) => {
-  await setScenario('biz=rows');
+  // Every scenario named: the harness state persists BETWEEN tests, so an
+  // unnamed knob would inherit whatever the previous test left behind.
+  await setScenario('biz=rows&workers=rows&profiles=rows&profileWorkflows=rows');
   await openCockpit(page);
+  // Scope to the cockpit: the Businesses screen renders its OWN versions table
+  // directly above it, and both carry the aria-label Business versions.
+  const cockpit = page.getByRole('region', { name: /^Detail for / });
 
-  await expect(page.getByRole('table', { name: 'Business versions' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Worker instances' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Profiles of this business' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Workflow schema bindings' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Business versions' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Worker instances' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Profiles of this business' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Workflow schema bindings' })).toBeVisible();
 
   // Worker rows carry BOTH the server state and the server health verdict.
-  await expect(page.getByRole('cell', { name: 'worker-a' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'worker-b' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'HEALTHY', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'DEGRADED', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'ONLINE', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'DRAINING', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'worker-a' })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'worker-b' })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'HEALTHY', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'DEGRADED', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'ONLINE', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'DRAINING', exact: true })).toBeVisible();
 
   // A profile whose revision is 0 is rendered `unsaved`, never as revision 0.
-  await expect(page.getByRole('cell', { name: 'unsaved', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'unsaved', exact: true })).toBeVisible();
 
   // Binding state and schema status are separate columns.
-  await expect(page.getByRole('cell', { name: 'enabled', exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'not bound', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'enabled', exact: true })).toBeVisible();
+  await expect(cockpit.getByRole('cell', { name: 'not bound', exact: true })).toBeVisible();
 
   await shot(page, 'biz09-01-cockpit-four-cards.png');
 });
@@ -91,28 +96,33 @@ test('2. every card states its sample time', async ({ page }) => {
 });
 
 test('3. one failing read leaves the other three rendering (independent boundaries)', async ({ page }) => {
-  await setScenario('biz=rows&workers=error');
+  await setScenario('biz=rows&workers=error&profiles=rows&profileWorkflows=rows');
   await openCockpit(page);
+  const cockpit = page.getByRole('region', { name: /^Detail for / });
 
-  // The failed card shows the failure...
-  await expect(page.getByText('INTERNAL').first()).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Worker instances' })).toHaveCount(0);
+  // The failed card renders the fail-closed state (ErrorState = role=alert
+  // carrying the status) and NO table. It never degrades to an empty table.
+  await expect(cockpit.getByRole('alert')).toBeVisible();
+  await expect(cockpit.getByText('500')).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Worker instances' })).toHaveCount(0);
   // ...and the other three are untouched.
-  await expect(page.getByRole('table', { name: 'Business versions' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Profiles of this business' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Workflow schema bindings' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Business versions' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Profiles of this business' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Workflow schema bindings' })).toBeVisible();
 
   await shot(page, 'biz09-03-independent-error-boundary.png');
 });
 
 test('4. an empty read says so in words, never as a table of zeroes', async ({ page }) => {
-  await setScenario('biz=rows&profiles=empty');
+  // workers and workflows are named because test 3 left workers=error.
+  await setScenario('biz=rows&workers=rows&profiles=empty&profileWorkflows=rows');
   await openCockpit(page);
+  const cockpit = page.getByRole('region', { name: /^Detail for / });
 
-  await expect(page.getByText('No profile rows for this business.')).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Profiles of this business' })).toHaveCount(0);
+  await expect(cockpit.getByText('No profile rows for this business.')).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Profiles of this business' })).toHaveCount(0);
   // The neighbouring cards still render their own answers.
-  await expect(page.getByRole('table', { name: 'Worker instances' })).toBeVisible();
+  await expect(cockpit.getByRole('table', { name: 'Worker instances' })).toBeVisible();
 
   await shot(page, 'biz09-04-empty-is-not-zero.png');
 });

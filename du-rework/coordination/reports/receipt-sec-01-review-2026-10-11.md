@@ -7,8 +7,6 @@
 
 ## 0. Ket luan 1 dong
 
-**SEC-01V: ACCEPTED**
-
 5 tieu chi deu DAT, bang bang chung tu source va lan chay test cua chinh toi. 3 suite do trong lan chay rong **khong do cutover gay ra** - nguyen nhan doc truoc tu source, khong phai suy dien tu receipt.
 
 ---
