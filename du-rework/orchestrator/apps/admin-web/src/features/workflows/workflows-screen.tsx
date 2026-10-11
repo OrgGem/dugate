@@ -13,6 +13,7 @@ import {
   Code2,
   Trash2,
   CheckCircle2,
+  CircleAlert,
   HelpCircle,
   Boxes,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ import {
   type WorkflowCatalogItem,
 } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
+import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
 
 export interface PresetSample {
   slug: string;
@@ -58,12 +60,14 @@ export interface PresetSample {
   };
 }
 
+type WorkflowTestSource = 'backend' | 'simulation';
+
 const PRESET_SAMPLES: PresetSample[] = [
   {
     slug: 'doc-processing-pipeline',
     name: 'Intelligent Document Processing (IDP)',
-    description: 'Quy trình tiếp nhận tài liệu, trích xuất thực thể dữ liệu AI và kiểm tra tuân thủ chính sách tự động.',
-    badge: 'Khuyên Dùng Cho Doanh Nghiệp',
+    description: 'End-to-end document processing: ingestion, AI entity extraction and automatic policy compliance checks.',
+    badge: 'Recommended For Business',
     schema: {
       slug: 'doc-processing-pipeline',
       name: 'Intelligent Document Processing Pipeline',
@@ -72,16 +76,16 @@ const PRESET_SAMPLES: PresetSample[] = [
       input_schema: {
         type: 'object',
         properties: {
-          document_type: { type: 'string', label: 'Loại tài liệu', description: 'Loại tài liệu (hợp đồng, hóa đơn, biên bản)', default: 'contract' },
-          priority: { type: 'string', label: 'Độ ưu tiên xử lý', default: 'high' },
-          auto_verify: { type: 'boolean', label: 'Tự động kiểm tra điều khoản', default: true },
+          document_type: { type: 'string', label: 'Document type', description: 'Type of document (contract, invoice, minutes)', default: 'contract' },
+          priority: { type: 'string', label: 'Processing priority', default: 'high' },
+          auto_verify: { type: 'boolean', label: 'Automatic clause verification', default: true },
         },
       },
       nodes: [
         {
           id: 'ingest_step',
           type: 'connector',
-          description: 'Tiếp nhận, phân tích cấu trúc định dạng file (PDF, Word, Scan)',
+          description: 'Ingest the document and analyse the structure of PDF, Word and scanned formats',
           connector: 'document-core',
           overrideConnector: {
             prompt: 'Ingest document and structure content into AI-ready markdown pages',
@@ -91,7 +95,7 @@ const PRESET_SAMPLES: PresetSample[] = [
         {
           id: 'extract_step',
           type: 'connector',
-          description: 'Trích xuất thực thể, bảng biểu, ngày tháng và các bên liên quan',
+          description: 'Extract entities, tables, dates and the parties involved',
           connector: 'document-core',
           overrideConnector: {
             prompt: 'Extract structured metadata, key-value pairs, dates, amounts, and clauses',
@@ -101,7 +105,7 @@ const PRESET_SAMPLES: PresetSample[] = [
         {
           id: 'compliance_verify',
           type: 'connector',
-          description: 'Thẩm định quy tắc tuân thủ và phát hiện sai lệch điều khoản',
+          description: 'Check compliance rules and flag discrepancies in the clauses',
           connector: 'lc-checker',
           overrideConnector: {
             prompt: 'Verify clauses, check compliance policies, and flag any discrepancies',
@@ -117,9 +121,9 @@ const PRESET_SAMPLES: PresetSample[] = [
   },
   {
     slug: 'lc-compliance-audit',
-    name: 'Thẩm Định Thư Tín Dụng & Hợp Đồng (LC Audit)',
-    description: 'Quy trình kiểm tra chứng từ xuất nhập khẩu, đối soát điều khoản LC theo tiêu chuẩn ngân hàng quốc tế.',
-    badge: 'Tài Chính & Ngân Hàng',
+    name: 'Letter Of Credit & Contract Audit',
+    description: 'Inspection of import and export documents, reconciling LC clauses against international banking standards.',
+    badge: 'Finance & Banking',
     schema: {
       slug: 'lc-compliance-audit',
       name: 'Letter of Credit Compliance & Discrepancy Audit',
@@ -128,16 +132,16 @@ const PRESET_SAMPLES: PresetSample[] = [
       input_schema: {
         type: 'object',
         properties: {
-          lc_number: { type: 'string', label: 'Số hiệu Thư Tín Dụng (LC)', default: 'LC-2026-X889' },
-          issuing_bank: { type: 'string', label: 'Ngân hàng phát hành', default: 'Standard Chartered' },
-          tolerance_percentage: { type: 'number', label: 'Tỷ lệ dung sai (%)', default: 5 },
+          lc_number: { type: 'string', label: 'Letter Of Credit (LC) Number', default: 'LC-2026-X889' },
+          issuing_bank: { type: 'string', label: 'Issuing bank', default: 'Standard Chartered' },
+          tolerance_percentage: { type: 'number', label: 'Tolerance percentage (%)', default: 5 },
         },
       },
       nodes: [
         {
           id: 'parse_doc',
           type: 'connector',
-          description: 'Phân tích và bóc tách chứng từ vận tải, hóa đơn thương mại',
+          description: 'Parse and break down the shipping documents and commercial invoices',
           connector: 'document-core',
           overrideConnector: {
             prompt: 'Extract shipping documents, commercial invoices, and bill of lading terms',
@@ -146,7 +150,7 @@ const PRESET_SAMPLES: PresetSample[] = [
         {
           id: 'lc_rule_checker',
           type: 'connector',
-          description: 'Đối chiếu quy tắc UCP 600 và phát hiện sai lệch thông tin',
+          description: 'Check against the UCP 600 rules and flag discrepancies in the data',
           connector: 'lc-checker',
           overrideConnector: {
             prompt: 'Check compliance with LC terms, verify dates, amounts, ports, and beneficiary names',
@@ -155,7 +159,7 @@ const PRESET_SAMPLES: PresetSample[] = [
         {
           id: 'human_audit_review',
           type: 'connector',
-          description: 'Tổng hợp báo cáo thẩm định và ma trận rủi ro',
+          description: 'Compile the audit report and the risk matrix',
           connector: 'example-review',
           overrideConnector: {
             prompt: 'Compile discrepancy matrix and recommendations for trade specialist review',
@@ -170,9 +174,9 @@ const PRESET_SAMPLES: PresetSample[] = [
   },
   {
     slug: 'ocr-markdown-transform',
-    name: 'Bóc Tách OCR & Chuyển Đổi Markdown AI',
-    description: 'Quy trình chuyển đổi tài liệu quét/ảnh thành văn bản Markdown chuẩn cho Large Language Models.',
-    badge: 'Tốc Độ Cao',
+    name: 'AI OCR Extraction & Markdown Conversion',
+    description: 'Converts scanned documents and images into clean Markdown text for large language models.',
+    badge: 'High Speed',
     schema: {
       slug: 'ocr-markdown-transform',
       name: 'Fast OCR & Markdown Clean Transform',
@@ -181,15 +185,15 @@ const PRESET_SAMPLES: PresetSample[] = [
       input_schema: {
         type: 'object',
         properties: {
-          clean_tables: { type: 'boolean', label: 'Chuẩn hóa định dạng bảng', default: true },
-          preserve_headers: { type: 'boolean', label: 'Giữ cấu trúc tiêu đề H1-H4', default: true },
+          clean_tables: { type: 'boolean', label: 'Normalize table formatting', default: true },
+          preserve_headers: { type: 'boolean', label: 'Preserve the H1-H4 heading structure', default: true },
         },
       },
       nodes: [
         {
           id: 'ocr_scan',
           type: 'connector',
-          description: 'Nhận diện ký tự quang học OCR đa ngôn ngữ',
+          description: 'Run multilingual OCR character recognition',
           connector: 'document-core',
           overrideConnector: {
             prompt: 'Perform high-fidelity OCR, extract text layout and table structures',
@@ -198,7 +202,7 @@ const PRESET_SAMPLES: PresetSample[] = [
         {
           id: 'markdown_clean',
           type: 'connector',
-          description: 'Làm sạch và tái cấu trúc thành định dạng Markdown chuẩn',
+          description: 'Clean up and restructure into standard Markdown format',
           connector: 'document-core',
           overrideConnector: {
             prompt: 'Normalize into semantic Markdown with proper tables and headings',
@@ -221,6 +225,10 @@ export function WorkflowsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [businesses, setBusinesses] = useState<string[]>([]);
+  const [businessVersions, setBusinessVersions] = useState<string[]>([]);
+  const [ownerBusinessId, setOwnerBusinessId] = useState('');
+  const [ownerBusinessVersion, setOwnerBusinessVersion] = useState('');
 
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowCatalogItem | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -231,6 +239,7 @@ export function WorkflowsScreen() {
   // Test execution state
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [testInputVariables, setTestInputVariables] = useState<Record<string, unknown>>({});
+  const [testSource, setTestSource] = useState<WorkflowTestSource>('backend');
   const [testExecuting, setTestExecuting] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
   const [copiedDigest, setCopiedDigest] = useState<string | null>(null);
@@ -254,10 +263,10 @@ export function WorkflowsScreen() {
           setSelectedWorkflow(null);
         }
       } else {
-        setError(res.problem?.title || res.problem?.code || 'Không thể tải danh sách workflows.');
+        setError(res.problem?.title || res.problem?.code || 'Unable to load the workflow list.');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lỗi kết nối API');
+      setError(e instanceof Error ? e.message : 'API connection error');
     } finally {
       setLoading(false);
     }
@@ -267,6 +276,34 @@ export function WorkflowsScreen() {
     void fetchWorkflows();
   }, [tenantId]);
 
+  useEffect(() => {
+    let active = true;
+    setBusinesses([]);
+    setOwnerBusinessId('');
+    setOwnerBusinessVersion('');
+    void client.listBusinesses(tenantId ? { tenantId } : undefined).then((result) => {
+      if (!active) return;
+      const page = result.ok ? parseBusinessPage(result.data) : null;
+      setBusinesses(page?.items.map((business) => business.businessId) ?? []);
+    });
+    return () => { active = false; };
+  }, [client, tenantId]);
+
+  useEffect(() => {
+    let active = true;
+    setBusinessVersions([]);
+    setOwnerBusinessVersion('');
+    if (!ownerBusinessId) return () => { active = false; };
+    void client.getBusinessVersions(ownerBusinessId).then((result) => {
+      if (!active) return;
+      const versions = result.ok ? parseBusinessVersions(result.data) : null;
+      const list = versions?.rows.map((row) => row.version) ?? [];
+      setBusinessVersions(list);
+      setOwnerBusinessVersion(list[0] ?? '');
+    });
+    return () => { active = false; };
+  }, [client, ownerBusinessId]);
+
   const handleCopyDigest = (digest: string) => {
     void navigator.clipboard.writeText(digest);
     setCopiedDigest(digest);
@@ -275,7 +312,11 @@ export function WorkflowsScreen() {
 
   const handleProvisionPreset = async (preset: PresetSample) => {
     if (!tenantId) {
-      setError('Vui lòng chọn Organization / Tenant trước khi kích hoạt.');
+      setError('Select an Organization / Tenant before activating a workflow.');
+      return;
+    }
+    if (ownerBusinessId && !ownerBusinessVersion) {
+      setError('Select a registered business version or clear the business assignment.');
       return;
     }
     setActionInProgress(preset.slug);
@@ -284,16 +325,17 @@ export function WorkflowsScreen() {
     try {
       const res = await client.provisionWorkflow({
         tenantId,
+        ...(ownerBusinessId ? { businessId: ownerBusinessId, businessVersion: ownerBusinessVersion } : {}),
         schema: preset.schema,
       });
       if (res.ok) {
-        setSuccessMsg(`Đã kích hoạt thành công workflow mẫu "${preset.name}" (${preset.slug} v1)!`);
+        setSuccessMsg(`Provisioned the sample workflow "${preset.name}" (${preset.slug} v1)!`);
         await fetchWorkflows();
       } else {
-        setError(res.problem?.title || res.problem?.code || 'Kích hoạt workflow thất bại');
+        setError(res.problem?.title || res.problem?.code || 'Failed to provision the workflow');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lỗi khi kích hoạt workflow');
+      setError(e instanceof Error ? e.message : 'Error while provisioning the workflow');
     } finally {
       setActionInProgress(null);
     }
@@ -301,7 +343,11 @@ export function WorkflowsScreen() {
 
   const handleImportSubmit = async () => {
     if (!tenantId) {
-      setImportError('Vui lòng chọn Tenant trước.');
+      setImportError('Select a Tenant first.');
+      return;
+    }
+    if (ownerBusinessId && !ownerBusinessVersion) {
+      setImportError('Select a registered business version or clear the business assignment.');
       return;
     }
     setImportError(null);
@@ -309,25 +355,26 @@ export function WorkflowsScreen() {
     try {
       parsed = JSON.parse(importJsonText);
     } catch {
-      setImportError('Dữ liệu không phải JSON hợp lệ. Vui lòng kiểm tra lại cú pháp.');
+      setImportError('The content is not valid JSON. Check the syntax and try again.');
       return;
     }
     setActionInProgress('custom-import');
     try {
       const res = await client.provisionWorkflow({
         tenantId,
+        ...(ownerBusinessId ? { businessId: ownerBusinessId, businessVersion: ownerBusinessVersion } : {}),
         schema: parsed,
       });
       if (res.ok) {
         setImportModalOpen(false);
         setImportJsonText('');
-        setSuccessMsg('Đã nạp và kích hoạt workflow mới vào catalog thành công!');
+        setSuccessMsg('Workflow loaded and provisioned into the catalog successfully.');
         await fetchWorkflows();
       } else {
-        setImportError(res.problem?.title || res.problem?.code || 'Lỗi kiểm tra định dạng workflow schema.');
+        setImportError(res.problem?.title || res.problem?.code || 'The workflow schema failed validation.');
       }
     } catch (e) {
-      setImportError(e instanceof Error ? e.message : 'Lỗi khi lưu workflow');
+      setImportError(e instanceof Error ? e.message : 'Error while saving the workflow');
     } finally {
       setActionInProgress(null);
     }
@@ -335,7 +382,7 @@ export function WorkflowsScreen() {
 
   const handleRetireWorkflow = async (wf: WorkflowCatalogItem) => {
     if (!tenantId) return;
-    if (!confirm(`Bạn có chắc chắn muốn hủy kích hoạt workflow "${wf.name || wf.slug}" (Revision ${wf.revision})?`)) {
+    if (!confirm(`Retire the workflow "${wf.name || wf.slug}" (revision ${wf.revision})?`)) {
       return;
     }
     setActionInProgress(wf.slug);
@@ -347,13 +394,13 @@ export function WorkflowsScreen() {
         expectedRevision: wf.revision,
       });
       if (res.ok) {
-        setSuccessMsg(`Đã hủy kích hoạt workflow "${wf.slug}" revision ${wf.revision}.`);
+        setSuccessMsg(`Retired workflow "${wf.slug}" revision ${wf.revision}.`);
         await fetchWorkflows();
       } else {
-        setError(res.problem?.title || res.problem?.code || 'Lỗi khi hủy kích hoạt');
+        setError(res.problem?.title || res.problem?.code || 'Error while retiring the workflow');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lỗi kết nối');
+      setError(e instanceof Error ? e.message : 'Connection error');
     } finally {
       setActionInProgress(null);
     }
@@ -361,6 +408,7 @@ export function WorkflowsScreen() {
 
   const openTestModal = (wf: WorkflowCatalogItem) => {
     setSelectedWorkflow(wf);
+    setTestSource('backend');
     const schema = wf.schema as { input_schema?: { properties?: Record<string, { default?: unknown }> } } | undefined;
     const defaults: Record<string, unknown> = {};
     if (schema?.input_schema?.properties) {
@@ -378,39 +426,56 @@ export function WorkflowsScreen() {
     setTestExecuting(true);
     setTestResult(null);
     try {
+      if (testSource === 'simulation') {
+        setTestResult({
+          status: 'SIMULATED_SUCCESS',
+          dataSource: 'simulation',
+          message: `Workflow '${selectedWorkflow.slug}' was simulated locally; no backend request was sent.`,
+          inputEcho: testInputVariables,
+          simulatedStages: selectedWorkflow.stages ?? [],
+          executedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
       const res = await client.postAction('workflow.test', {
         tenantId,
         slug: selectedWorkflow.slug,
         variables: testInputVariables,
       });
       if (res.ok) {
+        const responseData = res.data as Record<string, unknown>;
+        const operationId = typeof responseData.operationId === 'string' ? responseData.operationId : undefined;
+        const stagesCompleted = Array.isArray(responseData.stagesCompleted) &&
+          responseData.stagesCompleted.every((stage): stage is string => typeof stage === 'string')
+          ? responseData.stagesCompleted
+          : undefined;
         setTestResult({
           status: 'ACCEPTED',
-          message: `Quy trình '${selectedWorkflow.slug}' đã được khởi động thành công.`,
-          operationId: (res.data as Record<string, unknown>).operationId || `op-${Date.now().toString(36)}`,
+          message: `Workflow '${selectedWorkflow.slug}' was accepted by the backend.`,
+          ...(operationId ? { operationId } : {}),
           inputEcho: testInputVariables,
           executedAt: new Date().toISOString(),
-          stagesCompleted: selectedWorkflow.stages ?? ['ingest', 'extract', 'verify'],
+          ...(stagesCompleted ? { stagesCompleted } : {}),
         });
       } else {
+        const errorCode = res.problem.code ?? (res.status === 0 ? 'TRANSPORT_ERROR' : `HTTP_${res.status}`);
         setTestResult({
-          status: 'SIMULATED_SUCCESS',
-          message: `Kịch bản kiểm thử quy trình '${selectedWorkflow.slug}' đã hoàn tất chạy thử nghiệm cục bộ.`,
-          simulatedOperationId: `sim-op-${Date.now().toString(36)}`,
-          inputEcho: testInputVariables,
-          nodesExecuted: selectedWorkflow.stages ?? ['ingest_step', 'extract_step', 'compliance_verify'],
-          executedAt: new Date().toISOString(),
-          note: 'Workflow nodes và connectors đã được xác thực cấu hình hợp lệ.',
+          status: 'FAILED',
+          message: res.problem.title ?? 'The backend could not start this workflow test.',
+          errorCode,
+          httpStatus: res.status,
         });
       }
-    } catch {
+    } catch (error) {
+      const errorCode =
+        typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : 'REQUEST_EXCEPTION';
       setTestResult({
-        status: 'SIMULATED_SUCCESS',
-        message: `Kịch bản kiểm thử quy trình '${selectedWorkflow.slug}' đã hoàn tất kiểm tra cấu trúc.`,
-        simulatedOperationId: `sim-op-${Date.now().toString(36)}`,
-        inputEcho: testInputVariables,
-        nodesExecuted: selectedWorkflow.stages ?? ['ingest_step', 'extract_step', 'compliance_verify'],
-        executedAt: new Date().toISOString(),
+        status: 'FAILED',
+        message: error instanceof Error ? error.message : 'The workflow test request failed unexpectedly.',
+        errorCode,
       });
     } finally {
       setTestExecuting(false);
@@ -429,7 +494,7 @@ export function WorkflowsScreen() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Business Workflows</h1>
               <p className="text-sm text-muted-foreground">
-                Quản lý, nạp và kiểm thử quy trình xử lý tài liệu đa chặng (WFA Document Pipelines).
+                Provision, import and test multi-stage document processing pipelines (WFA Document Pipelines).
               </p>
             </div>
           </div>
@@ -453,7 +518,7 @@ export function WorkflowsScreen() {
             className="flex items-center gap-1.5"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Làm mới
+            Refresh
           </Button>
           <Button
             size="sm"
@@ -465,37 +530,75 @@ export function WorkflowsScreen() {
             className="flex items-center gap-1.5"
           >
             <Plus className="h-4 w-4" />
-            Tạo / Import Workflow
+            Create / Import Workflow
           </Button>
         </div>
       </div>
 
       {/* Notifications */}
       {error && (
-        <AlertBanner variant="error" title="Thông báo lỗi">
+        <AlertBanner variant="error" title="Error">
           {error}
         </AlertBanner>
       )}
       {successMsg && (
-        <AlertBanner variant="success" title="Thành công">
+        <AlertBanner variant="success" title="Success">
           {successMsg}
         </AlertBanner>
       )}
 
-      {/* ── Section 1: Thư viện Workflow Mẫu Sẵn Sàng Kích Hoạt ────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Business ownership</CardTitle>
+          <CardDescription>
+            New workflow revisions can be registered to a business version. Leave this unassigned to keep the legacy tenant-wide catalog behavior.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <label className="block w-full max-w-xs space-y-1 text-xs font-medium">
+            <span>Business</span>
+            <select
+              aria-label="Workflow business"
+              className="h-9 w-full rounded border bg-background px-3 text-sm"
+              value={ownerBusinessId}
+              onChange={(event) => setOwnerBusinessId(event.target.value)}
+            >
+              <option value="">Unassigned (legacy)</option>
+              {businesses.map((business) => <option key={business} value={business}>{business}</option>)}
+            </select>
+          </label>
+          {ownerBusinessId ? (
+            <label className="block w-full max-w-[12rem] space-y-1 text-xs font-medium">
+              <span>Business version</span>
+              <select
+                aria-label="Workflow business version"
+                className="h-9 w-full rounded border bg-background px-3 text-sm"
+                value={ownerBusinessVersion}
+                onChange={(event) => setOwnerBusinessVersion(event.target.value)}
+                disabled={businessVersions.length === 0}
+              >
+                {businessVersions.length === 0 ? <option value="">No registered versions</option> : null}
+                {businessVersions.map((version) => <option key={version} value={version}>{version}</option>)}
+              </select>
+            </label>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {/* ── Section 1: Ready-To-Activate Sample Workflow Library ────────────────── */}
       <Card className="border-primary/20 bg-gradient-to-r from-card via-card to-primary/5">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Boxes className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Thư Viện Business Workflow Mẫu (Sẵn sàng Test)</CardTitle>
+              <CardTitle className="text-lg">Business Workflow Templates (Ready To Test)</CardTitle>
             </div>
             <Badge variant="info" className="text-xs">
-              3 Kịch bản Chuẩn Hóa
+              3 Standardized Scenarios
             </Badge>
           </div>
           <CardDescription>
-            Chọn một workflow mẫu nghiệp vụ bên dưới để tự động nạp vào Organization hiện tại và kiểm thử ngay lập tức.
+            Pick a business workflow template below to provision it into the current Organization and test it right away.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -518,7 +621,7 @@ export function WorkflowsScreen() {
                       </span>
                       {isProvisioned && (
                         <Badge variant="success" className="text-[10px] px-2 py-0.5">
-                          Đã Kích Hoạt (Active)
+                          Activated (Active)
                         </Badge>
                       )}
                     </div>
@@ -529,7 +632,7 @@ export function WorkflowsScreen() {
 
                     {/* Stage flow pills */}
                     <div className="pt-2">
-                      <div className="text-[11px] font-medium text-muted-foreground mb-1">Các chặng xử lý:</div>
+                      <div className="text-[11px] font-medium text-muted-foreground mb-1">Processing stages:</div>
                       <div className="flex flex-wrap items-center gap-1">
                         {preset.schema.nodes.map((node, idx) => (
                           <span key={node.id} className="flex items-center gap-1 text-[11px]">
@@ -560,11 +663,11 @@ export function WorkflowsScreen() {
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                       ) : isProvisioned ? (
                         <>
-                          <RefreshCw className="h-3.5 w-3.5" /> Nạp Bản Mới
+                          <RefreshCw className="h-3.5 w-3.5" /> Load Latest Version
                         </>
                       ) : (
                         <>
-                          <Play className="h-3.5 w-3.5 fill-current" /> Kích Hoạt Ngay
+                          <Play className="h-3.5 w-3.5 fill-current" /> Activate Now
                         </>
                       )}
                     </Button>
@@ -576,7 +679,7 @@ export function WorkflowsScreen() {
         </CardContent>
       </Card>
 
-      {/* ── Section 2: Catalog Workflows Đang Kích Hoạt ────────────────── */}
+      {/* ── Section 2: Active Workflow Catalog ────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Workflows List (1 col) */}
         <div className="lg:col-span-1 space-y-4">
@@ -585,23 +688,23 @@ export function WorkflowsScreen() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Layers className="h-4 w-4 text-primary" />
-                  Danh Sách Workflows ({workflows.length})
+                  Workflow List ({workflows.length})
                 </CardTitle>
               </div>
               <CardDescription>
-                Các schema đang được cấu hình cho tenant này.
+                The schemas currently configured for this tenant.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-2">
               {loading && workflows.length === 0 ? (
                 <div className="p-6">
-                  <LoadingState title="Đang tải..." description="Đang tải danh sách workflows..." />
+                  <LoadingState title="Loading..." description="Loading the workflow list..." />
                 </div>
               ) : workflows.length === 0 ? (
                 <div className="p-6 text-center">
                   <EmptyState
-                    title="Chưa có workflow nào"
-                    description="Kích hoạt một workflow mẫu ở trên hoặc nạp file JSON để bắt đầu."
+                    title="No workflows yet"
+                    description="Activate a sample workflow above, or load a JSON file, to get started."
                   />
                   <div className="mt-4">
                     <Button
@@ -612,7 +715,7 @@ export function WorkflowsScreen() {
                         if (first) handleProvisionPreset(first);
                       }}
                     >
-                      Kích hoạt IDP Pipeline Mẫu
+                      Activate The IDP Pipeline Sample
                     </Button>
                   </div>
                 </div>
@@ -649,7 +752,11 @@ export function WorkflowsScreen() {
 
                         <div className="text-xs text-muted-foreground flex items-center justify-between font-mono">
                           <span>{wf.slug}</span>
-                          <span>{wf.nodesCount ?? (wf.stages ? wf.stages.length : 1)} stages</span>
+                          {/* AWEB-WORKFLOW-STAGE-COUNT-HONESTY: report what the wire says.
+                              Both fields are optional, so an absent stage list is 0 stages -
+                              never a fabricated 1, and nodesCount 0 stays 0 because ?? only
+                              falls through on null/undefined. */}
+                          <span>{wf.nodesCount ?? wf.stages?.length ?? 0} stages</span>
                         </div>
                       </button>
                     );
@@ -681,8 +788,13 @@ export function WorkflowsScreen() {
                       </Badge>
                     </div>
                     <CardDescription className="mt-1">
-                      {selectedWorkflow.description || 'Quy trình xử lý tự động trong catalog.'}
+                      {selectedWorkflow.description || 'Automated processing pipeline in the catalog.'}
                     </CardDescription>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Business: {selectedWorkflow.businessId
+                        ? `${selectedWorkflow.businessId}@${selectedWorkflow.businessVersion ?? 'unknown'}`
+                        : 'Unassigned (legacy)' }
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -692,7 +804,7 @@ export function WorkflowsScreen() {
                       onClick={() => openTestModal(selectedWorkflow)}
                       className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
-                      <Play className="h-4 w-4 fill-current" /> Chạy Thử (Test Run)
+                      <Play className="h-4 w-4 fill-current" /> Test Run
                     </Button>
                     {selectedWorkflow.status === 'active' && (
                       <Button
@@ -702,7 +814,7 @@ export function WorkflowsScreen() {
                         disabled={actionInProgress === selectedWorkflow.slug}
                         className="gap-1.5"
                       >
-                        <Trash2 className="h-4 w-4" /> Hủy Active
+                        <Trash2 className="h-4 w-4" /> Retire
                       </Button>
                     )}
                   </div>
@@ -737,7 +849,7 @@ export function WorkflowsScreen() {
                   </div>
                   <div>
                     <span className="text-muted-foreground block text-[10px] uppercase font-sans">
-                      Thời gian tạo
+                      Created
                     </span>
                     <span className="text-foreground">
                       {new Date(selectedWorkflow.createdAt).toLocaleString()}
@@ -751,14 +863,14 @@ export function WorkflowsScreen() {
                 <div>
                   <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
                     <GitBranch className="h-4 w-4 text-primary" />
-                    Sơ Đồ Luồng Xử Lý (Workflow Graph)
+                    Processing Flow Diagram (Workflow Graph)
                   </h3>
 
                   {/* Visual Node Flow Horizontal Timeline */}
                   <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 overflow-x-auto p-4 bg-muted/20 border rounded-xl">
                     {/* Start Node */}
                     <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-background border border-dashed text-xs text-center min-w-[100px]">
-                      <span className="font-semibold text-muted-foreground">Tài Liệu Input</span>
+                      <span className="font-semibold text-muted-foreground">Input Document</span>
                       <span className="text-[10px] text-muted-foreground">Payload / Upload</span>
                     </div>
 
@@ -781,7 +893,7 @@ export function WorkflowsScreen() {
                                 </Badge>
                               </div>
                               <div className="text-xs font-medium text-foreground line-clamp-1">
-                                {node.description || 'Xử lý dữ liệu'}
+                                {node.description || 'Data processing'}
                               </div>
                               {node.connector && (
                                 <div className="mt-2 pt-1.5 border-t flex items-center justify-between text-[11px] text-muted-foreground">
@@ -800,7 +912,7 @@ export function WorkflowsScreen() {
                       )
                     ) : (
                       <div className="text-sm text-muted-foreground">
-                        Không tìm thấy cấu hình node trong schema.
+                        No node configuration was found in the schema.
                       </div>
                     )}
 
@@ -809,7 +921,7 @@ export function WorkflowsScreen() {
                     {/* Final Output Node */}
                     <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-center min-w-[110px]">
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                        Kết Quả Cuối
+                        Final Result
                       </span>
                       <span className="text-[10px] text-muted-foreground">
                         Structured Output
@@ -824,7 +936,7 @@ export function WorkflowsScreen() {
                     <div>
                       <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
                         <Boxes className="h-4 w-4 text-primary" />
-                        Gán Cổng Kết Nối (Connector Slot Mapping)
+                        Connector Slot Mapping
                       </h3>
                       <div className="border rounded-lg overflow-hidden text-xs">
                         <table className="w-full">
@@ -832,7 +944,7 @@ export function WorkflowsScreen() {
                             <tr>
                               <th className="p-2.5 font-medium">Connector Name</th>
                               <th className="p-2.5 font-medium">Internal Slot Binding</th>
-                              <th className="p-2.5 font-medium">Trạng thái</th>
+                              <th className="p-2.5 font-medium">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y font-mono">
@@ -862,7 +974,7 @@ export function WorkflowsScreen() {
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
                       <Code2 className="h-4 w-4 text-primary" />
-                      Chi Tiết Định Nghĩa JSON Schema
+                      JSON Schema Definition Details
                     </h3>
                     <Button
                       variant="ghost"
@@ -874,7 +986,7 @@ export function WorkflowsScreen() {
                       }
                       className="h-7 text-xs gap-1"
                     >
-                      <Copy className="h-3 w-3" /> Sao chép JSON
+                      <Copy className="h-3 w-3" /> Copy JSON
                     </Button>
                   </div>
                   <pre className="p-4 rounded-xl bg-muted/60 border text-xs font-mono overflow-x-auto max-h-[280px]">
@@ -887,31 +999,31 @@ export function WorkflowsScreen() {
             <Card>
               <CardContent className="p-12 text-center text-muted-foreground">
                 <HelpCircle className="h-8 w-8 mx-auto mb-2 text-muted-foreground/60" />
-                <p>Chọn một workflow ở danh sách bên trái hoặc kích hoạt workflow mẫu để xem cấu hình.</p>
+                <p>Select a workflow from the list on the left, or activate a sample workflow, to view its configuration.</p>
               </CardContent>
             </Card>
           )}
         </div>
       </div>
 
-      {/* ── Modal 1: Import / Tạo Workflow Schema Mới ────────────────── */}
+      {/* ── Modal 1: Import / Create A New Workflow Schema ────────────────── */}
       <Modal
         open={importModalOpen}
         onOpenChange={setImportModalOpen}
-        title="Nạp & Kích Hoạt Workflow Schema Mới"
-        description="Nhập định dạng chuẩn LegacyWorkflowSchema JSON. Dữ liệu sẽ được mã hóa an toàn qua Vault Transit trước khi lưu trữ."
+        title="Load & Activate A New Workflow Schema"
+        description="Enter a LegacyWorkflowSchema JSON document. The data is encrypted through Vault Transit before it is stored."
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4">
           {importError && (
-            <AlertBanner variant="error" title="Lỗi Schema">
+            <AlertBanner variant="error" title="Schema Error">
               {importError}
             </AlertBanner>
           )}
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium">Nội dung JSON Schema:</label>
+              <label className="text-xs font-medium">JSON Schema content:</label>
               <div className="flex items-center gap-1.5">
                 {PRESET_SAMPLES.map((p) => (
                   <Button
@@ -922,7 +1034,7 @@ export function WorkflowsScreen() {
                     className="h-6 text-[11px] px-2"
                     onClick={() => setImportJsonText(JSON.stringify(p.schema, null, 2))}
                   >
-                    Dùng mẫu {p.slug}
+                    Use template {p.slug}
                   </Button>
                 ))}
               </div>
@@ -931,7 +1043,7 @@ export function WorkflowsScreen() {
               rows={14}
               value={importJsonText}
               onChange={(e) => setImportJsonText(e.target.value)}
-              placeholder="Dán JSON schema vào đây..."
+              placeholder="Paste the JSON schema here..."
               className="w-full font-mono text-xs p-3 rounded-lg border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -942,7 +1054,7 @@ export function WorkflowsScreen() {
               variant="outline"
               onClick={() => setImportModalOpen(false)}
             >
-              Hủy bỏ
+              Cancel
             </Button>
             <Button
               type="button"
@@ -956,24 +1068,36 @@ export function WorkflowsScreen() {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              Xác Nhận Kích Hoạt
+              Confirm Activation
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* ── Modal 2: Console Chạy Thử Workflow (Test Run) ─────────────── */}
+      {/* ── Modal 2: Workflow Test Run Console ─────────────── */}
       <Modal
         open={testModalOpen}
         onOpenChange={setTestModalOpen}
-        title={`Chạy Thử Workflow: ${selectedWorkflow?.name || selectedWorkflow?.slug}`}
-        description="Điền thông số biến đầu vào để gửi lệnh thực thi test kiểm thử qua hệ thống điều phối."
+        title={`Workflow Test Run: ${selectedWorkflow?.name || selectedWorkflow?.slug}`}
+        description="Choose a data source: Backend sends a request to Orchestrator; local simulation sends no request."
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4">
           <div className="space-y-3">
+            <label className="block space-y-1">
+              <span className="text-xs font-medium">Test data source</span>
+              <select
+                aria-label="Workflow test data source"
+                className="w-full rounded border bg-background p-2 text-xs text-foreground"
+                value={testSource}
+                onChange={(event) => setTestSource(event.target.value as WorkflowTestSource)}
+              >
+                <option value="backend">Orchestrator backend</option>
+                <option value="simulation">Local simulation (no backend request)</option>
+              </select>
+            </label>
             <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-              Thông số đầu vào (Input Variables)
+              Input Variables
             </h4>
 
             {selectedWorkflow?.schema &&
@@ -1007,14 +1131,14 @@ export function WorkflowsScreen() {
               </div>
             ) : (
               <div className="text-xs text-muted-foreground p-3 border rounded bg-muted/30">
-                Workflow này không yêu cầu tham số đầu vào bắt buộc.
+                This workflow does not require any mandatory input parameters.
               </div>
             )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" size="sm" onClick={() => setTestModalOpen(false)}>
-              Đóng
+              Close
             </Button>
             <Button
               size="sm"
@@ -1028,22 +1152,58 @@ export function WorkflowsScreen() {
               ) : (
                 <Play className="h-4 w-4 fill-current" />
               )}
-              Bắt Đầu Thực Thi Test
+              {testSource === 'simulation' ? 'Run Local Simulation' : 'Start Test Execution'}
             </Button>
           </div>
 
           {/* Test Execution Output */}
           {testResult && (
-            <div className="mt-4 p-4 rounded-xl border bg-muted/40 space-y-2">
+            <div
+              aria-live="polite"
+              className="mt-4 p-4 rounded-xl border bg-muted/40 space-y-2"
+              role={testResult.status === 'FAILED' ? 'alert' : 'status'}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" /> Kết Quả Thực Thi
+                <span className={`text-xs font-semibold flex items-center gap-1.5 ${
+                  testResult.status === 'FAILED' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  {testResult.status === 'FAILED'
+                    ? <CircleAlert className="h-4 w-4" />
+                    : <CheckCircle2 className="h-4 w-4" />}
+                  {testResult.status === 'FAILED' ? 'Workflow test failed' : 'Execution Result'}
                 </span>
                 <Badge variant="neutral" className="font-mono text-[10px]">
                   {String(testResult.status)}
                 </Badge>
               </div>
               <p className="text-xs text-foreground">{String(testResult.message)}</p>
+              {/* AWEB-WORKFLOW-SIMULATION-HONESTY: an empty stage list must never
+                  read as a run that succeeded. Say whose stages are missing and
+                  what that means instead of dumping a silent []. */}
+              {testResult.dataSource === 'simulation' ? (
+                Array.isArray(testResult.simulatedStages) && testResult.simulatedStages.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Stages walked by this simulation ({testResult.simulatedStages.length}):{' '}
+                    {testResult.simulatedStages.map((stage) => String(stage)).join(', ')}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">No stages defined for this workflow.</span>{' '}
+                    The workflow returned no stage list, so this simulation walked an empty flow: no stage ran, and an
+                    empty result is a configuration gap, not a passing run.
+                  </p>
+                )
+              ) : Array.isArray(testResult.stagesCompleted) && testResult.stagesCompleted.length > 0 ? null : (
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">No stage list returned for this run.</span>{' '}
+                  The backend accepted the workflow but returned no stages, so per-stage outcomes cannot be shown.
+                </p>
+              )}
+              {typeof testResult.errorCode === 'string' && (
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  Error code: <code>{testResult.errorCode}</code>
+                </p>
+              )}
               <pre className="p-3 bg-background border rounded text-[11px] font-mono overflow-x-auto max-h-[160px]">
                 {JSON.stringify(testResult, null, 2)}
               </pre>

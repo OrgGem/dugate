@@ -24,6 +24,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLogger } from '@du/observability';
+import { withMintedRawKey } from './key-minting';
 import type { AdminShellRequest } from '../shell-types';
 import type { ShellRuntimeConfig } from '../shell-router';
 import { isHttpError } from '../../../http/errors';
@@ -110,6 +111,27 @@ export async function handleBffRequest(
     if (relative === '/workflows' || relative.startsWith('/workflows/')) {
       assertMethod(method, ['GET']);
       return await handleWorkflowsRead(res, request, relative, query, config, runtime, correlationId);
+    }
+    // BIZ-09: the worker-instance read. The platform route exists (admin.ts)
+    // but there was no BFF hop for it, so the cockpit and the overview worker
+    // strip both got a 404 here with the upstream never contacted.
+    //
+    // The profiles LIST is deliberately NOT matched here: bff/profiles.ts
+    // already owns `/profiles` (kind: list), and matching it a second time
+    // here would shadow that route - which is exactly what the AWEB-04 list
+    // tests caught.
+    if (relative === '/worker-instances') {
+      assertMethod(method, ['GET']);
+      return await handleAdminGetRelay(
+        res,
+        request,
+        relative,
+        query,
+        config,
+        runtime,
+        correlationId,
+        ['limit', 'cursor', 'businessId', 'state'],
+      );
     }
     // CONNECTOR-WIRE-B: connector management reads. Matched BEFORE the
     // revision pattern so `/connectors/capabilities` can never be read as a
@@ -420,6 +442,23 @@ async function handleWorkflowsRead(
     throw err;
   }
 
+  const businessIds = query.getAll('businessId');
+  const businessVersions = query.getAll('businessVersion');
+  if (businessIds.length > 1 || businessVersions.length > 1) {
+    writeProblem(res, 422, 'INVALID_SCHEMA', 'businessId and businessVersion must not be repeated', correlationId);
+    return;
+  }
+  const businessId = businessIds[0]?.trim();
+  const businessVersion = businessVersions[0]?.trim();
+  if ((businessId !== undefined && businessId.length === 0)
+      || (businessVersion !== undefined && businessVersion.length === 0)
+      || (businessVersion !== undefined && businessId === undefined)
+      || (businessId !== undefined && businessId.length > 256)
+      || (businessVersion !== undefined && businessVersion.length > 128)) {
+    writeProblem(res, 422, 'INVALID_SCHEMA', 'business filter is invalid', correlationId);
+    return;
+  }
+
   const credential = credentialFor(principal, runtime);
   if (credential === null) {
     writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this tenant', correlationId);
@@ -439,6 +478,8 @@ async function handleWorkflowsRead(
   } else if (query.get('tenantId')) {
     upstream.searchParams.set('tenantId', query.get('tenantId')!);
   }
+  if (businessId !== undefined) upstream.searchParams.set('businessId', businessId);
+  if (businessVersion !== undefined) upstream.searchParams.set('businessVersion', businessVersion);
 
   const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
   await relayUpstream(res, response, correlationId);
@@ -450,6 +491,53 @@ async function handleWorkflowsRead(
  * tenantId/sort query values are intentionally not copied; only the contract's
  * pagination parameters (`limit` and `cursor`) pass through.
  */
+/**
+ * GET relay for platform admin reads that only needed a BFF hop.
+ *
+ * Same fence order as the api-keys and workflows reads: session, principal,
+ * credential, configured upstream, then an ALLOWLISTED query copy. The
+ * browser's own tenantId is deliberately NOT forwarded - a tenant-operator
+ * session is already pinned upstream by its credential, and a platform
+ * session must not have a browser-supplied value narrow or widen its view.
+ */
+async function handleAdminGetRelay(
+  res: ServerResponse,
+  request: AdminShellRequest,
+  relative: string,
+  query: URLSearchParams,
+  config: ShellRuntimeConfig,
+  runtime: BffRuntimeConfig,
+  correlationId: string,
+  allowlist: string[],
+): Promise<void> {
+  const ctx = await resolveBffContext(config, request);
+  if (!ctx) {
+    writeProblem(res, 401, 'UNAUTHENTICATED', 'sign in to use the Admin API', correlationId);
+    return;
+  }
+  const principal = ctx.principal;
+  if (principal.kind === 'unscoped') {
+    writeProblem(res, 403, 'PERMISSION_DENIED', 'this session has no admin principal', correlationId);
+    return;
+  }
+  const credential = credentialFor(principal, runtime);
+  if (credential === null) {
+    writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this tenant', correlationId);
+    return;
+  }
+  if (!hasJsonBase(runtime)) {
+    writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
+    return;
+  }
+  const upstream = new URL('/api/v1/admin' + relative, runtime.jsonBaseUrl);
+  for (const name of allowlist) {
+    const value = query.get(name);
+    if (value !== null && value.length > 0) upstream.searchParams.set(name, value);
+  }
+  const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+  await relayUpstream(res, response, correlationId);
+}
+
 async function handleTenantRead(
   res: ServerResponse,
   request: AdminShellRequest,
@@ -640,6 +728,10 @@ async function handleActions(
   }
   const params = (rawParams ?? {}) as Record<string, unknown>;
 
+  // Key material is minted SERVER-side (./key-minting) for the two actions
+  // whose raw value rides this wire; everything else is forwarded untouched.
+  const forwardedParams = withMintedRawKey(action, params);
+
   const credential = runtime.adminToken;
   if (typeof credential !== 'string' || credential.length === 0) {
     writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
@@ -656,7 +748,7 @@ async function handleActions(
     method: 'POST',
     credential,
     correlationId,
-    jsonBody: JSON.stringify({ action, params }),
+    jsonBody: JSON.stringify({ action, params: forwardedParams }),
     idempotencyKey:
       typeof idempotencyKey === 'string' && idempotencyKey.length > 0
         ? idempotencyKey.slice(0, MAX_IDEMPOTENCY_KEY_LENGTH)

@@ -38,6 +38,8 @@ const OPERATION_STATE = Object.freeze({
   FAILED: 'FAILED',
 });
 
+const TIMEZONE_BYPASS_ENV = 'LDBA_ALLOW_UNVERIFIED_TIMEZONE';
+
 const API_KEY_STATUS = Object.freeze({
   active: 'ACTIVE',
   ACTIVE: 'ACTIVE',
@@ -933,6 +935,19 @@ function sourceVersionFailure(report, adapter) {
   return false;
 }
 
+function timezoneGuardFailure(report, options) {
+  if (options.apply === false || process.env[TIMEZONE_BYPASS_ENV] === '1') return false;
+  report.status = 'BLOCKED_TIMEZONE_UNVERIFIED';
+  report.failures.push({
+    table: '<preflight>',
+    sourceKey: '<none>',
+    field: TIMEZONE_BYPASS_ENV,
+    code: 'LEGACY_TIMEZONE_UNVERIFIED',
+    message: 'legacy timestamp timezone is not proven; A2 execution is blocked',
+  });
+  return true;
+}
+
 async function transform(table, row, context, report, workflowSlug, tenantId) {
   if (table === 'Operation') return mapOperation(row, context, report, tenantId);
   if (table === 'ApiKey') return mapApiKey(row, report, tenantId);
@@ -982,6 +997,7 @@ async function runBackfill(adapter, options = {}) {
     return report;
   }
   if (sourceVersionFailure(report, adapter)) return report;
+  if (timezoneGuardFailure(report, options)) return report;
   if (typeof adapter.source.scan !== 'function') {
     report.status = 'BLOCKED_ADAPTER';
     report.failures.push({
@@ -1325,6 +1341,11 @@ async function runCli() {
   }
   if (process.env.LDBA_A1_PASSED !== '1') {
     process.stderr.write('Refusing A2: LDBA_A1_PASSED must equal 1.\n');
+    process.exitCode = 2;
+    return;
+  }
+  if (mode === '--execute' && process.env[TIMEZONE_BYPASS_ENV] !== '1') {
+    process.stderr.write('Refusing A2: legacy timestamp timezone is unverified; LDBA_ALLOW_UNVERIFIED_TIMEZONE=1 is an unsafe bypass and must not be set in a real environment.\n');
     process.exitCode = 2;
     return;
   }

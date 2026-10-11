@@ -5,6 +5,7 @@
  * value level and the boot path stays cycle-free.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { randomUUID } from 'node:crypto';
@@ -40,7 +41,7 @@ import { createS3ArtifactStorageFacade } from '../../modules/artifacts/s3-storag
 import { CryptoStorageFacade } from '../../modules/encryption/crypto-storage-facade';
 import { adaptKeyProviderForMetadata } from '../../modules/encryption/metadata-key-adapter';
 import { createMetadataCrypto } from '../../modules/runtime/metadata-crypto';
-import { buildMetadataReadPolicy, METADATA_READ_MODE_ENV } from '../../modules/encryption/boot-options';
+import { buildMetadataReadPolicy, type DataMode, METADATA_READ_MODE_ENV } from '../../modules/encryption/boot-options';
 import {
   createCompatibilityMetadataReadPolicy,
   createMetadataReader,
@@ -77,7 +78,10 @@ import { readBoundedBody, type IngressBody } from '../../http/ingress';
 import { createDispatcher } from '../../modules/queue/dispatcher';
 import { createIngestionConsumer } from '../../modules/operations/ingestion-consumer';
 import { createAcquisitionRefResolver } from '../../modules/operations/acquisition-ref-resolver';
-import { createS3PinnedSourceStorage } from '../../modules/operations/ingestion-storage-s3';
+import {
+  createS3EncryptedPinnedSourceStorage,
+  createS3PinnedSourceStorage,
+} from '../../modules/operations/ingestion-storage-s3';
 import { createS3SourceAcquisition } from '../../modules/operations/s3-source';
 import { deliverWebhooks } from '../../modules/webhooks/webhooks';
 import { createDeliveryEncryptionService, createPublicUploadGateway, type PublicUploadGateway } from '../../modules/public-api';
@@ -124,6 +128,55 @@ export type RouteHandler = (ctx: RouteContext) => Promise<RouteResult>;
 
 export interface AppDeps {
   route: RouteHandler;
+}
+
+const LDBA03_CONTEXT_MODULE_ENV = 'LDBA03_CONTEXT_MODULE';
+const LDBA03_CONTEXT_CALLBACKS = [
+  'prepareConnector',
+  'resolveProfileName',
+  'normalizeConnectionsOverride',
+  'prepareWorkflowSchema',
+  'readFileCacheBytes',
+  'artifactTokenFor',
+  'artifactPurposeFor',
+] as const;
+
+export interface Ldb03ContextProviderRegistration {
+  readonly modulePath: string;
+  readonly provider: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * MDB-01: register and validate the same context module used by the standalone
+ * LDBA03 adapter. The adapter runs in its own process, so the composition seam
+ * communicates the absolute module path through the documented environment key.
+ */
+export function registerLdb03ContextProvider(
+  env: Record<string, string | undefined> = process.env,
+): Ldb03ContextProviderRegistration {
+  const configuredPath = env[LDBA03_CONTEXT_MODULE_ENV];
+  const modulePath = configuredPath && configuredPath.trim().length > 0
+    ? resolve(configuredPath)
+    : resolve(__dirname, '../../../scripts/ldba-context-provider.cjs');
+  let loaded: unknown;
+  try {
+    loaded = require(modulePath) as unknown;
+  } catch {
+    throw new Error('refusing to boot: LDBA03 context provider module could not be loaded');
+  }
+  const defaultExport = loaded && typeof loaded === 'object' && 'default' in loaded
+    ? (loaded as { default?: unknown }).default
+    : undefined;
+  const provider = defaultExport || loaded;
+  if (provider === null || typeof provider !== 'object' || Array.isArray(provider)) {
+    throw new Error('refusing to boot: LDBA03 context provider must export a policy object');
+  }
+  const policy = provider as Record<string, unknown>;
+  if (LDBA03_CONTEXT_CALLBACKS.some((name) => typeof policy[name] !== 'function')) {
+    throw new Error('refusing to boot: LDBA03 context provider is missing a required callback');
+  }
+  env[LDBA03_CONTEXT_MODULE_ENV] = modulePath;
+  return { modulePath, provider: policy };
 }
 
 /**
@@ -230,6 +283,29 @@ export function shouldSeedDevFallback(
   if (flag === 'false' || flag === '') return false;
   const nodeEnv = env['NODE_ENV'];
   return nodeEnv === 'development' || nodeEnv === 'test' || options.zeroConfigBoot === true;
+}
+
+/**
+ * The single decision for whether a payload must be encrypted. All four write
+ * paths read this instead of answering the same question separately.
+ *
+ * - synthetic → false everywhere: the historical plaintext path stays
+ *   byte-identical (ingestion-consumer.ts:158-160). No path may answer true.
+ * - real → true everywhere, except the migration window on the three
+ *   artifact-side paths. That window exempts objects written BEFORE
+ *   encryption existed, so it is deliberately absent for the source-write
+ *   path: that one decides about data arriving NOW, and honouring the window
+ *   there would open a standing hole for new writes. Hence its caller passes
+ *   migrationWindowOpen=false.
+ *
+ * An absent policy resolves to real (boot-options resolveDataMode returns
+ * real for empty env), so a missing policy can never read as synthetic.
+ */
+function resolveEncryptionRequirement(
+  dataMode: DataMode | undefined,
+  migrationWindowOpen: boolean,
+): boolean {
+  return (dataMode ?? 'real') === 'real' && !migrationWindowOpen;
 }
 
 export async function assembleApp(config: ServerConfig, deps: AppDeps) {
@@ -428,7 +504,6 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     : null;
   const artifactMigrationWindowOpen =
     storageConfig.backend === 's3' && storageConfig.migrationWindow === true;
-  const syntheticDataExempt = config.encryptionPolicy?.dataMode === 'synthetic';
   const workerArtifactEncryption = config.publicUploadEncryption && artifactCryptoFacade
     ? {
         facade: artifactCryptoFacade,
@@ -436,7 +511,7 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
         ...(config.publicUploadEncryption.keyVersion === undefined
           ? {}
           : { keyVersion: config.publicUploadEncryption.keyVersion }),
-        required: !syntheticDataExempt && !artifactMigrationWindowOpen,
+        required: resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, artifactMigrationWindowOpen),
       }
     : undefined;
   const artifacts: ArtifactService = createArtifactService(db, {
@@ -452,7 +527,8 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     // SEC-ENC-04: the worker multipart branch presigns client bytes straight at
     // storage, so while encryption is configured it fails closed per-session
     // until a server-mediated sealed multipart writer exists.
-    encryptionRequired: Boolean(config.publicUploadEncryption) && !artifactMigrationWindowOpen,
+    encryptionRequired: resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, artifactMigrationWindowOpen)
+      && Boolean(config.publicUploadEncryption),
   });
   // CR28-01/CRX-02: the read side of the same encryption the public upload
   // gateway writes. One facade instance is shared with the gateway on purpose:
@@ -472,7 +548,8 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
   const encryptedWritesRequired = Boolean(
     s3Client && storageConfig.backend === 's3' && config.publicUploadEncryption,
   );
-  const artifactEncryptionRequired = encryptedWritesRequired && !artifactMigrationWindowOpen;
+  const artifactEncryptionRequired = resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, artifactMigrationWindowOpen)
+    && encryptedWritesRequired;
   // The worker artifact encryption seam is absent when the deployment is not
   // configured for encryption, in which case every stored object is plaintext.
   const s3CryptoStorageFacade: CryptoStorageFacade | null =
@@ -599,17 +676,33 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
     if (!client) { client = new S3Client({ region: rule.region }); sourceClients.set(rule.region, client); }
     return client;
   });
+  const requireEncryptedSourceWrites = resolveEncryptionRequirement(config.encryptionPolicy?.dataMode, false);
   const ingestionConsumer =
     s3Client && storageConfig.backend === 's3'
       ? createIngestionConsumer({
           db,
-          storage: createS3PinnedSourceStorage({
-            bucket: storageConfig.bucket,
-            send: (command) =>
-              s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
-            db,
-          }),
+          storage: config.publicUploadEncryption && artifactCryptoFacade
+            ? createS3EncryptedPinnedSourceStorage({
+                bucket: storageConfig.bucket,
+                send: (command) =>
+                  s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
+                db,
+                encryption: {
+                  facade: artifactCryptoFacade,
+                  keyRef: config.publicUploadEncryption.keyRef,
+                  ...(config.publicUploadEncryption.keyVersion === undefined
+                    ? {}
+                    : { keyVersion: config.publicUploadEncryption.keyVersion }),
+                },
+              })
+            : createS3PinnedSourceStorage({
+                bucket: storageConfig.bucket,
+                send: (command) =>
+                  s3Client.send(command as never) as Promise<{ VersionId?: string; ChecksumSHA256?: string }>,
+                db,
+              }),
           storageBackend: 's3',
+          requireEncryptedSourceWrites,
           acquireS3FileForTenant,
           transfer: {
             maxBytes: config.ingestionConsumer?.maxBytes ?? config.maxBlobBytes ?? 64 * 1024 * 1024,
@@ -624,6 +717,20 @@ export async function assembleApp(config: ServerConfig, deps: AppDeps) {
           // deny-first (typed) before any network, `{kind:'none'}` for
           // unpinned/legacy operations.
           resolveSourceAuth: (coords) => acquisitionRefResolver.resolveSourceAuth(coords),
+          onCredentialOriginWarning: (event) => {
+            logger.warn('credential origin policy warning', {
+              operationId: event.operationId,
+              tenantId: event.tenantId,
+              origin: event.origin ?? 'invalid',
+              code: event.code,
+              state: event.mode,
+              event: {
+                kind: 'credential.origin_denied',
+                reason: event.code,
+                action: event.mode,
+              },
+            });
+          },
           // CRX-01: the gate re-seals operations.input_ref / tasks.payload_ref
           // (READY envelope) and opens the submit-side sealed payload, both
           // with the ONE submit/runtime seam instance built above.

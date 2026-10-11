@@ -34,6 +34,8 @@ export interface ApiKeyDbRow extends Record<string, unknown> {
   id: string;
   tenant_id: string;
   prefix: string;
+  /** Operator label (api_keys.name); null when the key was never named. */
+  name: string | null;
   status: string;
   created_at: Date;
   updated_at: Date;
@@ -107,7 +109,7 @@ export async function listApiKeyPage(
   return sortableAdminKeysetPage<ApiKeyDbRow>({
     db,
     fromSql: 'api_keys',
-    columns: `id, tenant_id, prefix, status, created_at, updated_at,
+    columns: `id, tenant_id, prefix, name, status, created_at, updated_at,
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_cursor,
               to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at_cursor`,
     clauses,
@@ -163,6 +165,7 @@ export async function buildApiKeyPage(
     id: r.id,
     tenantId: r.tenant_id,
     prefix: r.prefix,
+    name: r.name ?? null,
     maskedHint: r.prefix,
     status: r.status,
     createdAt: dateToIso(r.created_at),

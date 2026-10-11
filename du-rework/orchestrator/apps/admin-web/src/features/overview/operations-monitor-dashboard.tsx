@@ -25,8 +25,8 @@ import {
 } from '@/components/ui/table';
 import type {
   AdminHealthSnapshot,
-  BusinessRow,
   OperationWire,
+  WorkerInstanceList,
 } from '@/lib/api';
 import {
   computeOperationsTelemetry,
@@ -36,10 +36,14 @@ import {
   type MonitorTimeframe,
   type TimeBucket,
 } from './overview-metrics';
+import type { OperationsMetricsSnapshot } from './state';
 
 interface OperationsMonitorDashboardProps {
   operations: OperationWire[];
-  businesses: BusinessRow[];
+  operationMetrics: OperationsMetricsSnapshot | null;
+  operationMetricsFailed: boolean;
+  workerInstances: WorkerInstanceList | null;
+  workerInventoryFailed: boolean;
   health: AdminHealthSnapshot | null;
   onRefresh: () => void;
   isLoading?: boolean;
@@ -47,7 +51,10 @@ interface OperationsMonitorDashboardProps {
 
 export function OperationsMonitorDashboard({
   operations,
-  businesses,
+  operationMetrics,
+  operationMetricsFailed,
+  workerInstances,
+  workerInventoryFailed,
   health,
   onRefresh,
   isLoading,
@@ -55,18 +62,39 @@ export function OperationsMonitorDashboard({
   const [timeframe, setTimeframe] = useState<MonitorTimeframe>('hour');
   const [hoveredBucket, setHoveredBucket] = useState<TimeBucket | null>(null);
 
-  const telemetry = computeOperationsTelemetry(operations);
-  const workerList = computeWorkerTelemetry(businesses, operations);
+  const recentTelemetry = computeOperationsTelemetry(operations);
+  const telemetry = {
+    ...recentTelemetry,
+    total: operationMetrics?.total ?? 0,
+    succeeded: operationMetrics?.success ?? 0,
+    failed: operationMetrics?.failure ?? 0,
+    running: operationMetrics?.running ?? 0,
+    cancelled: operationMetrics?.cancelled ?? 0,
+    timedOut: operationMetrics?.timedOut ?? 0,
+    successRate: operationMetrics && operationMetrics.total > 0
+      ? ((operationMetrics.success / operationMetrics.total) * 100).toFixed(1)
+      : '0',
+  };
+  const metricCount = (value: number): string => operationMetrics ? value.toLocaleString() : '—';
+  const workerList = computeWorkerTelemetry(workerInstances?.items ?? []);
+  const queueIntegrityState = health?.queueIntegrity?.state ?? null;
+  const queueIntegrityDotClass = queueIntegrityState === 'OK'
+    ? 'bg-emerald-500'
+    : queueIntegrityState === 'RECONSTRUCTING'
+      ? 'bg-amber-500'
+      : queueIntegrityState === 'SUSPECT'
+        ? 'bg-red-500'
+        : 'bg-gray-400';
   const buckets = computeTimeBuckets(operations, timeframe);
 
   const maxRequestsInBuckets = Math.max(1, ...buckets.map((b) => b.totalRequests));
 
   const timeframeLabels: Record<MonitorTimeframe, { label: string; desc: string }> = {
-    minute: { label: 'Phút', desc: '60 phút gần nhất (khoảng 5 phút)' },
-    hour: { label: 'Giờ', desc: '24 giờ gần nhất (khoảng 1 giờ)' },
-    day: { label: 'Ngày', desc: '7 ngày gần nhất (khoảng 1 ngày)' },
-    week: { label: 'Tuần', desc: '4 tuần gần nhất (khoảng 1 tuần)' },
-    month: { label: 'Tháng', desc: '6 tháng gần nhất (khoảng 1 tháng)' },
+    minute: { label: 'Minute', desc: 'Last 60 minutes (about 5 minutes per bucket)' },
+    hour: { label: 'Hour', desc: 'Last 24 hours (about 1 hour per bucket)' },
+    day: { label: 'Day', desc: 'Last 7 days (about 1 day per bucket)' },
+    week: { label: 'Week', desc: 'Last 4 weeks (about 1 week per bucket)' },
+    month: { label: 'Month', desc: 'Last 6 months (about 1 month per bucket)' },
   };
 
   return (
@@ -77,19 +105,21 @@ export function OperationsMonitorDashboard({
         <Card className="border border-[var(--border-subtle)] bg-[var(--surface-base)]">
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-[var(--text-sub)]">
-              <span className="text-xs font-semibold uppercase tracking-wider">Tổng Operations</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Total Operations</span>
               <Activity className="w-4 h-4 text-[var(--cf-blue)]" />
             </div>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold text-[var(--text-main)]">{telemetry.total}</span>
+              <span className="text-2xl font-bold text-[var(--text-main)]">{metricCount(telemetry.total)}</span>
               <Badge variant="info" className="text-xs">
-                {telemetry.running > 0 ? `${telemetry.running} đang chạy` : 'Sẵn sàng'}
+                {operationMetrics
+                  ? `${telemetry.running.toLocaleString()} running`
+                  : operationMetricsFailed ? 'Metrics unavailable' : 'Loading metrics'}
               </Badge>
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs text-[var(--text-sub)]">
-              <span className="text-green-600 font-medium">✓ {telemetry.succeeded} thành công</span>
+              <span className="text-green-600 font-medium">✓ {metricCount(telemetry.succeeded)} succeeded</span>
               <span>·</span>
-              <span className="text-red-600 font-medium">✗ {telemetry.failed} lỗi</span>
+              <span className="text-red-600 font-medium">✗ {metricCount(telemetry.failed)} errors</span>
             </div>
           </CardContent>
         </Card>
@@ -98,21 +128,24 @@ export function OperationsMonitorDashboard({
         <Card className="border border-[var(--border-subtle)] bg-[var(--surface-base)]">
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-[var(--text-sub)]">
-              <span className="text-xs font-semibold uppercase tracking-wider">Tỷ lệ Thành công</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Success rate</span>
               <CheckCircle2 className="w-4 h-4 text-green-500" />
             </div>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold text-[var(--text-main)]">{telemetry.successRate}%</span>
+              <span className="text-2xl font-bold text-[var(--text-main)]">
+                {operationMetrics ? `${telemetry.successRate}%` : '—'}
+              </span>
               <Badge
-                variant={Number(telemetry.successRate) >= 95 ? 'success' : Number(telemetry.successRate) >= 80 ? 'warning' : 'danger'}
+                variant={!operationMetrics ? 'neutral' : Number(telemetry.successRate) >= 95 ? 'success' : Number(telemetry.successRate) >= 80 ? 'warning' : 'danger'}
                 className="text-xs"
               >
-                {Number(telemetry.successRate) >= 95 ? 'Tốt' : 'Cần chú ý'}
+                {!operationMetrics ? 'Unavailable' : Number(telemetry.successRate) >= 95 ? 'Good' : 'Needs attention'}
               </Badge>
             </div>
             <div className="mt-2 text-xs text-[var(--text-sub)]">
-              {telemetry.cancelled > 0 ? `${telemetry.cancelled} đã hủy · ` : ''}
-              {telemetry.timedOut > 0 ? `${telemetry.timedOut} quá hạn` : 'Không có timeout'}
+              {operationMetrics
+                ? `${telemetry.cancelled.toLocaleString()} cancelled · ${telemetry.timedOut.toLocaleString()} timed out`
+                : 'Waiting for server aggregation'}
             </div>
           </CardContent>
         </Card>
@@ -121,20 +154,27 @@ export function OperationsMonitorDashboard({
         <Card className="border border-[var(--border-subtle)] bg-[var(--surface-base)]">
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-[var(--text-sub)]">
-              <span className="text-xs font-semibold uppercase tracking-wider">Thời gian Xử lý TB</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Processing time p50 / p95</span>
               <Clock className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold text-[var(--text-main)]">
-                {formatDurationMs(telemetry.avgDurationMs)}
-              </span>
-              <Badge variant="neutral" className="text-xs">
-                Latency
-              </Badge>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-[var(--text-sub)]">p50</div>
+                <div className="text-xl font-bold text-[var(--text-main)]">
+                  {formatDurationMs(operationMetrics?.p50Ms ?? null)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-[var(--text-sub)]">p95</div>
+                <div className="text-xl font-bold text-[var(--text-main)]">
+                  {formatDurationMs(operationMetrics?.p95Ms ?? null)}
+                </div>
+              </div>
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-sub)]">
-              <span>Nhanh nhất: {formatDurationMs(telemetry.minDurationMs)}</span>
-              <span>Lâu nhất: {formatDurationMs(telemetry.maxDurationMs)}</span>
+            <div className="mt-2 text-xs text-[var(--text-sub)]">
+              {operationMetrics
+                ? `${operationMetrics.durationSamples.toLocaleString()} operations with recorded execution times`
+                : 'Server latency metrics unavailable'}
             </div>
           </CardContent>
         </Card>
@@ -143,7 +183,7 @@ export function OperationsMonitorDashboard({
         <Card className="border border-[var(--border-subtle)] bg-[var(--surface-base)]">
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-[var(--text-sub)]">
-              <span className="text-xs font-semibold uppercase tracking-wider">Workers & Hạ tầng</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Workers & Infrastructure</span>
               <Cpu className="w-4 h-4 text-purple-500" />
             </div>
             <div className="mt-2 flex items-baseline justify-between">
@@ -159,7 +199,7 @@ export function OperationsMonitorDashboard({
               <span>·</span>
               <span className={health?.redis ? 'text-green-600' : 'text-red-500'}>Redis: {health?.redis ? 'OK' : 'Error'}</span>
               <span>·</span>
-              <span>Queue: {health?.queueIntegrity?.state ?? 'OK'}</span>
+              <span>Queue: {queueIntegrityState ?? 'Unavailable'}</span>
             </div>
           </CardContent>
         </Card>
@@ -170,9 +210,11 @@ export function OperationsMonitorDashboard({
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-sm font-semibold">Phân bổ Trạng thái Operations</CardTitle>
+              <CardTitle className="text-sm font-semibold">Operations Status Distribution</CardTitle>
               <CardDescription className="text-xs">
-                Tổng quan {telemetry.total} requests được ghi nhận trong phiên làm việc
+                {operationMetrics
+                  ? `${telemetry.total.toLocaleString()} operations in the selected UTC window; chart uses the latest ${operations.length} list rows. Sampled ${operationMetrics.sampledAt}${operationMetrics.stale || operationMetricsFailed ? ' · stale' : ''}.`
+                  : 'The full-window server aggregate is unavailable; no sampled counts are shown.'}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -184,11 +226,11 @@ export function OperationsMonitorDashboard({
                 disabled={isLoading}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                <span>Làm mới</span>
+                <span>Refresh</span>
               </Button>
               <Link to="/operations">
                 <Button size="sm" variant="outline" className="text-xs">
-                  Xem toàn bộ danh sách →
+                  View the full list →
                 </Button>
               </Link>
             </div>
@@ -197,47 +239,51 @@ export function OperationsMonitorDashboard({
         <CardContent className="space-y-3">
           {/* Visual Progress Bar */}
           <div className="h-4 w-full rounded-full bg-[var(--surface-muted)] overflow-hidden flex border border-[var(--border-subtle)]">
-            {telemetry.total > 0 ? (
+            {operationMetrics && telemetry.total > 0 ? (
               <>
                 {telemetry.succeeded > 0 && (
                   <div
                     style={{ width: `${(telemetry.succeeded / telemetry.total) * 100}%` }}
                     className="bg-emerald-500 h-full transition-all duration-300"
-                    title={`Thành công: ${telemetry.succeeded}`}
+                    title={`Succeeded: ${telemetry.succeeded}`}
                   />
                 )}
                 {telemetry.running > 0 && (
                   <div
                     style={{ width: `${(telemetry.running / telemetry.total) * 100}%` }}
                     className="bg-blue-500 h-full transition-all duration-300"
-                    title={`Đang chạy: ${telemetry.running}`}
+                    title={`Running: ${telemetry.running}`}
                   />
                 )}
                 {telemetry.failed > 0 && (
                   <div
                     style={{ width: `${(telemetry.failed / telemetry.total) * 100}%` }}
                     className="bg-red-500 h-full transition-all duration-300"
-                    title={`Lỗi: ${telemetry.failed}`}
+                    title={`Failed: ${telemetry.failed}`}
                   />
                 )}
                 {telemetry.cancelled > 0 && (
                   <div
                     style={{ width: `${(telemetry.cancelled / telemetry.total) * 100}%` }}
                     className="bg-gray-400 h-full transition-all duration-300"
-                    title={`Đã hủy: ${telemetry.cancelled}`}
+                    title={`Cancelled: ${telemetry.cancelled}`}
                   />
                 )}
                 {telemetry.timedOut > 0 && (
                   <div
                     style={{ width: `${(telemetry.timedOut / telemetry.total) * 100}%` }}
                     className="bg-amber-500 h-full transition-all duration-300"
-                    title={`Quá hạn: ${telemetry.timedOut}`}
+                    title={`Timed out: ${telemetry.timedOut}`}
                   />
                 )}
               </>
+            ) : operationMetrics ? (
+              <div className="w-full h-full bg-[var(--surface-muted)] flex items-center justify-center text-[10px] text-[var(--text-sub)]">
+                No operation data yet
+              </div>
             ) : (
               <div className="w-full h-full bg-[var(--surface-muted)] flex items-center justify-center text-[10px] text-[var(--text-sub)]">
-                Chưa có dữ liệu operation
+                {operationMetricsFailed ? 'Server metrics unavailable' : 'Loading server metrics…'}
               </div>
             )}
           </div>
@@ -247,36 +293,36 @@ export function OperationsMonitorDashboard({
             <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
               <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
               <div className="flex flex-col">
-                <span className="font-semibold text-[var(--text-main)]">Thành công</span>
-                <span className="text-[var(--text-sub)]">{telemetry.succeeded} ops ({telemetry.total > 0 ? ((telemetry.succeeded / telemetry.total) * 100).toFixed(0) : 0}%)</span>
+                <span className="font-semibold text-[var(--text-main)]">Succeeded</span>
+                <span className="text-[var(--text-sub)]">{metricCount(telemetry.succeeded)} ops ({operationMetrics && telemetry.total > 0 ? ((telemetry.succeeded / telemetry.total) * 100).toFixed(0) : '—'}%)</span>
               </div>
             </div>
             <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
               <span className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
               <div className="flex flex-col">
-                <span className="font-semibold text-[var(--text-main)]">Đang chạy</span>
-                <span className="text-[var(--text-sub)]">{telemetry.running} ops ({telemetry.total > 0 ? ((telemetry.running / telemetry.total) * 100).toFixed(0) : 0}%)</span>
+                <span className="font-semibold text-[var(--text-main)]">Running</span>
+                <span className="text-[var(--text-sub)]">{metricCount(telemetry.running)} ops ({operationMetrics && telemetry.total > 0 ? ((telemetry.running / telemetry.total) * 100).toFixed(0) : '—'}%)</span>
               </div>
             </div>
             <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
               <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
               <div className="flex flex-col">
-                <span className="font-semibold text-[var(--text-main)]">Thất bại</span>
-                <span className="text-[var(--text-sub)]">{telemetry.failed} ops ({telemetry.total > 0 ? ((telemetry.failed / telemetry.total) * 100).toFixed(0) : 0}%)</span>
+                <span className="font-semibold text-[var(--text-main)]">Failed</span>
+                <span className="text-[var(--text-sub)]">{metricCount(telemetry.failed)} ops ({operationMetrics && telemetry.total > 0 ? ((telemetry.failed / telemetry.total) * 100).toFixed(0) : '—'}%)</span>
               </div>
             </div>
             <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
               <span className="w-3 h-3 rounded-full bg-gray-400 shrink-0" />
               <div className="flex flex-col">
-                <span className="font-semibold text-[var(--text-main)]">Đã hủy</span>
-                <span className="text-[var(--text-sub)]">{telemetry.cancelled} ops</span>
+                <span className="font-semibold text-[var(--text-main)]">Cancelled</span>
+                <span className="text-[var(--text-sub)]">{metricCount(telemetry.cancelled)} ops</span>
               </div>
             </div>
             <div className="flex items-center gap-2 p-2 rounded border border-[var(--border-subtle)] bg-[var(--surface-muted)]">
               <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
               <div className="flex flex-col">
                 <span className="font-semibold text-[var(--text-main)]">Timeout</span>
-                <span className="text-[var(--text-sub)]">{telemetry.timedOut} ops</span>
+                <span className="text-[var(--text-sub)]">{metricCount(telemetry.timedOut)} ops</span>
               </div>
             </div>
           </div>
@@ -290,10 +336,10 @@ export function OperationsMonitorDashboard({
             <div>
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-[var(--cf-blue)]" />
-                <CardTitle className="text-sm font-semibold">Tần suất Xử lý Request & Thời gian</CardTitle>
+                <CardTitle className="text-sm font-semibold">Request Throughput & Processing Time</CardTitle>
               </div>
               <CardDescription className="text-xs">
-                {timeframeLabels[timeframe].desc} · Theo dõi lưu lượng và độ trễ phục vụ báo cáo
+                {timeframeLabels[timeframe].desc} · Track throughput and latency for reporting
               </CardDescription>
             </div>
 
@@ -369,16 +415,16 @@ export function OperationsMonitorDashboard({
               {hoveredBucket ? (
                 <>
                   <span className="font-semibold text-[var(--text-main)]">
-                    Khoảng: {hoveredBucket.label} ({hoveredBucket.subLabel})
+                    Bucket: {hoveredBucket.label} ({hoveredBucket.subLabel})
                   </span>
-                  <span>Tổng: <strong className="text-[var(--text-main)]">{hoveredBucket.totalRequests}</strong> reqs</span>
-                  <span className="text-green-600">Thành công: <strong>{hoveredBucket.succeeded}</strong></span>
-                  <span className="text-red-500">Lỗi: <strong>{hoveredBucket.failed}</strong></span>
-                  <span>Thời gian xử lý TB: <strong className="text-[var(--text-main)]">{formatDurationMs(hoveredBucket.avgDurationMs)}</strong></span>
+                  <span>Total: <strong className="text-[var(--text-main)]">{hoveredBucket.totalRequests}</strong> reqs</span>
+                  <span className="text-green-600">Succeeded: <strong>{hoveredBucket.succeeded}</strong></span>
+                  <span className="text-red-500">Failed: <strong>{hoveredBucket.failed}</strong></span>
+                  <span>Avg processing time: <strong className="text-[var(--text-main)]">{formatDurationMs(hoveredBucket.avgDurationMs)}</strong></span>
                 </>
               ) : (
                 <span className="italic">
-                  Di chuột lên từng cột để xem chi tiết lưu lượng và thời gian xử lý cho mốc thời gian tương ứng.
+                  Hover a column to see the throughput and processing time for that time bucket.
                 </span>
               )}
             </div>
@@ -387,19 +433,19 @@ export function OperationsMonitorDashboard({
           {/* Table representation of Timeframe Buckets */}
           <div className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-sub)]">
-              Bảng Tần suất & Thời gian xử lý ({timeframeLabels[timeframe].label})
+              Throughput & Processing Time table ({timeframeLabels[timeframe].label})
             </h4>
             <TableContainer className="border border-[var(--border-subtle)] rounded-md max-h-56 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-[var(--surface-muted)]">
-                    <TableHead className="text-xs">Mốc thời gian</TableHead>
-                    <TableHead className="text-xs text-right">Tổng Request</TableHead>
-                    <TableHead className="text-xs text-right">Thành công</TableHead>
-                    <TableHead className="text-xs text-right">Thất bại</TableHead>
-                    <TableHead className="text-xs text-right">Hủy / Timeout</TableHead>
-                    <TableHead className="text-xs text-right">Tỷ lệ Thành công</TableHead>
-                    <TableHead className="text-xs text-right">Thời gian xử lý TB</TableHead>
+                    <TableHead className="text-xs">Time bucket</TableHead>
+                    <TableHead className="text-xs text-right">Total requests</TableHead>
+                    <TableHead className="text-xs text-right">Succeeded</TableHead>
+                    <TableHead className="text-xs text-right">Failed</TableHead>
+                    <TableHead className="text-xs text-right">Cancelled / Timeout</TableHead>
+                    <TableHead className="text-xs text-right">Success rate</TableHead>
+                    <TableHead className="text-xs text-right">Avg processing time</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -458,67 +504,77 @@ export function OperationsMonitorDashboard({
               <div>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <Server className="w-4 h-4 text-purple-500" />
-                  Worker xử lý & Hàng đợi
+                  Worker instances
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Danh sách worker services đã kết nối và đăng ký lắng nghe BullMQ
+                  Platform-wide worker instances have reported a heartbeat; status is derived from heartbeat freshness.
+                  {workerInstances ? ` Sampled ${new Date(workerInstances.sampledAt).toLocaleString()}.` : ''}
                 </CardDescription>
               </div>
               <Link to="/businesses">
                 <Button size="sm" variant="ghost" className="text-xs text-[var(--cf-blue)]">
-                  Quản lý Businesses →
+                  Manage Businesses →
                 </Button>
               </Link>
             </div>
           </CardHeader>
           <CardContent>
-            {workerList.length === 0 ? (
+            {workerInventoryFailed ? (
+              <div role="status" className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
+                Worker heartbeat inventory is unavailable for this admin scope.
+              </div>
+            ) : workerInstances === null ? (
+              <div role="status" className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
+                Loading worker heartbeat inventory…
+              </div>
+            ) : workerList.length === 0 ? (
               <div className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
-                Chưa có worker nào được đăng ký.
+                No worker heartbeat instances are currently recorded.
               </div>
             ) : (
               <TableContainer className="border border-[var(--border-subtle)] rounded-md">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-[var(--surface-muted)]">
-                      <TableHead className="text-xs">Worker Service</TableHead>
-                      <TableHead className="text-xs">Trạng thái</TableHead>
-                      <TableHead className="text-xs text-right">Đã xử lý</TableHead>
-                      <TableHead className="text-xs text-right">Tỷ lệ thành công</TableHead>
-                      <TableHead className="text-xs text-right">Thời gian TB</TableHead>
+                      <TableHead className="text-xs">Worker instance</TableHead>
+                      <TableHead className="text-xs">Business / version</TableHead>
+                      <TableHead className="text-xs">Health status</TableHead>
+                      <TableHead className="text-xs text-right">Active leases</TableHead>
+                      <TableHead className="text-xs text-right">Capacity</TableHead>
+                      <TableHead className="text-xs text-right">Last seen</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {workerList.map((worker) => (
-                      <TableRow key={worker.businessId}>
+                      <TableRow key={JSON.stringify([worker.businessId, worker.instanceId])}>
                         <TableCell className="text-xs">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-[var(--text-main)] font-mono">
-                              {worker.businessId}
-                            </span>
-                            <span className="text-[10px] text-[var(--text-sub)] font-mono truncate max-w-[180px]">
-                              {worker.queue}
-                            </span>
-                          </div>
+                          <span className="font-semibold text-[var(--text-main)] font-mono">{worker.instanceId}</span>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {worker.businessId}@{worker.version}
                         </TableCell>
                         <TableCell className="text-xs">
                           <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <Badge variant="success" className="text-[10px] py-0 px-1.5">
+                            <span className={`w-2 h-2 rounded-full ${worker.status === 'HEALTHY' ? 'bg-green-500' : worker.status === 'DEGRADED' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+                            <Badge
+                              variant={worker.status === 'HEALTHY' ? 'success' : worker.status === 'DEGRADED' ? 'warning' : 'neutral'}
+                              className="text-[10px] py-0 px-1.5"
+                            >
                               {worker.status}
                             </Badge>
+                            <span className="text-[10px] text-[var(--text-sub)]">{worker.state}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-right font-semibold">
-                          {worker.processedCount} ops
+                          {worker.activeLeases.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-xs text-right">
-                          <Badge variant="info" className="text-[10px] py-0 px-1.5">
-                            {worker.successRate}
-                          </Badge>
+                          {worker.capacity.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-xs text-right font-mono">
-                          {formatDurationMs(worker.avgDurationMs)}
+                          <time dateTime={worker.lastHeartbeatAt} title={worker.lastHeartbeatAt}>
+                            {new Date(worker.lastHeartbeatAt).toLocaleString()}
+                          </time>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -526,6 +582,11 @@ export function OperationsMonitorDashboard({
                 </Table>
               </TableContainer>
             )}
+            {workerInstances?.truncated ? (
+              <p className="mt-2 text-[10px] text-[var(--text-sub)]">
+                Showing the latest 500 worker instances; the inventory response is truncated.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -534,10 +595,10 @@ export function OperationsMonitorDashboard({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Database className="w-4 h-4 text-emerald-500" />
-              Kết nối & Trạng thái Hạ tầng
+              Connectivity & Infrastructure Status
             </CardTitle>
             <CardDescription className="text-xs">
-              Trạng thái kết nối trực tiếp đến PostgreSQL, Redis và BullMQ
+              Live connection status for PostgreSQL, Redis and BullMQ
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -566,11 +627,11 @@ export function OperationsMonitorDashboard({
 
               {/* Queue Integrity */}
               <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] flex flex-col justify-between">
-                <span className="text-[var(--text-sub)]">Hàng đợi Integrity</span>
+                <span className="text-[var(--text-sub)]">Queue integrity</span>
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className={`w-2 h-2 rounded-full ${queueIntegrityDotClass}`} />
                   <span className="font-semibold text-[var(--text-main)]">
-                    {health?.queueIntegrity?.state ?? 'OK'}
+                    {queueIntegrityState ?? 'Unavailable'}
                   </span>
                 </div>
               </div>
@@ -589,7 +650,7 @@ export function OperationsMonitorDashboard({
 
             <div className="p-2.5 rounded border border-[var(--border-subtle)] bg-[var(--surface-base)] text-[11px] text-[var(--text-sub)] space-y-1">
               <div className="flex justify-between">
-                <span>Orphans Tasks kiểm tra:</span>
+                <span>Orphan tasks checked:</span>
                 <strong className="text-[var(--text-main)]">{health?.queueIntegrity?.orphansLast ?? 0}</strong>
               </div>
               <div className="flex justify-between">
@@ -612,15 +673,15 @@ export function OperationsMonitorDashboard({
             <div>
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[var(--cf-blue)]" />
-                Operations Gần Đây
+                Recent Operations
               </CardTitle>
               <CardDescription className="text-xs">
-                Danh sách các tác vụ tài liệu được xử lý mới nhất
+                The most recently processed document tasks
               </CardDescription>
             </div>
             <Link to="/operations">
               <Button size="sm" variant="outline" className="text-xs">
-                Mở màn hình Operations →
+                Open the Operations screen →
               </Button>
             </Link>
           </div>
@@ -628,7 +689,7 @@ export function OperationsMonitorDashboard({
         <CardContent>
           {telemetry.recentItems.length === 0 ? (
             <div className="text-center p-6 border border-dashed border-[var(--border-subtle)] rounded-lg text-xs text-[var(--text-sub)]">
-              Chưa có operation nào được thực hiện trong hệ thống.
+              No operations have been executed in the system yet.
             </div>
           ) : (
             <TableContainer className="border border-[var(--border-subtle)] rounded-md">
@@ -638,9 +699,9 @@ export function OperationsMonitorDashboard({
                     <TableHead className="text-xs">ID</TableHead>
                     <TableHead className="text-xs">Action</TableHead>
                     <TableHead className="text-xs">Worker</TableHead>
-                    <TableHead className="text-xs">Trạng thái</TableHead>
-                    <TableHead className="text-xs">Thời điểm tạo</TableHead>
-                    <TableHead className="text-xs text-right">Thời gian xử lý</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Created</TableHead>
+                    <TableHead className="text-xs text-right">Processing time</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

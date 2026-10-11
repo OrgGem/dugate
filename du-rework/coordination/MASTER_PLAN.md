@@ -1,5 +1,9 @@
 # Master Plan — decision/status intake
 
+> **Sổ tay mở duy nhất:** [`PLAN-OPEN-2026-10-09.md`](PLAN-OPEN-2026-10-09.md). File này tổng hợp quyết định và gate, nhưng **không phải** bản kiểm kê việc còn mở — mục C của sổ tay mở gộp D-BAKE-r4.1, D-SC01-01, F-VFY6-01, REVIEW-PLAT-MIG-07, WT-01..09.
+>
+> **Đã phân xử mâu thuẫn F-VFY6-01 (2026-10-09):** cặp anchor cũ `:11` vs `:29` là **anchor lệch +2**, không phải mâu thuẫn thật. Anchor thật **tại cây làm việc sau đợt sửa metadata 2026-10-09** là `:15` (hàng D-BOOT-01 / F-VFY6-01, Accept: OPEN) và `:33` (dòng §12.2 intake; caveat bắt buộc ở `:34`). `:15` là anchor đúng; `:33` đã bổ sung caveat. Mọi chỉnh sửa metadata sau đây vào file này phải **giữ nguyên số dòng**, nếu không phải cập nhật lại toàn bộ anchor trong [`PLAN-OPEN-2026-10-09.md`](PLAN-OPEN-2026-10-09.md). Nguồn: [`reports/contradictions-resolution-2026-10-09.md`](reports/contradictions-resolution-2026-10-09.md) §3 #1. Verdict: `IMPLEMENTED` (offline) / **NOT ACCEPTED** / **OPEN**.
+
 Cập nhật: 2026-10-06. Nguồn phán quyết: [Claude Reviewer, Section 11](reports/claude-audit-review-r4-2026-10-06.md#11-decision--direction-2026-10-06--bake-r41--f-vfysc1-01--f-vfy6-01-review-only-no-code-touched). File này tổng hợp quyết định và gate; task/dependency/acceptance chi tiết vẫn theo [DU Platform migration plan](../tasks/DU-PLATFORM-MIGRATION-2026-10-05.md), [Secret Catalog plan](../tasks/SECRET-CATALOG-2026-10-06.md) và [persistence policy plan](../tasks/SEC-SENSITIVE-PERSISTENCE-2026-10-06.md).
 
 ## Bảng trạng thái quyết định — Claude Section 11
@@ -27,6 +31,7 @@ Group A exact-path rerun **song song với bake**, ×3 + source hashes + A4 guar
 
 - **Closed by Reviewer §12.1:** `F-VFYSC1-02` (BFF Secrets Permanent Test 13/13 x3 exit 0).
 - **Approved by Reviewer §12.2:** `F-VFY6-01` boot policy spec. Implemented by oc_1: 7-case matrix + main integration 60/60 tests exit 0, regression 487/487 exit 0 (`f-vfy6-01-closure-receipt-2026-10-06.md`).
+  - **Caveat bắt buộc (bổ sung 2026-10-09, không nới policy):** theo chính receipt đó tại `:9`, `F-VFY6-01` **stays OPEN** cho tới khi ma trận candidate-level theo spec §4.3 chạy trên r4.1 và một review độc lập chấp nhận. Theo MASTER_PLAN §12.2, **chính bằng chứng đó chứ không phải receipt này mới đóng finding.** Các số 60/60 và 487/487 là **module/offline**, không phải toàn suite. Xem [`reports/contradictions-resolution-2026-10-09.md`](reports/contradictions-resolution-2026-10-09.md) §3 #1. Trạng thái: `IMPLEMENTED` (offline) / **NOT ACCEPTED** / **OPEN**.
 - **Tooling Accepted by Reviewer §12.3 / §12.6:** Live-gates harness & Benchmark limit setup.
 - **Executed on r4.1 candidate (§13 pending):**
   - **Packet 1 (Bake r4.1):** 5 images baked + provenance recorded (`bake-r4.1-verify-candidate-receipt-2026-10-06.md`).

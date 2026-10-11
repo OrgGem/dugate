@@ -1,0 +1,5 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node tests/admin-toast-error-boundary-offline.cjs
+exit: 0
+--- output ---
+PASS admin toast/error boundary offline harness (14 assertions)

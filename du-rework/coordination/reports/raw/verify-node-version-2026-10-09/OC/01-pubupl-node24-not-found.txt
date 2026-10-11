@@ -1,0 +1,7 @@
+﻿Requested command 1, attempts 1 and 2:
+<node-v24.21.0 path> node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/public-upload-encryption-gateway.test.ts
+
+Status: NOT RUN for both attempts. No Node v24.21.0 path exists in PATH, NVM's installed-version list, or the searched Node install roots. No substitute runtime was used.
+Node -v: unavailable; no executable path to invoke.
+REAL_EXIT: N/A (test process not launched; this is not a test FAIL or PASS).
+Discovery evidence: 00-node-discovery.txt.

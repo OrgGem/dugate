@@ -14,8 +14,8 @@
 
 | UI route | States | Ghi chú |
 |---|---|---|
-| `/admin/web/api-keys` | loading/ready/empty/error/denied; issue (copy-once banner) + revoke (ConfirmDialog); **Rotate/Disable disabled + badge `rotate/disable: requires backend` (F7)**; Profile bindings read-only từ payload `grants` | `features/api-keys/*` |
-| `/admin/web/connectors` | idle/loading/ready/denied; 404 → card **“Connector unavailable … `connectorBaseUrls`/PAR-03/14”**; ready → chi tiết + **Test/Rotate disabled + `test/rotate: requires backend`** | `features/connectors/*` |
+| `admin/api-keys` | loading/ready/empty/error/denied; issue (copy-once banner) + revoke (ConfirmDialog); **Rotate/Disable disabled + badge `rotate/disable: requires backend` (F7)**; Profile bindings read-only từ payload `grants` | `features/api-keys/*` |
+| `admin/connectors` | idle/loading/ready/denied; 404 → card **“Connector unavailable … `connectorBaseUrls`/PAR-03/14”**; ready → chi tiết + **Test/Rotate disabled + `test/rotate: requires backend`** | `features/connectors/*` |
 | Links | Overview → 2 link section (my file), route mới trong `router.tsx` | `features/overview/overview-screen.tsx:86-93`, `router.tsx:30-32` |
 
 Secret hygiene: list/by-id không bao giờ chứa raw key (chỉ prefix/maskedHint); copy-once chỉ trong response issue, client giữ trong memory (không localStorage/sessionStorage), banner dismiss/reload là mất; UI write-only không có ô nhập lại secret.

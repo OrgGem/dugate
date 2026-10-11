@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('desktop navigation, account dialog, and logout endpoint', async ({ page }) => {
-  await page.goto(`${BASE}/admin/web/profiles`);
+  await page.goto(`${BASE}admin/profiles`);
   const nav = page.getByRole('navigation', { name: 'Orchestrator Portal Navigation' });
   await expect(nav.getByRole('link', { name: 'Profiles', exact: true })).toHaveAttribute('aria-current', 'page');
   expect(await nav.getByRole('link').count()).toBe(16);
@@ -33,7 +33,7 @@ test('desktop navigation, account dialog, and logout endpoint', async ({ page })
 });
 
 test('business/version suggestions and unavailable-registry fallback', async ({ page }) => {
-  await page.goto(`${BASE}/admin/web/profiles`);
+  await page.goto(`${BASE}admin/profiles`);
   await expect(page.locator('datalist option[value="doc-core"]')).toHaveCount(1);
   await page.locator('#profile-business').fill('doc-core');
   await expect(page.locator('datalist option[value="v1"]')).toHaveCount(1);
@@ -49,13 +49,13 @@ test('business/version suggestions and unavailable-registry fallback', async ({ 
 
 test('320px navigation and UTC calendar validation', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto(`${BASE}/admin/web/usage`);
+  await page.goto(`${BASE}admin/usage`);
   await expect(page.getByRole('navigation')).toBeHidden();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await expect(page.getByRole('navigation')).toBeVisible();
   await page.getByRole('navigation').getByRole('link', { name: 'Profiles', exact: true }).click();
   await expect(page.getByRole('navigation')).toBeHidden();
-  await page.goto(`${BASE}/admin/web/usage`);
+  await page.goto(`${BASE}admin/usage`);
   await expect(page.locator('#usage-from')).toHaveAttribute('type', 'datetime-local');
   await page.locator('#usage-from').fill('2026-10-06T10:00');
   await page.locator('#usage-to').fill('2026-10-05T10:00');
@@ -72,7 +72,7 @@ test('connector suggestions come from the advertised management list', async ({ 
     { connectorId: 'vendor-a', revision: 2, adapter: 'http-json', state: 'ACTIVE', config: {} },
     { connectorId: 'vendor-b', revision: 7, adapter: 'http-json', state: 'ACTIVE', config: {} },
   ] } }));
-  await page.goto(`${BASE}/admin/web/connectors`);
+  await page.goto(`${BASE}admin/connectors`);
   await expect(page.locator('#connector-id-suggestions option')).toHaveCount(2);
   await page.locator('#connector-id').fill('vendor-a');
   await expect(page.locator('#connector-revision-suggestions option[value="2"]')).toHaveCount(1);

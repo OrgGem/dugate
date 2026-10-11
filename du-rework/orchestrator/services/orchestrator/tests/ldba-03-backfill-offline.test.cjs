@@ -1,7 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
+const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
 const test = require('node:test');
 
@@ -12,9 +14,20 @@ const {
   decimalUsd,
   parseFileUrlAuthCipher,
   parseJsonField,
-  runBackfill,
+  runBackfill: runBackfillCore,
   timestampUtc,
 } = require('../scripts/ldba-03-backfill.cjs');
+
+async function runBackfill(adapter, options = {}) {
+  const previous = process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
+  process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = '1';
+  try {
+    return await runBackfillCore(adapter, options);
+  } finally {
+    if (previous === undefined) delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
+    else process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = previous;
+  }
+}
 
 const API_KEY_ID = '4b302d31-9408-4e26-8cd5-f09bc7c74aa1';
 const OPERATION_ID = '6f7dd08f-b131-4fc5-9bc8-12276af2a1e9';
@@ -164,15 +177,56 @@ test('covers all nine legacy tables and lists strict JSON exceptions', () => {
   assert.equal(Object.prototype.hasOwnProperty.call(require('../scripts/ldba-03-backfill.cjs'), 'LEGACY_TENANT_ID'), false);
 });
 
-test('uses one UTC interpretation for naive source timestamps and rejects zoned input', () => {
+test('uses UTC for naive timestamps and rejects offset or Z input', () => {
   assert.equal(
     timestampUtc('Operation', { id: OPERATION_ID }, 'createdAt', '2026-10-08 12:13:14.123'),
     '2026-10-08T12:13:14.123Z',
   );
-  assert.throws(
-    () => timestampUtc('Operation', { id: OPERATION_ID }, 'createdAt', '2026-10-08T12:13:14+07:00'),
-    /timestamp without timezone/,
-  );
+  for (const zoned of ['2026-10-08T12:13:14+07:00', '2026-10-08T12:13:14Z']) {
+    assert.throws(
+      () => timestampUtc('Operation', { id: OPERATION_ID }, 'createdAt', zoned),
+      /timestamp without timezone/,
+    );
+  }
+});
+
+test('blocks real A2 without timezone evidence before reading or writing rows', async () => {
+  const previous = process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
+  delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
+  try {
+    const fixture = createAdapter(tables({ ApiKey: [validApiKey()] }));
+    let scans = 0;
+    const scan = fixture.adapter.source.scan;
+    fixture.adapter.source.scan = async (table) => {
+      scans += 1;
+      return scan(table);
+    };
+
+    const report = await runBackfillCore(fixture.adapter, { apply: true, skipPolicy: 'report' });
+    assert.equal(report.status, 'BLOCKED_TIMEZONE_UNVERIFIED');
+    assert.equal(report.failures[0].code, 'LEGACY_TIMEZONE_UNVERIFIED');
+    assert.equal(scans, 0);
+    assert.deepEqual(fixture.getTenantSeedCalls(), []);
+    assert.equal(fixture.getApplyCalls(), 0);
+
+    const env = {
+      ...process.env,
+      LDBA_A1_PASSED: '1',
+      LDBA_SKIP_POLICY: 'report',
+      LDBA_ALLOW_UNVERIFIED_TIMEZONE: '',
+    };
+    delete env.LDBA03_ADAPTER_MODULE;
+    const cli = spawnSync(process.execPath, [
+      path.resolve(__dirname, '../scripts/ldba-03-backfill.cjs'),
+      '--execute',
+    ], { encoding: 'utf8', env });
+    assert.equal(cli.status, 2);
+    assert.match(cli.stderr, /LDBA_ALLOW_UNVERIFIED_TIMEZONE=1/);
+    assert.doesNotMatch(cli.stderr, /LDBA03_ADAPTER_MODULE is required/);
+  } finally {
+    if (previous === undefined) delete process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE;
+    else process.env.LDBA_ALLOW_UNVERIFIED_TIMEZONE = previous;
+  }
 });
 
 test('strict JSON parsing fails with row and field context', () => {

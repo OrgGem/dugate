@@ -21,7 +21,7 @@ Mode: generator + regenerated artifact only; `docs/21-openapi.json` was **not** 
 - **Swagger UI status (item 2):** there is no Swagger UI source in the current Portal (`apps/admin-web`) or in the
   Orchestrator source that could hold a separate origin configuration (search evidence in §5). The generated
   artifact's `servers` is the single origin source any future Swagger UI consumes; this packet aligned it
-  per family and added the machine-readable family metadata. The `/admin/web/api-docs` UI slice remains open and
+  per family and added the machine-readable family metadata. The `admin/api-docs` UI slice remains open and
   must not hardcode origins (see §5).
 
 ## 2. Changed paths and hashes
@@ -79,7 +79,7 @@ Cwd `D:/Git/dugate` unless noted; raw logs under `coordination/reports/raw/swagg
   `servers`, (b) `tags` + `x-api-family` for Public/Admin/Runtime/Connector grouping and filtering, and (c) a root
   `tags` list with family descriptions. A view derived from this artifact needs no origin guessing and no second
   inventory.
-- **What the future `/admin/web/api-docs` slice must still do (left open, per MIG-03 Swagger slice):** serve this
+- **What the future `admin/api-docs` slice must still do (left open, per MIG-03 Swagger slice):** serve this
   generated spec via the authenticated shell/BFF path with offline assets; group/filter by `tags`/`x-api-family`;
   keep **Try-it-out disabled by default** (the spec description states this; the UI must enforce it, not publish
   3002/8080 or add BFF proxy/CORS just to make calls); and read origins from the artifact instead of hardcoding

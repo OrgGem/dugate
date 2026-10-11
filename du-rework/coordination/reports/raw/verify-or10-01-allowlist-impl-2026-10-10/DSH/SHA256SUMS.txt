@@ -1,0 +1,2 @@
+7e467f795b558e27dde9abeb92876e805d9997858c2ad9d39afccbd5ba72df1d  contracts-jest.log
+a2e5103d12f4558663cec34191cdb64d57aa077b2b24bc4aa2738d69bb47cd69  orch-regression.log

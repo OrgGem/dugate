@@ -1,0 +1,18 @@
+TASK: AP-04-WORKFLOWS-UNBLOCK-GUIDANCE-2026-10-09
+REPO: du-rework only
+PLAN: coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md
+EXACT PATH LEASE:
+du-rework/orchestrator/apps/admin-web/src/features/workflows/workflows-screen.tsx
+RECEIPT: du-rework/coordination/reports/receipt-ap04-workflows-guidance-2026-10-09.md
+RANG BUOC: Khong commit, khong git add, khong touch file ngoai lease, khong sua backend, khong enable route workflows.
+
+MUC TIEU:
+Tai workflows-screen.tsx dong 8-32, bo sung thong tin huong dan va dieu kien de unblock Workflow Runtime trong banner canh bao Delta-DEV-03 (vi du: yeu cau cau hinh Vault transit, key enc/dec, migration workflow catalog).
+
+CAC BUOC:
+1. Xem banner trong workflows-screen.tsx.
+2. Bo sung text huong dan ro rang cho operator ve cac yeu cau can thiet truoc khi co the mo khoa tinh nang (display guidance only, khong touch data hoac backend).
+3. Kiem tra build:
+cd du-rework/orchestrator/apps/admin-web
+node ../../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+4. Ghi smoke receipt vao du-rework/coordination/reports/receipt-ap04-workflows-guidance-2026-10-09.md.

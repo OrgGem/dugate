@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { createPinnedFetch, DestinationDeniedError } from '@du/egress';
 
 /**
  * CB-03 (PROFILE-CALLBACK-20261006) — OAuth2 `client_credentials` token client
@@ -9,6 +10,13 @@ import { createHash } from 'node:crypto';
  * delivery retries or profiles — the outbound-auth session composes it.
  *
  * Invariants (RFC 6749 §2.3/§4.4, RFC 6750 §2.1):
+ * - The token request rides the shared pinned egress transport (@du/egress): every
+ *   DNS answer is adjudicated before any connect, ONE resolution feeds both policy and
+ *   connect (no rebinding window), private/loopback/link-local/metadata destinations
+ *   are refused unless the deployment opts in explicitly, and a 30x is never followed
+ *   (RFC 6749 §10.6 — credentials must not cross an origin).
+ * - The response body is bounded while it is READ: the deadline and the byte cap stay
+ *   armed to the last byte, and a breach cancels the stream instead of buffering to EOF.
  * - HTTPS token URL required (the internal DU HTTP transport exception is
  *   opt-in via `allowInsecureHttp`, never a default); no userinfo, query or
  *   fragment in the configured URL.
@@ -32,7 +40,7 @@ import { createHash } from 'node:crypto';
 
 export type OAuth2ClientAuthMethod = 'client_secret_basic' | 'client_secret_post';
 
-export type OAuth2ClientSecretProvider = () => string | Promise<string>;
+export type OAuth2ClientSecretProvider = (signal?: AbortSignal) => string | Promise<string>;
 
 export interface OAuth2ClientCredentialsConfig {
   /** Token endpoint. https required unless `allowInsecureHttp` (internal exception). */
@@ -75,8 +83,18 @@ export type OAuth2MissingLifetimePolicy =
   | { mode: 'assume-seconds'; seconds: number };
 
 export interface OAuth2TokenClientOptions {
-  /** Injectable fetch (tests); production uses global fetch. */
+  /**
+   * Transport seam for tests/instrumentation. When injected it REPLACES the egress
+   * transport outright, so that caller owns destination policy for the run; the
+   * production default is the shared pinned egress fetch (see the options below).
+   */
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
+  /** Exact IP-literal opt-ins (narrow local-mesh convention, as in the webhook dispatcher). */
+  allowHosts?: ReadonlySet<string>;
+  /** Explicit RFC1918/loopback/ULA opt-in. Never metadata, link-local or CGNAT. Default false. */
+  allowPrivateNetworks?: boolean;
+  /** Resolver seam for the egress transport: returns EVERY answer, and all of them are adjudicated. */
+  resolveDns?: (host: string) => Promise<string[]>;
   /** Clock override for tests / deterministic renewal. */
   now?: () => number;
   /** Renew this many seconds before expiry. Default 30; clamped to half the lifetime. */
@@ -87,7 +105,7 @@ export interface OAuth2TokenClientOptions {
   maxAttempts?: number;
   /** Delay between retryable attempts. Default 250 ms (tests inject 0). */
   retryDelayMs?: number;
-  /** Whole-request timeout. Default 10 s. */
+  /** Whole token acquisition deadline, including secret resolution, retries, DNS, and body. Default 10 s. */
   timeoutMs?: number;
   /** Maximum accepted token response body. Default 64 KiB. */
   maxResponseBytes?: number;
@@ -99,6 +117,7 @@ export interface OAuth2TokenClientOptions {
 
 export type OAuth2ErrorCode =
   | 'TOKEN_URL_INVALID'
+  | 'TOKEN_ENDPOINT_DENIED'
   | 'TOKEN_REQUEST_FAILED'
   | 'TOKEN_HTTP_ERROR'
   | 'TOKEN_RESPONSE_INVALID'
@@ -133,6 +152,85 @@ const RESERVED_FORM_FIELDS = new Set(['grant_type', 'client_id', 'client_secret'
 
 function invalid(code: OAuth2ErrorCode, message: string, status?: number): never {
   throw new OAuth2Error(code, message, status);
+}
+
+/** Normalize exact IP-literal opt-ins: lowercase, strip IPv6 brackets, reject junk. */
+function normalizeAllowHosts(raw: ReadonlySet<string> | undefined): Set<string> | undefined {
+  if (raw === undefined) return undefined;
+  const out = new Set<string>();
+  for (const host of raw) {
+    if (typeof host !== 'string' || host.length < 1 || host.length > 253 || CONTROL.test(host)) {
+      invalid('TOKEN_CONFIG_INVALID', 'allowHosts entry is invalid');
+    }
+    out.add(host.toLowerCase().replace(/^\[|\]$/g, ''));
+  }
+  return out.size > 0 ? out : undefined;
+}
+
+async function cancelQuietly(reader: { cancel: () => Promise<void> }): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch {
+    /* stream already closed or errored */
+  }
+}
+
+interface AcquisitionDeadline {
+  controller: AbortController;
+  gate: Promise<never>;
+  timedOut: boolean;
+  dispose: () => void;
+}
+
+function createAcquisitionDeadline(timeoutMs: number): AcquisitionDeadline {
+  const controller = new AbortController();
+  let rejectOnDeadline: ((reason: OAuth2Error) => void) | null = null;
+  let timedOut = false;
+  const gate = new Promise<never>((_resolve, reject) => {
+    rejectOnDeadline = reject;
+  });
+  // A deadline can fire while no operation is currently racing the gate.
+  gate.catch(() => undefined);
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+    rejectOnDeadline?.(new OAuth2Error('TOKEN_REQUEST_FAILED', 'token acquisition exceeded its deadline'));
+  }, timeoutMs);
+
+  return {
+    controller,
+    gate,
+    get timedOut(): boolean { return timedOut; },
+    dispose: () => {
+      clearTimeout(timer);
+      rejectOnDeadline = null;
+    },
+  };
+}
+
+function raceWithDeadline<T>(operation: Promise<T>, deadline: AcquisitionDeadline): Promise<T> {
+  return Promise.race([operation, deadline.gate]);
+}
+
+async function delayWithinDeadline(milliseconds: number, deadline: AcquisitionDeadline): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const delay = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, milliseconds);
+  });
+  try {
+    await raceWithDeadline(delay, deadline);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+function cancelResponse(response: Response): void {
+  try {
+    const cancellation = response.body?.cancel();
+    if (cancellation) void cancellation.catch(() => undefined);
+  } catch {
+    /* response is already consumed, locked, or closed */
+  }
 }
 
 function assertPrintable(value: unknown, label: string, maxLength: number): string {
@@ -282,7 +380,21 @@ export class OAuth2TokenClient {
     } else if (missingExpiresIn.mode !== 'no-cache') {
       invalid('TOKEN_CONFIG_INVALID', 'missingExpiresIn policy is invalid');
     }
-    this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
+    const allowHosts = normalizeAllowHosts(options.allowHosts);
+    if (options.allowPrivateNetworks !== undefined && typeof options.allowPrivateNetworks !== 'boolean') {
+      invalid('TOKEN_CONFIG_INVALID', 'allowPrivateNetworks must be a boolean');
+    }
+    if (options.resolveDns !== undefined && typeof options.resolveDns !== 'function') {
+      invalid('TOKEN_CONFIG_INVALID', 'resolveDns must be a function');
+    }
+    // No injected transport => the shared pinned egress fetch: adjudication and the
+    // connect share ONE DNS resolution, so the answer that passed policy is the
+    // address actually dialed (no rebinding window).
+    this.fetchImpl = options.fetchImpl ?? createPinnedFetch({
+      ...(allowHosts === undefined ? {} : { allowHosts }),
+      ...(options.allowPrivateNetworks === true ? { allowPrivateNetworks: true } : {}),
+      ...(options.resolveDns === undefined ? {} : { resolve: options.resolveDns }),
+    });
     this.now = options.now ?? Date.now;
     this.renewSkewMs = renewSkewSeconds * 1000;
     this.missingExpiresIn = missingExpiresIn;
@@ -329,15 +441,26 @@ export class OAuth2TokenClient {
   }
 
   private async acquire(): Promise<{ token: string; expiresInSeconds: number | null }> {
+    const deadline = createAcquisitionDeadline(this.timeoutMs);
+    try {
+      return await raceWithDeadline(this.acquireWithinDeadline(deadline), deadline);
+    } finally {
+      deadline.dispose();
+    }
+  }
+
+  private async acquireWithinDeadline(
+    deadline: AcquisitionDeadline,
+  ): Promise<{ token: string; expiresInSeconds: number | null }> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       try {
-        return await this.requestToken();
+        return await this.requestToken(deadline);
       } catch (error) {
         lastError = error;
-        if (!isRetryable(error) || attempt >= this.maxAttempts) break;
+        if (deadline.timedOut || !isRetryable(error) || attempt >= this.maxAttempts) break;
         if (this.retryDelayMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
+          await delayWithinDeadline(this.retryDelayMs, deadline);
         }
       }
     }
@@ -346,9 +469,9 @@ export class OAuth2TokenClient {
       : new OAuth2Error('TOKEN_REQUEST_FAILED', 'token acquisition failed');
   }
 
-  private async requestToken(): Promise<{ token: string; expiresInSeconds: number | null }> {
+  private async requestToken(deadline: AcquisitionDeadline): Promise<{ token: string; expiresInSeconds: number | null }> {
     const secret = typeof this.config.clientSecret === 'function'
-      ? await this.resolveSecret(this.config.clientSecret)
+      ? await raceWithDeadline(this.resolveSecret(this.config.clientSecret, deadline.controller.signal), deadline)
       : this.config.clientSecret;
     const form = new URLSearchParams();
     form.set('grant_type', 'client_credentials');
@@ -371,44 +494,103 @@ export class OAuth2TokenClient {
       form.set('client_secret', secret);
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response: Response;
-    try {
-      response = await this.fetchImpl(this.config.tokenUrl, {
-        method: 'POST',
-        headers,
-        body: form.toString(),
-        // Redirects are forbidden for credential-bearing requests: a 30x
-        // could forward Basic/body credentials to another origin.
-        redirect: 'error',
-        signal: controller.signal,
-      });
-    } catch {
-      throw new OAuth2Error('TOKEN_REQUEST_FAILED', 'token endpoint is unreachable');
-    } finally {
-      clearTimeout(timer);
-    }
+    const response = await this.fetchTokenResponse(deadline, headers, form.toString());
     if (response.status !== 200) {
-      throw new OAuth2Error('TOKEN_HTTP_ERROR', 'token endpoint answered a non-success status', response.status);
+      cancelResponse(response);
+      invalid('TOKEN_HTTP_ERROR', 'token endpoint answered a non-success status', response.status);
     }
     const contentType = response.headers?.get('content-type') ?? null;
     if (contentType !== null && !/application\/(?:[a-z0-9.+-]*\+)?json/i.test(contentType)) {
-      throw new OAuth2Error('TOKEN_RESPONSE_INVALID', 'token response is not JSON');
+      cancelResponse(response);
+      invalid('TOKEN_RESPONSE_INVALID', 'token response is not JSON');
     }
     const declaredLength = Number(response.headers?.get('content-length') ?? Number.NaN);
     if (Number.isFinite(declaredLength) && declaredLength > this.maxResponseBytes) {
-      throw new OAuth2Error('TOKEN_RESPONSE_TOO_LARGE', 'token response exceeds the configured bound');
+      cancelResponse(response);
+      invalid('TOKEN_RESPONSE_TOO_LARGE', 'token response exceeds the configured bound');
     }
-    let text: string;
+    const text = await this.readBoundedBody(response, deadline);
+    return this.parseTokenResponse(text);
+  }
+
+  /**
+   * Credential-bearing request on the pinned egress transport. Redirects are never
+   * followed: a 30x could forward Basic/body credentials to another origin, which
+   * RFC 6749 §10.6 forbids for token endpoints.
+   */
+  private async fetchTokenResponse(
+    deadline: AcquisitionDeadline,
+    headers: Record<string, string>,
+    body: string,
+  ): Promise<Response> {
     try {
-      text = await response.text();
-    } catch {
-      throw new OAuth2Error('TOKEN_REQUEST_FAILED', 'token response could not be read');
+      const pendingResponse = this.fetchImpl(this.config.tokenUrl, {
+        method: 'POST',
+        headers,
+        body,
+        redirect: 'error',
+        signal: deadline.controller.signal,
+      });
+      const releaseLateResponse = pendingResponse.then((response) => {
+        if (deadline.timedOut) cancelResponse(response);
+        return response;
+      });
+      return await raceWithDeadline(releaseLateResponse, deadline);
+    } catch (error) {
+      if (deadline.timedOut) {
+        invalid('TOKEN_REQUEST_FAILED', 'token request did not complete within its deadline');
+      }
+      if (error instanceof DestinationDeniedError) {
+        invalid('TOKEN_ENDPOINT_DENIED', 'token endpoint destination is not permitted');
+      }
+      invalid('TOKEN_REQUEST_FAILED', 'token endpoint is unreachable');
     }
-    if (Buffer.byteLength(text, 'utf8') > this.maxResponseBytes) {
-      throw new OAuth2Error('TOKEN_RESPONSE_TOO_LARGE', 'token response exceeds the configured bound');
+  }
+
+  /**
+   * Read the body under BOTH bounds. The cap is checked on every chunk - never after
+   * a full buffer - and a breach or the deadline cancels the stream, so the socket is
+   * released instead of being drained to EOF.
+   */
+  private async readBoundedBody(
+    response: Response,
+    deadline: AcquisitionDeadline,
+  ): Promise<string> {
+    const body = response.body;
+    if (!body) return '';
+    if (typeof body.getReader !== 'function') {
+      cancelResponse(response);
+      invalid('TOKEN_RESPONSE_INVALID', 'token response body cannot be read safely');
     }
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    try {
+      for (;;) {
+        const next = await raceWithDeadline(reader.read(), deadline);
+        if (next.done) break;
+        const chunk = next.value;
+        if (chunk) {
+          received += chunk.byteLength;
+          if (received > this.maxResponseBytes) {
+            invalid('TOKEN_RESPONSE_TOO_LARGE', 'token response exceeds the configured bound');
+          }
+          chunks.push(chunk);
+        }
+      }
+    } catch (error) {
+      if (error instanceof OAuth2Error) throw error;
+      invalid('TOKEN_REQUEST_FAILED', deadline.timedOut
+        ? 'token request did not complete within its deadline'
+        : 'token response could not be read');
+    } finally {
+      void cancelQuietly(reader);
+    }
+    return Buffer.concat(chunks).toString('utf8');
+  }
+
+  /** Token body shape plus the lifetime policy. Split out to keep ONE deadline. */
+  private parseTokenResponse(text: string): { token: string; expiresInSeconds: number | null } {
     let parsed: unknown;
     try {
       parsed = JSON.parse(text) as unknown;
@@ -451,10 +633,10 @@ export class OAuth2TokenClient {
     return { token: accessToken, expiresInSeconds: Math.floor(rawExpiresIn) };
   }
 
-  private async resolveSecret(provider: OAuth2ClientSecretProvider): Promise<string> {
+  private async resolveSecret(provider: OAuth2ClientSecretProvider, signal: AbortSignal): Promise<string> {
     let secret: unknown;
     try {
-      secret = await provider();
+      secret = await provider(signal);
     } catch {
       throw new OAuth2Error('TOKEN_REQUEST_FAILED', 'client secret reference could not be resolved');
     }

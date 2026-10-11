@@ -48,7 +48,7 @@ test.describe('P745-UI-KEYS journey (real browser)', () => {
   }
 
   async function loginAsAdmin(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
@@ -57,7 +57,7 @@ test.describe('P745-UI-KEYS journey (real browser)', () => {
 
   async function loadProfile(page: Page): Promise<void> {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/web/profiles`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/profiles`, { waitUntil: 'networkidle' });
     await page.fill('#profile-business', 'doc-core');
     await page.getByRole('button', { name: 'Load profile' }).click();
     await expect(page.getByText(/revision \d+/)).toBeVisible();

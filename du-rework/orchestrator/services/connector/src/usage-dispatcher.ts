@@ -1,8 +1,11 @@
+import { createLogger, safeErrorForLog } from '@du/observability';
 import type { UsageEvent } from './usage';
 import type { UsageOutbox, UsageOutboxRow } from './db/usage-outbox';
 import { UsageEventSchema } from '@du/contracts';
 import { toContractUsageEvent } from './usage';
 import { ConnectorError } from './errors';
+
+const logger = createLogger({ service: 'connector', baseFields: { subsystem: 'usage-dispatcher' } });
 
 const DEFAULT_USAGE_BATCH_SIZE = 25;
 const MAX_USAGE_BATCH_SIZE = 25;
@@ -139,11 +142,29 @@ export class UsageOutboxDispatcher {
 
   public async dispatchOnce(): Promise<void> {
     if (this.draining) return this.draining;
-    this.draining = this.processBatch();
+    this.draining = this.runBatchCycle();
     try {
       await this.draining;
     } finally {
       this.draining = undefined;
+    }
+  }
+
+  /**
+   * CR10-02: the timer callback is fire-and-forget and drain() awaits the same
+   * in-flight promise, so a rejection from the outbox (claimBatch, markDelivered
+   * or defer) must never escape as an unhandledRejection, which terminates the
+   * connector under Node's default policy. Containment lives here — the single
+   * boundary shared by the scheduler, drain() and direct callers — so the poll
+   * cadence keeps retrying after a database outage, events stay queued until the
+   * acknowledgement is accepted, and shutdown stays quiet. The log is class-only
+   * (safeErrorForLog) so no credential or DSN from the underlying error leaks.
+   */
+  private async runBatchCycle(): Promise<void> {
+    try {
+      await this.processBatch();
+    } catch (error) {
+      logger.error('usage dispatch cycle failed', { error: safeErrorForLog(error) });
     }
   }
 

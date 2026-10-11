@@ -223,7 +223,7 @@ export function IdentityScreen() {
               <div className="flex items-center justify-between gap-2">
                 <CardTitle>Auth mode</CardTitle>
                 <Badge variant={snapshot?.auth.mode === 'unmanaged' || snapshot === null ? 'warning' : 'info'} dot>
-                  {snapshot?.auth.mode === 'unmanaged' || snapshot === null ? 'chưa managed' : snapshot.auth.mode}
+                  {snapshot?.auth.mode === 'unmanaged' || snapshot === null ? 'not managed yet' : snapshot.auth.mode}
                 </Badge>
               </div>
               <CardDescription>

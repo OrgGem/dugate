@@ -8,7 +8,7 @@
 ```
 apps/admin-web/
   package.json            @du/admin-web (private, type: module)
-  vite.config.ts          base '/admin/web/', react + @tailwindcss/vite
+  vite.config.ts          base 'admin/', react + @tailwindcss/vite
   tsconfig.json           TS strict (noUncheckedIndexedAccess, noUnused*, strict true)
   postcss.config.mjs      pipeline RỖNG — chặn kế thừa postcss.config.mjs của legacy app (Tailwind v3)
   components.json         shadcn config: style "base-nova" (Base UI + preset nova), cssVariables
@@ -75,23 +75,23 @@ Assets content-hashed → phục vụ immutable. (Lần build đầu thiếu CSS
 Script tạm (đã xóa sau khi chạy): `.cache/aweb01-mount-check.ts`, chạy bằng `tsx`, gọi `createAdminShellServer` từ source. Output literal:
 
 ```
-PASS  1. flag-off /admin/web -> 404 (route absent)  [status=404]
+PASS  1. flag-off admin -> 404 (route absent)  [status=404]
 PASS  2. flag-off /admin/login -> 200 legacy form  [status=200]
-PASS  3. unauth /admin/web -> 302 /admin/login no-store  [status=302 loc=/admin/login cc=no-store]
+PASS  3. unauth admin -> 302 /admin/login no-store  [status=302 loc=/admin/login cc=no-store]
 PASS  4. POST /admin/login -> 302 + du_admin cookie  [status=302 cookie=du_admin=eyJpc…]
-PASS  5. authed /admin/web -> 200 index html  [status=200 bytes=471]
+PASS  5. authed admin -> 200 index html  [status=200 bytes=471]
 PASS  6. index cache-control no-store  [cc=no-store]
 PASS  7. index CSP strict  [default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self']
 PASS  8. correlation header on mount responses  [id=88f8e382-…]
-PASS  9. index references hashed asset  [/admin/web/assets/index-Dt_kkQaI.js]
+PASS  9. index references hashed asset  [admin/assets/index-Dt_kkQaI.js]
 PASS  10. asset -> 200 immutable cache  [status=200 cc=public, max-age=31536000, immutable]
 PASS  11. asset content-type  [ct=text/javascript; charset=utf-8]
 PASS  12. missing asset -> 404 (never SPA html)  [status=404]
 PASS  13. deep link -> SPA fallback 200 index  [status=200]
 PASS  14. raw encoded traversal -> 404  [status=404 head="HTTP/1.1 404 Not Found"]
 PASS  15. backslash traversal -> 404  [status=404]
-PASS  16. HEAD /admin/web -> 200  [status=200]
-PASS  17. POST /admin/web -> 405  [status=405]
+PASS  16. HEAD admin -> 200  [status=200]
+PASS  17. POST admin -> 405  [status=405]
 PASS  18. legacy /admin still renders shell (flag on)  [status=200]
 PASS  19. env DU_ADMIN_WEB=1 -> route exists (302 gate)  [status=302]
 PASS  20. bundle missing -> 503 fixed message  [status=503]
@@ -112,11 +112,11 @@ Chạy `NODE_ENV=test` (ambient `NODE_ENV=production` làm cookie posture enforc
 
 ## 3. Cơ chế flag + mount (toàn bộ trong `shell-server.ts`)
 
-- **Flag** (`parseAdminWebFlag` :357): `DU_ADMIN_WEB` unset/'' → tắt (nguyên trạng legacy); `1|true|yes|on` → mount `/admin/web`; giá trị bắt đầu `/` → mount path đó; giá trị khác → warn + tắt.
+- **Flag** (`parseAdminWebFlag` :357): `DU_ADMIN_WEB` unset/'' → tắt (nguyên trạng legacy); `1|true|yes|on` → mount `admin`; giá trị bắt đầu `/` → mount path đó; giá trị khác → warn + tắt.
 - **Bundle dir** (`resolveAdminWebDist` :373): `DU_ADMIN_WEB_DIST` → `apps/admin-web/dist` theo `cwd` → theo `__dirname` (5 cấp lên từ `dist/app/admin`). Không thấy `index.html` → mount vẫn bật, request nhận **503** cố định, log warn lúc mount (:388-408) — không fallback âm thầm.
 - **Test seam**: option `adminWeb?: { path?, distDir }` (:302) — inject trong script verify; platform dùng env (main.ts không cần sửa).
 - **Session gate** (`resolveAdminWebClaims` :445): mirror `shell-router.dispatchShellRequestAsync` — opaque `du_session` live thắng; legacy `du_admin` chỉ khi không có `du_session`; còn lại null → **302 `/admin/login`** `no-store` (:482-491). Cookie thử của harness dùng policy permissive inject — production giữ nguyên enforcement hiện có.
-- **Serve** (`handleAdminWebRequest` :467): GET/HEAD; `/admin/web[//]` + deep link không phải asset → `index.html` `no-store` + CSP nghiêm (:317) + `nosniff` + `referrer-policy: no-referrer`; `/admin/web/assets/<hashed>` → allow-list đuôi + `immutable` 1 năm; asset thiếu → 404 (không trả HTML); chặn `\`, NUL, segment `..`/rỗng (:508-519); POST → 405.
+- **Serve** (`handleAdminWebRequest` :467): GET/HEAD; `admin[//]` + deep link không phải asset → `index.html` `no-store` + CSP nghiêm (:317) + `nosniff` + `referrer-policy: no-referrer`; `admin/assets/<hashed>` → allow-list đuôi + `immutable` 1 năm; asset thiếu → 404 (không trả HTML); chặn `\`, NUL, segment `..`/rỗng (:508-519); POST → 405.
 - **Hook**: `const adminWebMount = resolveAdminWebMount(options)` một lần lúc mount (:693) + nhánh sớm trước `dispatchShellRequestAsync` (:705-709) → khi flag tắt, luồng request **byte-for-byte** như trước.
 
 ## 4. File đã chạm (đúng lease, `server.ts` không chạm)
@@ -138,14 +138,14 @@ Q5 viết lại toàn bộ (không port code legacy); Q3 Inter; Q2 giữ `--cf-*
 ## 6. Cách serve static (dev-live + production)
 
 - **Dev UI**: `pnpm --filter @du/admin-web dev` (Vite port riêng, HMR; không session/API — BFF là AWEB-02).
-- **Tích hợp**: `pnpm --filter @du/admin-web build` → `apps/admin-web/dist`; Orchestrator (khi được user restart với env) `DU_ADMIN_WEB=1` (+ `DU_ADMIN_WEB_DIST` nếu dist ngoài vị trí chuẩn) → `http://<host>:3001/admin/web`. Flag tắt: `/admin/web` 404 như cũ.
-- **Lưu ý**: URL asset gắn với Vite `base=/admin/web/` — muốn path khác phải build lại với base tương ứng (đã ghi README).
+- **Tích hợp**: `pnpm --filter @du/admin-web build` → `apps/admin-web/dist`; Orchestrator (khi được user restart với env) `DU_ADMIN_WEB=1` (+ `DU_ADMIN_WEB_DIST` nếu dist ngoài vị trí chuẩn) → `http://<host>:3001admin`. Flag tắt: `admin` 404 như cũ.
+- **Lưu ý**: URL asset gắn với Vite `base=admin/` — muốn path khác phải build lại với base tương ứng (đã ghi README).
 
 ## 7. Blockers / chưa làm (thẳng thắn)
 
 - **Chưa có browser-level test** (Playwright/jsdom) — mới chứng minh ở tầng HTTP server; keyboard/320px/direct-URL browser thuộc browser test của slice sau.
 - Static route chưa phát `securityAudit` cho dead-session và chưa sweep cookie như gate OIDC của shell renderer (302 thuần) — chuyển sang AWEB-02 khi BFF session ra đời.
-- Login thành công hiện về `/admin` (form mặc định) rồi user bấm sang `/admin/web`; redirect-back theo query chưa có ở login cũ (không sửa ngoài lease).
+- Login thành công hiện về `/admin` (form mặc định) rồi user bấm sang `admin`; redirect-back theo query chưa có ở login cũ (không sửa ngoài lease).
 - `dist/` không commit (build artifact); deploy cần bước build — thuộc gói AWEB-08/docs.
 
 ## 8. Verdict

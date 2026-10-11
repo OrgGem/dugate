@@ -66,7 +66,7 @@ async function main() {
   }
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major !== 24 || minor < 21) throw new Error('Use Node >=24.21.0 <25');
-  for (const arg of args) if (!['--skip-build', '--skip-migrate', '--watch', '--check', '--workflow', '--local-identity'].includes(arg) && !arg.startsWith('--env-file=') && !arg.startsWith('--workers=') && !arg.startsWith('--services=')) throw new Error('Unknown dev option');
+  for (const arg of args) if (!['--skip-build', '--skip-migrate', '--watch', '--check', '--workflow', '--local-identity', '--provision'].includes(arg) && !arg.startsWith('--env-file=') && !arg.startsWith('--workers=') && !arg.startsWith('--services=')) throw new Error('Unknown dev option');
   const explicit = args.find(arg => arg.startsWith('--env-file='));
   const envFile = path.resolve(ROOT, explicit ? explicit.slice('--env-file='.length) : fs.existsSync(path.join(ROOT, '.env.local')) ? '.env.local' : '.env');
   if (!fs.existsSync(envFile)) throw new Error('Copy .env.local.sample to .env.local and configure local infrastructure first');
@@ -90,7 +90,7 @@ async function main() {
   if (['orchestrator', 'connector'].includes(services) && workers.length) throw new Error('Invalid worker selection for single-service launch');
   if (args.includes('--local-identity')) process.env.CONNECTOR_SERVICE_TOKEN = signedConnectorToken(process.env.SERVICE_IDENTITY_SECRET);
   validateRuntimeEnvironment(process.env, { workers, services, workflow: args.includes('--workflow') });
-  console.log(`Public API: http://127.0.0.1:${publicPort}\nInternal API: http://127.0.0.1:${internalPort}\nOrchestrator Portal: http://127.0.0.1:${portalPort}/admin/web/\nConnector: http://127.0.0.1:${connectorPort}\nWorkers: ${workers.join(', ') || 'none'}`);
+  console.log(`Public API: http://127.0.0.1:${publicPort}\nInternal API: http://127.0.0.1:${internalPort}\nOrchestrator Portal: http://127.0.0.1:${portalPort}/admin/\nConnector: http://127.0.0.1:${connectorPort}\nWorkers: ${workers.join(', ') || 'none'}`);
   console.log('Runtime configuration: valid. Business/profile/schema provisioning and provider connectivity require separate setup.');
   if (args.includes('--check')) return; // No build, migrations, bind or process launch.
   const selectedPorts = services === 'all' ? ports : services === 'orchestrator' ? ports.slice(0, 3) : services === 'connector' ? [connectorPort] : [];
@@ -108,6 +108,13 @@ async function main() {
   if (services !== 'connector') readiness.push(ready(`http://127.0.0.1:${internalPort}/health`));
   if (services !== 'orchestrator') readiness.push(ready(`http://127.0.0.1:${connectorPort}/health/ready`));
   await Promise.all(readiness);
+  if (args.includes('--provision')) {
+    try {
+      runNode(['scripts/provision-local.cjs']);
+    } catch (e) {
+      console.error('[dev] Provisioning notice:', e.message);
+    }
+  }
   if (!stopping) for (const worker of workers) start(worker, `businesses/${worker}/dist/main.js`);
 }
 process.on('SIGINT', () => shutdown());

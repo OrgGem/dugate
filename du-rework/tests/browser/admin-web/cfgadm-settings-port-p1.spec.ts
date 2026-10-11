@@ -52,12 +52,12 @@ test.describe("CFGADM-UI-PORT-P1 Settings port (real browser)", () => {
   }
 
   async function openSettings(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${BASE}admin`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("input[name='token']")).toBeVisible();
     await page.fill("input[name='token']", TOKEN);
     await page.click("button[type='submit']");
     await page.waitForURL((url) => url.pathname === "/admin");
-    await page.goto(`${BASE}/admin/web/settings`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}admin/settings`, { waitUntil: "networkidle" });
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   }
 

@@ -1,4 +1,5 @@
 import type { SdkFetcher } from '@du/worker-sdk';
+import { CredentialAllowedOriginsSchema } from '@du/contracts';
 import type { Db } from '../../db/db';
 import {
   createLegacyPlaintextWarner,
@@ -42,8 +43,15 @@ import {
 
 export type ResolvedSourceAuth =
   | { kind: 'none' }
-  | { kind: 'bearer'; token: string }
-  | { kind: 'header'; headerName: string; headerValue: string };
+  | { kind: 'bearer'; token: string; allowedOrigins?: readonly string[] }
+  | { kind: 'header'; headerName: string; headerValue: string; allowedOrigins?: readonly string[] };
+
+export type SourceCredentialOriginMode = 'warn' | 'enforce';
+
+export interface CredentialOriginPolicyWarning {
+  code: 'ORIGIN_NOT_ALLOWLISTED' | 'ORIGIN_POLICY_MISSING';
+  origin: string | null;
+}
 
 export type SourceAuthDenialCode =
   | 'REF_INVALID'
@@ -51,7 +59,9 @@ export type SourceAuthDenialCode =
   | 'REF_TENANT_MISMATCH'
   | 'AUTH_CONFIG_MISSING'
   | 'AUTH_DECRYPT_FAILED'
-  | 'QUERY_AUTH_FORBIDDEN';
+  | 'QUERY_AUTH_FORBIDDEN'
+  | 'ORIGIN_NOT_ALLOWLISTED'
+  | 'ORIGIN_POLICY_MISSING';
 
 /** Deterministic pre-network denial. Message text is fixed and secret-free. */
 export class SourceAuthDeniedError extends Error {
@@ -91,7 +101,7 @@ const OP_SNAPSHOT_SQL =
   'SELECT profile_policy_snapshot AS "snapshot" FROM operations WHERE id=$1 AND tenant_id=$2';
 
 const BINDING_CIPHER_SQL =
-  'SELECT tenant_id AS "tenantId", file_url_auth_cipher AS "cipher" ' +
+  'SELECT tenant_id AS "tenantId", file_url_auth_cipher AS "cipher", allowed_origins AS "allowedOrigins" ' +
   'FROM profile_bindings WHERE profile_id=$1 AND revision=$2';
 
 function denial(status: number, code: SourceAuthDenialCode, message: string): SourceAuthDeniedError {
@@ -135,6 +145,59 @@ function readPinnedAuth(snapshot: unknown): { configured: boolean; ref: PinnedRe
     throw denial(422, 'REF_INVALID', 'pinned credential ref is not a valid (tenantId, profileId, revision) tuple');
   }
   return { configured: true, ref: { tenantId, profileId, profileRevision } };
+}
+
+function readPinnedCredentialAllowedOrigins(raw: unknown): readonly string[] {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  const parsed = CredentialAllowedOriginsSchema.safeParse(value ?? []);
+  return parsed.success ? parsed.data : [];
+}
+
+/**
+ * Check the original source URL against the exact-origin policy pinned with
+ * its credential. Warn mode returns a bounded warning descriptor and keeps
+ * legacy attachment behavior; enforce mode denies before any fetch.
+ */
+export function assertCredentialOriginAllowed(
+  sourceUrl: string,
+  auth: Exclude<ResolvedSourceAuth, { kind: 'none' }>,
+  mode: SourceCredentialOriginMode
+): CredentialOriginPolicyWarning | null {
+  let origin: string | null = null;
+  try {
+    const parsed = new URL(sourceUrl);
+    if (parsed.protocol === 'https:') origin = parsed.origin;
+  } catch {
+    origin = null;
+  }
+
+  const parsedAllowedOrigins = CredentialAllowedOriginsSchema.safeParse(auth.allowedOrigins ?? []);
+  const allowedOrigins = parsedAllowedOrigins.success ? parsedAllowedOrigins.data : [];
+  let code: CredentialOriginPolicyWarning['code'] | null = null;
+  if (allowedOrigins.length === 0) {
+    code = 'ORIGIN_POLICY_MISSING';
+  } else if (origin === null || !allowedOrigins.includes(origin)) {
+    code = 'ORIGIN_NOT_ALLOWLISTED';
+  }
+
+  if (code === null) return null;
+  if (mode === 'enforce') {
+    throw denial(
+      422,
+      code,
+      code === 'ORIGIN_POLICY_MISSING'
+        ? 'source credential has no valid approved origin policy'
+        : 'source origin is not approved for this credential'
+    );
+  }
+  return { code, origin };
 }
 
 export interface AcquisitionRefResolverOptions {
@@ -181,7 +244,7 @@ export function createAcquisitionRefResolver(
       // The pinned revision row is immutable (one row per (profile_id,
       // revision)); reading it is NOT a live-profile resolve and cannot be
       // swapped by a later publish.
-      const bindingRes = await options.db.query<{ tenantId: string; cipher: unknown }>(
+      const bindingRes = await options.db.query<{ tenantId: string; cipher: unknown; allowedOrigins?: unknown }>(
         BINDING_CIPHER_SQL,
         [ref.profileId, ref.profileRevision]
       );
@@ -230,7 +293,7 @@ export function createAcquisitionRefResolver(
           if (!token) {
             throw denial(422, 'AUTH_CONFIG_MISSING', 'pinned bearer auth has no token');
           }
-          return { kind: 'bearer', token };
+          return { kind: 'bearer', token, allowedOrigins: readPinnedCredentialAllowedOrigins(binding.allowedOrigins) };
         }
         case 'header': {
           const headerName = config.header_name?.trim();
@@ -238,7 +301,12 @@ export function createAcquisitionRefResolver(
           if (!headerName || !headerValue) {
             throw denial(422, 'AUTH_CONFIG_MISSING', 'pinned header auth is missing its name or value');
           }
-          return { kind: 'header', headerName, headerValue };
+          return {
+            kind: 'header',
+            headerName,
+            headerValue,
+            allowedOrigins: readPinnedCredentialAllowedOrigins(binding.allowedOrigins),
+          };
         }
         case 'none':
           // Unreachable after the carries-secret check above.
@@ -261,7 +329,8 @@ export function createAcquisitionRefResolver(
  */
 export function withSourceAuth(
   fetcher: SdkFetcher,
-  auth: Exclude<ResolvedSourceAuth, { kind: 'none' }>
+  auth: Exclude<ResolvedSourceAuth, { kind: 'none' }>,
+  originMode: SourceCredentialOriginMode = 'warn'
 ): SdkFetcher {
   let originalOrigin: string | null = null;
   const wrapped = async (
@@ -275,7 +344,13 @@ export function withSourceAuth(
     } catch {
       origin = null;
     }
-    if (originalOrigin === null) originalOrigin = origin;
+    if (originalOrigin === null) {
+      originalOrigin = origin;
+      // Defense in depth for callers that did not pass through openGate. Only
+      // check the initial origin: later redirect hops retain the deliberate
+      // cross-origin credential redaction behavior below.
+      assertCredentialOriginAllowed(href, auth, originMode);
+    }
     if (origin === null || origin !== originalOrigin) {
       return fetcher(href, init);
     }

@@ -57,4 +57,4 @@ Sau khi Codex Arch ra bao cao Phase B (`codex-arch-phase-b-remediation-2026-10-0
 ## 4. De xuat Tong hop cho Codex Arch
 1. Ghi nhan ket qua PASS cho ca luong Ingest va Extract tren live Docker cluster vao Master Plan `tasks/DU-PLATFORM-MIGRATION-2026-10-05.md`.
 2. Xem xet go bo lenh NO-GO doi voi MIG-05 do Worker Template da chung minh boot doc lap thanh cong.
-3. Chuan bi cho buoc tiep theo: Trien khai doi ten Orchestrator Portal (MIG-08) va nhung giao dien Swagger UI tai `/admin/web/api-docs`.
+3. Chuan bi cho buoc tiep theo: Trien khai doi ten Orchestrator Portal (MIG-08) va nhung giao dien Swagger UI tai `admin/api-docs`.

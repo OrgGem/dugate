@@ -1,0 +1,13 @@
+﻿const fs=require('node:fs');
+const {deploymentLockfile}=require('D:/Git/dugate/du-rework/scripts/docker/build-runtime.cjs');
+const root='D:/Git/dugate/du-rework';
+const original=fs.readFileSync(root+'/pnpm-lock.yaml','utf8');
+const prepared=deploymentLockfile(original);
+const a=prepared.slice(prepared.indexOf('overrides:'));
+const b=original.slice(original.indexOf('overrides:'));
+console.log('prepared_slice_len='+a.length+' original_slice_len='+b.length+' delta='+(a.length-b.length));
+let i=0; while(i<Math.min(a.length,b.length)&&a[i]===b[i])i++;
+console.log('first_diff_at='+i);
+console.log('prepared_around='+JSON.stringify(a.slice(Math.max(0,i-60),i+40)));
+console.log('original_around='+JSON.stringify(b.slice(Math.max(0,i-60),i+40)));
+console.log('idempotent='+(deploymentLockfile(prepared)===prepared));

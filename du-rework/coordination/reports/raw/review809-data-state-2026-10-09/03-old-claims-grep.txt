@@ -1,0 +1,3 @@
+﻿COMMAND: rg -n -i '7\s+slot|Metadata DB.*không chứa inline plaintext|Metadata DB.*chỉ chứa encrypted reference' du-rework/docs/04-data-state.md
+REAL_EXIT=1
+RESULT=NO_MATCHES

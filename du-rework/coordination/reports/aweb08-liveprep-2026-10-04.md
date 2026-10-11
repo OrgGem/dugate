@@ -11,11 +11,11 @@ Env (runbook bên dưới): `DU_LIVE_INFRA=1`, `AWEB_LIVE_URL` (vd `http://127.0
 
 | # | Case (live) | Assert chính |
 |---|---|---|
-| 1 | Session gate thật + login render | `/admin/web` unauth → 302 `/admin/login` (hoặc 200 nếu deployment cho phép); sau login → heading “Admin Web bootstrap is running” + nav |
+| 1 | Session gate thật + login render | `admin` unauth → 302 `/admin/login` (hoặc 200 nếu deployment cho phép); sau login → heading “Admin Web bootstrap is running” + nav |
 | 2 | `/overview` dữ liệu thật theo tenant | Session card thật + “Audit ledger” ở **một trong hai trạng thái honest** (bảng rows hoặc “No audit events”) |
 | 3 | `/security` | **cả hai nhánh hợp lệ**: `fingerprintPreview` (view thật) HOẶC “Crypto configuration unavailable” (503 chưa compose) |
 | 4 | **Mutation thật + audit**: issue → copy-once đúng 1 lần → dismiss → reload-list có row mới → revoke → `REVOKED`; sau đó query `GET /admin/api/audit?limit=50` bằng session cookie | rawKey đúng 1 lần; revoke có hiệu lực; **khi `AWEB_LIVE_TENANT` được set** → bắt buộc thấy event `apikey.issue` trong ledger (strict); không set → chỉ assert 200 + ghi nhận (ledger platform-scope có thể rỗng — honest) |
-| 5 | 320px reflow + **reload giữ session** | scrollWidth ≤ clientWidth; reload vẫn `/admin/web/overview` + Overview render |
+| 5 | 320px reflow + **reload giữ session** | scrollWidth ≤ clientWidth; reload vẫn `admin/overview` + Overview render |
 
 Screenshots chỉ ghi khi chạy live: `live-01..08-*.png` trong `coordination/evidence/aweb08-live/` (offline: thư mục **không được tạo** — kiểm: chưa tồn tại sau packet này).
 
@@ -27,7 +27,7 @@ Screenshots chỉ ghi khi chạy live: `live-01..08-*.png` trong `coordination/e
 ```
 curl -s  http://127.0.0.1:3000/health                      # {"status":"ok",…}
 curl -sI http://127.0.0.1:3001/admin/login | head -1       # 200
-curl -sI http://127.0.0.1:3001/admin/web   | head -1       # 404 (flag đang tắt — legacy nguyên trạng)
+curl -sI http://127.0.0.1:3001admin   | head -1       # 404 (flag đang tắt — legacy nguyên trạng)
 ```
 
 **B2 — bật cờ (chỉ service rework, KHÔNG đụng container user)**: thêm vào `.env.live`
@@ -40,8 +40,8 @@ Restart **dev runner của rework** (dừng `node scripts/dev.cjs` của rework 
 
 **B3 — health SAU khi bật**
 ```
-curl -sI http://127.0.0.1:3001/admin/web        | head -1   # 302 → /admin/login (chưa login)
-curl -sI http://127.0.0.1:3001/admin/web/profiles | head -1 # 404 “Route not enabled…” (ngoài allow-list)
+curl -sI http://127.0.0.1:3001admin        | head -1   # 302 → /admin/login (chưa login)
+curl -sI http://127.0.0.1:3001admin/profiles | head -1 # 404 “Route not enabled…” (ngoài allow-list)
 curl -sI http://127.0.0.1:3001/admin/login      | head -1   # 200 (legacy không đổi)
 ```
 
@@ -52,13 +52,13 @@ DU_LIVE_INFRA=1 AWEB_LIVE_URL=http://127.0.0.1:3001 AWEB_LIVE_TOKEN=<shell token
   npx playwright test --config admin-web/playwright.config.ts --grep "AWEB-08 live" --output .live-output
 ```
 
-**B5 — rollback (bất kỳ lúc nào)**: xoá 2 dòng cờ khỏi `.env.live` + restart dev runner rework; kiểm `/admin/web` → 404 legacy, `/admin/login` → 200; mọi route legacy `/admin/*` chưa từng bị đổi trong suốt quá trình.
+**B5 — rollback (bất kỳ lúc nào)**: xoá 2 dòng cờ khỏi `.env.live` + restart dev runner rework; kiểm `admin` → 404 legacy, `/admin/login` → 200; mọi route legacy `/admin/*` chưa từng bị đổi trong suốt quá trình.
 
-**GO/NO-GO**: GO khi 5/5 live case xanh, copy-once đúng 1 lần, revoke `REVOKED`, (nếu set tenant) event `apikey.issue` có trong ledger, 320px không tràn, reload giữ session, và **không regression legacy** (B3/B5). NO-GO nếu bất kỳ route legacy 500, hoặc `/admin/web` trả trang lạ khi flag off.
+**GO/NO-GO**: GO khi 5/5 live case xanh, copy-once đúng 1 lần, revoke `REVOKED`, (nếu set tenant) event `apikey.issue` có trong ledger, 320px không tràn, reload giữ session, và **không regression legacy** (B3/B5). NO-GO nếu bất kỳ route legacy 500, hoặc `admin` trả trang lạ khi flag off.
 
 ## 3. Flag test bổ sung (offline)
 
-`tests/aweb08-per-route-flag.test.ts` +1 case (tổng 7): **`DU_ADMIN_WEB_ROUTES='overview,security'` nhưng `DU_ADMIN_WEB` off → KHÔNG mount** — cả 3 path (`/admin/web`, `/overview`, `/security`) trả 404 legacy “No Admin route matches” (allow-list chỉ siết thêm cho app đã mount, không tự mount).
+`tests/aweb08-per-route-flag.test.ts` +1 case (tổng 7): **`DU_ADMIN_WEB_ROUTES='overview,security'` nhưng `DU_ADMIN_WEB` off → KHÔNG mount** — cả 3 path (`admin`, `/overview`, `/security`) trả 404 legacy “No Admin route matches” (allow-list chỉ siết thêm cho app đã mount, không tự mount).
 
 ## 4. Offline regression (literal)
 

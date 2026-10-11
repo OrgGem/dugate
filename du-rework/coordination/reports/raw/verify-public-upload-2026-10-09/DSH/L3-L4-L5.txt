@@ -1,0 +1,47 @@
+﻿=== LENH 3: regression neighbors, node v24.21.0, NODE_ENV=[production] (ambient) ===
+REAL_EXIT=0
+Test Suites: 2 passed, 2 total
+Tests:       99 passed, 99 total
+=== LENH 4: typecheck backend ===
+REAL_EXIT=0  output_bytes=0
+=== LENH 5: git state + diff of the fixed test file ===
+status:  M du-rework/orchestrator/services/orchestrator/tests/public-upload-encryption-gateway.test.ts
+--- git diff --stat ---
+ .../tests/public-upload-encryption-gateway.test.ts      | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+--- git diff (full) ---
+diff --git a/du-rework/orchestrator/services/orchestrator/tests/public-upload-encryption-gateway.test.ts b/du-rework/orchestrator/services/orchestrator/tests/public-upload-encryption-gateway.test.ts
+index 458b50f..d1cf9af 100644
+--- a/du-rework/orchestrator/services/orchestrator/tests/public-upload-encryption-gateway.test.ts
++++ b/du-rework/orchestrator/services/orchestrator/tests/public-upload-encryption-gateway.test.ts
+@@ -248,6 +248,8 @@ function createDb(initialSize: number, initiallyExists = true): {
+   const control = { releaseFailuresRemaining: 0 };
+   let exists = initiallyExists;
+   let submittedOperation: Record<string, unknown> | null = null;
++  let linkedOperationId: string | null = null;
++  const linkedTaskId: string | null = null;
+   const execute = async (sql: string, params: unknown[] = []) => {
+     const query = sql.replace(/\s+/g, ' ').trim();
+     if (query.startsWith('SELECT') && query.includes('FROM api_keys')) {
+@@ -383,6 +385,21 @@ function createDb(initialSize: number, initiallyExists = true): {
+       row.claimExpiresAt = null;
+       return { rowCount: 1, rows: [{ id: ARTIFACT_ID }] };
+     }
++    if (query.startsWith('UPDATE artifacts SET operation_id=$2')) {
++      const ids = Array.isArray(params[0]) ? params[0] as string[] : [];
++      if (
++        !exists ||
++        !ids.includes(row.artifactId) ||
++        params[2] !== row.tenantId ||
++        row.state !== 'READY' ||
++        linkedOperationId !== null ||
++        linkedTaskId !== null
++      ) {
++        return { rowCount: 0, rows: [] };
++      }
++      linkedOperationId = String(params[1]);
++      return { rowCount: 1, rows: [{ id: row.artifactId }] };
++    }
+     throw new Error('unexpected test DB query: ' + query);
+   };
+   const db = {

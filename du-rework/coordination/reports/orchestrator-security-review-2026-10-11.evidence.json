@@ -1,0 +1,90 @@
+{
+  "review_date": "2026-10-11",
+  "timezone": "Asia/Bangkok",
+  "repository": "D:/Git/dugate",
+  "baseline_head": "d0b22104e3f9fcda095bc75c9588fac8afac38f3",
+  "reviewed_state": "Current shared working tree, including uncommitted changes; not an image or deployment attestation.",
+  "runtime": "v24.21.0",
+  "scope": "du-rework/orchestrator and connected source acquisition, admin shell/BFF, egress and deployment configuration.",
+  "probes": {
+    "method": "Current TypeScript sources transpiled in memory; package aliases mapped to local sources. Synthetic session/credentials/document, injected data fetcher and S3 sender. Crash probe ran in a separate Node process against an ephemeral loopback upstream.",
+    "boundaries": "No real tenant document or secret used. No production PostgreSQL, Redis, S3 or Vault mutation. No full Jest suite, build, dependency audit or live deployment pentest.",
+    "observed_stdout": [
+      {
+        "probe": "legacy-operator-read",
+        "role": "operator",
+        "sessionTenant": "tenant-a",
+        "status": 200,
+        "routeId": "section:operations",
+        "usesPlatformToken": true,
+        "forwardedTenantFilter": "tenant-b"
+      },
+      {
+        "probe": "source-credential-origin",
+        "defaultModeAttachedToUnapprovedOrigin": true,
+        "explicitEnforceCode": "ORIGIN_NOT_ALLOWLISTED"
+      },
+      {
+        "probe": "ingestion-storage-writer",
+        "storedExactlyPlaintext": true,
+        "hasEncryptedWrite": false
+      }
+    ],
+    "crash_probe": {
+      "observed_stdout": {
+        "probe": "pinned-fetch-204",
+        "runtime": "v24.21.0",
+        "upstreamStatus": 204,
+        "scope": "isolated node process, loopback only"
+      },
+      "observed_exit_code": 1,
+      "observed_stderr_excerpt": "TypeError: Response constructor: Invalid response status code 204",
+      "caught_by_await_try_catch": false,
+      "source_location": "du-rework/orchestrator/packages/egress/src/pinned-fetch.ts:355",
+      "production_reachability": "Static call-chain review of webhook transport and URL source acquisition; no live deployment exploitation."
+    }
+  },
+  "source_hashes_at_review_closeout": [
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/app/admin/auth-dispatch.ts",
+      "sha256": "ffc99ec1f6558b66f97b8a1e42645d3546b4723de1ef3b1dee8b03339e296ab8"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/app/admin/section-dispatch.ts",
+      "sha256": "c839928154b614ccb8ffe06671d8d2b29e669e945e5c4739269f00e0d26c75a6"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/app/admin/shell-router.ts",
+      "sha256": "021b45813b32b17b6421a2ebd5d8d52e833f41ae40915cd12f40259086c043fc"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/app/admin/shell-server.ts",
+      "sha256": "5e3c4aae62050633ccad197652657c8792d29cba577b0f39d237949a86c4134f"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/app/bootstrap/create-app.ts",
+      "sha256": "65f2e4ca36cde86f475981f07362a0cd0c74d2b8726f89f3ad06771e89a0ebbd"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/modules/operations/acquisition-ref-resolver.ts",
+      "sha256": "9007760595e103158985512220315a322a64bcffbc5b09b12e35a7a15b935f45"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/modules/operations/ingestion-consumer.ts",
+      "sha256": "12915987a90f84b7a6c70d40ce2f47b95f3b19ed60feae2625175f9bcc7f118e"
+    },
+    {
+      "path": "du-rework/orchestrator/services/orchestrator/src/modules/operations/ingestion-storage-s3.ts",
+      "sha256": "4c4f25e75aa9c0923c8dc60f6e51308b649e077fca1b5ec71b031de9502d3144"
+    },
+    {
+      "path": "du-rework/orchestrator/packages/egress/src/pinned-fetch.ts",
+      "sha256": "aeae34a754ca5cd932ac7689bf6ac4e5ed2b279cf62e4a85feb80221bc24377e"
+    },
+    {
+      "path": "du-rework/compose/orchestrator.yml",
+      "sha256": "0bb3e1d3366f8ed413404a416eff64f70ab92fcab8d98572b2d9424c34869b02"
+    }
+  ],
+  "product_files_edited_by_reviewer": []
+}

@@ -1,6 +1,6 @@
 # Portal request management ? PORTAL-REQUEST-CONTROL-20261006
 
-Route: `/admin/web/operations`. The Portal calls its same-origin BFF; credentials stay on the server.
+Route: `admin/operations`. The Portal calls its same-origin BFF; credentials stay on the server.
 
 ## List and detail
 

@@ -1,0 +1,24 @@
+Kinh gui DeepSeek-1 (term_8bfe6adc),
+
+Antigravity (Single Dispatcher) giao packet VERIFY DOC LAP cho 2 packet vua hoan thanh:
+
+1. Packet 1: Sửa 5 test RED artifact-read-authorization (Qwen-2 vua sua xong)
+- Implementer: Qwen-2 (term_16fef1c3)
+- Receipt: du-rework/coordination/reports/receipt-artifact-read-auth-fix-2026-10-09.md
+- File da sua: orchestrator/services/orchestrator/tests/artifact-read-authorization.test.ts (6 dong assertion theo docs/28:1400)
+- Lệnh verify can chay va ghi literal + REAL_EXIT:
+  cd du-rework/orchestrator/services/orchestrator
+  node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/artifact-read-authorization.test.ts
+  Yeu cau: 90 passed, 90 total, REAL_EXIT=0.
+
+2. Packet 2: Static analysis receipt LDBA-00 (Codex-1 vua xong)
+- Author: Codex-1 (term_43f85ccc)
+- Receipt: du-rework/coordination/reports/ldba-00-schema-mapping.md
+- Kiem tra: receipt co day du 195 dong, phan tich 9 bang cu ↔ migrations, 6 mismatch co file:line cu the, khong sua product code hay test.
+
+Yeu cau danh cho DeepSeek-1:
+- Chay lenh verify cho Packet 1, luu raw log.
+- Kiem tra doc lap receipt Packet 2.
+- Xuat bao cao verify doc lap tai:
+  du-rework/coordination/reports/verify-artifact-read-auth-and-ldba00-INDEPENDENT-DSH-2026-10-09.md
+- Tuan thu COORDINATOR-CONTRACT: khong sua code, khong sua test, khong git commit/add/push, khong tick gate.

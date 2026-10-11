@@ -24,6 +24,10 @@ import type {
   OperationDetail,
   OperationsPage,
   PolicyUpsertBody,
+  ProfileApiKeyPage,
+  ProfileKeyActionResult,
+  ProfileListPage,
+  ProfileWorkflowPage,
   ProfileDetail,
   ProfileMutationResult,
   ProfilePublishBody,
@@ -38,6 +42,7 @@ import type {
   UsageSummary,
   WorkflowCatalogPage,
   WorkflowDetailResponse,
+  WorkerInstanceList,
 } from './types';
 
 export interface AdminApiClientOptions {
@@ -113,6 +118,37 @@ export interface AdminApiClient {
     businessVersion: string,
     profileName: string,
   ): Promise<AdminApiResult<ProfileDetail>>;
+  listProfiles(query?: Record<string, string>): Promise<AdminApiResult<ProfileListPage>>;
+  /** 0039: the key set this profile owns. */
+  listProfileApiKeys(
+    businessId: string,
+    businessVersion: string,
+    profileName: string,
+  ): Promise<AdminApiResult<ProfileApiKeyPage>>;
+  /** AWEB-14: workflow revisions owned by this profile's business/version. */
+  listProfileWorkflows(
+    businessId: string,
+    businessVersion: string,
+    profileName: string,
+    tenantId: string,
+  ): Promise<AdminApiResult<ProfileWorkflowPage>>;
+  setProfileWorkflow(
+    businessId: string,
+    businessVersion: string,
+    profileName: string,
+    tenantId: string,
+    body: { workflowSlug: string; workflowRevision: number; enabled: boolean },
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<Record<string, unknown>>>;
+  /** 0039: add a key to this profile, or rotate one it already has. */
+  profileKeyAction(
+    businessId: string,
+    businessVersion: string,
+    profileName: string,
+    op: 'attach' | 'rotate',
+    body: Record<string, unknown>,
+    idempotencyKey?: string,
+  ): Promise<AdminApiResult<ProfileKeyActionResult>>;
   upsertProfile(
     businessId: string,
     businessVersion: string,
@@ -139,11 +175,13 @@ export interface AdminApiClient {
     idempotencyKey?: string,
   ): Promise<AdminApiResult<Record<string, unknown>>>;
   listOperations(query?: Record<string, string>): Promise<AdminApiResult<OperationsPage>>;
+  getOperationsMetrics?(query: Record<string, string>): Promise<AdminApiResult<unknown>>;
   operationAction(operationId: string, action: 'cancel' | 'retry', idempotencyKey: string): Promise<AdminApiResult<Record<string, unknown>>>;
   getOperation(operationId: string): Promise<AdminApiResult<OperationDetail>>;
   getUsage(query: Record<string, string>): Promise<AdminApiResult<UsageSummary>>;
   listBusinesses(query?: Record<string, string>): Promise<AdminApiResult<BusinessPage>>;
   getBusinessVersions(businessId: string): Promise<AdminApiResult<BusinessVersions>>;
+  listWorkerInstances(query?: Record<string, string>): Promise<AdminApiResult<WorkerInstanceList>>;
   businessVersionAction(
     businessId: string,
     version: string,
@@ -180,7 +218,14 @@ export interface AdminApiClient {
   listWorkflows(query?: Record<string, string>): Promise<AdminApiResult<WorkflowCatalogPage>>;
   getWorkflow(slug: string, query?: Record<string, string>): Promise<AdminApiResult<WorkflowDetailResponse>>;
   provisionWorkflow(
-    params: { tenantId?: string; schema: unknown; approvedEgressOrigins?: string[]; expectedRevision?: number | null },
+    params: {
+      tenantId?: string;
+      businessId?: string;
+      businessVersion?: string;
+      schema: unknown;
+      approvedEgressOrigins?: string[];
+      expectedRevision?: number | null;
+    },
     idempotencyKey?: string,
   ): Promise<AdminApiResult<PostActionResult>>;
   retireWorkflow(
@@ -356,6 +401,53 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
         {},
       );
     },
+    listProfiles(query) {
+      return request<ProfileListPage>('GET', '/profiles', { query });
+    },
+    // 0039: the key set a profile owns, and the two membership writes. Same
+    // (business, version, name) address as the profile itself — the client
+    // never carries a profile id.
+    listProfileApiKeys(businessId, businessVersion, profileName) {
+      return request<ProfileApiKeyPage>(
+        'GET',
+        `/profiles/${encodeURIComponent(businessId)}/${encodeURIComponent(businessVersion)}/${encodeURIComponent(profileName)}/api-keys`,
+        {},
+      );
+    },
+    listProfileWorkflows(businessId, businessVersion, profileName, tenantId) {
+      return request<ProfileWorkflowPage>(
+        'GET',
+        `/profiles/${encodeURIComponent(businessId)}/${encodeURIComponent(businessVersion)}/${encodeURIComponent(profileName)}/workflows`,
+        { query: { tenantId } },
+      );
+    },
+    setProfileWorkflow(businessId, businessVersion, profileName, tenantId, body, idempotencyKey) {
+      return request<Record<string, unknown>>(
+        'POST',
+        `/profiles/${encodeURIComponent(businessId)}/${encodeURIComponent(businessVersion)}/${encodeURIComponent(profileName)}/workflows`,
+        { query: { tenantId }, body, csrf: true, idempotencyKey },
+      );
+    },
+    async profileKeyAction(businessId, businessVersion, profileName, op, body, idempotencyKey) {
+      // NOT unwrapMutation: that helper is typed for the profile.* mutations
+      // (revision in, profileId/revision out). A membership write answers a
+      // different payload, so it unwraps the same envelope against its own type.
+      const result = await request<{ data?: ProfileKeyActionResult }>(
+        'POST',
+        `/profiles/${encodeURIComponent(businessId)}/${encodeURIComponent(businessVersion)}/${encodeURIComponent(profileName)}/api-keys/${op}`,
+        { body, csrf: true, idempotencyKey },
+      );
+      if (!result.ok) return result;
+      const inner = result.data.data;
+      return {
+        ok: true,
+        status: result.status,
+        data:
+          typeof inner === 'object' && inner !== null
+            ? inner
+            : (result.data as unknown as ProfileKeyActionResult),
+      };
+    },
     async upsertProfile(businessId, businessVersion, profileName, body, idempotencyKey) {
       return unwrapMutation(
         await request<{ data?: ProfileMutationResult }>(
@@ -393,6 +485,9 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     listOperations(query) {
       return request<OperationsPage>('GET', '/operations', { query });
     },
+    getOperationsMetrics(query) {
+      return request<unknown>('GET', '/operations/metrics', { query });
+    },
     operationAction(operationId, action, idempotencyKey) {
       return request<Record<string, unknown>>('POST', `/operations/${encodeURIComponent(operationId)}/${action}`, { body: {}, csrf: true, idempotencyKey });
     },
@@ -407,6 +502,9 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     },
     getBusinessVersions(businessId) {
       return request<BusinessVersions>('GET', `/businesses/${encodeURIComponent(businessId)}/versions`, {});
+    },
+    listWorkerInstances(query) {
+      return request<WorkerInstanceList>('GET', '/worker-instances', { query });
     },
     businessVersionAction(businessId, version, action) {
       return request<Record<string, unknown>>(

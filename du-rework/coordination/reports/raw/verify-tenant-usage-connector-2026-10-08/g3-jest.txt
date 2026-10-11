@@ -1,0 +1,9 @@
+{"subsystem":"admin-shell","timestamp":"2026-10-08T10:17:33.298Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"611ee7c9-c417-435b-ba10-9e247a4f1b09","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-08T10:17:33.342Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"9dd8a09b-b120-4bf1-b964-053e3838adfe","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-08T10:17:33.346Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"6a7d7f0c-7145-4d14-84c7-7d873439dffe","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
+
+Test Suites: 6 passed, 6 total
+Tests:       148 passed, 148 total
+Snapshots:   0 total
+Time:        3.252 s, estimated 4 s
+Ran all test suites matching tests/admin-connector-render.test.ts|tests/admin-connector-view-model.test.ts|tests/bff-connectors-actions.test.ts|tests/p745-connector-actions.test.ts|tests/p745-connector-boot-composition.test.ts|tests/p745-connector-management-proxy.test.ts.

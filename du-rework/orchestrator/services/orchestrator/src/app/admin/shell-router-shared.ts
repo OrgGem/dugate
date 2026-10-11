@@ -107,6 +107,10 @@ export interface ShellRuntimeConfig {
   cookieSecret: string;
   /** Bearer token that grants admin access to the orchestrator API. */
   adminToken: string;
+  /** Trusted orchestrator API origin used by the server-side section fetchers. */
+  jsonBaseUrl?: string;
+  /** Tenant bearer tokens mapped to tenant ids, matching the BFF configuration. */
+  tenantAdminTokens?: Record<string, string>;
   /**
    * Lifetime of the `du_admin` cookie in seconds. Default 8 hours.
    * Set to 0 to disable persistent cookies (cookie becomes a

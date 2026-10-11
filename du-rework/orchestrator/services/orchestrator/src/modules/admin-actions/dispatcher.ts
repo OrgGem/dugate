@@ -108,6 +108,7 @@ export interface ActionDef {
 }
 
 export const ADMIN_ACTIONS_ROUTE = 'POST /api/v1/admin/actions';
+const OPERATION_CONTROL_ACTIONS = new Set(['operations.cancel', 'operations.retry', 'operations.resume']);
 
 /**
  * v1 action table. Kept deliberately to the orchestrator's existing admin
@@ -138,6 +139,13 @@ export const ADMIN_ACTIONS: Record<string, ActionDef> = {
   // hashApiKey digest — the raw never touches a column.
   'apikey.issue': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   'apikey.revoke': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  // 0039: a profile OWNS a set of keys, so membership is a credential write
+  // like the two above and inherits their admin-only gate. `attach` adds a key
+  // to one profile; `rotate` replaces a key across every profile it belongs to
+  // (never a subset — the old key is revoked globally, so inheriting only one
+  // profile would silently drop the others).
+  'apikey.attach': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
+  'apikey.rotate': { bearerRoles: ['platform'], cookieRoles: ['admin'] },
   // CYCLE-108/113 REVIEW: 'operator' joins the cookie side of the
   // operation-control pair — the OIDC-02 session carries its tenant
   // server-side (AdminActionCookieAuth.tenantId), so an operator session
@@ -331,6 +339,63 @@ async function resolveOpTenant(
   return res.rows[0]!.tenant_id;
 }
 
+/**
+ * Idempotency markers are looked up before the action callback runs. For
+ * operation-control retries, resolve the caller's currently accessible
+ * resource tenant before that lookup so a marker can never stand in for the
+ * resource tenant fence. Tenant operators use a tenant-filtered query so a
+ * foreign and a missing operation remain the same 404.
+ */
+async function resolveOperationReplayTenant(
+  deps: AdminActionDeps,
+  auth: AdminActionAuth | null,
+  principal: AdminPrincipal | null,
+  action: string,
+  operationId: string
+): Promise<string> {
+  return deps.db.tx(async (client) => {
+    const result =
+      principal?.role === 'tenant_operator'
+        ? await client.query<{ tenant_id: string }>(
+            'SELECT tenant_id FROM operations WHERE id=$1 AND tenant_id=$2',
+            [operationId, principal.tenantId]
+          )
+        : await client.query<{ tenant_id: string }>(
+            'SELECT tenant_id FROM operations WHERE id=$1',
+            [operationId]
+          );
+    if (!result.rowCount) {
+      throw new HttpError(404, 'NOT_FOUND', 'not found');
+    }
+    const tenantId = result.rows[0]!.tenant_id;
+    const fence = assertRoleActionTenant(auth, action, tenantId);
+    if (!fence.ok) {
+      throw new HttpError(fence.status, fence.code, fence.message);
+    }
+    return tenantId;
+  });
+}
+
+/** Stable, server-derived caller identity for idempotency scope; never hash
+ * credentials, cookie contents, or CSRF proofs. */
+function idempotencyPrincipalScope(auth: AdminActionAuth | null): Record<string, unknown> | null {
+  if (!auth) return null;
+  if (auth.kind === 'bearer') {
+    return {
+      kind: 'bearer',
+      role: auth.principal.role,
+      tenantId: auth.principal.role === 'tenant_operator' ? auth.principal.tenantId : null,
+    };
+  }
+  return {
+    kind: 'cookie',
+    role: auth.role,
+    tenantId: auth.tenantId ?? null,
+    principalId: auth.principalId ?? null,
+    issuer: auth.issuer ?? null,
+  };
+}
+
 /** Audit attribution: operator rows are tenant-scoped, platform rows are global. */
 function auditTenantForOp(principal: AdminPrincipal | null): string | null {
   return principal && principal.role === 'tenant_operator' ? principal.tenantId : null;
@@ -396,10 +461,30 @@ export async function dispatchAdminAction(
   // including the direct-record credential paths) carries the same
   // server-derived identity; absent principal → {} → legacy fallback intact.
   const principalFields = auditPrincipalFields(auth);
+  let resourceTenantId: string | null = null;
+  if (call.idempotencyKey && OPERATION_CONTROL_ACTIONS.has(call.action)) {
+    const { operationId } = requireParams(call, ['operationId']);
+    resourceTenantId = await resolveOperationReplayTenant(
+      deps,
+      auth,
+      principal,
+      call.action,
+      operationId
+    );
+  }
+  const callerTenantId = principal?.role === 'tenant_operator' ? principal.tenantId : null;
+  const requestedTenantId = typeof call.params.tenantId === 'string' ? call.params.tenantId : null;
   const idem = {
     key: call.idempotencyKey,
     route: ADMIN_ACTIONS_ROUTE,
-    payloadHash: canonicalPayloadHash({ action: call.action, params: call.params }),
+    payloadHash: canonicalPayloadHash({
+      action: call.action,
+      params: call.params,
+      scope: {
+        principal: idempotencyPrincipalScope(auth),
+        tenantId: resourceTenantId ?? callerTenantId ?? requestedTenantId,
+      },
+    }),
   };
 
   switch (call.action) {
@@ -672,6 +757,17 @@ export async function dispatchAdminAction(
       if (p.apiKey.length < 8) {
         throw new HttpError(422, 'INVALID_SCHEMA', 'params.apiKey is too short to be a key');
       }
+      // Operator-facing label (api_keys.name, migration 0024). Optional and
+      // display-only: absent stays NULL rather than an invented default, so
+      // the list can show an unnamed key instead of inventing an identity.
+      const rawName = call.params.name;
+      if (
+        (rawName !== undefined && typeof rawName !== 'string') ||
+        (typeof rawName === 'string' && (rawName.trim().length === 0 || rawName.length > 120))
+      ) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.name is invalid');
+      }
+      const keyName = typeof rawName === 'string' ? rawName.trim() : null;
       // Tenant fence BEFORE the write, on the same gate the other key
       // actions use. A tenant-scoped caller naming another tenant is 403
       // with zero side effects.
@@ -692,8 +788,8 @@ export async function dispatchAdminAction(
           deps.audit,
           async (client) => {
             const inserted = await client.query<{ id: string; status: string; created_at: Date }>(
-              'INSERT INTO api_keys (tenant_id, hash, prefix) VALUES ($1, $2, $3) RETURNING id, status, created_at',
-              [p.tenantId, keyHash, prefix]
+              'INSERT INTO api_keys (tenant_id, hash, prefix, name) VALUES ($1, $2, $3, $4) RETURNING id, status, created_at',
+              [p.tenantId, keyHash, prefix, keyName]
             );
             if (!inserted.rowCount) {
               throw new HttpError(500, 'INTERNAL', 'api key insert returned no row');
@@ -717,6 +813,7 @@ export async function dispatchAdminAction(
                     id: r.id,
                     tenantId: p.tenantId,
                     prefix,
+                    name: keyName,
                     status: r.status,
                     createdAt: r.created_at,
                     rawKey: p.apiKey,
@@ -730,6 +827,7 @@ export async function dispatchAdminAction(
             id: result.id,
             tenantId: p.tenantId,
             prefix,
+            name: keyName,
             status: result.status,
             createdAt: result.created_at,
             // copy-once: the ONLY time the raw value leaves this handler
@@ -795,6 +893,184 @@ export async function dispatchAdminAction(
             : undefined
         );
         return { status: 200, body: { id: result.id, status: 'REVOKED' } };
+      });
+      return { status: outcome.status, body: outcome.body as Record<string, unknown> };
+    }
+    case 'apikey.attach': {
+      // 0039: add an existing key to a profile's membership set. Every fact the
+      // write depends on comes from the SERVER-side rows — the key's tenant
+      // fences the fence, and the profile must have a binding row in THAT
+      // tenant, so a caller cannot graft a key onto a foreign profile.
+      const p = requireParams(call, ['apiKeyId', 'profileId']);
+      const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
+        const result = await auditedMutation(
+          deps.db,
+          deps.audit,
+          async (client) => {
+            const found = await client.query<{ id: string; tenant_id: string; status: string }>(
+              'SELECT id, tenant_id, status FROM api_keys WHERE id=$1',
+              [p.apiKeyId]
+            );
+            if (!found.rowCount) {
+              throw new HttpError(404, 'NOT_FOUND', 'api key not found');
+            }
+            const key = found.rows[0]!;
+            const attachFence = assertRoleActionTenant(auth, 'apikey.attach', key.tenant_id);
+            if (!attachFence.ok) {
+              throw new HttpError(attachFence.status, attachFence.code, attachFence.message);
+            }
+            if (key.status !== 'ACTIVE') {
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            const profile = await client.query(
+              'SELECT 1 FROM profile_bindings WHERE profile_id=$1 AND tenant_id=$2 LIMIT 1',
+              [p.profileId, key.tenant_id]
+            );
+            if (!profile.rowCount) {
+              throw new HttpError(404, 'NOT_FOUND', 'profile not found in this tenant');
+            }
+            const membership = await deps.profiles.addMembership(
+              { profileId: p.profileId, apiKeyId: key.id, tenantId: key.tenant_id },
+              client
+            );
+            return {
+              apiKeyId: key.id,
+              profileId: p.profileId,
+              tenantId: key.tenant_id,
+              state: 'ACTIVE' as const,
+              created: membership.created,
+            };
+          },
+          (r) => ({
+            tenantId: r.tenantId,
+            actor,
+            ...principalFields,
+            action: 'apikey.attach',
+            resource: `apikey:${r.apiKeyId}`,
+            severity: 'success',
+            correlationId: deps.correlationId,
+          }),
+          call.idempotencyKey
+            ? (client, r) =>
+                withMarker(client, {
+                  status: r.created ? 201 : 200,
+                  body: r as unknown as Record<string, unknown>,
+                })
+            : undefined
+        );
+        return { status: result.created ? 201 : 200, body: result as unknown as Record<string, unknown> };
+      });
+      return { status: outcome.status, body: outcome.body as Record<string, unknown> };
+    }
+    case 'apikey.rotate': {
+      // 0039: rotate = mint the replacement, give it EVERY profile the old key
+      // belonged to, end the old key's memberships, revoke the old key — one
+      // transaction, so a crash cannot leave two live keys or none.
+      //
+      // The raw value is caller-supplied exactly like apikey.issue (the BFF
+      // mints it server-side for admin-web); it reaches the store only as the
+      // injected digest and comes back exactly once.
+      const p = requireParams(call, ['apiKeyId', 'apiKey']);
+      if (p.apiKey.length < 8) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.apiKey is too short to be a key');
+      }
+      const rawName = call.params.name;
+      if (
+        (rawName !== undefined && typeof rawName !== 'string') ||
+        (typeof rawName === 'string' && (rawName.trim().length === 0 || rawName.length > 120))
+      ) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'params.name is invalid');
+      }
+      const keyName = typeof rawName === 'string' ? rawName.trim() : null;
+      const outcome = await executeIdempotent(deps.db, idem, async (withMarker) => {
+        const result = await auditedMutation(
+          deps.db,
+          deps.audit,
+          async (client) => {
+            const found = await client.query<{
+              id: string;
+              tenant_id: string;
+              status: string;
+              name: string | null;
+            }>('SELECT id, tenant_id, status, name FROM api_keys WHERE id=$1', [p.apiKeyId]);
+            if (!found.rowCount) {
+              throw new HttpError(404, 'NOT_FOUND', 'api key not found');
+            }
+            const old = found.rows[0]!;
+            const rotateFence = assertRoleActionTenant(auth, 'apikey.rotate', old.tenant_id);
+            if (!rotateFence.ok) {
+              throw new HttpError(rotateFence.status, rotateFence.code, rotateFence.message);
+            }
+            if (old.status !== 'ACTIVE') {
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            const memberships = await deps.profiles.listActiveMemberships(old.id, client);
+            if (memberships.length === 0) {
+              // Revoking here would destroy the key with nothing to inherit.
+              throw new HttpError(
+                409,
+                'STATE_CONFLICT',
+                'api key has no ACTIVE profile membership; nothing to inherit — issue a key for the profile instead'
+              );
+            }
+            const keyHash = deps.hashApiKey(p.apiKey);
+            const prefix = p.apiKey.slice(0, 4);
+            // The label follows the credential: an unnamed key stays unnamed
+            // rather than being handed a name the operator never chose.
+            const name =
+              keyName ??
+              (typeof old.name === 'string' && old.name.length > 0 ? `${old.name} (rotated)` : null);
+            const inserted = await client.query<{ id: string; status: string; created_at: Date }>(
+              'INSERT INTO api_keys (tenant_id, hash, prefix, name) VALUES ($1, $2, $3, $4) RETURNING id, status, created_at',
+              [old.tenant_id, keyHash, prefix, name]
+            );
+            if (!inserted.rowCount) {
+              throw new HttpError(500, 'INTERNAL', 'rotated key insert returned no row');
+            }
+            const next = inserted.rows[0]!;
+            for (const membership of memberships) {
+              await deps.profiles.addMembership(
+                { profileId: membership.profileId, apiKeyId: next.id, tenantId: membership.tenantId },
+                client
+              );
+            }
+            await deps.profiles.revokeMemberships(old.id, client);
+            const revoked = await client.query<{ id: string }>(
+              "UPDATE api_keys SET status='REVOKED' WHERE id=$1 AND status='ACTIVE' RETURNING id",
+              [old.id]
+            );
+            if (!revoked.rowCount) {
+              // The ACTIVE guard lost a race between the SELECT and here.
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            return {
+              apiKeyId: next.id,
+              revokedId: old.id,
+              tenantId: old.tenant_id,
+              prefix,
+              name,
+              status: next.status,
+              createdAt: next.created_at,
+              profiles: memberships.map((m) => m.profileId),
+              // copy-once: the ONLY time the raw value leaves this handler
+              rawKey: p.apiKey,
+            };
+          },
+          (r) => ({
+            tenantId: r.tenantId,
+            actor,
+            ...principalFields,
+            action: 'apikey.rotate',
+            resource: `apikey:${r.apiKeyId}`,
+            severity: 'success',
+            correlationId: deps.correlationId,
+          }),
+          call.idempotencyKey
+            ? (client, r) =>
+                withMarker(client, { status: 201, body: r as unknown as Record<string, unknown> })
+            : undefined
+        );
+        return { status: 201, body: result as unknown as Record<string, unknown> };
       });
       return { status: outcome.status, body: outcome.body as Record<string, unknown> };
     }
@@ -1257,6 +1533,12 @@ export async function dispatchAdminAction(
           {
             tenantId: requestedTenant,
             schema: schemaInput,
+            ...(typeof call.params.businessId === 'string' || call.params.businessId === null
+              ? { businessId: call.params.businessId }
+              : {}),
+            ...(typeof call.params.businessVersion === 'string' || call.params.businessVersion === null
+              ? { businessVersion: call.params.businessVersion }
+              : {}),
             approvedEgressOrigins,
             expectedRevision,
           },

@@ -41,7 +41,7 @@ pnpm dev --skip-build --skip-migrate
 
 | Component | Local address |
 | --- | --- |
-| Orchestrator Portal + BFF | `http://127.0.0.1:3001/admin/web/` (login: `/admin/login`) |
+| Orchestrator Portal + BFF | `http://127.0.0.1:3001admin/` (login: `/admin/login`) |
 | Public API | `http://127.0.0.1:3000` |
 | Internal admin/runtime API | `http://127.0.0.1:3002` |
 | Connector | `http://127.0.0.1:8088` |

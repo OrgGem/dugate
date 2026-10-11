@@ -17,11 +17,13 @@ import {
 } from './p6-01-shell-fixtures';
 import type { AdminShellRequest } from './shell-types';
 import {
+  esc,
   renderErrorPage,
   renderLoginPage,
   renderShell,
 } from './shell-render';
 import { renderAuditSection } from './audit-section-renderer';
+import type { AuditFetcherInput } from './audit-section-data';
 import type {
   ProfileFetchResult,
   ProfileFetcherInput,
@@ -79,6 +81,166 @@ import { csrfTokenForRequest } from './mutation-dispatch';
 import { handleLoginGet } from './auth-dispatch';
 import { parseOperationListQuery } from './shell-router-shared';
 import type { ShellRuntimeConfig } from './shell-router-shared';
+import { credentialForTenant } from './bff/upstream';
+
+type LegacyReadCredential =
+  | { kind: 'platform'; token: string }
+  | { kind: 'tenant'; token: string; tenantId: string };
+
+interface TenantBusinessCatalogItem {
+  businessId: string;
+  displayName: string;
+  latestVersion: string | null;
+  latestStatus: string | null;
+  activeVersion: string | null;
+  versionCount: number;
+}
+
+interface TenantBusinessCatalogPage {
+  items: TenantBusinessCatalogItem[];
+  total: number;
+  limit: number;
+  nextCursor: string | null;
+  prevCursor: string | null;
+}
+
+function parseTenantBusinessCatalogPage(raw: unknown): TenantBusinessCatalogPage | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const envelope = raw as Record<string, unknown>;
+  if (!Array.isArray(envelope['items'])) return null;
+  const items: TenantBusinessCatalogItem[] = [];
+  for (const candidate of envelope['items']) {
+    if (typeof candidate !== 'object' || candidate === null) return null;
+    const row = candidate as Record<string, unknown>;
+    if (
+      typeof row['businessId'] !== 'string' ||
+      typeof row['versionCount'] !== 'number' ||
+      !Number.isSafeInteger(row['versionCount']) ||
+      row['versionCount'] < 0
+    ) return null;
+    items.push({
+      businessId: row['businessId'],
+      displayName: typeof row['displayName'] === 'string' ? row['displayName'] : row['businessId'],
+      latestVersion: typeof row['latestVersion'] === 'string' ? row['latestVersion'] : null,
+      latestStatus: typeof row['latestStatus'] === 'string' ? row['latestStatus'] : null,
+      activeVersion: typeof row['activeVersion'] === 'string' ? row['activeVersion'] : null,
+      versionCount: row['versionCount'],
+    });
+  }
+  const total = envelope['total'];
+  const limit = envelope['limit'];
+  return {
+    items,
+    total: typeof total === 'number' && Number.isSafeInteger(total) && total >= 0 ? total : items.length,
+    limit: typeof limit === 'number' && Number.isSafeInteger(limit) && limit > 0 ? limit : 100,
+    nextCursor: typeof envelope['nextCursor'] === 'string' ? envelope['nextCursor'] : null,
+    prevCursor: typeof envelope['prevCursor'] === 'string' ? envelope['prevCursor'] : null,
+  };
+}
+
+function renderTenantBusinessCatalogPage(
+  page: TenantBusinessCatalogPage,
+  tenantId: string,
+  pathname: string,
+): string {
+  const rows = page.items.map((item) => [
+    '<tr>',
+    `<td>${esc(item.displayName)}</td>`,
+    `<td>${esc(item.latestVersion ?? 'None')}</td>`,
+    `<td>${esc(item.latestStatus ?? 'No version')}</td>`,
+    `<td>${esc(item.activeVersion ?? 'None')}</td>`,
+    `<td>${esc(String(item.versionCount))}</td>`,
+    '</tr>',
+  ].join('')).join('');
+  const emptyRow = page.items.length === 0
+    ? '<tr><td colspan=\'5\'>No businesses are registered for this tenant.</td></tr>'
+    : '';
+  const pageLink = (cursor: string | null): string => {
+    if (!cursor) return '';
+    const query = new URLSearchParams({ limit: String(page.limit), cursor });
+    return `${pathname}?${esc(query.toString())}`;
+  };
+  const previousLink = page.prevCursor
+    ? `<a rel='prev' href='${pageLink(page.prevCursor)}'>Previous</a>`
+    : '';
+  const nextLink = page.nextCursor
+    ? `<a rel='next' href='${pageLink(page.nextCursor)}'>Next</a>`
+    : '';
+  return [
+    `<section class='business-section__tenant-catalog' data-tenant-business-catalog>`,
+    `<h2>Businesses for tenant ${esc(tenantId)}</h2>`,
+    `<p>Showing ${esc(String(page.items.length))} of ${esc(String(page.total))} businesses.</p>`,
+    `<table><thead><tr><th>Business</th><th>Latest version</th><th>Latest status</th><th>Active version</th><th>Version count</th></tr></thead>`,
+    `<tbody>${rows}${emptyRow}</tbody></table>`,
+    `<nav aria-label='Business catalog pages'>${previousLink}${nextLink}</nav>`,
+    '</section>',
+  ].join('');
+}
+
+async function fetchTenantBusinessCatalogPage(
+  request: AdminShellRequest,
+  jsonBaseUrl: string,
+  access: Extract<LegacyReadCredential, { kind: 'tenant' }>,
+): Promise<{ kind: 'ok'; page: TenantBusinessCatalogPage } | { kind: 'error'; message: string }> {
+  let url: URL;
+  try {
+    url = new URL(`/api/v1/admin/tenants/${encodeURIComponent(access.tenantId)}/businesses`, jsonBaseUrl);
+    const requestedLimit = Number.parseInt(request.query?.['limit'] ?? '', 10);
+    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 && requestedLimit <= 100
+      ? requestedLimit
+      : 100;
+    url.searchParams.set('limit', String(limit));
+    const cursor = request.query?.['cursor'];
+    if (cursor && cursor.length <= 4096) url.searchParams.set('cursor', cursor);
+  } catch {
+    return { kind: 'error', message: 'Invalid platform JSON API base URL.' };
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = 4000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await globalThis.fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${access.token}`,
+        accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return { kind: 'error', message: `Tenant business catalog returned HTTP ${response.status}.` };
+    }
+    let raw: unknown;
+    try {
+      raw = await response.json();
+    } catch {
+      return { kind: 'error', message: 'Tenant business catalog returned non-JSON data.' };
+    }
+    const page = parseTenantBusinessCatalogPage(raw);
+    return page
+      ? { kind: 'ok', page }
+      : { kind: 'error', message: 'Tenant business catalog returned an invalid response.' };
+  } catch {
+    return { kind: 'error', message: 'Tenant business catalog could not be loaded.' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function legacyReadCredential(
+  claims: AdminCookieClaims,
+  config: ShellRuntimeConfig,
+): LegacyReadCredential | null {
+  if (claims.role === 'admin') {
+    return config.adminToken.length > 0 ? { kind: 'platform', token: config.adminToken } : null;
+  }
+  if (claims.role !== 'operator' || !config.jsonBaseUrl) return null;
+  const tenantId = claims.tenantId;
+  if (typeof tenantId !== 'string' || tenantId.length === 0) return null;
+  const token = credentialForTenant(config.tenantAdminTokens, tenantId);
+  return token ? { kind: 'tenant', token, tenantId } : null;
+}
 
 
 /**
@@ -118,6 +280,22 @@ export function handleSectionGet(
     };
   }
 
+  const sectionHasProtectedRead =
+    (section === 'businesses' && typeof config.sectionFetchers?.businesses === 'function') ||
+    (section === 'operations' && typeof config.sectionFetchers?.operations === 'function') ||
+    (section === 'overview' && typeof config.sectionFetchers?.overview === 'function');
+  if (sectionHasProtectedRead && !legacyReadCredential(claims, config)) {
+    return {
+      status: 403,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body: renderErrorPage({
+        status: 403,
+        title: 'Access denied',
+        message: 'A platform administrator or tenant-scoped operator session is required to read this data.',
+      }),
+    };
+  }
+
   const view = buildAdminShellView({
     role: claims.role,
     path: request.pathname,
@@ -144,7 +322,7 @@ export function handleSectionGet(
       status: 200,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body,
-      deferredSectionExtras: () => resolveBusinessExtras(request, config, claims.role),
+      deferredSectionExtras: () => resolveBusinessExtras(request, config, claims),
     };
   }
 
@@ -157,7 +335,7 @@ export function handleSectionGet(
       status: 200,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body,
-      deferredSectionExtras: () => resolveProfileExtras(request, config, claims.role),
+      deferredSectionExtras: () => resolveProfileExtras(request, config, claims),
     };
   }
 
@@ -171,7 +349,7 @@ export function handleSectionGet(
       status: 200,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body,
-      deferredSectionExtras: () => resolveConnectorExtras(request, config, claims.role),
+      deferredSectionExtras: () => resolveConnectorExtras(request, config, claims),
     };
   }
 
@@ -185,7 +363,7 @@ export function handleSectionGet(
       status: 200,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body,
-      deferredSectionExtras: () => resolveApiKeyExtras(request, config, claims.role),
+      deferredSectionExtras: () => resolveApiKeyExtras(request, config, claims),
     };
   }
 
@@ -199,7 +377,7 @@ export function handleSectionGet(
       status: 200,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body,
-      deferredSectionExtras: () => resolveOperationExtras(request, config, claims.role),
+      deferredSectionExtras: () => resolveOperationExtras(request, config, claims),
     };
   }
 
@@ -213,7 +391,7 @@ export function handleSectionGet(
       status: 200,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body,
-      deferredSectionExtras: () => resolveOverviewExtras(request, config, claims.role),
+      deferredSectionExtras: () => resolveOverviewExtras(request, config, claims),
     };
   }
 
@@ -233,10 +411,21 @@ export function handleSectionGet(
 export async function resolveBusinessExtras(
   request: AdminShellRequest,
   config: ShellRuntimeConfig,
-  role: 'admin' | 'operator' | 'viewer',
+  claims: AdminCookieClaims,
 ): Promise<string | undefined> {
   const fetcher = config.sectionFetchers?.businesses;
   if (!fetcher) return undefined;
+
+  const access = legacyReadCredential(claims, config);
+  if (!access) {
+    return renderBusinessSection({
+      fetch: {
+        kind: 'unauthorized',
+        businessId: readBusinessIdFromRequest(request),
+        message: 'A platform administrator or tenant-scoped operator session is required.',
+      },
+    }).html;
+  }
 
   const businessId = readBusinessIdFromRequest(request);
   const query = request.query ?? {};
@@ -244,11 +433,21 @@ export async function resolveBusinessExtras(
   // shell today. The fetcher is allowed to fall back to any base
   // URL the platform provides; we pass the conventional default
   // when the config has no explicit override.
-  const jsonBaseUrl = readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  const jsonBaseUrl = config.jsonBaseUrl ?? readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  if (access.kind === 'tenant') {
+    const loaded = await fetchTenantBusinessCatalogPage(request, jsonBaseUrl, access);
+    if (loaded.kind === 'error') {
+      return renderBusinessSection({
+        fetch: { kind: 'error', businessId, message: loaded.message },
+      }).html;
+    }
+    return renderTenantBusinessCatalogPage(loaded.page, access.tenantId, request.pathname);
+  }
+
   const result = await fetcher({
     businessId,
     jsonBaseUrl,
-    adminToken: config.adminToken,
+    adminToken: access.token,
     nowMs: config.nowMs,
   });
   const rendered = renderBusinessSection({
@@ -271,7 +470,7 @@ export async function resolveBusinessExtras(
 export async function resolveProfileExtras(
   request: AdminShellRequest,
   config: ShellRuntimeConfig,
-  _role: 'admin' | 'operator' | 'viewer',
+  claims: AdminCookieClaims,
 ): Promise<string | undefined> {
   const fetcher = config.sectionFetchers?.profiles;
   if (!fetcher) return undefined;
@@ -281,13 +480,14 @@ export async function resolveProfileExtras(
   const businessVersion = (query['businessVersion'] ?? '').toString();
   const profileName = (query['profile'] ?? '').toString();
   const jsonBaseUrl = readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  const access = legacyReadCredential(claims, config);
 
   const input: ProfileFetcherInput = {
     businessId,
     businessVersion: businessVersion.length > 0 ? businessVersion : 'latest',
     profileName,
     jsonBaseUrl,
-    adminToken: config.adminToken,
+    adminToken: access?.token ?? '',
   };
 
   const result: ProfileFetchResult = await fetcher(input);
@@ -316,7 +516,7 @@ export async function resolveProfileExtras(
 export async function resolveConnectorExtras(
   request: AdminShellRequest,
   config: ShellRuntimeConfig,
-  _role: 'admin' | 'operator' | 'viewer',
+  claims: AdminCookieClaims,
 ): Promise<string | undefined> {
   const fetcher = config.sectionFetchers?.connectors;
   if (!fetcher) return undefined;
@@ -328,12 +528,13 @@ export async function resolveConnectorExtras(
   const compareRevisionRaw = (query['compareRevision'] ?? '').toString();
   const compareRevision = Number.parseInt(compareRevisionRaw, 10);
   const jsonBaseUrl = readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  const access = legacyReadCredential(claims, config);
 
   const input: ConnectorFetcherInput = {
     connectorId,
     revision: Number.isFinite(revision) && revision > 0 ? revision : 0,
     jsonBaseUrl,
-    adminToken: config.adminToken,
+    adminToken: access?.token ?? '',
   };
 
   const result: ConnectorFetchResult = await fetcher(input);
@@ -362,7 +563,7 @@ export async function resolveConnectorExtras(
 export async function resolveApiKeyExtras(
   request: AdminShellRequest,
   config: ShellRuntimeConfig,
-  role: 'admin' | 'operator' | 'viewer',
+  claims: AdminCookieClaims,
 ): Promise<string | undefined> {
   const fetcher = config.sectionFetchers?.apiKeys;
   if (!fetcher) return undefined;
@@ -370,11 +571,12 @@ export async function resolveApiKeyExtras(
   const query = request.query ?? {};
   const keyId = (query['keyId'] ?? '').toString();
   const jsonBaseUrl = readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  const access = legacyReadCredential(claims, config);
 
   const input: ApiKeyFetcherInput = {
     keyId,
     jsonBaseUrl,
-    adminToken: config.adminToken,
+    adminToken: access?.token ?? '',
   };
 
   const result: ApiKeyFetchResult = await fetcher(input);
@@ -383,7 +585,7 @@ export async function resolveApiKeyExtras(
     knownKeyIds: keyId.length > 0 ? [keyId] : [],
     selectedKeyId: keyId,
     csrfToken: await csrfTokenForRequest(request, config),
-    canManage: role === 'admin',
+    canManage: claims.role === 'admin',
   });
   return rendered.html;
 }
@@ -405,24 +607,40 @@ export async function resolveApiKeyExtras(
 export async function resolveOperationExtras(
   request: AdminShellRequest,
   config: ShellRuntimeConfig,
-  _role: 'admin' | 'operator' | 'viewer',
+  claims: AdminCookieClaims,
 ): Promise<string | undefined> {
   const fetcher = config.sectionFetchers?.operations;
   if (!fetcher) return undefined;
 
   const query = request.query ?? {};
   const operationId = (query['operationId'] ?? '').toString();
-  const jsonBaseUrl = readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  const access = legacyReadCredential(claims, config);
   const list = parseOperationListQuery(query);
+  if (!access) {
+    return renderOperationSection({
+      fetch: { kind: 'unauthorized', message: 'A platform administrator or tenant-scoped operator session is required.' },
+      selectedOperationId: operationId,
+      listLimit: list.limit,
+      listCursor: list.cursor,
+      listFilters: list.listFilters,
+      listSort: sanitizeSortFilter(list.sortFilter),
+    }).html;
+  }
+
+  const tenantFilter = access.kind === 'tenant' ? access.tenantId : list.tenantFilter;
+  const listFilters = access.kind === 'tenant'
+    ? { ...list.listFilters, tenant: access.tenantId }
+    : list.listFilters;
+  const jsonBaseUrl = config.jsonBaseUrl ?? readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
 
   const input: OperationFetcherInput = {
     operationId,
     jsonBaseUrl,
-    adminToken: config.adminToken,
+    adminToken: access.token,
     listLimit: list.limit,
     cursor: list.cursor ?? undefined,
     stateFilter: list.stateFilter,
-    tenantFilter: list.tenantFilter,
+    tenantFilter,
     idFilter: list.idFilter,
     sortFilter: list.sortFilter,
   };
@@ -433,7 +651,7 @@ export async function resolveOperationExtras(
     selectedOperationId: operationId,
     listLimit: list.limit,
     listCursor: list.cursor,
-    listFilters: list.listFilters,
+    listFilters,
     listSort: sanitizeSortFilter(list.sortFilter),
   });
   return rendered.html;
@@ -450,13 +668,14 @@ export async function resolveOperationExtras(
 export async function resolveOverviewExtras(
   request: AdminShellRequest,
   config: ShellRuntimeConfig,
-  _role: 'admin' | 'operator' | 'viewer',
+  claims: AdminCookieClaims,
 ): Promise<string | undefined> {
   const fetcher = config.sectionFetchers?.overview;
   if (!fetcher) return undefined;
 
   const query = request.query ?? {};
-  const tenantId = (query['tenantId'] ?? '').toString();
+  const requestedTenantId = (query['tenantId'] ?? '').toString();
+  const access = legacyReadCredential(claims, config);
   const requestedFrom = (query['from'] ?? '').toString();
   const requestedTo = (query['to'] ?? '').toString();
   const requestedPreset = (query['timeRange'] ?? '').toString();
@@ -469,7 +688,19 @@ export async function resolveOverviewExtras(
   const window = timePreset === 'custom'
     ? { from: requestedFrom, to: requestedTo }
     : resolveOverviewPresetWindow(timePreset, undefined, undefined);
-  const jsonBaseUrl = readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
+  if (!access) {
+    return renderOverviewSection({
+      fetch: {
+        kind: 'unauthorized',
+        message: 'A platform administrator or tenant-scoped operator session is required.',
+        tenantId: requestedTenantId,
+      },
+      selectedTenantId: requestedTenantId,
+      selectedTimePreset: timePreset,
+    }).html;
+  }
+  const tenantId = access.kind === 'tenant' ? access.tenantId : requestedTenantId;
+  const jsonBaseUrl = config.jsonBaseUrl ?? readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0';
 
   const input: OverviewFetcherInput = {
     tenantId,
@@ -477,7 +708,7 @@ export async function resolveOverviewExtras(
     to: window.to.length > 0 ? window.to : undefined,
     timePreset,
     jsonBaseUrl,
-    adminToken: config.adminToken,
+    adminToken: access.token,
   };
 
   const result: OverviewFetchResult = await fetcher(input);
@@ -543,6 +774,18 @@ export function handleAuditGet(
       }),
     };
   }
+  const access = legacyReadCredential(claims, config);
+  if (config.sectionFetchers?.audit && !access) {
+    return {
+      status: 403,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body: renderErrorPage({
+        status: 403,
+        title: 'Access denied',
+        message: 'A platform administrator or tenant-scoped operator session is required to read this data.',
+      }),
+    };
+  }
   const view = buildAdminShellView({
     role: claims.role,
     path: request.pathname,
@@ -568,10 +811,23 @@ export function handleAuditGet(
           },
         }).html;
       }
+      if (!access) {
+        return renderAuditSection({
+          fetch: { kind: 'error', message: 'A platform administrator or tenant-scoped operator session is required.' },
+        }).html;
+      }
       try {
-        const result = await fetcher({
+        const tenantScopedFetch: typeof fetch | undefined = access.kind === 'tenant'
+          ? (input, init) => {
+              const url = input instanceof Request ? new URL(input.url) : new URL(input.toString());
+              url.searchParams.set('tenantId', access.tenantId);
+              return globalThis.fetch(url.toString(), init);
+            }
+          : undefined;
+        const auditInput: AuditFetcherInput & { tenantId?: string } = {
           jsonBaseUrl: readJsonBaseUrlFromRequest(request) ?? 'http://127.0.0.1:0',
-          adminToken: config.adminToken,
+          adminToken: access.token,
+          ...(access.kind === 'tenant' ? { tenantId: access.tenantId } : {}),
           listLimit: typeof request.query?.['limit'] === 'string'
             ? Number.parseInt(request.query['limit']!, 10)
             : undefined,
@@ -583,7 +839,9 @@ export function handleAuditGet(
           fromFilter: typeof request.query?.['from'] === 'string' ? request.query['from'] : undefined,
           toFilter: typeof request.query?.['to'] === 'string' ? request.query['to'] : undefined,
           sortFilter: typeof request.query?.['sort'] === 'string' ? request.query['sort'] : undefined,
-        });
+          fetchImpl: tenantScopedFetch,
+        };
+        const result = await fetcher(auditInput);
         return renderAuditSection({ fetch: result }).html;
       } catch {
         return renderAuditSection({

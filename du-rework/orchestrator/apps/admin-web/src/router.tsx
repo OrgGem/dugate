@@ -2,7 +2,8 @@ import { createBrowserRouter } from 'react-router';
 import { AppShell } from '@/app-shell/app-shell';
 import { BootstrapHome } from '@/routes/bootstrap-home';
 import { OverviewRoute } from '@/routes/overview';
-import { ApiKeysRoute } from '@/routes/api-keys';
+import { AuditRoute } from '@/routes/audit';
+import { TraceRoute } from '@/routes/trace';
 import { ConnectorsRoute } from '@/routes/connectors';
 import { ProfilesRoute } from '@/routes/profiles';
 import { OperationsRoute } from '@/routes/operations';
@@ -39,7 +40,8 @@ export const router = createBrowserRouter(
           Component: BootstrapHome,
         },
         { path: 'overview', Component: OverviewRoute },
-        { path: 'api-keys', Component: ApiKeysRoute },
+        { path: 'audit', Component: AuditRoute },
+        { path: 'trace', Component: TraceRoute },
         { path: 'connectors', Component: ConnectorsRoute },
         { path: 'profiles', Component: ProfilesRoute },
         { path: 'operations', Component: OperationsRoute },

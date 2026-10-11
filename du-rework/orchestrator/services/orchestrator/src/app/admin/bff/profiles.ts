@@ -22,28 +22,58 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AdminShellRequest } from '../shell-types';
 import type { ShellRuntimeConfig } from '../shell-router';
+import { isHttpError } from '../../../http/errors';
+import { authorizeAuditTenantRead } from '../../../modules/admin-actions/rbac';
 import { resolveBffContext } from './context';
 import { readBoundedBody } from './body';
-import { credentialForTenant, decodePathSegment, firstHeaderValue, callUpstream, relayUpstream, writeProblem, type BffRuntimeConfig } from './upstream';
+import { boundedMessage } from './envelope';
+import { callUpstream, credentialFor, credentialForTenant, decodePathSegment, firstHeaderValue, rbacPrincipal, relayUpstream, writeProblem, type BffRuntimeConfig } from './upstream';
+import { withMintedRawKey } from './key-minting';
+
+export type ProfileKeyOp = 'attach' | 'rotate';
 
 export type ProfilesRoute =
+  | { kind: 'list' }
   | { kind: 'detail'; businessId: string; businessVersion: string; profileName: string }
   | { kind: 'upsert' | 'publish' | 'rollback'; businessId: string; businessVersion: string; profileName: string }
+  /** 0039: the key set the profile owns (GET). */
+  | { kind: 'api-keys'; businessId: string; businessVersion: string; profileName: string }
+  /** 0039: membership write for one key of this profile (POST). */
+  | { kind: 'api-key-op'; op: ProfileKeyOp; businessId: string; businessVersion: string; profileName: string }
+  /** AWEB-14: workflows owned by the profile's exact business/version. */
+  | { kind: 'workflows'; businessId: string; businessVersion: string; profileName: string }
   | { kind: 'test-endpoint' }
   | { kind: 'invalid' };
 
 export function matchProfilesRoute(relative: string): ProfilesRoute | null {
+  if (relative === '/profiles') return { kind: 'list' };
   if (relative === '/profiles/test-endpoint') return { kind: 'test-endpoint' };
-  const m = /^\/profiles\/([^/]+)\/([^/]+)\/([^/]+)(?:\/(upsert|publish|rollback))?$/.exec(relative);
+  // The op alternation must capture the BARE segment: with
+  // `api-keys(?:/(attach|rotate))?` INSIDE the group, group 4 receives the
+  // whole `api-keys/attach` and every comparison against a bare op fails.
+  const m = /^\/profiles\/([^/]+)\/([^/]+)\/([^/]+)(?:\/(upsert|publish|rollback|api-keys|workflows)(?:\/(attach|rotate))?)?$/.exec(
+    relative,
+  );
   if (!m) return null;
   const businessId = decodePathSegment(m[1] ?? '');
   const businessVersion = decodePathSegment(m[2] ?? '');
   const profileName = decodePathSegment(m[3] ?? '');
   if (businessId === null || businessVersion === null || profileName === null) return { kind: 'invalid' };
   const op = m[4];
+  const sub = m[5];
+  // Only the key set has sub-resources; `/upsert/attach` is not a profile route.
+  if (op !== 'api-keys' && sub !== undefined) return null;
   if (op === 'upsert' || op === 'publish' || op === 'rollback') {
     return { kind: op, businessId, businessVersion, profileName };
   }
+  if (op === 'api-keys') {
+    // Group 5 carries the membership write; absent means the read.
+    if (sub === 'attach' || sub === 'rotate') {
+      return { kind: 'api-key-op', op: sub, businessId, businessVersion, profileName };
+    }
+    return { kind: 'api-keys', businessId, businessVersion, profileName };
+  }
+  if (op === 'workflows') return { kind: 'workflows', businessId, businessVersion, profileName };
   return { kind: 'detail', businessId, businessVersion, profileName };
 }
 
@@ -55,7 +85,7 @@ export async function handleProfilesRoute(
   res: ServerResponse,
   request: AdminShellRequest,
   route: ProfilesRoute,
-  _query: URLSearchParams,
+  query: URLSearchParams,
   config: ShellRuntimeConfig,
   runtime: BffRuntimeConfig,
   correlationId: string,
@@ -76,41 +106,26 @@ export async function handleProfilesRoute(
     return;
   }
 
-  if (route.kind === 'detail') {
+  if (route.kind === 'list') {
+    if (method !== 'GET') {
+      writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'profile lists are GET', correlationId);
+      return;
+    }
+    await forwardProfileList(res, ctx, runtime, query, correlationId);
+    return;
+  }
+
+  if (route.kind === 'workflows') {
+    if (method === 'GET') {
+      await forwardProfileRead(res, ctx, runtime, route, '/workflows', correlationId, query);
+      return;
+    }
+  } else if (route.kind === 'detail' || route.kind === 'api-keys') {
     if (method !== 'GET') {
       writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'profile reads are GET', correlationId);
       return;
     }
-    if (ctx.principal.kind === 'unscoped') {
-      // T-UI-05: no platform-token bypass for viewer/scoped sessions — the
-      // assignment model that would scope this read is T-AUTH-03 (VFY-LOCAL).
-      writeProblem(
-        res,
-        403,
-        'PROFILE_SCOPE_GATE',
-        'viewer/scoped profile reads wait for the assignment model (T-AUTH-03, VFY-LOCAL)',
-        correlationId,
-      );
-      return;
-    }
-    if (!hasJsonBase(runtime)) {
-      writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
-      return;
-    }
-    const credential =
-      ctx.principal.kind === 'platform'
-        ? runtime.adminToken
-        : credentialForTenant(runtime.tenantAdminTokens, ctx.principal.tenantId);
-    if (typeof credential !== 'string' || credential.length === 0) {
-      writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this tenant', correlationId);
-      return;
-    }
-    const upstream = new URL(
-      `/api/v1/admin/profiles/${encodeURIComponent(route.businessId)}/${encodeURIComponent(route.businessVersion)}/${encodeURIComponent(route.profileName)}`,
-      runtime.jsonBaseUrl,
-    );
-    const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
-    await relayUpstream(res, response, correlationId);
+    await forwardProfileRead(res, ctx, runtime, route, route.kind === 'api-keys' ? '/api-keys' : '', correlationId);
     return;
   }
 
@@ -158,6 +173,36 @@ export async function handleProfilesRoute(
   const body = parsed as Record<string, unknown>;
   const idempotencyKey = firstHeaderValue(req.headers['idempotency-key']);
 
+  if (route.kind === 'workflows') {
+    const tenantIds = query.getAll('tenantId');
+    const workflowSlug = body.workflowSlug;
+    const workflowRevision = body.workflowRevision;
+    const enabled = body.enabled;
+    const allowedFields = new Set(['workflowSlug', 'workflowRevision', 'enabled']);
+    if (tenantIds.length !== 1 || !tenantIds[0]) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'tenantId is required exactly once for profile workflows', correlationId);
+      return;
+    }
+    if (Object.keys(body).some((key) => !allowedFields.has(key))
+        || typeof workflowSlug !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(workflowSlug)
+        || typeof workflowRevision !== 'number' || !Number.isSafeInteger(workflowRevision) || workflowRevision < 1
+        || typeof enabled !== 'boolean') {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'workflowSlug, positive workflowRevision, and enabled are required', correlationId);
+      return;
+    }
+    const upstream = new URL(profileUpstreamPath(route, '/workflows'), runtime.jsonBaseUrl);
+    upstream.searchParams.set('tenantId', tenantIds[0]!);
+    const response = await callUpstream(runtime, upstream, {
+      method: 'POST',
+      credential: runtime.adminToken,
+      correlationId,
+      jsonBody: JSON.stringify({ workflowSlug, workflowRevision, enabled }),
+      idempotencyKey: clampKey(idempotencyKey),
+    });
+    await relayUpstream(res, response, correlationId);
+    return;
+  }
+
   if (route.kind === 'test-endpoint') {
     const upstream = new URL('/api/v1/admin/profile-test-endpoint', runtime.jsonBaseUrl);
     const response = await callUpstream(runtime, upstream, {
@@ -168,6 +213,47 @@ export async function handleProfilesRoute(
       idempotencyKey: clampKey(idempotencyKey),
     });
     await relayUpstream(res, response, correlationId);
+    return;
+  }
+
+  // 0039 membership write for ONE key of this profile. The URL is the only
+  // address the client picks; `profileId` is resolved server-side from that
+  // same tuple, so the body can never aim the write at a different profile.
+  if (route.kind === 'api-key-op') {
+    const apiKeyId = body.apiKeyId;
+    // Blank is refused here rather than forwarded: an id of spaces would reach
+    // the platform as a lookup that can never match, turning a caller bug into
+    // a confusing 404.
+    if (typeof apiKeyId !== 'string' || apiKeyId.trim().length === 0 || apiKeyId.length > 64) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'apiKeyId must be a non-empty string', correlationId);
+      return;
+    }
+    const keyParams: Record<string, unknown> = { apiKeyId };
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || body.name.trim().length === 0 || body.name.length > 120) {
+        writeProblem(res, 422, 'INVALID_SCHEMA', 'name must be 1..120 characters', correlationId);
+        return;
+      }
+      keyParams.name = body.name.trim();
+    }
+    const profileId = await resolveProfileId(runtime, runtime.adminToken, route, correlationId);
+    if (profileId === null) {
+      writeProblem(res, 404, 'NOT_FOUND', 'profile is not stored yet, so it owns no keys', correlationId);
+      return;
+    }
+    keyParams.profileId = profileId;
+    const action = route.op === 'attach' ? 'apikey.attach' : 'apikey.rotate';
+    const upstream = new URL('/api/v1/admin/actions', runtime.jsonBaseUrl);
+    const response = await callUpstream(runtime, upstream, {
+      method: 'POST',
+      credential: runtime.adminToken,
+      correlationId,
+      // rotate needs a raw value: minted HERE (server-side), never in the
+      // browser. attach has none to mint.
+      jsonBody: JSON.stringify({ action, params: withMintedRawKey(action, keyParams) }),
+      idempotencyKey: clampKey(idempotencyKey),
+    });
+    await relayUpstream(res, response, correlationId, { wrapInData: true });
     return;
   }
 
@@ -235,6 +321,149 @@ export async function handleProfilesRoute(
     idempotencyKey: clampKey(idempotencyKey),
   });
   await relayUpstream(res, response, correlationId, { wrapInData: true });
+}
+
+/**
+ * One read path for BOTH the detail and the api-keys list: same T-UI-05
+ * scope gate, same credential selection, same no-store relay. `suffix` is the
+ * only difference ('' vs '/api-keys').
+ */
+async function forwardProfileRead(
+  res: ServerResponse,
+  ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>,
+  runtime: BffRuntimeConfig,
+  route: { businessId: string; businessVersion: string; profileName: string },
+  suffix: string,
+  correlationId: string,
+  query?: URLSearchParams,
+): Promise<void> {
+  if (ctx.principal.kind === 'unscoped') {
+    // T-UI-05: no platform-token bypass for viewer/scoped sessions — the
+    // assignment model that would scope this read is T-AUTH-03 (VFY-LOCAL).
+    writeProblem(
+      res,
+      403,
+      'PROFILE_SCOPE_GATE',
+      'viewer/scoped profile reads wait for the assignment model (T-AUTH-03, VFY-LOCAL)',
+      correlationId,
+    );
+    return;
+  }
+  if (!hasJsonBase(runtime)) {
+    writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
+    return;
+  }
+  const credential =
+    ctx.principal.kind === 'platform'
+      ? runtime.adminToken
+      : credentialForTenant(runtime.tenantAdminTokens, ctx.principal.tenantId);
+  if (typeof credential !== 'string' || credential.length === 0) {
+    writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this tenant', correlationId);
+    return;
+  }
+  const upstream = new URL(profileUpstreamPath(route, suffix), runtime.jsonBaseUrl);
+  if (suffix === '/workflows') {
+    const tenantIds = query?.getAll('tenantId') ?? [];
+    if (tenantIds.length !== 1 || !tenantIds[0]) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'tenantId is required exactly once for profile workflows', correlationId);
+      return;
+    }
+    upstream.searchParams.set('tenantId', tenantIds[0]);
+  }
+  const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+  await relayUpstream(res, response, correlationId);
+}
+
+const PROFILE_LIST_PARAM_ALLOWLIST = ['businessId', 'limit', 'cursor', 'sort'] as const;
+
+/** Derive list scope from the authenticated session; never trust tenantId from the browser. */
+async function forwardProfileList(
+  res: ServerResponse,
+  ctx: NonNullable<Awaited<ReturnType<typeof resolveBffContext>>>,
+  runtime: BffRuntimeConfig,
+  query: URLSearchParams,
+  correlationId: string,
+): Promise<void> {
+  const principal = ctx.principal;
+  if (principal.kind === 'unscoped') {
+    writeProblem(res, 403, 'PROFILE_SCOPE_GATE', 'profile list reads require a platform or tenant principal', correlationId);
+    return;
+  }
+
+  let scope: string;
+  try {
+    scope = authorizeAuditTenantRead(rbacPrincipal(principal), query.get('tenantId')?.trim() ?? '');
+  } catch (err) {
+    if (isHttpError(err)) {
+      writeProblem(res, err.status, err.code, boundedMessage(err.message) ?? 'request denied', correlationId);
+      return;
+    }
+    throw err;
+  }
+
+  const credential = credentialFor(principal, runtime);
+  if (credential === null) {
+    writeProblem(res, 403, 'TENANT_SCOPE_UNAVAILABLE', 'no admin credential is configured for this principal', correlationId);
+    return;
+  }
+  if (!hasJsonBase(runtime)) {
+    writeProblem(res, 503, 'UPSTREAM_UNAVAILABLE', 'the admin API is not configured', correlationId);
+    return;
+  }
+
+  const upstream = new URL('/api/v1/admin/profiles', runtime.jsonBaseUrl);
+  for (const name of PROFILE_LIST_PARAM_ALLOWLIST) {
+    const value = query.get(name)?.trim();
+    if (value) upstream.searchParams.set(name, value);
+  }
+  if (scope !== '') upstream.searchParams.set('tenantId', scope);
+  else upstream.searchParams.delete('tenantId');
+
+  const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+  await relayUpstream(res, response, correlationId);
+}
+
+function profileUpstreamPath(
+  route: { businessId: string; businessVersion: string; profileName: string },
+  suffix: string
+): string {
+  return (
+    `/api/v1/admin/profiles/${encodeURIComponent(route.businessId)}` +
+    `/${encodeURIComponent(route.businessVersion)}` +
+    `/${encodeURIComponent(route.profileName)}` + suffix
+  );
+}
+
+/**
+ * `(business, version, name) -> profileId`, answered by the platform's OWN
+ * resolution: the 0039 key-list route carries the profile id in its envelope
+ * (the frozen ProfileDetailReadSchema does not — it is strict and publishes
+ * only the write identity).
+ *
+ * null = the profile is not stored yet (the platform answers 404 rather than
+ * an empty list), which is the one case the membership write must refuse.
+ */
+async function resolveProfileId(
+  runtime: BffRuntimeConfig & { jsonBaseUrl: string },
+  credential: string,
+  route: { businessId: string; businessVersion: string; profileName: string },
+  correlationId: string
+): Promise<string | null> {
+  const response = await callUpstream(runtime, new URL(profileUpstreamPath(route, '/api-keys'), runtime.jsonBaseUrl), {
+    method: 'GET',
+    credential,
+    correlationId,
+  });
+  if (response.status !== 200) return null;
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return null;
+  }
+  if (typeof payload !== 'object' || payload === null) return null;
+  const profileId = (payload as { profileId?: unknown }).profileId;
+  return typeof profileId === 'string' && profileId.length > 0 ? profileId : null;
 }
 
 function hasJsonBase(runtime: BffRuntimeConfig): runtime is BffRuntimeConfig & { jsonBaseUrl: string } {

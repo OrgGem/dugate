@@ -86,10 +86,12 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
       : [],
     pointers: new Map<string, number>(seedProfile && withPointer ? [[PROFILE_ID, 2]] : []),
     audit: [] as Array<{ params: unknown[] }>,
+    queries: [] as Array<{ sql: string; params: unknown[] }>,
   };
   let undo: Array<() => void> = [];
 
   const query = (_via: 'pool' | 'tx', sql: string, params: unknown[]): { rows: Record<string, unknown>[]; rowCount: number } => {
+    state.queries.push({ sql, params: [...params] });
     // --- route reads ---
     if (/FROM business_versions/.test(sql)) {
       const bv = state.businessVersions.find((r) =>
@@ -100,6 +102,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
     if (/SELECT n\.profile_id, a\.revision/.test(sql)) {
       const name = state.names.find(
         (n) => n.business_id === params[0] && n.business_version === params[1] && n.profile_name === params[2]
+          && (params[3] === undefined || n.tenant_id === params[3])
       );
       const revision = name ? state.pointers.get(name.profile_id) : undefined;
       const binding = name && revision !== undefined
@@ -126,6 +129,7 @@ function makeFake(opts: { pointer?: boolean; seedProfile?: boolean } = {}) {
     if (/SELECT 1 FROM profile_names/.test(sql)) {
       const hit = state.names.some(
         (n) => n.business_id === params[0] && n.business_version === params[1] && n.profile_name === params[2]
+          && (params[3] === undefined || n.tenant_id === params[3])
       );
       return { rows: hit ? [{ '?column?': 1 }] : [], rowCount: hit ? 1 : 0 };
     }
@@ -251,7 +255,7 @@ interface FakedCtx {
   correlationId: string;
   host: string;
   db: unknown;
-  config: { adminToken?: string };
+  config: { adminToken?: string; tenantAdminTokens?: Record<string, string> };
 }
 
 function adminCtx(fake: ReturnType<typeof makeFake>, pathname: string, over?: Partial<FakedCtx>): RouteContext {
@@ -318,6 +322,35 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
     expect(wire).not.toContain('fileUrlAuthCipher');
   });
 
+  it('allows a tenant bearer to read its own profile through a tenant-bound SQL lookup', async () => {
+    const fake = makeFake();
+    const res = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+      headers: { authorization: 'Bearer tenant-token' },
+      config: { adminToken: 'tok', tenantAdminTokens: { 'tenant-token': TENANT } },
+    }));
+
+    expect(res?.status).toBe(200);
+    expect(ProfileDetailReadSchema.parse(res?.body).apiKeyId).toBe(KEY_ID);
+    const detailLookup = fake.state.queries.find((query) => query.sql.includes('SELECT n.profile_id, a.revision'));
+    expect(detailLookup?.sql).toContain('n.tenant_id=$4');
+    expect(detailLookup?.params).toEqual([BIZ, VER, NAME, TENANT]);
+  });
+
+  it('returns the same not-found result for a profile outside the tenant scope', async () => {
+    const fake = makeFake();
+    await expectHttpError(
+      handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/${NAME}`, {
+        headers: { authorization: 'Bearer other-tenant-token' },
+        config: { adminToken: 'tok', tenantAdminTokens: { 'other-tenant-token': '99999999-9999-4999-8999-999999999999' } },
+      })) as Promise<unknown>,
+      404,
+      /not stored in this tenant/,
+    );
+    const detailLookup = fake.state.queries.find((query) => query.sql.includes('SELECT n.profile_id, a.revision'));
+    expect(detailLookup?.sql).toContain('n.tenant_id=$4');
+    expect(detailLookup?.params[3]).toBe('99999999-9999-4999-8999-999999999999');
+  });
+
   it('`/new` yields the blank editor with no write identity (sentinel predates the stored-profile schema)', async () => {
     const fake = makeFake();
     const res = await handleAdminRoutes(adminCtx(fake, `/api/v1/admin/profiles/${BIZ}/${VER}/new`));
@@ -339,6 +372,7 @@ describe('T-API-01 closure — profile detail reads REAL data', () => {
       jobPriority: 'MEDIUM',
       allowedFileExtensions: '',
       fileUrlAuthConfigured: false,
+      allowedOrigins: [],
       connectionsOverride: [],
       callbackPolicy: null,
     });

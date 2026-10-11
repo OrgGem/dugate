@@ -1,0 +1,31 @@
+﻿=== RED block (nguyen van) — L1 run 1 ===
+  ● public upload encryption gateway › streams chunked encryption with downstream 
+backpressure and keeps the object size exact
+
+    expect(received).toBeLessThan(expected)
+
+    Expected: < 171966464
+    Received:   218525696
+
+      707 |     // The mock object store retains ciphertext; this budget includes 
+that
+      708 |     // copy and bounded stream buffers, while rejecting another 
+full-file copy.
+    > 709 |     expect(rssGrowth).toBeLessThan(size * 4 + 64 * 1024 * 1024);
+          |                       ^
+      710 |   });
+      711 |
+      712 |   test('uses S3 multipart only for ciphertext and commits the completed 
+immutable generation', async () => {
+
+      at Object.<anonymous> (tests/public-upload-encryption-gateway.test.ts:709:23)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 11 passed, 12 total
+=== failing test name(s) ===
+● public upload encryption gateway › streams chunked encryption with downstream
+=== LENH 2: lan thu 4, NODE_ENV UNSET ===
+NODE_ENV=[]
+REAL_EXIT=1
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 11 passed, 12 total

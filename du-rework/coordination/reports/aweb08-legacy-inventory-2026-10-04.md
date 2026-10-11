@@ -6,7 +6,7 @@
 
 ## 1. Route → legacy surface (file:line + vai trò)
 
-| # | Route mới (`/admin/web/...`) | Legacy tương ứng (file:line) | Vai trò legacy |
+| # | Route mới (`admin/...`) | Legacy tương ứng (file:line) | Vai trò legacy |
 |---|---|---|---|
 | 0 | shell root `/` + mọi layout | `shell-render.ts` (chrome/nav/login/404 — `:21,:215,:329`), `shell-router.ts:173` (admin-root), `shell-router-shared.ts` (`ShellRuntimeConfig`, `parseQueryString`), `shell-server.ts` (mount/static/BFF hooks), `shell-types.ts` | Chrome + session gate + mount — **dùng chung** |
 | 1 | `overview` | nav `p6-01-shell-fixtures.ts:225`; `section-dispatch.ts:211-227` (fetcher splice); `overview-section-data.ts`, `overview-section-renderer.ts`, `overview-view-models.ts` (`buildUsageRollupView`/`buildAuditListView`/`buildHealthOverviewView`) | Trang overview + usage rollup + audit column + health |
@@ -52,7 +52,7 @@
 
 | Route | UI_APPROVED | Service condition | Live evidence cần | Ghi chú |
 |---|---|---|---|---|
-| shell `/admin/web` | ✅ AWEB-01b (6 case) | mount gate + session gate giữ nguyên | live flags (LIV-03) | flag chưa bật trong deployment |
+| shell `admin` | ✅ AWEB-01b (6 case) | mount gate + session gate giữ nguyên | live flags (LIV-03) | flag chưa bật trong deployment |
 | overview | ✅ AWEB-03b (7 case) | reads real (ops/usage/audit tổng hợp) | live session + real data | có thể bật đầu tiên |
 | profiles | PENDING review #2 | T-API-01..03 (backend) + WIRE-FREEZE chốt | live CRUD revision + rollback | UI honest placeholder hôm nay |
 | api-keys/connectors | PENDING review #2 | connector composition (F3) cho ready-state; F7 rotate/disable còn disabled | live S3/connector credential | |
@@ -73,14 +73,14 @@
 
 ## 5. Không thể quyết trong audit này
 
-- Chính sách URL sau cutover: `/admin/<section>` **redirect** sang `/admin/web/<route>` hay giữ song song/404 — quyết định user/coordinator (ảnh hưởng bookmark + login redirect-back).
+- Chính sách URL sau cutover: `/admin/<section>` **redirect** sang `admin/<route>` hay giữ song song/404 — quyết định user/coordinator (ảnh hưởng bookmark + login redirect-back).
 - Số phận `grants`/`audit` legacy (chưa có slice mới) — chờ PAR-00/ACUI-10 hoặc plan mới.
 - Thời điểm bật flag live (LIV-03) + credential/composition cho security/connectors — thuộc deployment/user.
 - LOCAL-00 (auth mode) và DEP adapter (settings) chưa tồn tại ⇒ điều kiện cutover identity/settings không thể chốt hôm nay.
 
 ## 6. Đề xuất bước AWEB-08 kế tiếp (KHÔNG thực thi trong packet này)
 
-1. **Cutover theo route, mặc định OFF, có redirect**: bật `DU_ADMIN_WEB_ROUTES=overview` trước; khi bật route X, thêm server-side 302 `/admin/<section>` → `/admin/web/<route>` (giữ legacy renderer nguyên trạng làm fallback; chỉ tắt khi có live evidence).
+1. **Cutover theo route, mặc định OFF, có redirect**: bật `DU_ADMIN_WEB_ROUTES=overview` trước; khi bật route X, thêm server-side 302 `/admin/<section>` → `admin/<route>` (giữ legacy renderer nguyên trạng làm fallback; chỉ tắt khi có live evidence).
 2. **Đóng review #2 (Antigravity)** cho security/api-keys/connectors/operations/businesses/usage/profiles → nâng verdict UI_APPROVED + ghi kèm; song song lấy live evidence từng route theo §3.
 3. **Decision packet nhỏ cho URL policy** (redirect vs parallel vs 404) + update `apps/admin-web/README`/deploy docs (owner docs).
 4. **Dead-code removal chỉ sau cùng**: mỗi route, sau 1 chu kỳ ổn định + grep 0 consumer + test đã chuyển/xoá tương ứng, mới xoá renderer/data như §2 `dead-sau-cutover`; ưu tiên bắt đầu từ overview (ít rủi ro nhất).

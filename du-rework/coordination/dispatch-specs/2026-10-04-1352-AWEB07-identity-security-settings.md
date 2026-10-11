@@ -7,9 +7,9 @@
 
 ## Việc cần làm (real-first, honest states)
 
-1. **Security screen (`/admin/web/security`)**: crypto-config read + write qua BFF (CSRF, session fence, no-store; giữ semantics POST hiện có) — nếu upstream đủ để hiển thị trạng thái thật; không hiển thị secret.
-2. **Identity screen (`/admin/web/identity`)**: session/principal hiện tại + **auth mode hiển thị thật** (`local|oidc|both` khi đọc được từ session/policy; chưa mount → honest "auth mode: chưa managed" + note LOCAL-00/LOCAL-03); user/session list CHỈ khi backend có (thiếu → unavailable + owner LOCAL/OIDC).
-3. **Settings/Deployment screen (`/admin/web/settings`)**: catalog theo source/desired/effective revision **chỉ khi adapter thật**; chưa managed → `requires deployment action` + hướng dẫn deploy; **không nút Save giả** (theo plan §1).
+1. **Security screen (`admin/security`)**: crypto-config read + write qua BFF (CSRF, session fence, no-store; giữ semantics POST hiện có) — nếu upstream đủ để hiển thị trạng thái thật; không hiển thị secret.
+2. **Identity screen (`admin/identity`)**: session/principal hiện tại + **auth mode hiển thị thật** (`local|oidc|both` khi đọc được từ session/policy; chưa mount → honest "auth mode: chưa managed" + note LOCAL-00/LOCAL-03); user/session list CHỈ khi backend có (thiếu → unavailable + owner LOCAL/OIDC).
+3. **Settings/Deployment screen (`admin/settings`)**: catalog theo source/desired/effective revision **chỉ khi adapter thật**; chưa managed → `requires deployment action` + hướng dẫn deploy; **không nút Save giả** (theo plan §1).
 4. States `loading/ready/empty/error/denied`; nav link; browser evidence (stub cho các route có thật; cases honest-unavailable); regression 53+ xanh.
 
 ## Lease

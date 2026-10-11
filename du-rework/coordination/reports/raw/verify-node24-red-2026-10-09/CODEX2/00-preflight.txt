@@ -1,0 +1,8 @@
+﻿cwd=D:/Git/dugate/du-rework/orchestrator/services/orchestrator
+node24_path=C:\Users\Gem\AppData\Local\Temp/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe
+node24_exists=True
+node24_version=v24.21.0
+node24_version_exit=0
+PATH_node_path=C:\nvm4w\nodejs\node.exe
+PATH_node_version=v22.16.0
+PATH_node_version_exit=0

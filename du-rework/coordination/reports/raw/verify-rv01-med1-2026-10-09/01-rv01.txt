@@ -1,0 +1,5 @@
+Test Suites: 1 passed, 1 total
+Tests:       48 passed, 48 total
+Snapshots:   0 total
+Time:        2.969 s, estimated 4 s
+Ran all test suites matching tests/rv01-loopback-http-offline.test.ts.

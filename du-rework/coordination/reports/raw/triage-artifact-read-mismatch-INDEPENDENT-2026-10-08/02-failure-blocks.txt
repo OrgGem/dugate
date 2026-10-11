@@ -1,0 +1,100 @@
+﻿================ BLOCK 1 ================
+  ● R1-A artifact read authorization and storage-facade boundary › does not grant 
+reads for STAGING artifacts, even in the same operation
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+      373 |     const service = makeService(db);
+      374 |
+    > 375 |     await expect(service.requestAccess(STAGING_OUTPUT, 
+readRequest())).rejects.toMatchObject({
+          |                                                                          
+      ^
+================ BLOCK 2 ================
+  ● R1-A artifact read authorization and storage-facade boundary › rejects expired 
+and fenced requesters before minting a read grant
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+      384 |     await expect(
+      385 |       makeService(expiredDb).requestAccess(SAME_OPERATION_CHECKPOINT, 
+readRequest())
+    > 386 |     ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+================ BLOCK 3 ================
+  ● CR28-03 artifact read authorization: negatives and boundaries › declared 
+references array › reports a state conflict, not a permission denial, for a declared 
+cross-operation STAGING artifact
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+      595 |       await expect(
+      596 |         makeService(db).requestAccess(FOREIGN_STAGING_OUTPUT, 
+readRequest())
+    > 597 |       ).rejects.toMatchObject({ code: 'STATE_CONFLICT' });
+          |                 ^
+================ BLOCK 4 ================
+  ● CR28-03 worker lease boundaries › prefers expiry over task state when both are 
+wrong
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+      730 |     await expect(
+      731 |       makeService(db).requestAccess(SAME_OPERATION_CHECKPOINT, 
+readRequest())
+    > 732 |     ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+================ BLOCK 5 ================
+  ● CR28-03 worker lease boundaries › FINDING: the lease_active boolean collapses a 
+missing expiry and a past one
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+      740 |     await expect(
+      741 |       makeService(db).requestAccess(SAME_OPERATION_CHECKPOINT, 
+readRequest())
+    > 742 |     ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });

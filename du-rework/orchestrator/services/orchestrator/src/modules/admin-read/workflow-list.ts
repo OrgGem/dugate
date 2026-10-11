@@ -8,6 +8,8 @@ export interface WorkflowCatalogRow {
   digest: string;
   status: 'active' | 'retired';
   createdAt: string;
+  businessId?: string | null;
+  businessVersion?: string | null;
   name?: string;
   description?: string;
   nodesCount?: number;
@@ -17,30 +19,50 @@ export interface WorkflowCatalogRow {
   approvedEgressOrigins?: string[];
 }
 
+export interface WorkflowListFilter {
+  businessId?: string;
+  businessVersion?: string;
+}
+
 export async function listAdminWorkflows(
   db: Db,
   tenantId: string | null,
   metadataCrypto?: MetadataCrypto,
+  filter: WorkflowListFilter = {},
 ): Promise<WorkflowCatalogRow[]> {
-  const query = tenantId
-    ? `SELECT tenant_id, slug, revision, digest, status, created_at, schema_ref
-       FROM legacy_workflow_schemas
-       WHERE tenant_id = $1
-       ORDER BY slug ASC, revision DESC`
-    : `SELECT tenant_id, slug, revision, digest, status, created_at, schema_ref
-       FROM legacy_workflow_schemas
-       ORDER BY slug ASC, revision DESC`;
-  const params = tenantId ? [tenantId] : [];
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (tenantId !== null) {
+    params.push(tenantId);
+    clauses.push(`tenant_id = $${params.length}`);
+  }
+  if (filter.businessId !== undefined) {
+    params.push(filter.businessId);
+    clauses.push(`business_id = $${params.length}`);
+  }
+  if (filter.businessVersion !== undefined) {
+    params.push(filter.businessVersion);
+    clauses.push(`business_version = $${params.length}`);
+  }
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
   const res = await db.query<{
     tenant_id: string;
+    business_id: string | null;
+    business_version: string | null;
     slug: string;
     revision: number;
     digest: string;
     status: 'active' | 'retired';
     created_at: Date | string;
     schema_ref: unknown;
-  }>(query, params);
+  }>(
+    `SELECT tenant_id, business_id, business_version, slug, revision, digest, status, created_at, schema_ref
+       FROM legacy_workflow_schemas
+       ${where}
+       ORDER BY slug ASC, revision DESC`,
+    params,
+  );
 
   const items: WorkflowCatalogRow[] = [];
   for (const row of res.rows) {
@@ -51,6 +73,8 @@ export async function listAdminWorkflows(
       digest: row.digest,
       status: row.status,
       createdAt: typeof row.created_at === 'string' ? row.created_at : row.created_at.toISOString(),
+      ...(typeof row.business_id === 'string' ? { businessId: row.business_id } : {}),
+      ...(typeof row.business_version === 'string' ? { businessVersion: row.business_version } : {}),
       name: row.slug,
     };
 

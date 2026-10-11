@@ -1,0 +1,19 @@
+TASK: VERIFY-INDEPENDENT-AWEB08-AND-15SUITES-2026-10-09
+ROLE: Tester doc lap (khong phai implementer)
+REPO: du-rework only
+CWD: du-rework/orchestrator/services/orchestrator
+RECEIPT: du-rework/coordination/reports/verify-aweb08-and-15suites-INDEPENDENT-DSH-2026-10-09.md
+RANG BUOC: Khong sua source/test/docs, khong commit, khong git add, khong push, khong tick gate, OFFLINE (khong PostgreSQL/Redis, khong claim DB window).
+
+MUC TIEU:
+Xac minh doc lap: aweb08-per-route-flag VA leg 15 suite (6 tenant + 3 usage + 6 connector) phai XANH CUNG LUC trong 1 tien trinh duy nhat sau fix DEFAULT_ADMIN_WEB_PATH = /admin/web.
+
+LENH CHAY BAT BUOC (1 tien trinh gop 16 suites):
+cd du-rework/orchestrator/services/orchestrator
+node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/aweb08-per-route-flag.test.ts tenant-list-cursor-codec-offline tenant-list-bff-offline f5-bff-tenant-cursor-offline f6-api-key-tenant-select-offline f2-overview-tenant-select-offline f4-component-tenant-select usage-drilldown usage-aggregation usage-contracts-integration-offline admin-connector-render admin-connector-view-model bff-connectors-actions p745-connector-actions p745-connector-boot-composition p745-connector-management-proxy
+
+XAC NHAN:
+1. Do REAL_EXIT ngay sau lenh (phai la 0).
+2. Ghi ro summary Jest (so Test Suites pass/total, so Tests pass/total).
+3. Typecheck: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json (phai exit 0).
+4. Ghi toan bo bang chung vao receipt: du-rework/coordination/reports/verify-aweb08-and-15suites-INDEPENDENT-DSH-2026-10-09.md.

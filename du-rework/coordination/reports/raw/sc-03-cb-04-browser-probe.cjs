@@ -103,13 +103,13 @@ async function main() {
   });
 
   // Login through the real shell form.
-  await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="token"]', TOKEN);
   await page.click('button[type="submit"]');
   await page.waitForURL((url) => url.pathname === '/admin');
 
   /* ---------------- SC-03: secrets screen ---------------- */
-  await page.goto(`${BASE}/admin/web/secrets`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}admin/secrets`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Secrets', exact: true }).waitFor({ timeout: 15000 });
   await page.fill('#secrets-tenant', TENANT);
   await page.getByRole('button', { name: 'Refresh' }).click();
@@ -189,7 +189,7 @@ async function main() {
   await fetch(`${STUB}/__stub/mode?reset=1`);
   const modeResponse = await fetch(`${STUB}/__stub/mode?profile=fixture&profileWrite=ok`);
   check('probe: profile stub set to fixture/ok', modeResponse.ok);
-  await page.goto(`${BASE}/admin/web/profiles`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}admin/profiles`, { waitUntil: 'networkidle' });
   await page.fill('#profile-business', 'doc-core');
   await page.getByRole('button', { name: 'Load profile' }).click();
   await page.getByText(/revision \d+/).waitFor({ timeout: 15000 });

@@ -1,0 +1,11 @@
+﻿=== FULL offline sweep AFTER the pin (NODE_ENV=production, node v24.21.0) ===
+EXIT=1
+Test Suites: 2 failed, 14 skipped, 233 passed, 235 of 249 total
+Tests:       6 failed, 118 skipped, 5132 passed, 5256 total
+Time:        136.581 s
+--- FAILED suites ---
+FAIL tests/artifact-read-authorization.test.ts
+FAIL tests/public-upload-encryption-gateway.test.ts
+--- migrations.test.ts live-gate ---
+  jest.unit.config.cjs:18: 'migrations\\.test\\.ts$',
+  NO line mentioning migrations.test.ts => it did NOT run (live-gated by testPathIgnorePatterns)

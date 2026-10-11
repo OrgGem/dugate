@@ -17,7 +17,7 @@
  # ARTIFACT_S3_ENDPOINT=
  
 +# Admin Web React (AWEB-08) — xem docs/12b-deployment-guide.md §3.1
-+# DU_ADMIN_WEB=1                              # bật mount /admin/web (mặc định tắt; legacy /admin/* nguyên trạng)
++# DU_ADMIN_WEB=1                              # bật mount admin (mặc định tắt; legacy /admin/* nguyên trạng)
 +# DU_ADMIN_WEB_ROUTES=overview                # allow-list route SPA (fail-closed; mặc định = toàn bộ)
 +# DU_ADMIN_WEB_DIST=/abs/apps/admin-web/dist  # tùy chọn override bundle
 +

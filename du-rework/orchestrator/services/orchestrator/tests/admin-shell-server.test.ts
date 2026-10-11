@@ -1257,7 +1257,7 @@ describe('admin-shell-server (P6-05, deferred api-keys section)', () => {
 // data-can-cancel / data-can-resume / data-can-replay, data-wait-cas,
 // data-result-available, data-artifact-total) plus shell chrome, and
 // verifies the four fallback panes, the fetcher-input propagation, the
-// role guard (viewer allowed), and the no-fetcher-wired path.
+// tenant-scope read guard, and the no-fetcher-wired path.
 //
 // NO DB USED.
 
@@ -1570,8 +1570,8 @@ describe('admin-shell-server (P6-06, deferred operations section)', () => {
     });
   });
 
-  describe('viewer role → allowed (operations is viewer-gated)', () => {
-    it('viewer is allowed at the role guard and the deferred hook still fires', async () => {
+  describe('viewer role → denied for platform-backed operations reads', () => {
+    it('viewer has no tenant principal and cannot invoke the deferred hook', async () => {
       const ctx = operationsServerFactory({
         kind: 'ok',
         selectedOperationId: 'op_v',
@@ -1607,9 +1607,9 @@ describe('admin-shell-server (P6-06, deferred operations section)', () => {
           `http://127.0.0.1:${port}/admin/operations?operationId=op_v`,
           { headers: { cookie: `du_admin=${viewerCookie()}` } },
         );
-        expect(res.status).toBe(200);
-        expect(res.body).toContain('data-operation-selected="op_v"');
-        expect(ctx.calls.length).toBe(1);
+        expect(res.status).toBe(403);
+        expect(res.body).toContain('Access denied');
+        expect(ctx.calls.length).toBe(0);
       } finally {
         await ctx.handle.close();
       }
@@ -1858,8 +1858,8 @@ describe('admin-shell-server (P6-06, deferred operations section)', () => {
     });
   });
 
-  describe('viewer role -> allowed (overview is viewer-gated)', () => {
-    it('viewer cookie is allowed at the role guard and the deferred hook still fires', async () => {
+  describe('viewer role -> denied for platform-backed overview reads', () => {
+    it('viewer has no tenant principal and cannot invoke the deferred hook', async () => {
       const ctx = overviewServerFactory(buildOverviewOkFixture());
       const { port } = await ctx.handle.listen();
       try {
@@ -1867,10 +1867,9 @@ describe('admin-shell-server (P6-06, deferred operations section)', () => {
           `http://127.0.0.1:${port}/admin/overview?tenantId=tenant-main`,
           { headers: { cookie: `du_admin=${viewerCookie()}` } },
         );
-        expect(res.status).toBe(200);
-        expect(res.body).toContain('data-overview-tenant="tenant-main"');
-        expect(res.body).toContain('data-usage-totals-ops="12"');
-        expect(ctx.calls.length).toBe(1);
+        expect(res.status).toBe(403);
+        expect(res.body).toContain('Access denied');
+        expect(ctx.calls.length).toBe(0);
       } finally {
         await ctx.handle.close();
       }

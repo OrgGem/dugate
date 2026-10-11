@@ -1,4 +1,10 @@
-import { FILE_URL_AUTH_CIPHER_RE, FileUrlAuthConfigSchema, ProfileCallbackPolicySchema, RequestRedactionRulesSchema } from '@du/contracts';
+import {
+  CredentialAllowedOriginsSchema,
+  FILE_URL_AUTH_CIPHER_RE,
+  FileUrlAuthConfigSchema,
+  ProfileCallbackPolicySchema,
+  RequestRedactionRulesSchema,
+} from '@du/contracts';
 import type { Db } from '../../db/db';
 import type { ProfileEndpointPolicyRead } from '@du/contracts';
 
@@ -32,6 +38,8 @@ export interface ProfileDetailDbRow extends Record<string, unknown> {
   request_redaction?: unknown;
   /** CB-02: stored callback policy (migration 0036), secret refs only. */
   callback_policy?: unknown;
+  /** OR10-01: exact source credential origins, pinned with this revision. */
+  allowed_origins?: unknown;
 }
 
 export type ProfileDetailLookup =
@@ -49,7 +57,8 @@ export async function loadProfileDetail(
   const hit = await db.query<ProfileDetailDbRow>(
     `SELECT n.profile_id, a.revision, n.api_key_id,
             p.enabled, p.parameters, p.job_priority, p.allowed_file_extensions,
-            p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy
+            p.connections_override, p.file_url_auth_cipher, p.request_redaction, p.callback_policy,
+            p.allowed_origins
        FROM profile_names n
        JOIN profile_active_revisions a ON a.profile_id = n.profile_id
        JOIN profile_bindings p
@@ -76,6 +85,7 @@ export const EMPTY_PROFILE_POLICY_READ: ProfileEndpointPolicyRead = {
   jobPriority: 'MEDIUM',
   allowedFileExtensions: '',
   fileUrlAuthConfigured: false,
+  allowedOrigins: [],
   connectionsOverride: [],
   callbackPolicy: null,
 };
@@ -125,6 +135,20 @@ export function profileDetailPolicyRead(row: ProfileDetailDbRow): ProfileEndpoin
     ? null : ProfileCallbackPolicySchema.safeParse(row.callback_policy);
   const callbackPolicy = storedCallback?.success ? storedCallback.data : null;
   const callbackPolicyInvalid = storedCallback !== null && !storedCallback.success;
+  let storedAllowedOrigins = row.allowed_origins;
+  let allowedOriginsJsonInvalid = false;
+  if (typeof storedAllowedOrigins === 'string') {
+    try {
+      storedAllowedOrigins = JSON.parse(storedAllowedOrigins) as unknown;
+    } catch {
+      allowedOriginsJsonInvalid = true;
+    }
+  }
+  const parsedAllowedOrigins = CredentialAllowedOriginsSchema.safeParse(
+    allowedOriginsJsonInvalid
+      ? null
+      : storedAllowedOrigins === null || storedAllowedOrigins === undefined ? [] : storedAllowedOrigins
+  );
   return {
     enabled: typeof row.enabled === 'boolean' ? row.enabled : true,
     parameters: normalizeParameters(row.parameters),
@@ -132,10 +156,12 @@ export function profileDetailPolicyRead(row: ProfileDetailDbRow): ProfileEndpoin
     allowedFileExtensions:
       typeof row.allowed_file_extensions === 'string' ? row.allowed_file_extensions : '',
     fileUrlAuthConfigured: fileUrlAuthConfigured(row.file_url_auth_cipher),
+    allowedOrigins: parsedAllowedOrigins.success ? parsedAllowedOrigins.data : [],
     connectionsOverride: Array.isArray(row.connections_override) ? row.connections_override : [],
     ...(row.request_redaction !== undefined ? { requestRedaction: RequestRedactionRulesSchema.parse(row.request_redaction) } : {}),
     callbackPolicy,
     ...(callbackPolicyInvalid ? { callbackPolicyInvalid: true as const } : {}),
+    ...(!parsedAllowedOrigins.success ? { allowedOriginsInvalid: true as const } : {}),
   };
 }
 

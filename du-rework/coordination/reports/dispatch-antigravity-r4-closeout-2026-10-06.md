@@ -32,7 +32,7 @@
 | # | Task | Done criteria |
 |---|---|---|
 | C1 | VFY-06: encrypt-on-write call-sites S3 + từng DB blob column (+ migration refs); đọc ciphertext-only từ PG/S3 (không plaintext); boot matrix thiếu `ENCRYPTION_KEY` / Vault token / Vault unreachable → refuse boot (log excerpt, không secret) | ciphertext proof + 3 boot cases |
-| C2 | VFY-SC-01: audit GET/response `/admin/web/secrets` + mọi API trả object chứa secret → redacted/masked; KV2 resolver negative paths (Vault down / denied → fail-closed, không fallback plaintext) | readback audit + negative tests |
+| C2 | VFY-SC-01: audit GET/response `admin/secrets` + mọi API trả object chứa secret → redacted/masked; KV2 resolver negative paths (Vault down / denied → fail-closed, không fallback plaintext) | readback audit + negative tests |
 | C3 | VFY-CB-01: dispatcher wiring proof mode → auth → send → receipt cả `notification_only` + `notification_with_result`; OAuth2 live/recorded VFY (token fetch/expiry/retry, không credential thật); migration 0035 apply/rollback + immutable-snapshot check | e2e evidence |
 | C4 | OpenAPI v1.4.0: recount từ file `docs/21-openapi.json` (claimed 58 paths / 62 ops / 51 schemas) + generator provenance `codex_arch` | số đếm lại + provenance |
 

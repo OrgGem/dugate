@@ -2,7 +2,7 @@
 
 Yêu cầu trực tiếp của người dùng ngày 2026-10-05: kiểm tra input của Orchestrator Admin UI, chuyển layout sang left navigator; header chỉ chứa logo, thời gian và tài khoản (Profile, Logout).
 
-Phạm vi implementation: React Admin Web tại `/admin/web/*`. Renderer cũ tại `/admin/*` vẫn là fallback hiện có; không đổi route rollout flags. Đây là packet do người dùng giao trực tiếp, không dispatch hoặc thay active coordinator ledger.
+Phạm vi implementation: React Admin Web tại `admin/*`. Renderer cũ tại `/admin/*` vẫn là fallback hiện có; không đổi route rollout flags. Đây là packet do người dùng giao trực tiếp, không dispatch hoặc thay active coordinator ledger.
 
 ## Acceptance và đường đi
 

@@ -40,6 +40,9 @@ export interface ResolveLegacyWorkflowSchemaQuery {
 export interface ProvisionLegacyWorkflowSchemaInput {
   readonly tenantId: string;
   readonly schema: unknown;
+  /** Optional business owner. Omitted on a later revision carries the owner forward. */
+  readonly businessId?: string | null;
+  readonly businessVersion?: string | null;
   /** Exact administrator-approved HTTPS origins for callback/download nodes. */
   readonly approvedEgressOrigins?: readonly string[];
   /** Compare-and-swap against the active revision; null asserts no active row. */
@@ -53,6 +56,8 @@ interface CatalogRow {
   digest: string;
   schema_ref: unknown;
   status: 'active' | 'retired';
+  business_id?: string | null;
+  business_version?: string | null;
 }
 
 const CATALOG_SLOT = 'legacy_workflow_schemas.schema_ref' as const;
@@ -226,13 +231,57 @@ export async function provisionLegacyWorkflowSchema(
   // calls remain outside the transaction; a revision race is detected under
   // the advisory lock and fails as a clean compare-and-swap conflict.
   const previous = await db.query<CatalogRow>(
-    `SELECT tenant_id, slug, revision, digest, schema_ref, status
+    `SELECT tenant_id, slug, revision, digest, schema_ref, status, business_id, business_version
      FROM legacy_workflow_schemas WHERE tenant_id=$1 AND slug=$2 AND status='active'`,
     [input.tenantId, schema.slug],
   );
   const observedRevision = previous.rowCount ? Number(previous.rows[0]!.revision) : null;
   if (input.expectedRevision !== undefined && input.expectedRevision !== observedRevision) {
     throw new LegacyWorkflowSchemaCatalogError('SCHEMA_REVISION_CONFLICT', 'Workflow schema active revision changed');
+  }
+  const priorBusinessId = previous.rowCount ? previous.rows[0]!.business_id ?? null : null;
+  const priorBusinessVersion = previous.rowCount ? previous.rows[0]!.business_version ?? null : null;
+  const hasBusinessAssociation = input.businessId !== undefined || input.businessVersion !== undefined;
+  if (hasBusinessAssociation && (input.businessId === undefined || input.businessVersion === undefined)) {
+    throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Business association requires both businessId and businessVersion');
+  }
+  const requestedBusinessId = hasBusinessAssociation && typeof input.businessId === 'string'
+    ? input.businessId.trim()
+    : null;
+  const requestedBusinessVersion = hasBusinessAssociation && typeof input.businessVersion === 'string'
+    ? input.businessVersion.trim()
+    : null;
+  if (hasBusinessAssociation && ((requestedBusinessId === null) !== (requestedBusinessVersion === null))) {
+    throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Business association requires both businessId and businessVersion');
+  }
+  if (requestedBusinessId !== null && (requestedBusinessId.length === 0 || requestedBusinessId.length > 256)) {
+    throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Business identity is invalid');
+  }
+  if (requestedBusinessVersion !== null && (requestedBusinessVersion.length === 0 || requestedBusinessVersion.length > 128)) {
+    throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Business version is invalid');
+  }
+  const businessId = hasBusinessAssociation ? requestedBusinessId : priorBusinessId;
+  const businessVersion = hasBusinessAssociation ? requestedBusinessVersion : priorBusinessVersion;
+  if (priorBusinessId !== null && (businessId !== priorBusinessId || businessVersion !== priorBusinessVersion)) {
+    throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Workflow business ownership cannot change after assignment');
+  }
+  if (businessId !== null) {
+    // WFA/BIZ-05: an association to a version that cannot receive submissions
+    // is metadata drift, so refuse it while the version is drained. Operators
+    // must activate the version first (business.activate). This is the same
+    // flag admission filters on (is_active=true), so the two gates cannot
+    // disagree.
+    const business = await db.query(
+      'SELECT is_active FROM business_versions WHERE business_id=$1 AND version=$2 LIMIT 1',
+      [businessId, businessVersion],
+    );
+    const registered = business.rows[0] as { is_active: boolean } | undefined;
+    if (registered === undefined) {
+      throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Workflow business version is not registered');
+    }
+    if (!registered.is_active) {
+      throw new LegacyWorkflowSchemaCatalogError('SCHEMA_INVALID', 'Workflow business version is not the active version; activate it via the admin API before binding a workflow');
+    }
   }
   let priorMap: Record<string, string> | undefined;
   let priorOrigins: string[] | undefined;
@@ -320,9 +369,10 @@ export async function provisionLegacyWorkflowSchema(
       [input.tenantId, schema.slug],
     );
     await client.query(
-      `INSERT INTO legacy_workflow_schemas (tenant_id, slug, revision, digest, schema_ref, status)
-       VALUES ($1,$2,$3,$4,$5::jsonb,'active')`,
-      [input.tenantId, schema.slug, revision, digest, JSON.stringify(sealed)],
+      `INSERT INTO legacy_workflow_schemas
+         (tenant_id, slug, revision, digest, schema_ref, status, business_id, business_version)
+       VALUES ($1,$2,$3,$4,$5::jsonb,'active',$6,$7)`,
+      [input.tenantId, schema.slug, revision, digest, JSON.stringify(sealed), businessId, businessVersion],
     );
     return LegacyWorkflowSchemaPinSchema.parse({
       tenantId: input.tenantId,

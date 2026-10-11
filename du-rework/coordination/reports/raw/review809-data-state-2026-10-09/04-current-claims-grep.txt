@@ -1,0 +1,4 @@
+﻿COMMAND: rg -n 'Trong backfill window hiện tại|8 slot|step_checkpoints.session_ref|AAD bind' du-rework/docs/04-data-state.md
+93:- Trong backfill window hiện tại, Metadata DB vẫn có thể chứa nội dung legacy ở dạng plaintext-readable theo backfill best-effort; chỉ sau khi window switch và backfill hoàn tất mới chỉ chứa sealed envelope, hash và metadata không nhạy cảm.
+100:Metadata/control-plane encryption giờ có **8 slot** được seal (`METADATA_SLOTS`, `orchestrator/services/orchestrator/src/modules/runtime/metadata-crypto.ts`): `operations.input_ref`, `tasks.payload_ref`, `human_waits.response_ref`, `step_checkpoints.output_ref`, **`step_checkpoints.session_ref`**, `operations.prompt_overrides_ref` (carrier Δ-PC-1) và **`tasks.result_ref` + `operations.result_ref`** (ENCMETA-RESULTREF, Option A — hai slot vì cùng một chuỗi nằm ở HAI row; AAD bind `(tenant, slot, refId)` nên replay chéo row ⇒ `CONTEXT_MISMATCH`).
+REAL_EXIT=0

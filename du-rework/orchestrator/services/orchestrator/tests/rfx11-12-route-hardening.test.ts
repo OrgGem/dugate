@@ -11,11 +11,9 @@
  * `NODE_ENV=development` boot), while a production boot with no base URL
  * answers the relative path and never echoes the Host.
  *
- * RFX-12 (P2, ops-honesty): `PUT /api/runtime/v1/workers/:instanceId/heartbeat`
- * is a compat stub with no state behind it. It must not report 'HEALTHY'
- * (autoscalers/operators would act on fabricated data); the ack is parsed
- * against the published `HeartbeatAckSchema` so it can never drift out of the
- * worker-SDK wire contract.
+ * AWEB-11C: `PUT /api/runtime/v1/workers/:instanceId/heartbeat` persists a
+ * real worker instance and active lease count; its ack is parsed against the
+ * published `HeartbeatAckSchema` so it cannot drift from the worker SDK.
  *
  * Offline: `route()` is driven directly with a hand-built RouteContext (the
  * br12-isolation-offline pattern); no DB, no Redis, no sockets.
@@ -51,7 +49,12 @@ function makeCtx(overrides: {
     rawBody: Buffer.alloc(0),
     correlationId: 'rfx11-route-test',
     host: GRANT_HOST_PLACEHOLDER,
-    db: { query: jest.fn(async () => ({ rows: [], rowCount: 0 })) },
+    db: {
+      query: jest.fn(async () => ({
+        rows: [{ state: 'ONLINE', last_seen_at: new Date() }],
+        rowCount: 1,
+      })),
+    },
     redis: {} as never,
     registry: {} as never,
     profiles: {} as never,
@@ -201,18 +204,29 @@ describe('RFX-11: artifact grant URLs never trust the request Host in production
   });
 });
 
-describe('RFX-12: worker heartbeat ack is an honest compat stub', () => {
-  it('answers the published schema with DEGRADED and touches no runtime state', async () => {
-    const ctx = makeCtx({ method: 'PUT', pathname: HEARTBEAT_PATH, body: { businessId: 'business-a' } });
+describe('AWEB-11C: worker heartbeat persists real instance telemetry', () => {
+  it('answers the published schema after recording a real heartbeat', async () => {
+    const ctx = makeCtx({
+      method: 'PUT',
+      pathname: HEARTBEAT_PATH,
+      body: {
+        businessId: 'business-a',
+        businessVersion: '1.0.0',
+        imageDigest: 'sha256:test',
+        capacity: 1,
+      },
+    });
     const result = await route(ctx);
     expect(result.status).toBe(200);
     const ack = result.body as { health: string; leaseExpiresAt: string; capacity: number };
-    expect(ack.health).toBe('DEGRADED');
-    expect(ack.health).not.toBe('HEALTHY');
+    expect(ack.health).toBe('HEALTHY');
     // Wire-contract lock: the worker SDK zod-parses this exact schema.
     expect(HeartbeatAckSchema.safeParse(ack).success).toBe(true);
     expect(new Date(ack.leaseExpiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(ack.capacity).toBe(1);
-    expect(ctx.db.query as jest.Mock).not.toHaveBeenCalled();
+    expect(ctx.db.query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO worker_instances'),
+      ['business-a', 'worker-1', '1.0.0', 1],
+    );
   });
 });

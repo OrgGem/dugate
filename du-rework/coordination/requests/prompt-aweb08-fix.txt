@@ -1,0 +1,31 @@
+TASK: TASK-AWEB08-RESTORE-DEFAULT-PATH-2026-10-09
+REPO: du-rework only
+PLAN: coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md
+EXACT PATH LEASE: du-rework/orchestrator/services/orchestrator/src/app/admin/shell-server.ts
+RECEIPT: du-rework/coordination/reports/receipt-aweb08-default-path-2026-10-09.md
+RANG BUOC: Khong commit, khong git add, khong git checkout, khong sua file nao ngoai lease tren.
+
+MUC TIEU:
+Sua regression aweb08-per-route-flag do DEFAULT_ADMIN_WEB_PATH bi doi thanh admin.
+
+CAC BUOC THUC HIEN:
+1. Chay test fail-first truoc khi sua:
+cd du-rework/orchestrator/services/orchestrator
+node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/aweb08-per-route-flag.test.ts
+Xac nhan exit 1 va 3 failed, 4 passed, 7 total.
+
+2. Sua duy nhat dong 332 trong src/app/admin/shell-server.ts:
+Doi: const DEFAULT_ADMIN_WEB_PATH = 'admin';
+Thanh: const DEFAULT_ADMIN_WEB_PATH = '/admin/web';
+CHU Y: GIU NGUYEN toan bo phan sua 00:10:34 (BFF check dung truoc admin-web trong handler va guard isBffPath trong isAdminWebPath).
+
+3. Chay lai test:
+node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/aweb08-per-route-flag.test.ts
+Xac nhan exit 0 va 7 passed, 7 total.
+
+4. Typecheck:
+node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+Xac nhan exit 0.
+
+5. Ghi receipt vao du-rework/coordination/reports/receipt-aweb08-default-path-2026-10-09.md ghi ro lenh chay, exit code truoc va sau sua, diff git tren shell-server.ts.
+Khong tu nhan la verify hoan tat, chi ghi smoke receipt de agent doc lap verify.

@@ -34,7 +34,7 @@ export interface PinnedFetchOptions {
   /** Exact IP-literal opt-ins honored; a listed NAME never skips answer adjudication. */
   allowHosts?: ReadonlySet<string>;
   /** Resolver seam (tests + callers with a pre-adjudicated answer cache). Default: dns promises, all answers. */
-  resolve?: (host: string) => Promise<string[]>;
+  resolve?: (host: string, signal?: AbortSignal) => Promise<string[]>;
   /**
    * CYCLE-101: optional HARD deadline for establishing the response (headers phase).
    * When it fires the socket is destroyed and the promise rejects with a
@@ -49,6 +49,49 @@ export class DestinationDeniedError extends Error {
     super(message);
     this.name = 'DestinationDeniedError';
   }
+}
+
+function abortError(): Error {
+  return Object.assign(new Error('pinned fetch aborted'), { name: 'AbortError' });
+}
+
+function resolveUntilAbort(
+  resolver: (host: string, signal?: AbortSignal) => Promise<string[]>,
+  host: string,
+  signal: AbortSignal | null | undefined,
+): Promise<string[]> {
+  if (!signal) return resolver(host);
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<string[]>((fulfill, reject) => {
+    let settled = false;
+    const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      reject(abortError());
+    };
+    const onResolved = (answers: string[]): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      fulfill(answers);
+    };
+    const onRejected = (error: unknown): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      reject(error);
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    Promise.resolve()
+      .then(() => resolver(host, signal))
+      .then(onResolved, onRejected);
+  });
 }
 
 type HeaderRecord = Record<string, string>;
@@ -162,7 +205,7 @@ export function buildDialOptions(spec: DialOptionSpec): Record<string, unknown> 
 }
 
 export function createPinnedFetch(options: PinnedFetchOptions = {}): typeof fetch {
-  const resolve =
+  const resolve: NonNullable<PinnedFetchOptions['resolve']> =
     options.resolve ??
     (async (host: string) => (await dnsPromises.lookup(host, { all: true })).map((entry) => entry.address));
 
@@ -178,10 +221,8 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}): typeof fetc
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
       throw new DestinationDeniedError('pinned fetch: non-http(s) protocol');
     }
-    const headers = collectHeaders(init);
-    const prepared = await prepareBody(init?.body);
-    if (prepared.reject) throw new DestinationDeniedError('pinned fetch: ' + prepared.reject);
-    if (prepared.multipart) headers['content-type'] = 'multipart/form-data; boundary=' + prepared.multipart.boundary;
+    const signal = init?.signal;
+    if (signal?.aborted) throw abortError();
 
     const hostNoPort = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
     const port = url.port !== '' ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
@@ -200,8 +241,9 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}): typeof fetc
     if (!literal) {
       let answers: string[];
       try {
-        answers = await resolve(hostNoPort);
+        answers = await resolveUntilAbort(resolve, hostNoPort, signal);
       } catch (err) {
+        if (signal?.aborted) throw abortError();
         // CYCLE-101: resolver failure is a SANITIZED denial-shaped error (never a raw
         // dns message reaching caller logs), and connect provably never happened.
         const code = (err as NodeJS.ErrnoException).code ?? (err instanceof Error ? err.name : 'Error');
@@ -218,86 +260,122 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}): typeof fetc
       }
       candidates = Array.from(new Set(answers));
     }
+    if (signal?.aborted) throw abortError();
     if (candidates.length === 0) candidates = [hostNoPort];
     candidates.sort((a, b) => (isIP(a) === 4 ? 0 : 1) - (isIP(b) === 4 ? 0 : 1));
+
+    // Destination policy and DNS pinning finish before touching/serializing the
+    // request body. This keeps rejected destinations ahead of credential work.
+    const headers = collectHeaders(init);
+    const prepared = await prepareBody(init?.body);
+    if (prepared.reject) throw new DestinationDeniedError('pinned fetch: ' + prepared.reject);
+    if (prepared.multipart) headers['content-type'] = 'multipart/form-data; boundary=' + prepared.multipart.boundary;
+    if (signal?.aborted) throw abortError();
 
     headers.host = url.host;
     if (!('accept-encoding' in headers)) headers['accept-encoding'] = 'gzip, deflate, br';
 
     const attemptOne = (dialHost: string): Promise<Response> => new Promise<Response>((fulfill, reject) => {
       const transport = url.protocol === 'https:' ? httpsRequest : httpRequest;
+      const requestMethod = init?.method ?? 'GET';
       const req: ClientRequest = transport(
         buildDialOptions({
           isHttps: url.protocol === 'https:',
           dialHost,
           port,
           hostNoPort,
-          method: init?.method ?? 'GET',
+          method: requestMethod,
           path: url.pathname + url.search,
           headers,
         }),
         (res) => {
-          if (deadlineTimer) clearTimeout(deadlineTimer);
-          const status = res.statusCode ?? 0;
-          const rawLocation = res.headers.location;
-          const location = typeof rawLocation === 'string' && rawLocation.length > 0 ? rawLocation : undefined;
-          if (status >= 300 && status < 400 && location !== undefined) {
-            // CYCLE-103 redirect-hop boundary: egress never FOLLOWED a redirect
-            // (Node-core manual semantics), but returning a 3xx that points at
-            // private/loopback/link-local/metadata space hands every naive caller
-            // upstream an internal-address follow vector. So the hop is adjudicated
-            // HERE: internal targets are destroyed+denied; public 3xx pass through
-            // untouched for the caller's own redirect policy.
-            void (async (): Promise<void> => {
-              let hop: URL;
-              try {
-                hop = new URL(location, url);
-              } catch {
-                req.destroy();
-                reject(new DestinationDeniedError('pinned fetch: redirect location is unparseable'));
-                return;
-              }
-              const decision2 = adjudicateUrlDestination(hop.toString(), {
-                allowHosts: options.allowHosts,
-                allowPrivateNetworks: options.allowPrivateNetworks,
-              });
-              if (decision2.kind === 'DENIED') {
-                req.destroy();
-                reject(new DestinationDeniedError('pinned fetch: redirect hop to blocked destination (' + decision2.reason + ')'));
-                return;
-              }
-              if (decision2.kind === 'NEEDS_RESOLUTION' && decision2.host) {
-                let answers: string[];
+          try {
+            if (deadlineTimer) clearTimeout(deadlineTimer);
+            const status = res.statusCode ?? 0;
+            const rawLocation = res.headers.location;
+            const location = typeof rawLocation === 'string' && rawLocation.length > 0 ? rawLocation : undefined;
+            if (status >= 300 && status < 400 && location !== undefined) {
+              // CYCLE-103 redirect-hop boundary: egress never FOLLOWED a redirect
+              // (Node-core manual semantics), but returning a 3xx that points at
+              // private/loopback/link-local/metadata space hands every naive caller
+              // upstream an internal-address follow vector. So the hop is adjudicated
+              // HERE: internal targets are destroyed+denied; public 3xx pass through
+              // untouched for the caller's own redirect policy.
+              void (async (): Promise<void> => {
+                let hop: URL;
                 try {
-                  answers = await resolve(decision2.host);
-                } catch (err) {
-                  req.destroy();
-                  reject(new DestinationDeniedError('pinned fetch: redirect hop dns resolution failed (' + String((err as NodeJS.ErrnoException).code ?? 'Error') + ')'));
+                  hop = new URL(location, url);
+                } catch {
+                  failResponse(res, new DestinationDeniedError('pinned fetch: redirect location is unparseable'));
                   return;
                 }
-                if (!Array.isArray(answers) || !answers.every((a) => isDestinationAddressAllowed(a, options))) {
-                  req.destroy();
-                  reject(new DestinationDeniedError('pinned fetch: redirect hop resolves to a blocked destination'));
+                const decision2 = adjudicateUrlDestination(hop.toString(), {
+                  allowHosts: options.allowHosts,
+                  allowPrivateNetworks: options.allowPrivateNetworks,
+                });
+                if (decision2.kind === 'DENIED') {
+                  failResponse(res, new DestinationDeniedError('pinned fetch: redirect hop to blocked destination (' + decision2.reason + ')'));
                   return;
                 }
-              }
-              fulfillResponse(res, status);
-            })();
-            return;
+                if (decision2.kind === 'NEEDS_RESOLUTION' && decision2.host) {
+                  let answers: string[];
+                  try {
+                    answers = await resolveUntilAbort(resolve, decision2.host, signal);
+                  } catch (err) {
+                    if (signal?.aborted) {
+                      failResponse(res, abortError());
+                      return;
+                    }
+                    failResponse(res, new DestinationDeniedError('pinned fetch: redirect hop dns resolution failed (' + String((err as NodeJS.ErrnoException).code ?? 'Error') + ')'));
+                    return;
+                  }
+                  if (!Array.isArray(answers) || !answers.every((a) => isDestinationAddressAllowed(a, options))) {
+                    failResponse(res, new DestinationDeniedError('pinned fetch: redirect hop resolves to a blocked destination'));
+                    return;
+                  }
+                }
+                if (signal?.aborted) {
+                  failResponse(res, abortError());
+                  return;
+                }
+                fulfillResponse(res, status);
+              })().catch((err: unknown) => failResponse(res, err));
+              return;
+            }
+            fulfillResponse(res, status);
+          } catch (err) {
+            failResponse(res, err);
           }
-          fulfillResponse(res, status);
         }
       );
       function fulfillResponse(response: IncomingMessage, responseStatus: number): void {
-        const decoded = unwrapEncoding(response, response);
-        const web = Readable.toWeb(decoded as unknown as Readable) as unknown as ReadableStream;
-        fulfill(
-          new Response(web, {
+        try {
+          const responseInit = {
             status: responseStatus,
             statusText: response.statusMessage ?? undefined,
             headers: responseHeaders(response),
-          })
-        );
+          };
+          const hasNoBody = requestMethod.toUpperCase() === 'HEAD' || [204, 205, 304].includes(responseStatus);
+          if (hasNoBody) {
+            // These responses have no Fetch body. Drain the Node response so its
+            // socket can be reused, and consume stream errors instead of leaving an
+            // unhandled IncomingMessage error behind after resolving the Response.
+            response.once('error', (err) => {
+              if (deadlineTimer) clearTimeout(deadlineTimer);
+              signal?.removeEventListener('abort', onAbort);
+              req.destroy();
+              reject(err);
+            });
+            response.resume();
+            fulfill(new Response(null, responseInit));
+            return;
+          }
+          const decoded = unwrapEncoding(response, response);
+          const web = Readable.toWeb(decoded as unknown as Readable) as unknown as ReadableStream;
+          fulfill(new Response(web, responseInit));
+        } catch (err) {
+          failResponse(response, err);
+        }
       }
       // CYCLE-101 deadlines: caller signal (AbortError) AND optional timeoutMs
       // (TimeoutError) both DESTROY the socket — no orphan connection survives either
@@ -321,6 +399,16 @@ export function createPinnedFetch(options: PinnedFetchOptions = {}): typeof fetc
       if (signal) {
         if (signal.aborted) onAbort();
         else signal.addEventListener('abort', onAbort, { once: true });
+      }
+      function failResponse(response: IncomingMessage, err: unknown): void {
+        if (deadlineTimer) clearTimeout(deadlineTimer);
+        signal?.removeEventListener('abort', onAbort);
+        // Destroy both sides of the exchange when response conversion or redirect
+        // adjudication fails. This prevents a paused response from retaining a
+        // socket while the returned Promise rejects.
+        response.destroy();
+        req.destroy();
+        reject(err);
       }
       req.on('error', (err) => {
         if (deadlineTimer) clearTimeout(deadlineTimer);

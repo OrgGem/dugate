@@ -1,0 +1,10 @@
+﻿=== LENH 1: 3 lan lien tiep, node v24.21.0, NODE_ENV=[production] (ambient) ===
+RUN 1 : REAL_EXIT=1
+        Test Suites: 1 failed, 1 total
+        Tests:       1 failed, 11 passed, 12 total
+RUN 2 : REAL_EXIT=1
+        Test Suites: 1 failed, 1 total
+        Tests:       1 failed, 11 passed, 12 total
+RUN 3 : REAL_EXIT=1
+        Test Suites: 1 failed, 1 total
+        Tests:       1 failed, 11 passed, 12 total

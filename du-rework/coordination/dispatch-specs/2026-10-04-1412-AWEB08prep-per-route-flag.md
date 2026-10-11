@@ -8,7 +8,7 @@ Chuẩn bị hạ tầng cutover từng route (AWEB-08) **mà chưa gỡ rendere
 
 1. **Per-route flag**: mở rộng cơ chế `DU_ADMIN_WEB` hiện có (mount toàn app) thành cho phép **bật/tắt theo route** cho các route mới (`overview, profiles, api-keys, connectors, operations, businesses, usage, security, identity, settings`) — ví dụ env `DU_ADMIN_WEB_ROUTES` (allow-list, default = hành vi hiện tại: toàn bộ hoặc tắt theo `DU_ADMIN_WEB`); route không nằm allow-list → SPA trả not-found nhất quán HOẶC fallback legacy (chọn theo contract "route chưa chuyển tiếp tục dùng renderer hiện tại" — ghi rõ quyết định trong receipt).
    - Không đổi hành vi khi env vắng; test cho: mặc định, allow-list một phần, route ngoài allow-list.
-2. **Rollout matrix (trong receipt)**: bảng route → UI verdict hiện có (`UI_APPROVED` `/admin/web`+`/overview`; các route khác chờ review packet #2) → điều kiện cutover (UI_APPROVED + service conditions) → trạng thái bật/tắt hiện tại.
+2. **Rollout matrix (trong receipt)**: bảng route → UI verdict hiện có (`UI_APPROVED` `admin`+`/overview`; các route khác chờ review packet #2) → điều kiện cutover (UI_APPROVED + service conditions) → trạng thái bật/tắt hiện tại.
 3. **Docs**: cập nhật `apps/admin-web/README.md` (flag + cách chạy + serve); ghi doc-note cho docs khác trong receipt (không sửa `docs/**`).
 4. Regression: jest 59+ xanh (thêm case flag), build/typecheck; **không gỡ file/renderer nào**.
 

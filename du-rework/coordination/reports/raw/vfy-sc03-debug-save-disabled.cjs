@@ -7,12 +7,12 @@ const TENANT = '11111111-1111-4111-8111-111111111111';
 async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
-  await page.goto(BASE + '/admin/web', { waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + 'admin', { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="token"]', TOKEN);
   await page.click('button[type="submit"]');
   await page.waitForURL((u) => u.pathname === '/admin');
 
-  await page.goto(BASE + '/admin/web/secrets', { waitUntil: 'networkidle' });
+  await page.goto(BASE + 'admin/secrets', { waitUntil: 'networkidle' });
   await page.fill('#secrets-tenant', TENANT);
   await page.getByRole('button', { name: 'New secret' }).click();
   await page.getByRole('radio', { name: 'Vault reference' }).click();

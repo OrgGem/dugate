@@ -1,0 +1,24 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\apps\admin-web
+command: pnpm --filter @du/admin-web typecheck
+exit: 0
+--- output ---
+../../..                                 | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../../businesses/document-core        | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../../businesses/example-review       | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../../businesses/lc-checker           | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+.                                        | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../packages/connector-client          | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../packages/contracts                 | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../packages/document-kit              | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../packages/egress                    | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../packages/observability             | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../packages/worker-sdk                | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../services/connector                 | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../services/orchestrator              | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../../tests/browser                   | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../../tests/integration               | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+../../../tests/login                     | ΓÇëWARNΓÇë Unsupported engine: wanted: {"node":">=24.21.0 <25"} (current: {"node":"v22.16.0","pnpm":"10.18.3"})
+
+> @du/admin-web@0.0.0 typecheck D:\Git\dugate\du-rework\orchestrator\apps\admin-web
+> tsc --noEmit -p tsconfig.json
+

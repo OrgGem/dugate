@@ -3,6 +3,7 @@ import { SAFE_LOG_MESSAGES } from './log-events';
 
 const IDENTIFIERS = new Set([
   'service', 'version', 'environment', 'level', 'correlationId', 'operationId', 'taskId', 'invocationId',
+  'origin',
   'tenantId', 'businessId', 'businessVersion', 'stepKey', 'workerInstanceId', 'queueName', 'subsystem',
   'action', 'state', 'status', 'kind', 'code', 'errorCode', 'errorClass', 'errorName', 'reason', 'event',
   'method', 'routeId', 'component', 'slot', 'handlerKind', 'signal',

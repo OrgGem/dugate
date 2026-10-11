@@ -52,7 +52,7 @@ export const OPERATIONS_LIST_LIMIT_DEFAULT = 20;
 export const OPERATIONS_LIST_LIMIT_MAX = 100;
 
 /**
- * The six names the route reads. Everything else is ignored: the route never
+ * The eight names the route reads. Everything else is ignored: the route never
  * echoes an unknown parameter, so this array is the allow-list, not a hint.
  */
 export const OPERATIONS_LIST_QUERY_PARAMS = [
@@ -62,6 +62,8 @@ export const OPERATIONS_LIST_QUERY_PARAMS = [
   'tenant',
   'id',
   'sort',
+  'from',
+  'to',
 ] as const;
 export type OperationsListQueryParam = (typeof OPERATIONS_LIST_QUERY_PARAMS)[number];
 
@@ -213,6 +215,14 @@ export const ListOperationsQuerySchema = z
     state: OperationsStateFilterSchema.optional(),
     tenant: z.string().regex(OPERATIONS_LIST_TOKEN_PATTERN).optional(),
     id: z.string().regex(OPERATIONS_LIST_TOKEN_PATTERN).optional(),
+    from: z.string().refine(
+      (value) => value.trim() === '' || isAdminListTimeBound(value.trim()),
+      { message: 'from must be a UTC ISO timestamp' },
+    ).optional(),
+    to: z.string().refine(
+      (value) => value.trim() === '' || isAdminListTimeBound(value.trim()),
+      { message: 'to must be a UTC ISO timestamp' },
+    ).optional(),
     // Same predicate the route uses, so the schema cannot accept a sort value
     // the route would reject. It stays a string to the caller: narrowing it to
     // the pair is parseOperationsListSort's job, and it does it identically.
@@ -476,6 +486,37 @@ export const AdminBusinessListQuerySchema = z.object({
   sort: AdminResourceListSortSchema.default(ADMIN_RESOURCE_LIST_SORT_DEFAULT),
 }).strict();
 
+/** Tenant-owned logical business catalog; kept separate from the global legacy list. */
+export const TENANT_BUSINESS_CATALOG_CURSOR_MAX_LEN = 1024;
+export const TENANT_BUSINESS_CATALOG_QUERY_PARAMS = ['limit', 'cursor', 'sort', 'q'] as const;
+export type TenantBusinessCatalogQueryParam = (typeof TENANT_BUSINESS_CATALOG_QUERY_PARAMS)[number];
+export const TenantBusinessCatalogQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(ADMIN_LIST_LIMIT_MAX).default(ADMIN_LIST_LIMIT_DEFAULT),
+  cursor: z.string().min(1).max(TENANT_BUSINESS_CATALOG_CURSOR_MAX_LEN).optional(),
+  sort: AdminResourceListSortSchema.default(ADMIN_RESOURCE_LIST_SORT_DEFAULT),
+  q: z.string().max(128).optional(),
+}).strict();
+export type TenantBusinessCatalogQuery = z.infer<typeof TenantBusinessCatalogQuerySchema>;
+
+export const TenantBusinessCatalogItemSchema = z.object({
+  businessId: z.string().min(1),
+  displayName: z.string().min(1),
+  latestVersion: z.string().nullable(),
+  latestStatus: z.string().nullable(),
+  activeVersion: z.string().nullable(),
+  versionCount: z.number().int().min(0),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict();
+export const TenantBusinessCatalogPageSchema = z.object({
+  items: z.array(TenantBusinessCatalogItemSchema),
+  nextCursor: z.string().max(TENANT_BUSINESS_CATALOG_CURSOR_MAX_LEN).nullable(),
+  prevCursor: z.string().max(TENANT_BUSINESS_CATALOG_CURSOR_MAX_LEN).nullable(),
+  total: z.number().int().min(0),
+  limit: z.number().int().min(1).max(ADMIN_LIST_LIMIT_MAX),
+  generatedAt: z.string().datetime(),
+}).strict();
+
 export const ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS = ['limit', 'cursor', 'sort'] as const;
 export type AdminBusinessVersionListQueryParam = (typeof ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS)[number];
 export const AdminBusinessVersionListQuerySchema = AdminBusinessListQuerySchema;
@@ -531,6 +572,18 @@ export function isAdminListTimeBound(value: string): boolean {
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return false;
   return new Date(parsed).toISOString().slice(0, 19) === value.slice(0, 19);
+}
+
+/** Compare validated UTC bounds without losing their optional microseconds. */
+export function compareAdminListTimeBounds(left: string, right: string): number {
+  const normalize = (value: string): string => {
+    const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?Z$/.exec(value);
+    if (!match) return value;
+    return `${match[1]}.${(match[2] ?? '').padEnd(6, '0')}Z`;
+  };
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  return normalizedLeft < normalizedRight ? -1 : normalizedLeft > normalizedRight ? 1 : 0;
 }
 
 /** Severity bucket written by the ledger (see migrations/0010). */

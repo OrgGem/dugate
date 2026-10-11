@@ -126,6 +126,11 @@ function startStub(port: number): Promise<Stub> {
         res.end(JSON.stringify({ items: [], nextCursor: null, prevCursor: null, total: 0, limit: 50 }));
         return;
       }
+      if (url.pathname === '/api/v1/admin/worker-instances') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ items: [], sampledAt: '2026-10-10T00:00:00.000Z', truncated: false }));
+        return;
+      }
       if (/^\/api\/v1\/admin\/businesses\/[^/]+\/versions/.test(url.pathname)) {
         res.statusCode = 200;
         res.end(JSON.stringify({ ok: true }));
@@ -321,6 +326,26 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
     });
     expect(versions.status).toBe(403);
     expect(stub.requests).toHaveLength(0);
+  });
+
+  it('worker inventory is platform-scoped and forwards only the business and limit filters', async () => {
+    const operator = await httpRequest(`${baseUrl}/admin/api/worker-instances`, {
+      headers: { cookie: `du_session=${OPERATOR_SESSION}` },
+    });
+    expect(operator.status).toBe(403);
+    expect(JSON.parse(operator.body).code).toBe('ADMIN_CREDENTIAL_REQUIRED');
+    expect(stub.requests).toHaveLength(0);
+
+    const response = await httpRequest(
+      `${baseUrl}/admin/api/worker-instances?businessId=doc-core&limit=25&tenant=${TENANT_B}&secret=drop`,
+      { headers: { cookie: adminCookie } },
+    );
+    expect(response.status).toBe(200);
+    expect(last()).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/admin/worker-instances?businessId=doc-core&limit=25',
+      auth: `Bearer ${ADMIN_TOKEN}`,
+    });
   });
 
   it('business action: CSRF required, then PUT forwarded with the platform bearer', async () => {

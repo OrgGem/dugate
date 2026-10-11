@@ -1,0 +1,2 @@
+﻿COMMAND: git diff -- du-rework/docs/04-data-state.md
+REAL_EXIT=0

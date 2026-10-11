@@ -1,0 +1,13 @@
+﻿SEC-02 read-only schema probe
+Candidate inspected: arch-phase-b-20261006-postgres-1
+Candidate project: arch-phase-b-20261006
+Candidate classification: local du-rework phase-B test stack, not live or legacy
+Transaction: BEGIN READ ONLY; SET LOCAL transaction_read_only = on; SHOW transaction_read_only returned on
+
+Information schema result for profile_bindings:
+column_name           | data_type | is_nullable | column_default
+file_url_auth_cipher  | text      | YES         |
+allowed_origins       | absent    |             |
+
+Count query: not run. The required allowed_origins column is absent, so dispatch spec section 3 requires stopping before counting.
+No ciphertext value was selected, emitted, or recorded.

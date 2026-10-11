@@ -44,7 +44,7 @@ test.describe('AWEB-06 Operations/Business browser evidence (harness seam)', () 
   }
 
   async function loginAsAdmin(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
@@ -53,7 +53,7 @@ test.describe('AWEB-06 Operations/Business browser evidence (harness seam)', () 
 
   async function gotoAsAdmin(page: Page, path: string): Promise<void> {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/web/${path}`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/${path}`, { waitUntil: 'networkidle' });
   }
 
   test('1. operations ready (admin) → rows, state-aware controls, detail + artifacts', async ({ page }) => {
@@ -87,14 +87,14 @@ test.describe('AWEB-06 Operations/Business browser evidence (harness seam)', () 
 
   test('3. operator session: tenant-fenced operations; business registry denied', async ({ page }) => {
     await page.context().addCookies([{ name: 'du_session', value: OPERATOR, url: BASE }]);
-    await page.goto(`${BASE}/admin/web/operations`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/operations`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('table', { name: 'Operations' })).toBeVisible();
     const opsRequests = (await getRequests()).filter((r) => r.path.startsWith('/api/v1/operations'));
     expect(opsRequests.length).toBeGreaterThan(0);
     expect(opsRequests[opsRequests.length - 1]?.path).toContain(`tenant=${TENANT}`);
     await shot(page, '06-05-operations-operator-tenant.png');
 
-    await page.goto(`${BASE}/admin/web/businesses`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/businesses`, { waitUntil: 'networkidle' });
     await expect(page.getByText('Access denied')).toBeVisible();
     await expect(page.getByText(/platform-scoped/)).toBeVisible();
     await shot(page, '06-06-businesses-operator-denied.png');

@@ -12,7 +12,7 @@ recognised SPA route names. parseAdminWebRoutes (shell-server.ts:421-441) builds
 `known` from it and DROPS any DU_ADMIN_WEB_ROUTES token that is not in the set,
 logging "DU_ADMIN_WEB_ROUTES ignored unknown route names". So before this
 change an operator who set DU_ADMIN_WEB_ROUTES=api-docs (or included it) had
-the token silently discarded and /admin/web/api-docs answered the generic 404
+the token silently discarded and admin/api-docs answered the generic 404
 document. After the change the token is honoured and the route is served.
 
 The session gate is untouched: the allow-list only decides WHICH routes are

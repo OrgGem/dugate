@@ -32,12 +32,25 @@ export function parseOperationWire(value: unknown): OperationWire | null {
   };
 }
 
-export function parseOperationsPage(value: unknown): OperationsPage | null {
+/**
+ * HONESTY-AUDIT-OPS: a parsed page plus the one fact the wire type cannot
+ * carry — whether the server actually SENT a total. The wire type requires a
+ * number, so the parser fills items.length as a placeholder; that placeholder
+ * must never be RENDERED as a total, or a truncated page reads as the whole
+ * population (it is wrong whenever nextCursor is present).
+ */
+export interface ParsedOperationsPage extends OperationsPage {
+  readonly totalFromServer: boolean;
+}
+
+export function parseOperationsPage(value: unknown): ParsedOperationsPage | null {
   if (!isRecord(value) || !Array.isArray(value['items'])) return null;
   const items = value['items'].map(parseOperationWire).filter((op): op is OperationWire => op !== null);
+  const serverTotal = typeof value['total'] === 'number' ? value['total'] : null;
   return {
     items,
-    total: typeof value['total'] === 'number' ? value['total'] : items.length,
+    total: serverTotal ?? items.length,
+    totalFromServer: serverTotal !== null,
     limit: typeof value['limit'] === 'number' ? value['limit'] : items.length,
     nextCursor: str(value['nextCursor']),
     prevCursor: str(value['prevCursor']),
@@ -97,4 +110,104 @@ export function elapsedMs(op: OperationWire, now: string, execution = false): nu
   if (!start || !end) return null;
   const ms = Date.parse(end) - Date.parse(start);
   return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+export interface OperationsFilterInput {
+  limit: string;
+  state: string;
+  tenantId: string | null;
+  id: string;
+  cursor: string | null;
+  /** A date-input value: an ISO day (YYYY-MM-DD) or empty. */
+  fromDate: string;
+  toDate: string;
+}
+
+/**
+ * AWEB-20a: the date pickers stay inclusive UTC DAYS - the same mental model
+ * the previous client-side trim had - but the wire wants a UTC instant, so a
+ * start day opens at 00:00:00.000Z and an end day closes at 23:59:59.999Z.
+ * `null` means no bound on this side, which must stay absent from the query
+ * rather than being sent as an empty string (the route answers 422 on an
+ * instant it cannot parse).
+ */
+export function operationsTimeWindow(
+  fromDate: string,
+  toDate: string,
+): { from: string | null; to: string | null } {
+  return {
+    from: fromDate === '' ? null : `${fromDate}T00:00:00.000Z`,
+    to: toDate === '' ? null : `${toDate}T23:59:59.999Z`,
+  };
+}
+
+/**
+ * True when the operator picked a start day AFTER the end day. Answered
+ * locally so the list keeps the last good page instead of swapping the whole
+ * table for the route's 422.
+ */
+export function operationsWindowInvalid(fromDate: string, toDate: string): boolean {
+  return fromDate !== '' && toDate !== '' && fromDate > toDate;
+}
+
+/**
+ * Build the exact server-side BFF query. `from`/`to` are SENT so the route
+ * filters rows in SQL: trimming the page in the browser hid matching rows that
+ * simply were not on the page that had been loaded, and made the advertised
+ * `total` disagree with what the table showed.
+ */
+export function buildOperationsQuery(input: OperationsFilterInput): Record<string, string> {
+  const query: Record<string, string> = { limit: input.limit, sort: 'created_at:desc' };
+  if (input.state !== '' && input.state !== 'ALL') query['state'] = input.state;
+  if (input.tenantId !== null && input.tenantId !== '') query['tenant'] = input.tenantId;
+  const id = input.id.trim();
+  if (id !== '') query['id'] = id;
+  if (input.cursor !== null && input.cursor !== '') query['cursor'] = input.cursor;
+  const window = operationsTimeWindow(input.fromDate, input.toDate);
+  if (window.from !== null) query['from'] = window.from;
+  if (window.to !== null) query['to'] = window.to;
+  return query;
+}
+
+/** The inputs that decide WHICH rows the query returns. */
+export type OperationsPopulation = Pick<
+  OperationsFilterInput,
+  'state' | 'tenantId' | 'id' | 'fromDate' | 'toDate' | 'limit'
+>;
+
+/**
+ * AWEB-20: a keyset cursor addresses a position inside ONE population. The
+ * token carries only `createdAt|id|sort|direction`
+ * (modules/operations/list-query.ts encodeOperationsListCursor), so the route
+ * cannot tell it was minted under another tenant, state, id filter, window or
+ * page size: it then seeks the NEW population from the OLD position and
+ * silently skips or repeats rows. Previous/Next also stops addressing the
+ * page the operator is looking at.
+ *
+ * The fingerprint is the one value that must change for the cursor to die.
+ * Every control that shapes the population goes through it, so a future
+ * filter cannot forget its own reset - tenant is included even though it is
+ * set globally rather than through an onChange, which is how it was missed.
+ */
+export function operationsPopulation(input: OperationsPopulation): string {
+  return [
+    input.state,
+    input.tenantId ?? '',
+    input.id.trim(),
+    input.fromDate,
+    input.toDate,
+    input.limit,
+  ].join('|');
+}
+
+/**
+ * True when a live cursor was minted under a different population than the one
+ * currently selected - the cursor must be dropped rather than replayed.
+ */
+export function operationsCursorIsStale(
+  cursor: string | null,
+  cursorPopulation: string | null,
+  selectedPopulation: string,
+): boolean {
+  return cursor !== null && cursorPopulation !== selectedPopulation;
 }

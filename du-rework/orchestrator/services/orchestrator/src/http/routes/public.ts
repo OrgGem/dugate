@@ -14,6 +14,7 @@ import { handleLegacyRoute } from '../../compat/legacy-http-mount';
 import { legacyCompatHost } from '../../compat/legacy-host-adapter';
 import { resultHttpStatus, toOperationView, waitForTerminal } from '../../modules/operations/facade';
 import { listOperationsPage, parseOperationsListQuery } from '../../modules/operations/list-query';
+import { getOperationsMetrics, parseOperationsMetricsQuery } from '../../modules/admin-read/operations-metrics';
 import { buildAdminOperationDetail, toOperationDetailWire } from '../../modules/operations/mappers';
 import {
   authorizeAuditTenantRead,
@@ -424,6 +425,28 @@ export async function handlePublicRoutes(ctx: RouteContext): Promise<RouteResult
         },
       };
     }
+  }
+
+  // Overview metrics are one bounded aggregate statement, not a page sample.
+  if (method === 'GET' && pathname === '/api/v1/operations/metrics') {
+    const metricsQuery = parseOperationsMetricsQuery(ctx.searchParams);
+    const metricsPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+    if (metricsPrincipal) {
+      const scope = authorizeAuditTenantRead(metricsPrincipal, metricsQuery.tenantId ?? '');
+      return {
+        status: 200,
+        body: await getOperationsMetrics(ctx, metricsQuery, scope === '' ? null : scope),
+      };
+    }
+
+    const apiKey = await resolveApiKey(ctx);
+    if (metricsQuery.tenantId !== null && metricsQuery.tenantId !== apiKey.tenantId) {
+      throw new HttpError(403, 'PERMISSION_DENIED', 'admin reads are scoped to the caller tenant');
+    }
+    return {
+      status: 200,
+      body: await getOperationsMetrics(ctx, metricsQuery, apiKey.tenantId),
+    };
   }
 
   // Public: GET /api/v1/operations

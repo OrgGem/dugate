@@ -63,7 +63,7 @@ So a malformed artifact fails **visibly** rather than rendering an empty view.
 | Check | Status |
 |---|---|
 | Swagger UI renders 58 paths / 62 operations / 51 schemas in a real browser | **NOT VERIFIED** |
-| Route reachable at `/admin/web/api-docs` | route entry exists in `app-shell.tsx:12` (`['API Reference', '/api-docs']`); **not clicked** |
+| Route reachable at `admin/api-docs` | route entry exists in `app-shell.tsx:12` (`['API Reference', '/api-docs']`); **not clicked** |
 | Operations/Dashboard list render | **NOT VERIFIED** |
 | State transitions | **NOT VERIFIED** |
 | Error boundaries for upstream 404 / 503 / 422 (degraded secrets state) | **NOT VERIFIED** |
@@ -72,7 +72,7 @@ All four need a live server plus a browser session. I did not start either, so I
 
 ## 3. What a real Lane 2 audit needs
 
-1. Build and serve `apps/admin-web` (or start the harness), then open `/admin/web/api-docs` and count the
+1. Build and serve `apps/admin-web` (or start the harness), then open `admin/api-docs` and count the
    rendered operation rows against 62 - a screenshot plus the DOM count.
 2. Drive Operations/Dashboard with the stub switched to 404, 503 and 422, capturing the rendered boundary
    for each (this is exactly what the existing `operations-business.spec.ts` / `overview.spec.ts` harness

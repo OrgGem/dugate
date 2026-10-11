@@ -1,7 +1,7 @@
 # Admin Portal — Review tính năng vận hành theo từng page + Plan bổ sung (2026-10-08)
 
 > **Góc nhìn tác giả:** người vận hành hệ thống / hỗ trợ sự cố (system monitoring + ops support), đọc như ca trực thật. Không sửa source sản phẩm, không dispatch, không tick gate.
-> **Đối tượng:** SPA React `orchestrator/apps/admin-web/` (mount `/admin/web/*`) + BFF `/admin/api/*` + legacy shell `/admin/*`.
+> **Đối tượng:** SPA React `orchestrator/apps/admin-web/` (hiện mount tạm `admin/*`, đích là các route `/admin/*` theo `AWEB-10`) + BFF `/admin/api/*` + legacy shell trong giai đoạn chuyển đổi.
 > **Yêu cầu đã nhận:** mỗi page tối thiểu 3 tính năng bổ sung; mỗi tính năng phải trả lời rõ: **cần nhìn thấy gì · làm được chức năng gì · vì sao cần · để làm gì**.
 
 ## 0. Quan hệ với plan đang có (không trùng lặp)
@@ -31,6 +31,7 @@ Portal hiện đáp ứng tốt mục 3 ở vài chỗ (Connectors/API keys/Secr
 2. **`OPU-G2` Auto-refresh + "dữ liệu tại thời điểm"** [mới] — *Thấy:* mọi list/detail có nút refresh, auto-refresh bật/tắt, và nhãn tuổi dữ liệu. *Làm:* pause, refresh ngay. *Vì sao:* danh sách chỉ nạp lúc mount; operation đang `RUNNING` không bao giờ tự cập nhật. *Để làm gì:* ca trực không phải F5 thủ công, và không nhầm số cũ là số đang.
 3. **`OPU-G3` Deep-link trạng thái lọc (URL là nguồn sự thật)** [ADM-UX-03 mở rộng sang SPA] — *Thấy:* filter/limit/cursor/sort nằm trên URL. *Làm:* copy link, F5, back, mở tab mới — giữ nguyên bộ lọc. *Vì sao:* hiện là state cục bộ. *Để làm gì:* bàn giao ca (dán link cho ca sau) và tái lập lỗi từ link của khách báo.
 4. **`OPU-G4` Toast + error boundary toàn cục** [mới] — *Thấy:* kết quả mutation ở mọi nơi, kể cả khi đang cuộn chỗ khác. *Làm:* bỏ, click để nhảy tới ngữ cảnh. *Vì sao:* lỗi 403/502 chỉ hiện trong banner dễ trôi khỏi tầm nhìn. *Để làm gì:* không bỏ sót thao tác thất bại giữa lúc đang xử lý việc khác.
+5. **`OPU-G5` Tenant context toàn cục** [AWEB-09] — *Thấy:* tenant hiện hành và bộ tenant được phép chọn ở đầu left navigation, sẵn sàng ngay khi vào portal. *Làm:* chọn tenant một lần rồi đi qua các page tenant-aware; lựa chọn được giữ khi điều hướng/reload; khi đổi tenant, page nạp lại dữ liệu đúng scope. *Vì sao:* mỗi page không nên tự chọn tenant khác nhau hoặc giữ lẫn dữ liệu tenant cũ. *Để làm gì:* điều tra và quản trị xuyên menu trong cùng một tenant context. BFF vẫn xác thực quyền chọn và lọc dữ liệu phía server; lựa chọn UI không mở rộng quyền. Page-level tenant filters phải theo context này, không override âm thầm.
 
 ## 3. Review theo từng page
 
@@ -166,7 +167,7 @@ Portal hiện đáp ứng tốt mục 3 ở vài chỗ (Connectors/API keys/Secr
 
 | Page | 3 tính năng đầu tiên nên làm | Lý do ưu tiên |
 |---|---|---|
-| Cross-cutting | G1 dải sức khoẻ · G2 auto-refresh · G3 deep-link | Nền cho mọi trang; thiếu thì mọi tính năng khác khó dùng khi đang xử lý sự cố |
+| Cross-cutting | G1 dải sức khoẻ · G2 auto-refresh · G3 deep-link · G5 tenant context | Nền cho mọi trang; thiếu thì mọi tính năng khác khó dùng khi đang xử lý sự cố |
 | Overview | OVR-1 triage · OVR-2 sức khoẻ · OVR-3 audit lọc | Đây là trang vào ca; hiện gần như không có tín hiệu |
 | Operations | OPS-1 sống theo thời gian · OPS-2 tải artifact · OPS-3 timeline | Nơi người trực đứng lâu nhất khi có sự cố |
 | Usage | USG-1 bảng tổng hợp · USG-2 biểu đồ · USG-3 ngân sách | Hiện là JSON thô — gần như không dùng được |

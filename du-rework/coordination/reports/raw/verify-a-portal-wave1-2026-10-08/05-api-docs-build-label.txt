@@ -1,0 +1,33 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node tests/api-docs-build-label-offline.cjs
+exit: 0
+--- output ---
+screen: D:\Git\dugate\du-rework\orchestrator\apps\admin-web\src\features\api-docs\api-docs-screen.tsx
+spec:   D:\Git\dugate\du-rework\docs\21-openapi.json
+---
+PASS screen imports docs/21-openapi.json with ?raw
+PASS build label marker data-api-docs-build-label
+PASS label exposes data-spec-source
+PASS label exposes data-spec-bytes
+PASS label exposes data-spec-fingerprint
+PASS label text mentions bytes
+PASS label text mentions fingerprint
+PASS build-state attribute rendered
+PASS state 'ok' present
+PASS state 'parse-error' present
+PASS state 'missing-artifact' present
+PASS empty import detected before parsing (trim length check)
+PASS parse-error and missing-artifact render distinct cards
+PASS empty-filter marker data-api-docs-empty-filter
+PASS empty-filter message shows filtered vs total operations
+PASS no fetch(
+PASS no XMLHttpRequest
+PASS no axios
+PASS docs/21-openapi.json parses
+PASS spec declares openapi 3.x
+PASS spec declares a non-empty info.version
+PASS spec carries at least one path
+PASS fingerprint derived from specRaw
+PASS fingerprint helper is deterministic (FNV loop present)
+---
+RESULT: PASS (24 passed, 0 failed, 24 total)

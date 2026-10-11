@@ -34,7 +34,7 @@ SHA-256 values below were computed from files on disk, not copied from earlier r
 | packages/worker-sdk/src/fan-out.ts | 410EA97532106511F5A968A5A25B2CEC1DA637F85FB98C5F2AC9F371F66763FA | parseChildren prioritizes the actual camelCase taskId/resultRef/errorCode and keeps snake_case aliases as compatibility fallbacks. |
 | services/orchestrator/migrations/0032_checkpoint_session_ref.sql | 69A9CC6BEA5DF9A999546AB5BB98A43EE1A1A0C3835BE5D7E8C6AEE72788E55E | Adds nullable step_checkpoints.session_ref jsonb with IF NOT EXISTS; this is additive DDL, not a data backfill. |
 | apps/admin-web/src/router.tsx | F3419A4C374BB94C031B216EB0ABC2F64794F50BB65A66A6504CB12875616029 | Current route source pin; browser route/build still needs Q4 approval and live confirmation. |
-| apps/admin-web/dist/index.html | 3025F28E08B12B13B7D55F2443A5562327E7686D7DC40F07AF79F01D8296E236 | References the JS and CSS rows immediately below under /admin/web/assets/. |
+| apps/admin-web/dist/index.html | 3025F28E08B12B13B7D55F2443A5562327E7686D7DC40F07AF79F01D8296E236 | References the JS and CSS rows immediately below under admin/assets/. |
 | apps/admin-web/dist/assets/index-Bs0p8VRI.js | 8CCDBAB15D44CCA1886895475EF3A2AE4352304FA2DC235CF1B93C793348C1D7 | Current on-disk Admin-Web JS asset. |
 | apps/admin-web/dist/assets/index-BffJF1YL.css | BAF331D4EA62F3274FC1AC9E83EA049787FC7F786FAC6330FBF69DE3457BF021 | Current on-disk Admin-Web CSS asset. |
 

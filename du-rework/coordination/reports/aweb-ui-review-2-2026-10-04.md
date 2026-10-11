@@ -38,7 +38,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.1. Route `/admin/web/api-keys` (AWEB-05)
+### 2.1. Route `admin/api-keys` (AWEB-05)
 - **Vai trò & Phạm vi**: Quản lý API keys của tenant qua BFF (`GET /admin/api/api-keys`, `POST /admin/api/actions` apikey.issue / apikey.revoke).
 - **Role / Tenant Fencing**:
   - Tự động điền tenant ID theo session scope (`session.scope.tenantId`).
@@ -61,7 +61,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.2. Route `/admin/web/connectors` (AWEB-05)
+### 2.2. Route `admin/connectors` (AWEB-05)
 - **Vai trò & Phạm vi**: Tra cứu trạng thái revision của connector qua BFF (`GET /admin/api/connectors/:id/revisions/:rev`).
 - **Tính Trung thực (Honesty & Gap Handling)**:
   - Do platform chưa có connector registry route (`PAR-03/14`), màn hình hỗ trợ tra cứu theo ID và revision.
@@ -71,7 +71,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.3. Route `/admin/web/profiles` (AWEB-04)
+### 2.3. Route `admin/profiles` (AWEB-04)
 - **Vai trò & Phạm vi**: Quản lý Profile chính sách (`PAR-12` + `PAR-13`).
 - **Policy Capability Detection & Honesty**:
   - Khi capabilities rỗng (`capabilities: []`), toàn bộ nút Save, Publish, Rollback, Test Endpoint bị disabled kèm banner thông báo rõ ràng: `"policy backend not shipped (T-API-01..03)"` (`04-01-placeholder-honest.png`).
@@ -95,7 +95,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.4. Route `/admin/web/operations` (AWEB-06)
+### 2.4. Route `admin/operations` (AWEB-06)
 - **Vai trò & Phạm vi**: Giám sát tác vụ nền (operations), xem danh sách và chi tiết kết quả/artifacts (`GET /admin/api/operations`, `GET /admin/api/operations/:id`).
 - **Role / Tenant Fencing**:
   - Mọi request đều được fence chặt chẽ theo tenant của session. Stub verify khẳng định header wire gửi đúng `tenant=<uuid>` (`06-05-operations-operator-fenced.png`).
@@ -111,7 +111,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.5. Route `/admin/web/businesses` (AWEB-06)
+### 2.5. Route `admin/businesses` (AWEB-06)
 - **Vai trò & Phạm vi**: Quản lý đăng ký business và các version lifecycle (`GET /admin/api/businesses`, `GET /admin/api/businesses/:id/versions`, `PUT /admin/api/businesses/:id/versions/:ver/enable|activate|deactivate`).
 - **Phân quyền Cấp Platform (Platform Fence)**:
   - Đây là tài nguyên cấp nền tảng; phiên `operator` (tenant-scoped) hoặc `viewer` bị chặn ngay từ BFF với `DeniedState` (403 `ADMIN_CREDENTIAL_REQUIRED`), upstream hoàn toàn không bị gọi (`06-06-businesses-operator-denied.png`).
@@ -123,7 +123,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.6. Route `/admin/web/usage` (AWEB-06)
+### 2.6. Route `admin/usage` (AWEB-06)
 - **Vai trò & Phạm vi**: Thống kê mức sử dụng theo khung thời gian (`GET /admin/api/usage?from=...&to=...`).
 - **Tính Toàn vẹn Dữ liệu (No Fake Aggregation)**:
   - Giao diện cung cấp bộ chọn thời gian chuẩn ISO (mặc định 24h qua).
@@ -133,7 +133,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.7. Route `/admin/web/security` (AWEB-07)
+### 2.7. Route `admin/security` (AWEB-07)
 - **Vai trò & Phạm vi**: Quản lý cấu hình mã hóa nền tảng (`GET /admin/api/crypto-config`, `PUT /admin/api/crypto-config`).
 - **Bảo mật Secret & Read/Write Semantics**:
   - Màn hình chỉ hiển thị key references/previews (`storageKeyRef`, `recipientKeyVersion`), tuyệt đối không có plaintext secret material trên giao diện hay wire payload (`07-01-security-ready.png`).
@@ -147,7 +147,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.8. Route `/admin/web/identity` (AWEB-07)
+### 2.8. Route `admin/identity` (AWEB-07)
 - **Vai trò & Phạm vi**: Giám sát phiên làm việc hiện tại và thông tin danh tính (`GET /admin/api/session`).
 - **Tính Trung thực về Khả năng Chưa Hỗ trợ**:
   - Hiển thị metadata phiên thật: Principal name, kind, role badge, CSRF status (`07-04-identity.png`).
@@ -157,7 +157,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ---
 
-### 2.9. Route `/admin/web/settings` (AWEB-07)
+### 2.9. Route `admin/settings` (AWEB-07)
 - **Vai trò & Phạm vi**: Bảng hướng dẫn cấu hình và trạng thái triển khai hạ tầng.
 - **Tuyệt đối Không có Nút Save Giả (Zero Fake Save Buttons)**:
   - Do chưa có deployment adapter (staged-rollout/rollback runtime adapter), màn hình được thiết kế thuần túy là catalog thông tin hướng dẫn (`07-05-settings.png`).
@@ -169,7 +169,7 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 ### 2.10. Hệ thống Điều hướng Tổng quan (Overview Navigation)
 - **Thanh Điều hướng Mục (Sections Navigation)**:
-  - Tại header của `/admin/web/overview`, phần tử `<nav aria-label="Admin Web sections">` cung cấp đầy đủ liên kết tới toàn bộ 9 phân hệ:
+  - Tại header của `admin/overview`, phần tử `<nav aria-label="Admin Web sections">` cung cấp đầy đủ liên kết tới toàn bộ 9 phân hệ:
     - `/operations`
     - `/businesses`
     - `/usage`
@@ -188,15 +188,15 @@ Toàn bộ 9 route tích hợp mới + hệ thống Navigation từ Overview đ�
 
 | # | Route / Phân Hệ | Role / Tenant Gate | Error Taxonomy (401/403/409/422) | 320px / Keyboard Focus | Honesty (Disabled / Write-only / No fake data) | Evidence Ảnh | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1 | `/admin/web/api-keys` | Admin / Tenant-scoped (Viewer 403) | Đầy đủ `Denied`, `Empty`, `Error` + Retry | Đạt (`05-12`) | `copyOnce` in-memory; Rotate/Disable disabled + reason | `05-01` .. `05-12` | **`UI_APPROVED`** |
-| 2 | `/admin/web/connectors` | Admin / Read-only | 404 unconfigured card; 502 bad format | Đạt | Card unavailable trung thực; Test/Rotate disabled | `05-10`, `05-11` | **`UI_APPROVED`** |
-| 3 | `/admin/web/profiles` | Tenant / Role (Viewer 403 T-AUTH-03) | 409 Conflict draft kept; 400 locked slot hint | Đạt (`04-09`) | Capabilities-driven; locked params disabled; write-only secret; honest 404 modal | `04-01` .. `04-09` | **`UI_APPROVED`** |
-| 4 | `/admin/web/operations` | Tenant-fenced (Operator token header) | `Empty`, `Error`, `Denied` | Đạt (`06-11`) | Cancel/Resume/Replay disabled with honest badge; real artifacts viewer | `06-01` .. `06-05`, `06-11` | **`UI_APPROVED`** |
-| 5 | `/admin/web/businesses` | Platform Admin only (Operator/Viewer 403) | `DeniedState` (403) upstream untouched | Đạt | Real version lifecycle actions via CSRF | `06-06` .. `06-09` | **`UI_APPROVED`** |
-| 6 | `/admin/web/usage` | Tenant-scoped session | `Empty`, `Error`, `Denied` | Đạt | Verbatim summary; không tổng hợp số liệu giả | `06-10` | **`UI_APPROVED`** |
-| 7 | `/admin/web/security` | Platform Admin only (Viewer 403) | 503 unconfigured card | Đạt (`07-06`) | No plaintext secret on wire; honest unavailable card | `07-01` .. `07-03`, `07-06` | **`UI_APPROVED`** |
-| 8 | `/admin/web/identity` | Live session metadata | 401 sign-in link; 403 denied | Đạt | Ghi nhận trung thực `chưa managed`; users list unavailable | `07-04` | **`UI_APPROVED`** |
-| 9 | `/admin/web/settings` | Informational catalog | Read-only | Đạt | 0 nút Save; ghi chú rõ `requires deployment action` | `07-05` | **`UI_APPROVED`** |
+| 1 | `admin/api-keys` | Admin / Tenant-scoped (Viewer 403) | Đầy đủ `Denied`, `Empty`, `Error` + Retry | Đạt (`05-12`) | `copyOnce` in-memory; Rotate/Disable disabled + reason | `05-01` .. `05-12` | **`UI_APPROVED`** |
+| 2 | `admin/connectors` | Admin / Read-only | 404 unconfigured card; 502 bad format | Đạt | Card unavailable trung thực; Test/Rotate disabled | `05-10`, `05-11` | **`UI_APPROVED`** |
+| 3 | `admin/profiles` | Tenant / Role (Viewer 403 T-AUTH-03) | 409 Conflict draft kept; 400 locked slot hint | Đạt (`04-09`) | Capabilities-driven; locked params disabled; write-only secret; honest 404 modal | `04-01` .. `04-09` | **`UI_APPROVED`** |
+| 4 | `admin/operations` | Tenant-fenced (Operator token header) | `Empty`, `Error`, `Denied` | Đạt (`06-11`) | Cancel/Resume/Replay disabled with honest badge; real artifacts viewer | `06-01` .. `06-05`, `06-11` | **`UI_APPROVED`** |
+| 5 | `admin/businesses` | Platform Admin only (Operator/Viewer 403) | `DeniedState` (403) upstream untouched | Đạt | Real version lifecycle actions via CSRF | `06-06` .. `06-09` | **`UI_APPROVED`** |
+| 6 | `admin/usage` | Tenant-scoped session | `Empty`, `Error`, `Denied` | Đạt | Verbatim summary; không tổng hợp số liệu giả | `06-10` | **`UI_APPROVED`** |
+| 7 | `admin/security` | Platform Admin only (Viewer 403) | 503 unconfigured card | Đạt (`07-06`) | No plaintext secret on wire; honest unavailable card | `07-01` .. `07-03`, `07-06` | **`UI_APPROVED`** |
+| 8 | `admin/identity` | Live session metadata | 401 sign-in link; 403 denied | Đạt | Ghi nhận trung thực `chưa managed`; users list unavailable | `07-04` | **`UI_APPROVED`** |
+| 9 | `admin/settings` | Informational catalog | Read-only | Đạt | 0 nút Save; ghi chú rõ `requires deployment action` | `07-05` | **`UI_APPROVED`** |
 | 10 | Overview Navigation | Mount session gate | N/A | Đạt | Đầy đủ 9 links tới tất cả các màn hình | `overview-01` | **`UI_APPROVED`** |
 
 ---
@@ -220,7 +220,7 @@ exit_code: 0
 output:
 Running 43 tests using 1 worker
 
-  ok   1 admin-web\admin-web.spec.ts:52:7 › 1. direct unauth /admin/web -> 302 login; login form renders (956ms)
+  ok   1 admin-web\admin-web.spec.ts:52:7 › 1. direct unauth admin -> 302 login; login form renders (956ms)
   ok   2 admin-web\admin-web.spec.ts:67:7 › 2. login -> React app renders; no serious console errors (934ms)
   ok   3 admin-web\admin-web.spec.ts:80:7 › 3. reload keeps the session and re-renders the app (1.4s)
   ok   4 admin-web\admin-web.spec.ts:89:7 › 4. 320px viewport: no horizontal overflow; nav reachable (1.3s)
@@ -247,7 +247,7 @@ Running 43 tests using 1 worker
   ok  25 admin-web\operations-business.spec.ts:139:7 › 5. businesses error → retry recovers (1.4s)
   ok  26 admin-web\operations-business.spec.ts:153:7 › 6. usage ready → verbatim summary (1.2s)
   ok  27 admin-web\operations-business.spec.ts:167:7 › 7. 320px: operations reflows without horizontal overflow (1.1s)
-  ok  28 admin-web\overview.spec.ts:62:7 › 0. unauth direct /admin/web/overview → login (mount gate) (289ms)
+  ok  28 admin-web\overview.spec.ts:62:7 › 0. unauth direct admin/overview → login (mount gate) (289ms)
   ok  29 admin-web\overview.spec.ts:69:7 › 1. operator tenant → ready: tenant-fenced rows + honest tiles (1.3s)
   ok  30 admin-web\overview.spec.ts:92:7 › 2. empty scope → EmptyState with refresh affordance (932ms)
   ok  31 admin-web\overview.spec.ts:101:7 › 3. upstream failure → 502 error, retry succeeds after recovery (998ms)

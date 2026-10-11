@@ -4,7 +4,7 @@
 
 - Plan: `tasks/ADMIN-WEB-DELIVERY-2026-10-04.md` — slice **AWEB-02**.
 - Contract: `docs/admin-ui-development-contract.md` §4 (BFF + an toàn) — nguồn interface chính.
-- Tiền đề: AWEB-01 DONE (`reports/aweb01-admin-web-bootstrap-2026-10-04.md`) — mount `/admin/web` sau session gate, flag `DU_ADMIN_WEB`, toàn bộ thay đổi trong `shell-server.ts`.
+- Tiền đề: AWEB-01 DONE (`reports/aweb01-admin-web-bootstrap-2026-10-04.md`) — mount `admin` sau session gate, flag `DU_ADMIN_WEB`, toàn bộ thay đổi trong `shell-server.ts`.
 
 ## Việc cần làm (AWEB-02)
 

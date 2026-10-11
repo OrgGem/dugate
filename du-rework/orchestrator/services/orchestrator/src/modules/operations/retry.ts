@@ -22,10 +22,10 @@ export async function retryOperation(
     reader.readStored(value, { tenantId, slot, refId });
   const input = await open(op.input_ref, 'operations.input_ref', operationId);
   const payload = await open(task.payload_ref, 'tasks.payload_ref', String(task.id));
-  const pendingSource = typeof payload === 'object' && payload !== null
-    && (payload as Record<string, unknown>).ingestionState === 'PENDING'
-    && typeof (payload as Record<string, unknown>).sourceUrl === 'string'
-    ? (payload as Record<string, unknown>).sourceUrl as string : undefined;
+  const payloadSnapshot = typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+    ? payload as Record<string, unknown> : undefined;
+  const pendingSource = payloadSnapshot?.ingestionState === 'PENDING'
+    && typeof payloadSnapshot.sourceUrl === 'string' ? payloadSnapshot.sourceUrl : undefined;
 
   // A deleted/expired cached input cannot silently become an empty request.
   const artifactIds = new Set<string>();
@@ -66,7 +66,15 @@ export async function retryOperation(
   const seal = async (value: unknown, slot: MetadataSlot, refId: string): Promise<string> =>
     JSON.stringify(crypto ? await crypto.seal(value, { tenantId, slot, refId }) : value);
   const sealedInput = await seal(input, 'operations.input_ref', newId);
-  const sealedPayload = await seal(pendingSource ? { input, sourceUrl: pendingSource, ingestionState: 'PENDING' } : input, 'tasks.payload_ref', taskId);
+  // Retry the admitted execution snapshot, including its pinned legacy workflow
+  // schema. Do not resolve the current catalog revision: retries must execute
+  // against the same schema that was admitted for the original operation.
+  const retryPayloadValue = pendingSource
+    ? { ...(payloadSnapshot ?? {}), input, sourceUrl: pendingSource, ingestionState: 'PENDING' }
+    : payloadSnapshot && Object.hasOwn(payloadSnapshot, 'legacyWorkflowSchema')
+      ? payloadSnapshot
+      : input;
+  const sealedPayload = await seal(retryPayloadValue, 'tasks.payload_ref', taskId);
   const prompts = op.prompt_overrides_ref == null ? null
     : await seal(await open(op.prompt_overrides_ref, 'operations.prompt_overrides_ref', operationId), 'operations.prompt_overrides_ref', newId);
   const state = pendingSource ? 'PENDING_INGESTION' : 'ACCEPTED';

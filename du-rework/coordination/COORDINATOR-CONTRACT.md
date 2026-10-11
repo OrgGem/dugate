@@ -1,7 +1,8 @@
-# Active coordinator contract - 2026-10-06
+# Active coordinator contract - 2026-10-08
 
 Authority: latest user assignment takes precedence over historical role documents.
-Antigravity is the single dispatcher. This contract applies to that role throughout
+Claude Code is the single dispatcher, effective 2026-10-08 by the latest user
+assignment. This contract applies to that role throughout
 `D:/Git/dugate`, including legacy code, not only inside `du-rework`.
 
 ## Role and writable boundary
@@ -41,8 +42,12 @@ Antigravity is the single dispatcher. This contract applies to that role through
 ## Evidence and completion discipline
 
 - Separate SPECIFIED, IMPLEMENTED (owner smoke), independently VERIFIED and
-  ACCEPTED (required reviewer/UI verdict). Coordinator is neither implementer
-  nor independent tester/reviewer of its own work.
+  ACCEPTED (required independent reviewer/UI verdict). Claude Code as coordinator
+  does not implement product code, tests or builds and cannot independently verify
+  or accept its own product/coordination changes. Claude Code may review backend/
+  security changes only when it did not implement the affected code; otherwise
+  assign another independent reviewer. Assign Antigravity or another reviewer for
+  UI verdicts on the exact build.
 - Inspect functional verdict, failed/skipped counts, scope, SHA/image digest,
   commands and raw evidence. Exit 0 can mean a harness completed while requests
   failed. Red/PARTIAL receipts remain open even when other lanes are green.
@@ -61,8 +66,9 @@ dispatch proof; receipt delta and code/verify/accept states; open findings and n
 owner/action; scheduler verification. Do not repeatedly print unchanged green
 summaries. Never claim leases are released without actual owner/receipt evidence.
 
-First apply this contract by reconciling current assignments, without cancelling
-work already in progress: retain legacy fair-share hunks, obtain worker adoption
+Claude Code first applies this contract by reconciling current assignments,
+without cancelling work already in progress: retain legacy fair-share hunks,
+obtain worker adoption
 and independent tester/reviewer receipts; preserve benchmark extract failure as
 an open scoped diagnosis packet; refresh stale watch rows against live runtime.
 DeepSeek may be a worker/verifier when assigned with disjoint scope, never a second

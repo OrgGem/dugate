@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * AWEB-05 — API keys + Connectors browser evidence.
+ * AWEB-05 - Connectors browser evidence, plus the 0039 proof that the standalone
+ * API-keys tab is gone (keys are managed inside the Profile screen since P5).
  *
  * Drivers: `harness.ts` (real shell server + scripted upstream + session
  * store). Screenshots land in AWEB01B_EVIDENCE (packet runner sets it to
@@ -12,9 +13,7 @@ import { test, expect, type Page } from '@playwright/test';
 const BASE = process.env.AWEB01B_URL ?? '';
 const EVIDENCE = process.env.AWEB01B_EVIDENCE ?? '';
 const STUB = process.env.AWEB03B_STUB ?? '';
-const VIEWER = process.env.AWEB03B_VIEWER ?? '';
 const TOKEN = process.env.AWEB01B_TOKEN ?? '';
-const RAW_ISSUED_KEY = 'du_test_copy_once_raw_key_9f2c';
 
 /** STUB-EXT: a draft whose imported cURL carries a secret and a local file path. */
 const SQ = String.fromCharCode(39);
@@ -28,8 +27,8 @@ const DRAFT_CURL =
 
 test.describe('AWEB-05 API keys + Connectors browser evidence (harness seam)', () => {
   test.beforeAll(() => {
-    if (!BASE || !EVIDENCE || !STUB || !VIEWER || !TOKEN) {
-      throw new Error('AWEB01B_URL / AWEB01B_EVIDENCE / AWEB01B_TOKEN / AWEB03B_{STUB,VIEWER} must be set');
+    if (!BASE || !EVIDENCE || !STUB || !TOKEN) {
+      throw new Error('AWEB01B_URL / AWEB01B_EVIDENCE / AWEB01B_TOKEN / AWEB03B_STUB must be set');
     }
     fs.mkdirSync(EVIDENCE, { recursive: true });
   });
@@ -50,7 +49,7 @@ test.describe('AWEB-05 API keys + Connectors browser evidence (harness seam)', (
   }
 
   async function loginAsAdmin(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
@@ -59,90 +58,22 @@ test.describe('AWEB-05 API keys + Connectors browser evidence (harness seam)', (
 
   async function gotoAsAdmin(page: Page, path: string): Promise<void> {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/web/${path}`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/${path}`, { waitUntil: 'networkidle' });
   }
 
-  test('1. api-keys ready: tenant rows + read-only bindings + F7 disabled actions', async ({ page }) => {
-    await setScenario('keys=rows');
-    await gotoAsAdmin(page, 'api-keys');
-    await expect(page.getByRole('heading', { name: 'API keys' })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'du_live_ab12', exact: true })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'ACTIVE', exact: true })).toBeVisible();
-    await expect(page.getByRole('table', { name: 'Profile bindings' })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'doc-core', exact: true })).toBeVisible();
-    await expect(page.getByText('rotate/disable: requires backend').first()).toBeVisible();
-    const rotateButtons = page.getByRole('button', { name: 'Rotate' });
-    await expect(rotateButtons.first()).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Disable' }).first()).toBeDisabled();
-    await shot(page, '05-01-keys-ready.png');
+  // 0039: tests 1-5 drove the standalone /api-keys tab, which P5 removed - keys
+  // are managed inside the Profile screen now. Test 1 is the replacement: it pins
+  // that the tab is GONE from both the nav and the router, so a future change
+  // cannot quietly bring a second key-management surface back.
+  test('1. the standalone API keys tab is gone (one key surface, in Profile)', async ({ page }) => {
+    await gotoAsAdmin(page, 'profiles');
+    await expect(page.getByRole('link', { name: 'API keys' })).toHaveCount(0);
+    await page.goto(`${BASE}admin/api-keys`, { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: 'Not found', level: 1 })).toBeVisible();
+    await shot(page, '05-01-api-keys-tab-removed.png');
   });
 
-  test('2. issue → copy-once shown exactly once, never stored, gone after reload', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(`${msg.text()} @ ${msg.location().url}`);
-    });
-    page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
-    await setScenario('keys=rows');
-    await gotoAsAdmin(page, 'api-keys');
-    await page.fill('#issue-tenant', '11111111-1111-4111-8111-111111111111');
-    await page.getByRole('button', { name: 'Issue key' }).click();
 
-    const banner = page.getByText('Copy this key now — it will not be shown again');
-    await expect(banner).toBeVisible();
-    expect(errors).toEqual([]);
-    await expect(page.getByText(RAW_ISSUED_KEY)).toHaveCount(1);
-    await shot(page, '05-02-copy-once.png');
-
-    const storage = await page.evaluate(() => ({
-      local: Object.keys(window.localStorage),
-      session: Object.keys(window.sessionStorage),
-    }));
-    expect(storage).toEqual({ local: [], session: [] });
-
-    await page.getByRole('button', { name: 'Dismiss' }).click();
-    await expect(page.getByText(RAW_ISSUED_KEY)).toHaveCount(0);
-    await page.reload({ waitUntil: 'networkidle' });
-    await expect(page.getByText(RAW_ISSUED_KEY)).toHaveCount(0);
-    await expect(page.getByRole('cell', { name: 'du_live_new', exact: true })).toBeVisible();
-    await shot(page, '05-03-copy-once-hidden-after-reload.png');
-  });
-
-  test('3. revoke flow with confirm → row becomes REVOKED', async ({ page }) => {
-    await setScenario('keys=rows');
-    await gotoAsAdmin(page, 'api-keys');
-    const row = page.getByRole('row', { name: /du_live_ab12/ });
-    await row.getByRole('button', { name: 'Revoke' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await shot(page, '05-04-revoke-confirm.png');
-    await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click();
-    await expect(page.getByRole('cell', { name: 'REVOKED', exact: true })).toBeVisible();
-    await shot(page, '05-05-revoked.png');
-  });
-
-  test('4. empty and error+retry states', async ({ page }) => {
-    await setScenario('keys=empty');
-    await gotoAsAdmin(page, 'api-keys');
-    await expect(page.getByText('No API keys')).toBeVisible();
-    await shot(page, '05-06-keys-empty.png');
-
-    await setScenario('keys=error');
-    await page.reload({ waitUntil: 'networkidle' });
-    await expect(page.getByText('UPSTREAM_ERROR')).toBeVisible();
-    await shot(page, '05-07-keys-error.png');
-    await setScenario('keys=rows');
-    await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.getByRole('cell', { name: 'du_live_ab12', exact: true })).toBeVisible();
-    await shot(page, '05-08-keys-recovered.png');
-  });
-
-  test('5. viewer session → denied on api-keys', async ({ page }) => {
-    await setScenario('keys=rows');
-    await page.context().addCookies([{ name: 'du_session', value: VIEWER, url: BASE }]);
-    await page.goto(`${BASE}/admin/web/api-keys`, { waitUntil: 'networkidle' });
-    await expect(page.getByText('Access denied')).toBeVisible();
-    await shot(page, '05-09-keys-denied.png');
-  });
 
   /** STUB-EXT: the exact dispatcher params of every write the browser sent. */
   async function capturedWrites(): Promise<Array<{ action: string; params: Record<string, unknown> }>> {
@@ -301,17 +232,4 @@ test.describe('AWEB-05 API keys + Connectors browser evidence (harness seam)', (
     expect(payload).toContain('content-type');
   });
 
-  test('11. 320px: api-keys reflows without horizontal overflow', async ({ page }) => {
-    await setScenario('keys=rows');
-    await gotoAsAdmin(page, 'api-keys');
-    await page.setViewportSize({ width: 320, height: 800 });
-    await page.reload({ waitUntil: 'networkidle' });
-    await expect(page.getByRole('cell', { name: 'du_live_ab12', exact: true })).toBeVisible();
-    const dims = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-    }));
-    expect(dims.scrollWidth).toBeLessThanOrEqual(dims.clientWidth + 1);
-    await shot(page, '05-12-keys-320px.png');
-  });
 });

@@ -103,6 +103,30 @@ test('[LOCK] exact IP-literal allowHosts opt-in dials without touching the resol
   expect(resolveCalls).toBe(0);
 });
 
+test('[LOCK] null-body statuses and HEAD responses resolve with a null body', async () => {
+  const listener = await startListener();
+  const fetcher = createPinnedFetch({ allowPrivateNetworks: true });
+
+  for (const status of [204, 205, 304]) {
+    listener.enqueue({ kind: 'respond', status, body: 'ignored' });
+    const response = await withLoopbackRetry(
+      () => fetcher(listener.url('/null-body-' + status), { method: 'GET' }),
+      listener
+    );
+    expect(response.status).toBe(status);
+    expect(response.body).toBeNull();
+  }
+
+  listener.enqueue({ kind: 'respond', status: 200, body: 'ignored for HEAD' });
+  const headResponse = await withLoopbackRetry(
+    () => fetcher(listener.url('/head'), { method: 'HEAD' }),
+    listener
+  );
+  expect(headResponse.status).toBe(200);
+  expect(headResponse.body).toBeNull();
+  expect(listener.requests).toBe(4);
+});
+
 test('[LOCK] abort signal destroys the request (caller cancel reaches the socket)', async () => {
   const listener = await startListener();
   listener.setDefault({ kind: 'hangForever' });

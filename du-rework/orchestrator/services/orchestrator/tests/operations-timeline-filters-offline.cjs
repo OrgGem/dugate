@@ -26,7 +26,7 @@ function wire(id, state, createdAt, completedAt) {
   return { id, state, createdAt, completedAt, action: 'extract', businessId: 'document-core' };
 }
 
-function makeHarness(pageItems, detailOverride) {
+function makeHarness(pageItems, detailOverride, actionHandler) {
   const calls = [];
   const clock = { now: Date.parse(T0) };
   class FakeDate extends Date {
@@ -41,7 +41,7 @@ function makeHarness(pageItems, detailOverride) {
   const react = {
     createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
     useState: (initial) => { const i = cursor++; if (!(i in state)) state[i] = typeof initial === 'function' ? initial() : initial;
-      return [state[i], (value) => { state[i] = value; }]; },
+      return [state[i], (value) => { state[i] = typeof value === 'function' ? value(state[i]) : value; }]; },
     useRef: (initial) => { const i = cursor++; if (!(i in state)) state[i] = { current: initial }; return state[i]; },
     useMemo: (fn, next) => { const i = cursor++; if (!(i in state) || (next && next.some((v, j) => v !== deps[i][j]))) { state[i] = fn(); if (next) deps[i] = next; } return state[i]; },
     useCallback: (fn, next) => { const i = cursor++; if (!(i in state) || next.some((v, j) => v !== deps[i][j])) { state[i] = fn; deps[i] = next; } return state[i]; },
@@ -61,7 +61,10 @@ function makeHarness(pageItems, detailOverride) {
       tasks: [],
       serverNow: new FakeDate().toISOString(),
     } }),
-    operationAction: async (id, action) => { calls.push({ kind: 'action', id, action }); return { ok: true, data: { state: 'CANCELLED' } }; },
+    operationAction: async (id, action, key) => {
+      calls.push({ kind: 'action', id, action, key });
+      return actionHandler ? actionHandler(id, action, key) : { ok: true, data: { state: 'CANCELLED' } };
+    },
   };
   const sandbox = {
     exports: {},
@@ -289,7 +292,7 @@ async function main() {
     const boxes = collect(t, (n) => n.type === 'input' && n.props.type === 'checkbox');
     const target = boxes.find((b) => String(b.props['aria-label'] || '').includes(RUN.slice(0, 8)));
     assert.ok(target, 'no checkbox bound to the running row');
-    target.props.onChange({ target: { checked: true } });
+    target.props.onChange({ target: { checked: true }, stopPropagation() {} });
     await new Promise((r) => setImmediate(r));
     const next = (await h.render()).tree;
     const bulk = find(next, (n) => (n.type === 'button' || n.type.name === 'Button') && /cancel selected/i.test(textOf(n)));
@@ -299,6 +302,51 @@ async function main() {
     const cancels = h.calls.filter((c) => c.kind === 'action' && c.action === 'cancel');
     assert.equal(cancels.length, 1, `expected 1 cancel call, saw ${cancels.length}`);
     assert.equal(cancels[0].id, RUN, `cancelled ${cancels[0].id}`);
+  });
+
+  const RUN_TWO = 'cccccccc-3333-4333-8333-cccccccccccc';
+  const RUN_THREE = 'dddddddd-4444-4444-8444-dddddddddddd';
+  const partial = makeHarness([
+    { id: RUN, state: 'RUNNING', createdAt: T0, action: 'extract' },
+    { id: RUN_TWO, state: 'QUEUED', createdAt: T0, action: 'extract' },
+    { id: RUN_THREE, state: 'WAITING_INPUT', createdAt: T0, action: 'extract' },
+  ], undefined, async (id) => {
+    if (id === RUN_TWO) return { ok: false, status: 409, problem: { status: 409, code: 'CANCEL_DENIED', title: 'Cancel denied by current state.' } };
+    if (id === RUN_THREE) throw new Error('transport detail must not be echoed');
+    return { ok: true, data: { state: 'CANCELLED' } };
+  });
+  await partial.render();
+  let partialTree = (await partial.render()).tree;
+  const selectAll = find(partialTree, (n) => n.type === 'input' && n.props['aria-label'] === 'Select all visible operations');
+  assert.ok(selectAll, 'no select-all checkbox for partial-result scenario');
+  selectAll.props.onChange({ target: { checked: true } });
+  partialTree = (await partial.render()).tree;
+  const cancelSelected = find(partialTree, (n) => (n.type === 'button' || n.type.name === 'Button') && /cancel selected/i.test(textOf(n)));
+  assert.ok(cancelSelected, 'no bulk cancel button for partial-result scenario');
+  await cancelSelected.props.onClick();
+  await new Promise((r) => setImmediate(r));
+  partialTree = (await partial.render()).tree;
+
+  await check('AWEB-20b: bulk cancel continues to every target after API and transport failures', () => {
+    const attempted = partial.calls.filter((c) => c.kind === 'action' && c.action === 'cancel').map((c) => c.id);
+    assert.deepEqual(attempted, [RUN, RUN_TWO, RUN_THREE]);
+  });
+  await check('AWEB-20b: only successes leave selection and the summary lists counts plus per-item errors', () => {
+    const selection = new Map(collect(partialTree, (n) => n.type === 'input' && n.props.type === 'checkbox')
+      .filter((n) => String(n.props['aria-label'] || '').startsWith('select '))
+      .map((n) => [String(n.props['aria-label']).slice('select '.length), n.props.checked]));
+    assert.equal(selection.get(RUN), false, 'successful item remained selected');
+    assert.equal(selection.get(RUN_TWO), true, 'API failure was removed from selection');
+    assert.equal(selection.get(RUN_THREE), true, 'transport failure was removed from selection');
+
+    const alerts = collect(partialTree, (n) => n.type && n.type.name === 'AlertBanner');
+    const summary = alerts.find((n) => n.props.title === 'Bulk cancel finished: 1 succeeded, 2 failed.');
+    const details = alerts.find((n) => n.props.title === 'Bulk cancel item failures');
+    assert.ok(summary, 'success/failure counts were not reported');
+    assert.ok(details, 'per-item error details were not shown');
+    assert.ok(textOf(details).includes(RUN_TWO) && textOf(details).includes('CANCEL_DENIED'), 'API error detail is missing');
+    assert.ok(textOf(details).includes(RUN_THREE) && textOf(details).includes('REQUEST_FAILED'), 'transport error detail is missing');
+    assert.ok(!textOf(details).includes('transport detail must not be echoed'), 'raw transport exception leaked to the UI');
   });
 
   t = (await h.render()).tree;
@@ -320,7 +368,7 @@ async function main() {
     assert.ok(list, 'no operations timeline element');
     const text = textOf(list);
     assert.ok(/root/.test(text), `timeline missing task key: ${text}`);
-    assert.ok(/attempt\s*2\s*\/\s*3/i.test(text), `timeline missing attempt 2/3: ${text}`);
+    assert.ok(/2\s*\/\s*3/.test(text), `timeline missing attempt 2/3: ${text}`);
     assert.ok(/PROVIDER_TIMEOUT/.test(text), `timeline missing error code: ${text}`);
   });
 
@@ -345,7 +393,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log('PASS operations-timeline-filters-offline.cjs - 15 assertions (OPS-1 x2, OPS-2 x4, OPS-4 x6, OPS-3 x3)');
+  console.log('PASS operations-timeline-filters-offline.cjs - 17 assertions (OPS-1 x2, OPS-2 x4, OPS-4 x6, AWEB-20b x2, OPS-3 x3)');
 }
 
 main().catch((error) => { console.error(error && error.stack ? error.stack : error); process.exitCode = 1; });

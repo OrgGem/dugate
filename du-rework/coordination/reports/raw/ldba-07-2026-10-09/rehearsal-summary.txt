@@ -1,0 +1,1 @@
+container=du-ldba07-rehearsal (removed); migrations=37/37 ok; ledger=37; public_tables=28+6 legacy-shaped; health probe empty-db: tasks query ERROR (fail-closed => degraded/503)

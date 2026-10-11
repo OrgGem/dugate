@@ -1,0 +1,31 @@
+Kinh gui Codex-1 (term_43f85ccc) va Qwen-2 (term_16fef1c3),
+
+Antigravity (Single Dispatcher) giao packet sua 5 test RED trong tests/artifact-read-authorization.test.ts.
+
+Boi canh va can cu quyet dinh (da doi chieu docs va code):
+1. Code thuc thi src/modules/artifacts/artifacts.ts:
+- Dong :707: if (!task.lease_active) throw conflict('LEASE_LOST', 'requester lease has expired'); -> 409 LEASE_LOST
+- Dong :753-755: if (art.taskId !== req.taskId && art.state !== 'READY') throw conflict('PERMISSION_DENIED', 'foreign task cannot access unready artifact'); -> 409 PERMISSION_DENIED
+2. Docs da doi chieu:
+- docs/28-test-inventory.md dong :1323 va CORRECTION tai dong :1400: da xac nhan 409 LEASE_LOST va 409 PERMISSION_DENIED.
+- Khong sua product source. Chi cap nhat test assertion trong tests/artifact-read-authorization.test.ts de dong bo voi code va docs/28:1400.
+
+Yeu cau thuc hien (LEASE: chi file orchestrator/services/orchestrator/tests/artifact-read-authorization.test.ts):
+Cap nhat 5 test assertion:
+- Dong :375: sua mong doi tu { code: 'STATE_CONFLICT' } sang { code: 'PERMISSION_DENIED' } (vi art.taskId !== req.taskId va art.state !== 'READY')
+- Dong :386: sua mong doi tu { status: 403, code: 'PERMISSION_DENIED' } sang { status: 409, code: 'LEASE_LOST' }
+- Dong :597: sua mong doi tu { code: 'STATE_CONFLICT' } sang { code: 'PERMISSION_DENIED' } (hoac { status: 409, code: 'PERMISSION_DENIED' })
+- Dong :732: sua mong doi tu { status: 403, code: 'PERMISSION_DENIED' } sang { status: 409, code: 'LEASE_LOST' }
+- Dong :742: sua mong doi tu { status: 403, code: 'PERMISSION_DENIED' } sang { status: 409, code: 'LEASE_LOST' }
+
+Sau khi sua:
+Chay lai:
+cd du-rework/orchestrator/services/orchestrator
+node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/artifact-read-authorization.test.ts
+Xac nhan: 90 passed, 90 total, REAL_EXIT=0.
+Xuat receipt tai: du-rework/coordination/reports/receipt-artifact-read-auth-fix-2026-10-09.md
+
+Quy tac bat buoc:
+- KHONG git commit, KHONG push, KHONG git add.
+- Chi sua file test trong lease, khong sua product code.
+- Khong chua dau nhay kep trong prompt.

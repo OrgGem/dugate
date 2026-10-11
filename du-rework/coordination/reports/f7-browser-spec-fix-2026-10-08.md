@@ -22,7 +22,7 @@ Exit 0, 7 passed. This was **pre-existing green against stale `apps/admin-web/di
 
 ```text
 Running 7 tests using 1 worker
-ok 1 admin-web\overview.spec.ts:62:7 › 0. unauth direct /admin/web/overview → login (mount gate)
+ok 1 admin-web\overview.spec.ts:62:7 › 0. unauth direct admin/overview → login (mount gate)
 ok 2 admin-web\overview.spec.ts:69:7 › 1. operator tenant → ready: tenant-fenced rows + honest tiles
 ok 3 admin-web\overview.spec.ts:92:7 › 2. empty scope → EmptyState with refresh affordance
 ok 4 admin-web\overview.spec.ts:101:7 › 3. upstream failure → 502 error, retry succeeds after recovery
@@ -51,7 +51,7 @@ Exit 1, 3 failed / 4 passed. Literal failures:
 
 ```text
 Running 7 tests using 1 worker
-ok 1 ... 0. unauth direct /admin/web/overview → login (mount gate)
+ok 1 ... 0. unauth direct admin/overview → login (mount gate)
 x  2 ... 1. operator tenant → ready: tenant-fenced rows + honest tiles
 ok 3 ... 2. empty scope → EmptyState with refresh affordance
 x  4 ... 3. upstream failure → 502 error, retry succeeds after recovery
@@ -90,7 +90,7 @@ Exit 1, 2 failed / 5 passed. The count regression is fixed. All remaining red is
 
 ```text
 Running 7 tests using 1 worker
-ok 1 ... 0. unauth direct /admin/web/overview → login (mount gate)
+ok 1 ... 0. unauth direct admin/overview → login (mount gate)
 ok 2 ... 1. operator tenant → ready: tenant-fenced rows + honest tiles
 ok 3 ... 2. empty scope → EmptyState with refresh affordance
 x  4 ... 3. upstream failure → 502 error, retry succeeds after recovery
@@ -123,7 +123,7 @@ Fresh-build pre-edit run:
 
 ```text
 Running 7 tests using 1 worker
-  ok 1 admin-web\overview.spec.ts:62:7 › AWEB-03b Overview browser evidence (harness seam) › 0. unauth direct /admin/web/overview → login (mount gate) (240ms)
+  ok 1 admin-web\overview.spec.ts:62:7 › AWEB-03b Overview browser evidence (harness seam) › 0. unauth direct admin/overview → login (mount gate) (240ms)
   x  2 admin-web\overview.spec.ts:69:7 › AWEB-03b Overview browser evidence (harness seam) › 1. operator tenant → ready: tenant-fenced rows + honest tiles (10.9s)
   ok 3 admin-web\overview.spec.ts:92:7 › AWEB-03b Overview browser evidence (harness seam) › 2. empty scope → EmptyState with refresh affordance (921ms)
   x  4 admin-web\overview.spec.ts:101:7 › AWEB-03b Overview browser evidence (harness seam) › 3. upstream failure → 502 error, retry succeeds after recovery (835ms)
@@ -179,7 +179,7 @@ After-edit run:
 
 ```text
 Running 7 tests using 1 worker
-  ok 1 admin-web\overview.spec.ts:62:7 › AWEB-03b Overview browser evidence (harness seam) › 0. unauth direct /admin/web/overview → login (mount gate) (189ms)
+  ok 1 admin-web\overview.spec.ts:62:7 › AWEB-03b Overview browser evidence (harness seam) › 0. unauth direct admin/overview → login (mount gate) (189ms)
   ok 2 admin-web\overview.spec.ts:69:7 › AWEB-03b Overview browser evidence (harness seam) › 1. operator tenant → ready: tenant-fenced rows + honest tiles (874ms)
   ok 3 admin-web\overview.spec.ts:92:7 › AWEB-03b Overview browser evidence (harness seam) › 2. empty scope → EmptyState with refresh affordance (771ms)
   x  4 admin-web\overview.spec.ts:101:7 › AWEB-03b Overview browser evidence (harness seam) › 3. upstream failure → 502 error, retry succeeds after recovery (748ms)

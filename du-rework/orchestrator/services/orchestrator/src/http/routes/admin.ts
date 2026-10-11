@@ -33,8 +33,12 @@ import {
 import { dispatchAdminAction } from '../../modules/admin-actions/dispatcher';
 import { applyCryptoConfig, readCryptoConfig } from '../../app/admin/crypto-config-api';
 import { parseCookieHeader, verifyCookie } from '../../app/admin/shell-auth';
-import { dateToIso, parseAdminResourceListQuery } from '../../modules/admin-read/keyset';
+import { dateToIso, parseAdminResourceListQuery, UUID_PARAM_PATTERN } from '../../modules/admin-read/keyset';
 import { listAdminBusinessesPage, listBusinessVersionPage } from '../../modules/admin-read/business-list';
+import {
+  listTenantBusinessCatalogPage,
+  parseTenantBusinessCatalogQuery,
+} from '../../modules/admin-read/tenant-business-catalog';
 import {
   buildApiKeyPage,
   listApiKeyPage,
@@ -53,7 +57,13 @@ import {
   profileDetailCurrentValues,
   profileDetailPolicyRead,
 } from '../../modules/admin-read/profile-detail';
+import { loadTenantProfileDetail } from '../../modules/admin-read/tenant-profile-detail';
+import { listAdminProfilePage, parseAdminProfileListQuery } from '../../modules/admin-read/profile-list';
+import { listProfileApiKeys } from '../../modules/admin-read/profile-api-keys';
+import { listProfileWorkflows, setProfileWorkflowBinding } from '../../modules/admin-read/profile-workflows';
 import { listAdminWorkflows, getAdminWorkflowDetail } from '../../modules/admin-read/workflow-list';
+import { listWorkerInstances, parseWorkerInstanceListQuery } from '../../modules/admin-read/worker-instances';
+import { getBusinessVersionImpactPreview } from '../../modules/admin-read/business-impact-preview';
 import { hashKey } from './api-key-auth';
 import type { RouteContext, RouteResult } from '../route-context';
 
@@ -78,8 +88,62 @@ function assertAdminAuth(ctx: RouteContext) {
  */
 const ADMIN_TOKEN_AUDIT_FIELDS = { actorRole: 'platform' } as const;
 
+function readUniqueAdminQueryParam(ctx: RouteContext, name: string): string | null {
+  const values = ctx.searchParams.getAll(name);
+  if (values.length > 1) throw new HttpError(422, 'INVALID_SCHEMA', `${name} must not be repeated`);
+  return values[0] ?? null;
+}
+
+function decodeBusinessPathSegment(raw: string, name: string): string {
+  let value: string;
+  try {
+    value = decodeURIComponent(raw);
+  } catch {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} path segment is malformed`);
+  }
+  if (value.length === 0 || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} path segment is invalid`);
+  }
+  return value;
+}
+
 export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
+
+  // BIZ-11: tenant-fenced, read-only dependency preview for one business version.
+  {
+    const m = /^\/api\/v1\/admin\/businesses\/([^/]+)\/versions\/([^/]+)\/impact-preview$/.exec(pathname);
+    if (m) {
+      if (method !== 'GET') {
+        throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'business version impact preview accepts GET only');
+      }
+      const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+      if (!principal) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+      }
+      for (const name of ctx.searchParams.keys()) {
+        if (name !== 'tenantId' && name !== 'action') {
+          throw new HttpError(422, 'INVALID_SCHEMA', `unsupported impact preview query parameter: ${name}`);
+        }
+      }
+      const requestedTenantId = readUniqueAdminQueryParam(ctx, 'tenantId');
+      const action = readUniqueAdminQueryParam(ctx, 'action');
+      if (action !== 'activate' && action !== 'deactivate') {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'action must be activate or deactivate');
+      }
+      const tenantScope = authorizeAuditTenantRead(principal, requestedTenantId ?? '');
+      const tenantId = tenantScope || requestedTenantId;
+      if (!tenantId) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'tenantId is required for business impact preview');
+      }
+      const businessId = decodeBusinessPathSegment(m[1]!, 'businessId');
+      const version = decodeBusinessPathSegment(m[2]!, 'version');
+      return {
+        status: 200,
+        body: await getBusinessVersionImpactPreview(ctx.db, { tenantId, businessId, version, action }),
+      };
+    }
+  }
 
   // Admin: PUT /api/v1/admin/businesses/:id/versions/:version/enable  (P2-07 real enable)
   {
@@ -407,6 +471,70 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     };
   }
 
+  // BIZ-10: tenant-owned logical business catalog. Scope is selected from the
+  // path only after authenticating the principal; tenant operators are pinned
+  // to their own tenant and the SQL module fences both page and total queries.
+  {
+    const m = /^\/api\/v1\/admin\/tenants\/([^/]+)\/businesses$/.exec(pathname);
+    if (m && method === 'GET') {
+      const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+      if (!principal) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+      }
+      let requestedTenantId: string;
+      try {
+        requestedTenantId = decodeURIComponent(m[1]!).toLowerCase();
+      } catch {
+        throw new HttpError(400, 'INVALID_ARGUMENT', 'tenantId path parameter is malformed');
+      }
+      if (!UUID_PARAM_PATTERN.test(requestedTenantId)) {
+        throw new HttpError(400, 'INVALID_ARGUMENT', 'tenantId path parameter must be a UUID');
+      }
+      const tenantId = authorizeAuditTenantRead(principal, requestedTenantId);
+      const query = parseTenantBusinessCatalogQuery(ctx.searchParams);
+      const tenantTokenSeed = JSON.stringify(
+        Object.entries(ctx.config.tenantAdminTokens ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+      );
+      const cursorSecret = ctx.config.adminShellCookieSecret || ctx.config.adminToken || tenantTokenSeed;
+      const page = await listTenantBusinessCatalogPage({
+        db: ctx.db,
+        tenantId,
+        query,
+        cursorSecret,
+      });
+      return {
+        status: 200,
+        body: {
+          ...listPage({
+            items: page.rows.map((row) => ({
+              businessId: row.business_id,
+              displayName: row.business_id,
+              latestVersion: row.latest_version,
+              latestStatus: row.latest_status,
+              activeVersion: row.active_version,
+              versionCount: Number(row.version_count),
+              createdAt: dateToIso(row.created_at),
+              updatedAt: dateToIso(row.updated_at),
+            })),
+            nextCursor: page.nextCursor,
+            prevCursor: page.prevCursor,
+            total: page.total,
+            limit: query.limit,
+          }),
+          generatedAt: new Date().toISOString(),
+        },
+      };
+    }
+  }
+
+  // AWEB-11C: platform-scoped worker inventory from persisted heartbeat rows.
+  if (pathname === '/api/v1/admin/worker-instances') {
+    assertAdminAuth(ctx);
+    if (method !== 'GET') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'worker instances are read-only');
+    const query = parseWorkerInstanceListQuery(ctx.searchParams);
+    return { status: 200, body: await listWorkerInstances(ctx.db, query) };
+  }
+
   // Admin: GET /api/v1/admin/tenants  (tenant roster / picker source)
   // The wire item is exactly { id, name, state }, ordered by (lower(name), id)
   // — see the contract note on TENANT_LIST_QUERY_PARAMS for why this list
@@ -451,7 +579,23 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
     const requestedTenant = ctx.searchParams.get('tenantId') || null;
     const scope = authorizeAuditTenantRead(principal, requestedTenant ?? '');
     const effectiveTenant = scope === '' ? requestedTenant : scope;
-    const items = await listAdminWorkflows(ctx.db, effectiveTenant, ctx.metadataCrypto);
+    const businessIdValues = ctx.searchParams.getAll('businessId');
+    const businessVersionValues = ctx.searchParams.getAll('businessVersion');
+    if (businessIdValues.length > 1 || businessVersionValues.length > 1) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'businessId and businessVersion must not be repeated');
+    }
+    const businessId = businessIdValues[0]?.trim();
+    const businessVersion = businessVersionValues[0]?.trim();
+    if (businessVersion && !businessId) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'businessVersion requires businessId');
+    }
+    if ((businessId && businessId.length > 256) || (businessVersion && businessVersion.length > 128)) {
+      throw new HttpError(422, 'INVALID_SCHEMA', 'business filter is too long');
+    }
+    const items = await listAdminWorkflows(ctx.db, effectiveTenant, ctx.metadataCrypto, {
+      ...(businessId ? { businessId } : {}),
+      ...(businessVersion ? { businessVersion } : {}),
+    });
     return {
       status: 200,
       body: { items, total: items.length },
@@ -530,10 +674,51 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
   // capabilities come from no platform table yet → `[]` (tolerated).
   // Unknown business/version → 404. `/new` returns the same manifest with
   // an empty profileName + revision 0 (blank editor, no stored profile).
+  if (method === 'GET' && pathname === '/api/v1/admin/profiles') {
+    const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+    if (!principal) {
+      throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+    }
+    const query = parseAdminProfileListQuery(ctx.searchParams);
+    const scope = authorizeAuditTenantRead(principal, query.tenantId ?? '');
+    if (scope === '') {
+      return {
+        status: 200,
+        body: listPage({ items: [], nextCursor: null, prevCursor: null, total: 0, limit: query.limit }),
+      };
+    }
+    const page = await listAdminProfilePage(ctx.db, scope, query);
+    return {
+      status: 200,
+      body: listPage({
+        items: page.rows.map((row) => ({
+          tenantId: row.tenant_id,
+          businessId: row.business_id,
+          businessVersion: row.business_version,
+          profileName: row.profile_name,
+          revision: row.revision,
+          status: row.enabled === true ? 'ACTIVE' : row.enabled === false ? 'DISABLED' : 'UNKNOWN',
+          keyCount: row.key_count,
+          boundActions: row.bound_actions,
+          createdAt: dateToIso(row.created_at),
+          updatedAt: dateToIso(row.updated_at),
+        })),
+        nextCursor: page.nextCursor,
+        prevCursor: page.prevCursor,
+        total: page.total,
+        limit: query.limit,
+      }),
+    };
+  }
+
   {
     const m = /^\/api\/v1\/admin\/profiles\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(pathname);
     if (m && method === 'GET') {
-      assertAdminAuth(ctx);
+      const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+      if (!principal) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+      }
+      const tenantScope = authorizeAuditTenantRead(principal, '');
       const businessId = decodeURIComponent(m[1]!);
       const versionSeg = decodeURIComponent(m[2]!);
       const nameSeg = decodeURIComponent(m[3]!);
@@ -576,13 +761,20 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       // T-API-01 closure: real revision/policy from the Δ7-A registry + the
       // 0027 pointer; the write identity (apiKeyId, never the hash) is
       // revealed so the client can address the profile.* commands.
-      const detail = await loadProfileDetail(ctx.db, row.business_id, row.version, nameSeg);
+      const detail = tenantScope === ''
+        ? await loadProfileDetail(ctx.db, row.business_id, row.version, nameSeg)
+        : await loadTenantProfileDetail(ctx.db, row.business_id, row.version, nameSeg, tenantScope);
       if (detail.kind === 'pointer-missing') {
         // Invariant #3: registry has rows but no pointer — fail closed, never
         // guess a revision.
         throw new HttpError(404, 'NOT_FOUND', `profile '${nameSeg}' has no active revision pointer`);
       }
       if (detail.kind === 'not-found') {
+        if (tenantScope !== '') {
+          // A tenant token can read only a profile stored under its own tenant;
+          // do not turn a foreign or missing identity into the blank editor.
+          throw new HttpError(404, 'NOT_FOUND', `profile '${nameSeg}' is not stored in this tenant`);
+        }
         // Backwards-compatible create flow (R-12 blind first save): a named
         // profile that is not stored yet opens the same blank, schema-valid
         // editor as `/new` — no revision, no write identity. A STORED profile
@@ -613,7 +805,122 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           manifest: { actions: row.manifest?.actions ?? [] },
           capabilities: [],
           apiKeyId: detail.row.api_key_id,
+          // NOT profileId: ProfileDetailReadSchema is strict and this read is
+          // frozen to the write identity the client already needs. The 0039
+          // membership writes address the profile by (business, version, name)
+          // and resolve the internal id server-side.
         },
+      };
+    }
+  }
+
+  // 0039: GET /api/v1/admin/profiles/:businessId/:businessVersion/:profileName/api-keys
+  // The key set a profile OWNS. Addressed by the same (business, version, name)
+  // tuple as the detail read, so a caller never has to know a profile_id.
+  // A name that is not stored yet is 404 rather than an empty list — an empty
+  // list would read as "this profile has no keys", which is a different fact.
+  {
+    const m = /^\/api\/v1\/admin\/profiles\/([^/]+)\/([^/]+)\/([^/]+)\/api-keys$/.exec(pathname);
+    if (m && method === 'GET') {
+      const keysPrincipal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+      if (!keysPrincipal) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+      }
+      const scope = authorizeAuditTenantRead(keysPrincipal, '');
+      const businessId = decodeURIComponent(m[1]!);
+      const versionSeg = decodeURIComponent(m[2]!);
+      const nameSeg = decodeURIComponent(m[3]!);
+      const manifestRes =
+        versionSeg === 'latest'
+          ? await ctx.db.query(
+              `SELECT business_id, version FROM business_versions
+               WHERE business_id=$1 AND is_active = true LIMIT 1`,
+              [businessId]
+            )
+          : await ctx.db.query(
+              `SELECT business_id, version FROM business_versions
+               WHERE business_id=$1 AND version=$2`,
+              [businessId, versionSeg]
+            );
+      if (!manifestRes.rowCount) {
+        throw new HttpError(404, 'NOT_FOUND', `no manifest for '${businessId}@${versionSeg}'`);
+      }
+      const resolved = manifestRes.rows[0] as { business_id: string; version: string };
+      const detail = scope === ''
+        ? await loadProfileDetail(ctx.db, resolved.business_id, resolved.version, nameSeg)
+        : await loadTenantProfileDetail(ctx.db, resolved.business_id, resolved.version, nameSeg, scope);
+      if (detail.kind === 'pointer-missing') {
+        throw new HttpError(404, 'NOT_FOUND', `profile '${nameSeg}' has no active revision pointer`);
+      }
+      if (detail.kind === 'not-found') {
+        throw new HttpError(404, 'NOT_FOUND', `profile '${nameSeg}' is not stored yet`);
+      }
+      return {
+        status: 200,
+        body: await listProfileApiKeys(ctx.db, detail.row.profile_id, scope),
+      };
+    }
+  }
+
+  // AWEB-14: profile workflow choices are business/version scoped and kept
+  // separately from immutable endpoint policy revisions.
+  {
+    const m = /^\/api\/v1\/admin\/profiles\/([^/]+)\/([^/]+)\/([^/]+)\/workflows$/.exec(pathname);
+    if (m && (method === 'GET' || method === 'POST')) {
+      const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
+      if (!principal) {
+        throw new HttpError(401, 'UNAUTHENTICATED', 'admin endpoints require an admin token');
+      }
+      if (method === 'POST' && principal.role === 'tenant_operator') {
+        throw new HttpError(403, 'PERMISSION_DENIED', 'profile workflow changes require the platform admin role');
+      }
+      const businessId = decodeURIComponent(m[1]!);
+      const businessVersion = decodeURIComponent(m[2]!);
+      const profileName = decodeURIComponent(m[3]!);
+      const requestedTenant = ctx.searchParams.get('tenantId') || null;
+      const scope = authorizeAuditTenantRead(principal, requestedTenant ?? '');
+      const tenantId = scope === '' ? requestedTenant : scope;
+      if (!tenantId) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'tenantId is required for profile workflow selection');
+      }
+      const identity = { tenantId, businessId, businessVersion, profileName };
+      if (method === 'GET') {
+        return { status: 200, body: await listProfileWorkflows(ctx.db, identity) };
+      }
+
+      const body = ctx.body;
+      if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'workflow selection body must be an object');
+      }
+      const selection = body as Record<string, unknown>;
+      if (Object.keys(selection).some((key) => !['workflowSlug', 'workflowRevision', 'enabled'].includes(key))) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'workflow selection contains unsupported fields');
+      }
+      const workflowSlug = selection.workflowSlug;
+      const workflowRevision = selection.workflowRevision;
+      const enabled = selection.enabled;
+      if (typeof workflowSlug !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(workflowSlug)
+          || typeof workflowRevision !== 'number' || !Number.isSafeInteger(workflowRevision) || workflowRevision < 1
+          || typeof enabled !== 'boolean') {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'workflowSlug, positive workflowRevision, and enabled are required');
+      }
+      const result = await auditedMutation(
+        ctx.db,
+        ctx.audit,
+        (client) => setProfileWorkflowBinding(client, identity, { workflowSlug, workflowRevision, enabled }),
+        (saved) => ({
+          tenantId: saved.tenantId,
+          actor: 'admin',
+          actorRole: principal.role,
+          action: 'profile_workflow.set',
+          resource: `profile:${saved.profileId}/workflow:${workflowSlug}:${workflowRevision}`,
+          severity: 'info',
+          correlationId: ctx.correlationId,
+        }),
+      );
+      return {
+        status: 200,
+        body: { businessId, businessVersion, workflowSlug, workflowRevision, enabled },
       };
     }
   }
@@ -742,7 +1049,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       // reach the wire even as a row that is later dropped.
       if (keyId) {
         const one = await ctx.db.query<Record<string, unknown>>(
-          `SELECT id, tenant_id, prefix, status, created_at, updated_at FROM api_keys WHERE id=$1`,
+          `SELECT id, tenant_id, prefix, name, status, created_at, updated_at FROM api_keys WHERE id=$1`,
           [keyId]
         );
         if (!one.rowCount) throw new HttpError(404, 'NOT_FOUND', `api key '${keyId}' not found`);

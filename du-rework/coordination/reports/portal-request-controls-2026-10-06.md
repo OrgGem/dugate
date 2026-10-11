@@ -4,7 +4,7 @@ Date: 2026-10-06. Scope: du-rework only. No commit, remote, push or production c
 
 ## Delivered
 
-- `/admin/web/operations`: server-side cursor pagination, 20/50/100 page sizes, default `created_at:desc`, Previous/Next/Newest, reset cursor on state/page-size changes, race-safe list/detail responses.
+- `admin/operations`: server-side cursor pagination, 20/50/100 page sizes, default `created_at:desc`, Previous/Next/Newest, reset cursor on state/page-size changes, race-safe list/detail responses.
 - Detail: redacted request input, complete result JSON, artifact metadata, safe task statuses/attempt limits/error codes, creation/start/completion/deadline, total elapsed and execution elapsed. Execution elapsed includes waits, not CPU time.
 - Stop: real BFF POST ? audited `operations.cancel`, available to admin and tenant-scoped operator. Viewer/unscoped sessions denied. Existing lifecycle cancellation semantics retained; external work already issued cannot be undone.
 - Retry: real BFF POST ? new platform-admin-only `operations.retry`. FAILED/CANCELLED/TIMED_OUT only. Fresh operation/root task/outbox linked by retryOf, original history frozen, original business/profile/prompt pins and callback retained, no copied checkpoints. Concurrent clicks coalesce to an active child. Metadata is read under the configured policy and resealed with new AAD identities. Expired/deleted input or cached source versions reject before creating a child. Pending URL/S3 sources use the existing ingestion gate.

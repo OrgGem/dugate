@@ -1,5 +1,6 @@
 import type { Db } from '../src/db/db';
 import {
+  assertCredentialOriginAllowed,
   createAcquisitionRefResolver,
   SourceAuthDeniedError,
   withSourceAuth,
@@ -30,7 +31,7 @@ function normalize(sql: string): string {
 interface ResolverDbConfig {
   snapshot?: unknown;
   opAbsent?: boolean;
-  binding?: { tenantId: string; cipher: unknown } | null;
+  binding?: { tenantId: string; cipher: unknown; allowedOrigins?: unknown } | null;
 }
 
 function makeResolverDb(config: ResolverDbConfig): { db: Db; calls: { sql: string; params: unknown[] }[] } {
@@ -78,6 +79,7 @@ describe('P730-ACQUIRE resolver — happy paths', () => {
     await expect(resolver.resolveSourceAuth({ operationId: OP, tenantId: TENANT })).resolves.toEqual({
       kind: 'bearer',
       token: 'source-token-1',
+      allowedOrigins: [],
     });
   });
 
@@ -91,7 +93,29 @@ describe('P730-ACQUIRE resolver — happy paths', () => {
       kind: 'header',
       headerName: 'x-api-key',
       headerValue: 'hk-1',
+      allowedOrigins: [],
     });
+  });
+
+  it('reads and canonicalizes allowlist data from the exact pinned binding revision', async () => {
+    const cipher = encryptFileUrlAuthConfig({ type: 'bearer', token: 'source-token-1' }, ENV_A);
+    const { resolver, calls } = resolverWith({
+      snapshot: pinnedSnapshot(),
+      binding: {
+        tenantId: TENANT,
+        cipher,
+        allowedOrigins: ['https://FILES.example:443/', 'https://api.example'],
+      },
+    });
+    await expect(resolver.resolveSourceAuth({ operationId: OP, tenantId: TENANT })).resolves.toEqual({
+      kind: 'bearer',
+      token: 'source-token-1',
+      allowedOrigins: ['https://api.example', 'https://files.example'],
+    });
+    expect(calls.find((call) => call.sql.includes('FROM profile_bindings'))?.sql).toContain(
+      'allowed_origins AS "allowedOrigins"'
+    );
+    expect(calls.find((call) => call.sql.includes('FROM profile_bindings'))?.params).toEqual([PROFILE, REVISION]);
   });
 
   it('NULL snapshot (legacy-mode operation) resolves to no auth', async () => {
@@ -112,6 +136,7 @@ describe('P730-ACQUIRE resolver — happy paths', () => {
     await expect(resolver.resolveSourceAuth({ operationId: OP, tenantId: TENANT })).resolves.toEqual({
       kind: 'bearer',
       token: 'legacy-token',
+      allowedOrigins: [],
     });
     expect(warn).toHaveBeenCalledTimes(1);
   });
@@ -222,7 +247,11 @@ describe('P730-ACQUIRE withSourceAuth — same-origin attachment, cross-origin r
 
   it('attaches bearer auth to the first origin and to same-origin follow-ups, and preserves init', async () => {
     const { fetcher, calls } = spyFetcher();
-    const wrapped = withSourceAuth(fetcher, { kind: 'bearer', token: 'source-token-1' });
+    const wrapped = withSourceAuth(fetcher, {
+      kind: 'bearer',
+      token: 'source-token-1',
+      allowedOrigins: ['https://files.example'],
+    }, 'enforce');
     await wrapped('https://files.example/a', { method: 'GET', redirect: 'manual' });
     await wrapped('https://files.example/b', { method: 'GET', redirect: 'manual' });
     expect(calls[0]!.headers.get('authorization')).toBe('Bearer source-token-1');
@@ -232,7 +261,11 @@ describe('P730-ACQUIRE withSourceAuth — same-origin attachment, cross-origin r
 
   it('omits the credential on a cross-origin redirect hop (deliberate redaction)', async () => {
     const { fetcher, calls } = spyFetcher();
-    const wrapped = withSourceAuth(fetcher, { kind: 'bearer', token: 'source-token-1' });
+    const wrapped = withSourceAuth(fetcher, {
+      kind: 'bearer',
+      token: 'source-token-1',
+      allowedOrigins: ['https://files.example'],
+    }, 'enforce');
     await wrapped('https://files.example/a', { method: 'GET' });
     await wrapped('https://cdn.evil.example/b', { method: 'GET' });
     expect(calls[0]!.headers.get('authorization')).toBe('Bearer source-token-1');
@@ -241,7 +274,12 @@ describe('P730-ACQUIRE withSourceAuth — same-origin attachment, cross-origin r
 
   it('attaches custom header auth with its exact name', async () => {
     const { fetcher, calls } = spyFetcher();
-    const wrapped = withSourceAuth(fetcher, { kind: 'header', headerName: 'x-api-key', headerValue: 'hk-1' });
+    const wrapped = withSourceAuth(fetcher, {
+      kind: 'header',
+      headerName: 'x-api-key',
+      headerValue: 'hk-1',
+      allowedOrigins: ['https://files.example'],
+    }, 'enforce');
     await wrapped('https://files.example/a', { method: 'GET' });
     expect(calls[0]!.headers.get('x-api-key')).toBe('hk-1');
     expect(calls[0]!.headers.get('authorization')).toBeNull();
@@ -249,9 +287,46 @@ describe('P730-ACQUIRE withSourceAuth — same-origin attachment, cross-origin r
 
   it('returns the inner response untouched', async () => {
     const { fetcher } = spyFetcher();
-    const wrapped = withSourceAuth(fetcher, { kind: 'bearer', token: 't' });
+    const wrapped = withSourceAuth(fetcher, { kind: 'bearer', token: 't', allowedOrigins: ['https://files.example'] }, 'enforce');
     const res = await wrapped('https://files.example/a', { method: 'GET' });
     expect(res.status).toBe(200);
     await expect(res.text()).resolves.toBe('ok');
+  });
+
+  it('denies a non-member source origin before the fetcher is called in enforce mode', async () => {
+    const { fetcher, calls } = spyFetcher();
+    const wrapped = withSourceAuth(fetcher, {
+      kind: 'bearer',
+      token: 'source-token-1',
+      allowedOrigins: ['https://files.example'],
+    }, 'enforce');
+    await expect(wrapped('https://attacker.example/source.pdf')).rejects.toMatchObject({
+      name: 'SourceAuthDeniedError',
+      code: 'ORIGIN_NOT_ALLOWLISTED',
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('allows the same origin under warn mode and reports the bounded mismatch', () => {
+    expect(assertCredentialOriginAllowed(
+      'https://attacker.example/source.pdf',
+      { kind: 'bearer', token: 'source-token-1', allowedOrigins: ['https://files.example'] },
+      'warn'
+    )).toEqual({ code: 'ORIGIN_NOT_ALLOWLISTED', origin: 'https://attacker.example' });
+  });
+
+  it('distinguishes a missing allowlist from an origin mismatch in enforce mode', () => {
+    expect(() => assertCredentialOriginAllowed(
+      'https://files.example/source.pdf',
+      { kind: 'bearer', token: 'source-token-1', allowedOrigins: [] },
+      'enforce'
+    )).toThrow(expect.objectContaining({ code: 'ORIGIN_POLICY_MISSING' }));
+  });
+
+  it('uses canonical host/default-port origins but keeps non-default ports exact', () => {
+    const auth = { kind: 'bearer' as const, token: 't', allowedOrigins: ['https://files.example:8443'] };
+    expect(assertCredentialOriginAllowed('https://FILES.example:8443/source', auth, 'enforce')).toBeNull();
+    expect(() => assertCredentialOriginAllowed('https://files.example/source', auth, 'enforce'))
+      .toThrow(expect.objectContaining({ code: 'ORIGIN_NOT_ALLOWLISTED' }));
   });
 });

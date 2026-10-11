@@ -34,13 +34,13 @@ Toàn bộ 6 findings từ `coordination/reports/aweb03b-overview-graft-2026-10-
   - JS: `dist/assets/index-C86-GURc.js` (304.14 kB, gzip 100.88 kB)
   - HTML: `dist/index.html` (0.47 kB)
 - **Harness & Server Seam**:
-  - `createAdminShellServer` từ mã nguồn với mount `/admin/web` và `/admin/web/overview`.
+  - `createAdminShellServer` từ mã nguồn với mount `admin` và `admin/overview`.
   - In-memory OIDC session store (`operator` tenant UUID và `viewer`).
   - Scripted upstream stub `/api/v1/admin/audit` với scenario control (`rows`, `empty`, `error`).
 
 ### 2.2. Chi tiết Đánh giá từng Màn hình
 
-#### Route A: `/admin/web` (Bootstrap Home / Entry Route)
+#### Route A: `admin` (Bootstrap Home / Entry Route)
 - **Screen Spec & Routing**: Đáp ứng đúng vai trò root view của Admin Web React.
 - **Bảo mật & Session Gate**:
   - Khi chưa đăng nhập (unauthenticated) $\rightarrow$ 302 redirect chính xác về `/admin/login`.
@@ -50,7 +50,7 @@ Toàn bộ 6 findings từ `coordination/reports/aweb03b-overview-graft-2026-10-
 - **Theme**: Light mode và Dark mode (`data-theme="dark"`) phân tách thị giác rõ ràng, tuân thủ token màu nền, viền và chữ.
 - **Verdict**: **`UI_APPROVED`**
 
-#### Route B: `/admin/web/overview` (Overview Dashboard)
+#### Route B: `admin/overview` (Overview Dashboard)
 - **Screen Spec & Role/Tenant Matrix (`ACUI-M07`)**:
   - **Operator Session**: Đọc dữ liệu audit ledger thật được fence theo đúng tenant ID của phiên (`11111111-1111-4111-8111-111111111111`). Header upstream stub nhận đúng tenant credential, không mượn platform bearer.
   - **Viewer Session**: Hiển thị trạng thái `DeniedState` (403 Forbidden), upstream audit stub ghi nhận **0 request** (bằng chứng âm - không bị leak dữ liệu xuyên quyền).
@@ -99,13 +99,13 @@ exit_code: 0
 output:
 Running 13 tests using 1 worker
 
-  ok  1 admin-web\admin-web.spec.ts:52:7 › 1. direct unauth /admin/web -> 302 login; login form renders (963ms)
+  ok  1 admin-web\admin-web.spec.ts:52:7 › 1. direct unauth admin -> 302 login; login form renders (963ms)
   ok  2 admin-web\admin-web.spec.ts:67:7 › 2. login -> React app renders; no serious console errors (996ms)
   ok  3 admin-web\admin-web.spec.ts:80:7 › 3. reload keeps the session and re-renders the app (1.5s)
   ok  4 admin-web\admin-web.spec.ts:89:7 › 4. 320px viewport: no horizontal overflow; nav reachable (1.3s)
   ok  5 admin-web\admin-web.spec.ts:103:7 › 5. keyboard: Tab reaches a control with a visible focus ring (1.4s)
   ok  6 admin-web\admin-web.spec.ts:126:7 › 6. theme: light + data-theme=dark render distinctly (1.3s)
-  ok  7 admin-web\overview.spec.ts:62:7 › 0. unauth direct /admin/web/overview → login (mount gate) (294ms)
+  ok  7 admin-web\overview.spec.ts:62:7 › 0. unauth direct admin/overview → login (mount gate) (294ms)
   ok  8 admin-web\overview.spec.ts:69:7 › 1. operator tenant → ready: tenant-fenced rows + honest tiles (1.3s)
   ok  9 admin-web\overview.spec.ts:92:7 › 2. empty scope → EmptyState with refresh affordance (935ms)
   ok 10 admin-web\overview.spec.ts:101:7 › 3. upstream failure → 502 error, retry succeeds after recovery (1.0s)
@@ -146,7 +146,7 @@ output:
 ## 4. Tổng kết & Kết luận
 
 1. **Findings F1–F6**: Đã đóng 100% (Token compliance, Table shadow, FormField a11y auto-wiring, Production barrel pruning, ErrorState convention, Overview nav link).
-2. **Review Verdict**: **`UI_APPROVED`** cho cả 2 route `/admin/web` và `/admin/web/overview` trên build `index-C86-GURc.js` / `index-BdwAIkBX.css`.
+2. **Review Verdict**: **`UI_APPROVED`** cho cả 2 route `admin` và `admin/overview` trên build `index-C86-GURc.js` / `index-BdwAIkBX.css`.
 3. **Tuân thủ Ranh giới**:
    - Không sửa `src/lib/api/**`, `src/routes/**`, `src/features/**`, Orchestrator backend, `tasks/**`, `docs/**`.
    - Không commit code, không can thiệp hạ tầng container của user.

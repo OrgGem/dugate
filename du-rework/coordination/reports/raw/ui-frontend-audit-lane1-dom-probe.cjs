@@ -1,7 +1,7 @@
 /**
  * Lane-1 UI audit — DOM probe (read-only).
  *
- * 1) Honest-error path: with no SC-01 admin API in the stub, /admin/web/secrets
+ * 1) Honest-error path: with no SC-01 admin API in the stub, admin/secrets
  *    must render an error state without crashing and without leaking anything.
  * 2) Duplicate DOM ids: two profile rows each rendering the CB-04 editor produce
  *    duplicate field ids (a11y/form association finding).
@@ -28,13 +28,13 @@ async function main() {
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
-  await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="token"]', TOKEN);
   await page.click('button[type="submit"]');
   await page.waitForURL((url) => url.pathname === '/admin');
 
   // 1) Honest error path for the secrets screen (upstream catalog absent).
-  await page.goto(`${BASE}/admin/web/secrets`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}admin/secrets`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Secrets', exact: true }).waitFor({ timeout: 15000 });
   await page.fill('#secrets-tenant', '11111111-1111-4111-8111-111111111111');
   await page.getByRole('button', { name: 'Refresh' }).click();
@@ -47,7 +47,7 @@ async function main() {
   // 2) Duplicate DOM ids across two profile rows.
   await fetch(`${STUB}/__stub/mode?reset=1`);
   await fetch(`${STUB}/__stub/mode?profile=fixture&profileWrite=ok`);
-  await page.goto(`${BASE}/admin/web/profiles`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}admin/profiles`, { waitUntil: 'networkidle' });
   await page.fill('#profile-business', 'doc-core');
   await page.getByRole('button', { name: 'Load profile' }).click();
   await page.getByText(/revision \d+/).waitFor({ timeout: 15000 });

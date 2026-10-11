@@ -71,7 +71,7 @@ The runner's literal Playwright command was `pnpm exec playwright test admin-web
 
 ```text
 Running 7 tests using 1 worker
-  ok 1 admin-web\overview.spec.ts:62:7 › AWEB-03b Overview browser evidence (harness seam) › 0. unauth direct /admin/web/overview → login (mount gate) (200ms)
+  ok 1 admin-web\overview.spec.ts:62:7 › AWEB-03b Overview browser evidence (harness seam) › 0. unauth direct admin/overview → login (mount gate) (200ms)
   ok 2 admin-web\overview.spec.ts:69:7 › AWEB-03b Overview browser evidence (harness seam) › 1. operator tenant → ready: tenant-fenced rows + honest tiles (857ms)
   ok 3 admin-web\overview.spec.ts:92:7 › AWEB-03b Overview browser evidence (harness seam) › 2. empty scope → EmptyState with refresh affordance (802ms)
   x  4 admin-web\overview.spec.ts:101:7 › AWEB-03b Overview browser evidence (harness seam) › 3. upstream failure → 502 error, retry succeeds after recovery (858ms)
@@ -127,7 +127,7 @@ Post-edit output:
 
 ```text
 Running 7 tests using 1 worker
-  ok 1 admin-web\overview.spec.ts:62:7 › 0. unauth direct /admin/web/overview → login (mount gate)
+  ok 1 admin-web\overview.spec.ts:62:7 › 0. unauth direct admin/overview → login (mount gate)
   ok 2 admin-web\overview.spec.ts:69:7 › 1. operator tenant → ready: tenant-fenced rows + honest tiles
   ok 3 admin-web\overview.spec.ts:92:7 › 2. empty scope → EmptyState with refresh affordance
   ok 4 admin-web\overview.spec.ts:101:7 › 3. upstream failure → 502 error, retry succeeds after recovery

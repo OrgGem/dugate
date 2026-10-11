@@ -1,9 +1,11 @@
 /**
  * BFF Operations / Usage / Business routes (AWEB-06).
  *
+ *   GET  /admin/api/operations/metrics?tenant&from&to      → scoped Overview rollup
  *   GET  /admin/api/operations[/:id]                       → ops list/detail
  *   GET  /admin/api/usage?tenantId&from&to                 → usage summary
  *   GET  /admin/api/businesses[/:id/versions]              → registry reads
+ *   GET  /admin/api/worker-instances?businessId&limit       → platform worker inventory
  *   PUT  /admin/api/businesses/:id/versions/:v/:action     → enable/activate/deactivate
  *
  * Fence (same rules as the platform's ADM-BASE-01/02 admin-bearer branches):
@@ -35,18 +37,21 @@ import {
 
 export type OperationsRoute =
   | { kind: 'operations-list' }
+  | { kind: 'operations-metrics' }
   | { kind: 'operation-detail'; id: string }
   | { kind: 'operation-action'; id: string; action: 'cancel' | 'retry' }
   | { kind: 'usage' }
   | { kind: 'businesses' }
+  | { kind: 'worker-instances' }
   | { kind: 'business-versions'; businessId: string }
   | { kind: 'business-action'; businessId: string; version: string; action: 'enable' | 'activate' | 'deactivate' }
   | { kind: 'invalid' };
 
-const OPERATIONS_PARAM_ALLOWLIST = ['limit', 'cursor', 'state', 'tenant', 'id', 'sort'] as const;
+const OPERATIONS_PARAM_ALLOWLIST = ['limit', 'cursor', 'state', 'tenant', 'id', 'sort', 'from', 'to'] as const;
 const BUSINESS_PARAM_ALLOWLIST = ['limit', 'cursor', 'sort'] as const;
 
 export function matchOperationsRoute(relative: string): OperationsRoute | null {
+  if (relative === '/operations/metrics') return { kind: 'operations-metrics' };
   if (relative === '/operations') return { kind: 'operations-list' };
   const control = /^\/operations\/([^/]+)\/(cancel|retry)$/.exec(relative);
   if (control) {
@@ -60,6 +65,7 @@ export function matchOperationsRoute(relative: string): OperationsRoute | null {
   }
   if (relative === '/usage') return { kind: 'usage' };
   if (relative === '/businesses') return { kind: 'businesses' };
+  if (relative === '/worker-instances') return { kind: 'worker-instances' };
   const versionsMatch = /^\/businesses\/([^/]+)\/versions$/.exec(relative);
   if (versionsMatch) {
     const businessId = decodePathSegment(versionsMatch[1] ?? '');
@@ -106,14 +112,17 @@ export async function handleOperationsRoute(
   if (
     route.kind === 'businesses' ||
     route.kind === 'business-versions' ||
-    route.kind === 'business-action'
+    route.kind === 'business-action' ||
+    route.kind === 'worker-instances'
   ) {
     if (ctx.role !== 'admin' || principal.kind !== 'platform') {
       writeProblem(
         res,
         403,
         'ADMIN_CREDENTIAL_REQUIRED',
-        'the business registry is platform-scoped (admin session required)',
+        route.kind === 'worker-instances'
+          ? 'worker inventory is platform-scoped (admin session required)'
+          : 'the business registry is platform-scoped (admin session required)',
         correlationId,
       );
       return;
@@ -189,6 +198,28 @@ export async function handleOperationsRoute(
     return;
   }
 
+  if (route.kind === 'operations-metrics') {
+    let scope: string;
+    try {
+      scope = authorizeAuditTenantRead(rbacPrincipal(principal), query.get('tenant') ?? '');
+    } catch (err) {
+      if (isHttpError(err)) {
+        writeProblem(res, err.status, err.code, boundedMessage(err.message) ?? 'request denied', correlationId);
+        return;
+      }
+      throw err;
+    }
+    const upstream = new URL('/api/v1/operations/metrics', base);
+    for (const name of ['from', 'to'] as const) {
+      const value = query.get(name);
+      if (value !== null) upstream.searchParams.set(name, value);
+    }
+    if (scope !== '') upstream.searchParams.set('tenant', scope);
+    const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+    await relayUpstream(res, response, correlationId);
+    return;
+  }
+
   if (route.kind === 'operation-detail') {
     const upstream = new URL(`/api/v1/operations/${encodeURIComponent(route.id)}`, base);
     const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
@@ -229,6 +260,17 @@ export async function handleOperationsRoute(
   if (route.kind === 'businesses') {
     const upstream = new URL('/api/v1/admin/businesses', base);
     for (const name of BUSINESS_PARAM_ALLOWLIST) {
+      const value = query.get(name);
+      if (value !== null) upstream.searchParams.set(name, value);
+    }
+    const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+    await relayUpstream(res, response, correlationId);
+    return;
+  }
+
+  if (route.kind === 'worker-instances') {
+    const upstream = new URL('/api/v1/admin/worker-instances', base);
+    for (const name of ['businessId', 'limit'] as const) {
       const value = query.get(name);
       if (value !== null) upstream.searchParams.set(name, value);
     }

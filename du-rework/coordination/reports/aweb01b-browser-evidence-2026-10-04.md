@@ -4,7 +4,7 @@
 **Mode:** READ-ONLY với source ngoài lease; **không commit**; không đụng container user. File ghi (trong lease):
 `tests/browser/admin-web/{harness.ts, playwright.config.ts, admin-web.spec.ts}`, `coordination/evidence/aweb01b/**`, receipt này. Không sửa `apps/admin-web/src/**`, orchestrator `src/**`, `tasks/**`, `docs/**`.
 
-**TL;DR:** **6/6 PASS (10.6s), exit 0** — Playwright Chromium chạy trực tiếp vào harness `createAdminShellServer` (source, port 0 → 60334, `NODE_ENV=test`) đã mount `/admin/web`: unauth→302 login ✓, login→React render (không lỗi console) ✓, reload giữ session ✓, 320px không tràn ngang ✓, keyboard focus ring ✓, light/dark (`data-theme`) ✓. **7 screenshot + harness.json** trong `coordination/evidence/aweb01b/`. Harness được viết để tái sử dụng cho AWEB-03b/04.
+**TL;DR:** **6/6 PASS (10.6s), exit 0** — Playwright Chromium chạy trực tiếp vào harness `createAdminShellServer` (source, port 0 → 60334, `NODE_ENV=test`) đã mount `admin`: unauth→302 login ✓, login→React render (không lỗi console) ✓, reload giữ session ✓, 320px không tràn ngang ✓, keyboard focus ring ✓, light/dark (`data-theme`) ✓. **7 screenshot + harness.json** trong `coordination/evidence/aweb01b/`. Harness được viết để tái sử dụng cho AWEB-03b/04.
 
 ## 1. Harness (source seam — KHÔNG phải live stack)
 
@@ -32,7 +32,7 @@ npx playwright test --config admin-web/playwright.config.ts
 ```
 Running 6 tests using 1 worker
 
-  ok 1 admin-web\admin-web.spec.ts:52:7 › … › 1. direct unauth /admin/web -> 302 login; login form renders (1.8s)
+  ok 1 admin-web\admin-web.spec.ts:52:7 › … › 1. direct unauth admin -> 302 login; login form renders (1.8s)
   ok 2 admin-web\admin-web.spec.ts:67:7 › … › 2. login -> React app renders; no serious console errors (1.3s)
   ok 3 admin-web\admin-web.spec.ts:80:7 › … › 3. reload keeps the session and re-renders the app (1.6s)
   ok 4 admin-web\admin-web.spec.ts:89:7 › … › 4. 320px viewport: no horizontal overflow; nav reachable (1.4s)
@@ -45,9 +45,9 @@ PW_EXIT=0
 
 | # | Case (theo spec §2) | Assertion chính | Verdict |
 |---|---|---|---|
-| 1 | unauth `/admin/web` → login | `APIRequest GET maxRedirects:0` → **302** + `location: /admin/login`; browser theo redirect → pathname `/admin/login`, `input[name="token"]` visible, title khớp `/Admin/` | PASS |
-| 2 | login → React render | token form → 302 → `/admin`; vào `/admin/web`: title `DUGate Admin`, `#root` > 200 ký tự, h1 "Admin Web bootstrap is running", nav (`Admin Web Navigation`) + badge visible; **0 console error sau filter favicon, 0 pageerror** | PASS |
-| 3 | reload | `page.reload()` → URL vẫn `/admin/web`, h1 render lại (cookie `du_admin` giữ session) | PASS |
+| 1 | unauth `admin` → login | `APIRequest GET maxRedirects:0` → **302** + `location: /admin/login`; browser theo redirect → pathname `/admin/login`, `input[name="token"]` visible, title khớp `/Admin/` | PASS |
+| 2 | login → React render | token form → 302 → `/admin`; vào `admin`: title `DUGate Admin`, `#root` > 200 ký tự, h1 "Admin Web bootstrap is running", nav (`Admin Web Navigation`) + badge visible; **0 console error sau filter favicon, 0 pageerror** | PASS |
+| 3 | reload | `page.reload()` → URL vẫn `admin`, h1 render lại (cookie `du_admin` giữ session) | PASS |
 | 4 | 320px | `scrollWidth ≤ clientWidth + 1` (đo thật: 320/320), nav + link "Bootstrap" vẫn visible; header wrap dọc | PASS |
 | 5 | keyboard | Tab đầu tiên → activeElement là `<A>` có label, `outline-style ≠ none`, `outline-width ≥ 1px` (rule `:focus-visible` trong app.css) | PASS |
 | 6 | theme | light (emulate `colorScheme: light`) vs `document.documentElement[data-theme=dark]`: computed `body` background-color **và** color đều đổi; tokens.css `:root[data-theme='dark']` kích hoạt | PASS |

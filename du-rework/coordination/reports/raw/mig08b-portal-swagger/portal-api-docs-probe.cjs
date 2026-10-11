@@ -2,7 +2,7 @@
 const path = require('node:path');
 const { chromium } = require('D:/Git/dugate/du-rework/tests/browser/node_modules/@playwright/test');
 
-const BASE = 'http://localhost:4173/admin/web/api-docs';
+const BASE = 'http://localhost:4173admin/api-docs';
 const OUT = 'D:/Git/dugate/du-rework/coordination/reports/raw/mig08b-portal-swagger';
 
 async function waitForServer(url, attempts = 40) {

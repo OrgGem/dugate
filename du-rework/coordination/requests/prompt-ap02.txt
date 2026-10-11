@@ -1,0 +1,20 @@
+TASK: AP-02-CONNECTOR-ID-SELECT-2026-10-09
+REPO: du-rework only
+PLAN: coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md
+EXACT PATH LEASE:
+du-rework/orchestrator/apps/admin-web/src/features/connectors/connectors-screen.tsx
+RECEIPT: du-rework/coordination/reports/receipt-ap02-connector-select-2026-10-09.md
+RANG BUOC: Khong commit, khong git add, khong touch file ngoai lease, khong sua backend.
+
+MUC TIEU:
+Tai connectors-screen.tsx dong 482-494, thay the Input free-text kem datalist bang component Select hoac lua chon tu connectorSuggestions danh cho connector ID, giup tranh operator nhap sai ten hoac space du thua.
+
+CAC BUOC:
+1. Xem cach lay connectorSuggestions tu listRows hoac danh sach connector da dinh nghia trong file.
+2. Cap nhat form nhap Connector ID:
+- Cung cap select dropdown lay gia tri tu suggestions.
+- Cho phep nhap custom hoac fallback neu can.
+3. Kiem tra build:
+cd du-rework/orchestrator/apps/admin-web
+node ../../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+4. Ghi smoke receipt vao du-rework/coordination/reports/receipt-ap02-connector-select-2026-10-09.md.

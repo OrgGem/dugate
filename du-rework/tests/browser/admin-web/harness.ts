@@ -107,10 +107,26 @@ interface StubState {
     id: string;
     tenantId: string;
     prefix: string;
+    /** Operator label projected by the platform (api_keys.name). */
+    name?: string | null;
     status: string;
     createdAt: string;
     updatedAt: string;
   }[];
+  /** 0039: the key set a profile owns, with the membership state per key. */
+  profileKeysRows: {
+    id: string;
+    tenantId: string;
+    prefix: string;
+    name: string | null;
+    status: string;
+    createdAt: string;
+    membershipState: string;
+    joinedAt: string;
+    revokedAt: string | null;
+  }[];
+  /** Monotonic counter so a second rotate does not reuse the previous id. */
+  rotateSeq: number;
 }
 
 function seedKeysRows(): StubState['keysRows'] {
@@ -119,9 +135,30 @@ function seedKeysRows(): StubState['keysRows'] {
       id: 'aaaaaaaa-1111-4111-8111-111111111111',
       tenantId: OPERATOR_TENANT,
       prefix: 'du_live_ab12',
+      name: 'ci-runner',
       status: 'ACTIVE',
       createdAt: '2026-10-01T08:00:00.000Z',
       updatedAt: '2026-10-01T08:00:00.000Z',
+    },
+  ];
+}
+
+/** The profile id the 0039 key-list route reports; the BFF resolves through it. */
+const STUB_PROFILE_ID = 'eeeeeeee-5555-4555-8555-555555555555';
+
+/** 0039: one key already attached, so the panel always has a row to rotate. */
+function seedProfileKeysRows(): StubState['profileKeysRows'] {
+  return [
+    {
+      id: 'aaaaaaaa-1111-4111-8111-111111111111',
+      tenantId: OPERATOR_TENANT,
+      prefix: 'du_live_ab12',
+      name: 'ci-runner',
+      status: 'ACTIVE',
+      createdAt: '2026-10-01T08:00:00.000Z',
+      membershipState: 'ACTIVE',
+      joinedAt: '2026-10-01T08:00:00.000Z',
+      revokedAt: null,
     },
   ];
 }
@@ -173,6 +210,8 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
     cryptoWrite: 'ok',
     profileRevision: 7,
     keysRows: seedKeysRows(),
+    profileKeysRows: seedProfileKeysRows(),
+    rotateSeq: 0,
   };
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -221,6 +260,9 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
         state.crypto = 'ok';
         state.cryptoWrite = 'ok';
         state.profileRevision = 7;
+        state.keysRows = seedKeysRows();
+        state.profileKeysRows = seedProfileKeysRows();
+        state.rotateSeq = 0;
         state.keysRows = seedKeysRows();
         writes.length = 0;
         json(200, { reset: true });
@@ -400,6 +442,46 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
           createCopyOnce: null,
         });
       }
+      // Platform health. The BFF health strip calls this on every page load
+      // and RELAYS any non-200/503 verbatim, so an unstubbed route is a 404 in
+      // the browser console - which is what made the copy-once journey's
+      // console-error assertion unpassable.
+      if (url.pathname === '/api/v1/health' && req.method === 'GET') {
+        return json(200, {
+          status: 'ok',
+          db: true,
+          redis: true,
+          activeLeases: 0,
+          queueIntegrity: {
+            state: 'OK',
+            orphansLast: 0,
+            stalled: 0,
+            lastSweepAt: '2026-10-04T05:00:00.000Z',
+          },
+        });
+      }
+
+      // Tenant roster. TenantProvider auto-selects an ACTIVE tenant from
+      // this list, and admin-web gates every tenant-scoped WRITE on it -
+      // including apikey.issue (the Issue button is disabled while tenantId
+      // is null). Without this route the copy-once journey is unreachable.
+      if (url.pathname === '/api/v1/admin/tenants' && req.method === 'GET') {
+        return json(200, {
+          items: [
+            {
+              id: OPERATOR_TENANT,
+              name: 'Default Tenant',
+              state: 'ACTIVE',
+              createdAt: '2026-09-01T00:00:00.000Z',
+            },
+          ],
+          nextCursor: null,
+          prevCursor: null,
+          total: 1,
+          limit: 100,
+        });
+      }
+
       const keyMatch = /^\/api\/v1\/admin\/api-keys\/([^/]+)$/.exec(url.pathname);
       if (keyMatch && req.method === 'GET') {
         const row = state.keysRows.find((k) => k.id === decodeURIComponent(keyMatch[1] ?? ''));
@@ -407,9 +489,33 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
         return json(200, { items: [row], nextCursor: null, prevCursor: null, total: 1, limit: 25, grants: [], createCopyOnce: null });
       }
 
+      // 0039: the key set a profile owns. Registered before any generic profile
+      // route so `.../api-keys` can never be swallowed by a detail matcher, and
+      // it answers `profileId` because that is where the BFF resolves the profile
+      // for a membership write (the frozen detail read does not publish it).
+      if (/^\/api\/v1\/admin\/profiles\/[^/]+\/[^/]+\/[^/]+\/api-keys$/.test(url.pathname) && req.method === 'GET') {
+        return json(200, {
+          items: state.profileKeysRows,
+          nextCursor: null,
+          prevCursor: null,
+          total: state.profileKeysRows.length,
+          limit: 100,
+          profileId: STUB_PROFILE_ID,
+        });
+      }
+
       // Admin actions -----------------------------------------------------
       if (url.pathname === '/api/v1/admin/actions' && req.method === 'POST') {
         if (action === 'apikey.issue') {
+          // The platform refuses apikey.issue without a raw key (422
+          // INVALID_SCHEMA). Enforcing it here is what makes the browser
+          // copy-once test prove the BFF mints the key: before the BFF did,
+          // this stub answered 201 anyway and the test passed for the wrong
+          // reason.
+          const raw = params.apiKey;
+          if (typeof raw !== 'string' || raw.length < 8) {
+            return json(422, { code: 'INVALID_SCHEMA', message: 'params.apiKey is required' });
+          }
           const tenantId = typeof params.tenantId === 'string' ? params.tenantId : OPERATOR_TENANT;
           const issued = {
             id: 'bbbbbbbb-2222-4222-8222-222222222222',
@@ -425,7 +531,7 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
             id: issued.id,
             prefix: issued.prefix,
             status: issued.status,
-            rawKey: 'du_test_copy_once_raw_key_9f2c',
+            rawKey: raw,
           });
         }
         if (action === 'apikey.revoke') {
@@ -434,6 +540,82 @@ function startStub(): Promise<{ url: string; requests: CapturedRequest[]; state:
             k.id === apiKeyId ? { ...k, status: 'REVOKED' } : k,
           );
           return json(200, { action, id: apiKeyId, status: 'REVOKED' });
+        }
+        // 0039 membership writes. attach/rotate refuse the same way the platform
+        // does: a blank/unknown apiKeyId is refused before any mutation, and rotate
+        // needs a minted replacement raw value (the BFF mints it).
+        if (action === 'apikey.attach') {
+          const apiKeyId = typeof params.apiKeyId === 'string' ? params.apiKeyId.trim() : '';
+          if (apiKeyId.length === 0) return json(422, { code: 'INVALID_SCHEMA', message: 'apiKeyId is required' });
+          const already = state.profileKeysRows.find((row) => row.id === apiKeyId);
+          if (already) {
+            state.profileKeysRows = state.profileKeysRows.map((row) =>
+              row.id === apiKeyId ? { ...row, membershipState: 'ACTIVE', revokedAt: null } : row,
+            );
+            return json(200, { action, apiKeyId, profileId: STUB_PROFILE_ID, state: 'ACTIVE', created: false });
+          }
+          const key = state.keysRows.find((row) => row.id === apiKeyId);
+          if (!key) return json(404, { code: 'NOT_FOUND', message: 'api key not found' });
+          state.profileKeysRows = [
+            {
+              id: key.id,
+              tenantId: key.tenantId,
+              prefix: key.prefix,
+              name: key.name ?? null,
+              status: key.status,
+              createdAt: key.createdAt,
+              membershipState: 'ACTIVE',
+              joinedAt: '2026-10-04T05:00:00.000Z',
+              revokedAt: null,
+            },
+            ...state.profileKeysRows,
+          ];
+          return json(200, { action, apiKeyId, profileId: STUB_PROFILE_ID, state: 'ACTIVE', created: true });
+        }
+        if (action === 'apikey.rotate') {
+          const raw = params.apiKey;
+          if (typeof raw !== 'string' || raw.length < 8) {
+            return json(422, { code: 'INVALID_SCHEMA', message: 'params.apiKey is required' });
+          }
+          const apiKeyId = typeof params.apiKeyId === 'string' ? params.apiKeyId : '';
+          const target = state.profileKeysRows.find(
+            (row) => row.id === apiKeyId && row.membershipState === 'ACTIVE' && row.status === 'ACTIVE',
+          );
+          if (!target) {
+            return json(404, { code: 'NOT_FOUND', message: 'key has no ACTIVE membership on this profile' });
+          }
+          state.rotateSeq += 1;
+          const nextId = 'cccccccc-3333-4333-8333-3333333333' + String(state.rotateSeq).padStart(6, '0');
+          const name = target.name === null ? null : target.name + ' (rotated)';
+          const nextRow = {
+            id: nextId,
+            tenantId: target.tenantId,
+            prefix: raw.slice(0, 12),
+            name,
+            status: 'ACTIVE',
+            createdAt: '2026-10-04T06:00:00.000Z',
+            membershipState: 'ACTIVE',
+            joinedAt: '2026-10-04T06:00:00.000Z',
+            revokedAt: null,
+          };
+          state.profileKeysRows = [
+            nextRow,
+            ...state.profileKeysRows.map((row) =>
+              row.id === apiKeyId
+                ? { ...row, membershipState: 'REVOKED', revokedAt: '2026-10-04T06:00:00.000Z', status: 'REVOKED' }
+                : row,
+            ),
+          ];
+          return json(201, {
+            action,
+            apiKeyId: nextId,
+            revokedId: apiKeyId,
+            profileId: STUB_PROFILE_ID,
+            profiles: [STUB_PROFILE_ID],
+            name,
+            status: 'ACTIVE',
+            rawKey: raw,
+          });
         }
         if (action === 'profile.upsert' || action === 'profile.publish' || action === 'profile.rollback') {
           if (state.profileWrite === 'missing') return json(404, { code: 'ACTION_NOT_FOUND' });

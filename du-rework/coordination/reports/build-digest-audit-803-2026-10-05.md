@@ -15,8 +15,8 @@
 
 ```html
 <!-- apps/admin-web/dist/index.html -->
-<script type="module" crossorigin src="/admin/web/assets/index-Bs0p8VRI.js"></script>
-<link rel="stylesheet" crossorigin href="/admin/web/assets/index-BffJF1YL.css">
+<script type="module" crossorigin src="admin/assets/index-Bs0p8VRI.js"></script>
+<link rel="stylesheet" crossorigin href="admin/assets/index-BffJF1YL.css">
 ```
 
 ### Bảng Thống Kê Chi Tiết Từng Tệp Trong `apps/admin-web/dist/`:

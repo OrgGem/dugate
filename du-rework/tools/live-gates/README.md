@@ -124,7 +124,7 @@ propagates the worst exit code. Keep the raw directory as the review receipt.
 ## Out of scope here (separate gates)
 
 - Live boot matrix + `ENCRYPTION_KEY` policy (F-VFY6-01 decision, §11.3).
-- Portal `/admin/web/secrets` roundtrip and no-readback UI proof
+- Portal `admin/secrets` roundtrip and no-readback UI proof
   (SC-01 backend descoped per §11.2).
 - Full operation→terminal→`scheduleWebhookDelivery` flow (the dispatcher probe
   inserts the delivery row directly; scheduling is covered by the offline

@@ -13,8 +13,12 @@ import type {
   ProfileCallbackPolicy,
   ProfileCapability,
   ProfileDetail,
+  ProfileListPage,
+  ProfileListRow,
   ProfileParameterValue,
   ProfilePolicyRead,
+  ProfileWorkflowItem,
+  ProfileWorkflowPage,
   RequestRedactionRule,
 } from '@/lib/api';
 
@@ -135,6 +139,163 @@ export function parseProfileDetail(value: unknown): ProfileDetail | null {
     capabilities,
     ...(apiKeyId !== null && apiKeyId.length > 0 ? { apiKeyId } : {}),
   };
+}
+
+export function parseProfileWorkflowPage(
+  value: unknown,
+  businessId: string,
+  businessVersion: string,
+): ProfileWorkflowPage | null {
+  if (!isRecord(value) || value['businessId'] !== businessId || value['businessVersion'] !== businessVersion
+      || !Array.isArray(value['items'])) return null;
+  const items: ProfileWorkflowItem[] = [];
+  for (const raw of value['items']) {
+    if (!isRecord(raw)) return null;
+    const slug = str(raw['slug']);
+    const revision = raw['revision'];
+    const status = raw['status'];
+    const createdAt = str(raw['createdAt']);
+    if (slug === null || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(slug)
+        || typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1
+        || (status !== 'active' && status !== 'retired') || typeof raw['enabled'] !== 'boolean'
+        || createdAt === null || !Number.isFinite(Date.parse(createdAt))) return null;
+    items.push({ slug, revision, status, enabled: raw['enabled'], createdAt });
+  }
+  if (typeof value['total'] !== 'number' || value['total'] !== items.length) return null;
+  return { businessId, businessVersion, items, total: items.length };
+}
+
+function parseProfileListRow(value: unknown): ProfileListRow | null {
+  if (!isRecord(value)) return null;
+  const tenantId = str(value['tenantId']);
+  const businessId = str(value['businessId']);
+  const businessVersion = str(value['businessVersion']);
+  const profileName = str(value['profileName']);
+  const status = str(value['status']);
+  const revision = value['revision'];
+  const keyCount = value['keyCount'];
+  const boundActions = value['boundActions'];
+  const createdAt = str(value['createdAt']);
+  const updatedAt = str(value['updatedAt']);
+  if (
+    tenantId === null || tenantId.length === 0 ||
+    businessId === null || businessId.length === 0 ||
+    businessVersion === null || businessVersion.length === 0 ||
+    profileName === null || profileName.length === 0 ||
+    (status !== 'ACTIVE' && status !== 'DISABLED' && status !== 'UNKNOWN') ||
+    typeof revision !== 'number' || !Number.isInteger(revision) || revision < 1 ||
+    typeof keyCount !== 'number' || !Number.isInteger(keyCount) || keyCount < 0 ||
+    !Array.isArray(boundActions) || !boundActions.every((action) => typeof action === 'string' && action.length > 0) ||
+    createdAt === null || updatedAt === null
+  ) return null;
+  return {
+    tenantId,
+    businessId,
+    businessVersion,
+    profileName,
+    revision,
+    status,
+    keyCount,
+    boundActions,
+    createdAt,
+    updatedAt,
+  };
+}
+
+/** Strict page gate: malformed catalog rows must be shown as an unreadable response, not silently hidden. */
+export function parseProfileListPage(
+  value: unknown,
+  expectedTenantId?: string,
+  expectedBusinessId?: string | null,
+): ProfileListPage | null {
+  if (!isRecord(value) || !Array.isArray(value['items'])) return null;
+  const items: ProfileListRow[] = [];
+  for (const raw of value['items']) {
+    const parsed = parseProfileListRow(raw);
+    if (parsed === null) return null;
+    if (expectedTenantId !== undefined && parsed.tenantId !== expectedTenantId) return null;
+    if (expectedBusinessId && parsed.businessId !== expectedBusinessId) return null;
+    items.push(parsed);
+  }
+  const total = value['total'];
+  const limit = value['limit'];
+  const nextCursor = value['nextCursor'];
+  const prevCursor = value['prevCursor'];
+  if (
+    typeof total !== 'number' || !Number.isInteger(total) || total < items.length ||
+    typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || items.length > limit ||
+    (nextCursor !== null && typeof nextCursor !== 'string') ||
+    (prevCursor !== null && typeof prevCursor !== 'string')
+  ) return null;
+  return { items, total, limit, nextCursor, prevCursor };
+}
+
+// ---------------------------------------------------------------------------
+// F2 — unique identity for the profile table view
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical identity of a catalog row: the FULL four-tuple, JSON-encoded.
+ *
+ * JSON rather than a joined string because a separator inside a value must not
+ * be confusable with a separator between values (`a:b`+`c` vs `a`+`b:c`),
+ * and because `tenantId` participates: the backend has no row `id`, so this
+ * tuple IS the identity, and a page scoped to more than one tenant can repeat a
+ * triple that differs only in the tenant.
+ */
+export function profileRowIdentity(row: ProfileListRow): string {
+  return JSON.stringify([row.tenantId, row.businessId, row.businessVersion, row.profileName]);
+}
+
+export interface KeyedProfileListRow {
+  row: ProfileListRow;
+  /** Unique within one keyProfileListRows() result; stable for a given input order. */
+  key: string;
+  /** Canonical identity — repeats when the wire repeats a row. */
+  identity: string;
+  /** 0-based occurrence, so a wire duplicate stays VISIBLE instead of silently shadowing a row. */
+  duplicateIndex: number;
+}
+
+/**
+ * Assign React keys that stay unique even when the wire repeats a row.
+ *
+ * The page parser gates row SHAPE but not duplicates: a cursor bug or a
+ * cross-tenant projection can return the same four-tuple twice, and a key
+ * built from the visible columns would then collide — a dev warning today,
+ * and mismatched row state on reconcile tomorrow. Disambiguating by
+ * occurrence order keeps the key deterministic for a given input order, so
+ * re-rendering the same data never remounts rows (no focus/state churn).
+ */
+export function keyProfileListRows(rows: readonly ProfileListRow[]): KeyedProfileListRow[] {
+  const seen = new Map<string, number>();
+  return rows.map((row) => {
+    const identity = profileRowIdentity(row);
+    const occurrence = seen.get(identity) ?? 0;
+    seen.set(identity, occurrence + 1);
+    return { row, identity, key: identity + '#' + occurrence, duplicateIndex: occurrence };
+  });
+}
+
+export interface ProfileListGroup {
+  businessId: string;
+  items: KeyedProfileListRow[];
+}
+
+/**
+ * Group for the table body: businessId groups keep first-seen order and their
+ * keys are unique because map keys are; the row keys come from
+ * keyProfileListRows() so uniqueness holds across the WHOLE page, not only
+ * inside one group.
+ */
+export function groupProfileListRows(rows: readonly ProfileListRow[]): ProfileListGroup[] {
+  const groups = new Map<string, KeyedProfileListRow[]>();
+  for (const keyed of keyProfileListRows(rows)) {
+    const group = groups.get(keyed.row.businessId);
+    if (group) group.push(keyed);
+    else groups.set(keyed.row.businessId, [keyed]);
+  }
+  return [...groups].map(([businessId, items]) => ({ businessId, items }));
 }
 
 /** Honest hint per contract error code (shown next to the problem title). */

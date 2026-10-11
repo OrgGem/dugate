@@ -41,6 +41,8 @@ export interface StoredProfilePolicy {
   jobPriority: ProfileJobPriority;
   /** CSV string, exactly as stored. Parse with `parseAllowedFileExtensions`. */
   allowedFileExtensions: string;
+  /** Canonical exact origins allowed to receive source credentials. */
+  allowedOrigins: string[];
   connectionsOverride: ConnectionStep[];
   /** True when a cipher (or a legacy plaintext config) is stored. */
   fileUrlAuthConfigured: boolean;
@@ -71,7 +73,7 @@ export function parsePolicy(raw: unknown): ProfileEndpointPolicy {
 /**
  * Apply the stored defaults to a raw policy, producing the shape the read and
  * enforcement paths consume. Absent fields fall back to the legacy defaults
- * (`enabled: true`, `jobPriority: 'MEDIUM'`, empty CSV, empty override list).
+ * (`enabled: true`, `jobPriority: 'MEDIUM'`, empty CSV, empty origin and override lists).
  */
 export function normalizeStoredPolicy(policy: ProfileEndpointPolicy): StoredProfilePolicy {
   return {
@@ -79,6 +81,7 @@ export function normalizeStoredPolicy(policy: ProfileEndpointPolicy): StoredProf
     parameters: policy.parameters ?? {},
     jobPriority: policy.jobPriority ?? PROFILE_JOB_PRIORITY_DEFAULT,
     allowedFileExtensions: policy.allowedFileExtensions ?? '',
+    allowedOrigins: policy.allowedOrigins ?? [],
     connectionsOverride: policy.connectionsOverride ?? [],
     fileUrlAuthConfigured: false,
   };

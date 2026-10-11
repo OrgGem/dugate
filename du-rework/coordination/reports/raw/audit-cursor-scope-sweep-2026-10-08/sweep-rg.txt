@@ -1,0 +1,28 @@
+﻿=== A: (SELECT  in orchestrator/services/orchestrator/src ===
+du-rework/orchestrator/services/orchestrator/src\compat\legacy-host-adapter.ts:438:          `(created_at, id) < (SELECT created_at, id FROM operations WHERE id = $${params.length} AND ${tenantScope} AND ${apiKeyFence})`,
+du-rework/orchestrator/services/orchestrator/src\modules\runtime\runtime.ts:1853:         ${cursor ? 'AND created_at < (SELECT created_at FROM operations WHERE id=$2 AND tenant_id=$1)' : ''}
+du-rework/orchestrator/services/orchestrator/src\modules\admin-read\business-list.ts:99:                      (SELECT version FROM business_versions WHERE business_id=$1 AND is_active=true LIMIT 1) AS active_version
+du-rework/orchestrator/services/orchestrator/src\modules\artifacts\artifacts.ts:243:             AND EXISTS (SELECT 1 FROM artifacts a
+du-rework/orchestrator/services/orchestrator/src\modules\admin-read\tenant-list.ts:133:    cursorClause = `${clauses.length ? ' AND' : ' WHERE'} (lower(name), id) ${boundaryOp} ((SELECT lower(name) FROM tenants WHERE id = ${cursorId}${boundaryScope}), ${cursorId}::uuid)`;
+du-rework/orchestrator/services/orchestrator/src\modules\artifacts\storage-migration.ts:121:           (SELECT count(*) FROM artifact_blobs) AS "legacyBlobRows",
+du-rework/orchestrator/services/orchestrator/src\modules\artifacts\storage-migration.ts:122:           (SELECT count(*) FROM artifacts a
+du-rework/orchestrator/services/orchestrator/src\modules\artifacts\storage-migration.ts:125:           (SELECT count(*) FROM artifacts a
+du-rework/orchestrator/services/orchestrator/src\modules\artifacts\storage-migration.ts:127:           (SELECT count(*) FROM artifact_blobs b
+du-rework/orchestrator/services/orchestrator/src\modules\artifacts\storage-migration.ts:130:           (SELECT count(*) FROM artifacts a
+du-rework/orchestrator/services/orchestrator/src\modules\profiles\profiles.ts:355:              (SELECT n.profile_name FROM profile_names n WHERE n.profile_id = p.profile_id LIMIT 1) AS profile_name,
+
+=== B: (SELECT  in orchestrator/services/connector/src ===
+du-rework/orchestrator/services/connector/src\db\repository.ts:893:        + ' AND EXISTS (SELECT 1 FROM connector_revisions r'
+du-rework/orchestrator/services/connector/src\db\repository.ts:905:        + ' AND EXISTS (SELECT 1 FROM connector_revisions r'
+
+=== C: WHERE id = ) or WHERE id = ${ (services) ===
+du-rework/orchestrator/services\orchestrator\src\modules\admin-read\tenant-list.ts:133:    cursorClause = `${clauses.length ? ' AND' : ' WHERE'} (lower(name), id) ${boundaryOp} ((SELECT lower(name) FROM tenants WHERE id = ${cursorId}${boundaryScope}), ${cursorId}::uuid)`;
+
+=== D: SELECT (created_at|lower(name)|count) FROM ... ===
+du-rework/orchestrator/services\orchestrator\src\modules\admin-read\tenant-list.ts:133:    cursorClause = `${clauses.length ? ' AND' : ' WHERE'} (lower(name), id) ${boundaryOp} ((SELECT lower(name) FROM tenants WHERE id = ${cursorId}${boundaryScope}), ${cursorId}::uuid)`;
+du-rework/orchestrator/services\orchestrator\src\modules\runtime\runtime.ts:1853:         ${cursor ? 'AND created_at < (SELECT created_at FROM operations WHERE id=$2 AND tenant_id=$1)' : ''}
+du-rework/orchestrator/services\orchestrator\src\modules\artifacts\storage-migration.ts:122:           (SELECT count(*) FROM artifacts a
+du-rework/orchestrator/services\orchestrator\src\modules\artifacts\storage-migration.ts:125:           (SELECT count(*) FROM artifacts a
+du-rework/orchestrator/services\orchestrator\src\modules\artifacts\storage-migration.ts:130:           (SELECT count(*) FROM artifacts a
+
+=== E: (SELECT in packages/apps ===

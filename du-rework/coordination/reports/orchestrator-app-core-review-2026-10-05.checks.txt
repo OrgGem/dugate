@@ -10,8 +10,8 @@ CWD: D:\Git\dugate\du-rework\services\orchestrator
 COMMAND: pnpm exec jest --runInBand --runTestsByPath tests/aweb02-bff-foundation.test.ts tests/aweb04-bff-profiles.test.ts tests/br12-isolation-offline.test.ts tests/runtime-facade.test.ts
 EXIT: 0
 OUTPUT:
-{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T19:33:01.890Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"66f07646-95c8-4872-8ea6-93ab5a7332b8","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
-{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T19:33:02.563Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"f3b37e1d-693f-49f1-9117-c3b9e7a3665d","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"admin","distDir":"[REDACTED:path]","timestamp":"2026-10-04T19:33:01.890Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"66f07646-95c8-4872-8ea6-93ab5a7332b8","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"admin","distDir":"[REDACTED:path]","timestamp":"2026-10-04T19:33:02.563Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"f3b37e1d-693f-49f1-9117-c3b9e7a3665d","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
 
 Test Suites: 1 skipped, 3 passed, 3 of 4 total
 Tests:       14 skipped, 54 passed, 68 total

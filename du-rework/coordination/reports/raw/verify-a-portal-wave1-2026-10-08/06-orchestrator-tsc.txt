@@ -1,0 +1,4 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+exit: 0
+--- output ---

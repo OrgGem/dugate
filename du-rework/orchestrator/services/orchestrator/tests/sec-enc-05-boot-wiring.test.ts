@@ -17,6 +17,7 @@ import { loadMigrationFiles } from '../src/db/migrations';
 import { createArtifactService } from '../src/modules/artifacts/artifacts';
 import { createMultipartService } from '../src/modules/artifacts/multipart-service';
 import type { KeyProvider } from '../src/modules/encryption/vault-transit-provider';
+import { createIngestionConsumer } from '../src/modules/operations/ingestion-consumer';
 import { createRuntimeSecretResolver } from '../src/modules/secrets/vault-resolver';
 
 jest.mock('../src/modules/artifacts/artifacts', () => {
@@ -39,6 +40,18 @@ jest.mock('../src/modules/artifacts/multipart-service', () => {
 jest.mock('../src/modules/secrets/vault-resolver', () => {
   const actual = jest.requireActual('../src/modules/secrets/vault-resolver');
   return { ...actual, createRuntimeSecretResolver: jest.fn(actual.createRuntimeSecretResolver) };
+});
+
+jest.mock('../src/modules/operations/ingestion-consumer', () => {
+  const actual = jest.requireActual('../src/modules/operations/ingestion-consumer');
+  return {
+    ...actual,
+    createIngestionConsumer: jest.fn(() => ({
+      runOnce: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+    })),
+  };
 });
 
 interface MinimalState {
@@ -72,6 +85,7 @@ jest.mock('pg', () => {
 const artifactFactory = createArtifactService as unknown as jest.Mock;
 const multipartFactory = createMultipartService as unknown as jest.Mock;
 const resolverFactory = createRuntimeSecretResolver as unknown as jest.Mock;
+const ingestionConsumerFactory = createIngestionConsumer as unknown as jest.Mock;
 
 const PROVIDER: KeyProvider = {
   async wrapDek(input) {
@@ -124,6 +138,7 @@ beforeEach(() => {
   artifactFactory.mockClear();
   multipartFactory.mockClear();
   resolverFactory.mockClear();
+  ingestionConsumerFactory.mockClear();
 });
 
 afterAll(async () => {
@@ -133,6 +148,60 @@ afterAll(async () => {
 });
 
 describe('SEC-ENC-05 boot wiring', () => {
+  it('wires encrypted source storage and requires it in real-data mode', async () => {
+    await boot({
+      artifactStorage: { backend: 's3', bucket: 'private-source' },
+      publicUploadEncryption: PUBLIC_UPLOAD,
+      encryptionPolicy: REAL_POLICY,
+      ingestionConsumer: { intervalMs: 0 },
+    });
+
+    expect(ingestionConsumerFactory).toHaveBeenCalledTimes(1);
+    const consumerOptions = ingestionConsumerFactory.mock.calls[0]![0] as {
+      storage: { putEncrypted?: unknown };
+      requireEncryptedSourceWrites?: boolean;
+    };
+    expect(typeof consumerOptions.storage.putEncrypted).toBe('function');
+    expect(consumerOptions.requireEncryptedSourceWrites).toBe(true);
+  });
+
+  it('keeps the encrypted-source requirement off in synthetic mode', async () => {
+    await boot({
+      artifactStorage: { backend: 's3', bucket: 'private-source' },
+      publicUploadEncryption: PUBLIC_UPLOAD,
+      encryptionPolicy: { ...REAL_POLICY, dataMode: 'synthetic' },
+      ingestionConsumer: { intervalMs: 0 },
+    });
+
+    expect(ingestionConsumerFactory).toHaveBeenCalledTimes(1);
+    const consumerOptions = ingestionConsumerFactory.mock.calls[0]![0] as {
+      storage: { putEncrypted?: unknown };
+      requireEncryptedSourceWrites?: boolean;
+    };
+    expect(typeof consumerOptions.storage.putEncrypted).toBe('function');
+    expect(consumerOptions.requireEncryptedSourceWrites).toBe(false);
+  });
+
+  it('keeps the compatibility source adapter when synthetic mode has no encryption config', async () => {
+    await boot({
+      artifactStorage: { backend: 's3', bucket: 'private-source' },
+      encryptionPolicy: {
+        ...REAL_POLICY,
+        dataMode: 'synthetic',
+        publicUploadEncryption: false,
+      },
+      ingestionConsumer: { intervalMs: 0 },
+    });
+
+    expect(ingestionConsumerFactory).toHaveBeenCalledTimes(1);
+    const consumerOptions = ingestionConsumerFactory.mock.calls[0]![0] as {
+      storage: { putEncrypted?: unknown };
+      requireEncryptedSourceWrites?: boolean;
+    };
+    expect(consumerOptions.storage.putEncrypted).toBeUndefined();
+    expect(consumerOptions.requireEncryptedSourceWrites).toBe(false);
+  });
+
   it('wires server-mediated encryption into artifacts + multipart and builds the secret resolver', async () => {
     await boot({
       publicUploadEncryption: PUBLIC_UPLOAD,
@@ -163,7 +232,7 @@ describe('SEC-ENC-05 boot wiring', () => {
     expect(resolverOptions.decryptManagedValue).toBeDefined();
   });
 
-  it('keeps compatibility reads in synthetic mode while still blocking plaintext multipart when encryption is configured', async () => {
+  it('keeps every write path plaintext in synthetic mode, multipart included (SEC-ENC-03 B2/B4)', async () => {
     await boot({
       publicUploadEncryption: PUBLIC_UPLOAD,
       encryptionPolicy: { ...REAL_POLICY, dataMode: 'synthetic' },
@@ -171,10 +240,33 @@ describe('SEC-ENC-05 boot wiring', () => {
 
     const artifactOptions = artifactFactory.mock.calls[0]![1] as { encryption?: { required?: boolean } };
     expect(artifactOptions.encryption?.required).toBe(false);
+    // B2/B4: synthetic is all-or-nothing, so multipart must NOT require encryption
+    // while the other artifact-side paths are exempt.
     const multipartOptions = multipartFactory.mock.calls[0]![1] as { encryptionRequired?: boolean };
-    expect(multipartOptions.encryptionRequired).toBe(true);
+    expect(multipartOptions.encryptionRequired).toBe(false);
     // No adapter options injected → no resolver is fabricated.
     expect(resolverFactory).not.toHaveBeenCalled();
+  });
+
+  // SEC-ENC-03 B3: the migration window exempts objects written before
+  // encryption existed, but the source-write path decides about data arriving
+  // NOW, so it must keep requiring encryption in real mode even while the
+  // window is open.
+  it('never exempts the source-write path, even while the artifact migration window is open', async () => {
+    await boot({
+      artifactStorage: { backend: 's3', bucket: 'private-source', migrationWindow: true },
+      publicUploadEncryption: PUBLIC_UPLOAD,
+      encryptionPolicy: REAL_POLICY,
+    });
+
+    // Artifact-side paths honor the window...
+    const artifactOptions = artifactFactory.mock.calls[0]![1] as { encryption?: { required?: boolean } };
+    expect(artifactOptions.encryption?.required).toBe(false);
+    const multipartOptions = multipartFactory.mock.calls[0]![1] as { encryptionRequired?: boolean };
+    expect(multipartOptions.encryptionRequired).toBe(false);
+    // ...but the source-write path does not.
+    const consumerOptions = ingestionConsumerFactory.mock.calls[0]![0] as { requireEncryptedSourceWrites?: boolean };
+    expect(consumerOptions.requireEncryptedSourceWrites).toBe(true);
   });
 
   it('a deployment without encryption config gets no artifact seam and no multipart block', async () => {

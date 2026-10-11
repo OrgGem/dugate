@@ -2,8 +2,8 @@
 # round 3
 # time: 2026-10-05T01:34:59.7562315+07:00
 
-{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:04.534Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"2cd619bd-1082-49ac-b20a-7b72b2f6d8c7","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
-{"subsystem":"admin-shell","path":"/admin/web","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:04.602Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0b40a903-672c-47e2-8712-510baad81b7b","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"admin","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:04.534Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"2cd619bd-1082-49ac-b20a-7b72b2f6d8c7","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","path":"admin","distDir":"[REDACTED:path]","timestamp":"2026-10-04T18:35:04.602Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0b40a903-672c-47e2-8712-510baad81b7b","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
 {"subsystem":"admin-bff","method":"GET","errorClass":"object","timestamp":"2026-10-04T18:35:04.608Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"88cd09ba-a5cc-4dcc-b602-c8137a1833b6","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-bff] upstream call failed"}
 node.exe : PASS tests/bff-connectors-actions.test.ts
 At C:\nvm4w\nodejs\npx.ps1:29 char:3

@@ -1,0 +1,47 @@
+﻿READ-ONLY INVESTIGATION RAW LOG
+Date: 2026-10-09
+Command CWD: D:/Git/dugate/du-rework/orchestrator/services/orchestrator
+Scope intended: du-rework only.
+No tests were run. No PostgreSQL/Redis commands were run. .env.live was not opened.
+
+EXISTING RED RECEIPT (read, not rerun)
+Source: coordination/reports/raw/verify-public-upload-2026-10-09/DSH/L1-run1.txt
+  Expected: < 171966464
+  Received:   218525696
+  > 709 | expect(rssGrowth).toBeLessThan(size * 4 + 64 * 1024 * 1024);
+  Tests:       1 failed, 11 passed, 12 total
+L1-run2.txt: Expected < 171966464; Received 212004864; same assertion.
+L1-run3.txt: Expected < 171966464; Received 218222592; same assertion.
+Existing independent summary: coordination/reports/verify-public-upload-INDEPENDENT-DSH-2026-10-09.md:30-36.
+Existing Node 22.16.0 receipt: coordination/reports/raw/verify-public-upload-2026-10-09/DSH/L6-and-skipped.txt:1-4; REAL_EXIT=0; Tests: 12 passed, 12 total.
+
+CODE READ (line references)
+tests/public-upload-encryption-gateway.test.ts:46-56 — fake bytesOf accumulates chunks and Buffer.concat.
+tests/public-upload-encryption-gateway.test.ts:77-82 — MemoryS3 stores object body and Buffer.from copy in objectWrites.
+tests/public-upload-encryption-gateway.test.ts:102-119 — fake S3 consumes PutObject body.
+tests/public-upload-encryption-gateway.test.ts:439-469 — gatewayFor injects fake DB/S3 and real gateway/CryptoStorageFacade.
+tests/public-upload-encryption-gateway.test.ts:679-710 — test and assertions; process.memoryUsage().rss threshold at 709.
+src/modules/public-api/upload-encryption-gateway.ts:461-479 — product streaming branch and S3 PutObject.
+src/modules/encryption/crypto-storage-facade.ts:18-19,408-430,650-690,757-804 — production chunk size, generator, stream.
+src/modules/runtime/metadata-crypto.ts:2-13,286-335 — production control-plane metadata crypto for small JSON, separate from upload stream.
+
+ENGINE READ
+Workspace: du-rework/package.json:17-20; node >=24.21.0 <25.
+Service: orchestrator/services/orchestrator/package.json:45-47; node >=24.21.0 <25.
+
+WITHIN-SCOPE CI/SCRIPT SEARCH
+`Test-Path du-rework/.github/workflows` -> False.
+du-rework/scripts/test-orchestrator-local.cjs:6-9 has a Node 24.21+ guard; :14-24 list tests and omit public-upload-encryption-gateway.test.ts.
+du-rework/package.json:12 and service package.json:11-12 invoke generic test scripts without selecting Node.
+
+READ-ONLY COMMANDS USED
+- Get-Content/rg against the test, source, package manifests, scripts and existing coordination receipts cited above.
+- `rg --files --hidden` and `rg -n` limited to du-rework for in-scope CI/script inventory.
+- No command invoked Node/Jest/test runner, PostgreSQL, Redis, or .env.live.
+- Final read-only `git status --porcelain -- tests/public-upload-encryption-gateway.test.ts` -> `M`; the prior independent receipt at coordination/reports/verify-public-upload-INDEPENDENT-DSH-2026-10-09.md:70-84 attributes the existing edit to test-double changes. This lane did not edit that file.
+
+SCOPE RESIDUAL
+One earlier exploratory pipeline search used D:/Git/dugate as its search root and read D:/Git/dugate/.github/workflows/docs.yml:1-38. This crossed the declared du-rework boundary read-only. No file was changed there; further out-of-scope inspection was stopped. The in-scope CI conclusion above does not rely on that workflow.
+
+DELIVERABLE WRITES
+Only this raw log and coordination/reports/investigate-node-version-red-2026-10-09.md were written. No product/test/config changes, no gates ticked, no git add/commit/push.

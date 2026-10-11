@@ -14,7 +14,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { createAdminApiClient, type AdminApiProblem, type OperationDetail, type OperationWire, type OperationsPage } from '@/lib/api';
-import { elapsedMs, operationStateVariant, parseOperationDetail, parseOperationsPage } from './state';
+import {
+  buildOperationsQuery,
+  elapsedMs,
+  operationStateVariant,
+  operationsCursorIsStale,
+  operationsPopulation,
+  operationsWindowInvalid,
+  parseOperationDetail,
+  parseOperationsPage,
+  type ParsedOperationsPage,
+} from './state';
 import type { Loadable, PaneState } from '@/features/overview/state';
 
 /** Request monitoring and audited controls through the same-origin BFF. */
@@ -40,12 +50,13 @@ export function OperationsScreen() {
   const [role, setRole] = useState<string>('viewer');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [bulkCancelFailures, setBulkCancelFailures] = useState<Array<{ operationId: string; problem: AdminApiProblem }>>([]);
   const actionKeys = useRef(new Map<string, string>());
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
   useEffect(() => { void client.getSession().then(r => { if (r.ok) setRole(r.data.role); }); }, [client]);
   const [stateFilter, setStateFilter] = useState('ALL');
-  const [page, setPage] = useState<Loadable<OperationsPage>>({ kind: 'loading' });
+  const [page, setPage] = useState<Loadable<ParsedOperationsPage>>({ kind: 'loading' });
   const [detail, setDetail] = useState<OperationDetail | null>(null);
   const [detailProblem, setDetailProblem] = useState<AdminApiProblem | null>(null);
 
@@ -69,21 +80,50 @@ export function OperationsScreen() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const correlationId = detail === null ? null : correlationFromRaw(detail.raw);
   const detailTasks = detail?.tasks ?? [];
+  const selectedPopulation = operationsPopulation({
+    state: stateFilter,
+    tenantId: globalTenantId ?? null,
+    id: idFilter,
+    fromDate,
+    toDate,
+    limit,
+  });
+  const mintedPopulation = useRef<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
+    // AWEB-20a: keep the last good page on a bad window rather than swapping
+    // the table for the route's 422; the inline banner explains why. Checked
+    // BEFORE any state reset so the pane never parks on loading.
+    if (operationsWindowInvalid(fromDate, toDate)) return;
+    // A global tenant change has no input handler that can clear the cursor.
+    // Drop it here before any request is sent, since effects run after this
+    // load effect and a cursor from the previous population is not reusable.
+    if (operationsCursorIsStale(cursor, mintedPopulation.current, selectedPopulation)) {
+      mintedPopulation.current = null;
+      ++listRequest.current;
+      ++detailRequest.current;
+      setPage({ kind: 'loading' });
+      setDetail(null);
+      setDetailProblem(null);
+      setCursor(null);
+      return;
+    }
     const seq = ++listRequest.current;
     ++detailRequest.current;
     setPage({ kind: 'loading' });
     setDetail(null);
     setDetailProblem(null);
-    const result = await client.listOperations({
+    // AWEB-20a: from/to are sent so the route filters rows in SQL. The old
+    // client-side trim only hid rows already on this page.
+    const result = await client.listOperations(buildOperationsQuery({
       limit,
-      ...(stateFilter && stateFilter !== 'ALL' ? { state: stateFilter } : {}),
-      sort: 'created_at:desc',
-      ...(globalTenantId ? { tenant: globalTenantId } : {}),
-      ...(idFilter.trim() === '' ? {} : { id: idFilter.trim() }),
-      ...(cursor ? { cursor } : {}),
-    });
+      state: stateFilter,
+      tenantId: globalTenantId ?? null,
+      id: idFilter,
+      cursor,
+      fromDate,
+      toDate,
+    }));
     if (seq !== listRequest.current) return;
     if (!result.ok) {
       setPage({ kind: 'failed', problem: result.problem });
@@ -93,13 +133,36 @@ export function OperationsScreen() {
     setPage(
       parsed === null
         ? { kind: 'failed', problem: { status: 502, code: 'UNREADABLE_RESPONSE', title: 'Unreadable operations page.' } }
-        : { kind: 'ready', data: parsed },
+      : { kind: 'ready', data: parsed },
     );
-  }, [client, stateFilter, globalTenantId, idFilter, cursor, limit]);
+  }, [client, stateFilter, globalTenantId, idFilter, cursor, limit, fromDate, toDate, selectedPopulation]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // AWEB-20: a cursor only addresses one population. Most controls reset it in
+  // their own onChange, but tenant is set GLOBALLY and has no handler, so a
+  // cursor minted for tenant A kept paging tenant B and silently skipped rows.
+  // One fingerprint plus one setter make that impossible to forget again.
+  const applyCursor = useCallback((next: string | null): void => {
+    if (operationsCursorIsStale(cursor, mintedPopulation.current, selectedPopulation)) {
+      mintedPopulation.current = null;
+      ++listRequest.current;
+      ++detailRequest.current;
+      setCursor(null);
+      return;
+    }
+    mintedPopulation.current = next === null ? null : selectedPopulation;
+    setCursor(next);
+  }, [cursor, selectedPopulation]);
+
+  useEffect(() => {
+    if (operationsCursorIsStale(cursor, mintedPopulation.current, selectedPopulation)) {
+      mintedPopulation.current = null;
+      setCursor(null);
+    }
+  }, [cursor, selectedPopulation]);
 
   async function openDetail(operationId: string): Promise<void> {
     const seq = ++detailRequest.current;
@@ -131,11 +194,22 @@ export function OperationsScreen() {
     setBusy(false);
     if (!result.ok) { setDetailProblem(result.problem); return; }
     actionKeys.current.delete(scope);
+    // HONESTY-AUDIT-OPS: the retry notice must not end in a dangling colon,
+    // and when the backend omits the new operation id the operator must know
+    // that the detail below is still the ORIGINAL operation.
+    const retryOperationId =
+      typeof result.data.operationId === 'string' && result.data.operationId.length > 0
+        ? result.data.operationId
+        : null;
     setNotice(action === 'cancel'
       ? result.data.state === 'CANCELLED' ? 'Request stopped.' : `Request state: ${String(result.data.state ?? 'unknown')}`
-      : `${result.data.replayed === true ? 'Retry already in progress' : 'Retry created'}: ${String(result.data.operationId ?? '')}`);
+      : result.data.replayed === true
+        ? 'Retry already in progress.'
+        : retryOperationId === null
+          ? 'Retry created, but the backend returned no operation id for it.'
+          : `Retry created: ${retryOperationId}`);
     await load();
-    await openDetail(typeof result.data.operationId === 'string' ? result.data.operationId : op.id);
+    await openDetail(retryOperationId ?? op.id);
   }
 
   async function cancelSelected(): Promise<void> {
@@ -144,23 +218,46 @@ export function OperationsScreen() {
       const op = page.data.items.find((item) => item.id === id);
       return op !== undefined && !terminalStates.includes(op.state);
     });
+    // HONESTY-AUDIT-OPS: ids that were selected but are not cancellable here
+    // (already terminal, or selected on another page) are NOT attempted, and
+    // the summary must say so — "2 succeeded, 0 failed" while five rows stay
+    // selected would read as five silent failures.
+    const skippedCount = [...selected].length - targets.length;
     if (targets.length === 0) {
-      setNotice('Không có yêu cầu nào đang chạy (non-terminal) trong danh sách được chọn để hủy.');
+      setNotice('None of the selected requests are running (non-terminal), so there is nothing to cancel.');
       return;
     }
     setBusy(true); setNotice(null); setDetailProblem(null);
-    let failed = false;
+    setBulkCancelFailures([]);
+    const succeeded = new Set<string>();
+    const failures: Array<{ operationId: string; problem: AdminApiProblem }> = [];
     for (const id of targets) {
       const scope = `${id}:cancel`;
       const key = actionKeys.current.get(scope) ?? crypto.randomUUID();
       actionKeys.current.set(scope, key);
-      const result = await client.operationAction(id, 'cancel', key);
-      if (!result.ok) { setDetailProblem(result.problem); failed = true; break; }
-      actionKeys.current.delete(scope);
+      try {
+        const result = await client.operationAction(id, 'cancel', key);
+        if (!result.ok) {
+          failures.push({ operationId: id, problem: result.problem });
+          continue;
+        }
+        actionKeys.current.delete(scope);
+        succeeded.add(id);
+      } catch {
+        failures.push({
+          operationId: id,
+          problem: { status: 0, code: 'REQUEST_FAILED', title: 'Cancel request did not complete.' },
+        });
+      }
     }
-    setSelected(new Set());
+    setSelected((current) => new Set([...current].filter((id) => !succeeded.has(id))));
+    setBulkCancelFailures(failures);
     setBusy(false);
-    if (!failed) setNotice(`Đã yêu cầu hủy cho ${targets.length} yêu cầu.`);
+    setNotice(
+      `Bulk cancel finished: ${succeeded.size} succeeded, ${failures.length} failed`
+      + (skippedCount > 0 ? `, ${skippedCount} skipped (already finished or not listed on this page)` : '')
+      + '.',
+    );
     await load();
   }
 
@@ -175,22 +272,12 @@ export function OperationsScreen() {
           ? { kind: 'empty' }
           : { kind: 'ready', data: page.data };
 
-  // OPU-OPS-4: date bounds are inclusive UTC days over the LOADED page only.
-  const inWindow = (op: OperationWire): boolean => {
-    if (op.createdAt === null) return fromDate === '' && toDate === '';
-    const created = Date.parse(op.createdAt);
-    if (!Number.isFinite(created)) return false;
-    if (fromDate !== '') {
-      const from = Date.parse(`${fromDate}T00:00:00.000Z`);
-      if (Number.isFinite(from) && created < from) return false;
-    }
-    if (toDate !== '') {
-      const to = Date.parse(`${toDate}T23:59:59.999Z`);
-      if (Number.isFinite(to) && created > to) return false;
-    }
-    return true;
-  };
-  const visibleItems = pane !== null && pane.kind === 'ready' ? pane.data.items.filter(inWindow) : [];
+  // AWEB-20a: the window is applied by the route, so the page is shown as
+  // returned. The old in-window trim ran over the loaded page only, which hid
+  // matching operations that were not on it and left `total` disagreeing with
+  // the table.
+  const visibleItems = pane !== null && pane.kind === 'ready' ? pane.data.items : [];
+  const windowInvalid = operationsWindowInvalid(fromDate, toDate);
 
   return (
     <section aria-labelledby="operations-title" className="flex flex-col gap-5 min-w-0">
@@ -215,7 +302,7 @@ export function OperationsScreen() {
               id="ops-state"
               className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm"
               value={stateFilter}
-              onChange={(e) => { setCursor(null); setStateFilter(e.target.value); }}
+              onChange={(e) => { applyCursor(null); setStateFilter(e.target.value); }}
             >
               {['ALL', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].map((value) => (
                 <option key={value} value={value}>
@@ -231,22 +318,22 @@ export function OperationsScreen() {
             </div>
           ) : null}
           <div><label htmlFor="ops-limit" className="text-xs">Requests per page</label>
-            <select id="ops-limit" value={limit} onChange={e => { setCursor(null); setLimit(e.target.value); }} className="ml-2 rounded border p-2">
+            <select id="ops-limit" value={limit} onChange={e => { applyCursor(null); setLimit(e.target.value); }} className="ml-2 rounded border p-2">
               {['20', '50', '100'].map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
           <div><label htmlFor="ops-id" className="text-xs">Operation id</label>
             <input id="ops-id" aria-label="Search by operation id" className="ml-2 rounded border p-2" value={idFilter}
               placeholder="id contains…"
-              onChange={(e) => { setCursor(null); setIdFilter(e.target.value); }} />
+              onChange={(e) => { applyCursor(null); setIdFilter(e.target.value); }} />
           </div>
           <div><label htmlFor="ops-from" className="text-xs">From</label>
             <input id="ops-from" aria-label="From date (UTC)" type="date" className="ml-2 rounded border p-2" value={fromDate}
-              onChange={(e) => { setCursor(null); setFromDate(e.target.value); }} />
+              onChange={(e) => { applyCursor(null); setFromDate(e.target.value); }} />
           </div>
           <div><label htmlFor="ops-to" className="text-xs">To</label>
             <input id="ops-to" aria-label="To date (UTC)" type="date" className="ml-2 rounded border p-2" value={toDate}
-              onChange={(e) => { setCursor(null); setToDate(e.target.value); }} />
+              onChange={(e) => { applyCursor(null); setToDate(e.target.value); }} />
           </div>
           <Button disabled={busy} onClick={() => void load()}>
             Refresh
@@ -261,15 +348,26 @@ export function OperationsScreen() {
           </Button>
           {selected.size > 0 && (
             <div className="flex items-center gap-1.5">
-              <Badge variant="info">Đã chọn: {selected.size}</Badge>
+              <Badge variant="info">Selected: {selected.size}</Badge>
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-                Bỏ chọn
+                Clear selection
               </Button>
             </div>
           )}
-          <span className="text-xs text-[var(--text-sub)]">Time window applies to the loaded page (UTC dates).</span>
+          <span className="text-xs text-[var(--text-sub)]">
+            From/To are inclusive UTC days and are applied by the server, not by this page.
+          </span>
         </CardContent>
       </Card>
+
+      {/* AWEB-20a: answered locally. The route answers 422 for from after to,
+          and swapping the table for an error box hides the page they still have. */}
+      {windowInvalid ? (
+        <AlertBanner variant="warning" title="Check the date window">
+          The start day is after the end day. Pick a start day on or before the end day to reload.
+          Until then the table keeps the last valid window.
+        </AlertBanner>
+      ) : null}
 
       {pane?.kind === 'loading' ? <LoadingState title="Loading operations…" /> : null}
       {pane?.kind === 'denied' ? (
@@ -373,13 +471,31 @@ export function OperationsScreen() {
 
       {pane?.kind === 'ready' || pane?.kind === 'empty' ? (
         <div className="flex flex-wrap items-center gap-3" aria-label="Request pagination">
-          <Button disabled={busy || page.kind !== 'ready' || !page.data.prevCursor} onClick={() => { if (page.kind === 'ready') setCursor(page.data.prevCursor); }}>Previous</Button>
-          <Button disabled={busy || page.kind !== 'ready' || !page.data.nextCursor} onClick={() => { if (page.kind === 'ready') setCursor(page.data.nextCursor); }}>Next</Button>
-          <Button disabled={busy || cursor === null} onClick={() => setCursor(null)}>Newest</Button>
-          {page.kind === 'ready' ? <span className="text-sm">{page.data.items.length} shown · {page.data.total} total</span> : null}
+          <Button disabled={busy || page.kind !== 'ready' || !page.data.prevCursor} onClick={() => { if (page.kind === 'ready') applyCursor(page.data.prevCursor); }}>Previous</Button>
+          <Button disabled={busy || page.kind !== 'ready' || !page.data.nextCursor} onClick={() => { if (page.kind === 'ready') applyCursor(page.data.nextCursor); }}>Next</Button>
+          <Button disabled={busy || cursor === null} onClick={() => applyCursor(null)}>Newest</Button>
+          {/* HONESTY-AUDIT-OPS: only claim a total the server actually sent. */}
+          {page.kind === 'ready' ? (
+            <span className="text-sm">
+              {page.data.items.length} shown · {page.data.totalFromServer ? `${page.data.total} total` : 'total not reported by the server'}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {notice ? <AlertBanner variant="info" title={notice}>Refresh or open the request detail to inspect its current state.</AlertBanner> : null}
+      {bulkCancelFailures.length > 0 ? (
+        <AlertBanner variant="error" title="Bulk cancel item failures">
+          <ul className="list-disc pl-5">
+            {bulkCancelFailures.map(({ operationId, problem }) => (
+              <li key={operationId}>
+                <code>{operationId}</code>: {problem.title ?? 'Cancel request failed'}
+                {problem.code ? ` · ${problem.code}` : ''}
+                {problem.status > 0 ? ` · HTTP ${problem.status}` : ''}
+              </li>
+            ))}
+          </ul>
+        </AlertBanner>
+      ) : null}
 
       {detailProblem !== null ? (
         <AlertBanner variant="error" title={detailProblem.title ?? 'Failed to load the operation detail.'}>
@@ -649,7 +765,7 @@ export function OperationsScreen() {
                                     {task.state}
                                   </Badge>
                                   <span className="text-[11px] text-[var(--text-sub)]">
-                                    Lượt {task.attempt}/{task.maxAttempts}
+                                    Attempt {task.attempt}/{task.maxAttempts}
                                   </span>
                                   {task.errorCode && (
                                     <span className="text-[10px] font-mono text-[var(--badge-danger-text)] truncate max-w-full">
@@ -687,7 +803,7 @@ export function OperationsScreen() {
                               ✓
                             </div>
                             <div className="mt-2 flex flex-col items-center gap-0.5">
-                              <span className="text-xs font-semibold text-[var(--text-main)]">1. Tiếp nhận</span>
+                              <span className="text-xs font-semibold text-[var(--text-main)]">1. Received</span>
                               <Badge variant="success" className="text-[10px] py-0 px-1.5">CREATED</Badge>
                               <span className="text-[11px] text-[var(--text-sub)] mt-0.5">
                                 {formatTime(detail.operation.createdAt)}
@@ -712,7 +828,7 @@ export function OperationsScreen() {
                               {detail.operation.startedAt ? '✓' : '2'}
                             </div>
                             <div className="mt-2 flex flex-col items-center gap-0.5">
-                              <span className="text-xs font-semibold text-[var(--text-main)]">2. Thực thi</span>
+                              <span className="text-xs font-semibold text-[var(--text-main)]">2. Executing</span>
                               <Badge
                                 variant={detail.operation.startedAt ? 'success' : 'info'}
                                 className="text-[10px] py-0 px-1.5"
@@ -720,7 +836,7 @@ export function OperationsScreen() {
                                 {detail.operation.startedAt ? 'RUNNING' : 'DISPATCHING'}
                               </Badge>
                               <span className="text-[11px] text-[var(--text-sub)] mt-0.5">
-                                {detail.operation.startedAt ? formatTime(detail.operation.startedAt) : 'Chờ phân phối'}
+                                {detail.operation.startedAt ? formatTime(detail.operation.startedAt) : 'Awaiting dispatch'}
                               </span>
                             </div>
                           </div>
@@ -752,7 +868,7 @@ export function OperationsScreen() {
                               {detail.operation.state === 'SUCCEEDED' ? '✓' : detail.operation.completedAt ? '✕' : '3'}
                             </div>
                             <div className="mt-2 flex flex-col items-center gap-0.5">
-                              <span className="text-xs font-semibold text-[var(--text-main)]">3. Hoàn tất</span>
+                              <span className="text-xs font-semibold text-[var(--text-main)]">3. Completed</span>
                               <Badge
                                 variant={operationStateVariant(detail.operation.state)}
                                 className="text-[10px] py-0 px-1.5"
@@ -760,14 +876,14 @@ export function OperationsScreen() {
                                 {detail.operation.state}
                               </Badge>
                               <span className="text-[11px] text-[var(--text-sub)] mt-0.5">
-                                {detail.operation.completedAt ? formatTime(detail.operation.completedAt) : 'Đang xử lý'}
+                                {detail.operation.completedAt ? formatTime(detail.operation.completedAt) : 'Processing'}
                               </span>
                             </div>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-xs text-[var(--text-sub)]">Chưa có thông tin tiến trình</p>
+                      <p className="text-xs text-[var(--text-sub)]">No progress information is available yet</p>
                     )}
                   </div>
                 </div>

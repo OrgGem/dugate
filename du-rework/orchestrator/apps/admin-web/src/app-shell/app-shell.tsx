@@ -13,9 +13,11 @@ const HEALTH_POLL_INTERVAL_MS = 30_000;
 const HEALTH_STALE_AFTER_MS = 60_000;
 
 const NAV = [
-  { label: 'Workspace', items: [['Overview', '/overview'], ['Operations', '/operations'], ['Usage', '/usage']] },
+  { label: 'Workspace', items: [['Overview', '/overview'], ['Operations', '/operations'], ['Trace', '/trace'], ['Usage', '/usage']] },
   { label: 'Configuration', items: [['Businesses', '/businesses'], ['Profiles', '/profiles'], ['Connectors', '/connectors'], ['Workflows', '/workflows']] },
-  { label: 'Administration', items: [['API keys', '/api-keys'], ['Security', '/security'], ['Secrets', '/secrets'], ['Identity', '/identity'], ['Settings', '/settings']] },
+  // 0039: API keys are managed per profile, inside the Profile screen, so
+  // they get their own route no longer - one place, one surface.
+  { label: 'Administration', items: [['Audit', '/audit'], ['Security', '/security'], ['Secrets', '/secrets'], ['Identity', '/identity'], ['Settings', '/settings']] },
   { label: 'Resources', items: [['API Reference', '/api-docs'], ['Documentation', '/docs'], ['Bootstrap', '/']] },
 ] as const;
 
@@ -139,15 +141,6 @@ function AppShellContent() {
                 ))}
               </div>
             ))}
-            <a
-              href="/admin/legacy"
-              className="mt-3 flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-[var(--cf-blue)] bg-[var(--cf-blue-light)] px-3 py-2 text-xs font-semibold text-[var(--cf-blue)] no-underline hover:opacity-80"
-            >
-              <span>Legacy Admin Shell</span>
-              <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 fill-none stroke-current" strokeWidth="1.5">
-                <path d="M9.5 2.5h4v4M13.25 2.75 7 9M12 8.5v4a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </a>
           </nav>
         </aside>
         <AppShellMain id="admin-content" tabIndex={-1} className="max-w-none md:px-8">

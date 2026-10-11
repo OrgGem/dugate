@@ -245,6 +245,7 @@ describe('W1C-COMPOSITION — createApp wires the acquisition resolver', () => {
     await expect(resolve({ operationId: OP, tenantId: TENANT })).resolves.toEqual({
       kind: 'bearer',
       token: 'w1c-composed-token',
+      allowedOrigins: [],
     });
     const sqls = scripted().queries.join('\n');
     expect(sqls).toContain('FROM profile_bindings WHERE profile_id=$1 AND revision=$2');

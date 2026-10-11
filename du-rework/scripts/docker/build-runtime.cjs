@@ -46,6 +46,29 @@ function buildPlan(entries, name) {
   return order;
 }
 
+// CR10-01: `registerLdb03ContextProvider()` runs at boot and resolves
+// `<root>/scripts/ldba-context-provider.cjs` (relative to the compiled bootstrap
+// module, so `<deploy>/scripts/...` in the image). The deploy `files` allowlist
+// below packs only dist + migrations, so the default image shipped without the
+// provider and every boot refused. Ship exactly that one file instead of
+// relaxing the allowlist to `scripts`: that directory also holds migration CLIs
+// and test harnesses which must stay out of the runtime image.
+const RUNTIME_EXTRA_FILES = {
+  orchestrator: ['scripts/ldba-context-provider.cjs'],
+};
+
+function copyRuntimeExtraFiles(service, packageDirectory, output) {
+  for (const relative of RUNTIME_EXTRA_FILES[service] ?? []) {
+    const source = path.join(packageDirectory, relative);
+    if (!fs.existsSync(source)) {
+      throw new Error(`Missing runtime artifact for ${service}: ${relative}`);
+    }
+    const destination = path.join(output, service, relative);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(source, destination);
+  }
+}
+
 function run(root, args) {
   const result = spawnSync('pnpm', args, { cwd: root, stdio: 'inherit' });
   if (result.error) throw result.error;
@@ -93,9 +116,10 @@ function buildRuntime(service, root = process.cwd(), output = '/deploy') {
     run(root, ['--filter', '@du/admin-web', 'build']);
     fs.cpSync(path.join(root, 'orchestrator/apps/admin-web/dist'), path.join(output, service, 'admin-web'), { recursive: true });
   }
+  copyRuntimeExtraFiles(service, entries.get(name).dir, output);
 }
 
-module.exports = { SERVICES, workspaceManifests, buildPlan, deploymentLockfile };
+module.exports = { SERVICES, workspaceManifests, buildPlan, deploymentLockfile, RUNTIME_EXTRA_FILES, copyRuntimeExtraFiles };
 if (require.main === module) {
   try { buildRuntime(process.argv[2]); }
   catch (error) { console.error(error.message); process.exitCode = 1; }

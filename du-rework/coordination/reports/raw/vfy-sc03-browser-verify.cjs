@@ -27,7 +27,7 @@ async function main() {
     try { const t = await r.text(); if (/sk-live-|hunter2|dXNlcjpwYXNz/.test(t)) sentinels.push(r.url()); } catch {}
   });
 
-  await page.goto(BASE + '/admin/web', { waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + 'admin', { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="token"]', TOKEN);
   await page.click('button[type="submit"]');
   await page.waitForURL((u) => u.pathname === '/admin');
@@ -35,7 +35,7 @@ async function main() {
   // F2 — no duplicate ids with two callback editors open.
   await fetch(STUB + '/__stub/mode?reset=1');
   await fetch(STUB + '/__stub/mode?profile=fixture&profileWrite=ok');
-  await page.goto(BASE + '/admin/web/profiles', { waitUntil: 'networkidle' });
+  await page.goto(BASE + 'admin/profiles', { waitUntil: 'networkidle' });
   await page.fill('#profile-business', 'doc-core');
   await page.getByRole('button', { name: 'Load profile' }).click();
   await page.getByText(/revision \d+/).waitFor({ timeout: 15000 });
@@ -53,7 +53,7 @@ async function main() {
   }
 
   // F6 — pinned version must reject NaN/null at the client.
-  await page.goto(BASE + '/admin/web/secrets', { waitUntil: 'networkidle' });
+  await page.goto(BASE + 'admin/secrets', { waitUntil: 'networkidle' });
   await page.fill('#secrets-tenant', '11111111-1111-4111-8111-111111111111');
   const versionInput = page.locator('input[name="version"]').first();
   if ((await versionInput.count()) > 0) {

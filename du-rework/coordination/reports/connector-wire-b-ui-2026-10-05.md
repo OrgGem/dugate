@@ -89,6 +89,6 @@ Boot: `npx tsx tests/browser/admin-web/harness.ts <tmp.json>` (cwd `du-rework`) 
 
 ## 5. Antigravity review (UI) — phạm vi đề nghị
 
-Route `/admin/web/connectors`, build digest `index-xBfDFWzz.js` / `6148de23c282f0d5` (trong `apps/admin-web/dist`). Trạng thái cần kiểm: (a) capabilities 404 ⇒ banner + **mọi** write disabled; (b) revision legacy ⇒ nhãn `degraded projection`, không hiện config keys; (c) revision management ⇒ `platform ledger`, config **chỉ keys**, header masked tách riêng; (d) draft cURL ⇒ Save disabled khi thiếu toạ độ + nêu đúng toạ độ thiếu, **không** secret trong payload; (e) `Rotate secret` disabled kèm lý do. UI verdict (`UI_APPROVED`/`CHANGES_REQUIRED`) do Antigravity ghi theo build trên; slice này **không tự tick** row nào.
+Route `admin/connectors`, build digest `index-xBfDFWzz.js` / `6148de23c282f0d5` (trong `apps/admin-web/dist`). Trạng thái cần kiểm: (a) capabilities 404 ⇒ banner + **mọi** write disabled; (b) revision legacy ⇒ nhãn `degraded projection`, không hiện config keys; (c) revision management ⇒ `platform ledger`, config **chỉ keys**, header masked tách riêng; (d) draft cURL ⇒ Save disabled khi thiếu toạ độ + nêu đúng toạ độ thiếu, **không** secret trong payload; (e) `Rotate secret` disabled kèm lý do. UI verdict (`UI_APPROVED`/`CHANGES_REQUIRED`) do Antigravity ghi theo build trên; slice này **không tự tick** row nào.
 
 **Compliance:** offline; không commit/push; không tick task/plan; chỉ file §0 (+PNG evidence §3.5) được ghi.

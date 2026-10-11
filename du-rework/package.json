@@ -9,6 +9,7 @@
     "build": "pnpm -r run build",
     "build:all": "node scripts/build-all.cjs",
     "migrate:local": "node scripts/migrate-local.cjs",
+    "provision": "node scripts/provision-local.cjs",
     "test": "pnpm -r run test",
     "test:integration": "pnpm --filter @du/contracts build && pnpm --filter @du/observability build && pnpm --filter @du/connector build && pnpm --filter @du/orchestrator build && pnpm --filter @du/integration-tests test",
     "lint": "pnpm -r run lint",

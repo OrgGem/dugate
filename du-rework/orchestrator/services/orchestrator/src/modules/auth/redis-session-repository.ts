@@ -5,8 +5,8 @@ import {
   isValidSessionId,
   SessionError,
   type SessionRecord,
-  type SessionRepository,
 } from './session-store';
+import type { SessionRepository } from './session-repository';
 
 /**
  * OIDC-02 (cycle 108+/orchestrator request): the PERSISTENT session
@@ -44,6 +44,18 @@ export interface RedisSessionGateway {
   get(key: string): Promise<string | null>;
   /** SET with expiry (seconds). Must behave like `SET key val EX n`. */
   set(key: string, value: string, ttlSeconds: number): Promise<void>;
+  /**
+   * Atomic generation-checked session touch. Returns the updated JSON, or
+   * null when the key was deleted/replaced before this operation ran. The
+   * session and principal-index keys are updated in the same script.
+   */
+  touchSession?(
+    sessionKey: string,
+    principalKey: string,
+    expected: SessionRecord,
+    lastSeenAt: number,
+    ttlSeconds: number,
+  ): Promise<string | null>;
   /** DEL: returns the number of keys actually removed. */
   del(...keys: string[]): Promise<number>;
   sadd(key: string, member: string): Promise<void>;
@@ -128,6 +140,18 @@ function parseSessionRecord(raw: string, expectedSessionId: string): SessionReco
   };
 }
 
+function sameSessionGeneration(current: SessionRecord | null, expected: SessionRecord): current is SessionRecord {
+  return current !== null &&
+    current.sessionId === expected.sessionId &&
+    current.issuer === expected.issuer &&
+    current.sub === expected.sub &&
+    current.tenantId === expected.tenantId &&
+    current.role === expected.role &&
+    current.csrfToken === expected.csrfToken &&
+    current.createdAt === expected.createdAt &&
+    current.expiresAt === expected.expiresAt;
+}
+
 export function createRedisSessionRepository(
   redis: RedisSessionGateway,
   options: RedisSessionRepositoryOptions = {}
@@ -136,7 +160,7 @@ export function createRedisSessionRepository(
   const now = options.now ?? ((): number => Date.now());
   const sessionKey = (id: string): string => prefix + 's:' + id;
 
-  return {
+  const repository: SessionRepository = {
     async get(sessionId) {
       // Defense in depth: the store gates hostile ids BEFORE the repo,
       // but a repo must never query `du:admin:sess:s:<garbage>` either.
@@ -178,6 +202,22 @@ export function createRedisSessionRepository(
       return removed;
     },
   };
+
+  const atomicTouch = redis.touchSession?.bind(redis);
+  if (atomicTouch) {
+    repository.touchIfExists = async (expected, lastSeenAt) => {
+      if (!isValidSessionId(expected.sessionId)) return null;
+      const key = sessionKey(expected.sessionId);
+      const pKey = principalKey(prefix, expected.issuer, expected.sub);
+      const ttlSec = Math.max(1, Math.ceil((expected.expiresAt - now()) / 1000));
+      const raw = await atomicTouch(key, pKey, expected, lastSeenAt, ttlSec);
+      const touched = raw === null ? null : parseSessionRecord(raw, expected.sessionId);
+      if (!touched || !sameSessionGeneration(touched, expected)) return null;
+      return { ...touched };
+    };
+  }
+
+  return repository;
 }
 
 /**
@@ -208,6 +248,48 @@ export function createIoredisSessionGateway(
     },
     async set(key, value, ttlSeconds) {
       await client.set(key, value, 'EX', ttlSeconds);
+    },
+    async touchSession(sessionKey, principalIndexKey, expected, lastSeenAt, ttlSeconds) {
+      const result = await client.eval(
+        `local raw = redis.call('GET', KEYS[1])
+if not raw then return nil end
+local current = cjson.decode(raw)
+if current.sessionId ~= ARGV[1]
+  or current.issuer ~= ARGV[2]
+  or current.sub ~= ARGV[3]
+  or current.createdAt ~= tonumber(ARGV[4])
+  or current.expiresAt ~= tonumber(ARGV[5])
+  or current.csrfToken ~= ARGV[6]
+  or current.role ~= ARGV[7] then return nil end
+if ARGV[9] == '1' then
+  if current.tenantId ~= cjson.null then return nil end
+elseif current.tenantId ~= ARGV[8] then
+  return nil
+end
+local requested = tonumber(ARGV[10])
+local prior = tonumber(current.lastSeenAt) or 0
+if requested > prior then current.lastSeenAt = requested end
+local updated = cjson.encode(current)
+redis.call('SET', KEYS[1], updated, 'EX', tonumber(ARGV[11]))
+redis.call('SADD', KEYS[2], current.sessionId)
+redis.call('EXPIRE', KEYS[2], tonumber(ARGV[11]))
+return updated`,
+        2,
+        sessionKey,
+        principalIndexKey,
+        expected.sessionId,
+        expected.issuer,
+        expected.sub,
+        String(expected.createdAt),
+        String(expected.expiresAt),
+        expected.csrfToken,
+        expected.role,
+        expected.tenantId ?? '',
+        expected.tenantId === null ? '1' : '0',
+        String(lastSeenAt),
+        String(ttlSeconds),
+      );
+      return typeof result === 'string' ? result : null;
     },
     async del(...keys) {
       return keys.length > 0 ? client.del(...keys) : 0;

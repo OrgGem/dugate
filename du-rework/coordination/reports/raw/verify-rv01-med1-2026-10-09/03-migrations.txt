@@ -1,0 +1,5 @@
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        2.475 s, estimated 3 s
+Ran all test suites matching tests/migrations.test.ts|tests/migrations-ledger-guard.test.ts.

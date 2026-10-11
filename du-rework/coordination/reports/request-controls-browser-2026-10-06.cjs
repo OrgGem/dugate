@@ -39,7 +39,7 @@ const check=async(name,fn)=>{await fn();passed.push(name);console.log('PASS '+na
   const {url}=await shell.listen(); browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1280,height:900}});
   const now=Date.now();await page.context().addCookies([{name:'du_admin',value:signCookie('request-browser-secret',{iss:'du-admin-shell',role:'admin',iat:now,exp:now+3600000}),url}]);
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());
-  await page.goto(url+'/admin/web/operations');await page.getByRole('table',{name:'Operations',exact:true}).waitFor();
+  await page.goto(url+'admin/operations');await page.getByRole('table',{name:'Operations',exact:true}).waitFor();
   await check('default newest sort and limit',async()=>{assert.ok(requests.some(r=>r.path.includes('sort=created_at%3Adesc')&&r.path.includes('limit=20')));});
   await check('terminal duration ignores maintenance updatedAt',async()=>{const row=page.getByRole('row').filter({has:page.getByRole('cell',{name:'FAILED',exact:true})});assert.ok((await row.textContent()).includes('25.0 s'));});
   await check('next/previous pagination uses cursor',async()=>{await page.getByRole('button',{name:'Next',exact:true}).click();await page.getByRole('cell',{name:'SUCCEEDED',exact:true}).waitFor();assert.ok(requests.some(r=>r.path.includes('cursor=second')));await page.getByRole('button',{name:'Previous',exact:true}).click();await page.getByRole('cell',{name:'FAILED',exact:true}).waitFor();});

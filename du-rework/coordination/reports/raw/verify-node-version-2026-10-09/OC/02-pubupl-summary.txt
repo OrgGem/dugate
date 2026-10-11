@@ -1,0 +1,7 @@
+﻿Command 2 extracted summary (raw combined-stream capture: 02-pubupl-node-path.txt)
+Node executable: C:\nvm4w\nodejs\node.exe
+node -v before run: v22.16.0 (exit 0)
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+REAL_EXIT=0
+Note: PowerShell rendered the Test Suites diagnostic as a NativeCommandError record prefixed `node :`; this file preserves the literal Jest summary text for coordinator comparison. The suite was not rerun.

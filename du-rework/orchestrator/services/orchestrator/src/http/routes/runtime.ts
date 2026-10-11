@@ -7,7 +7,7 @@
  */
 import { Readable } from 'node:stream';
 import { HttpError } from '../errors';
-import { ClaimTaskRequestSchema, WorkspaceReferenceQuerySchema } from '@du/contracts';
+import { ClaimTaskRequestSchema, HeartbeatAckSchema, WorkerHeartbeatSchema, WorkspaceReferenceQuerySchema } from '@du/contracts';
 import {
   authorizeWorkerBusiness,
   authorizeWorkerClaim,
@@ -15,6 +15,7 @@ import {
   isAuthorizedRuntimeBearer,
   resolveWorkerBusinessIdentity,
 } from '../../modules/runtime/worker-identity';
+import { recordWorkerHeartbeat, WORKER_HEARTBEAT_FRESH_FOR_MS } from '../../modules/runtime/worker-instances';
 import { decryptStoredArtifact } from '../../modules/encryption/artifact-read-decrypt';
 import type { RouteContext, RouteResult } from '../route-context';
 
@@ -271,7 +272,15 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
   {
     const m = /^\/api\/runtime\/v1\/artifacts\/blob\/([^/]+)$/.exec(pathname);
     if (m) {
-      const art = await resolveArtifactByStorageKey(ctx, m[1]!);
+      let storageKey: string;
+      try {
+        // Blob URLs encode the complete storage key as one path segment. Decode
+        // once here and keep this value for every storage and decrypt operation.
+        storageKey = decodeURIComponent(m[1]!);
+      } catch {
+        throw new HttpError(400, 'INVALID_ARGUMENT', 'artifact storage key has invalid URL encoding');
+      }
+      const art = await resolveArtifactByStorageKey(ctx, storageKey);
       const workerBusinessId = resolveWorkerBusinessIdentity(ctx.config, ctx.headers['authorization']);
       if (workerBusinessId) {
         authorizeWorkerBusiness(ctx.config, ctx.headers['authorization'], art.businessId ?? '');
@@ -282,13 +291,13 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
       if (!wantMode) throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'method not allowed');
       if (art.mode !== wantMode) throw new HttpError(403, 'PERMISSION_DENIED', 'grant not issued for this method');
       if (!art.expiresAt || new Date(art.expiresAt).getTime() <= Date.now()) {
-        throw new HttpError(404, 'NOT_FOUND', `artifact ${m[1]} not found`);
+        throw new HttpError(404, 'NOT_FOUND', `artifact ${storageKey} not found`);
       }
       if (method === 'PUT') {
         // FIX-CR-11: blob bytes arrive raw via the binary ingress path —
         // never utf8-decoded or JSON-parsed. GET without a prior PUT has no
         // rawBody; putBlob of an empty buffer is the explicit empty blob.
-        await ctx.artifacts.putBlob(m[1]!, art.tenantId, ctx.rawBody ?? Buffer.alloc(0));
+        await ctx.artifacts.putBlob(storageKey, art.tenantId, ctx.rawBody ?? Buffer.alloc(0));
         return { status: 204, body: undefined };
       }
       if (method === 'GET') {
@@ -307,7 +316,7 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
             WHERE id=$1 AND token=$2 AND token_mode='download' AND token_expires_at > now()`,
           [art.id, grant]
         );
-        if (!spent.rowCount) throw new HttpError(404, 'NOT_FOUND', `artifact ${m[1]} not found`);
+        if (!spent.rowCount) throw new HttpError(404, 'NOT_FOUND', `artifact ${storageKey} not found`);
         // CR28-01: a sealed artifact must be authenticated and opened BEFORE
         // a worker sees it. Handing the worker ciphertext would make the task
         // fail deep inside a parser with no signal that the storage layer was
@@ -316,7 +325,7 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
           const opened = await decryptStoredArtifact(ctx.artifactDecryptDeps, {
             artifactId: art.id as string,
             tenantId: art.tenantId as string,
-            storageKey: m[1]!,
+            storageKey,
             uploadToken: (art.uploadToken as string | null) ?? null,
             // RFX-05-residual: pin the sidecar generation the row committed.
             manifestVersionId: art.manifestVersionId,
@@ -329,7 +338,7 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
             };
           }
         }
-        const stream = await ctx.artifacts.getBlob(m[1]!);
+        const stream = await ctx.artifacts.getBlob(storageKey);
         return { status: 200, raw: stream, headers: { 'content-type': 'application/octet-stream' } };
       }
       throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'method not allowed');
@@ -346,25 +355,42 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
   }
 
   // Runtime: PUT /api/runtime/v1/workers/:instanceId/heartbeat
-  // RFX-12: STUB COMPAT SURFACE — kept so older worker SDKs receive an ack
-  // instead of a 404. It reads and writes NO runtime/lease state, so it must
-  // not report HEALTHY: an operator or autoscaler acting on a fabricated
-  // 'HEALTHY' would make decisions from data this route never collected.
-  // 'DEGRADED' is the conservative value inside the published
-  // HeartbeatAckSchema enum ['HEALTHY','DEGRADED','OFFLINE'] (it is also what
-  // SDK clients zod-parse; an out-of-enum 'UNKNOWN' would fail their parse).
-  // leaseExpiresAt/capacity stay for wire-shape compatibility. Real monitoring
-  // is GET /health (DB/Redis transport + queueIntegrity sweep state).
-  if (method === 'PUT' && /^\/api\/runtime\/v1\/workers\/[^/]+\/heartbeat$/.test(pathname)) {
-    const workerBusinessId = assertRuntimeAuth(ctx);
-    if (workerBusinessId) {
-      const declaredBusinessId = (ctx.body as { businessId?: unknown } | null)?.businessId;
-      if (typeof declaredBusinessId !== 'string') {
-        throw new HttpError(403, 'PERMISSION_DENIED', 'worker heartbeat requires its authenticated business');
+  {
+    const m = /^\/api\/runtime\/v1\/workers\/([^/]+)\/heartbeat$/.exec(pathname);
+    if (m && method === 'PUT') {
+      const workerBusinessId = assertRuntimeAuth(ctx);
+      let instanceId: string;
+      try {
+        instanceId = decodeURIComponent(m[1]!);
+      } catch {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'worker instance id is not valid URL encoding');
       }
-      authorizeWorkerBusiness(ctx.config, ctx.headers['authorization'], declaredBusinessId);
+      if (instanceId.length === 0 || instanceId.length > 256 || /[\u0000-\u001f\u007f/]/.test(instanceId)) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'worker instance id must be a printable path segment');
+      }
+      if (workerBusinessId) {
+        const declaredBusinessId = (ctx.body as { businessId?: unknown } | null)?.businessId;
+        if (typeof declaredBusinessId !== 'string') {
+          throw new HttpError(403, 'PERMISSION_DENIED', 'worker heartbeat requires its authenticated business');
+        }
+        authorizeWorkerBusiness(ctx.config, ctx.headers['authorization'], declaredBusinessId);
+      }
+      const parsed = WorkerHeartbeatSchema.safeParse(ctx.body);
+      if (!parsed.success) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'worker heartbeat payload is invalid');
+      }
+      const recorded = await recordWorkerHeartbeat(ctx.db, instanceId, parsed.data);
+      const ack = HeartbeatAckSchema.parse({
+        health: recorded.state === 'OFFLINE'
+          ? 'OFFLINE'
+          : recorded.state === 'DRAINING' || parsed.data.capacity === 0
+            ? 'DEGRADED'
+            : 'HEALTHY',
+        leaseExpiresAt: new Date(Date.parse(recorded.lastSeenAt) + WORKER_HEARTBEAT_FRESH_FOR_MS).toISOString(),
+        capacity: parsed.data.capacity,
+      });
+      return { status: 200, body: ack };
     }
-    return { status: 200, body: { health: 'DEGRADED', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 } };
   }
 
   // Runtime: POST /api/runtime/v1/tasks/:id/claim

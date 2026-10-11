@@ -215,7 +215,7 @@ function mapReservation(row: BudgetReservationDbRow): BudgetReservation {
 }
 
 async function acquireScopeLock(client: PoolClient, scopeKey: string, from: string, to: string): Promise<void> {
-  const lockKey = `${scopeKey}\u0000${from}\u0000${to}`;
+  const lockKey = JSON.stringify([scopeKey, from, to]);
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
 }
 

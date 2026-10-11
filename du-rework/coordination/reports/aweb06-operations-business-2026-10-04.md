@@ -16,9 +16,9 @@
 
 | UI route | States | Hành động |
 |---|---|---|
-| `/admin/web/operations` | loading/ready/empty/error/denied; filter state + refresh; chi tiết mở từ ID → artifacts table + result | Cancel/Resume/Replay **disabled + badge `actions: requires backend`** (route upstream chỉ phục vụ x-api-key tenant; admin action path chưa compose — P2-06/P9) |
-| `/admin/web/businesses` | loading/ready/empty/error/**denied** (operator thấy lý do platform-scoped) | Versions list; Enable/Activate/Deactivate **thật** qua CSRF (activate chỉ khi !isActive, deactivate chỉ khi isActive) |
-| `/admin/web/usage` | loading/ready/empty/error/denied | from/to (default 24h) → summary verbatim, không tự aggregate |
+| `admin/operations` | loading/ready/empty/error/denied; filter state + refresh; chi tiết mở từ ID → artifacts table + result | Cancel/Resume/Replay **disabled + badge `actions: requires backend`** (route upstream chỉ phục vụ x-api-key tenant; admin action path chưa compose — P2-06/P9) |
+| `admin/businesses` | loading/ready/empty/error/**denied** (operator thấy lý do platform-scoped) | Versions list; Enable/Activate/Deactivate **thật** qua CSRF (activate chỉ khi !isActive, deactivate chỉ khi isActive) |
+| `admin/usage` | loading/ready/empty/error/denied | from/to (default 24h) → summary verbatim, không tự aggregate |
 | Workflow/schema catalog | — | **không có route backend** → không dựng màn; ghi gap owner P9 |
 | Link | nav 6 mục trong Overview (`/operations /businesses /usage /profiles /api-keys /connectors`) | |
 

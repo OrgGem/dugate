@@ -33,16 +33,34 @@ type Row = {
   digest: string;
   schema_ref: unknown;
   status: 'active' | 'retired';
+  business_id: string | null;
+  business_version: string | null;
 };
 
-function dbHarness(): Db & { rows: Row[] } {
+function dbHarness(): Db & { rows: Row[]; businessVersions: Map<string, boolean> } {
   const rows: Row[] = [];
+  // WFA/BIZ-05: whether a registered business version can receive submissions.
+  // Registered = active by default, so the pre-existing association test keeps
+  // its meaning; a test flips it to prove the drained-version gate.
+  const businessVersions = new Map<string, boolean>([['document-core@1.1.0', true]]);
   const run = async <T extends QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     const resultRows: QueryResultRow[] = [];
     let rowCount = 0;
     if (normalized.startsWith('select pg_advisory_xact_lock')) {
       rowCount = 1;
+    } else if (normalized.startsWith('select 1 from business_versions')
+        || normalized.startsWith('select is_active from business_versions')) {
+      // Presence in the map means the version is REGISTERED; the value means
+      // it can receive submissions. The two queries must disagree for a drained
+      // version, otherwise a reverted existence-only gate would look identical
+      // to the working is_active gate and the pin below could not fail.
+      const key = `${String(params[0])}@${String(params[1])}`;
+      const wantsFlag = normalized.startsWith('select is_active');
+      if (businessVersions.has(key)) {
+        resultRows.push(wantsFlag ? { is_active: businessVersions.get(key) === true } : { '?column?': 1 });
+        rowCount = 1;
+      }
     } else if (normalized.startsWith('select max(revision)')) {
       const matching = rows.filter((row) => row.tenant_id === params[0] && row.slug === params[1]);
       resultRows.push({ revision: matching.length ? Math.max(...matching.map((row) => row.revision)) : null });
@@ -55,7 +73,8 @@ function dbHarness(): Db & { rows: Row[] } {
       const row = rows.find((entry) => entry.tenant_id === params[0] && entry.slug === params[1]);
       if (row) resultRows.push({ revision: row.revision });
       rowCount = resultRows.length;
-    } else if (normalized.startsWith('select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas')) {
+    } else if (normalized.startsWith('select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas')
+        || normalized.startsWith('select tenant_id, slug, revision, digest, schema_ref, status, business_id, business_version from legacy_workflow_schemas')) {
       const [tenantId, slug, revision] = params;
       const row = rows.find((entry) => entry.tenant_id === tenantId && entry.slug === slug
         && (revision === undefined ? entry.status === 'active' : entry.revision === revision));
@@ -71,9 +90,11 @@ function dbHarness(): Db & { rows: Row[] } {
         }
       }
     } else if (normalized.startsWith('insert into legacy_workflow_schemas')) {
-      const [tenantId, slug, revision, digest, sealed] = params;
+      const [tenantId, slug, revision, digest, sealed, businessId, businessVersion] = params;
       rows.push({ tenant_id: String(tenantId), slug: String(slug), revision: Number(revision), digest: String(digest),
-        schema_ref: JSON.parse(String(sealed)), status: 'active' });
+        schema_ref: JSON.parse(String(sealed)), status: 'active',
+        business_id: typeof businessId === 'string' ? businessId : null,
+        business_version: typeof businessVersion === 'string' ? businessVersion : null });
       rowCount = 1;
     } else {
       throw new Error(`unhandled SQL: ${normalized}`);
@@ -83,6 +104,7 @@ function dbHarness(): Db & { rows: Row[] } {
   const client = { query: run } as unknown as PoolClient;
   return {
     rows,
+    businessVersions,
     pool: {} as Db['pool'],
     query: run,
     async tx(fn) { return fn(client); },
@@ -126,6 +148,63 @@ describe('WFA-03 tenant workflow schema catalog', () => {
       .resolves.toMatchObject({ tenantId: 'tenant-b', revision: 1 });
     await expect(resolveLegacyWorkflowSchema(db, { tenantId: 'tenant-a', slug: 'missing' }, metadataCrypto)).resolves.toBeNull();
     expect(contentHash(first.schema)).toMatch(/^sha256:/);
+  });
+
+  it('associates workflow revisions with a registered business and carries ownership forward', async () => {
+    const db = dbHarness();
+    await provisionLegacyWorkflowSchema(db, {
+      tenantId: 'tenant-a',
+      schema: schema('business-workflow', 'p1'),
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+    }, metadataCrypto);
+    await provisionLegacyWorkflowSchema(db, {
+      tenantId: 'tenant-a',
+      schema: schema('business-workflow', 'p2'),
+      expectedRevision: 1,
+    }, metadataCrypto);
+
+    expect(db.rows.map((row) => [row.business_id, row.business_version])).toEqual([
+      ['document-core', '1.1.0'],
+      ['document-core', '1.1.0'],
+    ]);
+    await expect(provisionLegacyWorkflowSchema(db, {
+      tenantId: 'tenant-a',
+      schema: schema('business-workflow', 'p3'),
+      expectedRevision: 2,
+      businessId: 'another-business',
+      businessVersion: '1.1.0',
+    }, metadataCrypto)).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+    await expect(provisionLegacyWorkflowSchema(db, {
+      tenantId: 'tenant-a',
+      schema: schema('new-workflow', 'p1'),
+      businessId: 'document-core',
+    }, metadataCrypto)).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+  });
+
+  // WFA/BIZ-05: an association to a version that cannot receive submissions
+  // is metadata drift, so binding is allowed only for the ACTIVE version.
+  // This pin must go red if the is_active check is loosened back to a bare
+  // existence check.
+  it('refuses to bind a workflow to a business version that is not the active one', async () => {
+    const db = dbHarness();
+    db.businessVersions.set('document-core@1.1.0', false);
+
+    await expect(provisionLegacyWorkflowSchema(db, {
+      tenantId: 'tenant-a',
+      schema: schema('drained-workflow', 'p1'),
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+    }, metadataCrypto)).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+    expect(db.rows).toHaveLength(0);
+
+    db.businessVersions.set('document-core@1.1.0', true);
+    await expect(provisionLegacyWorkflowSchema(db, {
+      tenantId: 'tenant-a',
+      schema: schema('drained-workflow', 'p1'),
+      businessId: 'document-core',
+      businessVersion: '1.1.0',
+    }, metadataCrypto)).resolves.toMatchObject({ revision: 1 });
   });
 
   it('rejects ciphertext copied across tenant, slug, or revision AAD identities', async () => {

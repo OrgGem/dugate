@@ -123,7 +123,7 @@ by-design separation (profile cipher is not a persistence-encryption key).
   sentinel absent; missing CSRF → 403 `CSRF_REJECTED` with zero upstream calls; operator mutation → 403
   `ADMIN_CREDENTIAL_REQUIRED`; `PUT` → 405 with zero upstream calls.
 
-**Portal `/admin/web/secrets`** (SC-03):
+**Portal `admin/secrets`** (SC-03):
 
 - Parser rejects **any** row containing a `value` member (`apps/admin-web/src/features/secrets/state.ts:94-97`), so a
   plaintext readback would blank the list rather than render.

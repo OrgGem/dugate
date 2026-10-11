@@ -1,0 +1,29 @@
+TASK: VERIFY-INDEPENDENT-AP01-TO-AP05-2026-10-09
+ROLE: Tester doc lap (khong phai implementer)
+REPO: du-rework only
+RECEIPT: du-rework/coordination/reports/verify-ap01-to-ap05-INDEPENDENT-DSH-2026-10-09.md
+RANG BUOC: Khong sua source/test/docs, khong commit, khong git add, khong push, khong tick gate, OFFLINE.
+
+MUC TIEU:
+Xac minh doc lap toan bo dot feature Admin Portal AP-01 den AP-05 vua duoc implement boi cac worker.
+
+CAC BUOC XAC MINH BAT BUOC:
+1. Kiem tra typecheck cua app admin-web:
+cd du-rework/orchestrator/apps/admin-web
+node ../../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+(Neu path tsc tren bao loi khong tim thay thi dung tsc goc repo: node D:/Git/dugate/node_modules/typescript/bin/tsc --noEmit -p tsconfig.json).
+Xac nhan exit 0 va khong co loi type.
+
+2. Kiem tra production build cua admin-web:
+cd du-rework
+pnpm --filter @du/admin-web build
+Xac nhan exit 0 va build thanh cong dist/index.html.
+
+3. Kiem tra test suite lien quan tren orchestrator de dam bao khong bi regression:
+cd du-rework/orchestrator/services/orchestrator
+node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/aweb08-per-route-flag.test.ts
+Xac nhan exit 0 va 7 passed, 7 total.
+
+4. Ghi toan bo ket qua vao receipt:
+du-rework/coordination/reports/verify-ap01-to-ap05-INDEPENDENT-DSH-2026-10-09.md
+Ghi ro REAL_EXIT tung lenh, so test pass, va danh gia ket qua.

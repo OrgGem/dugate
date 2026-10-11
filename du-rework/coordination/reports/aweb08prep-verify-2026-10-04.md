@@ -30,15 +30,15 @@ cwd: du-rework
 
 | # | Case | Kết quả |
 |---|---|---|
-| W1 | env vắng | mọi path (`/admin/web`, `/overview`, `/profiles`, deep `a/b/c`) **200 + `id="root"`** (hành vi trước AWEB-08) |
+| W1 | env vắng | mọi path (`admin`, `/overview`, `/profiles`, deep `a/b/c`) **200 + `id="root"`** (hành vi trước AWEB-08) |
 | W2 | env blank (`'   '`) | như vắng — 200/200 |
 | W3a | allow-list `overview,security` | route trong list (kể cả deep) **200**; root 200 |
 | W3b | route ngoài list | **404 document nhất quán** ("Route not enabled on this deployment") + link `href="/admin"` + `no-store` (2 path khác nhau cùng template) |
-| W3c | **assets không bị gate** | hashed asset (`/admin/web/assets/index-D5FjAyVz.js`) **200 + immutable** dù routes bị giới hạn |
+| W3c | **assets không bị gate** | hashed asset (`admin/assets/index-D5FjAyVz.js`) **200 + immutable** dù routes bị giới hạn |
 | W4 | `overview,bogus` | tên lạ bị bỏ, phần còn lại áp dụng: overview 200 / profiles 404 |
 | W5 | `,` | chỉ shell root reachable: root **200**, overview **404** (fail-closed) |
 | W6 | mount off (`DU_ADMIN_WEB` vắng, không inject) | **404 legacy nguyên trạng**, không có marker gate |
-| W7 | `/admin/web/%3Cscript%3Ealert(1)%3C%2Fscript%3E` | **404 + escape đúng** (`&lt;script&gt;`), không phản chiếu raw `<script>` |
+| W7 | `admin/%3Cscript%3Ealert(1)%3C%2Fscript%3E` | **404 + escape đúng** (`&lt;script&gt;`), không phản chiếu raw `<script>` |
 
 `SUMMARY 9/9 PASS`, exit 0. *(Ghi chú trung thực: lần chạy đầu của tôi FAIL toàn bộ 302 vì script thiếu cookie session — lỗi assertion của tôi, đã thêm cookie `du_admin` mint bằng `signCookie` rồi chạy lại; không phải lỗi sản phẩm.)*
 

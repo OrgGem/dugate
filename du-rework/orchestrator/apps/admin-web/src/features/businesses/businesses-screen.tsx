@@ -21,6 +21,7 @@ import {
 } from '@/lib/api';
 import type { Loadable, PaneState } from '@/features/overview/state';
 import { parseBusinessPage, parseBusinessVersions } from './state';
+import { BusinessDetailCockpit } from './business-detail-cockpit';
 
 /**
  * Business registry (AWEB-06) — platform-scoped reads + real version actions.
@@ -285,6 +286,12 @@ export function BusinessesScreen() {
             )}
           </CardContent>
         </Card>
+      ) : null}
+
+      {/* BIZ-09: the detail cockpit. Mounted only once a business was opened,
+          because every card is a real read keyed on that businessId. */}
+      {versions?.kind === 'ready' && versions.data.businessId.length > 0 ? (
+        <BusinessDetailCockpit businessId={versions.data.businessId} />
       ) : null}
     </section>
   );

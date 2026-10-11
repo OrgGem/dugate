@@ -44,7 +44,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
       return;
     }
     expect(TOKEN.length, 'AWEB_LIVE_TOKEN or AWEB_LIVE_COOKIE required').toBeGreaterThan(0);
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
@@ -52,12 +52,12 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
   }
 
   test('1. direct URL gated by the real session; login renders the app', async ({ page }) => {
-    const unauth = await page.request.get(`${BASE}/admin/web`, { maxRedirects: 0, failOnStatusCode: false });
+    const unauth = await page.request.get(`${BASE}admin`, { maxRedirects: 0, failOnStatusCode: false });
     expect([302, 200]).toContain(unauth.status());
     if (unauth.status() === 302) expect(unauth.headers()['location']).toBe('/admin/login');
 
     await login(page);
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Admin Web bootstrap is running' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Admin Web Navigation' })).toBeVisible();
     await shot(page, 'live-01-login-app.png');
@@ -65,7 +65,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
 
   test('2. overview reads the REAL session + audit ledger (honest state)', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
     await expect(page.getByText('Current session')).toBeVisible();
     await expect(page.getByText('Audit ledger')).toBeVisible();
@@ -81,7 +81,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
 
   test('3. security: real view OR honest 503-unavailable (both branches accepted)', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/admin/web/security`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/security`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Security' })).toBeVisible();
     const view = page.getByText('fingerprintPreview');
     const unavailable = page.getByText('Crypto configuration unavailable');
@@ -91,7 +91,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
 
   test('4. real mutation: issue (copy-once once) → revoke, then audit side effect', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/admin/web/api-keys`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/api-keys`, { waitUntil: 'networkidle' });
 
     const rows = page.getByRole('row');
     const before = await rows.count();
@@ -129,7 +129,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
   test('5. 320px reflow + reload keeps the session', async ({ page }) => {
     await login(page);
     await page.setViewportSize({ width: 320, height: 800 });
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     const dims = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
@@ -138,14 +138,14 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
     await shot(page, 'live-07-320px.png');
 
     await page.reload({ waitUntil: 'networkidle' });
-    expect(new URL(page.url()).pathname).toBe('/admin/web/overview');
+    expect(new URL(page.url()).pathname).toBe('admin/overview');
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
     await shot(page, 'live-08-reload-session.png');
   });
 
   test('6. connectors: real list/capabilities + activate/disable (honest both ways)', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/admin/web/connectors`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/connectors`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Connectors' })).toBeVisible();
     const table = page.getByRole('table', { name: 'Connectors' });
     const empty = page.getByText('No connectors');
@@ -172,7 +172,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
       const body = (await keys.json()) as { items?: { id?: string }[] };
       realApiKeyId = (body.items ?? []).map((k) => k.id ?? '').find((id) => id.length > 0) ?? '';
     }
-    await page.goto(`${BASE}/admin/web/profiles`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/profiles`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible();
     await page.fill('#profile-business', 'doc-core');
     await page.getByRole('button', { name: 'Load profile' }).click();
@@ -191,7 +191,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
 
   test('8. operations: detail → result/artifact projection (honest empty allowed)', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/admin/web/operations`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/operations`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('table', { name: 'Operations' })).toBeVisible();
     const rows = page.getByRole('row');
     if ((await rows.count()) > 1) {
@@ -205,7 +205,7 @@ test.describe('AWEB-08 live — Admin Web on du-live (gated)', () => {
 
   test('9. vault/security: real crypto config OR honest unavailable, provider stated', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/admin/web/security`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/security`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Security' })).toBeVisible();
     const view = page.getByText('fingerprintPreview');
     const unavailable = page.getByText('Crypto configuration unavailable');

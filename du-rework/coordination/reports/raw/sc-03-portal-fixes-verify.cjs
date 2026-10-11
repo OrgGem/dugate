@@ -91,7 +91,7 @@ function profileFixture(withCallbackPolicy) {
 }
 
 async function loadProfile(page) {
-  await page.goto(`${BASE}/admin/web/profiles`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}admin/profiles`, { waitUntil: 'networkidle' });
   await page.fill('#profile-business', 'doc-core');
   await page.getByRole('button', { name: 'Load profile' }).click();
   await page.getByText(/revision \d+/).waitFor({ timeout: 15000 });
@@ -130,7 +130,7 @@ async function main() {
     });
   });
 
-  await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="token"]', TOKEN);
   await page.click('button[type="submit"]');
   await page.waitForURL((url) => url.pathname === '/admin');

@@ -16,6 +16,7 @@
  * second signal exits(1) immediately; SHUTDOWN_TIMEOUT_MS caps the whole chain.
  */
 import { createApp, multipartLimitsFromEnv } from './server';
+import { registerLdb03ContextProvider } from './app/bootstrap/create-app';
 import { s3SourceRulesFromEnv } from './modules/operations/s3-source';
 import { createLogger, safeErrorForLog } from '@du/observability';
 import { installGracefulShutdown } from './shutdown';
@@ -227,6 +228,9 @@ function artifactStorageConfig(): NonNullable<Parameters<typeof createApp>[0]['a
 }
 
 export async function main(): Promise<void> {
+  // MDB-01: validate the LDBA03 context policy module at the process entrypoint
+  // and set its absolute path for adapter invocations inheriting this environment.
+  registerLdb03ContextProvider(process.env);
   // CYCLE-108/113: OIDC-04 plane when configured. Absent env -> null
   // (bearer + legacy surfaces unchanged); partial env -> refuse to boot.
   const oidcAdmin = buildOidcAdminComponents(process.env);

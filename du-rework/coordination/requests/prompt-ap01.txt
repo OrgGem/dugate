@@ -1,0 +1,25 @@
+TASK: AP-01-TENANT-SCOPING-PROFILES-BUSINESSES-2026-10-09
+REPO: du-rework only
+PLAN: coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md
+EXACT PATH LEASE:
+du-rework/orchestrator/apps/admin-web/src/features/profiles/profiles-screen.tsx
+du-rework/orchestrator/apps/admin-web/src/features/businesses/businesses-screen.tsx
+RECEIPT: du-rework/coordination/reports/receipt-ap01-tenant-scoping-2026-10-09.md
+RANG BUOC: Khong commit, khong git add, khong touch file ngoai lease, khong sua backend.
+
+MUC TIEU:
+Them tenant scoping cho ProfilesScreen va BusinessesScreen (hien 6 man hinh khac da co TenantSelect nhung 2 man hinh nay chua co).
+
+CAC BUOC:
+1. Doc cach dung TenantSelect o cac man hinh mau nhu operations-screen.tsx hoac api-keys-screen.tsx.
+2. Trong profiles-screen.tsx:
+- Import va render TenantSelect.
+- Quan ly state selectedTenant (khoi tao rong hoac tu hook useTenantScope).
+- Gui tenant vao cac call BFF tuong ung neu co param tenant.
+3. Trong businesses-screen.tsx:
+- Tuong tu, them TenantSelect vao header/filter bar de phu hop layout chung.
+4. Kiem tra build va typecheck:
+cd du-rework/orchestrator/apps/admin-web
+node ../../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+Hoac: pnpm --filter @du/admin-web build
+5. Ghi smoke receipt vao du-rework/coordination/reports/receipt-ap01-tenant-scoping-2026-10-09.md.

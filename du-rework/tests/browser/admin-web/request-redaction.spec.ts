@@ -20,7 +20,7 @@ test('profile editor saves regex, replacement and selected flags', async ({ page
     saved = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({ json: { revision: 2 } });
   });
-  await page.goto(`${BASE}/admin/web/profiles`);
+  await page.goto(`${BASE}admin/profiles`);
   await page.locator('#profile-business').fill('doc-core');
   await page.locator('#profile-version').fill('v1');
   await page.locator('#profile-name').fill('privacy');
@@ -42,7 +42,7 @@ for (const status of ['REDACTED', 'HIDDEN'] as const) {
     const operation = { id: 'privacy-op', state: 'RUNNING', businessId: 'doc-core', action: 'extract' };
     await page.route(/\/admin\/api\/operations(?:\?.*)?$/,  route => route.fulfill({ json: { items: [operation] } }));
     await page.route('**/admin/api/operations/privacy-op', route => route.fulfill({ json: { operation, requestInput: { status, ruleCount: 1, data: status === 'HIDDEN' ? '[REDACTED]' : { phone: '090*******' } } } }));
-    await page.goto(`${BASE}/admin/web/operations`);
+    await page.goto(`${BASE}admin/operations`);
     await page.getByRole('button', { name: /privacy-/ }).click();
     await expect(page.getByLabel('Request input', { exact: true })).toContainText(status === 'HIDDEN' ? '[REDACTED]' : '090*******');
     await expect(page.locator('body')).not.toContainText('0901234567');

@@ -25,7 +25,7 @@ import {
 } from '../src/public-api';
 
 describe('operations-list request contract', () => {
-  it('declares the six parameters the route reads', () => {
+  it('declares the eight parameters the route reads', () => {
     expect([...OPERATIONS_LIST_QUERY_PARAMS]).toEqual([
       'limit',
       'cursor',
@@ -33,10 +33,17 @@ describe('operations-list request contract', () => {
       'tenant',
       'id',
       'sort',
+      'from',
+      'to',
     ]);
     // The schema's key set and the route's allow-list are the same list, so
     // they cannot drift: one is derived from the other.
     expect(Object.keys(ListOperationsQuerySchema.shape).sort()).toEqual([...OPERATIONS_LIST_QUERY_PARAMS].sort());
+    expect(ListOperationsQuerySchema.safeParse({
+      from: '2026-10-10T00:00:00Z',
+      to: '2026-10-10T23:59:59Z',
+    }).success).toBe(true);
+    expect(ListOperationsQuerySchema.safeParse({ from: '2026-10-10' }).success).toBe(false);
   });
 
   it('accepts an empty query and applies the documented defaults', () => {

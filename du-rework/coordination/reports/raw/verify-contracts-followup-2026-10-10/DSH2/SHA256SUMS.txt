@@ -1,0 +1,5 @@
+﻿69c7b9efd71be35a6ba2dbf31abd219d7f6a5a698407eccf7f1709e681e44d15  01-conformance.log
+d11ef5a24a5cf3da86830c12725149f387f8a96656dc022a7b8abfcc152fdb2b  02-repeat-and-ops.log
+3abdefae74c5b1fc0f71bcdf110778dce2e787260ac6ab0d62a8496718b5b43a  03-dsh2-probe.log
+5f2f076df0c4ad4f499b8480b831c0cc3bf23d9f679e4d3c5d03ad3a36a1c03a  04-contracts-full-followup.log
+c0460f9d76f5029a3863576b04d59d4eaa93abdb7bdd3d6760e0bfd7c7f939ed  05-dsh2-probe.cjs

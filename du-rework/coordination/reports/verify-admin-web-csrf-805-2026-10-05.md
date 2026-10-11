@@ -17,7 +17,7 @@ Mỗi command là `pnpm --filter @du/admin-web build` từ root `du-rework/`; ex
 | 2 | 6.4.3, production | 2674 modules; assets emitted | 8.73s | 0 |
 | 3 | 6.4.3, production | 2674 modules; assets emitted | 8.26s | 0 |
 
-Cả ba build có cảnh báo chunk JavaScript lớn hơn 500 kB sau minify; build vẫn thành công. `dist/index.html` tham chiếu `/admin/web/assets/index-B1j53ou2.js` và `/admin/web/assets/index-9VWq5VN-.css`.
+Cả ba build có cảnh báo chunk JavaScript lớn hơn 500 kB sau minify; build vẫn thành công. `dist/index.html` tham chiếu `admin/assets/index-B1j53ou2.js` và `admin/assets/index-9VWq5VN-.css`.
 
 | Asset trong cả ba lượt | Bytes | SHA-256 |
 |---|---:|---|

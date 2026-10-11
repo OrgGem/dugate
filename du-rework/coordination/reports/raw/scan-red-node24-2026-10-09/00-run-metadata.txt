@@ -1,0 +1,9 @@
+﻿CWD=D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+NODE_PATH=C:\Users\Gem\AppData\Local\Temp\du-node24-security-c025dd92\node-v24.21.0-win-x64\node.exe
+NODE_VERSION=v24.21.0
+NODE_VERSION_EXIT=0
+COMMAND=& $node24 node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs
+REAL_EXIT=1
+Test Suites: 1 failed, 14 skipped, 234 passed, 235 of 249 total
+Tests:       5 failed, 118 skipped, 5133 passed, 5256 total
+Snapshots:   0 total

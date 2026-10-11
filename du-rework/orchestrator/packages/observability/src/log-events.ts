@@ -31,6 +31,7 @@ export const SAFE_LOG_MESSAGES = new Set<string>([
   "artifact encryption enabled",
   "artifact integrity scan tick skipped: previous scan still running",
   "completion replayed (already terminal)",
+  "credential origin policy warning",
   "database is up-to-date",
   "delivery fenced at claim (busy/terminal)",
   "delivery for unregistered handler kind",
@@ -56,6 +57,7 @@ export const SAFE_LOG_MESSAGES = new Set<string>([
   "unhandled listener error",
   "unhandled request error",
   "unknown migration command",
+  "usage dispatch cycle failed",
   "worker heartbeat failed",
   "workspace-reference query uncertain; treating dir as referenced"
 ]);

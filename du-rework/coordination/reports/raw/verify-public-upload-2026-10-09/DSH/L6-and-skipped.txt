@@ -1,0 +1,15 @@
+﻿=== version-dependence proof: same suite on node v22.16.0 (ambient NODE_ENV=[production]) ===
+REAL_EXIT=0
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+=== SKIPPED: live-gate list in jest.unit.config.cjs (migrations.test.ts included?) ===
+  jest.unit.config.cjs:8: const liveSuites = [
+  jest.unit.config.cjs:18: 'migrations\\.test\\.ts$',
+  jest.unit.config.cjs:28: testPathIgnorePatterns: liveSuites,
+=== skipped counts in MY runs (all showed none) ===
+  L1-run1.txt -> Tests:       1 failed, 11 passed, 12 total
+  L1-run2.txt -> Tests:       1 failed, 11 passed, 12 total
+  L1-run3.txt -> Tests:       1 failed, 11 passed, 12 total
+  L2-unset.txt -> Tests:       1 failed, 11 passed, 12 total
+  L3-neighbors.txt -> Tests:       99 passed, 99 total
+  L6-node22.txt -> Tests:       12 passed, 12 total

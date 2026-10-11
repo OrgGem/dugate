@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import {
+  CredentialAllowedOriginsSchema,
   FileUrlAuthConfigSchema,
   ProfileCallbackPolicySchema,
   type ConnectionStep,
@@ -163,6 +164,7 @@ interface PolicyRow {
   file_url_auth_cipher: string | null;
   request_redaction?: unknown;
   callback_policy?: unknown;
+  allowed_origins?: unknown;
   profile_name?: string | null;
 }
 
@@ -195,6 +197,36 @@ function parseWriteCallbackPolicy(raw: unknown): ProfileCallbackPolicy | null {
   return parsed.data;
 }
 
+function parseWriteCredentialAllowedOrigins(raw: unknown): string[] {
+  const parsed = CredentialAllowedOriginsSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'allowedOrigins failed validation', {
+      errors: parsed.error.issues.slice(0, 50).map((issue) => ({
+        pointer: '/allowedOrigins/' + issue.path.join('/'),
+        message: issue.message,
+      })),
+    });
+  }
+  return parsed.data;
+}
+
+function parseStoredCredentialAllowedOrigins(raw: unknown): string[] {
+  let value = raw;
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown;
+    } catch {
+      throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile allowed origins are invalid');
+    }
+  }
+  const parsed = CredentialAllowedOriginsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new HttpError(500, 'INVALID_SCHEMA', 'stored profile allowed origins do not satisfy their contract');
+  }
+  return parsed.data;
+}
+
 function carryForwardPolicy(
   previous: PolicyRow | undefined,
   input: Record<string, unknown> | undefined,
@@ -209,6 +241,7 @@ function carryForwardPolicy(
   cipher: string | null;
   requestRedaction: unknown;
   callbackPolicy: ProfileCallbackPolicy | null;
+  allowedOrigins: string[];
 } {
   // Absent field → previous value. No previous revision → legacy defaults.
   const policy = input ?? {};
@@ -273,6 +306,11 @@ function carryForwardPolicy(
         : has('callbackPolicy')
           ? parseWriteCallbackPolicy(policy.callbackPolicy)
           : parseStoredCallbackPolicy(previous?.callback_policy),
+    // Absent carries the previous immutable binding forward; [] explicitly
+    // clears the policy. Canonicalization happens at this write boundary.
+    allowedOrigins: has('allowedOrigins')
+      ? parseWriteCredentialAllowedOrigins(policy.allowedOrigins)
+      : parseStoredCredentialAllowedOrigins(previous?.allowed_origins),
   };
 }
 
@@ -333,6 +371,12 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
    * `null` means "the bindings exist but no pointer row does" — migration 0027
    * invariant #3 says the two must go together, so this is a fail-closed
    * inconsistency, NOT a cue to fall back to MAX(revision).
+   *
+   * Membership (0039) answers WHICH key may resolve WHICH profile; the
+   * revision rows answer WHAT that profile is. Since the backfill seeded
+   * membership from every key that ever authored a revision, every key that
+   * resolved before still resolves — plus the other keys of the same profile,
+   * which is the whole point of the change.
    */
   const selectActiveRow = async (
     c: Queryable,
@@ -357,7 +401,13 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
          FROM profile_active_revisions a
          JOIN profile_bindings p
            ON p.profile_id = a.profile_id AND p.revision = a.revision
-        WHERE p.api_key_id=$1 AND p.business_id=$2 AND p.business_version=$3 AND p.action=$4
+         -- 0039: membership is a SET, not the revision's author. A key that maps
+         -- to this profile resolves the profile's active revision; a key that
+         -- does not map resolves nothing (the probes below decide which refusal).
+         JOIN profile_api_keys m
+           ON m.profile_id = p.profile_id AND m.api_key_id=$1
+          AND m.state='ACTIVE' AND m.tenant_id = p.tenant_id
+        WHERE p.business_id=$2 AND p.business_version=$3 AND p.action=$4
         ORDER BY a.moved_at DESC, p.profile_id
         LIMIT 1`,
       [apiKeyId, businessId, businessVersion, action]
@@ -367,14 +417,16 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     // No pointer row for this action. Distinguish "profile has no rows at
     // all" (→ legacy) from "rows exist but the pointer is gone" (→ 404).
     const orphan = await c.query(
-      `SELECT 1 FROM profile_bindings
-        WHERE api_key_id=$1 AND business_id=$2 AND business_version=$3 AND action=$4 LIMIT 1`,
+      `SELECT 1 FROM profile_api_keys m
+         JOIN profile_bindings p ON p.profile_id = m.profile_id
+        WHERE m.api_key_id=$1 AND m.state='ACTIVE'
+          AND p.business_id=$2 AND p.business_version=$3 AND p.action=$4 LIMIT 1`,
       [apiKeyId, businessId, businessVersion, action]
     );
     if (orphan.rowCount) return 'pointer-missing' as const;
 
     const anyRes = await c.query(
-      'SELECT 1 FROM profile_bindings WHERE api_key_id=$1 LIMIT 1',
+      "SELECT 1 FROM profile_api_keys WHERE api_key_id=$1 AND state='ACTIVE' LIMIT 1",
       [apiKeyId]
     );
     if (anyRes.rowCount) return 'not-authorized' as const;
@@ -425,7 +477,8 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
 
         const prevRes = await c.query<PolicyRow>(
           `SELECT enabled, parameters, job_priority, allowed_file_extensions,
-                  connections_override, file_url_auth_cipher, request_redaction, callback_policy
+                  connections_override, file_url_auth_cipher, request_redaction, callback_policy,
+                  allowed_origins
              FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
           [profileId, revision - 1]
         );
@@ -440,8 +493,9 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
           `INSERT INTO profile_bindings
              (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
               connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
-              file_url_auth_cipher, connections_override, request_redaction, callback_policy)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+              file_url_auth_cipher, connections_override, request_redaction, callback_policy,
+              allowed_origins)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
           [
             profileId,
             revision,
@@ -459,6 +513,7 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
             JSON.stringify(policy.connectionsOverride ?? []),
             JSON.stringify(policy.requestRedaction),
             policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
+            JSON.stringify(policy.allowedOrigins),
           ]
         );
 
@@ -564,6 +619,54 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
         effectiveInput: { ...effectiveParameters, ...passthrough },
         bullMqPriority,
       };
+    },
+
+    /**
+     * 0039 membership write: make `apiKeyId` an ACTIVE member of `profileId`.
+     *
+     * One statement, so two concurrent attaches cannot both decide they
+     * created the row. `xmax = 0` is the standard Postgres discriminator for
+     * "this row was INSERTed" (an UPDATE leaves an xmax behind); with the
+     * `WHERE` on DO UPDATE, an already-ACTIVE membership returns NO row and
+     * reports created=false without touching the row.
+     */
+    async addMembership(
+      input: { profileId: string; apiKeyId: string; tenantId: string },
+      client: PoolClient
+    ): Promise<{ created: boolean }> {
+      const res = await client.query<{ created: boolean }>(
+        `INSERT INTO profile_api_keys (profile_id, api_key_id, tenant_id, state)
+         VALUES ($1, $2, $3, 'ACTIVE')
+         ON CONFLICT (profile_id, api_key_id)
+         DO UPDATE SET state='ACTIVE', revoked_at=NULL
+           WHERE profile_api_keys.state <> 'ACTIVE'
+         RETURNING (xmax = 0) AS created`,
+        [input.profileId, input.apiKeyId, input.tenantId]
+      );
+      return { created: res.rowCount ? res.rows[0]!.created === true : false };
+    },
+
+    /** 0039: the ACTIVE profile set a rotation has to inherit (never a subset). */
+    async listActiveMemberships(
+      apiKeyId: string,
+      client: PoolClient
+    ): Promise<Array<{ profileId: string; tenantId: string }>> {
+      const res = await client.query<{ profile_id: string; tenant_id: string }>(
+        `SELECT profile_id, tenant_id FROM profile_api_keys
+          WHERE api_key_id=$1 AND state='ACTIVE' ORDER BY profile_id`,
+        [apiKeyId]
+      );
+      return res.rows.map((r) => ({ profileId: r.profile_id, tenantId: r.tenant_id }));
+    },
+
+    /** 0039: end every ACTIVE membership of a key in one statement. */
+    async revokeMemberships(apiKeyId: string, client: PoolClient): Promise<number> {
+      const res = await client.query(
+        `UPDATE profile_api_keys SET state='REVOKED', revoked_at=now()
+          WHERE api_key_id=$1 AND state='ACTIVE'`,
+        [apiKeyId]
+      );
+      return res.rowCount ?? 0;
     },
 
     /** T-PROF-03 accessor: the active revision, never MAX(revision). */

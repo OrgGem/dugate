@@ -1,0 +1,14 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node tests/portal-auto-refresh-offline.cjs
+exit: 0
+--- output ---
+  ok  usage-1: a failed first load shows Unavailable, never a zero age, and never polls
+  ok  usage-2: a successful load shows an age derived from when it completed
+  ok  usage-3: polling starts only after the operator opts in, on the declared cadence
+  ok  usage-4: a failed refresh keeps the last good data and marks it stale
+  ok  usage-5: turning the toggle off and unmounting both clear the interval
+  ok  overview-1: a failed first load shows Unavailable and never polls
+  ok  overview-2: a successful load is fresh; opt-in registers one interval that polls
+  ok  overview-3: a failed refresh keeps the last good rollup and marks it stale
+  ok  overview-4: unmount clears the interval (no leak)
+PASS: OPU-G2 auto refresh + data age ΓÇö 9 scenarios (opt-in only, age from last success, stale-on-failure retention, cleanup on toggle-off/unmount)

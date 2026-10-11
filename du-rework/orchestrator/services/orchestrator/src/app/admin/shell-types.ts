@@ -19,14 +19,15 @@ import type { AdminSection } from './types';
 // ---------------------------------------------------------------------------
 
 /**
- * Claims carried by the signed `du_admin` cookie. The role decides what
- * a renderer may display; the orchestrator's bearer-token
- * `assertAdminAuth` remains authoritative for every server-to-server
- * fetch the shell makes.
+ * Claims passed to shell handlers. Legacy `du_admin` cookies carry only
+ * the role; `tenantId` is populated only from a validated opaque session.
+ * The orchestrator API remains authoritative for every server-side fetch.
  */
 export interface AdminCookieClaims {
   /** Operator's role at the time the cookie was issued. */
   role: 'admin' | 'operator' | 'viewer';
+  /** Tenant from the server-side opaque session; legacy cookies have no tenant scope. */
+  tenantId?: string | null;
   /** Issuer — currently always 'du-admin-shell'. */
   iss: string;
   /** Issued-at, ms epoch. */

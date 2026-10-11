@@ -89,7 +89,7 @@ Call log:
   20 |     saved = route.request().postDataJSON() as Record<string, unknown>;
   21 |     await route.fulfill({ json: { revision: 2 } });
   22 |   });
-  23 |   await page.goto(`${BASE}/admin/web/profiles`);
+  23 |   await page.goto(`${BASE}admin/profiles`);
   24 |   await page.locator('#profile-business').fill('doc-core');
   25 |   await page.locator('#profile-version').fill('v1');
   26 |   await page.locator('#profile-name').fill('privacy');
@@ -111,7 +111,7 @@ Call log:
   42 |     const operation = { id: 'privacy-op', state: 'RUNNING', businessId: 'doc-core', action: 'extract' };
   43 |     await page.route(/\/admin\/api\/operations(?:\?.*)?$/,  route => route.fulfill({ json: { items: [operation] } }));
   44 |     await page.route('**/admin/api/operations/privacy-op', route => route.fulfill({ json: { operation, requestInput: { status, ruleCount: 1, data: status === 'HIDDEN' ? '[REDACTED]' : { phone: '090*******' } } } }));
-> 45 |     await page.goto(`${BASE}/admin/web/operations`);
+> 45 |     await page.goto(`${BASE}admin/operations`);
      |                                                          ^ Error: locator.click: Test timeout of 60000ms exceeded.
   46 |     await page.getByRole('button', { name: /privacy-/ }).click();
   47 |     await expect(page.getByLabel('Request input', { exact: true })).toContainText(status === 'HIDDEN' ? '[REDACTED]' : '090*******');

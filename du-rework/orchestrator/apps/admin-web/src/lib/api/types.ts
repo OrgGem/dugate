@@ -58,10 +58,77 @@ export interface ApiKeyRow {
   id: string;
   tenantId: string;
   prefix: string;
+  /** Operator label; null when the key was never named. */
+  name: string | null;
   maskedHint: string;
   status: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 0039: one key OF a profile — the credential, plus why it does or does not resolve. */
+export interface ProfileApiKeyRow {
+  id: string;
+  tenantId: string;
+  prefix: string;
+  /** Operator label; null when the key was never named. */
+  name: string | null;
+  /** Key status from api_keys (ACTIVE / REVOKED). */
+  status: string;
+  createdAt: string;
+  /** Membership state from profile_api_keys — authoritative for resolution. */
+  membershipState: string;
+  joinedAt: string;
+  revokedAt: string | null;
+}
+
+/**
+ * 0039: what the BFF relays back from a membership write.
+ *
+ * attach and rotate answer DIFFERENT fields, so only the key the caller asked
+ * about is required: an attach returns `profileId`/`created`, a rotate returns
+ * the replacement (`apiKeyId`) plus `revokedId` and the profile set it
+ * inherited. `rawKey` is copy-once - it appears on issue/rotate responses only,
+ * and the caller must drop it once shown.
+ */
+export interface ProfileKeyActionResult {
+  /** attach: the attached key. rotate: the NEW key. */
+  apiKeyId: string;
+  /** attach: the profile it joined. rotate: the key that was replaced. */
+  profileId?: string;
+  revokedId?: string;
+  /** attach: false when the key was already a member. */
+  created?: boolean;
+  state?: string;
+  /** rotate: every profile the replacement inherited. */
+  profiles?: string[];
+  name?: string | null;
+  /** Copy-once. Never persisted, never re-fetched. */
+  rawKey?: string;
+}
+
+export interface ProfileApiKeyPage {
+  items: ProfileApiKeyRow[];
+  nextCursor: null;
+  prevCursor: null;
+  total: number;
+  limit: number;
+  profileId: string;
+}
+
+export interface ProfileWorkflowItem {
+  slug: string;
+  revision: number;
+  status: 'active' | 'retired';
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface ProfileWorkflowPage {
+  businessId: string;
+  businessVersion: string;
+  items: ProfileWorkflowItem[];
+  total: number;
 }
 
 /** Display-only projection of a profile binding (server stays authoritative). */
@@ -238,6 +305,29 @@ export interface ProfileCapability {
   capability: string;
 }
 
+/** Safe metadata projection for the tenant-scoped profile catalog. */
+export interface ProfileListRow {
+  tenantId: string;
+  businessId: string;
+  businessVersion: string;
+  profileName: string;
+  revision: number;
+  status: 'ACTIVE' | 'DISABLED' | 'UNKNOWN';
+  /** Memberships whose profile link and API key are both active. */
+  keyCount: number;
+  boundActions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfileListPage {
+  items: ProfileListRow[];
+  nextCursor: string | null;
+  prevCursor: string | null;
+  total: number;
+  limit: number;
+}
+
 export interface ProfileDetail {
   businessId: string;
   businessVersion: string;
@@ -357,6 +447,24 @@ export interface BusinessVersions {
   businessId: string;
   activeVersion: string | null;
   rows: BusinessVersionRow[];
+}
+
+export interface WorkerInstance {
+  businessId: string;
+  instanceId: string;
+  businessVersion: string;
+  state: 'ONLINE' | 'DRAINING' | 'OFFLINE';
+  health: 'HEALTHY' | 'DEGRADED' | 'OFFLINE';
+  capacity: number;
+  activeLeases: number;
+  lastSeenAt: string;
+  observedAt: string;
+}
+
+export interface WorkerInstanceList {
+  items: WorkerInstance[];
+  sampledAt: string;
+  truncated: boolean;
 }
 
 export interface BffHealthResponse {
@@ -544,6 +652,8 @@ export interface WorkflowCatalogItem {
   digest: string;
   status: 'active' | 'retired';
   createdAt: string;
+  businessId?: string | null;
+  businessVersion?: string | null;
   name?: string;
   description?: string;
   nodesCount?: number;

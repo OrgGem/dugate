@@ -17,7 +17,9 @@ import {
   OPERATIONS_LIST_SORT_VALUES,
   OPERATIONS_STATE_FILTER_VALUES,
   OPERATIONS_STATE_FILTER_WIRE_STATES,
+  compareAdminListTimeBounds,
   formatOperationsListSort,
+  isAdminListTimeBound,
   isOperationsListFilterToken,
   operationsListPage,
   parseOperationsListSort,
@@ -113,6 +115,9 @@ export interface OperationsListQuery {
   tenantId: string | null;
   /** Case-insensitive operation-id substring, or null. */
   idContains: string | null;
+  /** Inclusive UTC timestamp bounds on `created_at`; omitted means unbounded. */
+  from?: string;
+  to?: string;
   /**
    * The ORDER BY key, already resolved against the contract's allow-list. Never
    * absent: a missing `?sort=` is `created_at:desc`, the order this route had
@@ -271,6 +276,11 @@ function parseAllowListedOperationsListQuery(query: AllowListedQuery): Operation
 
   const tenantId = sanitizeOperationsListToken(want('tenant'), 'tenant');
   const idContains = sanitizeOperationsListToken(want('id'), 'id');
+  const from = parseOperationsListTimeBound(want('from'), 'from');
+  const to = parseOperationsListTimeBound(want('to'), 'to');
+  if (from !== undefined && to !== undefined && compareAdminListTimeBounds(from, to) > 0) {
+    throw new HttpError(422, 'INVALID_SCHEMA', 'from must not be after to');
+  }
   const sort = parseOperationsListSortParam(want('sort'));
 
   const rawCursor = want('cursor');
@@ -300,7 +310,26 @@ function parseAllowListedOperationsListQuery(query: AllowListedQuery): Operation
     cursor = decoded;
   }
 
-  return { limit, cursor, stateFilter, tenantId, idContains, sort };
+  return {
+    limit,
+    cursor,
+    stateFilter,
+    tenantId,
+    idContains,
+    ...(from === undefined ? {} : { from }),
+    ...(to === undefined ? {} : { to }),
+    sort,
+  };
+}
+
+function parseOperationsListTimeBound(raw: string | null, name: 'from' | 'to'): string | undefined {
+  if (raw === null) return undefined;
+  const value = raw.trim();
+  if (value.length === 0) return undefined;
+  if (!isAdminListTimeBound(value)) {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} must be a UTC instant such as 2026-09-28T00:00:00Z`);
+  }
+  return value;
 }
 
 /**
@@ -378,6 +407,8 @@ function buildOperationsListPredicates(
     // wildcard semantics from an operator's typing.
     clauses.push(`strpos(lower(id::text), lower(${bind(query.idContains)})) > 0`);
   }
+  if (query.from !== undefined) clauses.push(`created_at >= ${bind(query.from)}::timestamptz`);
+  if (query.to !== undefined) clauses.push(`created_at <= ${bind(query.to)}::timestamptz`);
   return { clauses, params };
 }
 

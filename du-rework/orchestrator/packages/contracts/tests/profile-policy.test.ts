@@ -36,6 +36,30 @@ describe('profile endpoint policy (T-PROF-01)', () => {
     expect(result.success).toBe(true);
   });
 
+  it('canonicalizes and sorts exact credential origins before policy persistence', () => {
+    const result = ProfileEndpointPolicySchema.safeParse({
+      allowedOrigins: ['https://Zeta.example:443/', 'https://FILES.example'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.allowedOrigins).toEqual([
+        'https://files.example',
+        'https://zeta.example',
+      ]);
+    }
+  });
+
+  it('rejects canonical duplicates, non-HTTPS URLs, non-origin components, and more than 16 origins', () => {
+    expect(ProfileEndpointPolicySchema.safeParse({
+      allowedOrigins: ['https://FILES.example', 'https://files.example:443/'],
+    }).success).toBe(false);
+    expect(ProfileEndpointPolicySchema.safeParse({ allowedOrigins: ['http://files.example'] }).success).toBe(false);
+    expect(ProfileEndpointPolicySchema.safeParse({ allowedOrigins: ['https://files.example/path'] }).success).toBe(false);
+    expect(ProfileEndpointPolicySchema.safeParse({
+      allowedOrigins: Array.from({ length: 17 }, (_value, index) => `https://host-${index}.example`),
+    }).success).toBe(false);
+  });
+
   it('accepts an empty policy (first save sends nothing but the key)', () => {
     expect(ProfileEndpointPolicySchema.safeParse({}).success).toBe(true);
   });
@@ -75,6 +99,7 @@ describe('fileUrlAuthConfig write-only (T-PROF-04)', () => {
     const read = {
       enabled: true, parameters: {}, jobPriority: 'MEDIUM', allowedFileExtensions: '',
       fileUrlAuthConfigured: false, connectionsOverride: [],
+      allowedOrigins: [],
       callbackPolicy: null, callbackPolicyInvalid: true,
     };
     expect(ProfileEndpointPolicyReadSchema.safeParse(read).success).toBe(true);
@@ -98,6 +123,7 @@ describe('fileUrlAuthConfig write-only (T-PROF-04)', () => {
       jobPriority: 'MEDIUM',
       allowedFileExtensions: '',
       fileUrlAuthConfigured: true,
+      allowedOrigins: [],
       connectionsOverride: [],
     });
     expect(read.success).toBe(true);
@@ -108,6 +134,7 @@ describe('fileUrlAuthConfig write-only (T-PROF-04)', () => {
       allowedFileExtensions: '',
       fileUrlAuthConfigured: true,
       fileUrlAuthConfig: { type: 'bearer', token: 'secret' },
+      allowedOrigins: [],
       connectionsOverride: [],
     }).success).toBe(false);
   });
@@ -187,6 +214,7 @@ describe('profile detail read (T-API-01, fixes revision: 0)', () => {
       jobPriority: 'MEDIUM',
       allowedFileExtensions: '.pdf',
       fileUrlAuthConfigured: false,
+      allowedOrigins: [],
       connectionsOverride: [],
     },
     manifest: { actions: [{ name: 'extract' }] },

@@ -35,7 +35,7 @@ test.describe('AWEB-07 Identity/Security/Settings browser evidence (harness seam
   }
 
   async function loginAsAdmin(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
@@ -44,7 +44,7 @@ test.describe('AWEB-07 Identity/Security/Settings browser evidence (harness seam
 
   async function gotoAsAdmin(page: Page, path: string): Promise<void> {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/web/${path}`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/${path}`, { waitUntil: 'networkidle' });
   }
 
   test('1. security ready (admin): view + real apply change', async ({ page }) => {
@@ -65,7 +65,7 @@ test.describe('AWEB-07 Identity/Security/Settings browser evidence (harness seam
 
   test('3. security denied for a viewer session', async ({ page }) => {
     await page.context().addCookies([{ name: 'du_session', value: VIEWER, url: BASE }]);
-    await page.goto(`${BASE}/admin/web/security`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/security`, { waitUntil: 'networkidle' });
     await expect(page.getByText('Access denied')).toBeVisible();
     await shot(page, '07-03-security-denied.png');
   });

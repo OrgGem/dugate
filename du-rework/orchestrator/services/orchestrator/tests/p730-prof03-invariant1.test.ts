@@ -143,7 +143,10 @@ function txDb(store: Store, opts: TxDbOptions = {}) {
         const rev = view.pointers.get(params[0] as string);
         return result<T>(rev === undefined ? [] : ([{ revision: rev }] as unknown as T[]));
       }
-      if (/SELECT 1 FROM profile_bindings\s+WHERE api_key_id/i.test(sql)) {
+      // 0039: both refusal probes read profile_api_keys now - the orphan probe
+      // reaches profile_bindings THROUGH the membership row, the any-probe reads
+      // the membership row alone. One branch keeps the old two-probe fixture.
+      if (/SELECT 1 FROM profile_api_keys/i.test(sql)) {
         const orphan = opts.orphanBindings === true;
         return result<T>(orphan ? ([{ '?column?': 1 }] as unknown as T[]) : []);
       }

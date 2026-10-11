@@ -9,6 +9,7 @@ import {
   type AdminActionDeps,
 } from '../src/modules/admin-actions/dispatcher';
 import type { AdminActionAuth } from '../src/modules/admin-actions/rbac';
+import { createProfileService } from '../src/modules/profiles/profiles';
 
 /**
  * ORCH-PAR-01 — API key issuance and revocation as REAL mutations
@@ -57,7 +58,15 @@ function cookie(
 
 interface WorldOptions {
   /** Row the revoke path will find. undefined => the SELECT returns nothing. */
-  keyRow?: { id: string; tenant_id: string; status: string } | null;
+  keyRow?: { id: string; tenant_id: string; status: string; name?: string | null } | null;
+  /** 0039: ACTIVE memberships the rotate lookup inherits. */
+  memberships?: Array<{ profile_id: string; tenant_id: string }>;
+  /** 0039: id the INSERT INTO api_keys fake hands back (the replacement key). */
+  insertedKeyId?: string;
+  /** 0039: does the target profile have a binding row in the key's tenant? */
+  profileExists?: boolean;
+  /** 0039: false makes the membership insert report created=false (already a member). */
+  membershipCreated?: boolean;
 }
 
 interface QueryLog {
@@ -74,7 +83,7 @@ function makeWorld(opts: WorldOptions = {}) {
     query: async (text: string, params: unknown[] = []) => {
       const sql = text.replace(/\s+/g, ' ').trim();
       queries.push({ sql, params });
-      if (/SELECT id, tenant_id, status FROM api_keys/i.test(sql)) {
+      if (/SELECT id, tenant_id, status.* FROM api_keys/i.test(sql)) {
         return keyRow ? { rows: [keyRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (/UPDATE api_keys SET status='REVOKED'/i.test(sql)) {
@@ -85,9 +94,26 @@ function makeWorld(opts: WorldOptions = {}) {
       }
       if (/INSERT INTO api_keys/i.test(sql)) {
         return {
-          rows: [{ id: KEY_ID, status: 'ACTIVE', created_at: new Date('2026-09-30T00:00:00.000Z') }],
+          rows: [{
+            id: opts.insertedKeyId ?? KEY_ID,
+            status: 'ACTIVE',
+            created_at: new Date('2026-09-30T00:00:00.000Z'),
+          }],
           rowCount: 1,
         };
+      }
+      // 0039 membership seams.
+      if (/SELECT 1 FROM profile_bindings WHERE profile_id/i.test(sql)) {
+        return opts.profileExists === false ? { rows: [], rowCount: 0 } : { rows: [{ '?column?': 1 }], rowCount: 1 };
+      }
+      if (/FROM profile_api_keys WHERE api_key_id/i.test(sql)) {
+        return { rows: opts.memberships ?? [], rowCount: (opts.memberships ?? []).length };
+      }
+      if (/INSERT INTO profile_api_keys/i.test(sql)) {
+        return { rows: [{ created: opts.membershipCreated !== false }], rowCount: 1 };
+      }
+      if (/UPDATE profile_api_keys SET state='REVOKED'/i.test(sql)) {
+        return { rows: [], rowCount: (opts.memberships ?? []).length };
       }
       return { rows: [], rowCount: 0 };
     },
@@ -116,7 +142,9 @@ function makeWorld(opts: WorldOptions = {}) {
     db,
     audit,
     registry: {} as unknown as AdminActionDeps['registry'],
-    profiles: {} as unknown as AdminActionDeps['profiles'],
+    // The 0039 membership methods live on the real profile service, so the
+    // rotate/attach leaves drive the actual SQL instead of a stand-in.
+    profiles: createProfileService(db),
     lifecycle: {} as unknown as AdminActionDeps['lifecycle'],
     runtime: {
       resumeOperation: async () => ({ replayed: false }) as never,
@@ -152,6 +180,9 @@ describe('ORCH-PAR-01: the two actions are registered and admin-only', () => {
   test('both actions exist in the action table', () => {
     expect(ADMIN_ACTIONS['apikey.issue']).toEqual({ bearerRoles: ['platform'], cookieRoles: ['admin'] });
     expect(ADMIN_ACTIONS['apikey.revoke']).toEqual({ bearerRoles: ['platform'], cookieRoles: ['admin'] });
+    // 0039 membership writes are credential writes: same admin-only gate.
+    expect(ADMIN_ACTIONS['apikey.attach']).toEqual({ bearerRoles: ['platform'], cookieRoles: ['admin'] });
+    expect(ADMIN_ACTIONS['apikey.rotate']).toEqual({ bearerRoles: ['platform'], cookieRoles: ['admin'] });
   });
 
   test('null auth is 401 for both', () => {
@@ -253,6 +284,28 @@ describe('ORCH-PAR-01: apikey.issue writes a real row', () => {
     expect(d.writes()[0]!.params).toContain(RAW.slice(0, 4));
   });
 
+  test('an optional name is stored trimmed; an absent name stays NULL', async () => {
+    const w = makeWorld();
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.issue',
+      params: { tenantId: TENANT_A, apiKey: RAW, name: '  ci-runner  ' },
+    });
+    expect(out.status).toBe(201);
+    expect(out.body).toMatchObject({ name: 'ci-runner' });
+    const named = w.writes()[0]!;
+    expect(named.sql).toMatch(/INSERT INTO api_keys \(tenant_id, hash, prefix, name\)/i);
+    expect(named.params).toContain('ci-runner');
+
+    const d = makeWorld();
+    await dispatchAdminAction(d.deps, bearerPlatform(), {
+      action: 'apikey.issue',
+      params: { tenantId: TENANT_A, apiKey: RAW },
+    });
+    // No invented default label: the column is NULL when the caller named nothing.
+    expect(d.writes()[0]!.params).toContain(null);
+    expect(d.writes()[0]!.sql).toMatch(/INSERT INTO api_keys \(tenant_id, hash, prefix, name\)/i);
+  });
+
   test('the audit row is written in the same transaction, scoped to the target tenant', async () => {
     const w = makeWorld();
     await dispatchAdminAction(w.deps, bearerPlatform(), {
@@ -295,6 +348,9 @@ describe('ORCH-PAR-01: apikey.issue refuses bad input with zero writes', () => {
     ['a non-string apiKey', { tenantId: TENANT_A, apiKey: 12345 }],
     ['an over-long tenantId', { tenantId: 't'.repeat(65), apiKey: RAW }],
     ['an empty tenantId', { tenantId: '', apiKey: RAW }],
+    ['a non-string name', { tenantId: TENANT_A, apiKey: RAW, name: 42 }],
+    ['a blank name', { tenantId: TENANT_A, apiKey: RAW, name: '   ' }],
+    ['an over-long name', { tenantId: TENANT_A, apiKey: RAW, name: 'n'.repeat(121) }],
   ];
   test.each(bad)('%s is 422 with no write and no audit row', async (_label, params) => {
     const w = makeWorld();
@@ -482,3 +538,230 @@ describe('ORCH-PAR-01: apikey.revoke refuses bad input with zero writes', () => 
     expect(s1).toBe(403);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 4. apikey.attach — a 0039 membership write
+// ---------------------------------------------------------------------------
+
+const PROFILE_A = 'eeeeeeee-5555-4555-8555-555555555555';
+const PROFILE_B = 'ffffffff-6666-4666-8666-666666666666';
+const NEXT_KEY_ID = '99999999-7777-4777-8777-777777777777';
+
+describe('0039: apikey.attach adds a key to a profile membership set', () => {
+  test('a platform bearer gets 201 and writes exactly one membership row', async () => {
+    const w = makeWorld();
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.attach',
+      params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+    });
+
+    expect(out.status).toBe(201);
+    expect(out.body).toMatchObject({
+      apiKeyId: KEY_ID,
+      profileId: PROFILE_A,
+      tenantId: TENANT_A,
+      state: 'ACTIVE',
+      created: true,
+    });
+    const insert = w.queries.filter((q) => /INSERT INTO profile_api_keys/i.test(q.sql));
+    expect(insert).toHaveLength(1);
+    expect(insert[0]!.params).toEqual([PROFILE_A, KEY_ID, TENANT_A]);
+    expect(w.auditRows[0]).toMatchObject({
+      tenantId: TENANT_A,
+      action: 'apikey.attach',
+      resource: 'apikey:' + KEY_ID,
+      severity: 'success',
+    });
+  });
+
+  test('an already-ACTIVE membership answers 200 created=false, never a duplicate row', async () => {
+    const w = makeWorld({ membershipCreated: false });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.attach',
+      params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+    });
+
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ created: false, state: 'ACTIVE' });
+  });
+
+  test('a REVOKED key is 409 with zero writes', async () => {
+    const w = makeWorld({ keyRow: { id: KEY_ID, tenant_id: TENANT_A, status: 'REVOKED' } });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      409,
+      'STATE_CONFLICT'
+    );
+    expect(w.queries.some((q) => /INSERT INTO profile_api_keys/i.test(q.sql))).toBe(false);
+    expect(w.auditRows).toHaveLength(0);
+  });
+
+  test('a profile that is not in the key tenant is 404 — the profile lookup is tenant-scoped', async () => {
+    const w = makeWorld({ profileExists: false });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      404,
+      'NOT_FOUND'
+    );
+    expect(w.queries.some((q) => /INSERT INTO profile_api_keys/i.test(q.sql))).toBe(false);
+  });
+
+  test('an unknown key is 404 with zero writes and zero audit rows', async () => {
+    const w = makeWorld({ keyRow: null });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      404,
+      'NOT_FOUND'
+    );
+    expect(w.writes()).toHaveLength(0);
+    expect(w.auditRows).toHaveLength(0);
+  });
+
+  test('a tenant_operator bearer is refused at the role gate with zero writes', async () => {
+    const w = makeWorld();
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerOpA(), {
+        action: 'apikey.attach',
+        params: { apiKeyId: KEY_ID, profileId: PROFILE_A },
+      }),
+      403,
+      'PERMISSION_DENIED'
+    );
+    expect(w.queries).toHaveLength(0);
+    expect(w.auditRows).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. apikey.rotate — mint, inherit EVERY membership, revoke the old key
+// ---------------------------------------------------------------------------
+
+describe('0039: apikey.rotate replaces a key across every profile it belongs to', () => {
+  const memberships = [
+    { profile_id: PROFILE_A, tenant_id: TENANT_A },
+    { profile_id: PROFILE_B, tenant_id: TENANT_A },
+  ];
+
+  test('inherits BOTH memberships and revokes the old key in one transaction', async () => {
+    const w = makeWorld({
+      memberships,
+      insertedKeyId: NEXT_KEY_ID,
+      keyRow: { id: KEY_ID, tenant_id: TENANT_A, status: 'ACTIVE', name: 'ci-runner' },
+    });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.rotate',
+      params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789', name: 'ci-runner-2' },
+    });
+
+    expect(out.status).toBe(201);
+    expect(out.body).toMatchObject({
+      apiKeyId: NEXT_KEY_ID,
+      revokedId: KEY_ID,
+      name: 'ci-runner-2',
+      profiles: [PROFILE_A, PROFILE_B],
+    });
+    const inserts = w.queries.filter((q) => /INSERT INTO profile_api_keys/i.test(q.sql));
+    expect(inserts.map((i) => i.params)).toEqual([
+      [PROFILE_A, NEXT_KEY_ID, TENANT_A],
+      [PROFILE_B, NEXT_KEY_ID, TENANT_A],
+    ]);
+    expect(
+      w.queries.some((q) => /UPDATE profile_api_keys SET state='REVOKED'/i.test(q.sql))
+    ).toBe(true);
+    expect(w.queries.some((q) => /UPDATE api_keys SET status='REVOKED'/i.test(q.sql))).toBe(true);
+    expect(w.auditRows[0]).toMatchObject({ action: 'apikey.rotate', resource: 'apikey:' + NEXT_KEY_ID });
+  });
+
+  test('the replacement stores the digest only; the raw comes back exactly once', async () => {
+    const raw = 'du_live_ROTATED_0123456789';
+    const w = makeWorld({ memberships, insertedKeyId: NEXT_KEY_ID });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.rotate',
+      params: { apiKeyId: KEY_ID, apiKey: raw },
+    });
+
+    expect(out.body).toMatchObject({ rawKey: raw });
+    const insert = w.queries.find((q) => /INSERT INTO api_keys/i.test(q.sql));
+    expect(insert?.params).toContain(digest(raw));
+    expect(JSON.stringify(w.queries)).not.toContain(raw);
+    expect(JSON.stringify(w.auditRows)).not.toContain(raw);
+  });
+
+  test('an unnamed key rotates unnamed — the label is never invented', async () => {
+    const w = makeWorld({ memberships, insertedKeyId: NEXT_KEY_ID });
+    const out = await dispatchAdminAction(w.deps, bearerPlatform(), {
+      action: 'apikey.rotate',
+      params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+    });
+
+    expect(out.body).toMatchObject({ name: null });
+  });
+
+  test('a key with no ACTIVE membership is 409 — nothing to inherit, so nothing is revoked', async () => {
+    const w = makeWorld({ memberships: [] });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.rotate',
+        params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+      }),
+      409,
+      'STATE_CONFLICT'
+    );
+    expect(w.queries.some((q) => /INSERT INTO (api_keys|profile_api_keys)/i.test(q.sql))).toBe(false);
+    expect(w.queries.some((q) => /UPDATE api_keys SET status='REVOKED'/i.test(q.sql))).toBe(false);
+    expect(w.auditRows).toHaveLength(0);
+  });
+
+  test('a missing raw value is 422 before any query runs', async () => {
+    const w = makeWorld({ memberships });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.rotate',
+        params: { apiKeyId: KEY_ID },
+      }),
+      422,
+      'INVALID_SCHEMA'
+    );
+    expect(w.queries).toHaveLength(0);
+    expect(w.auditRows).toHaveLength(0);
+  });
+
+  test('a REVOKED key is 409 with zero writes', async () => {
+    const w = makeWorld({
+      memberships,
+      keyRow: { id: KEY_ID, tenant_id: TENANT_A, status: 'REVOKED' },
+    });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerPlatform(), {
+        action: 'apikey.rotate',
+        params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+      }),
+      409,
+      'STATE_CONFLICT'
+    );
+    expect(w.queries.some((q) => /INSERT INTO api_keys/i.test(q.sql))).toBe(false);
+  });
+
+  test('a tenant_operator bearer never reaches the rotation', async () => {
+    const w = makeWorld({ memberships });
+    await expectDenied(
+      dispatchAdminAction(w.deps, bearerOpA(), {
+        action: 'apikey.rotate',
+        params: { apiKeyId: KEY_ID, apiKey: 'du_live_ROTATED_0123456789' },
+      }),
+      403,
+      'PERMISSION_DENIED'
+    );
+    expect(w.queries).toHaveLength(0);
+  });
+});
+

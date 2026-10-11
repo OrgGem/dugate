@@ -32,17 +32,20 @@ import {
   type AdminApiProblem,
   type AdminHealthSnapshot,
   type AdminWebSession,
-  type BusinessRow,
   type OperationWire,
+  type WorkerInstanceList,
 } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 import { OperationsMonitorDashboard } from './operations-monitor-dashboard';
+import { parseWorkerInstanceList } from './worker-instance-state';
 import {
   paneStateFrom,
   parseAuditPage,
+  parseOperationsMetrics,
   severityVariant,
   type AuditListPage,
   type Loadable,
+  type OperationsMetricsSnapshot,
 } from './state';
 
 type TimeRangeKey = '24h' | '7d' | '30d';
@@ -225,14 +228,20 @@ export function OverviewScreen() {
   const [session, setSession] = useState<Loadable<AdminWebSession>>({ kind: 'loading' });
   const [audit, setAudit] = useState<Loadable<AuditListPage>>({ kind: 'loading' });
   const [usage, setUsage] = useState<UsageTileState>({ kind: 'loading' });
+  const [operationMetrics, setOperationMetrics] = useState<OperationsMetricsSnapshot | null>(null);
+  const [operationMetricsFailed, setOperationMetricsFailed] = useState(false);
   const [operations, setOperations] = useState<OperationWire[]>([]);
-  const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
+  const [workerInstances, setWorkerInstances] = useState<WorkerInstanceList | null>(null);
+  const [workerInventoryFailed, setWorkerInventoryFailed] = useState(false);
   const [health, setHealth] = useState<AdminHealthSnapshot | null>(null);
   const [hasOperationsApi, setHasOperationsApi] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [stale, setStale] = useState(false);
   const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null);
-  const [lastSuccess] = useState<{ current: number | null }>({ current: null });
+  const [lastSuccess] = useState<{ current: number | null; metricsRequestSequence: number }>({
+    current: null,
+    metricsRequestSequence: 0,
+  });
   const [timeRange, setTimeRange] = useState<TimeRangeKey>('24h');
 
   const window = useMemo(() => {
@@ -242,8 +251,19 @@ export function OverviewScreen() {
       to: new Date(now).toISOString(),
     };
   }, [timeRange]);
+  const metricsTenantId = session.kind === 'ready' && session.data.scope?.kind === 'tenant'
+    ? session.data.scope.tenantId
+    : globalTenantId ?? null;
+  const currentOperationMetrics = operationMetrics !== null
+    && operationMetrics.tenantId === metricsTenantId
+    && operationMetrics.from === window.from
+    && operationMetrics.to === window.to
+    ? operationMetrics
+    : null;
 
   const load = useCallback(async (): Promise<void> => {
+    const metricsRequestId = (lastSuccess.metricsRequestSequence ?? 0) + 1;
+    lastSuccess.metricsRequestSequence = metricsRequestId;
     const client = createAdminApiClient();
     const hasLastGood = lastSuccess.current !== null;
     if (!hasLastGood) setUsage({ kind: 'loading' });
@@ -321,10 +341,52 @@ export function OverviewScreen() {
         }
       }
 
+      if (typeof client.getOperationsMetrics === 'function') {
+        try {
+          const metricsQuery = {
+            from: window.from,
+            to: window.to,
+            ...(effectiveTenantId ? { tenant: effectiveTenantId } : {}),
+          };
+          const metricsResult = await client.getOperationsMetrics(metricsQuery);
+          if (metricsRequestId === lastSuccess.metricsRequestSequence) {
+            if (metricsResult.ok) {
+              const parsed = parseOperationsMetrics(metricsResult.data, {
+                from: window.from,
+                to: window.to,
+                tenantId: effectiveTenantId,
+              });
+              if (parsed) {
+                setOperationMetrics(parsed);
+                setOperationMetricsFailed(false);
+              } else {
+                cycleFailed = true;
+                setOperationMetricsFailed(true);
+              }
+            } else {
+              cycleFailed = true;
+              setOperationMetricsFailed(true);
+            }
+          }
+        } catch {
+          if (metricsRequestId === lastSuccess.metricsRequestSequence) {
+            cycleFailed = true;
+            setOperationMetricsFailed(true);
+          }
+        }
+      } else if (metricsRequestId === lastSuccess.metricsRequestSequence) {
+        cycleFailed = true;
+      }
+
       if (typeof client.listOperations === 'function') {
         setHasOperationsApi(true);
         try {
-          const opsResult = await client.listOperations({ limit: '100', sort: 'created_at:desc' });
+          const operationsQuery: Record<string, string> = {
+            limit: '100',
+            sort: 'created_at:desc',
+            ...(effectiveTenantId ? { tenant: effectiveTenantId } : {}),
+          };
+          const opsResult = await client.listOperations(operationsQuery);
           if (opsResult.ok) {
             setOperations(opsResult.data.items);
           }
@@ -332,15 +394,29 @@ export function OverviewScreen() {
           // ignore offline/unmounted client error
         }
       }
-      if (typeof client.listBusinesses === 'function') {
+      if (typeof client.listWorkerInstances === 'function') {
         try {
-          const bizResult = await client.listBusinesses();
-          if (bizResult.ok) {
-            setBusinesses(bizResult.data.items);
+          const workersResult = await client.listWorkerInstances({ limit: '500' });
+          if (workersResult.ok) {
+            const parsed = parseWorkerInstanceList(workersResult.data);
+            if (parsed) {
+              setWorkerInstances(parsed);
+              setWorkerInventoryFailed(false);
+            } else {
+              setWorkerInstances(null);
+              setWorkerInventoryFailed(true);
+            }
+          } else {
+            setWorkerInstances(null);
+            setWorkerInventoryFailed(true);
           }
         } catch {
-          // ignore offline/unmounted client error
+          setWorkerInstances(null);
+          setWorkerInventoryFailed(true);
         }
+      } else {
+        setWorkerInstances(null);
+        setWorkerInventoryFailed(true);
       }
       if (typeof client.getHealth === 'function') {
         try {
@@ -363,6 +439,11 @@ export function OverviewScreen() {
     setLastSuccessAt(stamp);
     setStale(false);
   }, [window, lastSuccess, globalTenantId]);
+
+  useEffect(() => {
+    setOperationMetrics(null);
+    setOperationMetricsFailed(false);
+  }, [metricsTenantId, window.from, window.to]);
 
   useEffect(() => {
     void load();
@@ -399,7 +480,7 @@ export function OverviewScreen() {
         </Button>
         <DataAgeLabel lastSuccessAt={lastSuccessAt} stale={stale} />
         <span className="text-xs text-[var(--text-sub)]">
-          Tenant data served by the Orchestrator BFF; scoped to active global tenant.
+          Operations are filtered to the active tenant selection when set; tenant-scoped sessions use their own tenant.
         </span>
         <nav aria-label="Orchestrator Portal sections" className="ml-auto flex items-center gap-3 text-sm">
           <Link className="text-[var(--cf-blue)] underline" to="/operations">
@@ -414,7 +495,7 @@ export function OverviewScreen() {
           <Link className="text-[var(--cf-blue)] underline" to="/profiles">
             Profiles
           </Link>
-          <Link className="text-[var(--cf-blue)] underline" to="/api-keys">
+          <Link className="text-[var(--cf-blue)] underline" to="/profiles">
             API keys
           </Link>
           <Link className="text-[var(--cf-blue)] underline" to="/connectors">
@@ -442,7 +523,10 @@ export function OverviewScreen() {
         <>
           <OperationsMonitorDashboard
             operations={operations}
-            businesses={businesses}
+            operationMetrics={currentOperationMetrics}
+            operationMetricsFailed={operationMetricsFailed}
+            workerInstances={workerInstances}
+            workerInventoryFailed={workerInventoryFailed}
             health={health}
             onRefresh={() => void load()}
           />

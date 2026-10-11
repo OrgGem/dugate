@@ -45,12 +45,12 @@ test.describe('P745-UI-MASK reveal toggle (real browser)', () => {
   }
 
   async function gotoConnectors(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
     await page.waitForURL((url) => url.pathname === '/admin');
-    await page.goto(`${BASE}/admin/web/connectors`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/connectors`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Connectors', level: 1 })).toBeVisible();
   }
 

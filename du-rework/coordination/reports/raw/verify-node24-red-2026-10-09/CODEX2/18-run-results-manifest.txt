@@ -1,0 +1,70 @@
+﻿cwd: D:/Git/dugate/du-rework/orchestrator/services/orchestrator
+Node 24 executable used: $env:TEMP/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe
+Resolved: C:\Users\Gem\AppData\Local\Temp/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe
+PATH Node: C:\nvm4w\nodejs\node.exe (v22.16.0)
+
+RUN 1A — Node 24 public-upload
+Before: node -v => v24.21.0; path above; version exit 0
+Command: & $env:TEMP/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/public-upload-encryption-gateway.test.ts
+REAL_EXIT=1
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 11 passed, 12 total
+Expected: < 171966464
+Received:   219856896
+Raw Jest log: 10-pub-upload-v24-run1.log
+
+RUN 1B — immediate separate-process repeat, Node 24
+Before: node -v => v24.21.0; path above; version exit 0
+Command: & $env:TEMP/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/public-upload-encryption-gateway.test.ts
+REAL_EXIT=1
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 11 passed, 12 total
+Expected: < 171966464
+Received:   218427392
+Raw Jest log: 11-pub-upload-v24-run2.log
+The same test failed in both runs, but the Received value differed.
+
+RUN 2 — PATH Node
+Before: node -v => v22.16.0; path C:\nvm4w\nodejs\node.exe; version exit 0
+Command: node node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/public-upload-encryption-gateway.test.ts
+REAL_EXIT=0
+Tests:       12 passed, 12 total
+Raw Jest log: 12-pub-upload-path-v22.log
+
+RUN 3 — Node 24 tenant/usage regression
+Before: node -v => v24.21.0; path above; version exit 0
+Command: & $env:TEMP/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/tenant-list-bff-offline.test.ts tests/tenant-list-cursor-codec-offline.test.ts tests/f5-bff-tenant-cursor-offline.test.ts tests/usage-contracts-integration-offline.test.ts tests/usage-summary.test.ts tests/usage-aggregation.test.ts
+REAL_EXIT=0
+Test Suites: 5 passed, 5 total
+Tests:       32 passed, 32 total
+Note: usage-summary.test.ts is ignored by jest.unit.config.cjs:21; it is not included in the five passing suites and is not counted as pass.
+Raw Jest log: 13-tenant-usage-v24.log
+
+RUN 4 — Node 24 connector regression
+Before: node -v => v24.21.0; path above; version exit 0
+Command: & $env:TEMP/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs tests/bff-connectors-actions.test.ts tests/admin-connector-view-model.test.ts tests/admin-connector-render.test.ts
+REAL_EXIT=0
+Test Suites: 3 passed, 3 total
+Tests:       124 passed, 124 total
+Raw Jest log: 14-connector-v24.log
+
+RUN 5 — Node 24 backend typecheck
+Before: node -v => v24.21.0; path above; version exit 0
+Command: & $env:TEMP/du-node24-security-c025dd92/node-v24.21.0-win-x64/node.exe node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+REAL_EXIT=0
+TSC_ERROR_LINES=0
+TSC_OUTPUT_LINES=0
+Raw tsc log: 15-typecheck-v24.log
+
+After run 5:
+Command: git status --porcelain
+REAL_EXIT=0
+Output file: 16-status-after.txt
+Command: git log -1 --format=%H
+REAL_EXIT=0
+Literal: 72e225ae5465e5a648c34bf31fbabbd182763233
+Output file: 17-head-after.txt
+
+Baseline before running:
+git status --porcelain exit 0, 134 lines; full literal snapshot: 01-status-before.txt.
+git log -1 --format=%H exit 0, same HEAD.

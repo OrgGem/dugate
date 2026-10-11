@@ -33,7 +33,7 @@ function makeResolverDb(options: ResolverDbOptions): Db {
         },
       }];
     } else if (sql.includes('FROM profile_bindings WHERE profile_id=$1 AND revision=$2')) {
-      rows = [{ tenantId: TENANT, cipher: options.cipher }];
+      rows = [{ tenantId: TENANT, cipher: options.cipher, allowedOrigins: [] }];
     } else {
       throw new Error('unrouted resolver SQL: ' + sql);
     }
@@ -166,7 +166,7 @@ const BOOT_ENV_NAMES = [
   'ARTIFACT_STORAGE_BACKEND', 'ARTIFACT_STORAGE_MIGRATION_WINDOW', 'ARTIFACT_S3_BUCKET',
   'ARTIFACT_S3_REGION', 'ARTIFACT_S3_ENDPOINT', 'ARTIFACT_S3_FORCE_PATH_STYLE',
   'SHUTDOWN_BUDGET_MS', 'ADMIN_SHELL_COOKIE_SECRET', 'ADMIN_SHELL_PORT', 'ADMIN_SHELL_HOST',
-  'ENCRYPTION_KEY', 'NEXTAUTH_SECRET',
+  'ENCRYPTION_KEY', 'NEXTAUTH_SECRET', 'ORCHESTRATOR_INTERNAL_BASE_URL',
 ] as const;
 
 async function withBootEnv<T>(overrides: Partial<Record<(typeof BOOT_ENV_NAMES)[number], string>>, work: () => Promise<T>): Promise<T> {
@@ -178,6 +178,9 @@ async function withBootEnv<T>(overrides: Partial<Record<(typeof BOOT_ENV_NAMES)[
   Object.assign(process.env, overrides, {
     DATABASE_URL: 'postgres://offline.invalid/orchestrator',
     PORT: '3000',
+    // Production boot validates this runtime grant origin before the cipher
+    // policy; keep that unrelated requirement deterministic in the boot mock.
+    ORCHESTRATOR_INTERNAL_BASE_URL: 'http://orchestrator.test',
   });
   try {
     return await work();
@@ -187,6 +190,17 @@ async function withBootEnv<T>(overrides: Partial<Record<(typeof BOOT_ENV_NAMES)[
       if (previous === undefined) delete process.env[name];
       else process.env[name] = previous;
     }
+  }
+}
+
+async function withNodeEnv<T>(nodeEnv: string, work: () => Promise<T>): Promise<T> {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = nodeEnv;
+  try {
+    return await work();
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
   }
 }
 
@@ -264,44 +278,26 @@ describe('V1 boot missing profile cipher key policy', () => {
 
   it('refuses a keyless real-data boot with the artifact seam enabled outside dev/test', async () => {
     mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true, publicUploadEncryption: true };
-    const previousNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
-    try {
-      await withBootEnv({}, async () => {
-        await expect(runMain()).rejects.toThrow(
-          /refusing to boot: ENCRYPTION_KEY \(or NEXTAUTH_SECRET\) is required/,
-        );
-      });
-    } finally {
-      process.env.NODE_ENV = previousNodeEnv;
-    }
+    await withNodeEnv('production', () => withBootEnv({}, async () => {
+      await expect(runMain()).rejects.toThrow(
+        /refusing to boot: ENCRYPTION_KEY \(or NEXTAUTH_SECRET\) is required/,
+      );
+    }));
     expect(mockCreateApp).not.toHaveBeenCalled();
     expect(mockBootLogger.warn).not.toHaveBeenCalled();
   });
 
   it('staging refuses too (no carve-out)', async () => {
     mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true };
-    const previousNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'staging';
-    try {
-      await withBootEnv({}, async () => {
-        await expect(runMain()).rejects.toThrow(/real-data mode/);
-      });
-    } finally {
-      process.env.NODE_ENV = previousNodeEnv;
-    }
+    await withNodeEnv('staging', () => withBootEnv({}, async () => {
+      await expect(runMain()).rejects.toThrow(/real-data mode/);
+    }));
     expect(mockCreateApp).not.toHaveBeenCalled();
   });
 
   it('keeps warn-only in development with the seam enabled', async () => {
     mockPolicy = { ...DEFAULT_BOOT_POLICY, metadataEncryption: true, publicUploadEncryption: true };
-    const previousNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-    try {
-      await withBootEnv({}, runMain);
-    } finally {
-      process.env.NODE_ENV = previousNodeEnv;
-    }
+    await withNodeEnv('development', () => withBootEnv({}, runMain));
     expect(mockCreateApp).toHaveBeenCalledTimes(1);
     expect(mockListen).toHaveBeenCalledTimes(1);
     expect(mockBootLogger.warn).toHaveBeenCalledTimes(1);
@@ -315,16 +311,8 @@ describe('V1 boot missing profile cipher key policy', () => {
       metadataEncryption: true,
       publicUploadEncryption: true,
     };
-    const previousNodeEnv = process.env.NODE_ENV;
-    // staging (not production) avoids the unrelated production-only
-    // ORCHESTRATOR_INTERNAL_BASE_URL guard while still proving the bypass for
-    // every NODE_ENV outside {development, test}.
-    process.env.NODE_ENV = 'staging';
-    try {
-      await withBootEnv({}, runMain);
-    } finally {
-      process.env.NODE_ENV = previousNodeEnv;
-    }
+    // Staging proves the exemption for a NODE_ENV outside {development, test}.
+    await withNodeEnv('staging', () => withBootEnv({}, runMain));
     expect(mockCreateApp).toHaveBeenCalledTimes(1);
     // one synthetic-mode warning + one profile-cipher warning
     expect(mockBootLogger.warn).toHaveBeenCalledTimes(2);
@@ -378,6 +366,7 @@ describe('V1 profile cipher denial', () => {
     await expect(resolver.resolveSourceAuth({ operationId: OPERATION, tenantId: TENANT })).resolves.toEqual({
       kind: 'bearer',
       token: 'source-token',
+      allowedOrigins: [],
     });
   });
 

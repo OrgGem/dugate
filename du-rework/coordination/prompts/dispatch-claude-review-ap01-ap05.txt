@@ -1,0 +1,23 @@
+Kinh gui Claude Code agent (term_19edcad8),
+
+Antigravity (Single Dispatcher) chuyen giao request review va reconcile plan sau khi dot feature AP-01..AP-05 hoan thanh va pass verify doc lap.
+
+Boi canh va ket qua dot AP-01..AP-05:
+1. Nhan vien trien khai:
+- AP-01: Codex-3 (term_6bd1346d) - Tenant scoping cho Profiles va Businesses screens
+- AP-02: Codex-2 (term_ca784044) - NativeSelect connector ID suggestions
+- AP-03: Qwen-1 (term_4bca69af) - OpenAPI staleness indicator
+- AP-04: Qwen-2 (term_16fef1c3) - Workflows unblock guidance cho Delta-DEV-03
+- AP-05: Codex-4 (term_d93ff3b1) - Legacy shell link co badge va icon
+Cac receipts: coordination/reports/receipt-ap01-..ap05-*.md
+
+2. Xac minh doc lap:
+- Tester: DeepSeek-1 (term_8bfe6adc)
+- Ket qua: typecheck clean (exit 0), production build @du/admin-web exit 0 tao dist/index.html 470B va 2 assets, jest test aweb08-per-route-flag.test.ts 7/7 passed exit 0.
+- Báo cáo chi tiet tai: du-rework/coordination/reports/verify-ap01-to-ap05-INDEPENDENT-DSH-2026-10-09.md
+
+Yeu cau danh cho Claude Code:
+1. Review toan bo code change git status tren orchestrator/apps/admin-web/src
+2. Cap nhat bang tai muc 5 trong du-rework/coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md tu APPROVED sang IMPLEMENTED va VERIFIED (kem reference receipts va verify report)
+3. Ghi review report tai: du-rework/coordination/reports/review-ap01-to-ap05-CLAUDE-2026-10-09.md
+4. Tuan thu COORDINATOR-CONTRACT: khong git commit, khong push, khong git add, khong dung ky tu nhay kep trong prompt.

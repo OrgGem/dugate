@@ -71,6 +71,7 @@ interface Captured {
   method: string;
   path: string;
   auth: string | null;
+  body: string;
 }
 
 /**
@@ -116,13 +117,38 @@ function startStub(port: number): Promise<Stub> {
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      const body = Buffer.concat(chunks).toString('utf8');
       requests.push({
         method: req.method ?? 'GET',
         path: url.pathname + url.search,
         auth: typeof req.headers['authorization'] === 'string' ? req.headers['authorization'] : null,
+        body,
       });
       res.setHeader('content-type', 'application/json');
       if (url.pathname === '/api/v1/admin/actions') {
+        // The platform refuses `apikey.issue` without a raw key (422
+        // INVALID_SCHEMA, pinned in admin-api-keys.test.ts as "no apiKey").
+        // Enforcing that HERE is what makes the BFF key minting observable:
+        // the previous stub answered 201 unconditionally, so the copy-once
+        // test passed even though a real upstream answers 422.
+        let forwarded: Record<string, unknown> = {};
+        try {
+          const parsed: unknown = JSON.parse(body);
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            const params = (parsed as { params?: unknown }).params;
+            if (typeof params === 'object' && params !== null && !Array.isArray(params)) {
+              forwarded = params as Record<string, unknown>;
+            }
+          }
+        } catch {
+          forwarded = {};
+        }
+        const raw = forwarded.apiKey;
+        if (typeof raw !== 'string' || raw.length < 8) {
+          res.statusCode = 422;
+          res.end(JSON.stringify({ code: 'INVALID_SCHEMA', message: 'params.apiKey is required' }));
+          return;
+        }
         res.statusCode = 201;
         res.end(
           JSON.stringify({
@@ -130,7 +156,7 @@ function startStub(port: number): Promise<Stub> {
             id: 'bbbbbbbb-2222-4222-8222-222222222222',
             prefix: 'du_live_new',
             status: 'ACTIVE',
-            rawKey: RAW_KEY,
+            rawKey: raw,
           }),
         );
         return;
@@ -356,6 +382,75 @@ describe('AWEB-05 BFF api-keys + connectors routes', () => {
     expect(wrongMethod.status).toBe(405);
   });
 
+  it('issue mints the raw key server-side when the caller sends none (P0)', async () => {
+    const cookie = legacyCookie('admin');
+    const session = await httpRequest(`${baseUrl}/admin/api/session`, { headers: { cookie } });
+    const csrf = (JSON.parse(session.body) as { csrfToken: string }).csrfToken;
+    stub.requests.length = 0;
+    const issue = await httpRequest(`${baseUrl}/admin/api/actions`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json', 'x-csrf-token': csrf },
+      body: JSON.stringify({ action: 'apikey.issue', params: { tenantId: TENANT_A, name: 'ci-runner' } }),
+    });
+    // The stub answers 422 when the forwarded body carries no apiKey, so a 201
+    // here IS the evidence that the BFF minted one.
+    expect(issue.status).toBe(201);
+    const forwarded = JSON.parse(last()?.body ?? '{}') as {
+      action: string;
+      params: { tenantId: string; apiKey: string; name: string };
+    };
+    expect(forwarded.action).toBe('apikey.issue');
+    expect(forwarded.params.tenantId).toBe(TENANT_A);
+    expect(forwarded.params.name).toBe('ci-runner');
+    expect(forwarded.params.apiKey).toMatch(/^du_[A-Za-z0-9_-]{40,}$/);
+    const issued = JSON.parse(issue.body) as { data: { rawKey: string } };
+    expect(issued.data.rawKey).toBe(forwarded.params.apiKey);
+  });
+
+  it('rotate mints the replacement key server-side too (same contract as issue)', async () => {
+    const cookie = legacyCookie('admin');
+    const session = await httpRequest(`${baseUrl}/admin/api/session`, { headers: { cookie } });
+    const csrf = (JSON.parse(session.body) as { csrfToken: string }).csrfToken;
+    stub.requests.length = 0;
+    const rotate = await httpRequest(`${baseUrl}/admin/api/actions`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json', 'x-csrf-token': csrf },
+      body: JSON.stringify({
+        action: 'apikey.rotate',
+        params: { apiKeyId: 'aaaaaaaa-1111-4111-8111-111111111111', name: 'ci-runner-2' },
+      }),
+    });
+    // Same reason as the issue test: the stub 422s when the forwarded body has
+    // no apiKey, so a 201 here is the evidence that the BFF minted one.
+    expect(rotate.status).toBe(201);
+    const forwarded = JSON.parse(last()?.body ?? '{}') as {
+      action: string;
+      params: { apiKeyId: string; apiKey: string; name: string };
+    };
+    expect(forwarded.action).toBe('apikey.rotate');
+    expect(forwarded.params.apiKeyId).toBe('aaaaaaaa-1111-4111-8111-111111111111');
+    expect(forwarded.params.name).toBe('ci-runner-2');
+    expect(forwarded.params.apiKey).toMatch(/^du_[A-Za-z0-9_-]{40,}$/);
+  });
+
+  it('issue forwards a caller-supplied raw key verbatim (never mints a second one)', async () => {
+    const cookie = legacyCookie('admin');
+    const session = await httpRequest(`${baseUrl}/admin/api/session`, { headers: { cookie } });
+    const csrf = (JSON.parse(session.body) as { csrfToken: string }).csrfToken;
+    stub.requests.length = 0;
+    const issue = await httpRequest(`${baseUrl}/admin/api/actions`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json', 'x-csrf-token': csrf },
+      body: JSON.stringify({
+        action: 'apikey.issue',
+        params: { tenantId: TENANT_A, apiKey: RAW_KEY },
+      }),
+    });
+    expect(issue.status).toBe(201);
+    const forwarded = JSON.parse(last()?.body ?? '{}') as { params: { apiKey: string } };
+    expect(forwarded.params.apiKey).toBe(RAW_KEY);
+  });
+
   it('issue passes rawKey exactly once (no-store); a later read never contains it', async () => {
     const cookie = legacyCookie('admin');
     const session = await httpRequest(`${baseUrl}/admin/api/session`, { headers: { cookie } });
@@ -368,11 +463,11 @@ describe('AWEB-05 BFF api-keys + connectors routes', () => {
     expect(issue.status).toBe(201);
     expect(issue.headers['cache-control']).toBe('no-store');
     const issued = JSON.parse(issue.body) as { data: { rawKey: string } };
-    expect(issued.data.rawKey).toBe(RAW_KEY);
+    expect(issued.data.rawKey).toMatch(/^du_[A-Za-z0-9_-]{40,}$/);
 
     const read = await httpRequest(`${baseUrl}/admin/api/api-keys`, { headers: { cookie } });
     expect(read.status).toBe(200);
-    expect(read.body).not.toContain(RAW_KEY);
+    expect(read.body).not.toContain(issued.data.rawKey);
     expect(read.body).not.toContain(ADMIN_TOKEN);
     expect(read.body).not.toContain(TENANT_A_TOKEN);
   });

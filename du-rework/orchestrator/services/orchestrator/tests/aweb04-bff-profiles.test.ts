@@ -105,6 +105,11 @@ function startStub(port: number): Promise<Stub> {
         res.end(JSON.stringify({ ok: true }));
         return;
       }
+      if (url.pathname === '/api/v1/admin/profiles') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ items: [], nextCursor: null, prevCursor: null, total: 0, limit: 100 }));
+        return;
+      }
       if (url.pathname.startsWith('/api/v1/admin/profiles/')) {
         res.statusCode = 200;
         res.end(
@@ -245,6 +250,39 @@ describe('AWEB-04 BFF profile routes (T-UI-05 fence + dispatcher forwarding)', (
     expect(upstream?.path).toBe('/api/v1/admin/profiles/doc-core/latest/new');
     expect(upstream?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);
     expect(upstream?.auth).not.toBe(`Bearer ${ADMIN_TOKEN}`);
+  });
+
+  it('profile list → forwards only approved filters and derives selected tenant scope', async () => {
+    const res = await httpRequest(
+      `${baseUrl}/admin/api/profiles?tenantId=${TENANT_A}&businessId=doc-core&limit=25&sort=updatedAt%3Adesc&ignored=do-not-forward`,
+      { headers: { cookie: adminCookie } },
+    );
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({ items: [], total: 0, limit: 100 });
+    const upstream = last();
+    expect(upstream?.path).toBe(
+      `/api/v1/admin/profiles?businessId=doc-core&limit=25&sort=updatedAt%3Adesc&tenantId=${TENANT_A}`,
+    );
+    expect(upstream?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
+    expect(upstream?.path).not.toContain('ignored');
+  });
+
+  it('tenant operator profile list is fenced to its own tenant', async () => {
+    const own = await httpRequest(
+      `${baseUrl}/admin/api/profiles?tenantId=${TENANT_A}&businessId=doc-core`,
+      { headers: { cookie: `du_session=${OPERATOR_SESSION}` } },
+    );
+    expect(own.status).toBe(200);
+    expect(last()?.auth).toBe(`Bearer ${TENANT_A_TOKEN}`);
+    expect(last()?.path).toContain(`tenantId=${TENANT_A}`);
+
+    stub.requests.length = 0;
+    const foreignTenant = '22222222-2222-4222-8222-222222222222';
+    const denied = await httpRequest(`${baseUrl}/admin/api/profiles?tenantId=${foreignTenant}`, {
+      headers: { cookie: `du_session=${OPERATOR_SESSION}` },
+    });
+    expect(denied.status).toBe(403);
+    expect(stub.requests).toHaveLength(0);
   });
 
   it('operator mutation → 403 PROFILE_SCOPED_GATE, untouched', async () => {

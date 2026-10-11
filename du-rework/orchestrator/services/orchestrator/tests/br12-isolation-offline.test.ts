@@ -60,6 +60,9 @@ function routeContext(options: {
           business_id: options.artifactBusinessId ?? 'business-a',
         }]);
       }
+      if (/INSERT INTO worker_instances/i.test(sql)) {
+        return result<T>([{ state: 'ONLINE', last_seen_at: new Date() }], 'INSERT');
+      }
       throw new Error(`unexpected route-test SQL: ${sql}`);
     }),
   };
@@ -308,16 +311,12 @@ describe('BR-12 offline business isolation', () => {
           // key's bindings exist for a FOREIGN business only.
           return result<T>([]);
         }
-        if (
-          /SELECT 1 FROM profile_bindings\s+WHERE api_key_id=\$1 AND business_id=\$2 AND business_version=\$3 AND action=\$4/i.test(
-            sql
-          )
-        ) {
+        if (/SELECT 1 FROM profile_api_keys m/i.test(sql)) {
           // BR12-FIX: selectActiveRow's pointer-cross-check step — no row for
           // business-b either (so this is 'not-authorized', not 'pointer-missing').
           return result<T>([]);
         }
-        if (/SELECT 1 FROM profile_bindings WHERE api_key_id=\$1 LIMIT 1/i.test(sql)) {
+        if (/SELECT 1 FROM profile_api_keys WHERE api_key_id=\$1 AND state='ACTIVE'/i.test(sql)) {
           return result<T>([{ '?column?': 1 }]);
         }
         throw new Error(`unexpected profile/submission SQL: ${sql}`);
@@ -512,12 +511,18 @@ describe('BR-12 offline business isolation', () => {
     const ownHeartbeat = routeContext({
       method: 'PUT',
       pathname: '/api/runtime/v1/workers/worker-a-1/heartbeat',
-      body: { businessId: 'business-a' },
+      body: {
+        businessId: 'business-a',
+        businessVersion: '1.0.0',
+        imageDigest: 'sha256:test',
+        capacity: 1,
+      },
     });
-    // RFX-12: the worker heartbeat is a compat stub with no state behind it,
-    // so its ack carries the conservative in-contract 'DEGRADED' — never a
-    // fabricated 'HEALTHY' (HeartbeatAckSchema enum: HEALTHY|DEGRADED|OFFLINE).
-    await expect(route(ownHeartbeat)).resolves.toMatchObject({ status: 200, body: { health: 'DEGRADED' } });
+    await expect(route(ownHeartbeat)).resolves.toMatchObject({ status: 200, body: { health: 'HEALTHY' } });
+    expect(ownHeartbeat.db.query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO worker_instances'),
+      ['business-a', 'worker-a-1', '1.0.0', 1],
+    );
   });
 
   it('limits workspace reference lookup to the authenticated worker business', async () => {

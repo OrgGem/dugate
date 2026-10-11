@@ -169,7 +169,7 @@ export function matchShellRoute(
   const p = pathname.length > 0 && pathname[0] === '/' ? pathname : '/' + pathname;
 
   // Root → admin home
-  if (m === 'GET' && (p === '/' || p === '/admin' || p === '/admin/' || p === '/admin/legacy' || p === '/admin/legacy/')) {
+  if (m === 'GET' && (p === '/' || p === '/admin' || p === '/admin/')) {
     return { id: 'admin-root', section: null, requiredRole: 'viewer' };
   }
 

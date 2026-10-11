@@ -1,0 +1,5 @@
+Test Suites: 1 passed, 1 total
+Tests:       51 passed, 51 total
+Snapshots:   0 total
+Time:        5.329 s, estimated 21 s
+Ran all test suites matching tests/admin-shell-session-lifecycle.test.ts.

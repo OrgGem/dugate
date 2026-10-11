@@ -27,8 +27,8 @@ if packets != [f'W802-{n:02}' for n in range(1, 9)]:
 for row in [line for line in section.splitlines() if line.startswith('| **W802-')]:
     if len(row.split('|')) != 6:
         errors.append('Packet missing ID/lane, objective/dependency, write lease or acceptance/consumer column')
-for token in ['/admin/web/identity', '/admin/api/identity/users/:id', '/admin/web/workflows',
-              '/admin/web/docs', 'DEV-03', 'dsh_2', 'ENCRYPTION_KEY', '5913db5e', 'ae7e29ce',
+for token in ['admin/identity', '/admin/api/identity/users/:id', 'admin/workflows',
+              'admin/docs', 'DEV-03', 'dsh_2', 'ENCRYPTION_KEY', '5913db5e', 'ae7e29ce',
               'AbortSignal', 'binds', 'T-PROM-02', 'ctx_ca5bfe6f4d7f', 'ctx_1423c997ab4c',
               'ctx_53190290a0e2', 'SETTINGS-WIRE-BASE', 'task_0f77d71cabd1', '/admin/api/settings']:
     if token not in section:

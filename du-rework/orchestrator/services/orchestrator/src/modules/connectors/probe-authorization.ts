@@ -19,12 +19,18 @@ export async function authorizeConnectorProbe(
     enabled: boolean;
     connector_bindings: unknown;
   }>(
-    `SELECT p.api_key_id, p.tenant_id, p.enabled, p.connector_bindings
+    // 0039: authorization runs off MEMBERSHIP (profile_api_keys), not off the
+    // revision's author field - a rotated-in key that never wrote a revision is
+    // still authorized, and a revoked membership stops resolving here without
+    // any change to the immutable profile_bindings rows.
+    `SELECT m.api_key_id, p.tenant_id, p.enabled, p.connector_bindings
        FROM profile_active_revisions a
        JOIN profile_bindings p
          ON p.profile_id = a.profile_id AND p.revision = a.revision
-       JOIN api_keys k ON k.id = p.api_key_id AND k.tenant_id = p.tenant_id
-      WHERE p.api_key_id = $1 AND p.tenant_id = $2
+       JOIN profile_api_keys m
+         ON m.profile_id = p.profile_id AND m.api_key_id = $1 AND m.state = 'ACTIVE'
+       JOIN api_keys k ON k.id = m.api_key_id AND k.tenant_id = p.tenant_id
+      WHERE p.tenant_id = $2
         AND p.enabled = true AND k.status = 'ACTIVE'`,
     [principal.id, principal.tenantId],
   );

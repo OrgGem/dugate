@@ -589,17 +589,32 @@ export function createRuntimeService(
           throw conflict('STATE_CONFLICT', 'task is not runnable until its ingestion source is READY');
         }
 
-        // Idempotent per (task, deliveryId): same delivery replayed → same lease.
-        if (t.last_delivery_id === deliveryId) {
+        // Waiting tasks are re-queued with a fresh delivery only after their
+        // input/children gate opens. A stale delivery must not turn that wait
+        // back into a running claim.
+        if (['WAITING_INPUT', 'WAITING_CHILDREN'].includes(t.state as string)) {
+          throw conflict('STATE_CONFLICT', `task ${taskId} is waiting and cannot be claimed`);
+        }
+
+        const leaseExpiryMs = t.lease_expires_at
+          ? new Date(t.lease_expires_at as string).getTime()
+          : Number.NaN;
+        const leaseIsActive = Number.isFinite(leaseExpiryMs) && leaseExpiryMs > Date.now();
+
+        // A delivery replay is safe only while this exact worker still owns
+        // the live RUNNING lease. Otherwise a live foreign lease is busy, or
+        // an expired lease follows the takeover path below and advances epoch.
+        if (
+          t.last_delivery_id === deliveryId &&
+          t.state === 'RUNNING' &&
+          t.leased_by === workerInstanceId &&
+          leaseIsActive
+        ) {
           return buildClaimResult(t, client, metadataCrypto, reader);
         }
 
         // Leased elsewhere and not expired → busy.
-        if (
-          t.lease_expires_at &&
-          new Date(t.lease_expires_at as string).getTime() > Date.now() &&
-          (t.leased_by as string) !== workerInstanceId
-        ) {
+        if (leaseIsActive && (t.leased_by as string) !== workerInstanceId) {
           throw conflict('STATE_CONFLICT', `task ${taskId} is leased by another worker`);
         }
 

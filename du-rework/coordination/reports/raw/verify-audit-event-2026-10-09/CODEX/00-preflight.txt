@@ -1,0 +1,5 @@
+﻿cwd=D:/Git/dugate/du-rework/orchestrator/services/orchestrator
+node -v=v22.16.0
+NODE_EXIT=0
+repo_root=D:/Git/dugate
+HEAD=72e225ae5465e5a648c34bf31fbabbd182763233

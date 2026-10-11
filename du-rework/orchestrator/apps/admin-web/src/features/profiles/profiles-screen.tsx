@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,19 +6,23 @@ import { FormField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/dialog';
 import { AlertBanner, DeniedState, ErrorState, LoadingState } from '@/components/ui/state-panel';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   createAdminApiClient,
   type AdminApiProblem,
   type ConnectionStep,
   type FileUrlAuthConfigWrite,
   type ProfileDetail,
+  type ProfileListPage,
+  type ProfileWorkflowItem,
   type RequestRedactionRule,
 } from '@/lib/api';
-import { profileErrorHint, parseProfileDetail } from './state';
+import { groupProfileListRows, profileErrorHint, parseProfileDetail, parseProfileListPage, parseProfileWorkflowPage } from './state';
 import { buildPublishBody, buildRollbackBody, buildUpsertBody } from './command-bodies';
 import { RequestRedactionEditor } from './request-redaction-editor';
 import { CallbackPolicyEditor } from './callback-policy-editor';
 import { buildCallbackPolicy, callbackPolicyFromRead, emptyCallbackDraft, validateCallbackDraft, type CallbackDraft } from './callback-policy';
+import { ProfileApiKeysPanel } from './api-keys-panel';
 import { parseSecretListPage } from '@/features/secrets/state';
 import type { SecretOption } from '@/features/secrets/value-source-selector';
 import { useTenant } from '@/lib/tenant-context';
@@ -94,11 +98,21 @@ export function ProfilesScreen() {
   const [businessId, setBusinessId] = useState('document-core');
   const [businessVersion, setBusinessVersion] = useState('1.1.0');
   const [profileName, setProfileName] = useState('default');
+  const [profileListBusinessId, setProfileListBusinessId] = useState('');
+  const [profileListPage, setProfileListPage] = useState<ProfileListPage | null>(null);
+  const [profileListLoading, setProfileListLoading] = useState(false);
+  const [profileListLoadingMore, setProfileListLoadingMore] = useState(false);
+  const [profileListProblem, setProfileListProblem] = useState<AdminApiProblem | null>(null);
+  const [profileListRefresh, setProfileListRefresh] = useState(0);
 
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
   const [loadedAs, setLoadedAs] = useState<{ businessId: string; businessVersion: string; profileName: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
+  const [profileWorkflows, setProfileWorkflows] = useState<ProfileWorkflowItem[]>([]);
+  const [profileWorkflowsLoading, setProfileWorkflowsLoading] = useState(false);
+  const [profileWorkflowsProblem, setProfileWorkflowsProblem] = useState<string | null>(null);
+  const [profileWorkflowPending, setProfileWorkflowPending] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rowResults, setRowResults] = useState<RowResult[] | null>(null);
@@ -119,10 +133,82 @@ export function ProfilesScreen() {
     setLoadedAs(null);
     setRowResults(null);
     setProblem(null);
+    setProfileWorkflows([]);
+    setProfileWorkflowsProblem(null);
     setNotice(null);
     setTestResult(null);
     setTestProblem(null);
   }, [globalTenantId]);
+
+  useEffect(() => {
+    let active = true;
+    setProfileListPage(null);
+    setProfileListProblem(null);
+    if (!globalTenantId) {
+      setProfileListLoading(false);
+      return () => { active = false; };
+    }
+    setProfileListLoading(true);
+    const query: Record<string, string> = { tenantId: globalTenantId, limit: '100' };
+    if (profileListBusinessId) query.businessId = profileListBusinessId;
+    void client.listProfiles(query).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setProfileListProblem(result.problem);
+        return;
+      }
+      const page = parseProfileListPage(result.data, globalTenantId, profileListBusinessId || null);
+      if (page === null) {
+        setProfileListProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'The profile list response did not match the contract.' });
+        return;
+      }
+      setProfileListPage(page);
+    }).catch(() => {
+      if (active) setProfileListProblem({ status: 0, code: 'NETWORK_ERROR', title: 'The profile list could not be loaded.' });
+    }).finally(() => {
+      if (active) setProfileListLoading(false);
+    });
+    return () => { active = false; };
+  }, [client, globalTenantId, profileListBusinessId, profileListRefresh]);
+
+  // AWEB-14: workflow choices are loaded only for the stored profile's exact
+  // business/version and current tenant. The backend applies the same fence.
+  useEffect(() => {
+    let active = true;
+    setProfileWorkflows([]);
+    setProfileWorkflowsProblem(null);
+    const targetName = loadedAs?.profileName;
+    if (detail === null || detail.revision < 1 || targetName === undefined || !globalTenantId) {
+      setProfileWorkflowsLoading(false);
+      return () => { active = false; };
+    }
+    setProfileWorkflowsLoading(true);
+    void client.listProfileWorkflows(
+      detail.businessId,
+      detail.businessVersion,
+      targetName,
+      globalTenantId,
+    ).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setProfileWorkflowsProblem(result.problem.title ?? result.problem.code ?? 'Could not load profile workflows.');
+        setProfileWorkflows([]);
+        return;
+      }
+      const page = parseProfileWorkflowPage(result.data, detail.businessId, detail.businessVersion);
+      if (page === null) {
+        setProfileWorkflowsProblem('The workflow list did not match the selected business and version.');
+        setProfileWorkflows([]);
+        return;
+      }
+      setProfileWorkflows(page.items);
+    }).catch(() => {
+      if (active) setProfileWorkflowsProblem('Could not load profile workflows.');
+    }).finally(() => {
+      if (active) setProfileWorkflowsLoading(false);
+    });
+    return () => { active = false; };
+  }, [client, detail, loadedAs, globalTenantId]);
 
   // Load registered businesses
   useEffect(() => {
@@ -209,12 +295,20 @@ export function ProfilesScreen() {
 
   const identifiers = { businessId: businessId.trim(), businessVersion: businessVersion.trim() || 'latest', profileName: profileName.trim() || 'default' };
 
-  async function load(nameToLoad?: string): Promise<void> {
+  async function load(
+    nameToLoad?: string,
+    identityOverride?: { businessId: string; businessVersion: string; profileName: string },
+  ): Promise<void> {
     setLoading(true);
     setProblem(null);
     setNotice(null);
     setRowResults(null);
-    const targetName = (nameToLoad ?? profileName).trim() || 'default';
+    const targetName = (identityOverride?.profileName ?? nameToLoad ?? profileName).trim() || 'default';
+    const target = identityOverride ?? {
+      businessId: identifiers.businessId,
+      businessVersion: identifiers.businessVersion,
+      profileName: targetName,
+    };
     try {
       const sessionResult = await client.getSession();
       if (!sessionResult.ok) {
@@ -224,7 +318,7 @@ export function ProfilesScreen() {
         setProblem(sessionResult.problem);
         return;
       }
-      const result = await client.getProfile(identifiers.businessId, identifiers.businessVersion, targetName);
+      const result = await client.getProfile(target.businessId, target.businessVersion, targetName);
       if (!result.ok) {
         setDetail(null);
         setDraft(null);
@@ -245,11 +339,46 @@ export function ProfilesScreen() {
         parsed.profileName = targetName;
       }
       setDetail(parsed);
-      setLoadedAs({ businessId: identifiers.businessId, businessVersion: identifiers.businessVersion, profileName: targetName });
+      setBusinessId(target.businessId);
+      setBusinessVersion(target.businessVersion);
+      setProfileName(targetName);
+      setLoadedAs({ businessId: target.businessId, businessVersion: target.businessVersion, profileName: targetName });
       setDraft(draftFromDetail(parsed));
       setNotice(`Profile "${targetName}" loaded (Revision ${parsed.revision}).`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMoreProfiles(): Promise<void> {
+    if (!globalTenantId || profileListPage?.nextCursor === null || profileListPage === null || profileListLoadingMore) return;
+    setProfileListLoadingMore(true);
+    setProfileListProblem(null);
+    try {
+      const query: Record<string, string> = {
+        tenantId: globalTenantId,
+        limit: String(profileListPage.limit),
+        cursor: profileListPage.nextCursor,
+      };
+      if (profileListBusinessId) query.businessId = profileListBusinessId;
+      const result = await client.listProfiles(query);
+      if (!result.ok) {
+        setProfileListProblem(result.problem);
+        return;
+      }
+      const page = parseProfileListPage(result.data, globalTenantId, profileListBusinessId || null);
+      if (page === null) {
+        setProfileListProblem({ status: 502, code: 'UNREADABLE_RESPONSE', title: 'The profile list response did not match the selected tenant and business.' });
+        return;
+      }
+      setProfileListPage((current) => current === null ? current : ({
+        ...page,
+        items: [...current.items, ...page.items],
+      }));
+    } catch {
+      setProfileListProblem({ status: 0, code: 'NETWORK_ERROR', title: 'More profiles could not be loaded.' });
+    } finally {
+      setProfileListLoadingMore(false);
     }
   }
 
@@ -305,6 +434,35 @@ export function ProfilesScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function setWorkflowEnabled(item: ProfileWorkflowItem, enabled: boolean): Promise<void> {
+    if (detail === null || loadedAs === null || !globalTenantId) return;
+    const pendingKey = `${item.slug}:${item.revision}`;
+    setProfileWorkflowPending(pendingKey);
+    setProfileWorkflowsProblem(null);
+    try {
+      const result = await client.setProfileWorkflow(
+        detail.businessId,
+        detail.businessVersion,
+        loadedAs.profileName,
+        globalTenantId,
+        { workflowSlug: item.slug, workflowRevision: item.revision, enabled },
+        `profile-workflow-${globalThis.crypto.randomUUID()}`,
+      );
+      if (!result.ok) {
+        setProfileWorkflowsProblem(result.problem.title ?? result.problem.code ?? 'Could not update workflow selection.');
+      } else {
+        setProfileWorkflows((current) => current.map((workflow) => workflow.slug === item.slug
+          ? { ...workflow, enabled: workflow.revision === item.revision && enabled }
+          : workflow));
+        setNotice(`Workflow "${item.slug}" ${enabled ? 'enabled' : 'disabled'} for this profile.`);
+      }
+    } catch {
+      setProfileWorkflowsProblem('Could not update workflow selection.');
+    } finally {
+      setProfileWorkflowPending(null);
     }
   }
 
@@ -540,6 +698,8 @@ export function ProfilesScreen() {
     else setTestProblem(result.problem);
   }
 
+  const profileGroups = groupProfileListRows(profileListPage?.items ?? []);
+
   return (
     <section aria-labelledby="profiles-title" className="flex flex-col gap-5 min-w-0">
       <div className="flex flex-wrap items-center gap-3">
@@ -560,6 +720,132 @@ export function ProfilesScreen() {
         <code>publish</code>/<code>rollback</code>). Until T-API-02 lands the dispatcher answers{' '}
         <code>404 ACTION_NOT_FOUND</code> and actions stay disabled — nothing is faked here.
       </AlertBanner>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <CardTitle>Profiles</CardTitle>
+              <CardDescription>
+                Catalog for the selected tenant. Active key count includes only active profile-to-key bindings; bound actions come from the active revision.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-56">
+                <FormField id="profile-list-business" label="Business filter">
+                  <select
+                    id="profile-list-business"
+                    aria-label="Filter profiles by business"
+                    className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--border-dark)] bg-[var(--bg-card)] px-3 text-sm font-medium"
+                    value={profileListBusinessId}
+                    onChange={(event) => setProfileListBusinessId(event.target.value)}
+                    disabled={!globalTenantId}
+                  >
+                    <option value="">All businesses</option>
+                    {businesses.map((business) => <option key={business} value={business}>{business}</option>)}
+                  </select>
+                </FormField>
+              </div>
+              <Button variant="outline" onClick={() => setProfileListRefresh((current) => current + 1)} disabled={!globalTenantId || profileListLoading}>
+                Refresh
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-sub)]">
+            <span>Tenant scope:</span>
+            {tenant ? <Badge variant="neutral">{tenant.name}</Badge> : globalTenantId ? <Badge variant="neutral">{globalTenantId}</Badge> : <Badge variant="warning">No tenant selected</Badge>}
+            {profileListPage ? <span>{profileListPage.items.length} of {profileListPage.total} profiles loaded</span> : null}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!globalTenantId ? (
+            <AlertBanner variant="warning" title="Select a tenant to view profiles">
+              Profile metadata is tenant-scoped. Choose a tenant in the application header to load its profile catalog.
+            </AlertBanner>
+          ) : profileListLoading ? (
+            <LoadingState title="Loading profiles" description="Reading profile metadata for the selected tenant." />
+          ) : profileListPage === null && profileListProblem !== null ? (
+            profileListProblem.status === 401 || profileListProblem.status === 403 ? (
+              <DeniedState title={profileListProblem.status === 401 ? 'Sign-in required' : 'Access denied'} description={profileListProblem.title ?? 'This session cannot read profiles in the selected tenant.'} tenantId={globalTenantId} />
+            ) : (
+              <ErrorState title={profileListProblem.title ?? 'The profile catalog could not be loaded.'} statusCode={profileListProblem.status || undefined} error={profileListProblem.code} onRetry={() => setProfileListRefresh((current) => current + 1)} />
+            )
+          ) : profileListPage === null ? null : profileListPage.items.length === 0 ? (
+            <div role="status" className="rounded-md border border-dashed border-[var(--border-subtle)] px-4 py-10 text-center text-sm text-[var(--text-sub)]">
+              No profiles were found for this tenant and business filter.
+            </div>
+          ) : (
+            <>
+              {profileListProblem !== null ? (
+                <AlertBanner variant="error" title={profileListProblem.title ?? 'More profile rows could not be loaded.'} className="mb-3">
+                  {profileListProblem.status || 'Network error'} · {profileListProblem.code ?? 'ERROR'} The rows already loaded remain visible.
+                </AlertBanner>
+              ) : null}
+              <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Profile</TableHead>
+                      <TableHead>Business</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Active keys</TableHead>
+                      <TableHead>Bound actions</TableHead>
+                      <TableHead><span className="sr-only">Open profile</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {profileGroups.map((group) => (
+                      <Fragment key={group.businessId}>
+                        <TableRow className="bg-[var(--bg-subtle)]">
+                          <TableCell colSpan={7} className="font-semibold">
+                            {group.businessId} <span className="font-normal text-[var(--text-sub)]">· {group.items.length} profile{group.items.length === 1 ? '' : 's'}</span>
+                          </TableCell>
+                        </TableRow>
+                        {group.items.map(({ row, key }) => (
+                          <TableRow key={key}>
+                            <TableCell className="font-medium">{row.profileName}</TableCell>
+                            <TableCell>{row.businessId}</TableCell>
+                            <TableCell>{row.businessVersion}</TableCell>
+                            <TableCell>
+                              <Badge variant={row.status === 'ACTIVE' ? 'success' : row.status === 'DISABLED' ? 'warning' : 'neutral'}>{row.status}</Badge>
+                            </TableCell>
+                            <TableCell>{row.keyCount}</TableCell>
+                            <TableCell>
+                              {row.boundActions.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {row.boundActions.map((action) => <Badge key={action} variant="info">{action}</Badge>)}
+                                </div>
+                              ) : <span className="text-[var(--text-sub)]">None</span>}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={loading}
+                                onClick={() => void load(undefined, { businessId: row.businessId, businessVersion: row.businessVersion, profileName: row.profileName })}
+                              >
+                                Open
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {profileListPage.nextCursor !== null ? (
+                <div className="mt-3 flex justify-center">
+                  <Button variant="outline" onClick={() => void loadMoreProfiles()} isLoading={profileListLoadingMore}>
+                    Load more profiles
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -683,6 +969,17 @@ export function ProfilesScreen() {
         </CardContent>
       </Card>
 
+      {/* 0039: the profile owns its keys. `loadedAs` (not the selectors) so changing the
+          selector without re-loading cannot retarget the panel at another profile. */}
+      {detail !== null && loadedAs !== null ? (
+        <ProfileApiKeysPanel
+          businessId={loadedAs.businessId}
+          businessVersion={loadedAs.businessVersion}
+          profileName={loadedAs.profileName}
+          revision={detail.revision}
+        />
+      ) : null}
+
       {problem !== null && detail === null ? (
         problem.status === 403 ? (
           <DeniedState
@@ -777,6 +1074,54 @@ export function ProfilesScreen() {
               </div>
             </CardContent>
           </Card>
+
+          {detail.revision > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Workflow schemas</CardTitle>
+                <CardDescription>
+                  Choose workflow revisions registered to {detail.businessId}@{detail.businessVersion}. Legacy workflows without a business assignment are not shown here.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {!globalTenantId ? (
+                  <p className="text-sm text-[var(--text-sub)]">Select a tenant before managing profile workflows.</p>
+                ) : profileWorkflowsLoading ? (
+                  <LoadingState title="Loading business workflows…" />
+                ) : profileWorkflowsProblem !== null ? (
+                  <AlertBanner variant="error" title="Workflow selection unavailable">
+                    {profileWorkflowsProblem}
+                  </AlertBanner>
+                ) : profileWorkflows.length === 0 ? (
+                  <p className="text-sm text-[var(--text-sub)]">No workflow schemas are registered to this business version.</p>
+                ) : (
+                  profileWorkflows.map((workflow) => {
+                    const pendingKey = `${workflow.slug}:${workflow.revision}`;
+                    const pending = profileWorkflowPending === pendingKey;
+                    return (
+                      <div key={pendingKey} className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--border-subtle)] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <code className="text-sm">{workflow.slug}</code>
+                          <span className="text-xs text-[var(--text-sub)]">Revision {workflow.revision}</span>
+                          <Badge variant={workflow.status === 'active' ? 'success' : 'neutral'}>{workflow.status}</Badge>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            aria-label={`Use workflow ${workflow.slug} revision ${workflow.revision}`}
+                            checked={workflow.enabled}
+                            disabled={profileWorkflowPending !== null || (workflow.status === 'retired' && !workflow.enabled)}
+                            onChange={(event) => void setWorkflowEnabled(workflow, event.target.checked)}
+                          />
+                          {pending ? 'Saving…' : 'Enabled for profile'}
+                        </label>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
 
           {draft.rows.map((row, rowIndex) => (
             <Card key={`row-${rowIndex}`}>

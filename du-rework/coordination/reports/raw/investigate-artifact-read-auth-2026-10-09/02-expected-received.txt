@@ -1,0 +1,77 @@
+﻿=== 5 case do — Expected/Received nguyen van ===
+################ CASE 1 ################
+● R1-A artifact read authorization and storage-facade boundary › does not grant  reads for STAGING artifacts, even in the same operation
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+    ASSERTION: > 375 |     await expect(service.requestAccess(STAGING_OUTPUT,
+    at Object.<anonymous> (tests/artifact-read-authorization.test.ts:375:80)
+################ CASE 2 ################
+● R1-A artifact read authorization and storage-facade boundary › rejects expired  and fenced requesters before minting a read grant
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    ASSERTION: > 386 |     ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    at Object.<anonymous> (tests/artifact-read-authorization.test.ts:386:15)
+################ CASE 3 ################
+● CR28-03 artifact read authorization: negatives and boundaries › declared  references array › reports a state conflict, not a permission denial, for a declared
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "STATE_CONFLICT",
+    +   "code": "PERMISSION_DENIED",
+      }
+
+    ASSERTION: > 597 |       ).rejects.toMatchObject({ code: 'STATE_CONFLICT' });
+    at Object.<anonymous> (tests/artifact-read-authorization.test.ts:597:17)
+################ CASE 4 ################
+● CR28-03 worker lease boundaries › prefers expiry over task state when both are  wrong
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    ASSERTION: > 732 |     ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    at Object.<anonymous> (tests/artifact-read-authorization.test.ts:732:15)
+################ CASE 5 ################
+● CR28-03 worker lease boundaries › FINDING: the lease_active boolean collapses a  missing expiry and a past one
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "code": "PERMISSION_DENIED",
+    -   "status": 403,
+    +   "code": "LEASE_LOST",
+    +   "status": 409,
+      }
+
+    ASSERTION: > 742 |     ).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    at Object.<anonymous> (tests/artifact-read-authorization.test.ts:742:15)

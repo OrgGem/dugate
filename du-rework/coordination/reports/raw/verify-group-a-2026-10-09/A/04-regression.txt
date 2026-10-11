@@ -1,0 +1,6 @@
+
+Test Suites: 2 passed, 2 total
+Tests:       99 passed, 99 total
+Snapshots:   0 total
+Time:        6.713 s, estimated 8 s
+Ran all test suites matching tests/admin-shell-session-lifecycle.test.ts|tests/rv01-loopback-http-offline.test.ts.

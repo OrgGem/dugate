@@ -469,10 +469,17 @@ describe('AWEB-02 admin BFF foundation', () => {
       expect(upstreamReq?.path).toBe('/api/v1/admin/actions');
       expect(upstreamReq?.headers.authorization).toBe(`Bearer ${ADMIN_TOKEN}`);
       expect(upstreamReq?.headers['idempotency-key']).toBe('idem-aweb02-1');
-      expect(JSON.parse(upstreamReq?.body ?? '{}')).toEqual({
-        action: 'apikey.issue',
-        params: { tenantId: 'tenant-b' },
-      });
+      const forwarded = JSON.parse(upstreamReq?.body ?? '{}') as {
+        action: string;
+        params: Record<string, unknown>;
+      };
+      expect(forwarded.action).toBe('apikey.issue');
+      expect(forwarded.params.tenantId).toBe('tenant-b');
+      // P0: the BFF mints the raw value when the caller sends none, so the
+      // platform 422 ("params.apiKey is required") cannot happen from admin-web.
+      // Exactly one field is added and nothing else is mutated.
+      expect(Object.keys(forwarded.params).sort()).toEqual(['apiKey', 'tenantId']);
+      expect(forwarded.params.apiKey).toMatch(/^du_[A-Za-z0-9_-]{40,}$/);
       const body = JSON.parse(res.body) as { data: { action: string } };
       expect(body.data.action).toBe('apikey.issue');
       expect(res.body).not.toContain(ADMIN_TOKEN);

@@ -405,7 +405,7 @@ function ApiDocsView({ doc, entries }: { doc: OpenApiDocument; entries: Operatio
                   <OperationDetail entry={selected} />
                 ) : (
                   <div className="flex h-full items-center justify-center p-8 text-center text-xs text-[var(--text-sub)]">
-                    Chọn một API operation từ danh sách bên trái để xem tài liệu chi tiết.
+                    Select an API operation from the list on the left to view its detailed documentation.
                   </div>
                 )}
               </div>
@@ -631,10 +631,10 @@ function OperationDetail({ entry }: { entry: OperationEntry }) {
                 {/* Description */}
                 <div>
                   <span className="font-semibold text-[var(--text-sub)] uppercase tracking-wider text-[10px]">
-                    Mô tả / Description
+                    Description
                   </span>
                   <p className="mt-1 text-[var(--text-main)] bg-[var(--surface-muted)] p-2.5 rounded border border-[var(--border-subtle)] leading-relaxed">
-                    {response.description || 'Không có mô tả chi tiết.'}
+                    {response.description || 'No detailed description is available.'}
                   </p>
                 </div>
 
@@ -689,12 +689,12 @@ function OperationDetail({ entry }: { entry: OperationEntry }) {
                     <span className="font-semibold text-[var(--text-main)]">Response Body: </span>
                     {Number(code) >= 400 ? (
                       <span>
-                        Tiêu chuẩn RFC 7807 (<code>application/problem+json</code>). Phản hồi mang cấu trúc mã lỗi gồm <code>status: {code}</code>, <code>code</code>, <code>title</code>, <code>correlationId</code>.
+                        RFC 7807 standard (<code>application/problem+json</code>). The response carries an error structure of <code>status: {code}</code>, <code>code</code>, <code>title</code>, <code>correlationId</code>.
                       </span>
                     ) : Number(code) === 204 ? (
-                      <span>204 No Content (Phản hồi không mang nội dung thân body).</span>
+                      <span>204 No Content (the response carries no body content).</span>
                     ) : (
-                      <span>Trạng thái phản hồi không yêu cầu nội dung payload body bổ sung.</span>
+                      <span>This response status requires no additional payload body.</span>
                     )}
                   </div>
                 )}

@@ -59,8 +59,8 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     await page.context().addCookies([{ name: 'du_session', value: sessionId, url: BASE }]);
   }
 
-  test('0. unauth direct /admin/web/overview → login (mount gate)', async ({ page }) => {
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'domcontentloaded' });
+  test('0. unauth direct admin/overview → login (mount gate)', async ({ page }) => {
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'domcontentloaded' });
     expect(new URL(page.url()).pathname).toBe('/admin/login');
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await shot(page, 'overview-00-unauth-login.png');
@@ -70,7 +70,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     const errors = trackConsole(page);
     await setScenario('rows');
     await sessionCookie(page, OPERATOR);
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
 
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
     await expect(page.getByText(TENANT)).toBeVisible();
@@ -92,7 +92,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
   test('2. empty scope → EmptyState with refresh affordance', async ({ page }) => {
     await setScenario('empty');
     await sessionCookie(page, OPERATOR);
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByText('No audit events')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
     await shot(page, 'overview-02-empty.png');
@@ -101,7 +101,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
   test('3. upstream failure → 502 error, retry succeeds after recovery', async ({ page }) => {
     await setScenario('error');
     await sessionCookie(page, OPERATOR);
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByText('UPSTREAM_ERROR')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Audit ledger', exact: true }).locator('xpath=../..').getByText('502')).toBeVisible();
     await shot(page, 'overview-03-error.png');
@@ -116,7 +116,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     const before = (await auditRequests()).length;
     await setScenario('rows');
     await sessionCookie(page, VIEWER);
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByText('Access denied')).toBeVisible();
     await expect(page.getByRole('table', { name: 'Audit events' })).toHaveCount(0);
     await shot(page, 'overview-05-denied.png');
@@ -138,7 +138,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
       }),
     );
     await sessionCookie(page, OPERATOR);
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Session', exact: true }).locator('xpath=../..').getByRole('link', { name: 'Sign in again' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Session', exact: true }).locator('xpath=../..').getByText('UNAUTHENTICATED')).toBeVisible();
     await shot(page, 'overview-06-session-401.png');
@@ -148,7 +148,7 @@ test.describe('AWEB-03b Overview browser evidence (harness seam)', () => {
     await setScenario('rows');
     await sessionCookie(page, OPERATOR);
     await page.setViewportSize({ width: 320, height: 800 });
-    await page.goto(`${BASE}/admin/web/overview`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/overview`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('table', { name: 'Audit events' })).toBeVisible();
     const dims = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,

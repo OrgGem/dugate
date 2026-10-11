@@ -5,7 +5,7 @@
  *
  * Runs against the real Orchestrator admin shell (`createAdminShellServer` via
  * tests/browser/admin-web/harness.ts) with the real Vite build of
- * apps/admin-web mounted at /admin/web and a scripted upstream stub. No DB, no
+ * apps/admin-web mounted at admin and a scripted upstream stub. No DB, no
  * Redis, no live platform HTTP.
  *
  * Required env (supplied by tests/browser/scripts/run-portal-all-features.cjs
@@ -175,7 +175,7 @@ function trackConsole(page: Page): string[] {
 }
 
 async function openRoute(page: Page, routePath: string): Promise<void> {
-  await page.goto(`${BASE}/admin/web/${routePath}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}admin/${routePath}`, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle').catch(() => undefined);
 }
 

@@ -2,13 +2,13 @@
 
 ## Mục tiêu
 
-Tạo **browser-level evidence** cho shell Admin Web đã mount (`/admin/web`, flag `DU_ADMIN_WEB`) — độc lập với verify HTTP của cc_2 trước đó; dựng harness để tái sử dụng cho các slice sau (AWEB-03b/04 cần browser evidence theo contract §5/§6.4).
+Tạo **browser-level evidence** cho shell Admin Web đã mount (`admin`, flag `DU_ADMIN_WEB`) — độc lập với verify HTTP của cc_2 trước đó; dựng harness để tái sử dụng cho các slice sau (AWEB-03b/04 cần browser evidence theo contract §5/§6.4).
 
 ## Việc cần làm
 
 1. **Harness**: khởi động `createAdminShellServer` từ source (port 0, `NODE_ENV=test`) + mint cookie test-mode (seam đã dùng ở `aweb01-verify`); Playwright chạy trực tiếp với `npx playwright test` (KHÔNG dùng lệnh false-green `pnpm --filter @du/browser-tests test` — package không có script `test`).
 2. **Spec tối thiểu** (đặt dưới `du-rework/tests/browser/admin-web/**`):
-   - direct URL unauth `/admin/web` → trang login (302 → form);
+   - direct URL unauth `admin` → trang login (302 → form);
    - login → app React render (root node, title, không lỗi console nghiêm trọng);
    - reload → session giữ, app render lại;
    - viewport 320px → không tràn ngang (assert `scrollWidth <= clientWidth + 1`), nav truy cập được;

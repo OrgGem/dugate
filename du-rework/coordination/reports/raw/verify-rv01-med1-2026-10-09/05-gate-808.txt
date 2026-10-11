@@ -1,0 +1,5 @@
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        2.261 s
+Ran all test suites matching tests/gate-authenticate-808.test.ts.

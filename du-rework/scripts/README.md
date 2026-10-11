@@ -17,7 +17,7 @@ pnpm dev --env-file=.env.local --skip-build --skip-migrate
 | --- | --- | --- |
 | Orchestrator Public | `http://127.0.0.1:3000` | Public business API |
 | Orchestrator Internal | `http://127.0.0.1:3002` | Authenticated admin/runtime API |
-| Orchestrator Portal + BFF | `http://127.0.0.1:3001/admin/web/` | React Portal; login at `/admin/login` |
+| Orchestrator Portal + BFF | `http://127.0.0.1:3001admin/` | React Portal; login at `/admin/login` |
 | Connector | `http://127.0.0.1:8088` | Signed internal service; root-path contract |
 | Workers | No public HTTP listener | document-core, lc-checker, example-review via Runtime and Redis |
 

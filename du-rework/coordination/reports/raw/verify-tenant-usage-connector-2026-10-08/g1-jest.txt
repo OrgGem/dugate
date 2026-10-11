@@ -1,0 +1,8 @@
+{"subsystem":"admin-shell","timestamp":"2026-10-08T10:17:06.147Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"02379af5-7198-455c-b249-84e86ba30e53","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+{"subsystem":"admin-shell","timestamp":"2026-10-08T10:17:06.277Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"73756c11-cbd7-407b-a61d-4a413c142aa3","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+
+Test Suites: 6 passed, 6 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        4.344 s
+Ran all test suites matching tests/tenant-list-cursor-codec-offline.test.ts|tests/tenant-list-bff-offline.test.ts|tests/f5-bff-tenant-cursor-offline.test.ts|tests/f6-api-key-tenant-select-offline.test.ts|tests/f2-overview-tenant-select-offline.test.ts|tests/f4-component-tenant-select.test.ts.

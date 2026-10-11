@@ -13,7 +13,7 @@ Không chạm: renderer cũ (`shell-render.ts`, section renderers), `components/
 | vắng / blank | **giữ nguyên hành vi cũ** (toàn bộ SPA như trước AWEB-08) |
 | danh sách một phần (vd `overview,security`) | route trong list → 200 index thật; route ngoài list → **một 404 document nhất quán** ("Route not enabled on this deployment") + link `/admin` |
 | tên lạ (vd `overview,bogus`) | tên lạ bị bỏ (log warn), phần còn lại vẫn áp dụng |
-| `,` (present, rỗng sau parse) | chỉ shell root `/admin/web` còn reachable (fail-closed) |
+| `,` (present, rỗng sau parse) | chỉ shell root `admin` còn reachable (fail-closed) |
 
 **Quyết định “route ngoài allow-list”**: chọn **not-found nhất quán ở tầng server** (không auto-redirect), vì (a) contract §1 nói “route chưa chuyển tiếp tiếp tục dùng renderer hiện tại” — legacy vẫn phục vụ tại `/admin/<section>`; (b) lease packet này không mở client (`router.tsx` không thuộc lease), nên lọc trong SPA cần packet sau; (c) fail-closed: route chỉ hiện khi được liệt kê tường minh. Trang 404 escape đúng segment (HTML-escape) và giữ CSP/no-store như index. Assets không bị gate (đi nhánh asset riêng).
 
@@ -23,7 +23,7 @@ Implementation: `shell-server.ts` — `parseAdminWebRoutes` (:402-421), mount gi
 
 | Route | UI verdict hiện có | Điều kiện cutover (AWEB-08) | Trạng thái |
 |---|---|---|---|
-| `/admin/web` (shell + bootstrap) | **UI_APPROVED** (AWEB-01b: direct/reload/login/logout/keyboard/theme/320px; 6 case) | mount gate + session gate giữ nguyên | đang tắt trong deployment (`DU_ADMIN_WEB` chưa set — LIV-03) |
+| `admin` (shell + bootstrap) | **UI_APPROVED** (AWEB-01b: direct/reload/login/logout/keyboard/theme/320px; 6 case) | mount gate + session gate giữ nguyên | đang tắt trong deployment (`DU_ADMIN_WEB` chưa set — LIV-03) |
 | `/overview` | **UI_APPROVED** (AWEB-03b accepted; 7 case browser) | + evidence live của service theo route khi bật | có thể bật đầu tiên khi triển khai |
 | `/security` | PENDING review #2 (Antigravity UI review) | backend REAL (crypto-config; 503 nếu chưa compose) + UI_APPROVED | chờ review #2 |
 | `/identity`, `/settings` | PENDING review #2 | honest-unavailable (chưa có backend LOCAL/OIDC/DEP) — chỉ bật khi đã chấp nhận trạng thái honest | chờ review #2 |

@@ -40,37 +40,37 @@ Call log:
         - generic [ref=e19]:
           - paragraph [ref=e20]: Workspace
           - link "Overview" [ref=e21] [cursor=pointer]:
-            - /url: /admin/web/overview
+            - /url: admin/overview
           - link "Operations" [ref=e22] [cursor=pointer]:
-            - /url: /admin/web/operations
+            - /url: admin/operations
           - link "Usage" [ref=e23] [cursor=pointer]:
-            - /url: /admin/web/usage
+            - /url: admin/usage
         - generic [ref=e24]:
           - paragraph [ref=e25]: Configuration
           - link "Businesses" [ref=e26] [cursor=pointer]:
-            - /url: /admin/web/businesses
+            - /url: admin/businesses
           - link "Profiles" [ref=e27] [cursor=pointer]:
-            - /url: /admin/web/profiles
+            - /url: admin/profiles
           - link "Connectors" [ref=e28] [cursor=pointer]:
-            - /url: /admin/web/connectors
+            - /url: admin/connectors
           - link "Workflows" [ref=e29] [cursor=pointer]:
-            - /url: /admin/web/workflows
+            - /url: admin/workflows
         - generic [ref=e30]:
           - paragraph [ref=e31]: Administration
           - link "API keys" [ref=e32] [cursor=pointer]:
-            - /url: /admin/web/api-keys
+            - /url: admin/api-keys
           - link "Security" [ref=e33] [cursor=pointer]:
-            - /url: /admin/web/security
+            - /url: admin/security
           - link "Identity" [ref=e34] [cursor=pointer]:
-            - /url: /admin/web/identity
+            - /url: admin/identity
           - link "Settings" [ref=e35] [cursor=pointer]:
-            - /url: /admin/web/settings
+            - /url: admin/settings
         - generic [ref=e36]:
           - paragraph [ref=e37]: Resources
           - link "Documentation" [ref=e38] [cursor=pointer]:
-            - /url: /admin/web/docs
+            - /url: admin/docs
           - link "Bootstrap" [ref=e39] [cursor=pointer]:
-            - /url: /admin/web
+            - /url: admin
         - link "Legacy shell" [ref=e40] [cursor=pointer]:
           - /url: /admin
     - main [ref=e41]:
@@ -259,7 +259,7 @@ Call log:
   20 |     saved = route.request().postDataJSON() as Record<string, unknown>;
   21 |     await route.fulfill({ json: { revision: 2 } });
   22 |   });
-  23 |   await page.goto(`${BASE}/admin/web/profiles`);
+  23 |   await page.goto(`${BASE}admin/profiles`);
   24 |   await page.locator('#profile-business').fill('doc-core');
   25 |   await page.locator('#profile-version').fill('v1');
   26 |   await page.locator('#profile-name').fill('privacy');
@@ -281,7 +281,7 @@ Call log:
   41 |     const operation = { id: 'privacy-op', state: 'RUNNING', businessId: 'doc-core', action: 'extract' };
   42 |     await page.route('**/admin/api/operations', route => route.fulfill({ json: { items: [operation] } }));
   43 |     await page.route('**/admin/api/operations/privacy-op', route => route.fulfill({ json: { operation, requestInput: { status, ruleCount: 1, data: status === 'HIDDEN' ? '[REDACTED]' : { phone: '090*******' } } } }));
-  44 |     await page.goto(`${BASE}/admin/web/operations`);
+  44 |     await page.goto(`${BASE}admin/operations`);
   45 |     await page.getByRole('button', { name: /privacy-/ }).click();
   46 |     await expect(page.getByLabel('Request input', { exact: true })).toContainText(status === 'HIDDEN' ? '[REDACTED]' : '090*******');
   47 |     await expect(page.locator('body')).not.toContainText('0901234567');

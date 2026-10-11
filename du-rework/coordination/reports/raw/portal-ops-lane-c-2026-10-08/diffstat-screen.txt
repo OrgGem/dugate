@@ -1,0 +1,7 @@
+Directory: D:\Git\dugate\du-rework
+Output:  .../src/features/operations/operations-screen.tsx  | 145 ++++++++++++++++++++-
+ 1 file changed, 140 insertions(+), 5 deletions(-)
+Error: (none)
+Exit Code: 0
+Signal: (none)
+Process Group PGID: 25988

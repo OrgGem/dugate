@@ -30,7 +30,7 @@ function info(label, detail) {
 }
 
 async function openSecretsModal(page) {
-  await page.goto(BASE + '/admin/web/secrets', { waitUntil: 'networkidle' });
+  await page.goto(BASE + 'admin/secrets', { waitUntil: 'networkidle' });
   await page.fill('#secrets-tenant', TENANT);
   await page.getByRole('button', { name: 'New secret' }).click();
   await page.getByRole('radio', { name: 'Vault reference' }).click();
@@ -51,7 +51,7 @@ async function main() {
     if (r.method() === 'POST' && /\/admin\/api\/secrets/.test(r.url())) posts.push(r.url());
   });
 
-  await page.goto(BASE + '/admin/web', { waitUntil: 'domcontentloaded' });
+  await page.goto(BASE + 'admin', { waitUntil: 'domcontentloaded' });
   await page.fill('input[name="token"]', TOKEN);
   await page.click('button[type="submit"]');
   await page.waitForURL((u) => u.pathname === '/admin');

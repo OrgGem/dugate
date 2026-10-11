@@ -281,8 +281,8 @@ export async function resolveOpaqueSession(
   }
   const rec = await store.get(sessionId);
   if (!rec) return { state: 'dead', reason: 'absent_or_revoked' };
-  // The sync handlers only ever read claims.role for the guard; TTL is
-  // enforced by the store itself (dead/revoked => get() returns null).
+  // The sync handlers use role for the page guard and the stored tenant for
+  // tenant-scoped legacy reads; TTL is enforced by the store itself.
   // W-ENC-08-CSRF-OIDC (Delta 113): the session's server-side csrfToken
   // rides along so the crypto-config gate verifies the SAME proof the session
   // plane minted, instead of a legacy du_admin-derived one.
@@ -293,6 +293,7 @@ export async function resolveOpaqueSession(
     claims: {
       iss: 'du-admin-shell',
       role: rec.role,
+      tenantId: rec.tenantId,
       iat: nowSec,
       exp: nowSec,
     },

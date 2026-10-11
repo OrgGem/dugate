@@ -1,6 +1,8 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { buildSetCookieHeader } from '../../app/admin/shell-auth';
 import type { AdminActionAuth, AdminPrincipal, AdminSessionDeadReason } from '../admin-actions/rbac';
+import type { SessionRepository } from './session-repository';
+export type { SessionRepository } from './session-repository';
 
 /**
  * OIDC-02 / SEC-02 — opaque ADMIN SESSION STORE for the orchestrator.
@@ -47,20 +49,6 @@ export interface SessionRecord {
   expiresAt: number;
 }
 
-/**
- * Storage seam. A distributed deployment ships a Redis (SETEX) or Postgres
- * repository with the SAME semantics; deleteByPrincipal is optional
- * (index-by-principal is a deployment decision) — revokePrincipal fails
- * closed when absent rather than scanning.
- */
-export interface SessionRepository {
-  get(sessionId: string): Promise<SessionRecord | null>;
-  /** Upsert. Implementations MUST also set their own storage TTL (expiresAt). */
-  set(session: SessionRecord): Promise<void>;
-  delete(sessionId: string): Promise<boolean>;
-  revokePrincipal?(issuer: string, sub: string): Promise<number>;
-}
-
 export class SessionError extends Error {
   readonly code: string;
   constructor(code: string, message?: string) {
@@ -90,6 +78,13 @@ export function createMemorySessionRepository(): SessionRepository & { size(): n
     },
     async set(s) {
       map.set(s.sessionId, { ...s });
+    },
+    async touchIfExists(expected, lastSeenAt) {
+      const current = map.get(expected.sessionId);
+      if (current === undefined || !sameSessionGeneration(current, expected)) return null;
+      const touched = { ...current, lastSeenAt: Math.max(current.lastSeenAt, lastSeenAt) };
+      map.set(expected.sessionId, touched);
+      return { ...touched };
     },
     async delete(id) {
       return map.delete(id);
@@ -138,12 +133,23 @@ export function createSessionStore(opts: SessionStoreOptions) {
     throw new SessionError('config', 'idleTtlMs must be within (0, absoluteTtlMs]');
   }
 
+  // Older single-process repository adapters may not yet expose the atomic
+  // touch primitive. Serialize their reads/writes with logout and rotation;
+  // shared/persistent adapters use touchIfExists() to coordinate replicas.
+  let legacyTail: Promise<void> = Promise.resolve();
+  function coordinate<T>(operation: () => Promise<T>): Promise<T> {
+    if (opts.repo.touchIfExists) return operation();
+    const result = legacyTail.then(operation, operation);
+    legacyTail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
   async function kill(id: string): Promise<null> {
     await opts.repo.delete(id);
     return null;
   }
 
-  async function create(identity: SessionIdentity): Promise<SessionRecord> {
+  async function createUnlocked(identity: SessionIdentity): Promise<SessionRecord> {
     if (!identity || typeof identity !== 'object') throw new SessionError('invalid-identity');
     if (!isValidNonEmpty(identity.issuer) || !isValidNonEmpty(identity.sub)) {
       throw new SessionError('invalid-identity', 'issuer and sub are required');
@@ -170,18 +176,32 @@ export function createSessionStore(opts: SessionStoreOptions) {
     return { ...record };
   }
 
+  function create(identity: SessionIdentity): Promise<SessionRecord> {
+    return coordinate(() => createUnlocked(identity));
+  }
+
   /** Read + sliding-touch. null for unknown/invalid/expired/idle-dead —
    *  ONE indistinguishable path, with lazy eviction. */
-  async function get(sessionId: string): Promise<SessionRecord | null> {
+  async function getUnlocked(sessionId: string): Promise<SessionRecord | null> {
     if (!isValidSessionId(sessionId)) return null; // hostile input never reaches storage
     const rec = await opts.repo.get(sessionId);
     if (!rec) return null;
     const at = now();
     if (at >= rec.expiresAt) return kill(sessionId); // absolute TTL
     if (at - rec.lastSeenAt > idleTtlMs) return kill(sessionId); // idle expiry
-    const touched: SessionRecord = { ...rec, lastSeenAt: at };
+    if (opts.repo.touchIfExists) {
+      const touched = await opts.repo.touchIfExists(rec, at);
+      return touched ? { ...touched } : null;
+    }
+    const current = await opts.repo.get(sessionId);
+    if (!sameSessionGeneration(current, rec)) return null;
+    const touched: SessionRecord = { ...current, lastSeenAt: Math.max(current.lastSeenAt, at) };
     await opts.repo.set(touched);
     return { ...touched };
+  }
+
+  function get(sessionId: string): Promise<SessionRecord | null> {
+    return coordinate(() => getUnlocked(sessionId));
   }
 
   /**
@@ -192,7 +212,7 @@ export function createSessionStore(opts: SessionStoreOptions) {
    * own storage TTL drops rows (Redis SETEX) will report its expired
    * sessions as absent_or_revoked — the merged reason is honest about it.
    */
-  async function classify(sessionId: string): Promise<AdminSessionDeadReason> {
+  async function classifyUnlocked(sessionId: string): Promise<AdminSessionDeadReason> {
     if (!isValidSessionId(sessionId)) return 'invalid_shape';
     const rec = await opts.repo.get(sessionId);
     if (!rec) return 'absent_or_revoked';
@@ -202,38 +222,66 @@ export function createSessionStore(opts: SessionStoreOptions) {
     return 'live';
   }
 
+  function classify(sessionId: string): Promise<AdminSessionDeadReason> {
+    return coordinate(() => classifyUnlocked(sessionId));
+  }
+
   /**
    * Session-fixation defense: call IMMEDIATELY AFTER login (IdP callback)
    * so a cookie planted pre-login names nothing. Identity + csrf + absolute
    * deadline carry over; the id is fresh; the old id is deleted. Null (and
    * no mutation) when the old id is dead — a dead session cannot rotate.
    */
-  async function rotate(sessionId: string): Promise<SessionRecord | null> {
-    const rec = await get(sessionId);
+  async function rotateUnlocked(sessionId: string): Promise<SessionRecord | null> {
+    const rec = await getUnlocked(sessionId);
     if (!rec) return null;
-    await opts.repo.delete(sessionId);
+    if (!(await opts.repo.delete(sessionId))) return null;
     const next: SessionRecord = { ...rec, sessionId: newOpaqueId(), lastSeenAt: now() };
     await opts.repo.set(next);
     return { ...next };
   }
 
+  function rotate(sessionId: string): Promise<SessionRecord | null> {
+    return coordinate(() => rotateUnlocked(sessionId));
+  }
+
   /** Logout: immediate, idempotent. */
-  async function destroy(sessionId: string): Promise<boolean> {
+  async function destroyUnlocked(sessionId: string): Promise<boolean> {
     if (!isValidSessionId(sessionId)) return false;
     return opts.repo.delete(sessionId);
+  }
+
+  function destroy(sessionId: string): Promise<boolean> {
+    return coordinate(() => destroyUnlocked(sessionId));
   }
 
   /** Nuclear revoke (admin removed a user / credential rotation): all of a
    *  principal's sessions. Fail-closed when the repository cannot index
    *  by principal — silently returning 0 would be a lie. */
-  async function revokePrincipal(issuer: string, sub: string): Promise<number> {
+  async function revokePrincipalUnlocked(issuer: string, sub: string): Promise<number> {
     if (!opts.repo.revokePrincipal) {
       throw new SessionError('revoke-principal-unsupported');
     }
     return opts.repo.revokePrincipal(issuer, sub);
   }
 
+  function revokePrincipal(issuer: string, sub: string): Promise<number> {
+    return coordinate(() => revokePrincipalUnlocked(issuer, sub));
+  }
+
   return { create, get, classify, rotate, destroy, revokePrincipal, config: { absoluteTtlMs, idleTtlMs } };
+}
+
+function sameSessionGeneration(current: SessionRecord | null, expected: SessionRecord): current is SessionRecord {
+  return current !== null &&
+    current.sessionId === expected.sessionId &&
+    current.issuer === expected.issuer &&
+    current.sub === expected.sub &&
+    current.tenantId === expected.tenantId &&
+    current.role === expected.role &&
+    current.csrfToken === expected.csrfToken &&
+    current.createdAt === expected.createdAt &&
+    current.expiresAt === expected.expiresAt;
 }
 
 function isValidNonEmpty(v: string | undefined | null): v is string {

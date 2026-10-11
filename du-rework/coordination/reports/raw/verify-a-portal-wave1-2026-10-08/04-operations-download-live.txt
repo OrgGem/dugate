@@ -1,0 +1,11 @@
+cwd: D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+command: node tests/operations-download-live-offline.cjs
+exit: 0
+--- output ---
+ok   OPS-2: a 1s tick interval exists while a non-terminal op is shown
+ok   OPS-2: unknown start renders Unknown, never a fabricated 0
+ok   OPS-2: clock ticks without a manual refresh (the interval drives the elapsed text)
+ok   OPS-1: artifact with downloadUrl renders a real download link
+ok   OPS-1: artifact without downloadUrl renders unavailable text, never a broken anchor
+ok   OPS-2: no interval starts when every op is terminal
+PASS operations-download-live-offline.cjs - 6 assertions (OPU-OPS-1 x2, OPU-OPS-2 x4)

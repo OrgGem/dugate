@@ -1,0 +1,7 @@
+{"subsystem":"admin-shell","errorClass":"VaultError","routeId":"error","timestamp":"2026-10-08T11:50:10.218Z","level":"error","service":"orchestrator","version":"unknown","environment":"test","correlationId":"908dabdb-a09d-42ef-ab8d-a2d224df6b68","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] unhandled request error"}
+
+Test Suites: 4 passed, 4 total
+Tests:       84 passed, 84 total
+Snapshots:   0 total
+Time:        3.614 s
+Ran all test suites matching tests/admin-audit-mount.test.ts|tests/admin-audit-query.test.ts|tests/admin-error-boundary-offline.test.ts|tests/v1-boot-typed-denial.test.ts.

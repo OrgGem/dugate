@@ -1,0 +1,19 @@
+TASK: AP-03-OPENAPI-STALENESS-INDICATOR-2026-10-09
+REPO: du-rework only
+PLAN: coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md
+EXACT PATH LEASE:
+du-rework/orchestrator/apps/admin-web/src/features/api-docs/api-docs-screen.tsx
+RECEIPT: du-rework/coordination/reports/receipt-ap03-openapi-staleness-2026-10-09.md
+RANG BUOC: Khong commit, khong git add, khong touch file ngoai lease, khong sua backend.
+
+MUC TIEU:
+Tai api-docs-screen.tsx dong 59-73 (SpecBuildLabel), hien thi thong tin build va tinh trang cap nhat cua OpenAPI spec ro rang hon (nhu badge hoac thong bao freshness/bundled date ben canh fingerprint).
+
+CAC BUOC:
+1. Xem component SpecBuildLabel trong api-docs-screen.tsx.
+2. Nang cap giao dien label/badge:
+- Bo sung thong tin freshness/bundled build time hoac last-check indicator de nguoi dung biet trang thai cua bundle spec.
+3. Kiem tra build:
+cd du-rework/orchestrator/apps/admin-web
+node ../../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+4. Ghi smoke receipt vao du-rework/coordination/reports/receipt-ap03-openapi-staleness-2026-10-09.md.

@@ -87,7 +87,7 @@
 
 1. **Build/TS:** admin-web build exit 0; orchestrator typecheck exit 0.
 2. **BFF fences (12/12):** login/session; create thiếu CSRF → 403 `CSRF_REJECTED`; body sai → 422 `INVALID_SCHEMA`; 422 không echo sentinel; create hợp lệ không 405 (dispatch SC-04-M02 chạy); list không 401/405; `GET /test` → 405; `POST /test` ≠ 405; rotate thiếu `expectedRevision` → 422 và không echo sentinel.
-3. **Honest error path:** khi upstream catalog vắng, `/admin/web/secrets` render error state, không bịa row, không page error, không plaintext.
+3. **Honest error path:** khi upstream catalog vắng, `admin/secrets` render error state, không bịa row, không page error, không plaintext.
 4. **Không rò plaintext** theo §2; không có browser storage/log.
 
 ## 5. Bằng chứng raw

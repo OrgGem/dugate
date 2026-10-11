@@ -2,7 +2,7 @@ import type { PinnedSourceStorage, SdkFetcher } from '@du/worker-sdk';
 import type { Db } from '../src/db/db';
 import {
   createIngestionConsumer,
-  type IngestionConsumerOptions,
+  sourceCredentialOriginModeFromEnv,
 } from '../src/modules/operations/ingestion-consumer';
 import { SourceAuthDeniedError } from '../src/modules/operations/acquisition-ref-resolver';
 
@@ -27,6 +27,19 @@ const TASK = '62000000-0000-4000-8000-000000000001';
 const OUTBOX = '64000000-0000-4000-8000-000000000001';
 const SOURCE_URL = 'https://files.example/report.pdf';
 const TOKEN_SENTINEL = 'sentinel-source-token-42';
+
+describe('OR10-01 source credential mode configuration', () => {
+  it('defaults to warn and accepts the explicit enforce rollout value', () => {
+    expect(sourceCredentialOriginModeFromEnv({})).toBe('warn');
+    expect(sourceCredentialOriginModeFromEnv({ DU_SOURCE_CREDENTIAL_ORIGIN_MODE: 'warn' })).toBe('warn');
+    expect(sourceCredentialOriginModeFromEnv({ DU_SOURCE_CREDENTIAL_ORIGIN_MODE: 'enforce' })).toBe('enforce');
+  });
+
+  it('refuses an unknown mode instead of silently weakening policy', () => {
+    expect(() => sourceCredentialOriginModeFromEnv({ DU_SOURCE_CREDENTIAL_ORIGIN_MODE: 'disabled' }))
+      .toThrow('DU_SOURCE_CREDENTIAL_ORIGIN_MODE must be "warn" or "enforce"');
+  });
+});
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
@@ -162,6 +175,7 @@ describe('P730-ACQUIRE consumer — deny before network, attach on fetch', () =>
       transfer: { maxBytes: 1024, timeoutMs: 1_000, maxRedirects: 0, fetcher },
       storageBackend: 's3',
       resolveSourceAuth: async () => ({ kind: 'bearer', token: TOKEN_SENTINEL }),
+      sourceCredentialOriginMode: 'warn',
     });
 
     const result = await consumer.runOnce();
@@ -170,6 +184,55 @@ describe('P730-ACQUIRE consumer — deny before network, attach on fetch', () =>
     expect(state.retryParams).toHaveLength(1);
     expect(state.failTaskParams).toHaveLength(0);
     // The credential never touched a durable statement or an error code.
+    expect(JSON.stringify(state)).not.toContain(TOKEN_SENTINEL);
+  });
+
+  it('warn mode reports a missing or mismatched allowlist and still performs the legacy authenticated fetch', async () => {
+    const { db } = makeRouter();
+    const fetcher = (async () => { throw new Error('socket down'); }) as SdkFetcher;
+    const onCredentialOriginWarning = jest.fn();
+    const consumer = createIngestionConsumer({
+      db,
+      storage: makeStorage(),
+      transfer: { maxBytes: 1024, timeoutMs: 1_000, maxRedirects: 0, fetcher },
+      storageBackend: 's3',
+      sourceCredentialOriginMode: 'warn',
+      resolveSourceAuth: async () => ({ kind: 'bearer', token: TOKEN_SENTINEL, allowedOrigins: [] }),
+      onCredentialOriginWarning,
+    });
+
+    const result = await consumer.runOnce();
+    expect(result.retried).toBe(1);
+    expect(onCredentialOriginWarning).toHaveBeenCalledTimes(1);
+    expect(onCredentialOriginWarning).toHaveBeenCalledWith({
+      code: 'ORIGIN_POLICY_MISSING',
+      origin: 'https://files.example',
+      operationId: OP,
+      tenantId: TENANT,
+      mode: 'warn',
+    });
+  });
+
+  it.each([
+    [[], 'ORIGIN_POLICY_MISSING'],
+    [['https://approved.example'], 'ORIGIN_NOT_ALLOWLISTED'],
+  ] as const)('enforce mode permanently denies source auth before fetch (%s)', async (allowedOrigins, code) => {
+    const { db, state } = makeRouter();
+    const fetcher = jest.fn(async () => new Response('unexpected', { status: 200 })) as unknown as SdkFetcher;
+    const consumer = createIngestionConsumer({
+      db,
+      storage: makeStorage(),
+      transfer: { maxBytes: 1024, timeoutMs: 1_000, maxRedirects: 0, fetcher },
+      storageBackend: 's3',
+      sourceCredentialOriginMode: 'enforce',
+      resolveSourceAuth: async () => ({ kind: 'bearer', token: TOKEN_SENTINEL, allowedOrigins }),
+    });
+
+    const result = await consumer.runOnce();
+    expect(result).toMatchObject({ opened: 0, retried: 0, escalated: 1 });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(state.failTaskParams[0]?.[1]).toBe(code);
+    expect(state.failOperationParams[0]?.[1]).toBe(code);
     expect(JSON.stringify(state)).not.toContain(TOKEN_SENTINEL);
   });
 

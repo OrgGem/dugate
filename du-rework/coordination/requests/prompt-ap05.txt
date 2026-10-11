@@ -1,0 +1,18 @@
+TASK: AP-05-LEGACY-SHELL-LINK-2026-10-09
+REPO: du-rework only
+PLAN: coordination/PLAN-UI-BUSINESS-WORKFLOW-2026-10-08.md
+EXACT PATH LEASE:
+du-rework/orchestrator/apps/admin-web/src/app-shell/app-shell.tsx
+RECEIPT: du-rework/coordination/reports/receipt-ap05-legacy-shell-link-2026-10-09.md
+RANG BUOC: Khong commit, khong git add, khong touch file ngoai lease, khong sua backend.
+
+MUC TIEU:
+Tai app-shell.tsx dong 137, lam ro link sang Legacy shell (hien tai la link tron de bi bo sot). Bo sung nhan hoac bieu tuong ro rang hon (vi du kem icon external hoac styling ro net) giup operator nhan dien de dang.
+
+CAC BUOC:
+1. Xem phan render link /admin trong app-shell.tsx dong 137.
+2. Cap nhat giao dien link de lam noi bat hon (kem label Legacy Admin Shell va icon phu hop).
+3. Kiem tra build:
+cd du-rework/orchestrator/apps/admin-web
+node ../../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+4. Ghi smoke receipt vao du-rework/coordination/reports/receipt-ap05-legacy-shell-link-2026-10-09.md.

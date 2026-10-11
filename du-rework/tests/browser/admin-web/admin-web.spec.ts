@@ -37,7 +37,7 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
 
   /** Token login through the real shell form; lands on /admin (legacy redirect). */
   async function login(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
@@ -45,19 +45,19 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
   }
 
   async function gotoApp(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Orchestrator Portal bootstrap is running' })).toBeVisible();
   }
 
-  test('1. direct unauth /admin/web -> 302 login; login form renders', async ({ page }) => {
-    const redirect = await page.request.get(`${BASE}/admin/web`, {
+  test('1. direct unauth admin -> 302 login; login form renders', async ({ page }) => {
+    const redirect = await page.request.get(`${BASE}admin`, {
       maxRedirects: 0,
       failOnStatusCode: false,
     });
     expect(redirect.status()).toBe(302);
     expect(redirect.headers()['location']).toBe('/admin/login');
 
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     expect(new URL(page.url()).pathname).toBe('/admin/login');
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await expect(page).toHaveTitle(/Admin/);
@@ -81,7 +81,7 @@ test.describe('AWEB-01b browser evidence (harness seam)', () => {
     await login(page);
     await gotoApp(page);
     await page.reload({ waitUntil: 'networkidle' });
-    expect(new URL(page.url()).pathname).toBe('/admin/web');
+    expect(new URL(page.url()).pathname).toBe('admin');
     await expect(page.getByRole('heading', { name: 'Orchestrator Portal bootstrap is running' })).toBeVisible();
     await shot(page, '03-reload.png');
   });

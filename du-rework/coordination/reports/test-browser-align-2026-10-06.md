@@ -29,7 +29,7 @@ Running 4 tests using 1 worker
   x 3 …320px navigation and UTC calendar validation
   x 4 …connector suggestions come from the advertised management list
 
-Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:5173/admin/web/...
+Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:5173admin/...
 4 failed   Exit Code: 1
 ```
 

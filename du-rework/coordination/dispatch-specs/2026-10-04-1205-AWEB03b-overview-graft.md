@@ -10,7 +10,7 @@
 ## Việc cần làm (AWEB-03b)
 
 1. **Review độc lập diff component của Antigravity** (trước khi ghép, theo contract §5): props contract, dependency, fixture, a11y, token dùng đúng 1 nguồn; finding ghi vào receipt (nếu có) — không tự sửa file component (lease Antigravity); nếu cần sửa → báo coordinator.
-2. **Ghép màn Overview read-only** vào shell mới (`/admin/web`):
+2. **Ghép màn Overview read-only** vào shell mới (`admin`):
    - Dùng primitives `@/components/ui` + `lib/api` (AWEB-02);
    - Dữ liệu thật theo tenant: bắt buộc **audit list** qua BFF `/admin/api/audit` (đã có); session card; các tile usage/operations nếu backend chưa expose → hiện trạng thái honest (`unavailable`/`requires backend`) — **không dữ liệu giả**;
    - Đủ state `loading/ready/empty/error/denied`; `401` → link login; `403` → denied; lỗi mạng → error có retry.
@@ -25,7 +25,7 @@
 
 ## Sau packet này
 
-- Coordinator gọi **Antigravity review UI** cho route `/admin/web` (packet review riêng theo contract §5) — chưa phải bước của lane này.
+- Coordinator gọi **Antigravity review UI** cho route `admin` (packet review riêng theo contract §5) — chưa phải bước của lane này.
 
 ## Deliverable
 

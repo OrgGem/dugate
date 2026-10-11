@@ -15,7 +15,7 @@ Từ review độc lập của integrator (`reports/aweb03b-overview-graft-2026-
 
 Sau fix: build + typecheck xanh; nếu đổi props/export nào ảnh hưởng integrator → ghi rõ trong receipt (không tự sửa file integrator).
 
-## Phần 2 — UI review packet cho route `/admin/web` + `/admin/web/overview` (contract §5)
+## Phần 2 — UI review packet cho route `admin` + `admin/overview` (contract §5)
 
 - Chạy trên **build mới nhất** (sau fixes, `pnpm --filter @du/admin-web build`); có thể chạy lại browser suite hiện có (read-only) làm evidence: harness `tests/browser/admin-web/**` (cc_2/cc_1 mở rộng) — `npx playwright test --config admin-web/playwright.config.ts`.
 - Đối chiếu theo contract §5: screen spec (route/role/tenant/state), hành trình, lỗi 401/403/409/422, loading/empty/denied/conflict, responsive 320px, keyboard/focus, a11y, light/dark, nhất quán token/component; review trên route/browser + diff source (không duyệt bằng demo component riêng lẻ).

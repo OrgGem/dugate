@@ -2,6 +2,16 @@
 
 const path = require('node:path');
 
+const REQUIRED_CONTEXT_CALLBACKS = Object.freeze([
+  'prepareConnector',
+  'resolveProfileName',
+  'normalizeConnectionsOverride',
+  'prepareWorkflowSchema',
+  'readFileCacheBytes',
+  'artifactTokenFor',
+  'artifactPurposeFor',
+]);
+
 const LEGACY_TABLES = Object.freeze([
   'Operation',
   'ApiKey',
@@ -146,13 +156,28 @@ function requireContextFunction(provider, name) {
 }
 
 function loadContextProvider(env) {
-  const modulePath = env.LDBA03_CONTEXT_MODULE;
-  if (!modulePath) return null;
-  const resolved = path.resolve(modulePath);
-  const loaded = require(resolved);
+  const configuredPath = env.LDBA03_CONTEXT_MODULE;
+  const resolved = configuredPath && configuredPath.trim().length > 0
+    ? path.resolve(configuredPath)
+    : path.resolve(__dirname, 'ldba-context-provider.cjs');
+  let loaded;
+  try {
+    loaded = require(resolved);
+  } catch {
+    throw new AdapterConfigurationError(
+      'CONTEXT_MODULE_LOAD_FAILED',
+      'LDBA03 context provider module could not be loaded',
+    );
+  }
   const provider = loaded && loaded.default ? loaded.default : loaded;
-  if (!provider || typeof provider !== 'object') {
+  if (!provider || typeof provider !== 'object' || Array.isArray(provider)) {
     throw new AdapterConfigurationError('INVALID_CONTEXT_MODULE', 'context module must export a policy object');
+  }
+  if (REQUIRED_CONTEXT_CALLBACKS.some((name) => typeof provider[name] !== 'function')) {
+    throw new AdapterConfigurationError(
+      'INCOMPLETE_CONTEXT_MODULE',
+      'LDBA03 context provider is missing a required callback',
+    );
   }
   return provider;
 }
@@ -670,6 +695,7 @@ const api = {
   ENTITY_SPECS,
   LEGACY_TABLES,
   createAdapter,
+  loadContextProvider,
 };
 
 const defaultAdapter = process.env.LDBA03_ADAPTER_LIBRARY === '1' ? null : createAdapter();

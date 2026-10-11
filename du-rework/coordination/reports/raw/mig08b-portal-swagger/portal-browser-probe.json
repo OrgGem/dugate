@@ -1,5 +1,5 @@
 {
-  "url": "http://localhost:4173/admin/web/api-docs",
+  "url": "http://localhost:4173admin/api-docs",
   "checks": [
     {
       "name": "document.title",

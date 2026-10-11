@@ -1298,7 +1298,7 @@ describe('platform-mount: attachAdminShell (P6-06, deferred operations section)'
     expect(operationsSeen[0]!.adminToken).toBe(TOKEN);
   });
 
-  it('GET /admin/operations with viewer role → 200 + fetcher invoked (viewer is allowed)', async () => {
+  it('GET /admin/operations with viewer role → 403 and no platform-backed fetch', async () => {
     const callsBefore = operationsSeen.length;
     const cookie = signCookie(SECRET, {
       iss: 'du-admin-shell',
@@ -1309,9 +1309,9 @@ describe('platform-mount: attachAdminShell (P6-06, deferred operations section)'
     const res = await httpRequest(`${baseUrl}/admin/operations?operationId=op_42`, {
       headers: { cookie: `du_admin=${cookie}` },
     });
-    expect(res.status).toBe(200);
-    expect(res.body).toContain('data-operation-selected="op_42"');
-    expect(operationsSeen.length).toBe(callsBefore + 1);
+    expect(res.status).toBe(403);
+    expect(res.body).toContain('Access denied');
+    expect(operationsSeen.length).toBe(callsBefore);
   });
 
   it('missing cookie on /admin/operations → 401 (no fetcher invocation)', async () => {
@@ -1497,7 +1497,7 @@ describe('platform-mount: attachAdminShell (P6-07, deferred overview section)', 
     expect(overviewSeen[overviewSeen.length - 1]!.adminToken).toBe(TOKEN);
   });
 
-  it('GET /admin/overview with viewer role → 200 + fetcher invoked (viewer is allowed)', async () => {
+  it('GET /admin/overview with viewer role → 403 and no platform-backed fetch', async () => {
     const callsBefore = overviewSeen.length;
     const cookie = signCookie(SECRET, {
       iss: 'du-admin-shell',
@@ -1509,10 +1509,9 @@ describe('platform-mount: attachAdminShell (P6-07, deferred overview section)', 
       `${baseUrl}/admin/overview?tenantId=tenant-main`,
       { headers: { cookie: `du_admin=${cookie}` } },
     );
-    expect(res.status).toBe(200);
-    expect(res.body).toContain('data-overview-tenant="tenant-main"');
-    expect(res.body).toContain('data-usage-row="openai|gpt-4o-mini"');
-    expect(overviewSeen.length).toBe(callsBefore + 1);
+    expect(res.status).toBe(403);
+    expect(res.body).toContain('Access denied');
+    expect(overviewSeen.length).toBe(callsBefore);
   });
 
   it('missing cookie on /admin/overview → 401 (no fetcher invocation)', async () => {

@@ -86,6 +86,6 @@ receiver `receipts.jsonl`, `sentinels.json`).
   exact synthetic client secret through the dispatcher's resolver seam instead of pretending the
   catalog exists.
 - Separate gates not covered here: live boot matrix / `ENCRYPTION_KEY` policy (F-VFY6-01),
-  Portal `/admin/web/secrets` roundtrip, full operation→terminal→delivery E2E.
+  Portal `admin/secrets` roundtrip, full operation→terminal→delivery E2E.
 - No commit/push; no task/gate tick. The candidate live run is the independent tester's step on
   the frozen r4.1 artifacts.

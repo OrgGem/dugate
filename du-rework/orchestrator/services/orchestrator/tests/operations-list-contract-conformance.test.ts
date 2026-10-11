@@ -120,7 +120,7 @@ describe('W-CONTRACT-ALIGN-1: route responses satisfy the published page schema'
 });
 
 describe('W-CONTRACT-ALIGN-1: the route reads exactly the contract parameter set', () => {
-  it('the contract declares six parameters', () => {
+  it('the contract declares eight parameters', () => {
     expect([...OPERATIONS_LIST_QUERY_PARAMS]).toEqual([
       'limit',
       'cursor',
@@ -128,6 +128,8 @@ describe('W-CONTRACT-ALIGN-1: the route reads exactly the contract parameter set
       'tenant',
       'id',
       'sort',
+      'from',
+      'to',
     ]);
   });
 
@@ -156,6 +158,8 @@ describe('W-CONTRACT-ALIGN-1: the route reads exactly the contract parameter set
       tenant: 'tenant=bad%20token',
       id: 'id=bad%3Btoken',
       sort: 'sort=created_at:sideways',
+      from: 'from=2026-10-10',
+      to: 'to=2026-10-10',
     };
     // Derived from the contract instead of a literal list of names, so the
     // parameter added next cycle cannot quietly arrive without a wiring test:

@@ -6,7 +6,7 @@
 ## I. TỔNG QUAN PHẠM VI & MÔI TRƯỜNG KIỂM THỬ
 
 1. **Ứng dụng kiểm thử:** Orchestrator Portal (`orchestrator/apps/admin-web`, build Vite production).
-2. **Mount base URL:** `http://localhost:3301/admin/web/` (hoặc test preview `http://localhost:4173/admin/web/`).
+2. **Mount base URL:** `http://localhost:3301admin/` (hoặc test preview `http://localhost:4173admin/`).
 3. **Công cụ thực thi tự động:** Playwright Test Suite (Chromium & Mobile viewport Pixel 7/iPhone).
 4. **Các khía cạnh phát hiện lỗi UI bắt buộc (Defect Coverage):**
    - **Console Errors / Unhandled Exceptions:** 0 lỗi đỏ trong browser console (`window.onerror`, unhandled promise rejection).
@@ -24,7 +24,7 @@
 ## II. MA TRẬN KỊCH BẢN KIỂM THỬ CHI TIẾT THEO TỪNG MÀN HÌNH
 
 ### 1. App Shell & Điều Hướng Toàn Cục (App Shell & Navigation)
-- **Đường dẫn:** `/admin/web/`
+- **Đường dẫn:** `admin/`
 - **Mục tiêu test:**
   - Tiêu đề trang (`document.title`): Phải hiển thị chính xác **"Orchestrator Portal"**.
   - Thanh điều hướng bên trái (Sidebar Navigation): Hiển thị đầy đủ logo, các mục điều hướng:
@@ -40,7 +40,7 @@
 ---
 
 ### 2. Màn hình Tổng quan (Overview Screen)
-- **Đường dẫn:** `/admin/web/overview`
+- **Đường dẫn:** `admin/overview`
 - **Mục tiêu test:**
   - Thẻ thông tin Session: Hiển thị Tenant ID, Session Expiry, CSRF status.
   - Thẻ Metrics / Trạng thái hệ thống: Database (Healthy), Redis/Queue (Healthy), Worker Status.
@@ -53,7 +53,7 @@
 ---
 
 ### 3. Màn hình Khóa API (API Keys Screen)
-- **Đường dẫn:** `/admin/web/api-keys`
+- **Đường dẫn:** `admin/api-keys`
 - **Mục tiêu test:**
   - Bảng danh sách API Key: Key name, Prefix (`du_live_...`), Tenant ID, Created At, Status (`ACTIVE` / `REVOKED`).
   - Form Tạo mới API Key (Issue API Key):
@@ -70,7 +70,7 @@
 ---
 
 ### 4. Màn hình Quản lý Connector (Connectors Screen)
-- **Đường dẫn:** `/admin/web/connectors`
+- **Đường dẫn:** `admin/connectors`
 - **Mục tiêu test:**
   - Danh sách Connector Revisions: Adapter (`json-http`, `multipart-http`), State (`ACTIVE`, `DRAFT`, `DISABLED`).
   - Xem chi tiết Revision: Provider URL, Authentication Config, Capabilities (Test / Management / Invocation).
@@ -82,7 +82,7 @@
 ---
 
 ### 5. Màn hình Cấu hình Profile (Profiles Screen)
-- **Đường dẫn:** `/admin/web/profiles`
+- **Đường dẫn:** `admin/profiles`
 - **Mục tiêu test:**
   - Danh sách Business Profiles (ví dụ: `extraction-default`, `classification-fast`).
   - Liên kết slot (`reasoning`, `ocr`, `vision`) với Connector Revision tương ứng.
@@ -94,7 +94,7 @@
 ---
 
 ### 6. Màn hình Theo dõi Tác vụ (Operations Screen)
-- **Đường dẫn:** `/admin/web/operations`
+- **Đường dẫn:** `admin/operations`
 - **Mục tiêu test:**
   - Bảng danh sách Operations: Operation ID, Action (`ingest`, `extract`), State (`QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`).
   - Xem chi tiết Operation: Danh sách các Checkpoints (Step Name, Completed At), Artifact Output Link.
@@ -105,7 +105,7 @@
 ---
 
 ### 7. Màn hình Quản lý Business Workers (Businesses Screen)
-- **Đường dẫn:** `/admin/web/businesses`
+- **Đường dẫn:** `admin/businesses`
 - **Mục tiêu test:**
   - Danh sách Worker đã đăng ký: `document-core`, `lc-checker`, `example-review`.
   - Hiển thị Version đang kích hoạt (Active Version: `1.0.0`), Trạng thái (`ENABLED`, `ACTIVATED`).
@@ -117,7 +117,7 @@
 ---
 
 ### 8. Màn hình Cài đặt Hệ thống (Settings Screen)
-- **Đường dẫn:** `/admin/web/settings`
+- **Đường dẫn:** `admin/settings`
 - **Mục tiêu test:**
   - Danh mục 17 cấu hình hệ thống:
     * Port/Host Orchestrator Backend (`3000`/`3002`)
@@ -131,7 +131,7 @@
 ---
 
 ### 9. Màn hình Tài liệu Swagger UI / API Reference (Api Docs Screen)
-- **Đường dẫn:** `/admin/web/api-docs`
+- **Đường dẫn:** `admin/api-docs`
 - **Mục tiêu test:**
   - Nạp đầy đủ 57 endpoint operations và 14 schemas từ artifact `docs/21-openapi.json`.
   - Bộ lọc Family hoạt động: Bấm *Public* (12 ops), *Admin* (10 ops), *Runtime* (18 ops), *Connector* (17 ops).
@@ -145,7 +145,7 @@
 ---
 
 ### 10. Màn hình 404 & Xử lý Ngoại lệ (Not Found & Error Boundary)
-- **Đường dẫn:** `/admin/web/some-random-unknown-path`
+- **Đường dẫn:** `admin/some-random-unknown-path`
 - **Mục tiêu test:**
   - Render màn hình Not Found chuyên nghiệp: Tiêu đề "Admin — 404", mô tả lỗi lịch sự và nút bấm "Return to Admin home".
   - Thử nghiệm tắt backend BFF: Khi gọi API trả 500 hoặc rớt mạng, trang hiển thị `ErrorState` có nút "Retry / Thử lại", không văng màn hình trắng (White Screen of Death).

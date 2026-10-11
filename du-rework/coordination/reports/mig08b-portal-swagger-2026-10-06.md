@@ -1,4 +1,4 @@
-# PLAT-MIG-08B (Orchestrator Portal naming) + Swagger UI `/admin/web/api-docs` — receipt
+# PLAT-MIG-08B (Orchestrator Portal naming) + Swagger UI `admin/api-docs` — receipt
 
 Date: 2026-10-06. Owner: OpenCode (`oc_1`), write lease `apps/admin-web/**` (UI source only).
 Coordinator notice: master plan opened PLAT-MIG-08 (naming migration) and the PLAT-MIG-03 Swagger UI slice.
@@ -10,7 +10,7 @@ No backend/contracts/root-manifest edit was made. No commit, no tick, no push.
   server/runtime it says **Orchestrator Backend** (backend), alongside the existing **Connector Service** naming in
   the spec. Folder `apps/admin-web` and package identity `@du/admin-web` stay frozen for MIG-08C, as do the env keys
   (`DU_ADMIN_WEB*`) and every wire path (`/admin/*`, `/api/v1/admin/*`, BFF `/admin/api/*`).
-- **Swagger UI:** new route **`/api-docs`** (mounted at `/admin/web/api-docs`) renders the **generated**
+- **Swagger UI:** new route **`/api-docs`** (mounted at `admin/api-docs`) renders the **generated**
   `docs/21-openapi.json` artifact. The spec is imported as a raw build-time asset, so it ships inside the Portal
   bundle and loads offline from the image — no CDN, no runtime fetch, no second spec source, and no request is ever
   sent by the page. Operations are grouped/filtered by the generator's `tags` / `x-api-family` metadata
@@ -43,7 +43,7 @@ Edited (naming + registration):
 | `src/features/overview/overview-screen.tsx` | aria-label → `Orchestrator Portal sections` |
 | `src/features/connectors/curl-import.ts` | Comment updated (not displayed) |
 | `package.json` | `description` → Orchestrator Portal (name `@du/admin-web` unchanged per MIG-08A freeze) |
-| `README.md` | Product name/heading; new “API Reference (`/admin/web/api-docs`)” section + the `DU_ADMIN_WEB_ROUTES` deployment note |
+| `README.md` | Product name/heading; new “API Reference (`admin/api-docs`)” section + the `DU_ADMIN_WEB_ROUTES` deployment note |
 | `src/components/ui/README.md` | Opening line updated |
 | `vite.config.ts` | Comment updated (no behaviour change) |
 
@@ -60,7 +60,7 @@ Cwd `D:/Git/dugate/du-rework`; evidence in `coordination/reports/raw/mig08b-port
 | `pnpm --filter @du/admin-web typecheck` | 0 | `tsc --noEmit` clean (strict TS, `noUncheckedIndexedAccess`, no unused) | `portal-typecheck.log` |
 | `pnpm --filter @du/admin-web build` | 0 | Vite production build 2678 modules → `dist/assets/index-BFkVsTJy.js` 632.01 kB (gzip 173.38 kB); chunk-size warning only | `portal-build.log` |
 | build-output check | — | `dist/index.html` title `Orchestrator Portal`; the emitted JS contains the spec (`PM-M02 Public JSON ingress` ×13, `x-api-family` ×59) → spec is bundled offline | `portal-build.log` (dist paths) |
-| Playwright probe (Chromium, against `vite preview` of the built dist at `http://localhost:4173/admin/web/api-docs`) | 0 | **13/13 checks passed**, `externalRequests: []` (zero network beyond the local static assets); screenshots attached | `portal-browser-probe.json`, `portal-api-docs.png`, `portal-api-docs-full.png`, `portal-api-docs-probe.cjs` |
+| Playwright probe (Chromium, against `vite preview` of the built dist at `http://localhost:4173admin/api-docs`) | 0 | **13/13 checks passed**, `externalRequests: []` (zero network beyond the local static assets); screenshots attached | `portal-browser-probe.json`, `portal-api-docs.png`, `portal-api-docs-full.png`, `portal-api-docs-probe.cjs` |
 
 Probe checks that passed: document title; API Reference heading; 57 operation rows; family filter counts
 (All 57 / Public 12 / Admin 10 / Runtime 18 / Connector 17); 3000 and 3002 origins rendered; Try-it-out-disabled

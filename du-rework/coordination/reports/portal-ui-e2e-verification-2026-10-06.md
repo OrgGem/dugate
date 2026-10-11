@@ -32,7 +32,7 @@ operation detail origin 3002, 14 schemas; mobile navigation toggle.
 ## 2. Environment and how the suite runs
 
 - Real Orchestrator admin shell (`createAdminShellServer`) + real `apps/admin-web/dist` Vite build mounted at
-  `/admin/web`, with the scripted upstream stub from `tests/browser/admin-web/harness.ts`.
+  `admin`, with the scripted upstream stub from `tests/browser/admin-web/harness.ts`.
   No DB, no Redis, no live platform HTTP.
 - Session: platform-admin session cookie (`du_session`) added by the suite; upstream fixtures reset per test
   (`/__stub/mode?reset=1` + `profile=fixture&connectorMgmt=composed&connector=ok&connectorWrite=ok&testEndpoint=ok&crypto=ok`).

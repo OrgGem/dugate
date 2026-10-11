@@ -1,0 +1,29 @@
+﻿[command] where.exe node
+[exit] 0
+[stdout]
+C:\nvm4w\nodejs\node.exe
+C:\Users\Gem\AppData\Local\hermes\node\node.exe
+
+[command] & 'C:\Users\Gem\AppData\Local\nvm\nvm.exe' list
+[exit] 0
+[stdout]
+  * 22.16.0 (Currently using 64-bit executable)
+
+[command] node -v
+[exit] 0
+[stdout]
+v22.16.0
+
+[command] & 'C:\Users\Gem\AppData\Local\hermes\node\node.exe' -v
+[exit] 0
+[stdout]
+v22.23.2
+
+[command] targeted recursive node.exe search under Program Files, tools, nvm4w, Local\nvm, Local\hermes, Local\Programs, Local\mise, .volta, and scoop\apps
+[exit] 0
+[stdout]
+C:\Users\Gem\AppData\Local\nvm\v22.16.0\node.exe
+C:\Users\Gem\AppData\Local\hermes\node\node.exe
+
+[conclusion]
+No Node v24.21.0 or other v24.21.x executable was present in searched install roots. Do not run a substituted executable as Node 24.

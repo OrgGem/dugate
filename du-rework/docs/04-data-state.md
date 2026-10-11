@@ -10,7 +10,7 @@
 | ApiKey | id, tenantId, profileId, hash, prefix, status | Hash unique; không lưu raw key |
 | BusinessVersion | businessId, version, contractVersion, manifest, digest, status, queue | Unique business+version; manifest immutable |
 | WorkerInstance | identity, businessId/version, lastHeartbeat, capacity, imageDigest | Health không thay trạng thái registration |
-| ProfileRevision | profileId, revision, tenantId, actionBindings, limits | Immutable revision; current pointer CAS |
+| ProfileRevision | profileId, revision, tenantId, actionBindings, limits, sourceCredentialAllowedOrigins | Immutable revision; current pointer CAS; source credential origins pin to the same revision |
 | Operation | id, tenantId, profileRevision, business/version/action, state, stateVersion, rootTaskId, deadlineAt | Index tenant+createdAt, state+updatedAt |
 | SubmissionKey | tenantId, apiKeyId, routeAction, key, requestHash, operationId, expiresAt | Unique scope+key; khác hash trả 409 |
 | ExecutionSnapshot | operationId, schemaDigest, resolvedInputRef, parameter/prompt/binding revisions | Không chứa provider credentials |
@@ -90,7 +90,7 @@ Mô hình envelope encryption (ADR-18 §Baseline kỹ thuật):
 - Mỗi artifact/file dùng một **Data Encryption Key (DEK) 256-bit độc lập**. DEK được wrap/unwrap qua **Vault Transit engine**; không lưu master key hoặc plaintext DEK ở DB/S3/log.
 - Payload mã hóa bằng **AES-256-GCM** (authenticated encryption). Cả S3 và PostgreSQL pilot đều dùng chung một định dạng envelope ciphertext thống nhất.
 - File lớn (> 5 MB) mã hóa theo **chunk 4 MB** độc lập, kèm manifest chứa chunk hash + monotonic index chống truncate/reorder.
-- Metadata DB (`operations.input_ref`, `tasks.payload_ref`, outbox, queue, log) không chứa inline plaintext nội dung tài liệu; chỉ chứa encrypted reference, hash và metadata không nhạy cảm.
+- Trong backfill window hiện tại, Metadata DB vẫn có thể chứa nội dung legacy ở dạng plaintext-readable theo backfill best-effort; chỉ sau khi window switch và backfill hoàn tất mới chỉ chứa sealed envelope, hash và metadata không nhạy cảm.
 - Public upload (single/multipart) phải qua **streaming gateway mã hóa trong app** trước khi ghi S3. Presigned PUT/part trực tiếp với plaintext không đạt yêu cầu.
 
 Cả hai backend (S3 production theo ADR-10, PG pilot ≤ 10 MB) đều nhận ciphertext đã bọc envelope — storage compromise không lộ plaintext.

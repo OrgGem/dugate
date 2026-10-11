@@ -21,13 +21,13 @@ try {
     }
   });
 
-  await page.goto(`${harness.url}/admin/web`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${harness.url}admin`, { waitUntil: 'domcontentloaded' });
   assert.equal(new URL(page.url()).pathname, '/admin/login', 'unauthenticated route must use the shell login gate');
   await page.locator('input[name="token"]').fill(harness.token);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => url.pathname === '/admin');
 
-  await page.goto(`${harness.url}/admin/web/workflows`, { waitUntil: 'networkidle' });
+  await page.goto(`${harness.url}admin/workflows`, { waitUntil: 'networkidle' });
   const workflowText = await page.locator('#root').innerText();
   assert.match(workflowText, /Workflows route is disabled/i);
   assert.match(workflowText, /disabled by deployment policy/i);
@@ -35,7 +35,7 @@ try {
   assert.equal(requests.length, 0, `workflows route called an admin wire: ${requests.join(', ')}`);
   await page.screenshot({ path: resolve(evidenceDir, 'vfy802-workflows-disabled.png'), fullPage: true });
 
-  await page.goto(`${harness.url}/admin/web/docs`, { waitUntil: 'networkidle' });
+  await page.goto(`${harness.url}admin/docs`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'API Docs + Test Workbench' }).waitFor();
   assert.match(await page.locator('#root').innerText(), /Profile Test Endpoint/);
   await page.getByRole('button', { name: 'Open Test Workbench' }).click();

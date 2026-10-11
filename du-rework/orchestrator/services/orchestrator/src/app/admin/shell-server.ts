@@ -482,9 +482,7 @@ function isAdminWebPath(pathname: string, base: string): boolean {
     isBffPath(pathname) ||
     pathname === '/admin/login' ||
     pathname === '/admin/logout' ||
-    pathname === '/admin/oidc/callback' ||
-    pathname === '/admin/legacy' ||
-    pathname.startsWith('/admin/legacy/')
+    pathname === '/admin/oidc/callback'
   ) {
     return false;
   }
@@ -781,6 +779,8 @@ export function createAdminShellServer(
   const config: ShellRuntimeConfig = {
     cookieSecret: options.cookieSecret,
     adminToken: options.adminToken,
+    jsonBaseUrl: options.jsonBaseUrl,
+    tenantAdminTokens: options.tenantAdminTokens,
     cookieMaxAgeSeconds: options.cookieMaxAgeSeconds,
     nowMs: options.nowMs,
     oidcFlow: options.oidcFlow,
@@ -861,6 +861,22 @@ export function createAdminShellServer(
         res.setHeader('cache-control', 'no-store');
         res.setHeader('x-correlation-id', correlationId);
         res.end();
+        return;
+      }
+      if (pathname === '/admin/legacy' || pathname.startsWith('/admin/legacy/')) {
+        lastRouteId = 'admin-legacy-closed';
+        res.statusCode = 404;
+        res.setHeader('content-type', 'text/html; charset=utf-8');
+        res.setHeader('cache-control', 'no-store');
+        res.setHeader('x-content-type-options', 'nosniff');
+        res.setHeader('x-correlation-id', correlationId);
+        res.end(
+          '<!doctype html><title>Legacy Admin Shell closed</title>' +
+            '<p>The legacy Admin Shell has been retired. Use the current Admin Portal.</p>' +
+            '<p>Code: NOT_FOUND. Correlation ID: ' +
+            correlationId +
+            '</p>',
+        );
         return;
       }
       if (adminWebMount && isAdminWebPath(pathname, adminWebMount.path)) {

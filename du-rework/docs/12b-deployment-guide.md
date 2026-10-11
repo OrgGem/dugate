@@ -4,7 +4,7 @@ Local/rework Docker Compose topology for the **DU Platform**: **Orchestrator Bac
 
 ## 1. Deployment topology
 
-The canonical `Dockerfile` has five service targets. It pins Node by digest and pnpm 10.18.3, builds the runtime workspace dependency closure, and deploys production dependencies with compiled code. Runtime images run as `node`; the Orchestrator image also packages the Orchestrator Portal (React) bundle served at `/admin/web`. Compatibility Dockerfiles in each service directory are generated with `node scripts/docker/sync-dockerfiles.cjs`.
+The canonical `Dockerfile` has five service targets. It pins Node by digest and pnpm 10.18.3, builds the runtime workspace dependency closure, and deploys production dependencies with compiled code. Runtime images run as `node`; the Orchestrator image also packages the Orchestrator Portal (React) bundle served at `admin`. Compatibility Dockerfiles in each service directory are generated with `node scripts/docker/sync-dockerfiles.cjs`.
 
 | Service | Container ports | Dependencies | Networks |
 |---|---|---|---|
@@ -105,6 +105,7 @@ Scope and limits: this is a **scoped live-local PASS**, not production cutover, 
 | `POSTGRES_PASSWORD` | provisioned password; URL-encode reserved characters in `DATABASE_URL` when overriding |
 | `RUNTIME_TOKEN`, `ADMIN_TOKEN` | distinct platform/runtime and admin bearer tokens |
 | `ENCRYPTION_KEY` | stable profile cipher secret, retain across deployments. **Required when artifact encryption is enabled in real-data mode — boot is refused if absent** (no synthetic exemption); profile cipher key is the SHA-256 of `ENCRYPTION_KEY` **or** `NEXTAUTH_SECRET`, both absent is a hard error at use. F-VFY6-01 |
+| `DU_SOURCE_CREDENTIAL_ORIGIN_MODE` | `warn` by default; set `enforce` only after profile binding allowlists have been reviewed and warning events stay clear |
 | `ADMIN_SHELL_COOKIE_SECRET` | stable random cookie signing secret |
 | `INVOCATION_GRANT_SECRET` | raw 32 ASCII bytes consumed as UTF-8 by Orchestrator |
 | `CONNECTOR_INVOCATION_GRANT_SECRET` | base64 encoding of the **same bytes**, consumed by Connector |
@@ -121,7 +122,7 @@ Scope and limits: this is a **scoped live-local PASS**, not production cutover, 
 | `DU_IMAGE_PREFIX`, `DU_IMAGE_TAG` | image naming; defaults `du` and `local`; use immutable release tags in deployments |
 | `POSTGRES_IMAGE`, `VALKEY_IMAGE` | infra image overrides; use reviewed digests for release pinning |
 | `DU_ADMIN_AUTH_MODE` | set `local`, `oidc` or `both` in production and provision users/IdP; blank retains legacy token login |
-| `DU_ADMIN_WEB` | defaults 0; set 1 to enable packaged React UI at `/admin/web` on the Orchestrator Portal port (3001) |
+| `DU_ADMIN_WEB` | defaults 0; set 1 to enable packaged React UI at `admin` on the Orchestrator Portal port (3001) |
 | `DU_ADMIN_TRUST_PROXY_PROTOCOL` | defaults false; true only behind a trusted TLS proxy supplying `X-Forwarded-Proto: https` |
 | `RUNTIME_URL`, `CONNECTOR_URL`, `REDIS_URL` | PM-M02 worker defaults: `http://orchestrator:3002/api/runtime/v1`, `http://connector:8080`, existing Valkey URL; migrate explicit old Runtime overrides |
 | `USAGE_SINK_URL`, `USAGE_SINK_TOKEN` | When Connector usage sink is enabled, use internal Runtime `/api/runtime/v1/usage-events` on 3002 with its dedicated identity; unset remains disabled |
@@ -130,20 +131,33 @@ Scope and limits: this is a **scoped live-local PASS**, not production cutover, 
 
 Production admin cookies require HTTPS. Route the Orchestrator Portal through your TLS reverse proxy before using login. S3, Vault Transit, tenant/worker identity, OIDC and credential-workflow env settings are explicitly forwarded; file-based secrets and external infrastructure can be mounted/configured through an operator overlay. Connector management boot requires the configuration described below; Docker startup alone does not enable it.
 
+#### 3.2 Source credential origin policy (OR10-01)
+
+Profile policy `allowedOrigins` accepts up to 16 exact HTTPS origins. The canonicalized list is stored on the immutable `profile_bindings` revision with its source credential. In the default `warn` mode, a missing list or source origin mismatch emits a sanitized structured warning and retains current credential attachment behavior. `enforce` permanently denies credentialed acquisition when the list is missing or the source origin does not match; the denial occurs before fetch I/O. Cross-origin redirect hops continue to omit the credential.
+
+Before changing to `enforce`, review profiles and observe warning counts for at least one deployment cycle. This query identifies credential-bearing revisions with no configured origin:
+
+```sql
+SELECT count(*)
+FROM profile_bindings
+WHERE file_url_auth_cipher IS NOT NULL
+  AND (allowed_origins IS NULL OR allowed_origins = '[]'::jsonb);
+```
+
 #### 3.1 Admin Web React — rollout theo route (AWEB-08)
 
 `DU_ADMIN_WEB_ROUTES` là **allow-list theo route** cho app React; route không nằm
 allow-list trả **một 404 document nhất quán** (“Route not enabled on this
 deployment”, có link về `/admin`), fail-closed — route chỉ hiện khi được liệt kê
 tường minh. Gate chạy **server-side** trong `shell-server.ts`; assets và shell
-root `/admin/web` không bị gate.
+root `admin` không bị gate.
 
 | `DU_ADMIN_WEB_ROUTES` | Hành vi |
 |---|---|
 | vắng / blank | giữ nguyên hành vi cũ: toàn bộ SPA được phục vụ |
 | danh sách một phần (vd `overview,security`) | route trong list render; route khác → 404 nhất quán + link `/admin` |
 | tên lạ (vd `overview,bogus`) | tên lạ bị bỏ (log warn), phần còn lại vẫn áp dụng |
-| `,` (có mặt, rỗng sau parse) | chỉ shell root `/admin/web` còn reachable |
+| `,` (có mặt, rỗng sau parse) | chỉ shell root `admin` còn reachable |
 
 - **Staging khuyến nghị**: bật từng bước — `DU_ADMIN_WEB=1` +
   `DU_ADMIN_WEB_ROUTES=overview` trước (route đã `UI_APPROVED`), thêm dần sau

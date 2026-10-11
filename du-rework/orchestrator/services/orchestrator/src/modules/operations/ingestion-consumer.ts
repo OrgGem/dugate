@@ -17,10 +17,13 @@ import { maybeScheduleWebhook, type DbClient } from '../webhooks/webhooks';
 import { MetadataCryptoError, type MetadataCrypto } from '../runtime/metadata-crypto';
 import { compatibilityMetadataReader, type MetadataReader } from '../encryption/metadata-read-policy';
 import {
+  assertCredentialOriginAllowed,
   SourceAuthDeniedError,
   withSourceAuth,
   type AcquisitionRefCoords,
+  type CredentialOriginPolicyWarning,
   type ResolvedSourceAuth,
+  type SourceCredentialOriginMode,
 } from './acquisition-ref-resolver';
 import {
   createEncryptedSourceStorageWrapper,
@@ -137,6 +140,14 @@ export interface IngestionConsumerOptions {
    * historical unauthenticated acquisition path, byte-identical.
    */
   resolveSourceAuth?: (coords: AcquisitionRefCoords) => Promise<ResolvedSourceAuth>;
+  /** `warn` keeps the legacy fetch behavior while reporting missing/mismatched origins. */
+  sourceCredentialOriginMode?: SourceCredentialOriginMode;
+  /** Structured warning seam. It must never receive credential material. */
+  onCredentialOriginWarning?: (event: CredentialOriginPolicyWarning & {
+    operationId: string;
+    tenantId: string;
+    mode: 'warn';
+  }) => void;
   /**
    * SEC-ENC-03 (SD-02): when true, every cold source acquisition MUST persist
    * a canonical encrypted envelope and the artifacts row carries the strict
@@ -160,6 +171,15 @@ export interface IngestionSweepResult {
   skipped: number;
   /** T180-D1: rows where a guarded write found the claim no longer ours. */
   preempted: number;
+}
+
+export function sourceCredentialOriginModeFromEnv(
+  env: Partial<Pick<NodeJS.ProcessEnv, 'DU_SOURCE_CREDENTIAL_ORIGIN_MODE'>> = process.env
+): SourceCredentialOriginMode {
+  const configured = env.DU_SOURCE_CREDENTIAL_ORIGIN_MODE;
+  if (configured === undefined || configured === '') return 'warn';
+  if (configured === 'warn' || configured === 'enforce') return configured;
+  throw new Error('DU_SOURCE_CREDENTIAL_ORIGIN_MODE must be "warn" or "enforce"');
 }
 
 interface ClaimedRow {
@@ -309,6 +329,8 @@ const PERMANENT_CODES = new Set([
   'AUTH_CONFIG_MISSING',
   'AUTH_DECRYPT_FAILED',
   'QUERY_AUTH_FORBIDDEN',
+  'ORIGIN_NOT_ALLOWLISTED',
+  'ORIGIN_POLICY_MISSING',
 ]);
 
 /**
@@ -424,6 +446,7 @@ function isPermanent(err: unknown): boolean {
 }
 
 export function createIngestionConsumer(options: IngestionConsumerOptions) {
+  const sourceCredentialOriginMode = options.sourceCredentialOriginMode ?? sourceCredentialOriginModeFromEnv();
   const batch = options.batch ?? DEFAULT_BATCH;
   const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const backoff = options.retryBackoffSeconds ?? DEFAULT_RETRY_BACKOFF_SECONDS;
@@ -577,12 +600,31 @@ export function createIngestionConsumer(options: IngestionConsumerOptions) {
     const sourceAuth = !sourceUrl.startsWith('s3://') && options.resolveSourceAuth
       ? await options.resolveSourceAuth({ operationId: coords.operationId, tenantId: coords.tenantId })
       : ({ kind: 'none' } as ResolvedSourceAuth);
+    if (sourceAuth.kind !== 'none') {
+      const warning = assertCredentialOriginAllowed(sourceUrl, sourceAuth, sourceCredentialOriginMode);
+      if (warning && options.onCredentialOriginWarning) {
+        try {
+          options.onCredentialOriginWarning({
+            ...warning,
+            operationId: coords.operationId,
+            tenantId: coords.tenantId,
+            mode: 'warn',
+          });
+        } catch {
+          // Best-effort telemetry must not change warn-mode acquisition behavior.
+        }
+      }
+    }
     const transfer =
       sourceAuth.kind === 'none'
         ? options.transfer
         : {
             ...options.transfer,
-            fetcher: withSourceAuth(options.transfer.fetcher ?? createPinnedFetch(), sourceAuth),
+            fetcher: withSourceAuth(
+              options.transfer.fetcher ?? createPinnedFetch(),
+              sourceAuth,
+              sourceCredentialOriginMode
+            ),
           };
     const storageKey = sourceStorageKey(coords.tenantId, coords.operationId);
     // SEC-ENC-03: bind this acquisition's envelope identity. The wrapper fails

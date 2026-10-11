@@ -84,18 +84,18 @@ for (const service of services.slice(2)) {
 
 test('Admin shell authenticates with a Secure cookie and serves bundled JS/CSS', async () => {
   const base = `http://127.0.0.1:${env.ADMIN_SHELL_PORT}`;
-  const anonymous = await fetch(base + '/admin/web', { redirect: 'manual' });
+  const anonymous = await fetch(base + 'admin', { redirect: 'manual' });
   assert.equal(anonymous.status, 302);
   const login = await fetch(base + '/admin/login');
   assert.equal(login.status, 200);
   const session = await fetch(base + '/admin/login', { method: 'POST', redirect: 'manual',
     headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-proto': 'https' },
-    body: new URLSearchParams({ token: env.ADMIN_TOKEN, redirect: '/admin/web' }) });
+    body: new URLSearchParams({ token: env.ADMIN_TOKEN, redirect: 'admin' }) });
   assert.equal(session.status, 302);
   const setCookie = session.headers.get('set-cookie');
   assert.ok(setCookie.includes('Secure') && setCookie.includes('HttpOnly'));
   const cookie = setCookie.split(';')[0];
-  const response = await fetch(base + '/admin/web', { headers: { cookie } });
+  const response = await fetch(base + 'admin', { headers: { cookie } });
   assert.equal(response.status, 200);
   const html = await response.text();
   const assets = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)].map(match => match[1]);

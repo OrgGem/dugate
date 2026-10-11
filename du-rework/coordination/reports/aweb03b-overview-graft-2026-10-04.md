@@ -27,7 +27,7 @@ Không finding nào blocking. Demo/fixtures fixture strings không lọt vào bu
 
 ## 2. Ghép Overview read-only
 
-- Route mới `/admin/web/overview` (`src/router.tsx:27`, `src/routes/overview.tsx`) + link từ màn bootstrap (`src/routes/bootstrap-home.tsx:52-56`); `/` giữ nguyên để không phá evidence AWEB-01b.
+- Route mới `admin/overview` (`src/router.tsx:27`, `src/routes/overview.tsx`) + link từ màn bootstrap (`src/routes/bootstrap-home.tsx:52-56`); `/` giữ nguyên để không phá evidence AWEB-01b.
 - Feature `src/features/overview/`:
   - `overview-screen.tsx` — Session card (từ `/admin/api/session`), **Audit ledger thật theo tenant** (từ `/admin/api/audit`, BFF tự ép tenant theo session), 2 tile Usage/Operations gắn badge **`requires backend`** + ghi rõ “no placeholder data”.
   - `state.ts` — parse runtime cho audit page (unknown→typed, bỏ row thiếu trường) + `paneStateFrom` (403→denied, còn lại→error) + map severity→badge.
@@ -41,13 +41,13 @@ Không finding nào blocking. Demo/fixtures fixture strings không lọt vào bu
 - Literal run (final bundle):
 ```
 Running 13 tests using 1 worker
-  ok  1 … admin-web.spec.ts … 1. direct unauth /admin/web -> 302 login
+  ok  1 … admin-web.spec.ts … 1. direct unauth admin -> 302 login
   ok  2 … 2. login -> React app renders; no serious console errors
   ok  3 … 3. reload keeps the session and re-renders the app
   ok  4 … 4. 320px viewport: no horizontal overflow; nav reachable
   ok  5 … 5. keyboard: Tab reaches a control with a visible focus ring
   ok  6 … 6. theme: light + data-theme=dark render distinctly
-  ok  7 … overview.spec.ts … 0. unauth direct /admin/web/overview → login (mount gate)
+  ok  7 … overview.spec.ts … 0. unauth direct admin/overview → login (mount gate)
   ok  8 … 1. operator tenant → ready: tenant-fenced rows + honest tiles
   ok  9 … 2. empty scope → EmptyState with refresh affordance
   ok 10 … 3. upstream failure → 502 error, retry succeeds after recovery

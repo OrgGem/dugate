@@ -29,12 +29,12 @@ test.describe('CFGADM-08 identity user and OIDC metadata surface', () => {
   });
 
   async function loginAndOpenIdentity(page: Page): Promise<void> {
-    await page.goto(`${BASE}/admin/web`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}admin`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('input[name="token"]')).toBeVisible();
     await page.fill('input[name="token"]', TOKEN);
     await page.click('button[type="submit"]');
     await page.waitForURL((url) => url.pathname === '/admin');
-    await page.goto(`${BASE}/admin/web/identity`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}admin/identity`, { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Users & sessions' })).toBeVisible();
   }
 

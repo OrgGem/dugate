@@ -1,4 +1,4 @@
-import type { BusinessRow, OperationWire } from '@/lib/api';
+import type { OperationWire, WorkerInstance } from '@/lib/api';
 
 export type MonitorTimeframe = 'minute' | 'hour' | 'day' | 'week' | 'month';
 
@@ -19,13 +19,13 @@ export interface TimeBucket {
 }
 
 export interface OperationsTelemetry {
-  total: number;
-  succeeded: number;
-  failed: number;
-  running: number;
-  cancelled: number;
-  timedOut: number;
-  successRate: string;
+  sampleCount: number;
+  sampleSucceeded: number;
+  sampleFailed: number;
+  sampleRunning: number;
+  sampleCancelled: number;
+  sampleTimedOut: number;
+  sampleSuccessRate: string;
   avgDurationMs: number | null;
   minDurationMs: number | null;
   maxDurationMs: number | null;
@@ -34,15 +34,13 @@ export interface OperationsTelemetry {
 
 export interface WorkerTelemetry {
   businessId: string;
+  instanceId: string;
   version: string;
-  status: string;
-  isActive: boolean;
-  queue: string;
-  processedCount: number;
-  succeededCount: number;
-  failedCount: number;
-  successRate: string;
-  avgDurationMs: number | null;
+  state: WorkerInstance['state'];
+  status: WorkerInstance['health'];
+  capacity: number;
+  activeLeases: number;
+  lastHeartbeatAt: string;
 }
 
 export function getOperationDurationMs(op: OperationWire): number | null {
@@ -226,40 +224,41 @@ export function computeTimeBuckets(
   return buckets;
 }
 
+/** Calculate only the supplied page sample; Overview totals come from server metrics. */
 export function computeOperationsTelemetry(operations: OperationWire[]): OperationsTelemetry {
-  const total = operations.length;
-  let succeeded = 0;
-  let failed = 0;
-  let running = 0;
-  let cancelled = 0;
-  let timedOut = 0;
+  const sampleCount = operations.length;
+  let sampleSucceeded = 0;
+  let sampleFailed = 0;
+  let sampleRunning = 0;
+  let sampleCancelled = 0;
+  let sampleTimedOut = 0;
   const durations: number[] = [];
 
   for (const op of operations) {
-    if (op.state === 'SUCCEEDED') succeeded += 1;
-    else if (op.state === 'FAILED') failed += 1;
-    else if (op.state === 'CANCELLED') cancelled += 1;
-    else if (op.state === 'TIMED_OUT') timedOut += 1;
-    else running += 1;
+    if (op.state === 'SUCCEEDED') sampleSucceeded += 1;
+    else if (op.state === 'FAILED') sampleFailed += 1;
+    else if (op.state === 'CANCELLED') sampleCancelled += 1;
+    else if (op.state === 'TIMED_OUT') sampleTimedOut += 1;
+    else sampleRunning += 1;
 
     const dur = getOperationDurationMs(op);
     if (dur !== null) durations.push(dur);
   }
 
-  const successRate = total > 0 ? ((succeeded / total) * 100).toFixed(1) : '0';
+  const sampleSuccessRate = sampleCount > 0 ? ((sampleSucceeded / sampleCount) * 100).toFixed(1) : '0';
   const avgDurationMs =
     durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
   const minDurationMs = durations.length > 0 ? Math.min(...durations) : null;
   const maxDurationMs = durations.length > 0 ? Math.max(...durations) : null;
 
   return {
-    total,
-    succeeded,
-    failed,
-    running,
-    cancelled,
-    timedOut,
-    successRate,
+    sampleCount,
+    sampleSucceeded,
+    sampleFailed,
+    sampleRunning,
+    sampleCancelled,
+    sampleTimedOut,
+    sampleSuccessRate,
     avgDurationMs,
     minDurationMs,
     maxDurationMs,
@@ -268,37 +267,16 @@ export function computeOperationsTelemetry(operations: OperationWire[]): Operati
 }
 
 export function computeWorkerTelemetry(
-  businesses: BusinessRow[],
-  operations: OperationWire[],
+  workerInstances: WorkerInstance[],
 ): WorkerTelemetry[] {
-  return businesses.map((b) => {
-    const businessOps = operations.filter((op) => op.businessId === b.businessId);
-    const processedCount = businessOps.length;
-    const succeededCount = businessOps.filter((op) => op.state === 'SUCCEEDED').length;
-    const failedCount = businessOps.filter((op) => op.state === 'FAILED').length;
-    const successRate =
-      processedCount > 0 ? ((succeededCount / processedCount) * 100).toFixed(1) + '%' : '100%';
-
-    const durations = businessOps
-      .map(getOperationDurationMs)
-      .filter((d): d is number => d !== null);
-    const avgDurationMs =
-      durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
-
-    const version = b.activeVersion || b.version || '1.0.0';
-    const queue = `du-business-${b.businessId}-${version}`;
-
-    return {
-      businessId: b.businessId,
-      version,
-      status: b.status || 'ENABLED',
-      isActive: b.status === 'ENABLED',
-      queue,
-      processedCount,
-      succeededCount,
-      failedCount,
-      successRate,
-      avgDurationMs,
-    };
-  });
+  return workerInstances.map((worker) => ({
+    businessId: worker.businessId,
+    instanceId: worker.instanceId,
+    version: worker.businessVersion,
+    state: worker.state,
+    status: worker.health,
+    capacity: worker.capacity,
+    activeLeases: worker.activeLeases,
+    lastHeartbeatAt: worker.lastSeenAt,
+  }));
 }
