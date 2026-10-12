@@ -1,0 +1,9 @@
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> jest --runInBand "--runInBand" "tests/woc-profile-groups-backend.test.ts"
+
+Test Suites: 1 passed, 1 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        2.552 s, estimated 4 s
+Ran all test suites matching tests/woc-profile-groups-backend.test.ts.

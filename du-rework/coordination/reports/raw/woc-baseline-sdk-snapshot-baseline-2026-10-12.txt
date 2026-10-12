@@ -1,0 +1,34 @@
+COMMAND: node D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk\node_modules\jest\bin\jest.js --runInBand --testTimeout=30000 --testNamePattern=snapshot tests/temp-sweep.test.ts
+CWD: C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\worker-sdk
+PROCESS TIMEOUT: 90s
+
+EXIT CODE: 0
+--- stdout ---
+--- stderr ---
+PASS tests/temp-sweep.test.ts
+  startWorker temp sweep (W39-CC2b)
+    √ does not include a workspace written during the active directory snapshot (8 ms)
+    ○ skipped removes stale du-worker-* dirs at startup
+    ○ skipped keeps fresh du-worker-* dirs at startup
+    ○ skipped sweeps periodically (dir planted after startup is removed by the timer)
+    ○ skipped enabled:false leaves stale dirs untouched
+    ○ skipped a failing sweep (unreadable root) never breaks startup or delivery
+    ○ skipped stop() clears the sweep timer (no leaked interval)
+    ○ skipped accepts a sweep interval boundary of 0 without crashing
+    ○ skipped accepts a sweep interval boundary of -1 without crashing
+    ○ skipped treats an older-than threshold boundary of 0 as immediately eligible
+    ○ skipped treats an older-than threshold boundary of -1 as immediately eligible
+    ○ skipped uses a strict TTL boundary: equality is kept and one millisecond beyond is swept
+    ○ skipped keeps malformed prefix files while removing a genuine orphan in the same pass
+    ○ skipped does not follow a stale workspace junction into a target outside the temp root
+    ○ skipped keeps a workspace intact when an inaccessible nested directory blocks cleanup
+    ○ skipped keeps a regular file whose name matches the workspace prefix
+    ○ skipped keeps a workspace when inspecting it fails with a permission error
+    ○ skipped keeps a workspace and completes when cleanup reports a locked-file error
+    ○ skipped does not traverse into unrelated parent directories looking for prefixed workspaces
+
+Test Suites: 1 passed, 1 total
+Tests:       18 skipped, 1 passed, 19 total
+Snapshots:   0 total
+Time:        1.31 s, estimated 3 s
+Ran all test suites matching /tests\\temp-sweep.test.ts/i with tests matching "snapshot".

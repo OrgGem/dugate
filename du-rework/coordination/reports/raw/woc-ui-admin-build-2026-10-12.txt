@@ -1,0 +1,21 @@
+
+> @du/admin-web@0.0.0 build D:\Git\dugate\du-rework\orchestrator\apps\admin-web
+> tsc --noEmit -p tsconfig.json && vite build
+
+vite v6.4.4 building for production...
+transforming...
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "D:/Git/dugate/du-rework/orchestrator/packages/contracts/dist/manifest-validator.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "D:/Git/dugate/du-rework/orchestrator/packages/contracts/dist/hashing.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "D:/Git/dugate/du-rework/orchestrator/packages/contracts/dist/workflow-import.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 3045 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     0.47 kB │ gzip:   0.29 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+dist/assets/index-DfeQ3CQb.css     66.24 kB │ gzip:  12.22 kB
+dist/assets/index-V8RKrHDb.js   2,143.32 kB │ gzip: 513.18 kB
+✓ built in 5.37s

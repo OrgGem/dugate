@@ -169,6 +169,33 @@ function makeLeaseTakeoverRaceDb() {
             };
             return queryResult<R>([row as unknown as QueryResultRow]);
           }
+          if (/^\s*INSERT INTO runtime_control_scopes/i.test(sql)) {
+            return queryResult<R>([], 'INSERT');
+          }
+          if (/^\s*SELECT scope_kind,scope_id,desired_state,revision/i.test(sql)) {
+            return queryResult<R>([
+              { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+              { scope_kind: 'tenant', scope_id: 'tenant-a', desired_state: 'OPEN', revision: 1 },
+              { scope_kind: 'business', scope_id: BUSINESS_A, desired_state: 'OPEN', revision: 1 },
+            ]);
+          }
+          if (/^\s*SELECT/i.test(sql) && /FROM worker_instances wi/i.test(sql)) {
+            const instanceId = String(params[1]);
+            if (!['worker-a', 'worker-b'].includes(instanceId)) return queryResult<R>([]);
+            return queryResult<R>([{
+              business_version: '1.0.0',
+              registered_manifest_digest: 'sha256:offline',
+              heartbeat_fresh: true,
+              state: 'ONLINE',
+              control_revision: 1,
+              control_state: 'OPEN',
+              desired_control_revision: 1,
+              desired_control_state: 'OPEN',
+            }]);
+          }
+          if (/^\s*SELECT enabled FROM business_catalog/i.test(sql)) {
+            return queryResult<R>([{ enabled: true }]);
+          }
           if (/^\s*SELECT/i.test(sql) && /FROM step_checkpoints/i.test(sql)) {
             return queryResult<R>([]);
           }
@@ -193,6 +220,9 @@ function makeLeaseTakeoverRaceDb() {
             stagedTask.state = 'RUNNING';
             stagedTask.attempt += 1;
             return queryResult<R>([{ id: TASK_ID }], 'UPDATE');
+          }
+          if (/^\s*UPDATE worker_instances\s+SET accepted_task_count=/i.test(sql)) {
+            return queryResult<R>([{ accepted_task_count: 1 }], 'UPDATE');
           }
           if (/^\s*UPDATE tasks t SET state='SUCCEEDED'/i.test(sql) || /^\s*UPDATE tasks t SET state='FAILED'/i.test(sql)) {
             terminalUpdateSql.push(sql);

@@ -6,7 +6,10 @@
  * no server view model, no DB shape.
  */
 
-import type { ProviderReportedCost, TenantActiveConnectorCatalogQuery } from '@du/contracts';
+import type {
+  ProviderReportedCost,
+  TenantActiveConnectorCatalogQuery,
+} from '@du/contracts';
 
 // ORV14 leaf contracts are authored in `@du/contracts`; the shared browser
 // API barrel re-exports their data types without runtime validators.
@@ -129,6 +132,11 @@ export type {
   TenantActiveConnectorCatalogPage,
   TenantActiveConnectorCatalogQuery,
   ProviderReportedCost,
+  ProfileGroup,
+  ProfileGroupFunctionCatalog,
+  ProfileGroupList,
+  ProfileGroupRollback,
+  ProfileGroupSave,
 } from '@du/contracts';
 
 export interface AdminWebSession {
@@ -789,12 +797,15 @@ export interface BusinessRow {
   version: string | null;
   status: string;
   updatedAt: string | null;
+  enabled: boolean | null;
+  lifecycleRevision: number | null;
 }
 
 export interface BusinessPage {
   items: BusinessRow[];
   total: number;
   limit: number;
+  nextCursor?: string | null;
 }
 
 export interface BusinessVersionRow {
@@ -808,6 +819,8 @@ export interface BusinessVersions {
   businessId: string;
   activeVersion: string | null;
   rows: BusinessVersionRow[];
+  enabled: boolean | null;
+  lifecycleRevision: number | null;
 }
 
 export interface WorkerInstance {
@@ -818,8 +831,23 @@ export interface WorkerInstance {
   health: 'HEALTHY' | 'DEGRADED' | 'OFFLINE';
   capacity: number;
   activeLeases: number;
+  acceptedTaskCount?: number;
+  acceptedTaskCountSince?: string | null;
+  acceptedTaskCountScope?: 'business-instance-lifetime' | string;
   lastSeenAt: string;
   observedAt: string;
+}
+
+export interface BusinessEnabledUpdate {
+  enabled: boolean;
+  expectedLifecycleRevision: number;
+}
+
+export interface BusinessEnabledResult {
+  businessId: string;
+  enabled: boolean;
+  lifecycleRevision: number;
+  replayed: boolean;
 }
 
 export interface WorkerInstanceList {

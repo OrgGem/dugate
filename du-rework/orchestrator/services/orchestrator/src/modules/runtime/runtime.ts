@@ -53,6 +53,7 @@ import {
 export interface QueueIntegrityCandidate {
   outbox_id: string;
   delivery_id: string;
+  delivery_type: 'task.dispatch' | 'task.continuation';
   dispatched_at: Date;
   attempts: number;
   task_id: string;
@@ -82,9 +83,9 @@ export interface QueueIntegrityHealth {
 }
 
 /**
- * MM-05 orphan candidate predicate (docs/38 §2) — PG-only enumeration:
- * the newest task.dispatch delivery per task, stamped beyond the grace
- * window, task still unclaimed and leaseless, operation non-terminal.
+ * MM-05 orphan candidate predicate — PG-only enumeration of the newest
+ * dispatch or continuation delivery for a runnable, leaseless task. Pending
+ * deliveries suppress another replacement while dispatch is in flight.
  * Queue name resolves exactly like the dispatcher's fallback
  * (business_versions.queue, else du-business-<id>-<version>) so the sweep
  * reads the queue the dispatcher would have published to.
@@ -95,7 +96,8 @@ const QUEUE_INTEGRITY_CANDIDATES_SQL = `
          COALESCE(c.queue, 'du-business-' || c.business_id || '-' || c.business_version) AS queue_name
   FROM (
     SELECT DISTINCT ON (ob.aggregate_id)
-           ob.id AS outbox_id, ob.delivery_id, ob.dispatched_at, ob.attempts,
+           ob.id AS outbox_id, ob.delivery_id, ob.type AS delivery_type,
+           ob.dispatched_at, ob.attempts,
            t.id AS task_id, t.state AS task_state,
            o.business_id, o.business_version, bv.queue
     FROM outbox ob
@@ -103,13 +105,19 @@ const QUEUE_INTEGRITY_CANDIDATES_SQL = `
     JOIN operations o  ON o.id = t.operation_id
     LEFT JOIN business_versions bv
       ON bv.business_id = o.business_id AND bv.version = o.business_version
-    WHERE ob.type = 'task.dispatch'
+    WHERE ob.type IN ('task.dispatch','task.continuation')
       AND ob.dispatched_at IS NOT NULL
       AND ob.dispatched_at < now() - ($1 * interval '1 ms')
       AND t.state IN ('READY','QUEUED')
       AND (t.lease_expires_at IS NULL OR t.lease_expires_at < now())
       AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
-    ORDER BY ob.aggregate_id, ob.dispatched_at DESC
+      AND NOT EXISTS (
+            SELECT 1 FROM outbox pending
+             WHERE pending.aggregate_id=ob.aggregate_id
+               AND pending.type IN ('task.dispatch','task.continuation')
+               AND pending.dispatched_at IS NULL
+          )
+    ORDER BY ob.aggregate_id, ob.dispatched_at DESC, ob.created_at DESC, ob.id DESC
   ) c
   ORDER BY c.dispatched_at
   LIMIT $2`;
@@ -139,25 +147,43 @@ const QUEUE_INTEGRITY_CANDIDATES_SQL = `
  * leaseless, operation non-terminal) so read-time and write-time eligibility
  * cannot diverge; it adds no bind parameters.
  */
-const QUEUE_INTEGRITY_REARM_SQL = `
-  UPDATE outbox
-     SET dispatched_at = NULL,
-         due_at = now() + (LEAST(power(2, attempts), 300) * interval '1 second'),
-         claim_until = NULL,
-         attempts = attempts + 1
-   WHERE id = $1
-     AND date_trunc('millisecond', dispatched_at) = date_trunc('millisecond', $2::timestamptz)
-     AND dispatched_at IS NOT NULL
-     AND attempts < $3
-     AND EXISTS (
-           SELECT 1
-             FROM tasks t
-             JOIN operations o ON o.id = t.operation_id
-            WHERE t.id = outbox.aggregate_id
-              AND t.state IN ('READY','QUEUED')
-              AND (t.lease_expires_at IS NULL OR t.lease_expires_at < now())
-              AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+const QUEUE_INTEGRITY_REPLACEMENT_GUARD_SQL = `
+  SELECT ob.id, ob.aggregate_id, ob.type, ob.delivery_id, ob.payload, ob.attempts
+    FROM outbox ob
+    JOIN tasks t ON t.id=ob.aggregate_id
+    JOIN operations o ON o.id=t.operation_id
+   WHERE ob.id=$1
+     AND date_trunc('millisecond', ob.dispatched_at) = date_trunc('millisecond', $2::timestamptz)
+     AND ob.dispatched_at IS NOT NULL
+     AND ob.attempts=$3
+     AND ob.attempts < $4
+     AND ob.type IN ('task.dispatch','task.continuation')
+     AND t.state IN ('READY','QUEUED')
+     AND (t.lease_expires_at IS NULL OR t.lease_expires_at < now())
+     AND o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')
+     AND NOT EXISTS (
+           SELECT 1 FROM outbox pending
+            WHERE pending.aggregate_id=ob.aggregate_id
+              AND pending.type IN ('task.dispatch','task.continuation')
+              AND pending.dispatched_at IS NULL
          )
+     AND NOT EXISTS (
+           SELECT 1 FROM outbox newer
+            WHERE newer.aggregate_id=ob.aggregate_id
+              AND newer.type IN ('task.dispatch','task.continuation')
+              AND (newer.dispatched_at > ob.dispatched_at
+                OR (newer.dispatched_at = ob.dispatched_at AND newer.created_at > ob.created_at)
+                OR (newer.dispatched_at = ob.dispatched_at AND newer.created_at = ob.created_at AND newer.id > ob.id))
+         )
+   FOR UPDATE OF ob, t`;
+
+const QUEUE_INTEGRITY_INSERT_REPLACEMENT_SQL = `
+  INSERT INTO outbox (aggregate_id,type,delivery_id,payload,due_at,attempts)
+  SELECT aggregate_id,type,$2,jsonb_set(payload,'{deliveryId}',to_jsonb($2::text),true),
+         now() + (LEAST(300, GREATEST(1, power(2, attempts)) * (0.5 + random())) * interval '1 second'), attempts
+    FROM outbox
+   WHERE id=$1
+  ON CONFLICT (delivery_id) DO NOTHING
   RETURNING id`;
 
 interface ActiveLeaseRow {
@@ -186,6 +212,32 @@ function assertActiveLease(task: ActiveLeaseRow): void {
   if (task.state !== 'RUNNING' || !task.lease_active) {
     throw conflict('LEASE_LOST', 'task lease is no longer active');
   }
+}
+
+interface RegisteredWorkerVersion extends Record<string, unknown> {
+  business_version: string;
+  registered_manifest_digest: string | null;
+  heartbeat_manifest_digest?: string | null;
+  state: string;
+  heartbeat_fresh: boolean;
+}
+
+function workerPinMismatch(
+  task: Record<string, unknown>,
+  worker: Record<string, unknown>,
+): 'WORKER_VERSION_MISMATCH' | 'MANIFEST_DIGEST_MISMATCH' | null {
+  if (typeof worker.business_version !== 'string' || worker.business_version !== task.business_version) {
+    return 'WORKER_VERSION_MISMATCH';
+  }
+  const registeredDigest = worker.registered_manifest_digest;
+  const heartbeatDigest = worker.heartbeat_manifest_digest;
+  const effectiveWorkerDigest = typeof heartbeatDigest === 'string' ? heartbeatDigest : registeredDigest;
+  if (typeof task.manifest_digest !== 'string' || task.manifest_digest.length === 0
+    || typeof registeredDigest !== 'string' || registeredDigest !== task.manifest_digest
+    || typeof effectiveWorkerDigest !== 'string' || effectiveWorkerDigest !== task.manifest_digest) {
+    return 'MANIFEST_DIGEST_MISMATCH';
+  }
+  return null;
 }
 
 /**
@@ -565,6 +617,7 @@ export function createRuntimeService(
                   o.profile_id, o.profile_revision, o.connector_bindings,
                   o.profile_policy_snapshot, o.prompt_revisions_pin, o.tenant_defaults_ref,
                   o.prompt_overrides_ref,
+                  (t.lease_expires_at > clock_timestamp()) AS lease_active,
                   o.cancel_requested AS op_cancel_requested, o.state AS op_state
            FROM tasks t
            JOIN operations o ON o.id = t.operation_id
@@ -584,9 +637,7 @@ export function createRuntimeService(
         }
 
         const terminalTask = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(t.state as string);
-        const terminalOp = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(
-          (await client.query('SELECT state FROM operations WHERE id=$1', [t.operation_id])).rows[0]?.state as string
-        );
+        const terminalOp = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(t.op_state as string);
         if (terminalTask || terminalOp) {
           throw gone(`task ${taskId} is terminal`);
         }
@@ -601,31 +652,60 @@ export function createRuntimeService(
         // claim would take a real lease. Refuse HERE so "not runnable until
         // READY" holds at the claim boundary itself, not only in the happy path.
         if ((t.op_state as string) === 'PENDING_INGESTION') {
-          throw conflict('STATE_CONFLICT', 'task is not runnable until its ingestion source is READY');
+          throw conflict('TASK_NOT_READY', 'task is not runnable until its ingestion source is READY');
         }
 
         // Waiting tasks are re-queued with a fresh delivery only after their
         // input/children gate opens. A stale delivery must not turn that wait
         // back into a running claim.
         if (['WAITING_INPUT', 'WAITING_CHILDREN'].includes(t.state as string)) {
-          throw conflict('STATE_CONFLICT', `task ${taskId} is waiting and cannot be claimed`);
+          throw conflict('TASK_WAITING', `task ${taskId} is waiting and cannot be claimed`);
         }
 
-        const leaseExpiryMs = t.lease_expires_at
-          ? new Date(t.lease_expires_at as string).getTime()
-          : Number.NaN;
-        const leaseIsActive = Number.isFinite(leaseExpiryMs) && leaseExpiryMs > Date.now();
+        const leaseIsActive = t.lease_active === true;
+
+        const registeredWorker = async (instanceId: string) => {
+          const result = await client.query<RegisteredWorkerVersion>(
+            `SELECT wi.business_version, wi.manifest_digest AS heartbeat_manifest_digest,
+                    bv.digest AS registered_manifest_digest, wi.state,
+                    (wi.last_seen_at > clock_timestamp() - interval '60 seconds') AS heartbeat_fresh
+               FROM worker_instances wi
+               LEFT JOIN business_versions bv
+                 ON bv.business_id=wi.business_id AND bv.version=wi.business_version
+              WHERE wi.business_id=$1 AND wi.instance_id=$2`,
+            [t.business_id, instanceId],
+          );
+          return result.rows[0];
+        };
 
         // A delivery replay is safe only while this exact worker still owns
-        // the live RUNNING lease. Otherwise a live foreign lease is busy, or
-        // an expired lease follows the takeover path below and advances epoch.
-        if (
-          t.last_delivery_id === deliveryId &&
-          t.state === 'RUNNING' &&
-          t.leased_by === workerInstanceId &&
-          leaseIsActive
-        ) {
-          return buildClaimResult(t, client, metadataCrypto, reader);
+        // the live RUNNING lease AND its current registered version resolves
+        // to the exact immutable manifest pinned by the operation. A stale
+        // instance registration cannot receive a new snapshot after rollout.
+        if (t.state === 'RUNNING' && leaseIsActive) {
+          const leaseOwnerId = t.leased_by as string | null;
+          if (leaseOwnerId === workerInstanceId && t.last_delivery_id === deliveryId) {
+            const owner = await registeredWorker(workerInstanceId);
+            if (!owner || !owner.heartbeat_fresh || !['ONLINE', 'DRAINING'].includes(owner.state)) {
+              throw conflict('WORKER_NOT_REGISTERED', 'worker registration is not fresh');
+            }
+            const mismatch = workerPinMismatch(t, owner);
+            if (mismatch) throw conflict(mismatch, 'worker registration does not match the task execution pin');
+            return buildClaimResult(t, client, metadataCrypto, reader);
+          }
+
+          // A duplicate delivery can be acknowledged only when the durable
+          // lease owner is still registered, fresh, and compatible with the
+          // pinned task. Otherwise keep this delivery recoverable until lease
+          // expiry recovery can make a safe decision.
+          if (leaseOwnerId) {
+            const owner = await registeredWorker(leaseOwnerId);
+            const mismatch = owner ? workerPinMismatch(t, owner) : 'WORKER_VERSION_MISMATCH';
+            if (owner && owner.heartbeat_fresh && ['ONLINE', 'DRAINING'].includes(owner.state) && !mismatch) {
+              throw conflict('TASK_LEASE_ACTIVE', 'a compatible registered worker owns the live task lease');
+            }
+          }
+          throw conflict('TASK_LEASE_HELD', 'task lease is active but its owner is not confirmed compatible');
         }
 
         // Persisted admission control is shared across all orchestrator
@@ -644,17 +724,26 @@ export function createRuntimeService(
         // whole business. The desired row and task claim share this lock, so a
         // claim cannot slip in after the per-worker drain CAS commits. A fresh
         // SDK heartbeat ACK is required before a worker can claim after resume.
-        const workerControl = await client.query<{
-          state: string; control_revision: number | string; control_state: string;
+        const workerControl = await client.query<RegisteredWorkerVersion & {
+          control_revision: number | string; control_state: string;
           desired_control_revision: number | string; desired_control_state: string;
         }>(
-          `SELECT state,control_revision,control_state,desired_control_revision,desired_control_state
-             FROM worker_instances WHERE business_id=$1 AND instance_id=$2 FOR UPDATE`,
+          `SELECT wi.business_version, wi.manifest_digest AS heartbeat_manifest_digest,
+                  bv.digest AS registered_manifest_digest, wi.state,
+                  (wi.last_seen_at > clock_timestamp() - interval '60 seconds') AS heartbeat_fresh,
+                  wi.control_revision,wi.control_state,wi.desired_control_revision,wi.desired_control_state
+             FROM worker_instances wi
+             LEFT JOIN business_versions bv
+               ON bv.business_id=wi.business_id AND bv.version=wi.business_version
+            WHERE wi.business_id=$1 AND wi.instance_id=$2 FOR UPDATE OF wi`,
           [t.business_id, workerInstanceId],
         );
         const worker = workerControl.rows[0];
         if (!worker) {
           throw conflict('WORKER_NOT_REGISTERED', 'worker must register through heartbeat before claiming tasks');
+        }
+        if (!worker.heartbeat_fresh) {
+          throw conflict('WORKER_NOT_REGISTERED', 'worker registration is not fresh');
         }
         if (worker.desired_control_state !== 'OPEN' || worker.state !== 'ONLINE'
           || worker.control_state !== 'OPEN'
@@ -662,19 +751,66 @@ export function createRuntimeService(
           throw conflict('WORKER_ADMISSION_CLOSED', 'this worker replica has not acknowledged open task admission');
         }
 
-        // Leased elsewhere and not expired → busy.
-        if (leaseIsActive && (t.leased_by as string) !== workerInstanceId) {
-          throw conflict('STATE_CONFLICT', `task ${taskId} is leased by another worker`);
+        const mismatch = workerPinMismatch(t, worker);
+        if (mismatch) throw conflict(mismatch, 'worker registration does not match the task execution pin');
+
+        // Leased elsewhere and not expired → busy. The earlier RUNNING branch
+        // handles active leases before admission checks so only a verified
+        // compatible owner can produce the ACK-safe TASK_LEASE_ACTIVE code.
+        if (leaseIsActive) {
+          throw conflict('TASK_LEASE_HELD', `task ${taskId} has an active lease`);
+        }
+
+        const businessGate = await client.query<{ enabled: boolean }>(
+          'SELECT enabled FROM business_catalog WHERE business_id=$1 FOR SHARE',
+          [t.business_id],
+        );
+        if (!businessGate.rows[0]?.enabled) {
+          throw conflict('BUSINESS_DISABLED', 'logical business is disabled for new task execution');
         }
 
         const nextEpoch = (t.lease_epoch as number) + 1;
         const expiresAt = new Date(Date.now() + leaseMs).toISOString();
-        await client.query(
+        // The task row lock above serializes this transaction with queue
+        // recovery's locked CAS. If recovery wins first, only the newest
+        // durable dispatch/continuation may claim; if this claim wins first,
+        // recovery rechecks the now-RUNNING task before inserting a replacement.
+        const claimed = await client.query(
           `UPDATE tasks SET lease_epoch=$2, lease_expires_at=$3, leased_by=$4,
                   last_delivery_id=$5, state='RUNNING', attempt = attempt + 1, updated_at=now()
-           WHERE id=$1`,
-          [taskId, nextEpoch, expiresAt, workerInstanceId, deliveryId]
+           WHERE id=$1
+             AND lease_epoch=$6
+             AND state IN ('ACCEPTED','READY','QUEUED','RETRY_PENDING','RUNNING')
+             AND (state <> 'RUNNING' OR lease_expires_at IS NULL OR lease_expires_at <= clock_timestamp())
+             AND EXISTS (
+               SELECT 1 FROM outbox current_delivery
+                WHERE current_delivery.aggregate_id=$1
+                  AND current_delivery.type IN ('task.dispatch','task.continuation')
+                  AND current_delivery.delivery_id=$5
+                  AND NOT EXISTS (
+                    SELECT 1 FROM outbox newer_delivery
+                     WHERE newer_delivery.aggregate_id=current_delivery.aggregate_id
+                       AND newer_delivery.type IN ('task.dispatch','task.continuation')
+                       AND (newer_delivery.created_at > current_delivery.created_at
+                         OR (newer_delivery.created_at = current_delivery.created_at
+                           AND newer_delivery.id > current_delivery.id))
+                  )
+             )
+           RETURNING id`,
+          [taskId, nextEpoch, expiresAt, workerInstanceId, deliveryId, t.lease_epoch]
         );
+        if (!claimed.rowCount) throw conflict('TASK_NOT_READY', `task ${taskId} is no longer claimable`);
+        const intakeCount = await client.query(
+          `UPDATE worker_instances
+              SET accepted_task_count=accepted_task_count+1
+            WHERE business_id=$1 AND instance_id=$2 AND business_version=$3
+              AND (manifest_digest IS NULL OR manifest_digest=$4)
+            RETURNING accepted_task_count`,
+          [t.business_id, workerInstanceId, t.business_version, t.manifest_digest],
+        );
+        if (!intakeCount.rowCount) {
+          throw conflict('WORKER_NOT_REGISTERED', 'worker registration changed before the task claim committed');
+        }
         await client.query(
           `UPDATE operations SET state='RUNNING', state_version = state_version + 1, updated_at=now()
            WHERE id=$1 AND state IN ('ACCEPTED','QUEUED','WAITING_CHILDREN','WAITING_INPUT','RETRY_PENDING')`,
@@ -1168,7 +1304,6 @@ export function createRuntimeService(
         if (['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(t.state)) {
           throw gone(`task ${taskId} is terminal ${t.state}`);
         }
-        if (t.lease_epoch !== req.leaseEpoch) throw conflict('LEASE_LOST', 'stale leaseEpoch');
         // Idempotency before the RUNNING gate (RUN-05): a retry of the exact
         // same spawn after the parent already entered WAITING_CHILDREN replays
         // the stored children; a conflicting payload for a known key is
@@ -1208,6 +1343,7 @@ export function createRuntimeService(
           ).rows[0].state as string;
           return { childTaskIds: childIds, parentState };
         }
+        if (t.lease_epoch !== req.leaseEpoch) throw conflict('LEASE_LOST', 'stale leaseEpoch');
         if (t.state === 'RUNNING') assertActiveLease(t as ActiveLeaseRow);
         if (existingByKey.size > 0) {
           throw conflict(
@@ -1310,7 +1446,8 @@ export function createRuntimeService(
         });
         const parentTransition = await client.query(
           `UPDATE tasks t
-           SET state='WAITING_CHILDREN', payload_ref=$2, updated_at=now()
+           SET state='WAITING_CHILDREN', payload_ref=$2,
+               lease_epoch=lease_epoch+1, lease_expires_at=NULL, leased_by=NULL, updated_at=now()
            WHERE t.id=$1 AND t.lease_epoch=$3 AND t.state='RUNNING'
              AND t.lease_expires_at > clock_timestamp()
              AND EXISTS (
@@ -1408,7 +1545,6 @@ export function createRuntimeService(
         if (['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(t.state)) {
           throw gone(`task ${taskId} is terminal ${t.state}`);
         }
-        if (t.lease_epoch !== req.leaseEpoch) throw conflict('LEASE_LOST', 'stale leaseEpoch');
         let schemaJson: string;
         try {
           schemaJson = JSON.stringify(req.inputSchema);
@@ -1433,6 +1569,7 @@ export function createRuntimeService(
           }
           return { waitId: row.wait_id, expiresAt: new Date(row.expires_at).toISOString() };
         }
+        if (t.lease_epoch !== req.leaseEpoch) throw conflict('LEASE_LOST', 'stale leaseEpoch');
         if (t.state !== 'RUNNING') {
           throw conflict('STATE_CONFLICT', `task ${taskId} is ${t.state}, not RUNNING`);
         }
@@ -1472,7 +1609,8 @@ export function createRuntimeService(
         }
         const taskTransition = await client.query(
           `UPDATE tasks t
-           SET state='WAITING_INPUT', updated_at=now()
+           SET state='WAITING_INPUT', lease_epoch=lease_epoch+1,
+               lease_expires_at=NULL, leased_by=NULL, updated_at=now()
            WHERE t.id=$1 AND t.lease_epoch=$2 AND t.state='RUNNING'
              AND t.lease_expires_at > clock_timestamp()
              AND EXISTS (
@@ -1637,10 +1775,13 @@ export function createRuntimeService(
           resumePayload,
           { tenantId: op.tenant_id, slot: 'tasks.payload_ref', refId: wt.id },
         );
-        await client.query(`UPDATE tasks SET state='QUEUED', payload_ref=$2, updated_at=now() WHERE id=$1`, [
-          wt.id,
-          JSON.stringify(sealedResumePayload),
-        ]);
+        const resumed = await client.query(
+          `UPDATE tasks SET state='QUEUED', payload_ref=$2,
+                  lease_epoch=lease_epoch+1, lease_expires_at=NULL, leased_by=NULL, updated_at=now()
+           WHERE id=$1 AND state='WAITING_INPUT' RETURNING id`,
+          [wt.id, JSON.stringify(sealedResumePayload)],
+        );
+        if (!resumed.rowCount) throw conflict('STATE_CONFLICT', `task ${wait.task_id} is no longer waiting for input`);
         await client.query(
           `INSERT INTO outbox (aggregate_id, type, delivery_id, payload)
            VALUES ($1,'task.dispatch',$2,$3)
@@ -1859,14 +2000,12 @@ export function createRuntimeService(
      * leaseless task would stay orphaned until the manual deadline sweep —
      * which is escape hatch, not recovery.
      *
-     * For every candidate (§2) the ONLY loss proof is BullMQ itself:
-     * `queue.getJob(jobIdForDelivery(...))` returning empty means the job
-     * is gone; a live job (waiting/delayed/active/completed) is left alone
-     * and converges on its own. A confirmed-lost row is re-armed via the
-     * CAS UPDATE (never a new delivery row — no schema change, stable
-     * jobId makes false-positive republish dedup at the queue layer).
-     * Redis errors are NOT loss: the candidate is `unconfirmed`, never
-     * re-armed on transport failure.
+     * For every candidate, only a BullMQ missing/failed/completed state plus
+     * a fresh PostgreSQL CAS proves that a runnable task needs recovery. A
+     * new durable delivery intent replaces the prior stable job ID; we never
+     * delete an active job or re-enqueue a RUNNING/terminal task. Inserting
+     * the new intent before Redis publication makes crashes replayable by the
+     * ordinary dispatcher. Redis errors and unknown states are NOT loss.
      *
      * Test seam parity with sweepExpiredLeases: production drives this off
      * the recoveryTimer; offline/live tests call it directly.
@@ -1896,26 +2035,51 @@ export function createRuntimeService(
       };
 
       for (const c of candRes.rows) {
-        if (c.attempts >= maxAttempts) {
-          // D1: stop re-arming at the cap; escalation signal goes to health
-          // (SUSPECT) and the ledger (queue.integrity_stalled) by the caller.
-          result.stalled++;
-          result.stalledDeliveryIds.push(c.delivery_id);
-          continue;
-        }
-        let job: unknown;
+        let job: { getState?: () => Promise<string> } | undefined;
+        let state: string | undefined;
         try {
-          job = await queueAccess.getQueue(c.queue_name).getJob(jobIdForDelivery(c.delivery_id));
+          job = await queueAccess.getQueue(c.queue_name).getJob(jobIdForDelivery(c.delivery_id)) as
+            | { getState?: () => Promise<string> }
+            | undefined;
+          if (job) state = await job.getState?.();
         } catch {
           result.unconfirmed++;
           continue;
         }
-        if (job) {
+        if (job && ['active', 'delayed', 'prioritized', 'waiting', 'waiting-children'].includes(state ?? '')) {
           result.aliveSkipped++;
           continue;
         }
-        const rearm = await db.query(QUEUE_INTEGRITY_REARM_SQL, [c.outbox_id, c.dispatched_at, maxAttempts]);
-        if (rearm.rowCount) result.rearmed++;
+        if (job && state !== 'completed' && state !== 'failed') {
+          // An unrecognized state or a queue client without getState is not
+          // evidence of loss. Preserve the current task and retry the probe.
+          result.unconfirmed++;
+          continue;
+        }
+        if (c.attempts >= maxAttempts) {
+          // D1: report stalled only after confirming that no live execution
+          // exists. An active worker remains safe even when the cap is hit.
+          result.stalled++;
+          result.stalledDeliveryIds.push(c.delivery_id);
+          continue;
+        }
+        const inserted = await db.tx(async (client) => {
+          const guard = await client.query<{
+            id: string;
+            aggregate_id: string;
+            type: string;
+            delivery_id: string;
+            attempts: number | string;
+          }>(QUEUE_INTEGRITY_REPLACEMENT_GUARD_SQL, [c.outbox_id, c.dispatched_at, c.attempts, maxAttempts]);
+          if (!guard.rowCount) return false;
+          const locked = guard.rows[0]!;
+          const attempt = Number(locked.attempts) + 1;
+          const suffix = createHash('sha256').update(locked.delivery_id).digest('hex').slice(0, 16);
+          const replacementDeliveryId = `${locked.aggregate_id}:queue-recovery:${suffix}:${attempt}`;
+          const replacement = await client.query(QUEUE_INTEGRITY_INSERT_REPLACEMENT_SQL, [locked.id, replacementDeliveryId]);
+          return Boolean(replacement.rowCount);
+        });
+        if (inserted) result.rearmed++;
         else result.casSkipped++;
       }
       return result;
@@ -2111,10 +2275,13 @@ async function reconcileParentJoin(
     refId: parentId,
   });
   const deliveryId = `${parentId}:join:${sibs.length}`;
-  await client.query(`UPDATE tasks SET state='QUEUED', payload_ref=$2, updated_at=now() WHERE id=$1`, [
-    parentId,
-    JSON.stringify(sealedMergedPayload),
-  ]);
+  const parentTransition = await client.query(
+    `UPDATE tasks SET state='QUEUED', payload_ref=$2,
+            lease_epoch=lease_epoch+1, lease_expires_at=NULL, leased_by=NULL, updated_at=now()
+     WHERE id=$1 AND state='WAITING_CHILDREN' RETURNING id`,
+    [parentId, JSON.stringify(sealedMergedPayload)],
+  );
+  if (!parentTransition.rowCount) return null;
   await client.query(
     `INSERT INTO outbox (aggregate_id, type, delivery_id, payload)
      VALUES ($1,'task.continuation',$2,$3)
@@ -2201,7 +2368,7 @@ async function buildClaimResult(
     businessVersion: t.business_version as string,
     action: t.action as string,
     schemaDigest: 'sha256:slice',
-    manifestDigest: (t.manifest_digest as string) ?? 'sha256:slice',
+    manifestDigest: t.manifest_digest as string,
     // ENC-META-01: input_ref and payload_ref are sealed at rest. The claim
     // path is the ONLY place a worker learns them, so the tenant fence that
     // already ran above (business identity) plus the per-row AAD binding are

@@ -1,0 +1,9 @@
+cwd=D:\Git\dugate\du-rework\orchestrator
+started=2026-10-12 16:24:55 +07:00
+command=pnpm --filter @du/contracts build
+
+> @du/contracts@0.1.0 build D:\Git\dugate\du-rework\orchestrator\packages\contracts
+> tsc -p tsconfig.json
+
+exit=0
+finished=2026-10-12 16:24:59 +07:00

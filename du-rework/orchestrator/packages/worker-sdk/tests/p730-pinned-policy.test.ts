@@ -92,18 +92,22 @@ describe('P730 W2-B Worker SDK pinned policy claim contract', () => {
   it('rejects legacy plaintext auth config and unknown nested policy keys', async () => {
     const sentinel = mkSentinel('p730-sdk', 'legacy-token');
     const legacy = claimDto({ fileUrlAuthConfig: { type: 'bearer', token: sentinel } });
-    await expect(clientReturning(legacy).claimTask(TASK_ID, {
+    const legacyError = await clientReturning(legacy).claimTask(TASK_ID, {
       deliveryId: 'delivery-p730',
       workerInstanceId: 'worker-p730',
       businessId: 'document-core',
-    })).rejects.toMatchObject({ name: 'ZodError' });
+    }).catch((error: unknown) => error);
+    expect(legacyError).toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
+    expect((legacyError as Error).message).not.toContain(sentinel);
 
     const unknownNested = claimDto({ unrecognizedCredential: sentinel });
-    await expect(clientReturning(unknownNested).claimTask(TASK_ID, {
+    const nestedError = await clientReturning(unknownNested).claimTask(TASK_ID, {
       deliveryId: 'delivery-p730',
       workerInstanceId: 'worker-p730',
       businessId: 'document-core',
-    })).rejects.toMatchObject({ name: 'ZodError' });
+    }).catch((error: unknown) => error);
+    expect(nestedError).toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
+    expect((nestedError as Error).message).not.toContain(sentinel);
   });
 
   it('rejects a malformed credential reference instead of passing an unreadable pointer through', async () => {
@@ -114,7 +118,7 @@ describe('P730 W2-B Worker SDK pinned policy claim contract', () => {
       deliveryId: 'delivery-p730',
       workerInstanceId: 'worker-p730',
       businessId: 'document-core',
-    })).rejects.toMatchObject({ name: 'ZodError' });
+    })).rejects.toMatchObject({ status: 200, code: 'TEMPORARY_UNAVAILABLE', isRetryable: true });
   });
 
   test.todo('GAP SDK-CONSUME: DefaultTaskContext and document-core do not yet consume pinned profile policy');

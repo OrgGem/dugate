@@ -25,6 +25,8 @@ function workerRow(overrides: Record<string, unknown> = {}) {
     state: 'ONLINE',
     capacity: 8,
     active_leases: 2,
+    accepted_task_count: 17,
+    accepted_task_count_since: new Date('2026-10-10T00:00:00.000Z'),
     last_seen_at: new Date(NOW - 10_000),
     observed_at: new Date(NOW - 9_000),
     ...overrides,
@@ -83,6 +85,9 @@ describe('AWEB-11C worker instance read model', () => {
       businessVersion: '3.2.1',
       capacity: 8,
       activeLeases: 2,
+      acceptedTaskCount: 17,
+      acceptedTaskCountSince: '2026-10-10T00:00:00.000Z',
+      acceptedTaskCountScope: 'business-instance-lifetime',
       lastSeenAt: '2026-10-10T11:59:50.000Z',
     });
     expect(db.query).toHaveBeenCalledWith(
@@ -109,6 +114,9 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
   test('upserts authenticated instance data and safely joins text scope IDs to UUID tenants', async () => {
     const lastSeenAt = new Date('2026-10-10T11:59:59.000Z');
     const query = jest.fn(async (sql: string, _params: unknown[] = []) => {
+      if (sql.includes('SELECT state,fence_revision FROM maintenance_backup_effect_gate')) {
+        return queryResult([{ state: 'OPEN', fence_revision: 3 }]);
+      }
       if (sql.includes('SELECT scope_kind,scope_id,desired_state,revision')) {
         return queryResult([
           { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 3 },
@@ -132,7 +140,10 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
 
     const result = await recordWorkerHeartbeat(db, 'worker-1', heartbeat);
 
-    expect(result).toEqual({ state: 'ONLINE', lastSeenAt: lastSeenAt.toISOString(), controlRevision: 4, controlState: 'OPEN' });
+    expect(result).toEqual({
+      state: 'ONLINE', lastSeenAt: lastSeenAt.toISOString(), controlRevision: 4, controlState: 'OPEN',
+      backupEffectFence: { state: 'OPEN', revision: 3, acknowledged: false },
+    });
     const write = query.mock.calls.find(([sql]) => sql.includes('WITH lease_count'));
     expect(write).toBeDefined();
     const [sql, params] = write!;
@@ -141,7 +152,8 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
     expect(sql).toContain("t.state = 'RUNNING'");
     expect(sql).toContain('t.lease_expires_at > statement_timestamp()');
     expect(sql).toContain('o.business_id = $1');
-    expect(params).toEqual([BUSINESS_ID, 'worker-1', '3.2.1', 8, 'ONLINE', 4, 'OPEN', 'sha256:abc123', null, null]);
+    expect(params).toEqual([BUSINESS_ID, 'worker-1', '3.2.1', 8, 'ONLINE', 4, 'OPEN', 'sha256:abc123', null, null, null, null]);
+    expect(sql).toContain('manifest_digest');
     const tenantScopeQuery = query.mock.calls.find(([statement]) => statement.includes('SELECT r.scope_id,r.revision,r.desired_state'))?.[0];
     expect(tenantScopeQuery).toContain('o.tenant_id::text=r.scope_id');
     expect(tenantScopeQuery).not.toContain('r.scope_id::uuid');
@@ -151,6 +163,9 @@ describe('AWEB-11C persisted runtime worker heartbeat', () => {
   test('runtime route enforces the token business and rejects invalid heartbeat payloads', async () => {
     const lastSeenAt = new Date();
     const query = jest.fn(async (sql: string) => {
+      if (sql.includes('SELECT state,fence_revision FROM maintenance_backup_effect_gate')) {
+        return queryResult([{ state: 'OPEN', fence_revision: 3 }]);
+      }
       if (sql.includes('SELECT scope_kind,scope_id,desired_state,revision')) {
         return queryResult([
           { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 3 },

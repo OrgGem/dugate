@@ -23,6 +23,9 @@ export interface WorkerInstanceRead {
   health: WorkerInstanceHealth;
   capacity: number;
   activeLeases: number;
+  acceptedTaskCount: number;
+  acceptedTaskCountSince: string;
+  acceptedTaskCountScope: 'business-instance-lifetime';
   lastSeenAt: string;
   observedAt: string;
 }
@@ -40,6 +43,8 @@ interface WorkerInstanceDbRow extends QueryResultRow {
   state: string;
   capacity: number | string;
   active_leases: number | string;
+  accepted_task_count: number | string;
+  accepted_task_count_since: Date | string;
   last_seen_at: Date | string;
   observed_at: Date | string;
 }
@@ -90,6 +95,7 @@ export async function listWorkerInstances(
   params.push(query.limit + 1);
   const result = await db.query<WorkerInstanceDbRow>(
     `SELECT business_id, instance_id, business_version, state, capacity, active_leases,
+            accepted_task_count, accepted_task_count_since,
             last_seen_at, observed_at
        FROM worker_instances${where}
       ORDER BY last_seen_at DESC, business_id ASC, instance_id ASC
@@ -109,6 +115,8 @@ function toWorkerInstanceRead(row: WorkerInstanceDbRow, nowMs: number): WorkerIn
   const observedAt = readTimestamp(row.observed_at, 'observed_at');
   const capacity = readCount(row.capacity, 'capacity');
   const activeLeases = readCount(row.active_leases, 'active_leases');
+  const acceptedTaskCount = readCount(row.accepted_task_count, 'accepted_task_count');
+  const acceptedTaskCountSince = readTimestamp(row.accepted_task_count_since, 'accepted_task_count_since');
   const ageMs = Math.max(0, nowMs - Date.parse(lastSeenAt));
   const health: WorkerInstanceHealth = row.state === 'OFFLINE' || ageMs > DEGRADED_AFTER_MS
     ? 'OFFLINE'
@@ -124,6 +132,9 @@ function toWorkerInstanceRead(row: WorkerInstanceDbRow, nowMs: number): WorkerIn
     health,
     capacity,
     activeLeases,
+    acceptedTaskCount,
+    acceptedTaskCountSince,
+    acceptedTaskCountScope: 'business-instance-lifetime',
     lastSeenAt,
     observedAt,
   };

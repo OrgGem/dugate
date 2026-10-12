@@ -1,0 +1,267 @@
+COMMAND: node D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk\node_modules\jest\bin\jest.js --runInBand --testTimeout=30000 tests/temp-sweep.test.ts
+CWD: C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\worker-sdk
+PROCESS TIMEOUT: 90s
+
+EXIT CODE: 1
+--- stdout ---
+{"timestamp":"2026-10-12T10:19:13.715Z","level":"info","service":"worker:sweep-biz","version":"unknown","environment":"test","correlationId":"42563dce-9c36-416a-8730-3aa83124a5ff","operationId":null,"taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+--- stderr ---
+FAIL tests/temp-sweep.test.ts
+  startWorker temp sweep (W39-CC2b)
+    × removes stale du-worker-* dirs at startup (16 ms)
+    × keeps fresh du-worker-* dirs at startup (2 ms)
+    × sweeps periodically (dir planted after startup is removed by the timer) (1 ms)
+    × enabled:false leaves stale dirs untouched (2 ms)
+    × a failing sweep (unreadable root) never breaks startup or delivery (2 ms)
+    × stop() clears the sweep timer (no leaked interval)
+    × accepts a sweep interval boundary of 0 without crashing (2 ms)
+    × accepts a sweep interval boundary of -1 without crashing (1 ms)
+    √ treats an older-than threshold boundary of 0 as immediately eligible (3 ms)
+    √ treats an older-than threshold boundary of -1 as immediately eligible (2 ms)
+    √ uses a strict TTL boundary: equality is kept and one millisecond beyond is swept (3 ms)
+    √ keeps malformed prefix files while removing a genuine orphan in the same pass (3 ms)
+    √ does not follow a stale workspace junction into a target outside the temp root (3 ms)
+    √ does not include a workspace written during the active directory snapshot (7 ms)
+    √ keeps a workspace intact when an inaccessible nested directory blocks cleanup (5 ms)
+    √ keeps a regular file whose name matches the workspace prefix (2 ms)
+    √ keeps a workspace when inspecting it fails with a permission error (3 ms)
+    √ keeps a workspace and completes when cleanup reports a locked-file error (2 ms)
+    √ does not traverse into unrelated parent directories looking for prefixed workspaces (3 ms)
+
+  ● startWorker temp sweep (W39-CC2b) › removes stale du-worker-* dirs at startup
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/temp-sweep.test.ts:160:20)
+
+  ● startWorker temp sweep (W39-CC2b) › keeps fresh du-worker-* dirs at startup
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/temp-sweep.test.ts:169:20)
+
+  ● startWorker temp sweep (W39-CC2b) › sweeps periodically (dir planted after startup is removed by the timer)
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/temp-sweep.test.ts:176:20)
+
+  ● startWorker temp sweep (W39-CC2b) › enabled:false leaves stale dirs untouched
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/temp-sweep.test.ts:185:20)
+
+  ● startWorker temp sweep (W39-CC2b) › a failing sweep (unreadable root) never breaks startup or delivery
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/temp-sweep.test.ts:241:20)
+
+  ● startWorker temp sweep (W39-CC2b) › stop() clears the sweep timer (no leaked interval)
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at Object.<anonymous> (tests/temp-sweep.test.ts:265:20)
+
+  ● startWorker temp sweep (W39-CC2b) › accepts a sweep interval boundary of 0 without crashing
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at tests/temp-sweep.test.ts:276:22
+
+  ● startWorker temp sweep (W39-CC2b) › accepts a sweep interval boundary of -1 without crashing
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "backupEffectFence"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      165 |   async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
+      166 |     return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
+    > 167 |       HeartbeatAckSchema.parse(raw)
+          |                          ^
+      168 |     );
+      169 |   }
+      170 |
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/runtime-client.ts:167:26
+      at RuntimeClient.request (src/runtime-client.ts:160:12)
+      at startWorker (src/worker.ts:524:22)
+      at tests/temp-sweep.test.ts:276:22
+
+Test Suites: 1 failed, 1 total
+Tests:       8 failed, 11 passed, 19 total
+Snapshots:   0 total
+Time:        2.517 s
+Ran all test suites matching /tests\\temp-sweep.test.ts/i.

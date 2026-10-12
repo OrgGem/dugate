@@ -1,0 +1,23 @@
+▶ Business Services offline integration harness
+  ✔ loads the real business registry response and selected business versions through the BFF client (41.712ms)
+  ✔ keeps workflow binding reads and writes fenced to the selected profile business, version, and tenant (2.2816ms)
+  ✔ wires Business version detail and profile workflow ownership into the actual screens (0.9183ms)
+✔ Business Services offline integration harness (46.381ms)
+▶ profile group and business lifecycle API client
+  ✔ uses the same-origin BFF routes and CSRF proof for every mutation (43.4787ms)
+✔ profile group and business lifecycle API client (45.5163ms)
+▶ profile group draft state
+  ✔ uses selected manifest defaults for required settings and persists the displayed defaults (5.542ms)
+  ✔ keeps function configuration isolated by business and version and serializes one complete multi-business save (0.7174ms)
+  ✔ hydrates a full group read for reload and preserves independent member versions and bindings (0.3433ms)
+  ✔ blocks save when a business was disabled while open or a function is unavailable in its selected manifest (1.1306ms)
+  ✔ uses revision conflicts to stop edits until the complete server group is reloaded (0.1286ms)
+✔ profile group draft state (8.916ms)
+ℹ tests 9
+ℹ suites 3
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 388.2527

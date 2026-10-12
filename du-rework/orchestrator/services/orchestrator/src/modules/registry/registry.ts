@@ -26,6 +26,12 @@ export interface RegistrationResult {
 
 export interface RegistryService {
   registerVersion(manifest: unknown): Promise<RegistrationResult>;
+  setBusinessEnabled(
+    businessId: string,
+    enabled: boolean,
+    expectedLifecycleRevision: number,
+    client?: PoolClient,
+  ): Promise<{ businessId: string; enabled: boolean; lifecycleRevision: number; replayed: boolean }>;
   getEnabledVersion(businessId: string, version: string): Promise<{
     manifest: BusinessManifest;
     digest: string;
@@ -57,6 +63,17 @@ export function createRegistryService(db: Db): RegistryService {
       const queue = businessQueueName(businessId, version);
 
       return db.tx(async (client) => {
+        // The logical root is also the registration mutex. It serializes
+        // concurrent first registrations of different versions without
+        // assigning caller-controlled tenant ownership. Existing roots are
+        // left untouched; new businesses start disabled until admin enables.
+        await client.query(
+          `INSERT INTO business_catalog (business_id, enabled)
+           VALUES ($1, false)
+           ON CONFLICT (business_id) DO NOTHING`,
+          [businessId],
+        );
+        await client.query('SELECT business_id FROM business_catalog WHERE business_id=$1 FOR UPDATE', [businessId]);
         const existing = await client.query(
           'SELECT digest, status, manifest, created_at FROM business_versions WHERE business_id = $1 AND version = $2 FOR UPDATE',
           [businessId, version]
@@ -97,6 +114,45 @@ export function createRegistryService(db: Db): RegistryService {
         );
         return { businessId, version, digest, queue, created: true, replayed: false };
       });
+    },
+
+    async setBusinessEnabled(businessId, enabled, expectedLifecycleRevision, activeClient) {
+      const run = async (client: PoolClient) => {
+        const selected = await client.query<{ enabled: boolean; lifecycle_revision: number | string }>(
+          `SELECT enabled,lifecycle_revision
+             FROM business_catalog
+            WHERE business_id=$1
+            FOR UPDATE`,
+          [businessId],
+        );
+        const row = selected.rows[0];
+        if (!row) throw new HttpError(404, 'NOT_FOUND', `business ${businessId} not registered`);
+        const revision = Number(row.lifecycle_revision);
+        if (!Number.isSafeInteger(revision) || revision < 1) {
+          throw new Error('business lifecycle revision is invalid');
+        }
+        if (revision !== expectedLifecycleRevision) {
+          throw conflict('STATE_CONFLICT', 'business lifecycle changed; reload before updating it');
+        }
+        if (row.enabled === enabled) {
+          return { businessId, enabled, lifecycleRevision: revision, replayed: true };
+        }
+        const updated = await client.query<{ enabled: boolean; lifecycle_revision: number | string }>(
+          `UPDATE business_catalog
+              SET enabled=$2,lifecycle_revision=lifecycle_revision+1,updated_at=now()
+            WHERE business_id=$1 AND lifecycle_revision=$3
+            RETURNING enabled,lifecycle_revision`,
+          [businessId, enabled, expectedLifecycleRevision],
+        );
+        const updatedRow = updated.rows[0];
+        if (!updatedRow) throw conflict('STATE_CONFLICT', 'business lifecycle changed; reload before updating it');
+        const lifecycleRevision = Number(updatedRow.lifecycle_revision);
+        if (!Number.isSafeInteger(lifecycleRevision) || lifecycleRevision < 1) {
+          throw new Error('business lifecycle revision is invalid');
+        }
+        return { businessId, enabled: updatedRow.enabled, lifecycleRevision, replayed: false };
+      };
+      return activeClient ? run(activeClient) : db.tx(run);
     },
 
     async getEnabledVersion(businessId, version) {

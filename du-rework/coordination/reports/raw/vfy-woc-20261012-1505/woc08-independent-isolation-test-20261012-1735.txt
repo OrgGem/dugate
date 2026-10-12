@@ -1,0 +1,28 @@
+START 2026-10-12T17:06:32.3122688+07:00
+CWD D:\Git\dugate\du-rework\businesses\document-core\template
+COMMAND node --test tests/woc08-template-conformance.test.mjs
+WOC08_TEMPLATE_DIST=C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500
+NODE_PATH=D:\Git\dugate\du-rework\orchestrator\packages\contracts\node_modules;D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk\node_modules
+{"businessId":"woc08-template","businessVersion":"1.0.0","code":"BUSINESS_DISABLED","retryAfterMs":167,"timestamp":"2026-10-12T10:06:32.873Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-e6f0fea2-6357-4aa8-aadb-930dd6f8bbea","operationId":"ce309c19-bf2e-4a6f-aef1-e0679a562923","taskId":"e6f0fea2-6357-4aa8-aadb-930dd6f8bbea","invocationId":null,"message":"[REDACTED]"}
+{"code":"WORKER_COMPATIBILITY_REQUIRED","timestamp":"2026-10-12T10:06:32.878Z","level":"error","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"e9ef32f6-9bff-4188-8b84-4fd346087e98","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+✔ deferred admission remains recoverable and the next delivery can run after admission opens (24.5617ms)
+✔ missing v1 backupEffectFence is UNKNOWN and prevents queue consumption (2.6001ms)
+✔ body deadlines cover successful write ACKs; claim ACK parse failures remain retryable (29.1766ms)
+{"businessId":"woc08-template","businessVersion":"1.0.0","timestamp":"2026-10-12T10:06:33.064Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-0e71274d-8b72-490a-80b8-f7a1d0bab5eb","operationId":"d030a4ef-c9be-44de-bb98-c9bb2b2f8964","taskId":"0e71274d-8b72-490a-80b8-f7a1d0bab5eb","invocationId":null,"message":"[REDACTED]"}
+{"retryAfterMs":240,"timestamp":"2026-10-12T10:06:33.064Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"1d05e011-5313-4c80-8576-3b4ab317d42d","operationId":null,"taskId":"0e71274d-8b72-490a-80b8-f7a1d0bab5eb","invocationId":null,"message":"[REDACTED]"}
+{"code":"TASK_HANDLER_ACTIVE","retryAfterMs":240,"timestamp":"2026-10-12T10:06:33.064Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"e263da4e-2e98-4a9e-9e7b-f1bd2a50c893","operationId":null,"taskId":"0e71274d-8b72-490a-80b8-f7a1d0bab5eb","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc08-template","businessVersion":"1.0.0","reason":"lease-lost","timestamp":"2026-10-12T10:06:33.065Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-0e71274d-8b72-490a-80b8-f7a1d0bab5eb","operationId":"d030a4ef-c9be-44de-bb98-c9bb2b2f8964","taskId":"0e71274d-8b72-490a-80b8-f7a1d0bab5eb","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc08-template","businessVersion":"1.0.0","code":"LEASE_RECOVERY","retryAfterMs":25,"timestamp":"2026-10-12T10:06:33.065Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-0e71274d-8b72-490a-80b8-f7a1d0bab5eb","operationId":"d030a4ef-c9be-44de-bb98-c9bb2b2f8964","taskId":"0e71274d-8b72-490a-80b8-f7a1d0bab5eb","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc08-template","businessVersion":"1.0.0","status":410,"code":"TASK_TERMINAL","timestamp":"2026-10-12T10:06:33.066Z","level":"info","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-0e71274d-8b72-490a-80b8-f7a1d0bab5eb","operationId":"d030a4ef-c9be-44de-bb98-c9bb2b2f8964","taskId":"0e71274d-8b72-490a-80b8-f7a1d0bab5eb","invocationId":null,"message":"[REDACTED]"}
+✔ lease expiry aborts an uncooperative handler while single-flight protects the task and other tasks progress (157.2145ms)
+✔ INVOCATION_UNKNOWN retries the same invocation ID and the mock connector dispatches once (2.0686ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 723.7799
+EXIT_CODE 0
+END 2026-10-12T17:06:33.0911023+07:00

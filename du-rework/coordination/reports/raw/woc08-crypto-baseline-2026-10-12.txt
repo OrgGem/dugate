@@ -1,0 +1,17 @@
+Baseline source: b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+du-rework/orchestrator/packages/worker-sdk/src/crypto-storage.ts blob=9cc9064a7ceaa0fe1fa7058d0e7e0d488ca87a4f
+du-rework/orchestrator/services/orchestrator/src/modules/encryption/crypto-storage-facade.ts blob=baf3d898e2c4e1b4b83fa71d59a7a55d459c5508
+du-rework/orchestrator/packages/worker-sdk/tests/crypto-seam.test.ts blob=1e796c1b4484b5d694f437dd4a9842b806a2637c
+Baseline snippets from git show:
+function contextAad(context: CryptoStorageContext): Buffer {
+function singleAad(context: CryptoStorageContext, sizeBytes: number, sha256: string): Buffer {
+function chunkAad(
+function contextAad(context: CryptoStorageContext): Buffer {
+  return Buffer.from(JSON.stringify(StorageContextAadSchema.parse({
+function singleAad(context: CryptoStorageContext, sizeBytes: number, sha256: string): Buffer {
+    context: StorageContextAadSchema.parse({
+function chunkAad(
+    context: StorageContextAadSchema.parse({
+  it('the implementation body is byte-identical to the orchestrator source', () => {
+    expect(mine).toBe(theirs);
+Current worktree diff: none for the three crypto parity files

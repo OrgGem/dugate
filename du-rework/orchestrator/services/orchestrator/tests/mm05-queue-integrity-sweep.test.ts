@@ -1,25 +1,22 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Queue } from 'bullmq';
 import { jobIdForDelivery } from '@du/contracts';
 import type { Db } from '../src/db/db';
 import { createRuntimeService, type QueueIntegrityCandidate } from '../src/modules/runtime/runtime';
 
 /**
- * MM-05 queue-integrity sweep — OFFLINE functional tests (docs/38 §7).
- * Zero DB/Redis: the sweep runs against a scripted fake Db whose UPDATE
- * applies real CAS semantics (stamp equality + attempts cap + the write-time
- * §2 eligibility re-check of W-PLAT-MM05-REARM-1) to in-memory outbox rows,
- * and a fake BullMQ whose getJob is the sole loss proof.
- *
- * These pin the re-arm half of docs/38 §3, which the Qwen-2 dispatcher-seam
- * probe explicitly defers to ("FLIP this expectation when sweepQueueIntegrity
- * (docs/38) re-arms the row") — probe/1 keeps its GAP characterization of
- * the UNCHANGED dispatcher; the flip lives here, not in their file.
+ * MM-05 queue-integrity recovery — offline tests. The fake DB models the
+ * read-time candidate predicate, transactional CAS guard and unique durable
+ * replacement intent. BullMQ state, rather than getJob presence, determines
+ * whether recovery is safe.
  */
 
 interface FakeRow {
   id: string;
+  aggregate_id: string;
+  type: 'task.dispatch' | 'task.continuation';
   delivery_id: string;
+  payload: Record<string, unknown>;
   dispatched_at: Date | null;
   attempts: number;
   task_state: string;
@@ -28,290 +25,319 @@ interface FakeRow {
 }
 
 const TERMINAL_OP_STATES = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT'];
+const LIVE_JOB_STATES = ['active', 'delayed', 'prioritized', 'waiting', 'waiting-children'];
 
-function hasEligibilityGuard(sql: string): boolean {
-  return sql.includes('EXISTS') && sql.includes('FROM tasks t') && sql.includes('JOIN operations o');
+function eligible(row: FakeRow): boolean {
+  return ['READY', 'QUEUED'].includes(row.task_state)
+    && (row.lease_expires_at === null || row.lease_expires_at.getTime() < Date.now())
+    && !TERMINAL_OP_STATES.includes(row.op_state);
 }
 
-function isEligible(row: FakeRow): boolean {
-  return (
-    (row.task_state === 'READY' || row.task_state === 'QUEUED') &&
-    (row.lease_expires_at === null || row.lease_expires_at.getTime() < Date.now()) &&
-    !TERMINAL_OP_STATES.includes(row.op_state)
-  );
-}
-
-interface UpdateCall {
-  id: string;
-  expectedStamp: Date | null;
-  maxAttempts: number;
+interface QueueJob {
+  getState?: () => Promise<string>;
 }
 
 interface QueueBehavior {
-  jobs: Map<string, unknown>;
+  jobs: Map<string, QueueJob>;
   throwOnGetJob?: boolean;
 }
 
 function makeWorld(opts: { onCandidatesRead?: () => void } = {}) {
   const rows = new Map<string, FakeRow>();
-  const updateCalls: UpdateCall[] = [];
+  const guardSqls: string[] = [];
+  const insertSqls: string[] = [];
   const candidateSqls: string[] = [];
-  const rearmSqls: string[] = [];
   const queueLookups: { queueName: string; jobId: string }[] = [];
-
   const queues = new Map<string, QueueBehavior>();
+
   function behaviorFor(queueName: string): QueueBehavior {
-    let b = queues.get(queueName);
-    if (!b) {
-      b = { jobs: new Map<string, unknown>() };
-      queues.set(queueName, b);
+    let behavior = queues.get(queueName);
+    if (!behavior) {
+      behavior = { jobs: new Map<string, QueueJob>() };
+      queues.set(queueName, behavior);
     }
-    return b;
+    return behavior;
+  }
+
+  function makeClient() {
+    return {
+      query: async (text: string, params: unknown[] = []) => {
+        const sql = text.replace(/\s+/g, ' ').trim();
+        if (sql.includes('DISTINCT ON (ob.aggregate_id)')) {
+          candidateSqls.push(sql);
+          const graceMs = Number(params[0]);
+          const limit = Number(params[1] ?? 50);
+          const candidates = [...rows.values()]
+            .filter((row) => row.dispatched_at !== null
+              && row.dispatched_at.getTime() < Date.now() - graceMs
+              && eligible(row)
+              && ![...rows.values()].some((pending) => pending.aggregate_id === row.aggregate_id
+                && ['task.dispatch', 'task.continuation'].includes(pending.type)
+                && pending.dispatched_at === null))
+            .sort((a, b) => a.aggregate_id.localeCompare(b.aggregate_id)
+              || (b.dispatched_at?.getTime() ?? 0) - (a.dispatched_at?.getTime() ?? 0))
+            .filter((row, index, all) => index === 0 || all[index - 1]?.aggregate_id !== row.aggregate_id)
+            .slice(0, limit)
+            .map((row): QueueIntegrityCandidate => ({
+              outbox_id: row.id,
+              delivery_id: row.delivery_id,
+              delivery_type: row.type,
+              dispatched_at: new Date(row.dispatched_at!),
+              attempts: row.attempts,
+              task_id: row.aggregate_id,
+              task_state: row.task_state,
+              business_id: 'biz-mm05',
+              business_version: '1.0.0',
+              queue_name: 'du-business-mm05-1.0.0',
+            }));
+          opts.onCandidatesRead?.();
+          return { rows: candidates, rowCount: candidates.length };
+        }
+        if (sql.includes('FOR UPDATE OF ob, t')) {
+          guardSqls.push(sql);
+          const [id, expectedStamp, expectedAttempts, maxAttempts] = params as [string, Date, number, number];
+          const row = rows.get(id);
+          const stampMatches = row?.dispatched_at !== null
+            && row?.dispatched_at !== undefined
+            && Math.trunc(row.dispatched_at.getTime()) === Math.trunc(expectedStamp.getTime());
+          const hasPending = row && [...rows.values()].some((pending) => pending.aggregate_id === row.aggregate_id
+            && ['task.dispatch', 'task.continuation'].includes(pending.type)
+            && pending.dispatched_at === null);
+          const hasNewer = row && [...rows.values()].some((other) => other.aggregate_id === row.aggregate_id
+            && ['task.dispatch', 'task.continuation'].includes(other.type)
+            && other.dispatched_at !== null
+            && other.dispatched_at.getTime() > (row.dispatched_at?.getTime() ?? 0));
+          if (row && stampMatches && row.attempts === Number(expectedAttempts)
+            && row.attempts < Number(maxAttempts) && eligible(row) && !hasPending && !hasNewer) {
+            return {
+              rows: [{ id: row.id, aggregate_id: row.aggregate_id, type: row.type,
+                delivery_id: row.delivery_id, payload: row.payload, attempts: row.attempts }],
+              rowCount: 1,
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+        if (sql.includes('INSERT INTO outbox')) {
+          insertSqls.push(sql);
+          const [sourceId, deliveryId] = params as [string, string];
+          const source = rows.get(sourceId);
+          if (!source || [...rows.values()].some((row) => row.delivery_id === deliveryId)) {
+            return { rows: [], rowCount: 0 };
+          }
+          const replacement: FakeRow = {
+            ...source,
+            id: randomUUID(),
+            delivery_id: deliveryId,
+            payload: { ...source.payload, deliveryId },
+            dispatched_at: null,
+          };
+          rows.set(replacement.id, replacement);
+          return { rows: [{ id: replacement.id }], rowCount: 1 };
+        }
+        throw new Error('FakeDb: unexpected SQL: ' + sql.slice(0, 100));
+      },
+    };
   }
 
   const db = {
     pool: undefined,
-    query: async (text: string, params: unknown[] = []) => {
-      const sql = text.replace(/\s+/g, ' ').trim();
-      if (sql.includes('UPDATE outbox') && sql.includes('SET dispatched_at = NULL')) {
-        rearmSqls.push(sql);
-        const id = String(params[0]);
-        const expected = params[1] as Date;
-        const maxAttempts = Number(params[2]);
-        updateCalls.push({ id, expectedStamp: expected, maxAttempts });
-        const row = rows.get(id);
-        if (
-          row &&
-          row.dispatched_at &&
-          row.dispatched_at.getTime() === expected.getTime() &&
-          row.attempts < maxAttempts &&
-          // Mirror QUEUE_INTEGRITY_REARM_SQL: the §2 eligibility re-check is
-          // applied ONLY when the SQL actually carries it, so the behavioral
-          // cancel/terminal tests go red if production ever drops the guard.
-          !(hasEligibilityGuard(sql) && row && !isEligible(row))
-        ) {
-          row.dispatched_at = null;
-          row.attempts += 1;
-          return { rows: [{ id: row.id }], rowCount: 1 };
-        }
-        return { rows: [], rowCount: 0 };
-      }
-      if (sql.includes('FROM outbox') && sql.includes('dispatched_at IS NOT NULL') && sql.includes('DISTINCT ON')) {
-        candidateSqls.push(sql);
-        const cands: QueueIntegrityCandidate[] = [...rows.values()]
-          .filter((r) => r.dispatched_at !== null)
-          .map((r) => ({
-            outbox_id: r.id,
-            delivery_id: r.delivery_id,
-            dispatched_at: new Date(r.dispatched_at!.getTime()),
-            attempts: r.attempts,
-            task_id: randomUUID(),
-            task_state: 'READY',
-            business_id: 'biz-mm05',
-            business_version: '1.0.0',
-            queue_name: 'du-business-mm05',
-          }));
-        opts.onCandidatesRead?.();
-        const limit = Number(params[1] ?? 50);
-        return { rows: cands.slice(0, limit), rowCount: Math.min(cands.length, limit) };
-      }
-      throw new Error('FakeDb: unexpected SQL: ' + sql.slice(0, 90));
-    },
-    tx: async () => {
-      throw new Error('sweep must not use tx (single-statement CAS)');
-    },
+    query: async (text: string, params: unknown[] = []) => makeClient().query(text, params),
+    tx: async <T>(fn: (client: ReturnType<typeof makeClient>) => Promise<T>) => fn(makeClient()),
     close: async () => undefined,
   } as unknown as Db;
 
   const fakeQueue = {
     getJob: async (jobId: string) => {
-      const name = 'du-business-mm05';
-      queueLookups.push({ queueName: name, jobId });
-      const b = behaviorFor(name);
-      if (b.throwOnGetJob) throw new Error('simulated Redis failure');
-      return b.jobs.get(jobId);
+      queueLookups.push({ queueName: 'du-business-mm05-1.0.0', jobId });
+      const behavior = behaviorFor('du-business-mm05-1.0.0');
+      if (behavior.throwOnGetJob) throw new Error('simulated Redis failure');
+      return behavior.jobs.get(jobId);
     },
   } as unknown as Queue;
 
-  const getQueue = (_name: string) => fakeQueue;
-
-  function seed(row: Partial<FakeRow> & { delivery_id: string }): FakeRow {
-    const full: FakeRow = {
-      id: row.id ?? randomUUID(),
-      delivery_id: row.delivery_id,
-      dispatched_at: row.dispatched_at ?? new Date(Date.now() - 60_000),
-      attempts: row.attempts ?? 1,
-      task_state: row.task_state ?? 'READY',
-      lease_expires_at: row.lease_expires_at ?? null,
-      op_state: row.op_state ?? 'RUNNING',
+  function seed(input: Partial<FakeRow> & { delivery_id: string }): FakeRow {
+    const row: FakeRow = {
+      id: input.id ?? randomUUID(),
+      aggregate_id: input.aggregate_id ?? randomUUID(),
+      type: input.type ?? 'task.dispatch',
+      delivery_id: input.delivery_id,
+      payload: input.payload ?? {
+        contractVersion: '1', deliveryId: input.delivery_id, taskId: input.aggregate_id ?? 'task',
+      },
+      dispatched_at: input.dispatched_at === undefined ? new Date(Date.now() - 60_000) : input.dispatched_at,
+      attempts: input.attempts ?? 1,
+      task_state: input.task_state ?? 'READY',
+      lease_expires_at: input.lease_expires_at ?? null,
+      op_state: input.op_state ?? 'QUEUED',
     };
-    rows.set(full.id, full);
-    return full;
+    rows.set(row.id, row);
+    return row;
   }
 
-  function jobAlive(deliveryId: string) {
-    behaviorFor('du-business-mm05').jobs.set(jobIdForDelivery(deliveryId), { id: jobIdForDelivery(deliveryId) });
+  function jobState(deliveryId: string, state: string) {
+    const behavior = behaviorFor('du-business-mm05-1.0.0');
+    const jobId = jobIdForDelivery(deliveryId);
+    behavior.jobs.set(jobId, { getState: async () => state });
+  }
+
+  function jobWithoutState(deliveryId: string) {
+    behaviorFor('du-business-mm05-1.0.0').jobs.set(jobIdForDelivery(deliveryId), {});
   }
 
   function breakRedis() {
-    behaviorFor('du-business-mm05').throwOnGetJob = true;
+    behaviorFor('du-business-mm05-1.0.0').throwOnGetJob = true;
   }
 
-  return { db, getQueue, rows, updateCalls, candidateSqls, rearmSqls, queueLookups, seed, jobAlive, breakRedis };
+  return { db, getQueue: () => fakeQueue, rows, guardSqls, insertSqls, candidateSqls, queueLookups,
+    seed, jobState, jobWithoutState, breakRedis };
 }
 
 const sweepOf = (world: ReturnType<typeof makeWorld>) =>
   createRuntimeService(world.db, { getQueue: world.getQueue });
 
-describe('MM-05 sweepQueueIntegrity (offline, docs/38 §3/§5)', () => {
-  it('lost-job candidate is re-armed: dispatched_at cleared, attempts+1 (the probe/1 flip)', async () => {
+describe('MM-05 sweepQueueIntegrity (offline, durable replacement protocol)', () => {
+  it('missing delivery creates a new pending outbox intent without mutating the stamped source row', async () => {
     const world = makeWorld();
-    const row = world.seed({ delivery_id: 'task-1:1' });
+    const source = world.seed({ delivery_id: 'task-1:1' });
 
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, limit: 10, maxAttempts: 10 });
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, limit: 10, maxAttempts: 10 });
 
-    expect(r).toMatchObject({ candidates: 1, rearmed: 1, aliveSkipped: 0, casSkipped: 0, stalled: 0, unconfirmed: 0 });
-    expect(row.dispatched_at).toBeNull();
-    expect(row.attempts).toBe(2);
-    expect(world.queueLookups).toEqual([{ queueName: 'du-business-mm05', jobId: jobIdForDelivery('task-1:1') }]);
-  });
-
-  it('live job (waiting/delayed/active/completed) is left untouched', async () => {
-    const world = makeWorld();
-    const row = world.seed({ delivery_id: 'task-2:1' });
-    world.jobAlive('task-2:1');
-
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
-
-    expect(r.aliveSkipped).toBe(1);
-    expect(r.rearmed).toBe(0);
-    expect(world.updateCalls).toHaveLength(0);
-    expect(row.dispatched_at).not.toBeNull();
-  });
-
-  it('CAS guard: a dispatcher stamp that landed after the read is NEVER overwritten', async () => {
-    const newer = new Date();
-    const world = makeWorld({
-      onCandidatesRead: () => {
-        for (const row of world.rows.values()) row.dispatched_at = newer;
-      },
+    expect(result).toMatchObject({ candidates: 1, rearmed: 1, aliveSkipped: 0, casSkipped: 0, stalled: 0, unconfirmed: 0 });
+    expect(source.dispatched_at).not.toBeNull();
+    expect(source.attempts).toBe(1);
+    const replacement = [...world.rows.values()].find((row) => row.id !== source.id)!;
+    expect(replacement).toMatchObject({
+      aggregate_id: source.aggregate_id,
+      type: source.type,
+      attempts: source.attempts,
+      dispatched_at: null,
     });
-    const row = world.seed({ delivery_id: 'task-3:1' });
-
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
-
-    expect(r.casSkipped).toBe(1);
-    expect(r.rearmed).toBe(0);
-    expect(row.dispatched_at).toBe(newer);
+    expect(replacement.delivery_id).not.toBe(source.delivery_id);
+    expect(replacement.delivery_id).toContain(`${source.aggregate_id}:queue-recovery:`);
+    expect(source.payload.deliveryId).toBe(source.delivery_id);
+    expect(replacement.payload).toEqual({ ...source.payload, deliveryId: replacement.delivery_id });
+    expect(world.queueLookups).toEqual([{ queueName: 'du-business-mm05-1.0.0', jobId: jobIdForDelivery('task-1:1') }]);
+    expect(world.insertSqls[0]).toContain('ON CONFLICT (delivery_id) DO NOTHING');
+    expect(world.insertSqls[0]).toContain("jsonb_set(payload,'{deliveryId}',to_jsonb($2::text),true)");
   });
 
-  it('write-time re-check: task cancelled after the candidate read is NEVER re-armed (W-PLAT-MM05-REARM-1)', async () => {
-    const world = makeWorld({
-      onCandidatesRead: () => {
-        for (const row of world.rows.values()) row.task_state = 'CANCELLED';
-      },
-    });
-    const row = world.seed({ delivery_id: 'task-10:1' });
-
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
-
-    expect(r.casSkipped).toBe(1);
-    expect(r.rearmed).toBe(0);
-    expect(row.dispatched_at).not.toBeNull();
-    expect(row.attempts).toBe(1);
-  });
-
-  it('write-time re-check: operation reaching terminal after the candidate read is NEVER re-armed', async () => {
-    const world = makeWorld({
-      onCandidatesRead: () => {
-        for (const row of world.rows.values()) row.op_state = 'SUCCEEDED';
-      },
-    });
-    const row = world.seed({ delivery_id: 'task-11:1' });
-
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
-
-    expect(r.casSkipped).toBe(1);
-    expect(r.rearmed).toBe(0);
-    expect(row.dispatched_at).not.toBeNull();
-    expect(row.attempts).toBe(1);
-  });
-
-  it('escalation cap (D1): attempts >= max -> stalled, no re-arm, ids reported', async () => {
+  it.each(LIVE_JOB_STATES)('leaves live BullMQ state %s untouched', async (state) => {
     const world = makeWorld();
-    const row = world.seed({ delivery_id: 'task-4:1', attempts: 10 });
+    const row = world.seed({ delivery_id: `task-live-${state}:1` });
+    world.jobState(row.delivery_id, state);
 
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, maxAttempts: 10 });
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
 
-    expect(r.stalled).toBe(1);
-    expect(r.stalledDeliveryIds).toEqual(['task-4:1']);
-    expect(world.updateCalls).toHaveLength(0);
-    expect(row.dispatched_at).not.toBeNull();
+    expect(result.aliveSkipped).toBe(1);
+    expect(result.rearmed).toBe(0);
+    expect(world.guardSqls).toHaveLength(0);
+    expect(world.rows.size).toBe(1);
   });
 
-  it('Redis error is NOT loss proof: unconfirmed, nothing re-armed', async () => {
+  it.each(['completed', 'failed'])('replaces terminal BullMQ state %s when the task remains runnable', async (state) => {
     const world = makeWorld();
-    const row = world.seed({ delivery_id: 'task-5:1' });
+    const row = world.seed({ delivery_id: `task-${state}:1` });
+    world.jobState(row.delivery_id, state);
+
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
+
+    expect(result.rearmed).toBe(1);
+    expect([...world.rows.values()].filter((entry) => entry.dispatched_at === null)).toHaveLength(1);
+  });
+
+  it('reports stalled only when a terminal/missing delivery is confirmed at the attempt cap', async () => {
+    const world = makeWorld();
+    const active = world.seed({ delivery_id: 'task-cap-active:1', attempts: 10 });
+    const failed = world.seed({ delivery_id: 'task-cap-failed:1', attempts: 10 });
+    world.jobState(active.delivery_id, 'active');
+    world.jobState(failed.delivery_id, 'failed');
+
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, maxAttempts: 10 });
+
+    expect(result.aliveSkipped).toBe(1);
+    expect(result.stalled).toBe(1);
+    expect(result.stalledDeliveryIds).toEqual([failed.delivery_id]);
+  });
+
+  it('a concurrent recovery race yields at most one deterministic replacement intent', async () => {
+    const world = makeWorld();
+    world.seed({ delivery_id: 'task-race:1' });
+
+    const [first, second] = await Promise.all([
+      sweepOf(world).sweepQueueIntegrity({ graceMs: 1 }),
+      sweepOf(world).sweepQueueIntegrity({ graceMs: 1 }),
+    ]);
+
+    expect(world.rows.size).toBe(2);
+    const replacement = [...world.rows.values()].find((row) => row.dispatched_at === null)!;
+    const expectedSuffix = createHash('sha256').update('task-race:1').digest('hex').slice(0, 16);
+    expect(replacement.delivery_id).toContain(`:queue-recovery:${expectedSuffix}:2`);
+    expect(first.rearmed + second.rearmed).toBe(1);
+    expect(first.casSkipped + second.casSkipped).toBe(1);
+  });
+
+  it('write-time CAS rejects a changed delivery stamp, task state, or terminal operation', async () => {
+    const changedStamp = new Date();
+    const stampWorld = makeWorld({ onCandidatesRead: () => {
+      for (const row of stampWorld.rows.values()) row.dispatched_at = changedStamp;
+    } });
+    const stamped = stampWorld.seed({ delivery_id: 'task-stamp:1' });
+    const stampResult = await sweepOf(stampWorld).sweepQueueIntegrity({ graceMs: 1 });
+    expect(stampResult.casSkipped).toBe(1);
+    expect(stamped.dispatched_at).toBe(changedStamp);
+
+    const stateWorld = makeWorld({ onCandidatesRead: () => {
+      for (const row of stateWorld.rows.values()) row.task_state = 'RUNNING';
+    } });
+    const transitioned = stateWorld.seed({ delivery_id: 'task-state:1' });
+    const stateResult = await sweepOf(stateWorld).sweepQueueIntegrity({ graceMs: 1 });
+    expect(stateResult.casSkipped).toBe(1);
+    expect(transitioned.dispatched_at).not.toBeNull();
+
+    const terminalWorld = makeWorld({ onCandidatesRead: () => {
+      for (const row of terminalWorld.rows.values()) row.op_state = 'SUCCEEDED';
+    } });
+    const terminal = terminalWorld.seed({ delivery_id: 'task-terminal:1' });
+    const terminalResult = await sweepOf(terminalWorld).sweepQueueIntegrity({ graceMs: 1 });
+    expect(terminalResult.casSkipped).toBe(1);
+    expect(terminal.dispatched_at).not.toBeNull();
+  });
+
+  it('unknown job state, missing getState, or Redis errors are unconfirmed, never proof of loss', async () => {
+    const world = makeWorld();
+    const unknown = world.seed({ delivery_id: 'task-unknown:1' });
+    const noState = world.seed({ delivery_id: 'task-no-state:1' });
+    const redis = world.seed({ delivery_id: 'task-redis:1' });
+    world.jobState(unknown.delivery_id, 'future-state');
+    world.jobWithoutState(noState.delivery_id);
     world.breakRedis();
 
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
 
-    expect(r.unconfirmed).toBe(1);
-    expect(r.rearmed).toBe(0);
-    expect(world.updateCalls).toHaveLength(0);
-    expect(row.dispatched_at).not.toBeNull();
+    expect(result.unconfirmed).toBe(3);
+    expect(result.rearmed).toBe(0);
+    expect([unknown, noState, redis].every((row) => row.dispatched_at !== null)).toBe(true);
   });
 
-  it('fail closed without queue access', async () => {
+  it('candidate SQL covers dispatch and continuation and suppresses recovery while a replacement is pending', async () => {
+    const world = makeWorld();
+    world.seed({ delivery_id: 'task-dispatch:1' });
+    world.seed({ delivery_id: 'task-continuation:1', type: 'task.continuation' });
+    const pending = world.seed({ delivery_id: 'task-pending:2', dispatched_at: null });
+    world.seed({ aggregate_id: pending.aggregate_id, delivery_id: 'task-pending:1' });
+
+    const result = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
+
+    expect(result.candidates).toBe(2);
+    const sql = world.candidateSqls[0]!;
+    expect(sql).toContain("ob.type IN ('task.dispatch','task.continuation')");
+    expect(sql).toContain("pending.dispatched_at IS NULL");
+    expect(sql).toContain("t.state IN ('READY','QUEUED')");
+    expect(sql).toContain('DISTINCT ON (ob.aggregate_id)');
+  });
+
+  it('fail closes without queue access', async () => {
     const world = makeWorld();
     await expect(createRuntimeService(world.db).sweepQueueIntegrity()).rejects.toThrow(/queue access/);
-  });
-
-  it('candidate predicate keeps every docs/38 §2 clause (structural pin)', async () => {
-    const world = makeWorld();
-    world.seed({ delivery_id: 'task-6:1' });
-    await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
-    const sql = world.candidateSqls[0]!;
-    expect(sql).toContain("ob.type = 'task.dispatch'");
-    expect(sql).toContain('ob.dispatched_at IS NOT NULL');
-    expect(sql).toContain("ob.dispatched_at < now() - ($1 * interval '1 ms')");
-    expect(sql).toContain("t.state IN ('READY','QUEUED')");
-    expect(sql).toContain('(t.lease_expires_at IS NULL OR t.lease_expires_at < now())');
-    expect(sql).toContain("o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')");
-    expect(sql).toContain('DISTINCT ON (ob.aggregate_id)');
-    expect(sql).toContain('ORDER BY ob.aggregate_id, ob.dispatched_at DESC');
-    expect(sql).not.toContain('INSERT');
-  });
-
-  it('re-arm CAS carries the §2 eligibility re-check at write time (structural pin)', async () => {
-    const world = makeWorld();
-    world.seed({ delivery_id: 'task-7:1' });
-    await sweepOf(world).sweepQueueIntegrity({ graceMs: 1 });
-    const sql = world.rearmSqls[0]!;
-    expect(sql).toContain('UPDATE outbox');
-    expect(sql).toContain('FROM tasks t');
-    expect(sql).toContain('JOIN operations o ON o.id = t.operation_id');
-    expect(sql).toContain('t.id = outbox.aggregate_id');
-    expect(sql).toContain("t.state IN ('READY','QUEUED')");
-    expect(sql).toContain('(t.lease_expires_at IS NULL OR t.lease_expires_at < now())');
-    expect(sql).toContain("o.state NOT IN ('SUCCEEDED','FAILED','CANCELLED','TIMED_OUT')");
-    // the re-check must not disturb the pre-existing fence...
-    expect(sql).toContain("date_trunc('millisecond', dispatched_at) = date_trunc('millisecond', $2::timestamptz)");
-    expect(sql).toContain('attempts < $3');
-    // ...and must ride the same [id, stamp, cap] bind triple (no $4).
-    expect(sql).not.toMatch(/\$4/);
-  });
-
-  it('two orphans in one sweep both re-arm (batch behavior)', async () => {
-    const world = makeWorld();
-    const a = world.seed({ delivery_id: 'task-8a:1' });
-    const b = world.seed({ delivery_id: 'task-8b:2' });
-
-    const r = await sweepOf(world).sweepQueueIntegrity({ graceMs: 1, limit: 10 });
-
-    expect(r.candidates).toBe(2);
-    expect(r.rearmed).toBe(2);
-    expect(a.dispatched_at).toBeNull();
-    expect(b.dispatched_at).toBeNull();
   });
 });

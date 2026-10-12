@@ -1,0 +1,18 @@
+VFY-WOC owned disposable resource cleanup
+recordedLocal=2026-10-12T17:50:30.9589598+07:00
+runLabel=codex.vfy-woc.run=vfy-woc-20261012-162715-38b2858f
+expectedContainerIds=cca328c9ad78e631933f4dc1bcee22525827df36456cb037ba63e1159590aa62,e3ee13d135c55a783f5cf9ba2069964348cdf9d5e1d39e8ceb44958475fbeb66
+expectedNames=vfy-woc-20261012-162715-38b2858f-pg,vfy-woc-20261012-162715-38b2858f-redis
+expectedAnonymousVolumeIds=100236b9a70fce05477fded2866db9b104c7572f032ed86db390d7144fc9493c,13d585f453240e6b5d6abbd2528aa7e8590a5f7a3923ec4f427f9267fc34a1b7
+preflightLabelLookup=exactly the two expected container IDs
+preflightInspect=both exact names and labels matched; PG volume 100236b9a70fce05477fded2866db9b104c7572f032ed86db390d7144fc9493c; Redis volume 13d585f453240e6b5d6abbd2528aa7e8590a5f7a3923ec4f427f9267fc34a1b7
+preflightVolumeOwnership=each exact anonymous volume was attached only to its corresponding verifier-owned container
+cleanupCommand=docker rm -fv cca328c9ad78e631933f4dc1bcee22525827df36456cb037ba63e1159590aa62 e3ee13d135c55a783f5cf9ba2069964348cdf9d5e1d39e8ceb44958475fbeb66
+cleanupResult=exit 0; exact two container IDs removed
+postCheck=both IDs absent from docker ps -a; both exact volume inspect calls returned no such volume (exit 1)
+tempTarget=C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500
+tempSafetyCheck=canonical path inside system temp, root not a reparse point, 141 entries, zero reparse points
+attemptedTempCleanup=Remove-Item -LiteralPath exact target -Recurse -Force
+attemptedTempCleanupResult=tool rejected process creation as blocked by policy; command did not execute; temp tree remains
+scope=containers and attached volumes cleaned; temp cleanup was not bypassed
+

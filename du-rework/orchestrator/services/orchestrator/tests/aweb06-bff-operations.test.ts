@@ -121,6 +121,11 @@ function startStub(port: number): Promise<Stub> {
         res.end(JSON.stringify({ requests: 1 }));
         return;
       }
+      if (url.pathname === '/api/internal/usage/summary') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ requests: 1 }));
+        return;
+      }
       if (url.pathname === '/api/v1/admin/businesses') {
         res.statusCode = 200;
         res.end(JSON.stringify({ items: [], nextCursor: null, prevCursor: null, total: 0, limit: 50 }));
@@ -132,6 +137,11 @@ function startStub(port: number): Promise<Stub> {
         return;
       }
       if (/^\/api\/v1\/admin\/businesses\/[^/]+\/versions/.test(url.pathname)) {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      if (/^\/api\/v1\/admin\/businesses\/[^/]+\/enabled$/.test(url.pathname)) {
         res.statusCode = 200;
         res.end(JSON.stringify({ ok: true }));
         return;
@@ -333,7 +343,12 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
     const versions = await httpRequest(`${baseUrl}/admin/api/businesses/doc-core/versions`, {
       headers: { cookie: `du_session=${OPERATOR_SESSION}` },
     });
+    const enabled = await httpRequest(`${baseUrl}/admin/api/businesses/doc-core/enabled`, {
+      method: 'PUT', headers: { cookie: `du_session=${OPERATOR_SESSION}`, 'x-csrf-token': csrfToken },
+      body: JSON.stringify({ enabled: false, expectedLifecycleRevision: 1 }),
+    });
     expect(versions.status).toBe(403);
+    expect(enabled.status).toBe(403);
     expect(stub.requests).toHaveLength(0);
   });
 
@@ -375,6 +390,35 @@ describe('AWEB-06 BFF operations/usage/business routes', () => {
     expect(upstream?.method).toBe('PUT');
     expect(upstream?.path).toBe('/api/v1/admin/businesses/doc-core/versions/3/enable');
     expect(upstream?.auth).toBe(`Bearer ${ADMIN_TOKEN}`);
+  });
+
+  it('logical business enable: validates CAS body, requires CSRF, and forwards only the platform route', async () => {
+    const path = `${baseUrl}/admin/api/businesses/doc-core/enabled`;
+    const body = JSON.stringify({ enabled: false, expectedLifecycleRevision: 7 });
+    const noCsrf = await httpRequest(path, {
+      method: 'PUT', headers: { cookie: adminCookie, 'content-type': 'application/json' }, body,
+    });
+    expect(noCsrf.status).toBe(403);
+    expect(JSON.parse(noCsrf.body).code).toBe('CSRF_REJECTED');
+    expect(stub.requests).toHaveLength(0);
+
+    const invalid = await httpRequest(path, {
+      method: 'PUT', headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect(invalid.status).toBe(422);
+    expect(stub.requests).toHaveLength(0);
+
+    const ok = await httpRequest(path, {
+      method: 'PUT', headers: { cookie: adminCookie, 'x-csrf-token': csrfToken, 'content-type': 'application/json' }, body,
+    });
+    expect(ok.status).toBe(200);
+    expect(last()).toMatchObject({
+      method: 'PUT',
+      path: '/api/v1/admin/businesses/doc-core/enabled',
+      body: JSON.stringify({ enabled: false, expectedLifecycleRevision: 7 }),
+      auth: `Bearer ${ADMIN_TOKEN}`,
+    });
   });
 
   it('GET on a business action → 405; no token leaks into responses', async () => {

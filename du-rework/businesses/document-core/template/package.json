@@ -12,6 +12,7 @@
     "scaffold": "node scripts/scaffold-shims.mjs",
     "scaffold:check": "node scripts/scaffold-shims.mjs --check",
     "verify:vendor": "node scripts/verify-vendor-lock.mjs",
+    "test:conformance": "node --test tests/*.test.mjs",
     "boot:check": "node scripts/scaffold-shims.mjs --check && tsc -p tsconfig.json"
   },
   "dependencies": {

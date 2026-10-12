@@ -1,0 +1,189 @@
+baseline: b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+cwd: C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\contracts
+command: node D:\Git\dugate\du-rework\orchestrator\packages\contracts\node_modules\jest\bin\jest.js --runInBand --testTimeout=30000 tests/usage-reconciliation.test.ts tests/profile-policy.test.ts tests/dto.test.ts
+timeout_ms: 90000
+exit_code: 1
+
+=== stdout ===
+
+=== stderr ===
+FAIL tests/usage-reconciliation.test.ts
+  ● usage aggregation engines › 25. overflow safeguard: totals at/below MAX_SAFE_INTEGER are exact, beyond -> RangeError
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: RangeError
+    Received constructor: ZodError
+
+    Received message: "[
+      {
+        \"code\": \"too_big\",
+        \"maximum\": 9007199254740991,
+        \"type\": \"number\",
+        \"inclusive\": true,
+        \"exact\": false,
+        \"message\": \"Number must be less than or equal to 9007199254740991\",
+        \"path\": [
+          \"costMicrousd\"
+        ]
+      }
+    ]"
+
+          58 |
+          59 | const makeEvent = (over: Record<string, unknown> = {}): UsageLedgerEvent =>
+        > 60 |   UsageLedgerEventSchema.parse({ ...BASE_EVENT, ...over });
+             |                          ^
+          61 |
+          62 | const EVT1 = makeEvent();
+          63 | const EVT2 = makeEvent({
+
+      43 |                 if (this._error)
+      44 |                     return this._error;
+    > 45 |                 const error = new ZodError_js_1.ZodError(ctx.common.issues);
+         |                               ^
+      46 |                 this._error = error;
+      47 |                 return this._error;
+      48 |             },
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodEffects.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at makeEvent (tests/usage-reconciliation.test.ts:60:26)
+      at big (tests/usage-reconciliation.test.ts:386:7)
+      at tests/usage-reconciliation.test.ts:416:40
+      at Object.<anonymous> (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:320:21)
+      at Object.<anonymous> (tests/usage-reconciliation.test.ts:416:64)
+      at Object.<anonymous> (tests/usage-reconciliation.test.ts:416:64)
+
+  ● usage aggregation engines › 29. grouping rejects duplicate/out-of-order levels, malformed groups and overflowing totals
+
+    expect(received).toThrow(expected)
+
+    Expected constructor: RangeError
+    Received constructor: ZodError
+
+    Received message: "[
+      {
+        \"code\": \"too_big\",
+        \"maximum\": 9007199254740991,
+        \"type\": \"number\",
+        \"inclusive\": true,
+        \"exact\": false,
+        \"message\": \"Number must be less than or equal to 9007199254740991\",
+        \"path\": [
+          \"costMicrousd\"
+        ]
+      }
+    ]"
+
+          58 |
+          59 | const makeEvent = (over: Record<string, unknown> = {}): UsageLedgerEvent =>
+        > 60 |   UsageLedgerEventSchema.parse({ ...BASE_EVENT, ...over });
+             |                          ^
+          61 |
+          62 | const EVT1 = makeEvent();
+          63 | const EVT2 = makeEvent({
+
+      43 |                 if (this._error)
+      44 |                     return this._error;
+    > 45 |                 const error = new ZodError_js_1.ZodError(ctx.common.issues);
+         |                               ^
+      46 |                 this._error = error;
+      47 |                 return this._error;
+      48 |             },
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodEffects.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at makeEvent (tests/usage-reconciliation.test.ts:60:26)
+      at tests/usage-reconciliation.test.ts:547:40
+      at Object.<anonymous> (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/toThrowMatchers.js:74:11)
+      at Object.throwingMatcher [as toThrow] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:320:21)
+      at Object.<anonymous> (tests/usage-reconciliation.test.ts:547:103)
+      at Object.<anonymous> (tests/usage-reconciliation.test.ts:547:103)
+
+FAIL tests/profile-policy.test.ts
+  ● profile detail read (T-API-01, fixes revision: 0) › accepts a real revision and keeps the shell fetcher field names
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "connectorBindings"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      223 |
+      224 |   it('accepts a real revision and keeps the shell fetcher field names', () => {
+    > 225 |     const parsed = ProfileDetailReadSchema.parse(detail);
+          |                                            ^
+      226 |     expect(parsed.revision).toBe(3);
+      227 |     expect(parsed.currentValues.model).toBe('gemini-2.0');
+      228 |   });
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at Object.<anonymous> (tests/profile-policy.test.ts:225:44)
+
+  ● profile detail read (T-API-01, fixes revision: 0) › round-trips without exposing the cipher
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "connectorBindings"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      230 |   it('round-trips without exposing the cipher', () => {
+      231 |     const round = ProfileDetailReadSchema.parse(
+    > 232 |       JSON.parse(JSON.stringify(ProfileDetailReadSchema.parse(detail))),
+          |                                                         ^
+      233 |     );
+      234 |     expect(round).toEqual(detail);
+      235 |     expect(JSON.stringify(round)).not.toContain('fileUrlAuthCipher');
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at Object.<anonymous> (tests/profile-policy.test.ts:232:57)
+
+  ● profile detail read (T-API-01, fixes revision: 0) › closure T-API-01: the write identity (apiKeyId) is optional and strictly a uuid
+
+    ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "object",
+        "received": "undefined",
+        "path": [
+          "connectorBindings"
+        ],
+        "message": "Required"
+      }
+    ]
+
+      239 |     // The detail read reveals ONLY the opaque key id (never the hash) so the
+      240 |     // client can address profile.* commands (Δ7-A).
+    > 241 |     const withKey = ProfileDetailReadSchema.parse({
+          |                                             ^
+      242 |       ...detail,
+      243 |       apiKeyId: '123e4567-e89b-42d3-a456-426614174000',
+      244 |     });
+
+      at Object.get error [as error] (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (D:/Git/dugate/du-rework/orchestrator/node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at Object.<anonymous> (tests/profile-policy.test.ts:241:45)
+
+PASS tests/dto.test.ts
+
+Test Suites: 2 failed, 1 passed, 3 total
+Tests:       5 failed, 76 passed, 81 total
+Snapshots:   0 total
+Time:        5.211 s
+Ran all test suites matching /tests\\usage-reconciliation.test.ts|tests\\profile-policy.test.ts|tests\\dto.test.ts/i.

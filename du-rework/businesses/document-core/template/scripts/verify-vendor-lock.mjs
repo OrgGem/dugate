@@ -50,6 +50,23 @@ for (const [rel, entry] of Object.entries(lock.files)) {
   } else if (got !== entry.sha256) {
     problems.push('CHANGED  ' + rel + ' (lock ' + entry.sha256.slice(0, 12) + ' != actual ' + got.slice(0, 12) + ')');
   }
+
+  if (entry.source !== undefined) {
+    const source = entry.source;
+    if (
+      typeof source !== 'object'
+      || source === null
+      || typeof source.repositoryPath !== 'string'
+      || !/^[a-f0-9]{40}$/.test(source.baselineCommit)
+      || !['clean-at-baseline', 'dirty-working-tree'].includes(source.worktreeState)
+      || !/^[a-f0-9]{64}$/.test(source.sha256)
+      || (source.copyMode !== undefined && !['exact', 'selected-exports'].includes(source.copyMode))
+    ) {
+      problems.push('INVALID_SOURCE_PROVENANCE ' + rel);
+    } else if (source.copyMode !== 'selected-exports' && source.sha256 !== entry.sha256) {
+      problems.push('SOURCE_HASH_MISMATCH ' + rel + ' (source fingerprint differs from vendored hash)');
+    }
+  }
 }
 
 for (const rel of actual.keys()) {
@@ -66,4 +83,5 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-console.log('verify-vendor-lock: ' + Object.keys(lock.files).length + ' vendored files match ' + lock.baseCommit);
+const sourceCount = Object.values(lock.files).filter((entry) => entry.source !== undefined).length;
+console.log('verify-vendor-lock: ' + Object.keys(lock.files).length + ' vendored files match; ' + sourceCount + ' carry file-specific source fingerprints; legacy baseCommit=' + lock.baseCommit);

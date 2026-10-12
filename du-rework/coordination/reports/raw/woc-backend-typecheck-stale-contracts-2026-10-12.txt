@@ -1,0 +1,8 @@
+
+> @du/orchestrator@0.1.0 typecheck D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> tsc --noEmit -p tsconfig.json
+
+src/modules/admin-read/business-functions.ts(72,5): error TS2353: Object literal may only specify known properties, and 'available' does not exist in type '{ action: string; inputSchema: Record<string, unknown>; kind: "endpoint" | "workflow"; outputSchema: Record<string, unknown>; manifestDigest: string; profileSchema: Record<string, unknown>; ... 4 more ...; workflowRevision?: number | undefined; }'.
+src/modules/profiles/profile-groups.ts(226,21): error TS2339: Property 'available' does not exist on type '{ action: string; inputSchema: Record<string, unknown>; kind: "endpoint" | "workflow"; outputSchema: Record<string, unknown>; manifestDigest: string; profileSchema: Record<string, unknown>; ... 4 more ...; workflowRevision?: number | undefined; }'.
+src/modules/profiles/profile-groups.ts(227,61): error TS2339: Property 'unavailableReason' does not exist on type '{ action: string; inputSchema: Record<string, unknown>; kind: "endpoint" | "workflow"; outputSchema: Record<string, unknown>; manifestDigest: string; profileSchema: Record<string, unknown>; ... 4 more ...; workflowRevision?: number | undefined; }'.
+ ELIFECYCLE  Command failed with exit code 2.

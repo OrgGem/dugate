@@ -35,6 +35,8 @@ import type {
   AdminWebSession,
   ApiKeyPage,
   BusinessPage,
+  BusinessEnabledResult,
+  BusinessEnabledUpdate,
   BusinessVersions,
   ConnectorActivateParams,
   ConnectorCredentialStage,
@@ -68,6 +70,11 @@ import type {
   ProfileListPage,
   ProfileWorkflowPage,
   ProfileDetail,
+  ProfileGroup,
+  ProfileGroupFunctionCatalog,
+  ProfileGroupList,
+  ProfileGroupRollback,
+  ProfileGroupSave,
   ProfileMutationResult,
   ProfilePublishBody,
   ProfileRollbackBody,
@@ -396,6 +403,13 @@ export interface AdminApiClient {
   listUsageEvents(query: UsageEventQuery): Promise<AdminApiResult<AdminUsageEventPage>>;
   listBusinesses(query?: Record<string, string>): Promise<AdminApiResult<BusinessPage>>;
   getBusinessVersions(businessId: string): Promise<AdminApiResult<BusinessVersions>>;
+  setBusinessEnabled(businessId: string, body: BusinessEnabledUpdate): Promise<AdminApiResult<BusinessEnabledResult>>;
+  getBusinessFunctionCatalog(businessId: string, businessVersion: string): Promise<AdminApiResult<ProfileGroupFunctionCatalog>>;
+  listProfileGroups(tenantId: string): Promise<AdminApiResult<ProfileGroupList>>;
+  getProfileGroup(groupId: string): Promise<AdminApiResult<ProfileGroup>>;
+  createProfileGroup(body: ProfileGroupSave): Promise<AdminApiResult<ProfileGroup>>;
+  replaceProfileGroup(groupId: string, body: ProfileGroupSave): Promise<AdminApiResult<ProfileGroup>>;
+  rollbackProfileGroup(groupId: string, body: ProfileGroupRollback): Promise<AdminApiResult<ProfileGroup>>;
   listWorkerInstances(query?: Record<string, string>): Promise<AdminApiResult<WorkerInstanceList>>;
   businessVersionAction(
     businessId: string,
@@ -1178,6 +1192,31 @@ export function createAdminApiClient(options: AdminApiClientOptions = {}): Admin
     },
     getBusinessVersions(businessId) {
       return request<BusinessVersions>('GET', `/businesses/${encodeURIComponent(businessId)}/versions`, {});
+    },
+    setBusinessEnabled(businessId, body) {
+      return request<BusinessEnabledResult>('PUT', `/businesses/${encodeURIComponent(businessId)}/enabled`, { body, csrf: true });
+    },
+    getBusinessFunctionCatalog(businessId, businessVersion) {
+      return request<ProfileGroupFunctionCatalog>(
+        'GET',
+        `/businesses/${encodeURIComponent(businessId)}/versions/${encodeURIComponent(businessVersion)}/functions`,
+        {},
+      );
+    },
+    listProfileGroups(tenantId) {
+      return request<ProfileGroupList>('GET', '/profile-groups', { query: { tenantId } });
+    },
+    getProfileGroup(groupId) {
+      return request<ProfileGroup>('GET', `/profile-groups/${encodeURIComponent(groupId)}`, {});
+    },
+    createProfileGroup(body) {
+      return request<ProfileGroup>('POST', '/profile-groups', { body, csrf: true });
+    },
+    replaceProfileGroup(groupId, body) {
+      return request<ProfileGroup>('PUT', `/profile-groups/${encodeURIComponent(groupId)}`, { body, csrf: true });
+    },
+    rollbackProfileGroup(groupId, body) {
+      return request<ProfileGroup>('POST', `/profile-groups/${encodeURIComponent(groupId)}/rollback`, { body, csrf: true });
     },
     listWorkerInstances(query) {
       return request<WorkerInstanceList>('GET', '/worker-instances', { query });

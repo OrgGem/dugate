@@ -1,4 +1,4 @@
-import { InitialBindings, coreEndpoints, type InitialBinding } from './initial-bindings';
+import { InitialBindings, type InitialBinding } from './initial-bindings';
 import { Fragment, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   type ConnectionStep,
   type FileUrlAuthConfigWrite,
   type ProfileDetail,
+  type ProfileGroupFunctionCatalog,
   type ProfileListPage,
   type ProfileWorkflowItem,
   type RequestRedactionRule,
@@ -31,6 +32,8 @@ import { parseSecretListPage } from '@/features/secrets/state';
 import type { SecretOption } from '@/features/secrets/value-source-selector';
 import { useTenant } from '@/lib/tenant-context';
 import { parseBusinessPage, parseBusinessVersions } from '@/features/businesses/state';
+import { ProfileGroupEditor } from './profile-group-editor';
+import { parseProfileGroupFunctionCatalog } from './profile-group-state';
 import { useLocation, useNavigate } from 'react-router';
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -608,6 +611,9 @@ export function ProfilesScreen() {
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<string>('');
   const [businessId, setBusinessId] = useState(() => new URLSearchParams(window.location.search).get('businessId') ?? 'document-core');
   const [businessVersion, setBusinessVersion] = useState(() => new URLSearchParams(window.location.search).get('businessVersion') ?? '1.1.0');
+  const [businessFunctionCatalog, setBusinessFunctionCatalog] = useState<ProfileGroupFunctionCatalog | null>(null);
+  const [businessFunctionCatalogLoading, setBusinessFunctionCatalogLoading] = useState(false);
+  const [businessFunctionCatalogProblem, setBusinessFunctionCatalogProblem] = useState<string | null>(null);
   const [endpointSlug, setEndpointSlug] = useState('');
   const [initialBindings, setInitialBindings] = useState<InitialBinding[]>([]);
   const [profileName, setProfileName] = useState(() => new URLSearchParams(window.location.search).get('profileName') ?? 'default');
@@ -778,6 +784,29 @@ export function ProfilesScreen() {
     });
     return () => { active = false; };
   }, [client, businessId, access]);
+
+  useEffect(() => {
+    let active = true;
+    setBusinessFunctionCatalog(null);
+    setBusinessFunctionCatalogProblem(null);
+    if (businessId !== 'document-core' || access.kind !== 'ready' || access.session.localUser || access.session.role !== 'admin' || !businessVersion.trim()) {
+      setBusinessFunctionCatalogLoading(false);
+      return () => { active = false; };
+    }
+    setBusinessFunctionCatalogLoading(true);
+    void client.getBusinessFunctionCatalog(businessId, businessVersion.trim()).then((result) => {
+      if (!active) return;
+      const parsed = result.ok ? parseProfileGroupFunctionCatalog(result.data) : null;
+      if (!parsed || parsed.businessId !== businessId || parsed.businessVersion !== businessVersion.trim()) {
+        setBusinessFunctionCatalogProblem(result.ok ? 'Selected version function catalog did not match the selected manifest.' : result.problem.title ?? result.problem.code ?? 'The selected version endpoint catalog is unavailable.');
+        return;
+      }
+      setBusinessFunctionCatalog(parsed);
+    }).catch(() => {
+      if (active) setBusinessFunctionCatalogProblem('The selected version endpoint catalog is unavailable.');
+    }).finally(() => { if (active) setBusinessFunctionCatalogLoading(false); });
+    return () => { active = false; };
+  }, [access, businessId, businessVersion, client]);
 
   // Load API keys for global tenant
   useEffect(() => {
@@ -1319,6 +1348,8 @@ export function ProfilesScreen() {
         ) : null}
       </div>
 
+      {access.session.principal.kind === 'platform' ? <ProfileGroupEditor tenantId={globalTenantId} /> : null}
+
       <AlertBanner variant="info" title="Wire frozen (Phase-1 contract)">
         Reads use the frozen shape <code>{'{revision, currentValues, policy, manifest, capabilities:[{connectorId, capability}]}'}</code>;
         writes ride <code>/admin/api/profiles/…</code> → dispatcher (<code>profile.upsert</code>/
@@ -1476,7 +1507,7 @@ export function ProfilesScreen() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-3">
-            {businessId === 'document-core' && <label className="block text-sm">Legacy endpoint (optional)<select aria-label="Legacy endpoint" className="block border rounded p-2 w-full" value={endpointSlug} onChange={e => setEndpointSlug(e.target.value)}><option value="">Generic action profile</option>{coreEndpoints.map(slug => <option key={slug} value={slug}>{slug}</option>)}</select><span>Exact endpoint profiles override generic action profiles; the action row must match.</span></label>}
+            {businessId === 'document-core' && <label className="block text-sm">Document Core endpoint (optional)<select aria-label="Legacy endpoint" className="block border rounded p-2 w-full" value={endpointSlug} onChange={e => setEndpointSlug(e.target.value)} disabled={businessFunctionCatalogLoading || !businessFunctionCatalog}><option value="">Generic action profile</option>{businessFunctionCatalog?.functions.filter((fn) => fn.kind === 'endpoint').map((fn) => <option key={fn.functionId} value={fn.endpointSlug ?? ''} disabled={fn.available === false}>{fn.endpointSlug ?? fn.functionId}{fn.available === false ? ` — unavailable: ${fn.unavailableReason ?? 'not supported'}` : ''}</option>)}</select>{businessFunctionCatalogLoading ? <span>Loading endpoints from {businessVersion} manifest…</span> : null}{businessFunctionCatalogProblem ? <span role="alert" className="text-[var(--badge-danger-text)]">{businessFunctionCatalogProblem}</span> : null}<span>Exact endpoint profiles override generic action profiles; endpoint choices come from the selected version manifest.</span></label>}
             <InitialBindings value={initialBindings} onChange={setInitialBindings} />
             <div className="w-full max-w-xs">
               <FormField id="profile-business" label="Business Service">

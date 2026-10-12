@@ -1,0 +1,7 @@
+cwd=D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk command=pnpm exec jest --runInBand --runTestsByPath tests/woc-independent-bullmq.test.ts started=2026-10-12 16:44:15 +07:00
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        2.348 s
+Ran all test suites within paths "tests/woc-independent-bullmq.test.ts".
+finished=2026-10-12 16:44:18 +07:00 exit_code=0

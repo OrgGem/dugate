@@ -992,6 +992,16 @@ export function createSubmissionService(
           }
         }
 
+        // Serialize new admissions with logical business disable. Existing
+        // idempotent submissions replay above; a fresh operation must hold a
+        // shared catalog-row lock through commit so disable has a clear order.
+        const businessGate = await client.query<{ enabled: boolean }>(
+          'SELECT enabled FROM business_catalog WHERE business_id=$1 FOR SHARE',
+          [ctx.businessId],
+        );
+        if (!businessGate.rows[0]) throw notFound(`business ${ctx.businessId} is not registered`);
+        if (!businessGate.rows[0].enabled) throw conflict('STATE_CONFLICT', `business ${ctx.businessId} is disabled`);
+
         await assertKeySpendAvailable(client, ctx.apiKeyId, ctx.tenantId);
 
         // T-SUB-03: the extension list, enforced AFTER the replay check so a
@@ -1810,6 +1820,12 @@ function base64ByteLength(value: string): number {
 }
 
 async function resolveEnabledVersion(db: Db, businessId: string, action: string) {
+  const logicalBusiness = await db.query<{ enabled: boolean }>(
+    'SELECT enabled FROM business_catalog WHERE business_id=$1 LIMIT 1',
+    [businessId],
+  );
+  if (!logicalBusiness.rowCount) throw notFound(`business ${businessId} is not registered`);
+  if (!logicalBusiness.rows[0]!.enabled) throw conflict('STATE_CONFLICT', `business ${businessId} is disabled`);
   // New submissions target the explicitly ACTIVE enabled version (W28-C).
   // The admin activate/deactivate routes and enableVersionForTest maintain
   // the active pointer. Fail-closed: if no version is active, the business

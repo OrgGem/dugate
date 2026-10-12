@@ -7,6 +7,8 @@ import {
   ClaimResult,
   contentHash,
   TaskHeartbeatAck,
+  businessQueueName,
+  validateManifest,
 } from '@du/contracts';
 import {
   defineBusiness,
@@ -52,6 +54,9 @@ const MANIFEST = {
     },
   ],
 };
+const manifestValidation = validateManifest(MANIFEST);
+if (!manifestValidation.ok) throw new Error('worker test manifest is invalid');
+const MANIFEST_DIGEST = manifestValidation.digest;
 
 interface Route {
   method: string;
@@ -99,7 +104,7 @@ function makeClaim(overrides: Partial<ClaimResult> = {}): ClaimResult {
       businessVersion: '1.0.0',
       action: 'extract',
       schemaDigest: 'sha256:bb',
-      manifestDigest: 'sha256:aa',
+      manifestDigest: MANIFEST_DIGEST,
       resolvedInputRef: { q: 'hello' },
       pinned: { profilePolicy: null, profileRevision: 1, promptRevisions: {}, connectorBindings: { ocr: 'mock-ocr@1' } },
       taskKey: 'root',
@@ -130,7 +135,8 @@ function makeJob(overrides: Partial<BusinessJobV1> = {}): BusinessJobV1 {
 
 /** In-memory consumer that delivers jobs the test pushes. */
 function testConsumer() {
-  let handler: ((job: BusinessJobV1) => Promise<void>) | undefined;
+  type DeliveryHandler = Parameters<QueueConsumer['start']>[0];
+  let handler: DeliveryHandler | undefined;
   const deliveries: Promise<void>[] = [];
   const consumer: QueueConsumer = {
     start(h) {
@@ -140,9 +146,9 @@ function testConsumer() {
       await Promise.allSettled(deliveries);
     },
   };
-  const push = (job: BusinessJobV1) => {
+  const push = (job: BusinessJobV1, delivery?: Parameters<DeliveryHandler>[1]) => {
     if (!handler) throw new Error('consumer not started');
-    const p = handler(job);
+    const p = handler(job, delivery);
     deliveries.push(p);
     return p;
   };
@@ -153,8 +159,27 @@ function heartbeatRoutes() {
   return [
     {
       method: 'PUT',
+      pattern: /^\/businesses\/[^/]+\/versions\/[^/]+$/,
+      handler: () => ({ status: 201, json: {
+        businessId: MANIFEST.businessId,
+        version: MANIFEST.version,
+        digest: MANIFEST_DIGEST,
+        queue: businessQueueName(MANIFEST.businessId, MANIFEST.version),
+        created: true,
+        replayed: false,
+      } }),
+    },
+    {
+      method: 'PUT',
       pattern: /^\/workers\/[^/]+\/heartbeat$/,
-      handler: () => ({ status: 200, json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 } }),
+      handler: () => ({ status: 200, json: {
+        health: 'HEALTHY',
+        leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+        capacity: 1,
+        controlRevision: 0,
+        controlState: 'OPEN',
+        backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+      } }),
     },
     {
       method: 'POST',
@@ -328,7 +353,7 @@ describe('startWorker delivery lifecycle', () => {
       {
         method: 'POST',
         pattern: /^\/tasks\/[^/]+\/claim$/,
-        handler: () => ({ status: 409, json: { type: 'urn:du:error:state_conflict', status: 409, code: 'STATE_CONFLICT', title: 'leased' } }),
+        handler: () => ({ status: 409, json: { type: 'urn:du:error:task_lease_active', status: 409, code: 'TASK_LEASE_ACTIVE', title: 'leased' } }),
       },
     ];
     let handlerRan = false;
@@ -365,7 +390,7 @@ describe('startWorker delivery lifecycle', () => {
     expect(calls.some((c) => c.path.endsWith('/complete') || c.path.endsWith('/fail'))).toBe(false);
   });
 
-  it('reports unregistered kind as permanent failure with claimed leaseEpoch', async () => {
+  it('defers a claimed snapshot kind when this image has no matching handler', async () => {
     const calls: { path: string; method: string; body?: unknown }[] = [];
     const claim = makeClaim();
     const routes: Route[] = [
@@ -378,11 +403,12 @@ describe('startWorker delivery lifecycle', () => {
     const def = defineBusiness(MANIFEST, { root: async () => ({ kind: 'completed', resultRef: 'artifact://r-1' }), child: async () => ({ kind: 'completed', resultRef: 'artifact://r-1' }) }, { validate: false });
     delete (def.handlers as Record<string, unknown>).root;
     const handle = await startWorker(def, { runtimeUrl: 'http://runtime', runtimeToken: 'tok', consumer, fetchImpl: stubFetch(routes, calls) });
-    await push(makeJob());
+    const defer = jest.fn(async (_delayMs: number): Promise<never> => { throw new Error('delivery-deferred'); });
+    await expect(push(makeJob(), { defer })).rejects.toThrow('delivery-deferred');
     await handle.stop(1000);
-    const fail = calls.find((c) => c.path.endsWith('/fail'));
-    expect(fail).toBeDefined();
-    expect(fail!.body).toMatchObject({ leaseEpoch: 1, errorCode: 'UNREGISTERED_HANDLER', retryable: false });
+    expect(defer).toHaveBeenCalledTimes(1);
+    expect(defer.mock.calls[0]![0]).toBeGreaterThan(55_000);
+    expect(calls.some((c) => c.path.endsWith('/fail') || c.path.endsWith('/complete'))).toBe(false);
   });
 
   it('classifies handler failure and reports fail with business error fields', async () => {
@@ -480,7 +506,7 @@ describe('startWorker delivery lifecycle', () => {
       child: async () => ({ kind: 'completed', resultRef: 'artifact://r-1' }),
     });
     const handle = await startWorker(def, { runtimeUrl: 'http://runtime', runtimeToken: 'tok', consumer, fetchImpl: stubFetch(routes, []) });
-    await expect(push(makeJob())).rejects.toThrow();
+    await expect(push(makeJob(), { defer: async () => { throw new Error('delivery-deferred'); } })).rejects.toThrow('delivery-deferred');
     await handle.stop(1000);
   });
 });
@@ -577,11 +603,18 @@ describe('classifyFailure', () => {
     expect(classifyFailure(new RuntimeError(503, 'TEMPORARY_UNAVAILABLE', null)).retryable).toBe(true);
   });
 
+  it('honors explicit retryability for a malformed successful Runtime ACK', () => {
+    expect(classifyFailure(new RuntimeError(200, 'TEMPORARY_UNAVAILABLE', null, 'invalid ACK', { retryable: true })).retryable).toBe(true);
+  });
+
   it('ConnectorTransportError-shaped error keeps code, retryable per status', () => {
     const e = Object.assign(new Error('rate limited'), { name: 'ConnectorTransportError', status: 429, code: 'PROVIDER_RATE_LIMITED' });
     expect(classifyFailure(e)).toMatchObject({ errorCode: 'PROVIDER_RATE_LIMITED', retryable: true });
     const unknown = Object.assign(new Error('transport failure'), { name: 'ConnectorTransportError', status: 0, code: 'INVOCATION_UNKNOWN' });
-    expect(classifyFailure(unknown)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+    // Connector responses may use this code while the durable ledger is still
+    // settling; retry the same logical invocation ID rather than ending the
+    // workflow permanently.
+    expect(classifyFailure(unknown)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true, retryAfterMs: 5000 });
   });
 
   it('plain error is permanent HANDLER_ERROR', () => {
@@ -603,8 +636,11 @@ describe('graceful shutdown', () => {
     ];
     const { consumer, push } = testConsumer();
     let finished = false;
+    let markStarted!: () => void;
+    const handlerStarted = new Promise<void>((resolve) => { markStarted = resolve; });
     const def = defineBusiness(MANIFEST, {
       root: async () => {
+        markStarted();
         await new Promise((r) => setTimeout(r, 50));
         finished = true;
         return { kind: 'completed', resultRef: 'artifact://r-1' };
@@ -613,6 +649,7 @@ describe('graceful shutdown', () => {
     });
     const handle = await startWorker(def, { runtimeUrl: 'http://runtime', runtimeToken: 'tok', consumer, fetchImpl: stubFetch(routes, []) });
     const p = push(makeJob());
+    await handlerStarted;
     await handle.stop(5000);
     await p;
     expect(finished).toBe(true);

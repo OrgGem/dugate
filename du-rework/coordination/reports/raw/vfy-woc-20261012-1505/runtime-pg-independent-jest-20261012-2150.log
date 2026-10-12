@@ -1,0 +1,16 @@
+START 2026-10-12T16:58:18.7332237+07:00
+  console.info
+    [VFY-WOC] queue observation={"v1":{"waiting":0,"prioritized":2,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"waiting-children":0},"v2":{"waiting":0,"prioritized":1,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"waiting-children":0},"outbox":[{"business_version":"1.0.0","queue":"du-business-woc-vfy-runtime-f7823145-1.0.0","dispatched":true},{"business_version":"1.0.0","queue":"du-business-woc-vfy-runtime-f7823145-1.0.0","dispatched":true},{"business_version":"2.0.0","queue":"du-business-woc-vfy-runtime-f7823145-2.0.0","dispatched":true}]}
+
+      at Object.<anonymous> (tests/woc-independent-runtime-pg.test.ts:255:13)
+
+{"businessId":"woc-vfy-runtime-f7823145","businessVersion":"1.0.0","code":"WORKER_ADMISSION_CLOSED","retryAfterMs":150,"timestamp":"2026-10-12T09:58:25.773Z","level":"warn","service":"worker:woc-vfy-runtime-f7823145","version":"unknown","environment":"test","correlationId":"917381c5-5d51-4016-89d0-aeaf743e5de0","operationId":"4f2f40f7-0926-4928-aac4-5d0b3cbd8fb4","taskId":"3ab02c88-2eda-4871-94e4-26975ebf1592","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-vfy-runtime-f7823145","businessVersion":"1.0.0","code":"WORKER_ADMISSION_CLOSED","retryAfterMs":157,"timestamp":"2026-10-12T09:58:25.779Z","level":"warn","service":"worker:woc-vfy-runtime-f7823145","version":"unknown","environment":"test","correlationId":"14f2dd1f-6911-4c2f-90c8-0319dfe69630","operationId":"77f561cc-0bbc-4e43-bf91-8411580fcca8","taskId":"ee919a27-c385-4962-a7fe-22f4a37fbe85","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-vfy-runtime-f7823145","businessVersion":"2.0.0","code":"WORKER_ADMISSION_CLOSED","retryAfterMs":249,"timestamp":"2026-10-12T09:58:25.832Z","level":"warn","service":"worker:woc-vfy-runtime-f7823145","version":"unknown","environment":"test","correlationId":"23e42c0b-d552-42cc-b23d-c64a498e87c8","operationId":"1947ea23-6856-4e45-8f61-09048d9f1245","taskId":"bc3afb6a-66b8-4374-9803-6c92c256d171","invocationId":null,"message":"[REDACTED]"}
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        8.43 s
+Ran all test suites within paths "tests/woc-independent-runtime-pg.test.ts".
+EXIT_CODE 0
+END 2026-10-12T16:58:28.2775921+07:00

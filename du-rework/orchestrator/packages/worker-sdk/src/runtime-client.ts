@@ -43,6 +43,9 @@ import {
   InvocationGrantRequest,
   InvocationGrant,
   InvocationGrantSchema,
+  BusinessManifest,
+  businessQueueName,
+  validateManifest,
   ProblemDetails,
   ProblemSchema,
 } from '@du/contracts';
@@ -56,14 +59,19 @@ import {
  */
 
 export class RuntimeError extends Error {
+  readonly retryable: boolean;
+
   constructor(
     readonly status: number,
     readonly code: string,
     readonly problem: ProblemDetails | null,
-    message?: string
+    message?: string,
+    options: { retryable?: boolean; cause?: unknown } = {}
   ) {
     super(message ?? `runtime error ${status} ${code}`);
     this.name = 'RuntimeError';
+    this.retryable = options.retryable ?? (status === 0 || status === 429 || status >= 500);
+    if (options.cause !== undefined) this.cause = options.cause;
   }
 
   /** Stale lease: worker must abort the delivery and stop provider calls. */
@@ -79,6 +87,10 @@ export class RuntimeError extends Error {
   get isInputHashMismatch(): boolean {
     return this.status === 409 && this.code === 'INPUT_HASH_MISMATCH';
   }
+  /** Retryable transport or server failure, including a bad success response body. */
+  get isRetryable(): boolean {
+    return this.retryable;
+  }
   /** Transport-level failure where the write MAY have been applied. */
   get isAmbiguous(): boolean {
     return this.status === 0 || this.status >= 500;
@@ -88,10 +100,46 @@ export class RuntimeError extends Error {
 /** A write whose outcome is unknown (lost ACK). Caller must re-read context. */
 export class AmbiguousReportError extends RuntimeError {
   constructor(readonly operation: string, cause?: unknown) {
-    super(0, 'TEMPORARY_UNAVAILABLE', null, `ambiguous runtime report: ${operation}`);
+    super(0, 'TEMPORARY_UNAVAILABLE', null, `ambiguous runtime report: ${operation}`, {
+      retryable: true,
+      cause,
+    });
     this.name = 'AmbiguousReportError';
-    this.cause = cause;
   }
+}
+
+export interface BusinessVersionRegistrationResult {
+  businessId: string;
+  version: string;
+  digest: string;
+  queue: string;
+  created: boolean;
+  replayed: boolean;
+}
+
+function parseBusinessVersionRegistrationResult(raw: unknown): BusinessVersionRegistrationResult {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new TypeError('business registration response must be an object');
+  }
+  const value = raw as Record<string, unknown>;
+  if (
+    typeof value.businessId !== 'string'
+    || typeof value.version !== 'string'
+    || typeof value.digest !== 'string'
+    || typeof value.queue !== 'string'
+    || typeof value.created !== 'boolean'
+    || typeof value.replayed !== 'boolean'
+  ) {
+    throw new TypeError('business registration response has an invalid shape');
+  }
+  return {
+    businessId: value.businessId,
+    version: value.version,
+    digest: value.digest,
+    queue: value.queue,
+    created: value.created,
+    replayed: value.replayed,
+  };
 }
 
 export interface RuntimeClientOptions {
@@ -122,49 +170,208 @@ export class RuntimeClient {
     parser: (raw: unknown) => T,
     opts: { ambiguousSafe?: boolean; signal?: AbortSignal } = {}
   ): Promise<T> {
+    // Serialize before starting the deadline. A local JSON error cannot have
+    // reached the server and therefore cannot represent an ambiguous write.
+    const serializedBody = body === undefined ? undefined : JSON.stringify(body);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response: Response;
-    try {
-      response = await this.fetchImpl(this.url(path), {
+    const callerSignal = opts.signal;
+    if (callerSignal?.aborted) throw abortReason(callerSignal);
+
+    let rejectDeadline!: (reason: unknown) => void;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      rejectDeadline = reject;
+    });
+    let rejectCallerAbort: ((reason: unknown) => void) | undefined;
+    const callerAbort = callerSignal
+      ? new Promise<never>((_resolve, reject) => {
+          rejectCallerAbort = reject;
+        })
+      : undefined;
+    const onCallerAbort = (): void => {
+      const reason = callerSignal ? abortReason(callerSignal) : new Error('request aborted');
+      controller.abort(reason);
+      rejectCallerAbort?.(reason);
+    };
+
+    callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+    // Close the small gap between the first check and listener registration.
+    if (callerSignal?.aborted) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+      throw abortReason(callerSignal);
+    }
+
+    let timedOut = false;
+    const deadlineAt = Date.now() + this.timeoutMs;
+    const timeoutError = new Error(`runtime request timed out after ${this.timeoutMs}ms`);
+    timeoutError.name = 'TimeoutError';
+    const assertBeforeDeadline = (): void => {
+      if (Date.now() < deadlineAt) return;
+      timedOut = true;
+      controller.abort(timeoutError);
+      throw timeoutError;
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(timeoutError);
+      rejectDeadline(timeoutError);
+    }, this.timeoutMs);
+    let response: Response | undefined;
+
+    const operation = async (): Promise<T> => {
+      const received = await this.fetchImpl(this.url(path), {
         method,
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${this.opts.token}`,
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal,
+        body: serializedBody,
+        signal: controller.signal,
       });
-    } catch (err) {
-      // Network failure: for writes this is ambiguous (server may have applied it).
-      if (method !== 'GET' && opts.ambiguousSafe !== false) {
-        throw new AmbiguousReportError(`${method} ${path}`, err);
+      response = received;
+      assertBeforeDeadline();
+
+      // A 5xx write can have committed before the server failed to serialize
+      // its response. Do not make error-body parsing decide that outcome.
+      if (!received.ok && received.status >= 500 && method !== 'GET') {
+        if (opts.ambiguousSafe !== false) {
+          throw new AmbiguousReportError(`${method} ${path} → ${received.status}`);
+        }
+        throw new RuntimeError(
+          received.status,
+          'TEMPORARY_UNAVAILABLE',
+          null,
+          `runtime request failed: ${method} ${path} (HTTP ${received.status})`,
+          { retryable: true }
+        );
       }
-      throw new RuntimeError(0, 'TEMPORARY_UNAVAILABLE', null, `transport failure: ${String(err)}`);
+
+      if (!received.ok) {
+        let problem: ProblemDetails | null = null;
+        try {
+          const text = await received.text();
+          const raw: unknown = text.length > 0 ? JSON.parse(text) : undefined;
+          const parsed = ProblemSchema.safeParse(raw);
+          problem = parsed.success ? parsed.data : null;
+        } catch {
+          // HTTP status is authoritative even when an error body is malformed,
+          // unreadable, or still streaming at the request deadline.
+        }
+        const code = problem?.code ?? fallbackRuntimeCode(received.status);
+        throw new RuntimeError(
+          received.status,
+          code,
+          problem,
+          problem?.detail ?? `runtime request failed: ${method} ${path} (HTTP ${received.status})`,
+          { retryable: received.status === 429 || received.status >= 500 }
+        );
+      }
+
+      const text = await received.text();
+      assertBeforeDeadline();
+      const raw: unknown = text.length > 0 ? JSON.parse(text) : undefined;
+      const parsed = parser(raw);
+      assertBeforeDeadline();
+      return parsed;
+    };
+
+    try {
+      const races: Promise<T>[] = [operation(), deadline];
+      if (callerAbort) races.push(callerAbort);
+      return await Promise.race(races);
+    } catch (err) {
+      if (err instanceof AmbiguousReportError) throw err;
+      // The operation throws this typed error after parsing a valid HTTP
+      // problem. Re-throw it, while unparsed/read-failed responses are mapped
+      // below using the status already observed in the headers.
+      if (err instanceof RuntimeError && response && !response.ok) throw err;
+
+      const cause = err ?? (timedOut ? new Error('runtime request timed out') : undefined);
+      if (response) {
+        const status = response.status;
+        if (!response.ok) {
+          if (status >= 500 && method !== 'GET' && opts.ambiguousSafe !== false) {
+            throw new AmbiguousReportError(`${method} ${path} → ${status}`, cause);
+          }
+          throw new RuntimeError(
+            status,
+            fallbackRuntimeCode(status),
+            null,
+            `runtime response could not be read: ${method} ${path} (HTTP ${status})`,
+            { retryable: status === 429 || status >= 500, cause }
+          );
+        }
+
+        if (method !== 'GET' && opts.ambiguousSafe !== false) {
+          throw new AmbiguousReportError(`${method} ${path} → ${status}`, cause);
+        }
+        throw new RuntimeError(
+          status,
+          'TEMPORARY_UNAVAILABLE',
+          null,
+          `runtime response could not be validated: ${method} ${path} (HTTP ${status})`,
+          { retryable: true, cause }
+        );
+      }
+
+      if (method !== 'GET' && opts.ambiguousSafe !== false) {
+        throw new AmbiguousReportError(`${method} ${path}`, cause);
+      }
+      throw new RuntimeError(
+        0,
+        'TEMPORARY_UNAVAILABLE',
+        null,
+        `runtime transport failure: ${method} ${path}`,
+        { retryable: true, cause }
+      );
     } finally {
       clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', onCallerAbort);
     }
-
-    const text = await response.text();
-    const raw: unknown = text.length > 0 ? JSON.parse(text) : undefined;
-
-    if (!response.ok) {
-      const parsedProblem = ProblemSchema.safeParse(raw);
-      const problem = parsedProblem.success ? parsedProblem.data : null;
-      const code = problem?.code ?? (response.status === 409 ? 'STATE_CONFLICT' : 'TEMPORARY_UNAVAILABLE');
-      if (response.status >= 500 && method !== 'GET' && opts.ambiguousSafe !== false) {
-        throw new AmbiguousReportError(`${method} ${path} → ${response.status}`);
-      }
-      throw new RuntimeError(response.status, code, problem, problem?.detail);
-    }
-    return parser(raw);
   }
 
   /* ---------------- registration & health ---------------- */
 
-  async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat): Promise<HeartbeatAck> {
-    return this.request('PUT', `/workers/${encodeURIComponent(instanceId)}/heartbeat`, hb, (raw) =>
-      HeartbeatAckSchema.parse(raw)
+  async registerBusinessVersion(
+    manifest: BusinessManifest,
+    signal?: AbortSignal
+  ): Promise<BusinessVersionRegistrationResult> {
+    const validation = validateManifest(manifest);
+    if (!validation.ok) {
+      throw new RuntimeError(422, 'INVALID_SCHEMA', null, 'business manifest failed SDK validation');
+    }
+    const expected = validation.manifest;
+    const registration = await this.request(
+      'PUT',
+      `/businesses/${encodeURIComponent(expected.businessId)}/versions/${encodeURIComponent(expected.version)}`,
+      expected,
+      parseBusinessVersionRegistrationResult,
+      { signal }
+    );
+    const expectedQueue = businessQueueName(expected.businessId, expected.version);
+    if (
+      registration.businessId !== expected.businessId
+      || registration.version !== expected.version
+      || registration.digest !== validation.digest
+      || registration.queue !== expectedQueue
+    ) {
+      throw new RuntimeError(
+        200,
+        'REGISTRATION_RESPONSE_MISMATCH',
+        null,
+        'runtime registration response does not match the submitted manifest',
+        { retryable: false }
+      );
+    }
+    return registration;
+  }
+
+  async heartbeatWorker(instanceId: string, hb: WorkerHeartbeat, signal?: AbortSignal): Promise<HeartbeatAck> {
+    return this.request(
+      'PUT',
+      `/workers/${encodeURIComponent(instanceId)}/heartbeat`,
+      hb,
+      (raw) => HeartbeatAckSchema.parse(raw),
+      { signal }
     );
   }
 
@@ -286,4 +493,17 @@ export class RuntimeClient {
       InvocationGrantSchema.parse(raw)
     );
   }
+}
+
+function fallbackRuntimeCode(status: number): string {
+  if (status === 409) return 'STATE_CONFLICT';
+  if (status === 410) return 'TASK_TERMINAL';
+  return 'TEMPORARY_UNAVAILABLE';
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  if (signal.reason !== undefined) return signal.reason;
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  return error;
 }

@@ -1,0 +1,6 @@
+
+Test Suites: 5 passed, 5 total
+Tests:       48 passed, 48 total
+Snapshots:   0 total
+Time:        4.18 s
+Ran all test suites matching tests/or10-03-runtime-lease-replay.test.ts|tests/mm05-queue-integrity-sweep.test.ts|tests/mm05-queue-integrity-offline.functional.test.ts|tests/woc-backend-business-lifecycle.test.ts|tests/aweb11c-worker-instances.test.ts.

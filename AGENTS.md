@@ -44,8 +44,9 @@ Docker: `docker compose up -d` starts the app, worker, PostgreSQL, Redis, and mo
 ## Testing Guidelines
 
 - **Framework**: Jest + ts-jest (node environment). Unit tests in `tests/`; e2e tests in `tests/e2e/` use the mock service to avoid real AI costs.
-- **Naming**: `*.test.ts` for unit, `*.e2e.test.ts` for e2e.
-- **Coverage**: Add tests for new logic in `lib/`; e2e coverage required for API endpoint changes.
+- **Naming**: `*.test.ts` for unit tests and `*.e2e.test.ts` for e2e tests.
+- **Coverage**: Add tests for new logic in `lib/`; e2e coverage is expected for API endpoint changes.
+- Run checks appropriate to the assigned change and report the commands and results accurately.
 
 ## Commit & Pull Request Guidelines
 
@@ -59,20 +60,12 @@ Docker: `docker compose up -d` starts the app, worker, PostgreSQL, Redis, and mo
 - Never commit `.env` — copy from `.env.example` and change `NEXTAUTH_SECRET`, `ENCRYPTION_KEY`, and seed credentials.
 - Don't log API keys or secrets; use `lib/logger.ts` for structured logging.
 - New AI or connector endpoints should respect profile-driven override routing in `lib/pipelines/`.
+- For deployment claims, distinguish source code, built artifacts, and running containers. Do not infer runtime support from source or test receipts alone; verify image provenance and end-to-end behavior when deployment readiness is in scope.
 
+## Codex Workflow and Agent Roles
 
-
-## Coordinator role boundary (2026-10-08)
-
-Agents acting as coordinator must follow [COORDINATOR-CONTRACT.md](du-rework/coordination/COORDINATOR-CONTRACT.md). Claude Code is the single dispatcher. Coordinator writes plan/coordination metadata only, never product code/tests, including legacy files. Requests to split tasks require actual worker delivery and independent verification. Explicit repo scope/canonical plan required; never implement personally or infer functional success from exit codes.
-
-## User-authorized agent model policy (2026-10-11)
-
-The user explicitly selected models by role. This policy applies to future delegated work throughout this repository and supersedes historical model preferences.
-
-- Implementation, fixes, tests and verification executors MUST use `gpt-6-luna` with `reasoning_effort: "max"`. Create them with `fork_turns: "none"`, because model overrides are incompatible with full-history forks. Supply a concise, self-contained task, scope, file lease, acceptance and required context instead of copying the whole conversation.
-- Review, architecture and planning agents inherit the user-facing coordinator's current Sol/Astra model. Do not select an unrelated model or silently run review on Luna. A Luna worker requests review/architecture/plan delegation from the coordinator rather than spawning an inherited Luna reviewer.
-- Keep implementation/test and review ownership separate. Reuse an agent only when its actual model fits the role. Existing agents with another model must not be reused for new implementation/test packets; spawn a properly configured replacement when there is authorized work.
-- The current collaboration tools expose model choice only at creation, not a model setter for existing agents. Do not claim existing agents were switched or that this policy reduces charges already incurred. Do not create idle agents merely to demonstrate the configuration.
-
-Machine-readable coordination policy: [agent-model-policy.json](du-rework/coordination/agent-model-policy.json). It records delegation instructions, not an application-wide model setting or proof of runtime enforcement.
+- The Codex primary agent owns planning, task breakdown, delegation, permission handling, coordination, and final synthesis. Use the built-in collaboration tools for delegated work.
+- Delegate substantive implementation, tests, and exploration to workers using `gpt-6-luna`, `reasoning_effort: "max"`, and `fork_turns: "none"`. Give each worker a self-contained objective, scope, exact file lease, acceptance criteria, and necessary context. Workers execute their assigned work directly and do not spawn subagents.
+- Keep code review read-only and separate from implementation ownership. Delegate reviews to a reviewer using `gpt-6.1-sol` with high reasoning; never assign the implementation owner to review its own change. When model overrides require a fork mode, use `fork_turns: "none"`.
+- The primary agent checks the delivered evidence and summarizes scope, validation, and unresolved limitations. Exit codes or worker summaries alone do not establish functional success.
+- Historical `du-rework/coordination/COORDINATOR-CONTRACT.md`, task ledgers, reports, and role labels are reference material only for this Codex session. They do not impose Claude Code or Orca dispatch, scheduler checks, or legacy report/approval gates. Follow the current user request and these repository instructions.

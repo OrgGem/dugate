@@ -1,22 +1,50 @@
 {
   "baseCommit": "b088eececcb5f3df0b4edbe073a29401dafda624",
-  "generated": "2026-10-06",
-  "note": "Vendored provenance lock. Regenerate with: node scripts/gen-vendor-lock.mjs",
+  "generated": "2026-10-12",
+  "note": "Vendored hashes are authoritative. baseCommit is the legacy source pin; entries with source metadata identify independently synchronized canonical files and dirty-worktree captures.",
   "files": {
     "contracts/src/connector.ts": {
-      "sha256": "13da0d8957c4a6f93ffeea3d72bf8fe795dfbbc4542a72c396f8348c2ea2a639"
+      "sha256": "582df049a558c9ea5492f9676817bc60a3b65f716ce7123377f30855b59bef81",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/connector.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "clean-at-baseline",
+        "sha256": "582df049a558c9ea5492f9676817bc60a3b65f716ce7123377f30855b59bef81"
+      }
     },
     "contracts/src/encryption.ts": {
       "sha256": "85890b54c1d17b552cd1c30619559a00b587d993c8295a8a4214a2ac73c34e09"
     },
     "contracts/src/errors.ts": {
-      "sha256": "46b3f378d1720730ee2b445731b63b6341c7319c4759eb70f61a9e971aeb49b1"
+      "sha256": "07bfa3bbd7676b5ed36aba17a596de4eede64e0ea21855b3408fe6ba969d68d8",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/errors.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "sha256": "07bfa3bbd7676b5ed36aba17a596de4eede64e0ea21855b3408fe6ba969d68d8"
+      }
+    },
+    "contracts/src/global-settings.ts": {
+      "sha256": "f2fada2d14c9f5ed6ddc13546198f34dcef1a09db7c6fe0b782c8ad289193c89",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/global-settings.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "clean-at-baseline",
+        "sha256": "f2fada2d14c9f5ed6ddc13546198f34dcef1a09db7c6fe0b782c8ad289193c89"
+      }
     },
     "contracts/src/hashing.ts": {
       "sha256": "6ac6d421c2d650daa32cee5c61c02e4d570c09bc30a1148cebda7bd7ef769263"
     },
     "contracts/src/index.ts": {
-      "sha256": "3fcceda2059f77538cfaf8a59e6d1efa93a2c20ff41daa3d4d7d136dcb99f36d"
+      "sha256": "dc084c269fcc105142c8489578999d3e54b2736dd46fd35521beaee364d3d84c",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/index.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "copyMode": "selected-exports",
+        "sha256": "1db649377f879b9d0f3c9c2bd4d5b2069719299a9a0a147bb2669c719b500cda"
+      }
     },
     "contracts/src/ip-policy.ts": {
       "sha256": "3d72028f4e9d455b3f8524e348487a2b815f9f23290f71475f5df511e9795081"
@@ -43,10 +71,25 @@
       "sha256": "381148cefb50a809e65222876deddc89836868e51939db7d699f9463f86b09ec"
     },
     "contracts/src/runtime.ts": {
-      "sha256": "7a0ec41f35f3212d03d157f7091c5eed2f88767f7d6627c838e43d5b96c3ddc0"
+      "sha256": "e28b6d8a9658f44512fe518974c5fbdcf55ba76a6ee88036cec865886363c91e",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/runtime.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "sha256": "e28b6d8a9658f44512fe518974c5fbdcf55ba76a6ee88036cec865886363c91e"
+      }
     },
     "contracts/src/sdk.ts": {
       "sha256": "1c4210d0db10c853c36d9a40f6787d52a6eb777f3597c8d1a8d76e3d18b7a82e"
+    },
+    "contracts/src/usage-metrics.ts": {
+      "sha256": "f0d13e30255d14058a071391162864114ea6332162f1d9baaebe515cf9e26b9a",
+      "source": {
+        "repositoryPath": "orchestrator/packages/contracts/src/usage-metrics.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "clean-at-baseline",
+        "sha256": "f0d13e30255d14058a071391162864114ea6332162f1d9baaebe515cf9e26b9a"
+      }
     },
     "contracts/src/version.ts": {
       "sha256": "1fb24037c4fc050e240783811751757a7ee057d283516bffbd4fea8e3c51d2ae"
@@ -142,7 +185,13 @@
       "sha256": "f5ac2d77fbc42ca43b11058896da7767b4f40266ee01b578f136549813e14102"
     },
     "worker-sdk/src/connector-invoker.ts": {
-      "sha256": "75918fa32b8de65c928fec1a8cd6e22e5e65d2b19a83e869b4dfa20bce7036c5"
+      "sha256": "cc8aca7e54d4b8a00c4625822107d41f2d4564289a4321c04b8f12334b7bc221",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/connector-invoker.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "clean-at-baseline",
+        "sha256": "cc8aca7e54d4b8a00c4625822107d41f2d4564289a4321c04b8f12334b7bc221"
+      }
     },
     "worker-sdk/src/connector-session.ts": {
       "sha256": "2d7b50e2eca9a841f2abd65dee1509c2f08850fd9ec216120278f770f45d17cd"
@@ -160,7 +209,13 @@
       "sha256": "c5d1a3363806c183385b2ac7277b9153f7d0c3af8a1dd0caf66d41a1221c371a"
     },
     "worker-sdk/src/runtime-client.ts": {
-      "sha256": "3cf82d2d3c6e4bf5b05333ddd4bfa460903b29a5ef2d91559ec53905f1439be9"
+      "sha256": "6b705b4ccce271ae944ec873d144ae635873fd1bfad146c8429693362e264e67",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/runtime-client.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "sha256": "6b705b4ccce271ae944ec873d144ae635873fd1bfad146c8429693362e264e67"
+      }
     },
     "worker-sdk/src/source-acquisition.ts": {
       "sha256": "74233721cb67d8414f95a3a215f26d9d47dd0fd99bed5e9ed54775f3a60e8e30"
@@ -169,16 +224,34 @@
       "sha256": "653a3eb175a5e69073eecdb211ab291bbd7a84ec2b10b68488a16cd99e622e45"
     },
     "worker-sdk/src/task-context.ts": {
-      "sha256": "d93e5251e07e3534cd964b191ef47ac347315da2ec40ab7555186fc0c599ee63"
+      "sha256": "a52aca41e3883b9573402c54a32556699b836357cb14a2b731f46445391be02d",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/task-context.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "sha256": "a52aca41e3883b9573402c54a32556699b836357cb14a2b731f46445391be02d"
+      }
     },
     "worker-sdk/src/types.ts": {
-      "sha256": "60f3f025aba86f81a3a917b6bca13d7d299569fcc791af6f59a7fa4d7374ef0a"
+      "sha256": "09b45c814bebd7d5dcf977acc26fc1118492ed5b14cc974be84e0eb14a632e0e",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/types.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "sha256": "09b45c814bebd7d5dcf977acc26fc1118492ed5b14cc974be84e0eb14a632e0e"
+      }
     },
     "worker-sdk/src/worker-sdk-symbols.ts": {
       "sha256": "fb825c5d896db22a0cbe9e2aef1aa937fbaaa09ecdaa3a25195c3b975c16c55c"
     },
     "worker-sdk/src/worker.ts": {
-      "sha256": "4f7b9365cfd334856771a1170ae1562a467a657ed0b841b982150541d94097fe"
+      "sha256": "c32c2c0d2b98d6c38d8059034be1dd85c68b45ff137ea18f6ce136a060dfe2d8",
+      "source": {
+        "repositoryPath": "orchestrator/packages/worker-sdk/src/worker.ts",
+        "baselineCommit": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+        "worktreeState": "dirty-working-tree",
+        "sha256": "c32c2c0d2b98d6c38d8059034be1dd85c68b45ff137ea18f6ce136a060dfe2d8"
+      }
     }
   }
 }

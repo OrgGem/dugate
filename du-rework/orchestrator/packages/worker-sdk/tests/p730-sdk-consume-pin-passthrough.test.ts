@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BusinessJobV1, ClaimResult, TaskHeartbeatAck } from '@du/contracts';
+import { BusinessJobV1, ClaimResult, TaskHeartbeatAck, businessQueueName, validateManifest } from '@du/contracts';
 import { defineBusiness, startWorker, QueueConsumer, DefaultTaskContext, RuntimeClient } from '../src';
 
 /*
@@ -49,6 +49,9 @@ const MANIFEST = {
     },
   ],
 };
+const manifestValidation = validateManifest(MANIFEST);
+if (!manifestValidation.ok) throw new Error('P730 manifest fixture is invalid');
+const MANIFEST_DIGEST = manifestValidation.digest;
 
 interface Route {
   method: string;
@@ -85,7 +88,22 @@ function claimStubFetch(routes: Route[], calls: { path: string; method: string; 
 
 function heartbeatRoutes(): Route[] {
   return [
-    { method: 'PUT', pattern: /^\/workers\/[^/]+\/heartbeat$/, handler: () => ({ status: 200, json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60000).toISOString(), capacity: 1 } }) },
+    { method: 'PUT', pattern: /^\/businesses\/[^/]+\/versions\/[^/]+$/, handler: () => ({ status: 201, json: {
+      businessId: MANIFEST.businessId,
+      version: MANIFEST.version,
+      digest: MANIFEST_DIGEST,
+      queue: businessQueueName(MANIFEST.businessId, MANIFEST.version),
+      created: true,
+      replayed: false,
+    } }) },
+    { method: 'PUT', pattern: /^\/workers\/[^/]+\/heartbeat$/, handler: () => ({ status: 200, json: {
+      health: 'HEALTHY',
+      leaseExpiresAt: new Date(Date.now() + 60000).toISOString(),
+      capacity: 1,
+      controlRevision: 0,
+      controlState: 'OPEN',
+      backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+    } }) },
     { method: 'POST', pattern: /^\/tasks\/[^/]+\/heartbeat$/, handler: () => ({ status: 200, json: { leaseEpoch: 1, cancelRequested: false, leaseExpiresAt: new Date(Date.now() + 60000).toISOString() } as TaskHeartbeatAck }) },
   ];
 }
@@ -105,7 +123,7 @@ function makeClaim(pinnedOverrides: Record<string, unknown> = {}): ClaimResult {
       businessVersion: '1.0.0',
       action: 'extract',
       schemaDigest: 'sha256:bb',
-      manifestDigest: 'sha256:aa',
+      manifestDigest: MANIFEST_DIGEST,
       resolvedInputRef: { q: 'hello' },
       pinned: { profileRevision: 1, promptRevisions: {}, connectorBindings: { ocr: 'mock-ocr@1' }, profilePolicy: null, ...pinnedOverrides },
       taskKey: 'root',

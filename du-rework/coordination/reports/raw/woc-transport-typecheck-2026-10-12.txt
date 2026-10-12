@@ -1,0 +1,6 @@
+
+> @du/worker-sdk@0.1.0 lint D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+> tsc --noEmit -p tsconfig.json
+
+src/worker.ts(705,54): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+ ELIFECYCLE  Command failed with exit code 2.

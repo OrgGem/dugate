@@ -1,0 +1,4 @@
+
+> @du/admin-web@0.0.0 typecheck D:\Git\dugate\du-rework\orchestrator\apps\admin-web
+> tsc --noEmit -p tsconfig.json
+

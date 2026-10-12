@@ -1,0 +1,72 @@
+CHECK START 2026-10-12T17:05:51.8364964+07:00
+BASELINE b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+ISOLATED_COPY C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500
+HASH contracts/src/connector.ts source=True vendor=True
+HASH contracts/src/errors.ts source=True vendor=True
+HASH contracts/src/global-settings.ts source=True vendor=True
+HASH contracts/src/index.ts source=True vendor=True
+HASH contracts/src/runtime.ts source=True vendor=True
+HASH contracts/src/usage-metrics.ts source=True vendor=True
+HASH worker-sdk/src/connector-invoker.ts source=True vendor=True
+HASH worker-sdk/src/runtime-client.ts source=True vendor=True
+HASH worker-sdk/src/task-context.ts source=True vendor=True
+HASH worker-sdk/src/types.ts source=True vendor=True
+HASH worker-sdk/src/worker.ts source=True vendor=True
+HASH_ROWS 11 MISMATCHES 0
+
+VENDOR_VERIFY START 2026-10-12T17:05:51.9232626+07:00
+
+> @du/document-core-template@0.1.0 verify:vendor D:\Git\dugate\du-rework\businesses\document-core\template
+> node scripts/verify-vendor-lock.mjs
+
+verify-vendor-lock: 61 vendored files match; 11 carry file-specific source fingerprints; legacy baseCommit=b088eececcb5f3df0b4edbe073a29401dafda624
+VENDOR_VERIFY_EXIT 0
+
+ISOLATED_CONFORMANCE START 2026-10-12T17:05:52.3271861+07:00
+WOC08_TEMPLATE_DIST=C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500
+command=node --test tests/woc08-template-conformance.test.mjs
+node:internal/modules/cjs/loader:1564
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module 'zod'
+Require stack:
+- C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500\vendor\contracts\src\connector.js
+- C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500\vendor\contracts\src\index.js
+- D:\Git\dugate\du-rework\businesses\document-core\template\tests\woc08-template-conformance.test.mjs
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.require (node:internal/modules/cjs/loader:1674:12)
+    at require (node:internal/modules/helpers:157:16)
+    at Object.<anonymous> (C:\Users\Gem\AppData\Local\Temp\vfy-woc08-independent-20261012-171500\vendor\contracts\src\connector.js:4:15)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\Gem\\AppData\\Local\\Temp\\vfy-woc08-independent-20261012-171500\\vendor\\contracts\\src\\connector.js',
+    'C:\\Users\\Gem\\AppData\\Local\\Temp\\vfy-woc08-independent-20261012-171500\\vendor\\contracts\\src\\index.js',
+    'D:\\Git\\dugate\\du-rework\\businesses\\document-core\\template\\tests\\woc08-template-conformance.test.mjs'
+  ]
+}
+
+Node.js v24.21.0
+✖ tests\woc08-template-conformance.test.mjs (87.8219ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 94.8338
+
+✖ failing tests:
+
+test at tests\woc08-template-conformance.test.mjs:1:1
+✖ tests\woc08-template-conformance.test.mjs (87.8219ms)
+  'test failed'
+ISOLATED_CONFORMANCE_EXIT 1
+CHECK END 2026-10-12T17:05:52.4972270+07:00

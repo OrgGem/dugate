@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/types.ts (lines=380) sha256=DED3E9F350B80E70AF597BE930C7D1BF44D382764AB10AF343C169BAF5F2C598
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 import type {
   ArtifactRef,
   ArtifactPurpose as ContractArtifactPurpose,
@@ -9,12 +5,14 @@ import type {
   ExecutionSnapshot,
   PinnedProfilePolicy,
   PinnedPromptOverride,
+  TenantDefaultsSnapshot,
   InvocationGrant,
   InvocationInput,
   InvocationResponse,
   TaskDisposition,
   CheckpointRef,
 } from '@du/contracts';
+import type { ConnectorWorkflowOverrides } from '@du/contracts';
 import type { WorkerCryptoSeam } from './crypto-seam';
 
 /**
@@ -124,7 +122,8 @@ export interface ConnectorFacade {
     slot: string,
     input: ConnectorInvokeInput,
     options?: Record<string, unknown>,
-    invokeOpts?: ConnectorInvokeOptions
+    invokeOpts?: ConnectorInvokeOptions,
+    workflowOverrides?: ConnectorWorkflowOverrides
   ): Promise<InvocationResponse>;
 }
 
@@ -275,6 +274,8 @@ export interface TaskContext {
    * Rows are key-4 native: `{connectionId, stepId, promptOverride, revision}`.
    */
   readonly promptOverrides?: readonly PinnedPromptOverride[] | null;
+  /** Immutable admission-time tenant defaults; old operation rows may omit it. */
+  readonly tenantDefaults?: TenantDefaultsSnapshot | null;
 
   readonly step: StepFacade;
   readonly spawn: SpawnFacade;
@@ -303,12 +304,18 @@ export interface WorkerConfig {
   redis?: { url: string };
   /** Stable instance identity; generated when omitted. */
   workerInstanceId?: string;
+  /** Cancel startup before heartbeat/queue consumption; ignored after startup resolves. */
+  startupSignal?: AbortSignal;
   /** Max concurrent task deliveries (queue slot count). */
   concurrency?: number;
   /** Lease/heartbeat tuning; defaults from contracts LEASE_DEFAULTS. */
   heartbeatIntervalMs?: number;
+  /** Stop effectful work this long before the last confirmed lease expiry. */
+  leaseSafetyMarginMs?: number;
   /** Image digest reported in registration/heartbeat. */
   imageDigest?: string;
+  /** Deployment release label from the immutable host manifest. */
+  deploymentRevision?: string;
   /** Custom fetch for tests/proxies. */
   fetchImpl?: typeof fetch;
   /** Per-artifact stream cap used for worker-side reads and writes (default 64 MiB). */
@@ -355,7 +362,9 @@ export interface WorkerConfig {
  */
 export type ConnectorInvokeFunction = (
   grant: InvocationGrant,
-  payload: ConnectorInvocationPayloadShape
+  payload: ConnectorInvocationPayloadShape,
+  /** Cancellation/lease-loss signal: aborts the in-flight connector request. */
+  signal?: AbortSignal
 ) => Promise<InvocationResponse>;
 
 /** Structural mirror of `ConnectorInvocationPayload` (task-context.ts). */

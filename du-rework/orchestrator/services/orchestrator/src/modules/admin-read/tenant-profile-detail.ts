@@ -25,7 +25,7 @@ export async function loadTenantProfileDetail(
        JOIN profile_bindings p
          ON p.profile_id = a.profile_id AND p.revision = a.revision
       WHERE n.business_id=$1 AND n.business_version=$2 AND n.profile_name=$3
-        AND n.tenant_id=$4
+        AND n.tenant_id=$4 AND n.group_id IS NULL
       ORDER BY a.moved_at DESC, n.profile_id
       LIMIT 1`,
     params,
@@ -35,7 +35,7 @@ export async function loadTenantProfileDetail(
   const orphan = await db.query(
     `SELECT 1 FROM profile_names
       WHERE business_id=$1 AND business_version=$2 AND profile_name=$3
-        AND tenant_id=$4
+        AND tenant_id=$4 AND group_id IS NULL
       LIMIT 1`,
     params,
   );

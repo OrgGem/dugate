@@ -28,6 +28,8 @@ interface TenantBusinessCatalogCursor {
 
 export interface TenantBusinessCatalogDbRow extends Record<string, unknown> {
   business_id: string;
+  enabled: boolean;
+  lifecycle_revision: number | string;
   latest_version: string | null;
   latest_status: string | null;
   active_version: string | null;
@@ -199,6 +201,8 @@ export async function listTenantBusinessCatalogPage(input: {
 
   const pageResult = await input.db.query<TenantBusinessCatalogDbRow>(
     `SELECT c.business_id,
+            c.enabled,
+            c.lifecycle_revision,
             latest.latest_version,
             latest.latest_status,
             active.active_version,

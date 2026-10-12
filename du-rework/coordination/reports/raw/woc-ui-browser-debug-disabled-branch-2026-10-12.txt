@@ -1,0 +1,86 @@
+BEFORE_DISABLE {
+  disabled: false,
+  tail: ' this exact business version and manifest digest.\n' +
+    '\n' +
+    'Manifest digest claims-workflow-3.0.0-fixture-digest · 1 declared functions.\n' +
+    '\n' +
+    'Declared workflow action · review-claim\n' +
+    'Function id: claims:action:review\n' +
+    'Available\n' +
+    'Enabled\n' +
+    'Job priority\n' +
+    'Low\n' +
+    'Medium\n' +
+    'High\n' +
+    'Allowed file extensions\n' +
+    'Manifest profile settings\n' +
+    'Threshold\n' +
+    'Connector bindings\n' +
+    '\n' +
+    'Connector credentials and provider settings remain managed on the separate Connectors screen.\n' +
+    '\n' +
+    'reasoning *\n' +
+    'Select a connector revision\n' +
+    'reasoning-primary · revision 2\n' +
+    '\n' +
+    'Accepted capabilities: reasoning\n' +
+    '\n' +
+    'Save full group revision\n' +
+    'Rollback to revision\n' +
+    'Rollback complete group'
+}
+IMMEDIATELY_AFTER_BACKEND_CHANGE { disabled: false, writes: 0 }
+AFTER_CLICK {
+  disabled: true,
+  tail: 'ce\n' +
+    'Function id: core:extract:invoice\n' +
+    'Available\n' +
+    'Enabled\n' +
+    'Job priority\n' +
+    'Low\n' +
+    'Medium\n' +
+    'High\n' +
+    'Allowed file extensions\n' +
+    'Manifest profile settings\n' +
+    'Temperature *\n' +
+    'Options\n' +
+    'Connector bindings\n' +
+    '\n' +
+    'Connector credentials and provider settings remain managed on the separate Connectors screen.\n' +
+    '\n' +
+    'reasoning *\n' +
+    'Select a connector revision\n' +
+    'reasoning-primary · revision 2\n' +
+    '\n' +
+    'Accepted capabilities: reasoning\n' +
+    '\n' +
+    'Document Core endpoint · analyze.legacy\n' +
+    'Function id: core:analyze:legacy\n' +
+    'Unavailable\n' +
+    '\n' +
+    'The local runtime fixture does not admit this legacy endpoint.\n' +
+    '\n' +
+    'claims-workflow\n' +
+    'Disabled\n' +
+    'Remove business\n' +
+    '\n' +
+    'This business was disabled while the editor was open. Remove it or enable it in the Business registry, then refresh.\n' +
+    '\n' +
+    'Registered version\n' +
+    '3.0.0\n' +
+    '\n' +
+    'The function catalog is loaded from this exact business version and manifest digest.\n' +
+    '\n' +
+    'Manifest digest claims-workflow-3.0.0-fixture-digest · 1 declared functions.\n' +
+    '\n' +
+    'Declared workflow action · review-claim\n' +
+    'Function id: claims:action:review\n' +
+    'Unavailable\n' +
+    'Before save:\n' +
+    'claims-workflow@3.0.0 is not currently enabled. Refresh the business catalog before saving.\n' +
+    'claims-workflow@3.0.0 was disabled while this editor was open.\n' +
+    'Save full group revision\n' +
+    'Rollback to revision\n' +
+    'Rollback complete group',
+  writes: []
+}

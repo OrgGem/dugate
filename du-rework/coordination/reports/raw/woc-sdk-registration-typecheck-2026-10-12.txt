@@ -1,0 +1,4 @@
+
+> @du/worker-sdk@0.1.0 lint D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+> tsc --noEmit -p tsconfig.json
+

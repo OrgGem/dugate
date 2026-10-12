@@ -1,0 +1,17 @@
+START 2026-10-12T17:05:24.4172467+07:00
+SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398
+SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts E347CA89BCBCFF24D60CB60F79F7CACBBFCC09BFFE5CE432EB0FF60200725989
+  console.info
+    [VFY-WOC] profile disable/save evidence={"businessId":"woc-vfy-66cc8c41","groupBackend":{"pid":15555,"xid":"3139"},"disableBackendPid":15570,"sqlOrder":["group catalog root FOR SHARE completed","group version/catalog JOIN completed; barrier entered","registry.setBusinessEnabled(false) called","disable promise still pending at 250ms barrier check","separate catalog read while paused enabled=true"],"activity":[{"pid":15555,"backend_xid":"3139","state":"idle in transaction","wait_event_type":"Client","wait_event":"ClientRead","query":"SELECT pg_backend_pid() AS pid, txid_current()::text AS xid"},{"pid":15570,"backend_xid":null,"state":"active","wait_event_type":"Lock","wait_event":"transactionid","query":"SELECT enabled,lifecycle_revision\n             FROM business_catalog\n            WHERE business_id=$1\n            FOR UPDATE"}],"locks":[{"pid":15555,"locktype":"relation","mode":"AccessShareLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":15555,"locktype":"relation","mode":"RowShareLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":15555,"locktype":"transactionid","mode":"ExclusiveLock","granted":true,"relation":null,"transaction_id":"3139"},{"pid":15570,"locktype":"relation","mode":"RowShareLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":15570,"locktype":"transactionid","mode":"ShareLock","granted":false,"relation":null,"transaction_id":"3139"},{"pid":15570,"locktype":"tuple","mode":"AccessExclusiveLock","granted":true,"relation":"business_catalog","transaction_id":null}]}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:393:15)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 skipped, 2 passed, 4 total
+Snapshots:   0 total
+Time:        7.043 s
+Ran all test suites within paths "tests/woc-independent-profile-pg.test.ts".
+POST_SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398
+POST_SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts E347CA89BCBCFF24D60CB60F79F7CACBBFCC09BFFE5CE432EB0FF60200725989
+EXIT_CODE 0
+END 2026-10-12T17:05:32.4128178+07:00

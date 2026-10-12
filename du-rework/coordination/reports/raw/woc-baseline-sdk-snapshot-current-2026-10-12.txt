@@ -1,0 +1,12 @@
+COMMAND: node D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk\node_modules\jest\bin\jest.js --runInBand --testTimeout=30000 --testNamePattern=snapshot tests/temp-sweep.test.ts
+CWD: D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+PROCESS TIMEOUT: 90s
+
+EXIT CODE: 0
+--- stdout ---
+--- stderr ---
+Test Suites: 1 passed, 1 total
+Tests:       18 skipped, 1 passed, 19 total
+Snapshots:   0 total
+Time:        1.48 s, estimated 3 s
+Ran all test suites matching tests/temp-sweep.test.ts with tests matching "snapshot".

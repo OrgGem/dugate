@@ -1,0 +1,24 @@
+WOC08 isolated template TypeScript build and conformance
+isolated template tsc exit=0
+{"businessId":"woc08-template","businessVersion":"1.0.0","code":"BUSINESS_DISABLED","retryAfterMs":155,"timestamp":"2026-10-12T09:54:23.145Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-4f702415-dd69-41c0-ab95-5e8a0e87da14","operationId":"7bc0d42d-8428-4f02-86b3-4442d11a5d66","taskId":"4f702415-dd69-41c0-ab95-5e8a0e87da14","invocationId":null,"message":"[REDACTED]"}
+{"code":"WORKER_COMPATIBILITY_REQUIRED","timestamp":"2026-10-12T09:54:23.151Z","level":"error","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"236a6d26-e06a-46d0-8c73-0cc322529be5","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+✔ deferred admission remains recoverable and the next delivery can run after admission opens (22.1703ms)
+✔ missing v1 backupEffectFence is UNKNOWN and prevents queue consumption (3.0396ms)
+✔ body deadlines cover successful write ACKs; claim ACK parse failures remain retryable (31.5268ms)
+{"businessId":"woc08-template","businessVersion":"1.0.0","timestamp":"2026-10-12T09:54:23.340Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-65d67c7d-41a7-4ed4-bfe0-30684164e4b8","operationId":"865536ec-8e77-4f8b-bb0b-18d14bdd2284","taskId":"65d67c7d-41a7-4ed4-bfe0-30684164e4b8","invocationId":null,"message":"[REDACTED]"}
+{"retryAfterMs":180,"timestamp":"2026-10-12T09:54:23.341Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"d9cde0e9-ba77-46d5-b593-bd3c3e50944a","operationId":null,"taskId":"65d67c7d-41a7-4ed4-bfe0-30684164e4b8","invocationId":null,"message":"[REDACTED]"}
+{"code":"TASK_HANDLER_ACTIVE","retryAfterMs":180,"timestamp":"2026-10-12T09:54:23.341Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"58a1b23d-e557-4d01-8201-7fc4ad4458ef","operationId":null,"taskId":"65d67c7d-41a7-4ed4-bfe0-30684164e4b8","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc08-template","businessVersion":"1.0.0","reason":"lease-lost","timestamp":"2026-10-12T09:54:23.342Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-65d67c7d-41a7-4ed4-bfe0-30684164e4b8","operationId":"865536ec-8e77-4f8b-bb0b-18d14bdd2284","taskId":"65d67c7d-41a7-4ed4-bfe0-30684164e4b8","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc08-template","businessVersion":"1.0.0","code":"LEASE_RECOVERY","retryAfterMs":24,"timestamp":"2026-10-12T09:54:23.342Z","level":"warn","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-65d67c7d-41a7-4ed4-bfe0-30684164e4b8","operationId":"865536ec-8e77-4f8b-bb0b-18d14bdd2284","taskId":"65d67c7d-41a7-4ed4-bfe0-30684164e4b8","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc08-template","businessVersion":"1.0.0","status":410,"code":"TASK_TERMINAL","timestamp":"2026-10-12T09:54:23.343Z","level":"info","service":"worker:woc08-template","version":"unknown","environment":"dev","correlationId":"corr-65d67c7d-41a7-4ed4-bfe0-30684164e4b8","operationId":"865536ec-8e77-4f8b-bb0b-18d14bdd2284","taskId":"65d67c7d-41a7-4ed4-bfe0-30684164e4b8","invocationId":null,"message":"[REDACTED]"}
+✔ lease expiry aborts an uncooperative handler while single-flight protects the task and other tasks progress (158.5108ms)
+✔ INVOCATION_UNKNOWN retries the same invocation ID and the mock connector dispatches once (1.7339ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 314.7176
+template conformance exit=0

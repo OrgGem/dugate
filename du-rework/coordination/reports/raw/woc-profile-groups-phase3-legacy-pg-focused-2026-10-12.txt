@@ -1,0 +1,29 @@
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> jest --runInBand "--runInBand" "tests/orv12-settings.test.ts"
+
+FAIL tests/orv12-settings.test.ts (5.168 s)
+  ● native profile upsert creates exact endpoint pins; policy save preserves pins and selector retarget fails
+
+    HttpError: another active profile already binds this API key and function
+
+      671 |     );
+      672 |     if (overlap.rowCount) {
+    > 673 |       throw new HttpError(409, 'STATE_CONFLICT', 'another active profile already binds this API key and function');
+          |             ^
+      674 |     }
+      675 |   };
+      676 |
+
+      at assertSelectorAvailable (src/modules/profiles/profiles.ts:673:13)
+      at assertSelectorAvailableForMembershipsOn (src/modules/profiles/profiles.ts:691:7)
+      at run (src/modules/profiles/profiles.ts:775:7)
+      at Object.tx (src/db/db.ts:28:24)
+      at Object.<anonymous> (tests/orv12-settings.test.ts:53:16)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 11 passed, 12 total
+Snapshots:   0 total
+Time:        5.2 s
+Ran all test suites matching tests/orv12-settings.test.ts.
+ ELIFECYCLE  Test failed. See above for more details.

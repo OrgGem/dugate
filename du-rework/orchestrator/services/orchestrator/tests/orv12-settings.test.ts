@@ -8,12 +8,12 @@ import {createPromptOverrideService} from '../src/modules/profiles/prompt-overri
 const root=createDb('postgresql://du_wfa:du_wfa_test_only@127.0.0.1:55498/du_workflow_api_test');
 const schema=`set_owner_${randomUUID().replace(/-/g,'')}`;
 const url=new URL('postgresql://du_wfa:du_wfa_test_only@127.0.0.1:55498/du_workflow_api_test');url.searchParams.set('options',`-c search_path=${schema},public`);
-let db:Db;let scope:{tenantId:string;apiKeyId:string;endpointSlug:string};let connectionId:string;let profileId:string;
+let db:Db;let scope:{tenantId:string;apiKeyId:string;endpointSlug:string};let connectionId:string;let profileId:string;let schemaCreated=false;
 const keys=new Map<string,Buffer>();
 const crypto=createMetadataCrypto({wrapDek:async(dek,keyName)=>{const id=randomUUID();keys.set(id,Buffer.from(dek));return {version:1,keyName,keyVersion:1,wrappedKey:id};},unwrapDek:async(ref)=>keys.get(ref.wrappedKey)!},'synthetic-owner');
 const deps={metadataCrypto:crypto,connectorManagement:{getRevision:async()=>({state:'ACTIVE'})} as never};
-beforeAll(async()=>{await root.query(`CREATE SCHEMA "${schema}"`);db=createDb(url.toString());for(const name of readdirSync(resolve('migrations')).filter(x=>x.endsWith('.sql')).sort())await db.query(readFileSync(resolve('migrations',name),'utf8'));});
-afterAll(async()=>{await db?.close();await root.query(`DROP SCHEMA "${schema}" CASCADE`);await root.close();});
+beforeAll(async()=>{const target=await root.query('SELECT current_database() AS name');if(target.rows[0]?.name!=='du_workflow_api_test')throw new Error('orv12-settings requires the dedicated du_workflow_api_test database');await root.query(`CREATE SCHEMA "${schema}"`);schemaCreated=true;db=createDb(url.toString());for(const name of readdirSync(resolve('migrations')).filter(x=>x.endsWith('.sql')).sort())await db.query(readFileSync(resolve('migrations',name),'utf8'));});
+afterAll(async()=>{await db?.close();if(schemaCreated)await root.query(`DROP SCHEMA "${schema}" CASCADE`);await root.close();});
 beforeEach(async()=>{
  scope={tenantId:randomUUID(),apiKeyId:randomUUID(),endpointSlug:'extract:invoice'};connectionId=randomUUID();profileId=randomUUID();
  await db.query('INSERT INTO tenants(id,name) VALUES($1,$2)',[scope.tenantId,'Synthetic']);
@@ -49,7 +49,8 @@ test('readiness HTTP route rejects anonymous and foreign tenant before DB',async
 test('settings writes reject viewer and tenant operator before resolving target',async()=>{const {dispatchAdminAction}=await import('../src/modules/admin-actions/dispatcher');for(const action of ['settings.revision.create','settings.revision.validate','settings.revision.apply','settings.revision.rollback']){await expect(dispatchAdminAction({} as never,{kind:'bearer',principal:{role:'tenant_operator',tenantId:scope.tenantId}},{action,params:scope})).rejects.toMatchObject({status:403});}});
 test('native profile upsert creates exact endpoint pins; policy save preserves pins and selector retarget fails',async()=>{
  const {runProfileUpsert}=await import('../src/modules/admin-actions/profile-actions');const {createProfileService}=await import('../src/modules/profiles/profiles');
- const service=createProfileService(db);const command={apiKey:{kind:'id' as const,id:scope.apiKeyId},businessId:'document-core',businessVersion:'test',profileName:'dedicated',action:'extract',endpointSlug:scope.endpointSlug,connectorBindings:{reasoning:{connectorId:connectionId,revision:1}},policy:{}};
+ const profileWriterApiKeyId=randomUUID();await db.query("INSERT INTO api_keys(id,tenant_id,hash,prefix) VALUES($1,$2,$3,'test')",[profileWriterApiKeyId,scope.tenantId,randomUUID()]);
+ const service=createProfileService(db);const command={apiKey:{kind:'id' as const,id:profileWriterApiKeyId},businessId:'document-core',businessVersion:'test',profileName:'dedicated',action:'extract',endpointSlug:scope.endpointSlug,connectorBindings:{reasoning:{connectorId:connectionId,revision:1}},policy:{}};
  const created=await db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,command,()=>undefined));
  const edited=await db.tx(c=>runProfileUpsert(c,{profiles:service,connectorManagement:deps.connectorManagement} as never,{...command,connectorBindings:undefined,endpointSlug:undefined,expectedRevision:created.revision,policy:{enabled:true}},()=>undefined));
  const row=(await db.query('SELECT endpoint_slug,connector_bindings FROM profile_bindings WHERE profile_id=$1 AND revision=$2',[edited.profileId,edited.revision])).rows[0]!;expect(row.endpoint_slug).toBe(scope.endpointSlug);expect(row.connector_bindings).toEqual(command.connectorBindings);

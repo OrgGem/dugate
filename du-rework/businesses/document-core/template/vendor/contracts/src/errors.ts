@@ -1,7 +1,3 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/contracts/src/errors.ts (lines=120) sha256=C2D82F050D5263B8C365CCCDF772D89DA9EF47B094B8AD6E46C92CFA3909DA2A
-// why: ConnectorErrorCodes, ConnectorErrorCode, ProblemSchema, ProblemDetails for vendored worker-sdk
-
 import { z } from 'zod';
 
 /**
@@ -53,12 +49,22 @@ export const RuntimeErrorCodes = [
   'STATE_CONFLICT',
   'INPUT_HASH_MISMATCH',
   'TASK_TERMINAL',
+  'TASK_NOT_READY',
+  'TASK_WAITING',
+  'TASK_LEASE_ACTIVE',
+  'TASK_LEASE_HELD',
+  'ADMISSION_PAUSED',
+  'WORKER_NOT_REGISTERED',
+  'WORKER_ADMISSION_CLOSED',
+  'WORKER_VERSION_MISMATCH',
+  'SHUTTING_DOWN',
   'INVALID_SCHEMA',
   'UNREGISTERED_HANDLER',
   'CAPACITY',
   'TEMPORARY_UNAVAILABLE',
   'UNKNOWN_CONTRACT_MAJOR',
   'MANIFEST_DIGEST_MISMATCH',
+  'BUSINESS_DISABLED',
 ] as const;
 export type RuntimeErrorCode = (typeof RuntimeErrorCodes)[number];
 
@@ -79,6 +85,7 @@ export const ConnectorErrorCodes = [
   'INVOCATION_UNKNOWN',
   'INPUT_HASH_MISMATCH',
   'QUOTA_EXHAUSTED',
+  'BUDGET_LIMIT_EXCEEDED',
   'CANCELLED',
 ] as const;
 export type ConnectorErrorCode = (typeof ConnectorErrorCodes)[number];

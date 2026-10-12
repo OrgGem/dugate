@@ -158,6 +158,30 @@ export interface CreateBindingInput {
   policy?: Record<string, unknown>;
 }
 
+export interface ProfileSelectorLock {
+  businessId: string;
+  businessVersion: string;
+  action: string;
+  endpointSlug?: string | null;
+}
+
+export interface ProfileActiveSelector extends ProfileSelectorLock {
+  endpointSlug: string | null;
+}
+
+export interface LockedApiKeyRow {
+  id: string;
+  tenant_id: string;
+  hash: string;
+  prefix: string;
+  status: string;
+}
+
+export interface ActiveProfileMembership {
+  apiKeyId: string;
+  tenantId: string;
+}
+
 interface PolicyRow {
   enabled: boolean | null;
   parameters: unknown;
@@ -441,7 +465,466 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
     return 'legacy' as const;
   };
 
+  const selectorLockKey = (selector: ProfileSelectorLock): string =>
+    // endpointSlug is intentionally omitted: generic selectors overlap every
+    // endpoint-specific selector, so both must serialize on the same lock.
+    // apiKeyId is also omitted to make membership writers and rotations lock
+    // the same selector before discovering/locking their key rows.
+    `profile-selector:${JSON.stringify([selector.businessId, selector.businessVersion, selector.action])}`;
+
+  const lockSelectorsOn = async (client: PoolClient, selectors: readonly ProfileSelectorLock[]): Promise<void> => {
+    const keys = [...new Set(selectors.map(selectorLockKey))].sort();
+    for (const key of keys) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [key]);
+    }
+  };
+
+  const lockApiKeyRowOn = async (
+    client: PoolClient,
+    apiKeyId: string,
+    mode: 'share' | 'update',
+  ): Promise<LockedApiKeyRow | null> => {
+    const lockClause = mode === 'update' ? 'FOR UPDATE' : 'FOR SHARE';
+    const result = await client.query<LockedApiKeyRow>(
+      `SELECT id, tenant_id, hash, prefix, status FROM api_keys WHERE id=$1 ${lockClause}`,
+      [apiKeyId],
+    );
+    return result.rows[0] ?? null;
+  };
+
+  const activeSelectorOn = async (client: PoolClient, profileId: string): Promise<ProfileActiveSelector | null> => {
+    const result = await client.query<{
+      business_id: string;
+      business_version: string;
+      action: string;
+      endpoint_slug: string | null;
+    }>(
+      `SELECT b.business_id, b.business_version, b.action, b.endpoint_slug
+         FROM profile_active_revisions a
+         JOIN profile_bindings b ON b.profile_id=a.profile_id AND b.revision=a.revision
+        WHERE a.profile_id=$1`,
+      [profileId],
+    );
+    const row = result.rows[0];
+    return row ? {
+      businessId: row.business_id,
+      businessVersion: row.business_version,
+      action: row.action,
+      endpointSlug: row.endpoint_slug,
+    } : null;
+  };
+
+  const revisionSelectorOn = async (
+    client: PoolClient,
+    profileId: string,
+    revision: number,
+  ): Promise<ProfileActiveSelector | null> => {
+    const result = await client.query<{
+      business_id: string;
+      business_version: string;
+      action: string;
+      endpoint_slug: string | null;
+    }>(
+      `SELECT business_id, business_version, action, endpoint_slug
+         FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
+      [profileId, revision],
+    );
+    const row = result.rows[0];
+    return row ? {
+      businessId: row.business_id,
+      businessVersion: row.business_version,
+      action: row.action,
+      endpointSlug: row.endpoint_slug,
+    } : null;
+  };
+
+  const latestRevisionSelectorOn = async (
+    client: PoolClient,
+    profileId: string,
+  ): Promise<{ revision: number; selector: ProfileActiveSelector } | null> => {
+    const result = await client.query<{
+      revision: number;
+      business_id: string;
+      business_version: string;
+      action: string;
+      endpoint_slug: string | null;
+    }>(
+      `SELECT revision, business_id, business_version, action, endpoint_slug
+         FROM profile_bindings WHERE profile_id=$1 ORDER BY revision DESC LIMIT 1`,
+      [profileId],
+    );
+    const row = result.rows[0];
+    return row ? {
+      revision: row.revision,
+      selector: {
+        businessId: row.business_id,
+        businessVersion: row.business_version,
+        action: row.action,
+        endpointSlug: row.endpoint_slug,
+      },
+    } : null;
+  };
+
+  const activeProfileMembershipsOn = async (
+    client: PoolClient,
+    profileId: string,
+  ): Promise<ActiveProfileMembership[]> => {
+    const result = await client.query<{ api_key_id: string; tenant_id: string }>(
+      `SELECT api_key_id, tenant_id FROM profile_api_keys
+        WHERE profile_id=$1 AND state='ACTIVE' ORDER BY api_key_id`,
+      [profileId],
+    );
+    return result.rows.map((row) => ({ apiKeyId: row.api_key_id, tenantId: row.tenant_id }));
+  };
+
+  const sameSelector = (left: ProfileActiveSelector | null, right: ProfileActiveSelector | null): boolean =>
+    left === null || right === null
+      ? left === right
+      : left.businessId === right.businessId
+        && left.businessVersion === right.businessVersion
+        && left.action === right.action
+        && left.endpointSlug === right.endpointSlug;
+
+  const sameMemberships = (
+    left: readonly ActiveProfileMembership[],
+    right: readonly ActiveProfileMembership[],
+  ): boolean => left.length === right.length && left.every((membership, index) =>
+    membership.apiKeyId === right[index]?.apiKeyId && membership.tenantId === right[index]?.tenantId);
+
+  const lockProfileMutationOn = async (
+    client: PoolClient,
+    profileId: string | null,
+    targetSelectors: readonly ProfileSelectorLock[],
+    additionalApiKeyIds: readonly string[],
+    lockMembershipKeyRows = true,
+  ): Promise<{
+    activeSelector: ProfileActiveSelector | null;
+    memberships: ActiveProfileMembership[];
+    keys: Map<string, LockedApiKeyRow>;
+  }> => {
+    const selectorBeforeLock = profileId ? await activeSelectorOn(client, profileId) : null;
+    const membershipsBeforeLock = profileId ? await activeProfileMembershipsOn(client, profileId) : [];
+    await lockSelectorsOn(client, [
+      ...targetSelectors,
+      ...(selectorBeforeLock ? [selectorBeforeLock] : []),
+    ]);
+
+    const selectorAfterSelectorLocks = profileId ? await activeSelectorOn(client, profileId) : null;
+    const membershipsAfterSelectorLocks = profileId ? await activeProfileMembershipsOn(client, profileId) : [];
+    if (!sameSelector(selectorBeforeLock, selectorAfterSelectorLocks)
+      || !sameMemberships(membershipsBeforeLock, membershipsAfterSelectorLocks)) {
+      throw new HttpError(409, 'STATE_CONFLICT', 'profile selector or active API-key memberships changed while the revision was being prepared; retry');
+    }
+
+    const apiKeyIds = [...new Set([
+      ...(lockMembershipKeyRows ? membershipsAfterSelectorLocks.map((membership) => membership.apiKeyId) : []),
+      ...additionalApiKeyIds,
+    ])].sort();
+    const keys = new Map<string, LockedApiKeyRow>();
+    for (const apiKeyId of apiKeyIds) {
+      const key = await lockApiKeyRowOn(client, apiKeyId, 'share');
+      if (key) keys.set(apiKeyId, key);
+    }
+
+    const selectorAfterKeyLocks = profileId ? await activeSelectorOn(client, profileId) : null;
+    const membershipsAfterKeyLocks = profileId ? await activeProfileMembershipsOn(client, profileId) : [];
+    if (!sameSelector(selectorAfterSelectorLocks, selectorAfterKeyLocks)
+      || !sameMemberships(membershipsAfterSelectorLocks, membershipsAfterKeyLocks)) {
+      throw new HttpError(409, 'STATE_CONFLICT', 'profile selector or active API-key memberships changed while key rows were being locked; retry');
+    }
+    for (const membership of membershipsAfterKeyLocks) {
+      if (!lockMembershipKeyRows && !additionalApiKeyIds.includes(membership.apiKeyId)) continue;
+      const key = keys.get(membership.apiKeyId);
+      if (!key || key.tenant_id !== membership.tenantId) {
+        throw new HttpError(409, 'STATE_CONFLICT', `active profile membership '${membership.apiKeyId}' no longer matches its API key tenant`);
+      }
+    }
+    return { activeSelector: selectorAfterKeyLocks, memberships: membershipsAfterKeyLocks, keys };
+  };
+
+  const assertSelectorAvailable = async (
+    client: PoolClient,
+    input: {
+      apiKeyId: string;
+      businessId: string;
+      businessVersion: string;
+      action: string;
+      endpointSlug: string | null;
+      profileId: string;
+      groupId?: string;
+    },
+  ): Promise<void> => {
+    const overlap = await client.query<{ profile_id: string }>(
+      `SELECT b.profile_id
+         FROM profile_active_revisions a
+         JOIN profile_bindings b ON b.profile_id=a.profile_id AND b.revision=a.revision
+         JOIN profile_api_keys m ON m.profile_id=b.profile_id AND m.api_key_id=$1
+          AND m.state='ACTIVE' AND m.tenant_id=b.tenant_id
+         LEFT JOIN profile_names n ON n.profile_id=b.profile_id
+        WHERE b.business_id=$2 AND b.business_version=$3 AND b.action=$4
+          AND (b.endpoint_slug IS NULL OR $5::text IS NULL OR b.endpoint_slug=$5)
+          AND b.profile_id<>$6
+          AND ($7::uuid IS NULL OR n.group_id IS DISTINCT FROM $7)
+        LIMIT 1`,
+      [input.apiKeyId, input.businessId, input.businessVersion, input.action, input.endpointSlug,
+        input.profileId, input.groupId ?? null],
+    );
+    if (overlap.rowCount) {
+      throw new HttpError(409, 'STATE_CONFLICT', 'another active profile already binds this API key and function');
+    }
+  };
+
+  const assertSelectorAvailableForMembershipsOn = async (
+    client: PoolClient,
+    input: {
+      apiKeyIds: readonly string[];
+      businessId: string;
+      businessVersion: string;
+      action: string;
+      endpointSlug: string | null;
+      profileId: string;
+      groupId?: string;
+    },
+  ): Promise<void> => {
+    const apiKeyIds = [...new Set(input.apiKeyIds)].sort();
+    for (const apiKeyId of apiKeyIds) {
+      await assertSelectorAvailable(client, {
+        apiKeyId,
+        businessId: input.businessId,
+        businessVersion: input.businessVersion,
+        action: input.action,
+        endpointSlug: input.endpointSlug,
+        profileId: input.profileId,
+        ...(input.groupId ? { groupId: input.groupId } : {}),
+      });
+    }
+  };
+
+  type CreatedProfileRevision = {
+    profileId: string;
+    revision: number;
+    tenantId: string;
+    apiKeyId: string;
+  };
+
+  const appendRevision = async (
+    input: CreateBindingInput,
+    activeClient?: PoolClient,
+    groupOwnerId?: string,
+  ): Promise<CreatedProfileRevision> => {
+    const run = async (c: PoolClient): Promise<CreatedProfileRevision> => {
+      const bindings = parseConnectorBindings(input.connectorBindings);
+      if (!input.businessId || !input.businessVersion || !input.action) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'businessId, businessVersion and action are required');
+      }
+      const keyRes = await c.query<{ id: string; tenant_id: string }>(
+        'SELECT id, tenant_id FROM api_keys WHERE hash=$1 AND status=$2',
+        [input.apiKeyHash, 'ACTIVE']
+      );
+      if (!keyRes.rowCount) throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
+      const keyCandidate = keyRes.rows[0]!;
+      const profileId = input.profileId ?? randomUUID();
+      // The aggregate save already holds its complete selector set and the
+      // selected key row before materializing children. Avoid acquiring other
+      // child-member keys after that key lock; selector locks freeze their
+      // memberships while overlap is still checked for every member below.
+      const mutationLocks = await lockProfileMutationOn(c, profileId, [
+        { businessId: input.businessId, businessVersion: input.businessVersion, action: input.action, endpointSlug: input.endpointSlug },
+      ], [keyCandidate.id], groupOwnerId === undefined);
+      const key = mutationLocks.keys.get(keyCandidate.id);
+      if (!key || key.status !== 'ACTIVE' || key.hash !== input.apiKeyHash) {
+        throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
+      }
+
+      // The public createRevision path is also called by the direct profile
+      // binding HTTP route. Never trust a caller-supplied profileId to grant
+      // mutation rights over a group child. The aggregate-only wrapper below
+      // supplies groupOwnerId from its server-side group transaction.
+      const owner = await c.query<{ group_id: string | null }>(
+        'SELECT group_id FROM profile_names WHERE profile_id=$1 FOR UPDATE',
+        [profileId],
+      );
+      const actualGroupId = owner.rows[0]?.group_id ?? null;
+      if (actualGroupId !== null && actualGroupId !== groupOwnerId) {
+        throw new HttpError(409, 'STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
+      }
+      if (groupOwnerId !== undefined && actualGroupId !== groupOwnerId) {
+        throw new HttpError(409, 'STATE_CONFLICT', 'profile group child ownership could not be verified');
+      }
+
+      const maxRes = await c.query<{ m: number | null }>(
+        'SELECT max(revision) AS m FROM profile_bindings WHERE profile_id=$1',
+        [profileId]
+      );
+      const revision = (maxRes.rows[0]?.m ?? 0) + 1;
+      const prevRes = await c.query<PolicyRow & { endpoint_slug: string | null }>(
+        `SELECT enabled, parameters, job_priority, allowed_file_extensions,
+                connections_override, file_url_auth_cipher, request_redaction, callback_policy,
+                allowed_origins, endpoint_slug
+           FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
+        [profileId, revision - 1]
+      );
+      if (input.endpointSlug !== undefined && (input.businessId !== 'document-core' || !CORE_ENDPOINTS.has(input.endpointSlug) || input.endpointSlug.split(':')[0] !== input.action)) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'endpointSlug must be a supported core endpoint matching action');
+      }
+      if (prevRes.rows[0] && input.endpointSlug !== undefined && input.endpointSlug !== prevRes.rows[0].endpoint_slug) {
+        throw new HttpError(409, 'STATE_CONFLICT', 'existing profile endpoint selector cannot be changed; create a dedicated profile');
+      }
+      const policy = carryForwardPolicy(prevRes.rows[0], input.policy, cryptoEnv, warnLegacyPlaintext);
+      const endpointSlug = input.endpointSlug ?? prevRes.rows[0]?.endpoint_slug ?? null;
+      await assertSelectorAvailableForMembershipsOn(c, {
+        apiKeyIds: [...mutationLocks.memberships.map((membership) => membership.apiKeyId), key.id],
+        businessId: input.businessId,
+        businessVersion: input.businessVersion,
+        action: input.action,
+        endpointSlug,
+        profileId,
+        ...(groupOwnerId ? { groupId: groupOwnerId } : {}),
+      });
+
+      await c.query(
+        `INSERT INTO profile_bindings
+           (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
+            connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
+            file_url_auth_cipher, connections_override, request_redaction, callback_policy,
+            allowed_origins, endpoint_slug)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+        [
+          profileId,
+          revision,
+          key.tenant_id,
+          key.id,
+          input.businessId,
+          input.businessVersion,
+          input.action,
+          JSON.stringify(bindings),
+          policy.enabled,
+          JSON.stringify(policy.parameters ?? {}),
+          policy.jobPriority,
+          policy.allowedFileExtensions,
+          policy.cipher,
+          JSON.stringify(policy.connectionsOverride ?? []),
+          JSON.stringify(policy.requestRedaction),
+          policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
+          JSON.stringify(policy.allowedOrigins),
+          endpointSlug,
+        ]
+      );
+      await pinActiveRevision(c, profileId, revision);
+      await c.query(
+        `INSERT INTO profile_api_keys (profile_id, api_key_id, tenant_id, state)
+         VALUES ($1,$2,$3,'ACTIVE') ON CONFLICT (profile_id, api_key_id) DO NOTHING`,
+        [profileId, key.id, key.tenant_id],
+      );
+      return { profileId, revision, tenantId: key.tenant_id, apiKeyId: key.id };
+    };
+    return activeClient ? run(activeClient) : db.tx(run);
+  };
+
   return {
+    /** Lock a deterministic set of selector scopes before API-key or child-row
+     * locks. The scope is global across keys so an operation can safely
+     * discover and mutate a membership set without racing a different key. */
+    async lockSelectors(selectors: readonly ProfileSelectorLock[], client: PoolClient): Promise<void> {
+      await lockSelectorsOn(client, selectors);
+    },
+
+    /** Serialize a selector/pointer/revision mutation against all membership
+     * writers. Selector scopes are acquired first, then every current member
+     * key plus the authorizing key is row-locked in stable ID order. Both the
+     * active pointer and membership set are re-read after those locks. */
+    async lockProfileMutation(
+      profileId: string | null,
+      targetSelectors: readonly ProfileSelectorLock[],
+      additionalApiKeyIds: readonly string[],
+      client: PoolClient,
+    ) {
+      return lockProfileMutationOn(client, profileId, targetSelectors, additionalApiKeyIds);
+    },
+
+    async getRevisionSelector(profileId: string, revision: number, client: PoolClient): Promise<ProfileActiveSelector | null> {
+      return revisionSelectorOn(client, profileId, revision);
+    },
+
+    async getLatestRevisionSelector(
+      profileId: string,
+      client: PoolClient,
+    ): Promise<{ revision: number; selector: ProfileActiveSelector } | null> {
+      return latestRevisionSelectorOn(client, profileId);
+    },
+
+    async listActiveProfileMemberships(profileId: string, client: PoolClient): Promise<ActiveProfileMembership[]> {
+      return activeProfileMembershipsOn(client, profileId);
+    },
+
+    async assertSelectorAvailableForMemberships(
+      input: {
+        apiKeyIds: readonly string[];
+        businessId: string;
+        businessVersion: string;
+        action: string;
+        endpointSlug: string | null;
+        profileId: string;
+        groupId?: string;
+      },
+      client: PoolClient,
+    ): Promise<void> {
+      await assertSelectorAvailableForMembershipsOn(client, input);
+    },
+
+    /** Acquire an API-key row only after its selector locks. Rotation uses
+     * UPDATE; binding writers use SHARE and validate status after the lock. */
+    async lockApiKeyRow(
+      apiKeyId: string,
+      client: PoolClient,
+      mode: 'share' | 'update' = 'share',
+    ): Promise<LockedApiKeyRow | null> {
+      return lockApiKeyRowOn(client, apiKeyId, mode);
+    },
+
+    async getActiveSelector(profileId: string, client: PoolClient): Promise<ProfileActiveSelector | null> {
+      return activeSelectorOn(client, profileId);
+    },
+
+    /** Memberships to inherit during key rotation, paired with the active
+     * selector lock set. A broken pointer is not silently omitted. */
+    async listActiveMembershipSelectors(
+      apiKeyId: string,
+      client: PoolClient,
+    ): Promise<Array<{ profileId: string; tenantId: string; selector: ProfileActiveSelector }>> {
+      const result = await client.query<{
+        profile_id: string;
+        tenant_id: string;
+        business_id: string | null;
+        business_version: string | null;
+        action: string | null;
+        endpoint_slug: string | null;
+      }>(
+        `SELECT m.profile_id, m.tenant_id, b.business_id, b.business_version, b.action, b.endpoint_slug
+           FROM profile_api_keys m
+           LEFT JOIN profile_active_revisions a ON a.profile_id=m.profile_id
+           LEFT JOIN profile_bindings b ON b.profile_id=a.profile_id AND b.revision=a.revision
+          WHERE m.api_key_id=$1 AND m.state='ACTIVE'
+          ORDER BY m.profile_id`,
+        [apiKeyId],
+      );
+      return result.rows.map((row) => {
+        if (!row.business_id || !row.business_version || !row.action) {
+          throw new HttpError(409, 'STATE_CONFLICT', `active profile membership '${row.profile_id}' has no active selector`);
+        }
+        return {
+          profileId: row.profile_id,
+          tenantId: row.tenant_id,
+          selector: {
+            businessId: row.business_id,
+            businessVersion: row.business_version,
+            action: row.action,
+            endpointSlug: row.endpoint_slug,
+          },
+        };
+      });
+    },
+
     /** Admin: append the next immutable revision for a profile (creates the profile when omitted).
      *  W48-C1: also returns the bound key's tenant/app identity so the admin
      *  audit ledger can attribute the grant (tenant-scoped read predicate).
@@ -459,88 +942,17 @@ export function createProfileService(db: Db, options: CreateProfileServiceOption
       tenantId: string;
       apiKeyId: string;
     }> {
-      // R3-01: when the admin route passes its open tx client, every read and
-      // write here runs inside the route's transaction so the binding row and
-      // its audit row commit (or roll back) together. Standalone callers get
-      // their own transaction (previously untx'ed).
-      const run = async (
-        c: PoolClient
-      ): Promise<{ profileId: string; revision: number; tenantId: string; apiKeyId: string }> => {
-        const bindings = parseConnectorBindings(input.connectorBindings);
-        if (!input.businessId || !input.businessVersion || !input.action) {
-          throw new HttpError(422, 'INVALID_SCHEMA', 'businessId, businessVersion and action are required');
-        }
-        const keyRes = await c.query<{ id: string; tenant_id: string }>(
-          'SELECT id, tenant_id FROM api_keys WHERE hash=$1 AND status=$2',
-          [input.apiKeyHash, 'ACTIVE']
-        );
-        if (!keyRes.rowCount) throw new HttpError(404, 'NOT_FOUND', 'api key not found or not ACTIVE');
-        const key = keyRes.rows[0]!;
-        const profileId = input.profileId ?? randomUUID();
-        const maxRes = await c.query<{ m: number | null }>(
-          'SELECT max(revision) AS m FROM profile_bindings WHERE profile_id=$1',
-          [profileId]
-        );
-        const revision = (maxRes.rows[0]?.m ?? 0) + 1;
+      return appendRevision(input, activeClient);
+    },
 
-        const prevRes = await c.query<PolicyRow & { endpoint_slug: string | null }>(
-          `SELECT enabled, parameters, job_priority, allowed_file_extensions,
-                  connections_override, file_url_auth_cipher, request_redaction, callback_policy,
-                  allowed_origins, endpoint_slug
-             FROM profile_bindings WHERE profile_id=$1 AND revision=$2`,
-          [profileId, revision - 1]
-        );
-        if(input.endpointSlug !== undefined && (input.businessId !== 'document-core' || !CORE_ENDPOINTS.has(input.endpointSlug) || input.endpointSlug.split(':')[0] !== input.action)) throw new HttpError(422,'INVALID_SCHEMA','endpointSlug must be a supported core endpoint matching action');
-        if(prevRes.rows[0] && input.endpointSlug !== undefined && input.endpointSlug !== prevRes.rows[0].endpoint_slug) throw new HttpError(409,'STATE_CONFLICT','existing profile endpoint selector cannot be changed; create a dedicated profile');
-        const policy = carryForwardPolicy(
-          prevRes.rows[0],
-          input.policy,
-          cryptoEnv,
-          warnLegacyPlaintext
-        );
-
-        await c.query(
-          `INSERT INTO profile_bindings
-             (profile_id, revision, tenant_id, api_key_id, business_id, business_version, action,
-              connector_bindings, enabled, parameters, job_priority, allowed_file_extensions,
-              file_url_auth_cipher, connections_override, request_redaction, callback_policy,
-              allowed_origins, endpoint_slug)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-          [
-            profileId,
-            revision,
-            key.tenant_id,
-            key.id,
-            input.businessId,
-            input.businessVersion,
-            input.action,
-            JSON.stringify(bindings),
-            policy.enabled,
-            JSON.stringify(policy.parameters ?? {}),
-            policy.jobPriority,
-            policy.allowedFileExtensions,
-            policy.cipher,
-            JSON.stringify(policy.connectionsOverride ?? []),
-            JSON.stringify(policy.requestRedaction),
-            policy.callbackPolicy === null ? null : JSON.stringify(policy.callbackPolicy),
-            JSON.stringify(policy.allowedOrigins),
-            input.endpointSlug ?? prevRes.rows[0]?.endpoint_slug ?? null,
-          ]
-        );
-
-        // T-DB-02 invariant #1 — SAME transaction, not "sometime after".
-        await pinActiveRevision(c, profileId, revision);
-        // A binding created through the admin API must be resolvable immediately.
-        // Existing explicit revocations stay revoked; membership restore is a separate action.
-        await c.query(
-          `INSERT INTO profile_api_keys (profile_id, api_key_id, tenant_id, state)
-           VALUES ($1,$2,$3,'ACTIVE') ON CONFLICT (profile_id, api_key_id) DO NOTHING`,
-          [profileId, key.id, key.tenant_id],
-        );
-
-        return { profileId, revision, tenantId: key.tenant_id, apiKeyId: key.id };
-      };
-      return activeClient ? run(activeClient) : db.tx(run);
+    /** Server-side aggregate-only path; the group id is supplied by the
+     * owning profile-group transaction, never from an HTTP request body. */
+    async createGroupChildRevision(
+      input: CreateBindingInput,
+      groupId: string,
+      activeClient: PoolClient,
+    ): Promise<CreatedProfileRevision> {
+      return appendRevision(input, activeClient, groupId);
     },
 
     /** Submission-time: resolve the key's active binding for (business, version, action).

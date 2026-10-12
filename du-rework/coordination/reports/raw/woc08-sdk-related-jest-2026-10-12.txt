@@ -1,0 +1,10 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+> jest --runInBand "--runTestsByPath" "tests/connector-invoker.test.ts" "tests/artifact-read-metadata.test.ts" "tests/artifact-stat.test.ts" "tests/p730-pinned-policy.test.ts"
+
+
+Test Suites: 4 passed, 4 total
+Tests:       1 todo, 103 passed, 104 total
+Snapshots:   0 total
+Time:        2.322 s
+Ran all test suites within paths "tests/connector-invoker.test.ts", "tests/artifact-read-metadata.test.ts", "tests/artifact-stat.test.ts", "tests/p730-pinned-policy.test.ts".

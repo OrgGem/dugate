@@ -1,0 +1,9 @@
+cwd=D:\Git\dugate\du-rework\orchestrator
+started=2026-10-12 16:25:56 +07:00
+command=pnpm --filter @du/orchestrator typecheck
+
+> @du/orchestrator@0.1.0 typecheck D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> tsc --noEmit -p tsconfig.json
+
+exit=0
+finished=2026-10-12 16:26:03 +07:00

@@ -1,0 +1,117 @@
+
+======== Resolving module './connector' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './encryption' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './errors' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './global-settings' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './hashing' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './ip-policy' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './json-schema-guard' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './manifest' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './manifest-validator' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './operations' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './profile-policy' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './queue' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './request-redaction' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './runtime' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module './version' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/egress/src/pinned-fetch.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/artifact-multipart.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/artifact-streams.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/fan-out.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/connector-invoker.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/task-context.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/runtime-client.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/types.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/connector-session.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/observability' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './artifact-multipart' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './artifact-streams' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './bounded-fanout' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './connector-invoker' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './connector-session' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './crypto-seam' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './crypto-storage' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './fan-out' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './runtime-client' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './source-acquisition' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './source-ingestion' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './task-context' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './types' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module './worker' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/source-ingestion.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/worker.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/types/actions.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/types/context.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/types/context.ts'. ========
+Trying substitution 'vendor/worker-sdk/src/index.ts', candidate module location: 'vendor/worker-sdk/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/manifest/document-core.manifest.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/validation/input-normalizer.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/pipelines/step-checkpoint.ts'. ========
+Trying substitution 'vendor/worker-sdk/src/index.ts', candidate module location: 'vendor/worker-sdk/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/pipelines/parser-budget.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/pipelines/parser-budget.ts'. ========
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/pipelines/workflows/disbursement/fanout.ts'. ========
+Trying substitution 'vendor/worker-sdk/src/index.ts', candidate module location: 'vendor/worker-sdk/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/actions/ingest/index.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/actions/session-seam.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/actions/extract/index.ts'. ========
+Trying substitution 'vendor/worker-sdk/src/index.ts', candidate module location: 'vendor/worker-sdk/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/worker.ts'. ========
+Trying substitution 'vendor/worker-sdk/src/index.ts', candidate module location: 'vendor/worker-sdk/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/worker.ts'. ========
+Trying substitution 'vendor/contracts/src/index.ts', candidate module location: 'vendor/contracts/src/index.ts'.
+File 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts' exists - use it as a name resolution result.
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/actions/prompt-application.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/contracts' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/actions/prompt-precedence.ts'. ========
+======== Module name '@du/contracts' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/contracts/src/index.ts'. ========
+======== Resolving module '@du/worker-sdk' from 'D:/Git/dugate/du-rework/businesses/document-core/template/src/main.ts'. ========
+======== Module name '@du/worker-sdk' was successfully resolved to 'D:/Git/dugate/du-rework/businesses/document-core/template/vendor/worker-sdk/src/index.ts'. ========
+

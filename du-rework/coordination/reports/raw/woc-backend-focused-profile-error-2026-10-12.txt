@@ -1,0 +1,39 @@
+FAIL tests/br12-isolation-offline.test.ts
+  ● Test suite failed to run
+
+    src/modules/admin-actions/profile-actions.ts:110:7 - error TS18047: 'res.rowCount' is possibly 'null'.
+
+    110   if (res.rowCount > 1) throw conflict('STATE_CONFLICT', 'multiple profiles match this API key and named function');
+              ~~~~~~~~~~~~
+
+FAIL tests/business-catalog-contract-conformance.test.ts
+  ● Test suite failed to run
+
+    src/modules/admin-actions/profile-actions.ts:110:7 - error TS18047: 'res.rowCount' is possibly 'null'.
+
+    110   if (res.rowCount > 1) throw conflict('STATE_CONFLICT', 'multiple profiles match this API key and named function');
+              ~~~~~~~~~~~~
+
+FAIL tests/woc-backend-business-lifecycle.test.ts
+  ● Test suite failed to run
+
+    src/modules/admin-actions/profile-actions.ts:110:7 - error TS18047: 'res.rowCount' is possibly 'null'.
+
+    110   if (res.rowCount > 1) throw conflict('STATE_CONFLICT', 'multiple profiles match this API key and named function');
+              ~~~~~~~~~~~~
+
+FAIL tests/aweb11c-worker-instances.test.ts
+  ● Test suite failed to run
+
+    src/modules/admin-actions/profile-actions.ts:110:7 - error TS18047: 'res.rowCount' is possibly 'null'.
+
+    110   if (res.rowCount > 1) throw conflict('STATE_CONFLICT', 'multiple profiles match this API key and named function');
+              ~~~~~~~~~~~~
+
+{"subsystem":"admin-shell","timestamp":"2026-10-12T08:51:01.725Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"2ac1eecd-f15a-4131-bd61-150094456570","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+
+Test Suites: 4 failed, 8 passed, 12 total
+Tests:       87 passed, 87 total
+Snapshots:   0 total
+Time:        5.58 s, estimated 6 s
+Ran all test suites matching tests/aweb06-bff-operations.test.ts|tests/aweb11c-worker-instances.test.ts|tests/br12-isolation-offline.test.ts|tests/business-catalog-contract-conformance.test.ts|tests/mm05-queue-integrity-offline.functional.test.ts|tests/mm05-queue-integrity-sweep.test.ts|tests/or10-03-runtime-lease-replay.test.ts|tests/runtime-lease-fencing-offline.test.ts|tests/woc-backend-business-lifecycle.test.ts|tests/woc-backend-contracts.test.ts|tests/woc-backend-resume-join.test.ts|tests/woc-backend-yield.test.ts.

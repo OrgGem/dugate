@@ -9,6 +9,10 @@ function str(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function revision(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
 export function parseBusinessPage(value: unknown): BusinessPage | null {
   if (!isRecord(value) || !Array.isArray(value['items'])) return null;
   const items: BusinessRow[] = [];
@@ -22,12 +26,15 @@ export function parseBusinessPage(value: unknown): BusinessPage | null {
       version: str(raw['version']),
       status: str(raw['status']) ?? '—',
       updatedAt: str(raw['updatedAt']),
+      enabled: typeof raw['enabled'] === 'boolean' ? raw['enabled'] : null,
+      lifecycleRevision: revision(raw['lifecycleRevision']),
     });
   }
   return {
     items,
     total: typeof value['total'] === 'number' ? value['total'] : items.length,
     limit: typeof value['limit'] === 'number' ? value['limit'] : items.length,
+    nextCursor: typeof value['nextCursor'] === 'string' ? value['nextCursor'] : null,
   };
 }
 
@@ -48,7 +55,13 @@ export function parseBusinessVersions(value: unknown): BusinessVersions | null {
       updatedAt: str(raw['updatedAt']),
     });
   }
-  return { businessId, activeVersion: str(value['activeVersion']), rows };
+  return {
+    businessId,
+    activeVersion: str(value['activeVersion']),
+    rows,
+    enabled: typeof value['enabled'] === 'boolean' ? value['enabled'] : null,
+    lifecycleRevision: revision(value['lifecycleRevision']),
+  };
 }
 
 export function businessStatusVariant(status: string): 'success' | 'warning' | 'danger' | 'neutral' {

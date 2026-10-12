@@ -7,7 +7,7 @@
  */
 import { Readable } from 'node:stream';
 import { HttpError } from '../errors';
-import { ClaimTaskRequestSchema, HeartbeatAckSchema, WorkerHeartbeatSchema, WorkspaceReferenceQuerySchema } from '@du/contracts';
+import { ClaimTaskRequestSchema, HeartbeatAckSchema, WorkerHeartbeatSchema, WorkspaceReferenceQuerySchema, validateManifest } from '@du/contracts';
 import {
   authorizeWorkerBusiness,
   authorizeWorkerClaim,
@@ -27,13 +27,17 @@ function assertRuntimeAuth(ctx: RouteContext): string | undefined {
   return resolveWorkerBusinessIdentity(ctx.config, auth) ?? undefined;
 }
 
-function assertPlatformRuntimeAuth(ctx: RouteContext): void {
-  const auth = ctx.headers['authorization'] ?? '';
-  if (isAuthorizedPlatformRuntimeBearer(ctx.config, auth)) return;
-  if (resolveWorkerBusinessIdentity(ctx.config, auth)) {
-    throw new HttpError(403, 'PERMISSION_DENIED', 'worker credentials cannot register business versions');
+function decodeRegistrationPathSegment(raw: string, name: string): string {
+  let value: string;
+  try {
+    value = decodeURIComponent(raw);
+  } catch {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} path segment is malformed`);
   }
-  throw new HttpError(401, 'UNAUTHENTICATED', 'invalid platform runtime bearer token');
+  if (value.length === 0 || value.length > 256 || /[\u0000-\u001f\u007f/]/.test(value)) {
+    throw new HttpError(422, 'INVALID_SCHEMA', `${name} path segment is invalid`);
+  }
+  return value;
 }
 
 async function assertTaskRuntimeAuth(ctx: RouteContext, taskId: string): Promise<string | undefined> {
@@ -357,8 +361,24 @@ export async function handleRuntimeRoutes(ctx: RouteContext): Promise<RouteResul
   {
     const m = /^\/api\/runtime\/v1\/businesses\/([^/]+)\/versions\/([^/]+)$/.exec(pathname);
     if (m && method === 'PUT') {
-      assertPlatformRuntimeAuth(ctx);
-      const result = await ctx.registry.registerVersion(ctx.body);
+      const pathBusinessId = decodeRegistrationPathSegment(m[1]!, 'businessId');
+      const pathVersion = decodeRegistrationPathSegment(m[2]!, 'version');
+      const validation = validateManifest(ctx.body);
+      if (!validation.ok) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'manifest validation failed', {
+          errors: validation.problems.slice(0, 50).map((problem) => ({ pointer: problem.pointer, message: problem.message })),
+        });
+      }
+      if (validation.manifest.businessId !== pathBusinessId || validation.manifest.version !== pathVersion) {
+        throw new HttpError(422, 'INVALID_SCHEMA', 'registration URL business/version must match the manifest');
+      }
+      const authorization = ctx.headers['authorization'] ?? '';
+      if (!isAuthorizedPlatformRuntimeBearer(ctx.config, authorization)) {
+        const identityBusinessId = resolveWorkerBusinessIdentity(ctx.config, authorization);
+        if (!identityBusinessId) throw new HttpError(401, 'UNAUTHENTICATED', 'invalid runtime bearer token');
+        authorizeWorkerBusiness(ctx.config, authorization, validation.manifest.businessId);
+      }
+      const result = await ctx.registry.registerVersion(validation.manifest);
       return { status: result.created ? 201 : 200, body: result };
     }
   }

@@ -22,7 +22,7 @@ import { readBoundedBody } from './body';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isHttpError } from '../../../http/errors';
 import { AdminUsageEventQuerySchema } from '../../../modules/usage/usage';
-import { UsageEventDrilldownQuerySchema } from '@du/contracts';
+import { BusinessEnableRequestSchema, UsageEventDrilldownQuerySchema } from '@du/contracts';
 import { authorizeAuditTenantRead } from '../../../modules/admin-actions/rbac';
 import { SESSION_COOKIE_NAME } from '../../../modules/auth/session-store';
 import type { AdminShellRequest } from '../shell-types';
@@ -54,6 +54,7 @@ export type OperationsRoute =
   | { kind: 'businesses' }
   | { kind: 'worker-instances' }
   | { kind: 'business-versions'; businessId: string }
+  | { kind: 'business-enable'; businessId: string }
   | { kind: 'business-action'; businessId: string; version: string; action: 'enable' | 'activate' | 'deactivate' }
   | { kind: 'invalid' };
 
@@ -94,6 +95,11 @@ export function matchOperationsRoute(relative: string): OperationsRoute | null {
   if (versionsMatch) {
     const businessId = decodePathSegment(versionsMatch[1] ?? '');
     return businessId === null ? { kind: 'invalid' } : { kind: 'business-versions', businessId };
+  }
+  const businessEnableMatch = /^\/businesses\/([^/]+)\/enabled$/.exec(relative);
+  if (businessEnableMatch) {
+    const businessId = decodePathSegment(businessEnableMatch[1] ?? '');
+    return businessId === null ? { kind: 'invalid' } : { kind: 'business-enable', businessId };
   }
   const actionMatch = /^\/businesses\/([^/]+)\/versions\/([^/]+)\/(enable|activate|deactivate)$/.exec(relative);
   if (actionMatch) {
@@ -141,6 +147,7 @@ export async function handleOperationsRoute(
   if (
     route.kind === 'businesses' ||
     route.kind === 'business-versions' ||
+    route.kind === 'business-enable' ||
     route.kind === 'business-action' ||
     route.kind === 'worker-instances'
   ) {
@@ -166,7 +173,7 @@ export async function handleOperationsRoute(
     if (!ctx.verifyCsrf(firstHeaderValue(req.headers['x-csrf-token']))) {
       writeProblem(res, 403, 'CSRF_REJECTED', 'missing or invalid CSRF proof', correlationId); return;
     }
-  } else if (route.kind === 'business-action') {
+  } else if (route.kind === 'business-action' || route.kind === 'business-enable') {
     if (method !== 'PUT') {
       writeProblem(res, 405, 'METHOD_NOT_ALLOWED', 'business actions are PUT', correlationId);
       return;
@@ -455,6 +462,32 @@ export async function handleOperationsRoute(
   if (route.kind === 'business-versions') {
     const upstream = new URL(`/api/v1/admin/businesses/${encodeURIComponent(route.businessId)}/versions`, base);
     const response = await callUpstream(runtime, upstream, { method: 'GET', credential, correlationId });
+    await relayUpstream(res, response, correlationId);
+    return;
+  }
+
+  if (route.kind === 'business-enable') {
+    const raw = await readBoundedBody(req);
+    if (raw === null) {
+      writeProblem(res, 413, 'PAYLOAD_TOO_LARGE', 'request body exceeds limit', correlationId);
+      return;
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'business lifecycle body must be valid JSON', correlationId);
+      return;
+    }
+    const parsed = BusinessEnableRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      writeProblem(res, 422, 'INVALID_SCHEMA', 'business lifecycle request is invalid', correlationId);
+      return;
+    }
+    const response = await callUpstream(runtime,
+      new URL(`/api/v1/admin/businesses/${encodeURIComponent(route.businessId)}/enabled`, base),
+      { method: 'PUT', credential, correlationId, jsonBody: JSON.stringify(parsed.data) },
+    );
     await relayUpstream(res, response, correlationId);
     return;
   }

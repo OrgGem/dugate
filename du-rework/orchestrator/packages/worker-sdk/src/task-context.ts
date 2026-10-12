@@ -223,6 +223,9 @@ export class DefaultTaskContext implements TaskContext {
   readonly signal: AbortSignal;
 
   private readonly abortController: AbortController;
+  private leaseExpiresAtMs: number;
+  private readonly configuredLeaseSafetyMarginMs: number;
+  private leaseSafetyMarginMs: number;
   private checkpointList: CheckpointRef[];
   private readonly finalizedOutputArtifacts: ArtifactRef[] = [];
   private cancelFlag: boolean;
@@ -321,7 +324,8 @@ export class DefaultTaskContext implements TaskContext {
 
   constructor(
     private readonly task: ClaimedTask,
-    private readonly deps: TaskContextDeps
+    private readonly deps: TaskContextDeps,
+    leaseSafetyMarginMs = 0
   ) {
     this.taskId = task.taskId;
     this.operationId = task.operationId;
@@ -359,6 +363,15 @@ export class DefaultTaskContext implements TaskContext {
 
     this.abortController = new AbortController();
     this.signal = this.abortController.signal;
+    this.leaseExpiresAtMs = Date.parse(task.leaseExpiresAt);
+    const remainingLeaseMs = Number.isFinite(this.leaseExpiresAtMs)
+      ? Math.max(0, this.leaseExpiresAtMs - Date.now())
+      : 0;
+    this.configuredLeaseSafetyMarginMs = Math.max(0, leaseSafetyMarginMs);
+    this.leaseSafetyMarginMs = Math.min(
+      Math.max(0, leaseSafetyMarginMs),
+      Math.floor(remainingLeaseMs / 4)
+    );
 
     this.step = this.createStepFacade();
     this.spawn = this.createSpawnFacade();
@@ -382,13 +395,58 @@ export class DefaultTaskContext implements TaskContext {
   }
 
   /** Called by the worker loop when heartbeat detects lease loss/cancel. */
-  abort(reason: 'lease-lost' | 'cancel' | 'shutdown'): void {
+  abort(reason: 'lease-lost' | 'cancel' | 'shutdown' | 'task-terminal' | 'compatibility'): void {
     if (reason === 'cancel') this.cancelFlag = true;
     // The reason rides on the signal: business code and docs/16 already branch on
     // `ctx.signal.reason === 'cancel'`, and the connector invoker must tell a real
     // cancellation (terminal for the invocation) from a fenced delivery (which is
     // redelivered and must replay the same invocation).
     this.abortController.abort(reason);
+  }
+
+  /** Deadline at which the local watchdog stops effectful work. */
+  leaseWatchdogDeadline(): number {
+    return Number.isFinite(this.leaseExpiresAtMs)
+      ? this.leaseExpiresAtMs - this.leaseSafetyMarginMs
+      : Date.now();
+  }
+
+  /** Last lease expiry confirmed by the runtime, in epoch milliseconds. */
+  leaseExpiryDeadline(): number {
+    return this.leaseExpiresAtMs;
+  }
+
+  /** Assert the confirmed lease is still inside its local safety window. */
+  assertLeaseActive(): void {
+    this.assertLease();
+  }
+
+  /**
+   * Accept a task-heartbeat ACK only while the previously confirmed lease is
+   * still safely live. A response arriving after the watchdog boundary cannot
+   * revive this delivery, even if the server has already extended its lease.
+   */
+  renewLease(leaseExpiresAt: string, now = Date.now()): boolean {
+    if (this.abortController.signal.aborted) return false;
+    if (!Number.isFinite(this.leaseExpiresAtMs) || now >= this.leaseWatchdogDeadline()) {
+      this.abort('lease-lost');
+      return false;
+    }
+    const nextExpiresAtMs = Date.parse(leaseExpiresAt);
+    if (!Number.isFinite(nextExpiresAtMs) || nextExpiresAtMs <= now) {
+      this.abort('lease-lost');
+      return false;
+    }
+    // The server ACK is authoritative and may shorten a lease when its
+    // configured duration changes; do not keep work alive to an older expiry.
+    // Rebound the safety margin to the newly granted duration so a valid short
+    // renewal is not rejected just because the previous lease was longer.
+    this.leaseExpiresAtMs = nextExpiresAtMs;
+    this.leaseSafetyMarginMs = Math.min(
+      this.configuredLeaseSafetyMarginMs,
+      Math.floor((nextExpiresAtMs - now) / 4)
+    );
+    return true;
   }
 
   markTerminalReported(): void {
@@ -400,6 +458,12 @@ export class DefaultTaskContext implements TaskContext {
   }
 
   private assertLease(): void {
+    if (!this.abortController.signal.aborted && (
+      !Number.isFinite(this.leaseExpiresAtMs)
+      || Date.now() >= this.leaseWatchdogDeadline()
+    )) {
+      this.abort('lease-lost');
+    }
     if (this.abortController.signal.aborted) {
       throw new LeaseLostError(this.taskId);
     }
@@ -408,7 +472,11 @@ export class DefaultTaskContext implements TaskContext {
   private wrapLeaseErrors<T>(fn: () => Promise<T>): Promise<T> {
     return fn().catch((err) => {
       if (err instanceof RuntimeError && err.isLeaseLost) {
-        this.abortController.abort();
+        this.abort('lease-lost');
+        throw new LeaseLostError(this.taskId);
+      }
+      if (err instanceof RuntimeError && err.isTaskTerminal) {
+        this.abort('task-terminal');
         throw new LeaseLostError(this.taskId);
       }
       throw err;
@@ -558,6 +626,7 @@ export class DefaultTaskContext implements TaskContext {
     return {
       async report(percent: number, message?: string): Promise<void> {
         if (self.abortController.signal.aborted) return; // best-effort only
+        self.assertLease();
         await self.deps.runtime.reportProgress(self.taskId, {
           leaseEpoch: self.leaseEpoch,
           percent,

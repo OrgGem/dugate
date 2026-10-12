@@ -1,0 +1,7 @@
+
+> @du/orchestrator@0.1.0 typecheck D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> tsc --noEmit -p tsconfig.json
+
+src/app/admin/bff/profile-groups.ts(189,81): error TS2339: Property 'groupId' does not exist on type '{ kind: "create"; } | { kind: "rollback"; groupId: string; }'.
+  Property 'groupId' does not exist on type '{ kind: "create"; }'.
+ ELIFECYCLE  Command failed with exit code 2.

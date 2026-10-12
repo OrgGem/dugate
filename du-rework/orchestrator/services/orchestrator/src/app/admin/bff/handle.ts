@@ -61,6 +61,7 @@ import { handleMaintenanceRoute, matchMaintenanceRoute } from './maintenance';
 import { handleCostControlRoute, matchCostControlRoute } from './cost-control';
 import { handleCostAdjustmentRoute, matchCostAdjustmentRoute } from './cost-adjustments';
 import { handleCostAlertsRoute, matchCostAlertsRoute } from './cost-alerts';
+import { handleProfileGroupsRoute, matchProfileGroupsRoute } from './profile-groups';
 
 const logger = createLogger({ service: 'orchestrator', baseFields: { subsystem: 'admin-bff' } });
 
@@ -142,6 +143,10 @@ export async function handleBffRequest(
     const costAlertsRoute = matchCostAlertsRoute(relative);
     if (costAlertsRoute !== null) {
       return await handleCostAlertsRoute(req, res, request, costAlertsRoute, query, config, runtime, correlationId);
+    }
+    const profileGroupsRoute = matchProfileGroupsRoute(relative);
+    if (profileGroupsRoute !== null) {
+      return await handleProfileGroupsRoute(req, res, request, profileGroupsRoute, query, config, runtime, correlationId);
     }
     if (relative === '/audit') {
       assertMethod(method, ['GET']);

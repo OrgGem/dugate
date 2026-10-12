@@ -1,11 +1,10 @@
-// VENDORED from @du/contracts @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-05)
-// source: packages/contracts/src/runtime.ts (lines=540) sha256=66656BD6CADFC79FA45BC2F91F089CBC94C4DF6F29B6429045ABE038A4FCA53C
-// why: PinnedProfilePolicySchema, MULTIPART_MIN_TOTAL_BYTES for src/types/context.ts, src/actions/prompt-application.ts, src/pipelines/parser-budget.ts
-
 import { z } from 'zod';
+import { ConnectorWorkflowOverridesSchema } from './connector';
 import { OperationStateSchema, TaskStateSchema } from './operations';
 import { StorageEnvelopeRefSchema } from './encryption';
 import { ProfilePolicySnapshotSchema } from './profile-policy';
+import { TenantDefaultsSnapshotSchema } from './global-settings';
+import { ProviderReportedCostSchema, UsageCostProvenanceSchema } from './usage-metrics';
 
 /**
  * Runtime API DTOs (docs 07) — /api/runtime/v1.
@@ -19,8 +18,20 @@ import { ProfilePolicySnapshotSchema } from './profile-policy';
 export const WorkerHeartbeatSchema = z.object({
   businessId: z.string().min(1),
   businessVersion: z.string().min(1),
+    /** Digest returned by idempotent manifest registration. Optional for v1
+     * compatibility; when absent, claims rely on the immutable server-side
+     * registered version digest. Any supplied value must match that digest. */
+  manifestDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
   imageDigest: z.string().min(1),
+  /** Immutable runtime release label emitted by the worker process. */
+  deploymentRevision: z.string().min(1).max(128).optional(),
   capacity: z.number().int().min(0),
+  /** SDK-owned count of claimed task handlers currently executing. Absent on
+   * legacy workers and therefore not sufficient proof for replica retirement. */
+  activeTasks: z.number().int().min(0).max(100_000).optional(),
+  /** Revision of the backup-effect barrier observed on the previous heartbeat.
+   * The server acknowledges only an exact current revision. */
+  observedBackupFenceRevision: z.number().int().nonnegative().optional(),
 });
 export type WorkerHeartbeat = z.infer<typeof WorkerHeartbeatSchema>;
 
@@ -28,8 +39,46 @@ export const HeartbeatAckSchema = z.object({
   health: z.enum(['HEALTHY', 'DEGRADED', 'OFFLINE']),
   leaseExpiresAt: z.string(),
   capacity: z.number().int().min(0),
+  /** Durable admission revision and state the worker has observed. */
+  controlRevision: z.number().int().nonnegative().default(0),
+  controlState: z.enum(['OPEN', 'PAUSED', 'DRAINING']).default('OPEN'),
+  /** Additive v1 capability, separate from ordinary queue admission: current
+   * handlers and heartbeats continue while the backup effect fence blocks new
+   * claims. Older servers may omit this field; consumers must interpret
+   * absence as UNKNOWN and fail closed for new external effects. The server
+   * continues to emit the current observation when available. */
+  backupEffectFence: z.object({
+    state: z.enum(['OPEN', 'HELD', 'UNKNOWN']),
+    revision: z.number().int().nonnegative(),
+    acknowledged: z.boolean(),
+  }).strict().optional(),
 });
 export type HeartbeatAck = z.infer<typeof HeartbeatAckSchema>;
+
+/**
+ * Claim refusal disposition shared by the server and worker SDK. A delivery
+ * may be ACKed only for outcomes that prove this delivery is obsolete or a
+ * compatible execution already owns the durable task. Deferred outcomes keep
+ * the task and delivery recoverable. Unknown codes must fail closed.
+ */
+export const RUNTIME_CLAIM_ERROR_DISPOSITION = {
+  NOT_FOUND: 'ACK_SAFE',
+  TASK_TERMINAL: 'ACK_SAFE',
+  TASK_WAITING: 'ACK_SAFE',
+  TASK_LEASE_ACTIVE: 'ACK_SAFE',
+  ADMISSION_PAUSED: 'DEFER',
+  WORKER_NOT_REGISTERED: 'DEFER',
+  WORKER_ADMISSION_CLOSED: 'DEFER',
+  TASK_NOT_READY: 'DEFER',
+  WORKER_VERSION_MISMATCH: 'DEFER',
+  MANIFEST_DIGEST_MISMATCH: 'DEFER',
+  BUSINESS_DISABLED: 'DEFER',
+  TASK_LEASE_HELD: 'DEFER',
+  TEMPORARY_UNAVAILABLE: 'DEFER',
+  SHUTTING_DOWN: 'DEFER',
+} as const;
+export type RuntimeClaimErrorCode = keyof typeof RUNTIME_CLAIM_ERROR_DISPOSITION;
+export type RuntimeClaimDisposition = (typeof RUNTIME_CLAIM_ERROR_DISPOSITION)[RuntimeClaimErrorCode];
 
 /* ------------------------------------------------------------------ */
 /* Claim / context                                                     */
@@ -133,6 +182,8 @@ export const ExecutionSnapshotSchema = z.object({
      * an operation that was explicitly admitted without any.
      */
     profilePolicy: PinnedProfilePolicySchema.nullable().default(null),
+    /** Immutable encrypted tenant defaults opened only at the claim seam. */
+    tenantDefaults: TenantDefaultsSnapshotSchema.nullable().optional(),
   }),
   taskKey: z.string(),
   kind: z.string(),
@@ -277,6 +328,8 @@ export const ArtifactUploadGrantSchema = z.object({
   artifactId: z.string().uuid(),
   uploadUrl: z.string().url(), // short-lived storage-facade grant URL
   expiresAt: z.string(),
+  /** Authenticated runtime promises server-mediated encryption at rest. */
+  storageEncryption: z.literal('server').optional(),
 });
 export type ArtifactUploadGrant = z.infer<typeof ArtifactUploadGrantSchema>;
 
@@ -451,6 +504,8 @@ export const InvocationGrantRequestSchema = LeaseBoundRequestSchema.extend({
   bindingSlot: z.string().min(1),
   inputHash: z.string().min(1),
   artifactIds: z.array(z.string().uuid()).max(4).default([]),
+  /** Immutable, admission-pinned workflow recipe; never merged into options. */
+  workflowOverrides: ConnectorWorkflowOverridesSchema.optional(),
 }).superRefine((request, context) => {
   if (new Set(request.artifactIds).size !== request.artifactIds.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['artifactIds'], message: 'Artifact IDs must be unique.' });
@@ -478,13 +533,27 @@ export const UsageEventSchema = z.object({
   operationId: z.string().uuid(),
   taskId: z.string().uuid(),
   units: z.object({
-    inputTokens: z.number().int().min(0).default(0),
-    outputTokens: z.number().int().min(0).default(0),
-    pages: z.number().int().min(0).optional(),
+    inputTokens: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+    outputTokens: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+    pages: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    /** Cached input usage, when the provider reports it separately. */
+    cachedInputTokens: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  }).superRefine((units, context) => {
+    if (units.cachedInputTokens !== undefined && units.cachedInputTokens > units.inputTokens) {
+      context.addIssue({ code:z.ZodIssueCode.custom,path:['cachedInputTokens'],message:'cached input tokens cannot exceed input tokens' });
+    }
   }),
-  costMicrousd: z.number().int().min(0).default(0),
+  costMicrousd: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
   currency: z.literal('USD').default('USD'),
   measurement: z.enum(['measured', 'estimated']),
+  provider: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  costStatus: z.enum(['measured', 'estimated', 'unpriced', 'pending']).optional(),
+  /** Connector verified immutable reservation/price attribution. Legacy
+   * callers omit this field and preserve their existing event shape. */
+  costProvenance: UsageCostProvenanceSchema.optional(),
+  /** Diagnostic provider figure; never used as the authoritative settled cost. */
+  providerReportedCost: ProviderReportedCostSchema.optional(),
   occurredAt: z.string(),
 });
 export type UsageEvent = z.infer<typeof UsageEventSchema>;

@@ -1,0 +1,64 @@
+VFY-WOC legacy target-selector rollback regression
+started=2026-10-12T17:15:33.0034544+07:00
+cwd=D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+head=b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+command=pnpm exec jest --runInBand --config jest.unit.config.cjs --runTestsByPath tests/woc-independent-profile-pg.test.ts -t 'rejects a legacy rollback'
+--- SOURCE HASHES BEFORE ---
+A0C1E2462567AB7D13D01A968B722955F19F07BE5F0A51F752EBE185BDA810A5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profile-groups.ts
+7C0F56E230607446425B61D95462A075FC230B877B960ABA7E499058F53AE787  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profiles.ts
+6B407CE70CD0E6C63D25BCB0167A638F43B6623650ADD9ADCB08174A6CA4E773  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\profile-actions.ts
+C89AF45A592846E61162D756B6323BD68C798AA7FA0EFA9A9B735122010777B5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\dispatcher.ts
+091830A2DA70BB86F21700228402D2B03ABDADBBE6A68C786F9B3904ED0B8F23  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\queue\dispatcher.ts
+F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts
+--- TEST OUTPUT ---
+  console.info
+    [VFY-WOC] legacy target-selector rollback evidence={"secondVersionDigestMatches":true,"activePointerBeforeGroupRollback":2,"rollbackStatus":200,"activePointerAfter":1,"overlappingActiveSelectors":2,"groupRevision":1}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:557:15)
+
+FAIL tests/woc-independent-profile-pg.test.ts (6.24 s)
+  ● WOC independent real-PostgreSQL profile invariants › real PostgreSQL races and group-owned child boundaries › rejects a legacy rollback whose target selector overlaps a group created after the active revision moved
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Object {
+    -   "activePointerAfter": 2,
+    +   "activePointerAfter": 1,
+        "activePointerBeforeGroupRollback": 2,
+        "groupRevision": 1,
+    -   "overlappingActiveSelectors": 1,
+    -   "rollbackCode": "STATE_CONFLICT",
+    -   "rollbackStatus": 409,
+    +   "overlappingActiveSelectors": 2,
+    +   "rollbackCode": undefined,
+    +   "rollbackStatus": 200,
+        "secondVersionDigestMatches": true,
+      }
+
+      557 |       console.info(`[VFY-WOC] legacy target-selector rollback evidence=${JSON.stringify(safeOutcome)}`);
+      558 |
+    > 559 |       expect(safeOutcome).toEqual({
+          |                           ^
+      560 |         secondVersionDigestMatches: true,
+      561 |         activePointerBeforeGroupRollback: 2,
+      562 |         rollbackStatus: 409,
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:559:27)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 4 skipped, 5 total
+Snapshots:   0 total
+Time:        6.286 s, estimated 9 s
+Ran all test suites within paths "tests/woc-independent-profile-pg.test.ts".
+--- SOURCE HASHES AFTER ---
+A0C1E2462567AB7D13D01A968B722955F19F07BE5F0A51F752EBE185BDA810A5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profile-groups.ts
+7C0F56E230607446425B61D95462A075FC230B877B960ABA7E499058F53AE787  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profiles.ts
+6B407CE70CD0E6C63D25BCB0167A638F43B6623650ADD9ADCB08174A6CA4E773  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\profile-actions.ts
+C89AF45A592846E61162D756B6323BD68C798AA7FA0EFA9A9B735122010777B5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\dispatcher.ts
+091830A2DA70BB86F21700228402D2B03ABDADBBE6A68C786F9B3904ED0B8F23  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\queue\dispatcher.ts
+F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts
+jest_exit=1
+finished=2026-10-12T17:15:40.3825195+07:00

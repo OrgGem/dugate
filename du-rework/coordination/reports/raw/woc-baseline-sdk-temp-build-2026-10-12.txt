@@ -1,0 +1,9 @@
+
+=== BUILD packages\contracts: node C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\contracts\node_modules\typescript\bin\tsc -p tsconfig.json (cwd C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\contracts; 45s timeout) ===
+EXIT 0
+
+=== BUILD packages\observability: node C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\observability\node_modules\typescript\bin\tsc -p tsconfig.json (cwd C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\observability; 45s timeout) ===
+EXIT 0
+
+=== BUILD packages\egress: node C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\egress\node_modules\typescript\bin\tsc -p tsconfig.json (cwd C:\Users\Gem\AppData\Local\Temp\du-woc-baseline-dcca8db03cf14f70beddb2713f23ff18\du-rework\orchestrator\packages\egress; 45s timeout) ===
+EXIT 0

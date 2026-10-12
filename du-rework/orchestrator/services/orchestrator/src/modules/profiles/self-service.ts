@@ -47,6 +47,7 @@ export interface ProfileSelfService {
   listAssignedProfileEndpoints(rawQuery: unknown, actor: ProfileSelfServiceActor): Promise<ProfileSelfServiceAssignedPage>;
   listAssignedProfileApiKeys(profileId: string, rawQuery: unknown, actor: ProfileSelfServiceActor): Promise<ProfileSelfServiceAssignedApiKeyPage>;
   editAssignedProfile(rawInput: unknown, actor: ProfileSelfServiceActor, idempotencyKey: string, correlationId: string): Promise<ProfileSelfServiceEditResponse>;
+  canReadAssignedProfileGroup?(input: { profileIds: readonly string[]; apiKeyId: string }, actor: ProfileSelfServiceActor): Promise<boolean>;
 }
 
 interface ActiveProfileRow {
@@ -65,6 +66,7 @@ interface ActiveProfileRow {
   job_priority: string | null;
   allowed_file_extensions: string | null;
   connections_override: unknown;
+  group_id: string | null;
 }
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -292,7 +294,7 @@ async function findActiveProfileForEdit(client: PoolClient, input: ProfileSelfSe
     `SELECT u.version AS user_version, p.profile_id, a.revision AS active_revision,
             pk.api_key_id, k.hash AS api_key_hash, p.business_id, p.business_version, p.action,
             p.endpoint_slug, p.connector_bindings, p.enabled, p.parameters, p.job_priority,
-            p.allowed_file_extensions, p.connections_override
+            p.allowed_file_extensions, p.connections_override, n.group_id
        FROM admin_local_users u
        JOIN admin_local_user_profile_grants g ON g.user_id=u.id AND g.tenant_id=u.tenant_id
        JOIN profile_active_revisions a ON a.profile_id=g.profile_id
@@ -311,6 +313,7 @@ async function findActiveProfileForEdit(client: PoolClient, input: ProfileSelfSe
   );
   const row = result.rows[0];
   if (!row) throw notFound('assigned active Profile endpoint was not found');
+  if (row.group_id) throw conflict('STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
   if (Number(row.user_version) !== actor.roleVersion) throw conflict('IDENTITY_VERSION_CONFLICT', 'local identity changed; sign in again before editing');
   if (row.business_id !== input.businessId || row.business_version !== input.businessVersion) {
     throw notFound('assigned active Profile endpoint was not found');
@@ -320,6 +323,47 @@ async function findActiveProfileForEdit(client: PoolClient, input: ProfileSelfSe
 
 export function createProfileSelfServiceService(deps: ProfileSelfServiceDependencies) {
   return {
+    /**
+     * Group visibility is only the intersection of EXISTING child-profile
+     * grants and the selected active API-key grant/memberships. This does not
+     * create group grants or widen the profile assignment model.
+     */
+    async canReadAssignedProfileGroup(
+      input: { profileIds: readonly string[]; apiKeyId: string },
+      actor: ProfileSelfServiceActor,
+    ): Promise<boolean> {
+      await assertCurrentLocalActor(deps, actor);
+      const profileIds = [...new Set(input.profileIds)];
+      if (profileIds.length === 0 || profileIds.some((profileId) => !/^[0-9a-f-]{36}$/i.test(profileId))
+          || !/^[0-9a-f-]{36}$/i.test(input.apiKeyId)) return false;
+      for (const profileId of profileIds) {
+        if (!await deps.identity.isLocalUserAssignedProfile({
+          tenantId: actor.tenantId,
+          userId: actor.userId,
+          profileId,
+        })) return false;
+      }
+      const selected = await deps.db.query<{ ok: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+             FROM admin_local_users u
+             JOIN admin_local_user_api_key_grants ug
+               ON ug.user_id=u.id AND ug.tenant_id=u.tenant_id AND ug.api_key_id=$4
+             JOIN api_keys k ON k.id=ug.api_key_id AND k.tenant_id=u.tenant_id AND k.status='ACTIVE'
+            WHERE u.id=$1 AND u.tenant_id=$2 AND u.role='operator'
+              AND u.is_enabled=true AND u.is_locked=false AND u.version=$3
+              AND (SELECT count(DISTINCT m.profile_id)
+                     FROM profile_api_keys m
+                     JOIN profile_names n ON n.profile_id=m.profile_id AND n.tenant_id=m.tenant_id
+                    WHERE m.profile_id=ANY($5::uuid[]) AND m.tenant_id=u.tenant_id
+                      AND m.api_key_id=k.id AND m.state='ACTIVE' AND n.group_id IS NOT NULL
+                  )=cardinality($5::uuid[])
+         ) AS ok`,
+        [actor.userId, actor.tenantId, actor.roleVersion, input.apiKeyId, profileIds],
+      );
+      return selected.rows[0]?.ok === true;
+    },
+
     async listAssignedProfileApiKeys(
       profileId: string,
       rawQuery: unknown,
@@ -340,6 +384,7 @@ export function createProfileSelfServiceService(deps: ProfileSelfServiceDependen
         `uk.tenant_id=u.tenant_id AND uk.user_id=u.id AND uk.api_key_id=k.id`,
         `pk.tenant_id=p.tenant_id AND pk.profile_id=p.profile_id AND pk.api_key_id=k.id AND pk.state='ACTIVE'`,
         `k.tenant_id=p.tenant_id AND k.status='ACTIVE'`,
+        `EXISTS (SELECT 1 FROM profile_names n WHERE n.profile_id=p.profile_id AND n.group_id IS NULL)`,
       ];
       const params: unknown[] = [actor.userId, actor.tenantId, actor.roleVersion, profileId];
       const needle = query.query?.trim();
@@ -411,7 +456,7 @@ export function createProfileSelfServiceService(deps: ProfileSelfServiceDependen
         `u.id=$1 AND u.tenant_id=$2 AND u.role='operator' AND u.is_enabled=true AND u.is_locked=false AND u.version=$3`,
         `g.tenant_id=u.tenant_id AND g.user_id=u.id AND g.profile_id=p.profile_id`,
         `p.tenant_id=u.tenant_id AND p.profile_id=a.profile_id AND p.revision=a.revision AND p.enabled=true`,
-        `n.profile_id=p.profile_id AND n.tenant_id=p.tenant_id AND n.business_id=p.business_id AND n.business_version=p.business_version AND n.action=p.action`,
+        `n.profile_id=p.profile_id AND n.tenant_id=p.tenant_id AND n.business_id=p.business_id AND n.business_version=p.business_version AND n.action=p.action AND n.group_id IS NULL`,
         `b.business_id=p.business_id AND b.version=p.business_version AND b.status='ENABLED' AND b.is_active=true`,
         `EXISTS (SELECT 1 FROM profile_api_keys m JOIN api_keys k ON k.id=m.api_key_id AND k.tenant_id=m.tenant_id
                  WHERE m.profile_id=p.profile_id AND m.tenant_id=p.tenant_id AND m.state='ACTIVE' AND k.status='ACTIVE')`,

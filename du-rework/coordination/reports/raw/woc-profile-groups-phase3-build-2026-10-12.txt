@@ -1,0 +1,4 @@
+
+> @du/orchestrator@0.1.0 build D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> tsc -p tsconfig.json
+

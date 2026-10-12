@@ -1,0 +1,793 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+> jest --runInBand
+
+FAIL tests/artifact-direct-band.test.ts
+  ● Console
+
+    console.log
+      DIRECT-BAND-RSS total=64MiB chunk=64KiB samples=1024 peakMarginalExternal=38.44MiB residentExternal=11.81MiB
+
+      at Object.<anonymous> (tests/artifact-direct-band.test.ts:605:13)
+
+  ● direct band RSS (zero sockets, in-data-path sampling) › streams the 64 MiB band maximum without retaining the object
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 8388608
+    Received:    12386274
+
+      610 |
+      611 |     expect(peak).toBeLessThanOrEqual(PEAK_EXTERNAL_MAX_BYTES);
+    > 612 |     expect(resident).toBeLessThanOrEqual(RESIDENT_EXTERNAL_MAX_BYTES);
+          |                      ^
+      613 |   });
+      614 | });
+      615 |
+
+      at Object.<anonymous> (tests/artifact-direct-band.test.ts:612:22)
+
+FAIL tests/connector-invoker.test.ts
+  ● createConnectorInvoker error contract › preserves the Connector 409 code INVOCATION_UNKNOWN for runtime classification
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      132 |     expect(caught).toBeInstanceOf(ConnectorTransportError);
+      133 |     expect(caught).toMatchObject({ status: 409, code });
+    > 134 |     expect(classifyFailure(caught)).toMatchObject({ errorCode: code, retryable: false });
+          |                                     ^
+      135 |     expect(fetchImpl).toHaveBeenCalledTimes(1);
+      136 |   });
+      137 |
+
+      at tests/connector-invoker.test.ts:134:37
+
+  ● createConnectorInvoker error contract › fails closed as unknown for a 409 with malformed JSON
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      152 |       code: 'INVOCATION_UNKNOWN',
+      153 |     });
+    > 154 |     expect(classifyFailure(error)).toMatchObject({
+          |                                    ^
+      155 |       errorCode: 'INVOCATION_UNKNOWN',
+      156 |       retryable: false,
+      157 |     });
+
+      at tests/connector-invoker.test.ts:154:36
+
+  ● createConnectorInvoker error contract › fails closed as unknown for a 409 with missing error envelope
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      152 |       code: 'INVOCATION_UNKNOWN',
+      153 |     });
+    > 154 |     expect(classifyFailure(error)).toMatchObject({
+          |                                    ^
+      155 |       errorCode: 'INVOCATION_UNKNOWN',
+      156 |       retryable: false,
+      157 |     });
+
+      at tests/connector-invoker.test.ts:154:36
+
+  ● createConnectorInvoker error contract › fails closed as unknown for a 409 with missing code
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      152 |       code: 'INVOCATION_UNKNOWN',
+      153 |     });
+    > 154 |     expect(classifyFailure(error)).toMatchObject({
+          |                                    ^
+      155 |       errorCode: 'INVOCATION_UNKNOWN',
+      156 |       retryable: false,
+      157 |     });
+
+      at tests/connector-invoker.test.ts:154:36
+
+  ● createConnectorInvoker error contract › fails closed as unknown for a 409 with missing error message
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      152 |       code: 'INVOCATION_UNKNOWN',
+      153 |     });
+    > 154 |     expect(classifyFailure(error)).toMatchObject({
+          |                                    ^
+      155 |       errorCode: 'INVOCATION_UNKNOWN',
+      156 |       retryable: false,
+      157 |     });
+
+      at tests/connector-invoker.test.ts:154:36
+
+  ● createConnectorInvoker error contract › fails closed as unknown for a 409 with unallowlisted connector code
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      152 |       code: 'INVOCATION_UNKNOWN',
+      153 |     });
+    > 154 |     expect(classifyFailure(error)).toMatchObject({
+          |                                    ^
+      155 |       errorCode: 'INVOCATION_UNKNOWN',
+      156 |       retryable: false,
+      157 |     });
+
+      at tests/connector-invoker.test.ts:154:36
+
+  ● createConnectorInvoker error contract › maps a lost response to non-retryable unknown without leaking the transport error
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      168 |     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+      169 |     expect((error as Error).message).not.toContain('secret-token');
+    > 170 |     expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+          |                                    ^
+      171 |     expect(fetchImpl).toHaveBeenCalledTimes(1);
+      172 |   });
+      173 |
+
+      at Object.<anonymous> (tests/connector-invoker.test.ts:170:36)
+
+  ● createConnectorInvoker error contract › maps an unresolvable Connector endpoint to unknown without retrying or exposing DNS details
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      181 |     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+      182 |     expect((error as Error).message).not.toContain('private-connector-host');
+    > 183 |     expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+          |                                    ^
+      184 |     expect(fetchImpl).toHaveBeenCalledTimes(1);
+      185 |   });
+      186 |
+
+      at Object.<anonymous> (tests/connector-invoker.test.ts:183:36)
+
+  ● createConnectorInvoker error contract › passes the timeout AbortController signal to a pending HTTP request and fails closed
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      227 |     expect(requestSignal?.aborted).toBe(true);
+      228 |     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
+    > 229 |     expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+          |                                    ^
+      230 |   });
+      231 |
+      232 |   it('fails closed for a non-JSON successful Connector response', async () => {
+
+      at Object.<anonymous> (tests/connector-invoker.test.ts:229:36)
+
+  ● createConnectorInvoker error contract › ignores tampered problem headers and fails closed for malformed details with an invalid content type
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "errorCode": "INVOCATION_UNKNOWN",
+    -   "retryable": false,
+    +   "retryable": true,
+      }
+
+      342 |
+      343 |     expect(error).toMatchObject({ status: 409, code: 'INVOCATION_UNKNOWN' });
+    > 344 |     expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+          |                                    ^
+      345 |     expect(fetchImpl).toHaveBeenCalledTimes(1);
+      346 |   });
+      347 |
+
+      at Object.<anonymous> (tests/connector-invoker.test.ts:344:36)
+
+FAIL tests/artifact-read-metadata.test.ts
+  ● ArtifactFacade.readWithMetadata › rejects an unparseable download descriptor before fetching bytes
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      424 |     const ctx = makeContext(fetchImpl);
+      425 |
+    > 426 |     await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                       ^
+      427 |     expect(downloadRequests).toBe(0);
+      428 |   });
+      429 |
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-metadata.test.ts:426:71)
+
+  ● ArtifactFacade.readWithMetadata › rejects an unreadable negative grant size before fetching bytes
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      462 |     const ctx = makeContext(fetchImpl);
+      463 |
+    > 464 |     await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                       ^
+      465 |     expect(downloadRequests).toBe(0);
+      466 |   });
+      467 |
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-read-metadata.test.ts:464:71
+
+  ● ArtifactFacade.readWithMetadata › rejects an unreadable fractional grant size before fetching bytes
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      462 |     const ctx = makeContext(fetchImpl);
+      463 |
+    > 464 |     await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                       ^
+      465 |     expect(downloadRequests).toBe(0);
+      466 |   });
+      467 |
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-read-metadata.test.ts:464:71
+
+  ● ArtifactFacade.readWithMetadata › rejects an unreadable string encoded grant size before fetching bytes
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      462 |     const ctx = makeContext(fetchImpl);
+      463 |
+    > 464 |     await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                       ^
+      465 |     expect(downloadRequests).toBe(0);
+      466 |   });
+      467 |
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-read-metadata.test.ts:464:71
+
+  ● ArtifactFacade.readWithMetadata › rejects an unreadable null grant size before fetching bytes
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      462 |     const ctx = makeContext(fetchImpl);
+      463 |
+    > 464 |     await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                       ^
+      465 |     expect(downloadRequests).toBe(0);
+      466 |   });
+      467 |
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-read-metadata.test.ts:464:71
+
+  ● ArtifactFacade.readWithMetadata › rejects an incomplete encryption marker in the access grant
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      670 |     const ctx = makeContext(fetchImpl);
+      671 |
+    > 672 |     await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                       ^
+      673 |   });
+      674 | });
+      675 |
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-read-metadata.test.ts:672:71)
+
+FAIL tests/artifact-stat.test.ts
+  ● ArtifactFacade.stat › rejects a grant missing required stat metadata artifactId
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      194 |     const ctx = makeContext((async () => jsonResponse(grant)) as typeof fetch);
+      195 |
+    > 196 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      197 |   });
+      198 |
+      199 |   it('accepts the maximum storage-version descriptor length and rejects one character over', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:196:60
+
+  ● ArtifactFacade.stat › rejects a grant missing required stat metadata expiresAt
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      194 |     const ctx = makeContext((async () => jsonResponse(grant)) as typeof fetch);
+      195 |
+    > 196 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      197 |   });
+      198 |
+      199 |   it('accepts the maximum storage-version descriptor length and rejects one character over', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:196:60
+
+  ● ArtifactFacade.stat › accepts the maximum storage-version descriptor length and rejects one character over
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      213 |       storageVersionId: maxStorageVersionId,
+      214 |     });
+    > 215 |     await expect(oversized.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                  ^
+      216 |   });
+      217 |
+      218 |   it('rejects a successful response with a malformed grant descriptor', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-stat.test.ts:215:66)
+
+  ● ArtifactFacade.stat › rejects a successful response with a malformed grant descriptor
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      225 |     const ctx = makeContext(fetchImpl);
+      226 |
+    > 227 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      228 |   });
+      229 |
+      230 |   it('rejects a negative content-length/sizeBytes descriptor and accepts the empty-artifact boundary', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-stat.test.ts:227:60)
+
+  ● ArtifactFacade.stat › rejects a negative content-length/sizeBytes descriptor and accepts the empty-artifact boundary
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      235 |       sizeBytes: -1,
+      236 |     })) as typeof fetch);
+    > 237 |     await expect(negative.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                                 ^
+      238 |
+      239 |     const empty = makeContext((async () => jsonResponse({
+      240 |       artifactId: ARTIFACT_ID,
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-stat.test.ts:237:65)
+
+  ● ArtifactFacade.stat › rejects an invalid short checksum in the access-grant metadata
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      281 |     })) as typeof fetch);
+      282 |
+    > 283 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      284 |   });
+      285 |
+      286 |   it('rejects a non-JSON access-grant response', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:283:60
+
+  ● ArtifactFacade.stat › rejects an invalid uppercase checksum in the access-grant metadata
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      281 |     })) as typeof fetch);
+      282 |
+    > 283 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      284 |   });
+      285 |
+      286 |   it('rejects a non-JSON access-grant response', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:283:60
+
+  ● ArtifactFacade.stat › rejects an invalid non-hex checksum in the access-grant metadata
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      281 |     })) as typeof fetch);
+      282 |
+    > 283 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      284 |   });
+      285 |
+      286 |   it('rejects a non-JSON access-grant response', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:283:60
+
+  ● ArtifactFacade.stat › rejects an invalid empty checksum in the access-grant metadata
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      281 |     })) as typeof fetch);
+      282 |
+    > 283 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      284 |   });
+      285 |
+      286 |   it('rejects a non-JSON access-grant response', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:283:60
+
+  ● ArtifactFacade.stat › rejects an invalid oversized checksum in the access-grant metadata
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      281 |     })) as typeof fetch);
+      282 |
+    > 283 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      284 |   });
+      285 |
+      286 |   it('rejects a non-JSON access-grant response', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:283:60
+
+  ● ArtifactFacade.stat › rejects an invalid whitespace checksum in the access-grant metadata
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "AmbiguousReportError",
+      }
+
+      281 |     })) as typeof fetch);
+      282 |
+    > 283 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+          |                                                            ^
+      284 |   });
+      285 |
+      286 |   it('rejects a non-JSON access-grant response', async () => {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at tests/artifact-stat.test.ts:283:60
+
+  ● ArtifactFacade.stat › rejects a non-JSON access-grant response
+
+    expect(received).rejects.toBeInstanceOf(expected)
+
+    Expected constructor: SyntaxError
+    Received constructor: AmbiguousReportError
+
+      291 |     const ctx = makeContext(fetchImpl);
+      292 |
+    > 293 |     await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(SyntaxError);
+          |                                                            ^
+      294 |   });
+      295 |
+      296 |   it('fences a stale lease the same way read grants do', async () => {
+
+      at Object.toBeInstanceOf (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/artifact-stat.test.ts:293:60)
+
+FAIL tests/crypto-seam.test.ts
+  ● W-ENC-04 port fidelity: worker facade is the orchestrator facade › the implementation body is byte-identical to the orchestrator source
+
+    expect(received).toBe(expected) // Object.is equality
+
+    - Expected  - 14
+    + Received  +  8
+
+    @@ -160,47 +160,41 @@
+        return { ...validated, keyRef, ...(keyVersion === undefined ? {} : { keyVersion }) };
+      }
+
+      function contextAad(context: CryptoStorageContext): Buffer {
+        const validated = validateContext(context);
+    -   return Buffer.from(JSON.stringify(StorageContextAadSchema.parse({
+    +   return Buffer.from(JSON.stringify({
+          format: 'du-crypto-storage-v1',
+          tenantId: validated.tenantId,
+          artifactId: validated.artifactId,
+          objectVersion: validated.objectVersion,
+          purpose: validated.purpose,
+    -   })), 'utf8');
+    +   }), 'utf8');
+      }
+
+      function singleAad(context: CryptoStorageContext, sizeBytes: number, sha256: string): Buffer {
+    -   return Buffer.from(JSON.stringify(StorageSingleShotAadSchema.parse({
+    +   return Buffer.from(JSON.stringify({
+          format: 'du-crypto-storage-single-v1',
+    -     context: StorageContextAadSchema.parse({
+    -       format: 'du-crypto-storage-v1',
+    -       ...validateContext(context),
+    -     }),
+    +     context: JSON.parse(contextAad(context).toString('utf8')) as Record<string, unknown>,
+          sizeBytes,
+          sha256,
+    -   })), 'utf8');
+    +   }), 'utf8');
+      }
+
+      function chunkAad(
+        context: CryptoStorageContext,
+        index: number,
+        sizeBytes: number,
+        sha256: string,
+      ): Buffer {
+    -   return Buffer.from(JSON.stringify(StorageChunkAadSchema.parse({
+    +   return Buffer.from(JSON.stringify({
+          format: 'du-crypto-storage-chunk-v1',
+    -     context: StorageContextAadSchema.parse({
+    -       format: 'du-crypto-storage-v1',
+    -       ...validateContext(context),
+    -     }),
+    +     context: JSON.parse(contextAad(context).toString('utf8')) as Record<string, unknown>,
+          index,
+          sizeBytes,
+          sha256,
+    -   })), 'utf8');
+    +   }), 'utf8');
+      }
+
+      function sha256(bytes: Uint8Array): string {
+        return createHash('sha256').update(bytes).digest('hex');
+      }
+
+      107 |     const mine = normalise(here.slice(here.indexOf(marker)));
+      108 |     const theirs = normalise(source.slice(source.indexOf(marker)));
+    > 109 |     expect(mine).toBe(theirs);
+          |                  ^
+      110 |   });
+      111 |
+      112 |   it('the AAD format strings the two sides must agree on are present', () => {
+
+      at Object.<anonymous> (tests/crypto-seam.test.ts:109:18)
+
+FAIL tests/p730-pinned-policy.test.ts
+  ● P730 W2-B Worker SDK pinned policy claim contract › rejects legacy plaintext auth config and unknown nested policy keys
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "RuntimeError",
+      }
+
+       97 |       workerInstanceId: 'worker-p730',
+       98 |       businessId: 'document-core',
+    >  99 |     })).rejects.toMatchObject({ name: 'ZodError' });
+          |                 ^
+      100 |
+      101 |     const unknownNested = claimDto({ unrecognizedCredential: sentinel });
+      102 |     await expect(clientReturning(unknownNested).claimTask(TASK_ID, {
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/p730-pinned-policy.test.ts:99:17)
+
+  ● P730 W2-B Worker SDK pinned policy claim contract › rejects a malformed credential reference instead of passing an unreadable pointer through
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "name": "ZodError",
+    +   "name": "RuntimeError",
+      }
+
+      115 |       workerInstanceId: 'worker-p730',
+      116 |       businessId: 'document-core',
+    > 117 |     })).rejects.toMatchObject({ name: 'ZodError' });
+          |                 ^
+      118 |   });
+      119 |
+      120 |   test.todo('GAP SDK-CONSUME: DefaultTaskContext and document-core do not yet consume pinned profile policy');
+
+      at Object.toMatchObject (../../../../node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (tests/p730-pinned-policy.test.ts:117:17)
+

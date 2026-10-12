@@ -6,7 +6,9 @@ import { parseBusinessPage, parseBusinessVersions } from '../src/features/busine
 import { parseProfileWorkflowPage } from '../src/features/profiles/state.ts';
 
 const businessScreen = await readFile(new URL('../src/features/businesses/businesses-screen.tsx', import.meta.url), 'utf8');
+const businessDetail = await readFile(new URL('../src/features/businesses/business-detail-cockpit.tsx', import.meta.url), 'utf8');
 const profileScreen = await readFile(new URL('../src/features/profiles/profiles-screen.tsx', import.meta.url), 'utf8');
+const profileGroupEditor = await readFile(new URL('../src/features/profiles/profile-group-editor.tsx', import.meta.url), 'utf8');
 
 const businessPageWire = {
   items: [{
@@ -15,14 +17,19 @@ const businessPageWire = {
     version: '3.2.1',
     status: 'ENABLED',
     updatedAt: '2026-10-11T08:00:00.000Z',
+    enabled: true,
+    lifecycleRevision: 8,
   }],
   total: 1,
   limit: 50,
+  nextCursor: null,
 };
 
 const businessVersionsWire = {
   businessId: 'document-core',
   activeVersion: '3.2.1',
+  enabled: true,
+  lifecycleRevision: 8,
   rows: [
     { version: '3.2.1', status: 'ENABLED', isActive: true, updatedAt: '2026-10-11T08:00:00.000Z' },
     { version: '3.1.0', status: 'RETIRED', isActive: false, updatedAt: '2026-10-09T08:00:00.000Z' },
@@ -92,7 +99,10 @@ describe('Business Services offline integration harness', () => {
         if (init.method === 'GET' && url === '/admin/api/profiles/document-core/3.2.1/default/workflows?tenantId=tenant-a') {
           return jsonResponse(workflowPageWire);
         }
-        if (url === '/admin/api/session') return jsonResponse({ csrfToken: 'csrf-proof' });
+        if (url === '/admin/api/session') return jsonResponse({
+          schemaVersion: '1', plane: 'oidc', role: 'admin', principal: { kind: 'platform', tenantId: null },
+          scope: { kind: 'platform' }, displayName: 'Test admin', localUser: false, csrfToken: 'csrf-proof',
+        });
         if (init.method === 'POST' && url === '/admin/api/profiles/document-core/3.2.1/default/workflows?tenantId=tenant-a') {
           return jsonResponse({ businessId: 'document-core', businessVersion: '3.2.1', workflowSlug: 'invoice-review', workflowRevision: 4, enabled: true });
         }
@@ -135,6 +145,21 @@ describe('Business Services offline integration harness', () => {
     assert.match(businessScreen, /parseBusinessVersions\(result\.data\)/);
     assert.match(businessScreen, /Versions — \{versions\.data\.businessId\}/);
     assert.match(businessScreen, /versions\.data\.rows\.map\(\(row\)/);
+    assert.match(businessScreen, /client\.setBusinessEnabled\(businessId, \{ enabled, expectedLifecycleRevision: lifecycleRevision \}\)/);
+    assert.match(businessScreen, /session\?\.role === 'admin' && !session\.localUser && session\.principal\.kind === 'platform'/);
+    assert.match(businessScreen, /Set as default/);
+    assert.match(businessScreen, /Disable business/);
+    assert.match(businessDetail, /versions\.data\.rows\.map\(\(version\)/);
+    assert.match(businessDetail, /workers\.data\.items\.filter\(\(worker\) => worker\.businessVersion === version\.version\)/);
+    assert.match(businessDetail, /acceptedTaskCountSince/);
+    assert.match(businessDetail, /activeLeases\} \/ \{worker\.capacity/);
+    assert.match(profileScreen, /<ProfileGroupEditor tenantId=\{globalTenantId\} \/>/);
+    assert.match(profileScreen, /businessFunctionCatalog\?\.functions\.filter\(\(fn\) => fn\.kind === 'endpoint'\)/);
+    assert.doesNotMatch(profileScreen, /coreEndpoints/);
+    assert.match(profileGroupEditor, /Registered enabled businesses/);
+    assert.match(profileGroupEditor, /Save full group revision/);
+    assert.match(profileGroupEditor, /Rollback complete group/);
+    assert.match(profileGroupEditor, /disabled=\{\(!available && !checked\)/);
 
     assert.match(profileScreen, /client\.listProfileWorkflows\(/);
     assert.match(profileScreen, /detail\.businessId,\s*detail\.businessVersion,\s*targetName,\s*globalTenantId/s);

@@ -1,0 +1,386 @@
+{"step":"business workers nested by version","v1Replicas":2,"v2Replicas":1,"v1Row":"core-v1-worker-a ONLINE HEALTHY 128 3 / 8 2026-10-12T08:00:00.000Z 2026-10-12T08:00:00.000Z"}
+AFTER_DISABLE=Skip to content
+Orchestrator Portal
+10/12/2026, 4:18:26 PM Asia/Bangkok
+WOC11 fixture administrator · Profile
+Logout
+Platform health: stale · last reported ok
+Database: Stale · last healthy
+Redis: Stale · last healthy
+Queue integrity: Stale · last OK
+Active leases: Stale · last 2
+Outbox backlog: Stale · last 0
+Sampled 4706s ago · stale after refresh failure or age limit
+Health details
+ACTIVE TENANT
+ACTIVE
+Default fixture tenant
+11111111-1111-4111…
+
+Workspace
+
+Overview
+Operations
+Trace
+Usage
+
+System operations
+
+Cockpit
+Services
+Workers & Queues
+Incidents
+Deployments
+Maintenance
+
+Configuration
+
+Businesses
+Profiles
+Connectors
+Workflows
+
+Administration
+
+API Keys
+Audit
+Security
+Secrets
+Identity
+Settings
+
+Resources
+
+API Reference
+Documentation
+Bootstrap
+Businesses
+registry
+Global Tenant:
+Default fixture tenant
+ACTIVE
+BUSINESS	DEFAULT VERSION FOR NEW SUBMISSIONS	BUSINESS INTAKE	UPDATED	ACTIONS
+document-core	2.0.0	
+Disabled
+	2026-10-12T08:00:00.000Z	
+Enable business
+Versions
+
+claims-workflow	3.0.0	
+Enabled
+	2026-10-12T08:00:00.000Z	
+Disable business
+Versions
+Versions — document-core
+
+Business intake: Disabled · default version for new submissions: 2.0.0
+
+VERSION	VERSION STATE	DEFAULT POINTER	ACTION
+1.1.0	
+ENABLED
+	Not default	
+Set as default
+
+2.0.0	
+ENABLED
+	Default	
+Clear default
+Detail for document-core
+Business versions and worker replicas
+
+Worker state is grouped under its registered business version. Accepted tasks counts successful claims across versions for the same worker instance; the counter-since time identifies its measurement epoch. The default version only selects the target for new submissions.
+
+sampled 2026-10-12T08:00:00.000Z
+sampled 2026-10-12T08:00:00.000Z
+Queue backlog is version-scoped and is not reported by this worker inventory.
+1.1.0
+ENABLED
+Not default
+updated 2026-10-12T08:00:00.000Z
+INSTANCE	STATE	HEALTH	ACCEPTED TASKS	RUNNING / CAPACITY	LAST SEEN	OBSERVED
+core-v1-worker-a	
+ONLINE
+	
+HEALTHY
+	128	3 / 8	2026-10-12T08:00:00.000Z	2026-10-12T08:00:00.000Z
+core-v1-worker-b	
+DRAINING
+	
+DEGRADED
+	95	1 / 6	2026-10-12T08:00:00.000Z	2026-10-12T08:00:00.000Z
+2.0.0
+ENABLED
+Default for new submissions
+updated 2026-10-12T08:00:00.000Z
+INSTANCE	STATE	HEALTH	ACCEPTED TASKS	RUNNING / CAPACITY	LAST SEEN	OBSERVED
+core-v2-worker-a	
+ONLINE
+	
+HEALTHY
+	7	2 / 8	2026-10-12T08:00:00.000Z	2026-10-12T08:00:00.000Z
+Profiles
+
+Profiles registered for this business, with the memberships recorded on each.
+
+no sample time reported by this read
+
+No profile rows for this business.
+
+Workflow schema bindings
+
+Workflow revisions this profile business owns, with the binding state per revision.
+
+pick a profile to resolve workflow bindings against
+AFTER_ENABLE=Skip to content
+Orchestrator Portal
+10/12/2026, 4:18:26 PM Asia/Bangkok
+WOC11 fixture administrator · Profile
+Logout
+Platform health: stale · last reported ok
+Database: Stale · last healthy
+Redis: Stale · last healthy
+Queue integrity: Stale · last OK
+Active leases: Stale · last 2
+Outbox backlog: Stale · last 0
+Sampled 4706s ago · stale after refresh failure or age limit
+Health details
+ACTIVE TENANT
+ACTIVE
+Default fixture tenant
+11111111-1111-4111…
+
+Workspace
+
+Overview
+Operations
+Trace
+Usage
+
+System operations
+
+Cockpit
+Services
+Workers & Queues
+Incidents
+Deployments
+Maintenance
+
+Configuration
+
+Businesses
+Profiles
+Connectors
+Workflows
+
+Administration
+
+API Keys
+Audit
+Security
+Secrets
+Identity
+Settings
+
+Resources
+
+API Reference
+Documentation
+Bootstrap
+Businesses
+registry
+Global Tenant:
+Default fixture tenant
+ACTIVE
+BUSINESS	DEFAULT VERSION FOR NEW SUBMISSIONS	BUSINESS INTAKE	UPDATED	ACTIONS
+document-core	2.0.0	
+Enabled
+	2026-10-12T08:00:00.000Z	
+Disable business
+Versions
+
+claims-workflow	3.0.0	
+Enabled
+	2026-10-12T08:00:00.000Z	
+Disable business
+Versions
+Versions — document-core
+
+Business intake: Enabled · default version for new submissions: 2.0.0
+
+VERSION	VERSION STATE	DEFAULT POINTER	ACTION
+1.1.0	
+ENABLED
+	Not default	
+Set as default
+
+2.0.0	
+ENABLED
+	Default	
+Clear default
+Detail for document-core
+Business versions and worker replicas
+
+Worker state is grouped under its registered business version. Accepted tasks counts successful claims across versions for the same worker instance; the counter-since time identifies its measurement epoch. The default version only selects the target for new submissions.
+
+sampled 2026-10-12T08:00:00.000Z
+sampled 2026-10-12T08:00:00.000Z
+Queue backlog is version-scoped and is not reported by this worker inventory.
+1.1.0
+ENABLED
+Not default
+updated 2026-10-12T08:00:00.000Z
+INSTANCE	STATE	HEALTH	ACCEPTED TASKS	RUNNING / CAPACITY	LAST SEEN	OBSERVED
+core-v1-worker-a	
+ONLINE
+	
+HEALTHY
+	128	3 / 8	2026-10-12T08:00:00.000Z	2026-10-12T08:00:00.000Z
+core-v1-worker-b	
+DRAINING
+	
+DEGRADED
+	95	1 / 6	2026-10-12T08:00:00.000Z	2026-10-12T08:00:00.000Z
+2.0.0
+ENABLED
+Default for new submissions
+updated 2026-10-12T08:00:00.000Z
+INSTANCE	STATE	HEALTH	ACCEPTED TASKS	RUNNING / CAPACITY	LAST SEEN	OBSERVED
+core-v2-worker-a	
+ONLINE
+	
+HEALTHY
+	7	2 / 8	2026-10-12T08:00:00.000Z	2026-10-12T08:00:00.000Z
+Profiles
+
+Profiles registered for this business, with the memberships recorded on each.
+
+no sample time reported by this read
+
+No profile rows for this business.
+
+Workflow schema bindings
+
+Workflow revisions this profile business owns, with the binding state per revision.
+
+pick a profile to resolve workflow bindings against
+{"step":"business intake CAS and default pointer are separate","defaultVersionAfterIntakeDisableAndEnable":"2.0.0","lifecycleActions":["enabled→disabled","disabled→enabled"]}
+{"step":"function catalogs are version-specific and unavailable Core function is disabled","core":"extract.invoice","workflowAction":"review-claim","unavailable":"analyze.legacy"}
+CREATE_DISABLED=true
+STATUSES=["Before save:\ndocument-core@2.0.0 function core:extract:invoice needs profile setting temperature."]
+BODYTAIL=Profile group name
+Existing active API key
+Select an active API key
+Existing fixture key · du_fixture
+
+The existing key membership is reused. No group credential is created.
+
+Registered enabled businesses
+
+Each business keeps an independent version and function selection.
+
+Refresh businesses
+document-core
+Enabled
+claims-workflow
+Enabled
+document-core
+Enabled
+Remove business
+Registered version
+1.1.0
+2.0.0
+
+The function catalog is loaded from this exact business version and manifest digest.
+
+Manifest digest document-core-2.0.0-fixture-digest · 2 declared functions.
+
+Document Core endpoint · extract.invoice
+Function id: core:extract:invoice
+Available
+Enabled
+Job priority
+Low
+Medium
+High
+Allowed file extensions
+Manifest profile settings
+Temperature *
+Options
+Connector bindings
+
+Connector credentials and provider settings remain managed on the separate Connectors screen.
+
+reasoning *
+Select a connector revision
+reasoning-primary · revision 2
+
+Accepted capabilities: reasoning
+
+Document Core endpoint · analyze.legacy
+Function id: core:analyze:legacy
+Unavailable
+
+The local runtime fixture does not admit this legacy endpoint.
+
+claims-workflow
+Enabled
+Remove business
+Registered version
+3.0.0
+
+The function catalog is loaded from this exact business version and manifest digest.
+
+Manifest digest claims-workflow-3.0.0-fixture-digest · 1 declared functions.
+
+Declared workflow action · review-claim
+Function id: claims:action:review
+Available
+Enabled
+Job priority
+Low
+Medium
+High
+Allowed file extensions
+Manifest profile settings
+Threshold
+Connector bindings
+
+Connector credentials and provider settings remain managed on the separate Connectors screen.
+
+reasoning *
+Select a connector revision
+reasoning-primary · revision 2
+
+Accepted capabilities: reasoning
+
+Before save:
+document-core@2.0.0 function core:extract:invoice needs profile setting temperature.
+Create profile group
+{
+  "result": "fail",
+  "message": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('section[aria-label=\"Profile group editor\"]').getByRole('button', { name: 'Create profile group' })\u001b[22m\n\u001b[2m    - locator resolved to <button disabled tabindex=\"0\" type=\"button\" data-disabled=\"\" class=\"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-sm)] font-medium select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] transition-transform duration-75 bg-[var(--cf-blue)] text-[var(--on-action)] hover:bg-[var(--cf-blue-hover)] shadow-xs border border-transp…>…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    56 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not enabled\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at C:\\Users\\Gem\\AppData\\Local\\Temp\\woc11-playwright-smoke.mjs:65:70",
+  "steps": [
+    {
+      "name": "business workers nested by version",
+      "v1Replicas": 2,
+      "v2Replicas": 1,
+      "v1Row": "core-v1-worker-a ONLINE HEALTHY 128 3 / 8 2026-10-12T08:00:00.000Z 2026-10-12T08:00:00.000Z"
+    },
+    {
+      "name": "business intake CAS and default pointer are separate",
+      "defaultVersionAfterIntakeDisableAndEnable": "2.0.0",
+      "lifecycleActions": [
+        "enabled→disabled",
+        "disabled→enabled"
+      ]
+    },
+    {
+      "name": "function catalogs are version-specific and unavailable Core function is disabled",
+      "core": "extract.invoice",
+      "workflowAction": "review-claim",
+      "unavailable": "analyze.legacy"
+    }
+  ],
+  "pageErrors": [],
+  "failedApiResponses": []
+}

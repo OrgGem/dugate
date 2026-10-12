@@ -1,7 +1,3 @@
-// VENDORED from @du/worker-sdk @ b088eececcb5f3df0b4edbe073a29401dafda624 (worktree 2026-10-06)
-// source: packages/worker-sdk/src/task-context.ts (lines=960) sha256=F81D4D56D782F1680D0587151A33CE2C45B6B2405F077020CB41EAC0F8217E68
-// why: worker surface required by src/worker.ts, src/main.ts, types/context.ts, step-checkpoint, fanout
-
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Readable } from 'node:stream';
@@ -16,6 +12,8 @@ import {
   hashInvocationInput,
   type PinnedProfilePolicy,
   type PinnedPromptOverride,
+  type TenantDefaultsSnapshot,
+  type ConnectorWorkflowOverrides,
 } from '@du/contracts';
 import { Logger } from '@du/observability';
 import { MULTIPART_MAX_TOTAL_BYTES, MULTIPART_MIN_TOTAL_BYTES } from '@du/contracts';
@@ -60,6 +58,38 @@ export class LeaseLostError extends Error {
   }
 }
 
+/**
+ * Fill a missing model option from the operation's admission-time pins.
+ * Explicit call-site options take precedence, followed by the pinned Profile
+ * model and then the immutable tenant AI default. The resolved value is used
+ * both in the grant hash and on the Connector wire, so redelivery cannot
+ * observe a later settings revision.
+ */
+export function applyPinnedModelDefault(
+  options: Record<string, unknown> | undefined,
+  profilePolicy: PinnedProfilePolicy | null | undefined,
+  tenantDefaults: TenantDefaultsSnapshot | null | undefined,
+  selectedConnectorBinding: string | undefined,
+): Record<string, unknown> | undefined {
+  if (options?.model !== undefined) return options;
+
+  const profileModelValue = profilePolicy?.parameters?.['model']?.value;
+  const profileModel = typeof profileModelValue === 'string' && profileModelValue.trim().length > 0
+    ? profileModelValue
+    : undefined;
+  const ai = tenantDefaults?.ai;
+  const defaultBinding = ai?.connectorId && ai.connectorRevision !== null
+    ? `${ai.connectorId}@${ai.connectorRevision}`
+    : undefined;
+  // The tenant model travels with its exact tenant-default Connector. A
+  // separately Profile-pinned Connector keeps its own model behavior unless
+  // the Profile explicitly pins a model parameter above.
+  const tenantModel = defaultBinding !== undefined && selectedConnectorBinding === defaultBinding ? ai?.model : undefined;
+  const model = profileModel ?? (typeof tenantModel === 'string' && tenantModel.trim().length > 0 ? tenantModel : undefined);
+  if (model === undefined) return options;
+  return { ...(options ?? {}), model };
+}
+
 export class InputHashMismatchError extends Error {
   constructor(readonly stepKey: string) {
     super(`checkpoint for step "${stepKey}" exists with a different inputHash`);
@@ -96,7 +126,7 @@ export interface TaskContextDeps {
   /** DATA-04 Step C auto-branch threshold; default = maxArtifactBytes. */
   multipartThresholdBytes?: number;
   /** Performs the actual HTTP invocation against the connector service. */
-  invokeConnector: (grant: InvocationGrant, req: ConnectorInvocationPayload) => Promise<InvocationResponse>;
+  invokeConnector: (grant: InvocationGrant, req: ConnectorInvocationPayload, signal?: AbortSignal) => Promise<InvocationResponse>;
   /**
    * W-ENC-04-SEAM: optional application-encryption seam for artifact bytes.
    *
@@ -136,6 +166,8 @@ export interface ConnectorInvocationPayload {
   bindingSlot: string;
   input: ConnectorInvokeInput;
   options?: Record<string, unknown>;
+  /** Compiled, admission-pinned recipe leaf; deliberately separate from options. */
+  workflowOverrides?: ConnectorWorkflowOverrides;
   sessionRef?: string | null;
   deadlineAt: string;
 }
@@ -163,6 +195,7 @@ interface ClaimedTask {
   promptRevisions?: Record<string, string>;
   profilePolicy?: PinnedProfilePolicy | null;
   promptOverrides?: PinnedPromptOverride[] | null;
+  tenantDefaults?: TenantDefaultsSnapshot | null;
   checkpointRefs: CheckpointRef[];
   cancelRequested: boolean;
 }
@@ -186,9 +219,13 @@ export class DefaultTaskContext implements TaskContext {
   readonly promptRevisions: Readonly<Record<string, string>> | undefined;
   readonly profilePolicy: PinnedProfilePolicy | null | undefined;
   readonly promptOverrides: readonly PinnedPromptOverride[] | null | undefined;
+  readonly tenantDefaults: TenantDefaultsSnapshot | null | undefined;
   readonly signal: AbortSignal;
 
   private readonly abortController: AbortController;
+  private leaseExpiresAtMs: number;
+  private readonly configuredLeaseSafetyMarginMs: number;
+  private leaseSafetyMarginMs: number;
   private checkpointList: CheckpointRef[];
   private readonly finalizedOutputArtifacts: ArtifactRef[] = [];
   private cancelFlag: boolean;
@@ -287,7 +324,8 @@ export class DefaultTaskContext implements TaskContext {
 
   constructor(
     private readonly task: ClaimedTask,
-    private readonly deps: TaskContextDeps
+    private readonly deps: TaskContextDeps,
+    leaseSafetyMarginMs = 0
   ) {
     this.taskId = task.taskId;
     this.operationId = task.operationId;
@@ -308,16 +346,32 @@ export class DefaultTaskContext implements TaskContext {
     // policy merge. The claim is the sole authority for revisions.
     this.profileRevision = task.profileRevision;
     this.promptRevisions = task.promptRevisions;
-    this.profilePolicy = task.profilePolicy ?? null;
+    // CR06-07 (tri-state discipline): straight pass-through. `undefined`
+    // (pre-pin / a context that never carried the pin) MUST stay `undefined`,
+    // `null` (admitted-without-policy) MUST stay `null`, and a populated policy
+    // must pass through untouched. The previous `?? null` silently collapsed the
+    // first two states into one, which is exactly the distinction a consumer
+    // needs in order to tell "no pin" from "pinned, and the pin says no".
+    this.profilePolicy = task.profilePolicy;
     // P745-CARRIER-IMPL-B1 (Δ-PC-1): straight pass-through on purpose —
     // `null` (no carrier) stays null, `undefined` (a context that never
     // carried the pin) stays undefined. Neither is coalesced.
     this.promptOverrides = task.promptOverrides;
+    this.tenantDefaults = task.tenantDefaults;
     this.checkpointList = [...task.checkpointRefs];
     this.cancelFlag = task.cancelRequested;
 
     this.abortController = new AbortController();
     this.signal = this.abortController.signal;
+    this.leaseExpiresAtMs = Date.parse(task.leaseExpiresAt);
+    const remainingLeaseMs = Number.isFinite(this.leaseExpiresAtMs)
+      ? Math.max(0, this.leaseExpiresAtMs - Date.now())
+      : 0;
+    this.configuredLeaseSafetyMarginMs = Math.max(0, leaseSafetyMarginMs);
+    this.leaseSafetyMarginMs = Math.min(
+      Math.max(0, leaseSafetyMarginMs),
+      Math.floor(remainingLeaseMs / 4)
+    );
 
     this.step = this.createStepFacade();
     this.spawn = this.createSpawnFacade();
@@ -341,9 +395,58 @@ export class DefaultTaskContext implements TaskContext {
   }
 
   /** Called by the worker loop when heartbeat detects lease loss/cancel. */
-  abort(reason: 'lease-lost' | 'cancel' | 'shutdown'): void {
+  abort(reason: 'lease-lost' | 'cancel' | 'shutdown' | 'task-terminal' | 'compatibility'): void {
     if (reason === 'cancel') this.cancelFlag = true;
-    this.abortController.abort();
+    // The reason rides on the signal: business code and docs/16 already branch on
+    // `ctx.signal.reason === 'cancel'`, and the connector invoker must tell a real
+    // cancellation (terminal for the invocation) from a fenced delivery (which is
+    // redelivered and must replay the same invocation).
+    this.abortController.abort(reason);
+  }
+
+  /** Deadline at which the local watchdog stops effectful work. */
+  leaseWatchdogDeadline(): number {
+    return Number.isFinite(this.leaseExpiresAtMs)
+      ? this.leaseExpiresAtMs - this.leaseSafetyMarginMs
+      : Date.now();
+  }
+
+  /** Last lease expiry confirmed by the runtime, in epoch milliseconds. */
+  leaseExpiryDeadline(): number {
+    return this.leaseExpiresAtMs;
+  }
+
+  /** Assert the confirmed lease is still inside its local safety window. */
+  assertLeaseActive(): void {
+    this.assertLease();
+  }
+
+  /**
+   * Accept a task-heartbeat ACK only while the previously confirmed lease is
+   * still safely live. A response arriving after the watchdog boundary cannot
+   * revive this delivery, even if the server has already extended its lease.
+   */
+  renewLease(leaseExpiresAt: string, now = Date.now()): boolean {
+    if (this.abortController.signal.aborted) return false;
+    if (!Number.isFinite(this.leaseExpiresAtMs) || now >= this.leaseWatchdogDeadline()) {
+      this.abort('lease-lost');
+      return false;
+    }
+    const nextExpiresAtMs = Date.parse(leaseExpiresAt);
+    if (!Number.isFinite(nextExpiresAtMs) || nextExpiresAtMs <= now) {
+      this.abort('lease-lost');
+      return false;
+    }
+    // The server ACK is authoritative and may shorten a lease when its
+    // configured duration changes; do not keep work alive to an older expiry.
+    // Rebound the safety margin to the newly granted duration so a valid short
+    // renewal is not rejected just because the previous lease was longer.
+    this.leaseExpiresAtMs = nextExpiresAtMs;
+    this.leaseSafetyMarginMs = Math.min(
+      this.configuredLeaseSafetyMarginMs,
+      Math.floor((nextExpiresAtMs - now) / 4)
+    );
+    return true;
   }
 
   markTerminalReported(): void {
@@ -355,6 +458,12 @@ export class DefaultTaskContext implements TaskContext {
   }
 
   private assertLease(): void {
+    if (!this.abortController.signal.aborted && (
+      !Number.isFinite(this.leaseExpiresAtMs)
+      || Date.now() >= this.leaseWatchdogDeadline()
+    )) {
+      this.abort('lease-lost');
+    }
     if (this.abortController.signal.aborted) {
       throw new LeaseLostError(this.taskId);
     }
@@ -363,7 +472,11 @@ export class DefaultTaskContext implements TaskContext {
   private wrapLeaseErrors<T>(fn: () => Promise<T>): Promise<T> {
     return fn().catch((err) => {
       if (err instanceof RuntimeError && err.isLeaseLost) {
-        this.abortController.abort();
+        this.abort('lease-lost');
+        throw new LeaseLostError(this.taskId);
+      }
+      if (err instanceof RuntimeError && err.isTaskTerminal) {
+        this.abort('task-terminal');
         throw new LeaseLostError(this.taskId);
       }
       throw err;
@@ -513,6 +626,7 @@ export class DefaultTaskContext implements TaskContext {
     return {
       async report(percent: number, message?: string): Promise<void> {
         if (self.abortController.signal.aborted) return; // best-effort only
+        self.assertLease();
         await self.deps.runtime.reportProgress(self.taskId, {
           leaseEpoch: self.leaseEpoch,
           percent,
@@ -729,13 +843,18 @@ export class DefaultTaskContext implements TaskContext {
       // upload whenever the seam was absent. With encryptionEnabled that is
       // now a typed refusal: an encryption-enabled deployment must never
       // degrade into writing the clear.
-      if (self.deps.encryptionEnabled && !self.deps.crypto) {
+      const serverSealing = grant.storageEncryption === 'server';
+      if (self.deps.encryptionEnabled && !self.deps.crypto && !serverSealing) {
         throw new ArtifactEncryptionError(
           'ENCRYPTION_REQUIRED_UNAVAILABLE',
           'artifact encryption is enabled but no crypto seam is configured for this worker',
         );
       }
-      const sealed = self.deps.crypto
+      // Only an explicit authenticated runtime grant may negotiate server
+      // sealing. Internal plaintext transit is allowed in this mode; the
+      // server encrypts and persists its complete manifest before finalize.
+      // URL shape or a caller-controlled upload option never enables it.
+      const sealed = self.deps.crypto && !serverSealing
         ? await self.sealArtifactBytes(content, grant.artifactId, purpose, expectedSha256)
         : null;
       const integrity = sealed
@@ -866,10 +985,17 @@ export class DefaultTaskContext implements TaskContext {
         slot: string,
         input: ConnectorInvokeInput,
         options?: Record<string, unknown>,
-        invokeOpts?: ConnectorInvokeOptions
+        invokeOpts?: ConnectorInvokeOptions,
+        workflowOverrides?: ConnectorWorkflowOverrides
       ): Promise<InvocationResponse> {
         self.assertLease();
         const stepKey = currentStepKey();
+        const effectiveOptions = applyPinnedModelDefault(
+          options,
+          self.profilePolicy,
+          self.tenantDefaults,
+          self.connectorBindings[slot],
+        );
         // Canonical hash (W11-C1): computed over the exact wire fields the
         // Connector validates, so the signed grant verifies unchanged — no
         // shim. The deadline is computed first because it is part of the hash.
@@ -893,14 +1019,15 @@ export class DefaultTaskContext implements TaskContext {
           stepKey,
           bindingSlot: slot,
           input,
-          options,
+          options: effectiveOptions,
+          ...(workflowOverrides !== undefined ? { workflowOverrides } : {}),
           sessionRef,
           deadlineAt,
         });
         // Runtime issues a stable invocationId for (task, stepKey, slot,
         // inputHash); replays reuse the same ID (no duplicate provider cost).
         const artifactIds = input.artifacts?.map((artifact) => artifact.artifactId) ?? [];
-        const grant = await self.grantFor(stepKey, slot, inputHash, artifactIds);
+        const grant = await self.grantFor(stepKey, slot, inputHash, artifactIds, workflowOverrides);
         const payload: ConnectorInvocationPayload = {
           contractVersion: '1',
           invocationId: grant.invocationId,
@@ -910,11 +1037,12 @@ export class DefaultTaskContext implements TaskContext {
           stepKey,
           bindingSlot: slot,
           input,
-          options,
+          options: effectiveOptions,
+          ...(workflowOverrides !== undefined ? { workflowOverrides } : {}),
           sessionRef,
           deadlineAt,
         };
-        const response = await self.deps.invokeConnector(grant, payload);
+        const response = await self.deps.invokeConnector(grant, payload, self.signal);
         return InvocationResponseSchema.parse(response);
       },
     };
@@ -925,6 +1053,7 @@ export class DefaultTaskContext implements TaskContext {
     bindingSlot: string,
     inputHash: string,
     artifactIds: readonly string[] = [],
+    workflowOverrides?: ConnectorWorkflowOverrides,
   ): Promise<InvocationGrant> {
     this.assertLease();
     return this.wrapLeaseErrors(() =>
@@ -934,6 +1063,7 @@ export class DefaultTaskContext implements TaskContext {
         bindingSlot,
         inputHash,
         artifactIds: [...artifactIds],
+        ...(workflowOverrides !== undefined ? { workflowOverrides } : {}),
       })
     );
   }

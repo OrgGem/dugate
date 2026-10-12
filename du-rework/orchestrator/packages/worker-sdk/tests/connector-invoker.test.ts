@@ -131,7 +131,7 @@ describe('createConnectorInvoker error contract', () => {
 
     expect(caught).toBeInstanceOf(ConnectorTransportError);
     expect(caught).toMatchObject({ status: 409, code });
-    expect(classifyFailure(caught)).toMatchObject({ errorCode: code, retryable: false });
+    expect(classifyFailure(caught)).toMatchObject({ errorCode: code, retryable: code === 'INVOCATION_UNKNOWN' });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -153,12 +153,13 @@ describe('createConnectorInvoker error contract', () => {
     });
     expect(classifyFailure(error)).toMatchObject({
       errorCode: 'INVOCATION_UNKNOWN',
-      retryable: false,
+      retryable: true,
+      retryAfterMs: 5_000,
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it('maps a lost response to non-retryable unknown without leaking the transport error', async () => {
+  it('maps a lost response to settle-and-retry unknown without leaking transport details', async () => {
     const fetchImpl = jest.fn(async () => {
       throw new Error('socket reset: authorization=secret-token');
     }) as unknown as typeof fetch;
@@ -167,11 +168,11 @@ describe('createConnectorInvoker error contract', () => {
 
     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
     expect((error as Error).message).not.toContain('secret-token');
-    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true, retryAfterMs: 5_000 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it('maps an unresolvable Connector endpoint to unknown without retrying or exposing DNS details', async () => {
+  it('maps an unresolvable Connector endpoint to settle-and-retry unknown without exposing DNS details', async () => {
     const fetchImpl = jest.fn(async () => {
       throw Object.assign(new Error('getaddrinfo ENOTFOUND private-connector-host'), { code: 'ENOTFOUND' });
     }) as unknown as typeof fetch;
@@ -180,8 +181,37 @@ describe('createConnectorInvoker error contract', () => {
 
     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
     expect((error as Error).message).not.toContain('private-connector-host');
-    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true, retryAfterMs: 5_000 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles an unknown invocation by replaying the same logical ID without a second provider dispatch', async () => {
+    const observedInvocationIds: string[] = [];
+    let providerDispatches = 0;
+    let settled = false;
+    const fetchImpl = jest.fn(async (_input: unknown, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as { invocationId: string };
+      observedInvocationIds.push(request.invocationId);
+      if (providerDispatches === 0) {
+        providerDispatches += 1;
+        throw new Error('response lost after provider accepted request');
+      }
+      if (!settled) {
+        return response(409, JSON.stringify({ error: { code: 'INVOCATION_UNKNOWN', message: 'still in flight' } }));
+      }
+      return response(200, JSON.stringify({ invocationId: request.invocationId, state: 'SUCCEEDED' }));
+    }) as unknown as typeof fetch;
+    const invoke = createConnectorInvoker({ baseUrl: 'http://connector', fetchImpl });
+
+    const first = await rejectedValue(invoke(grant, payload));
+    expect(classifyFailure(first)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true });
+    const whileInFlight = await rejectedValue(invoke(grant, payload));
+    expect(classifyFailure(whileInFlight)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true });
+
+    settled = true;
+    await expect(invoke(grant, payload)).resolves.toMatchObject({ invocationId: payload.invocationId, state: 'SUCCEEDED' });
+    expect(observedInvocationIds).toEqual([payload.invocationId, payload.invocationId, payload.invocationId]);
+    expect(providerDispatches).toBe(1);
   });
 
   it('rejects an artifact ingress payload over 64 MiB before sending an HTTP request', async () => {
@@ -226,7 +256,7 @@ describe('createConnectorInvoker error contract', () => {
     expect(requestSignal).toBeInstanceOf(AbortSignal);
     expect(requestSignal?.aborted).toBe(true);
     expect(error).toMatchObject({ status: 0, code: 'INVOCATION_UNKNOWN' });
-    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true, retryAfterMs: 5_000 });
   });
 
   it('fails closed for a non-JSON successful Connector response', async () => {
@@ -341,11 +371,11 @@ describe('createConnectorInvoker error contract', () => {
     const error = await rejectedValue(invoke(grant, payload));
 
     expect(error).toMatchObject({ status: 409, code: 'INVOCATION_UNKNOWN' });
-    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: false });
+    expect(classifyFailure(error)).toMatchObject({ errorCode: 'INVOCATION_UNKNOWN', retryable: true, retryAfterMs: 5_000 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it('maps socket termination triggered at the timeout abort boundary to one unknown outcome', async () => {
+  it('maps socket termination at the timeout boundary to one settle-and-retry unknown outcome', async () => {
     jest.useFakeTimers();
     try {
       let requestSignal: AbortSignal | undefined;

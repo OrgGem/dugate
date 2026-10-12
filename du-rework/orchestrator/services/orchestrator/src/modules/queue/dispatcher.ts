@@ -60,6 +60,16 @@ export function createDispatcher(opts: DispatcherOptions) {
            AND (claim_until IS NULL OR claim_until < now())
            AND due_at <= now()
            AND (payload->>'gate') IS DISTINCT FROM 'ingestion'
+           AND (
+             type NOT IN ('task.dispatch','task.continuation')
+             OR EXISTS (
+               SELECT 1
+                 FROM tasks t
+                 JOIN operations o ON o.id=t.operation_id
+                 JOIN business_catalog c ON c.business_id=o.business_id AND c.enabled=true
+                WHERE t.id=outbox.aggregate_id
+             )
+           )
          ORDER BY due_at
          LIMIT $1
          FOR UPDATE SKIP LOCKED`,
@@ -76,6 +86,19 @@ export function createDispatcher(opts: DispatcherOptions) {
           // Keep accepted work durable and available for dispatch after a
           // resume. A short claim lease avoids one paused scope occupying the
           // same poll batch continuously.
+          await client.query(
+            `UPDATE outbox SET claim_until=now() + interval '5 seconds' WHERE id=$1`,
+            [row.id],
+          );
+          continue;
+        }
+        const businessGate = await client.query<{ enabled: boolean }>(
+          'SELECT enabled FROM business_catalog WHERE business_id=$1 FOR SHARE',
+          [target.businessId],
+        );
+        if (!businessGate.rows[0]?.enabled) {
+          // Keep accepted backlog durable while the logical business is off;
+          // registration/enable recovery can publish the same outbox delivery.
           await client.query(
             `UPDATE outbox SET claim_until=now() + interval '5 seconds' WHERE id=$1`,
             [row.id],
@@ -115,12 +138,21 @@ export function createDispatcher(opts: DispatcherOptions) {
         // a legacy-mode submission, both of which enqueue with BullMQ's own
         // default — never a number invented here.
         const priority = typeof row.payload.priority === 'number' ? row.payload.priority : undefined;
-        const jobData = { ...row.payload };
+        // delivery_id is the durable source of truth. Recovery generations
+        // intentionally receive fresh IDs; never publish an old ID copied in
+        // a legacy payload or the SDK would claim under the wrong identity.
+        const jobData = { ...row.payload, deliveryId: row.delivery_id };
         delete (jobData as { gate?: unknown }).gate;
         try {
           await queue.add(row.type, jobData, {
             jobId,
             priority,
+            // Delivery retries are bounded and transport-only. A worker that
+            // defers before claim moves the job to its delayed state without
+            // consuming a business attempt; the durable outbox recovery sweep
+            // handles Redis loss after this BullMQ retry budget is exhausted.
+            attempts: 8,
+            backoff: { type: 'exponential', delay: 1_000, jitter: 0.25 },
             removeOnComplete: { age: 86400 },
             removeOnFail: { age: 7 * 86400 },
           });
@@ -133,11 +165,18 @@ export function createDispatcher(opts: DispatcherOptions) {
           if (isDuplicateJobIdError(err)) {
             // Deterministic job IDs mean re-enqueue dedups at the queue layer;
             // treat as dispatched (at-least-once is safe — claim fences).
-            await client.query(`UPDATE outbox SET dispatched_at = now() WHERE id = $1`, [row.id]);
+            await client.query(
+              `UPDATE outbox SET dispatched_at=now(), claim_until=NULL, attempts=attempts+1 WHERE id=$1`,
+              [row.id],
+            );
             dispatched++;
           } else {
             await client.query(
-              `UPDATE outbox SET claim_until = now() + interval '30 seconds', attempts = attempts + 1 WHERE id = $1`,
+              `UPDATE outbox
+                  SET claim_until=NULL,
+                      attempts=attempts+1,
+                      due_at=now() + (LEAST(300, GREATEST(1, power(2, attempts)) * (0.5 + random())) * interval '1 second')
+                WHERE id=$1`,
               [row.id]
             );
           }

@@ -1,0 +1,710 @@
+▶ audit event deep links
+  ✔ links operation resources to Audit and Trace (2.4913ms)
+  ✔ links other valid resources to Audit without inventing a Trace lookup (0.4543ms)
+  ✔ trims and safely encodes special characters in resource and operation values (0.3741ms)
+  ✔ returns null links for empty or invalid resource identifiers (0.33ms)
+  ✔ keeps a valid Audit link when the operation identifier exceeds its limit (0.3859ms)
+✔ audit event deep links (6.9148ms)
+▶ audit state helpers
+  ✔ builds the BFF query with server-side filters, active tenant and keyset cursor (1.7714ms)
+  ✔ omits empty optional filters and does not send ALL as a wire severity (0.2412ms)
+  ✔ parses both keyset cursors and the page envelope (0.4315ms)
+  ✔ converts local date-time inputs to UTC instants (1.2785ms)
+  ✔ exports only allowlisted columns and neutralizes spreadsheet formulas (0.8884ms)
+✔ audit state helpers (6.5833ms)
+✔ no rows yields null, not a fabricated now (1.4814ms)
+✔ rows with no timestamp at all stay null (0.5849ms)
+✔ the newest of the carried timestamps wins, whatever column it lives on (0.2447ms)
+✔ observedAt beats updatedAt on the same row (heartbeat is the observation) (1.0723ms)
+✔ an explicit null timestamp is skipped, not treated as the newest (0.5756ms)
+✔ max is string comparison, so it is order-independent (0.8286ms)
+▶ Business Services offline integration harness
+  ✔ loads the real business registry response and selected business versions through the BFF client (50.1098ms)
+  ✔ keeps workflow binding reads and writes fenced to the selected profile business, version, and tenant (5.691ms)
+  ✔ wires Business version detail and profile workflow ownership into the actual screens (1.4299ms)
+✔ Business Services offline integration harness (59.4905ms)
+▶ connector read and config summary fixtures
+  ✔ counts malformed list records as skipped while preserving valid records (1.4067ms)
+  ✔ summarizes configuration with key and header names but no secret values (0.4572ms)
+✔ connector read and config summary fixtures (6.7541ms)
+▶ Connectors state honesty
+  ✔ fails closed when the capability advertisement is absent or unreadable (1.7606ms)
+  ✔ enables only the actions advertised by the deployment (0.5059ms)
+  ✔ summarizes connector configuration as sorted keys and header names only (0.564ms)
+  ✔ masks imported curl secrets in the preview while retaining only safe values (2.8917ms)
+  ✔ removes secret values and local file paths from connector upsert configuration (1.0884ms)
+  ✔ wires the tested fail-closed state into Connectors screen controls offline (0.5649ms)
+✔ Connectors state honesty (10.4437ms)
+▶ Trace and Audit URL query hydration
+  ✔ hydrates each supported Trace identifier and preserves the lookup priority (1.8139ms)
+  ✔ uses safe defaults when Trace and Audit query parameters are missing (0.6173ms)
+  ✔ reads Trace tenantId safely and retains its session tenant authorization fence (0.4283ms)
+  ✔ blocks malformed and unavailable tenant context in both screens (62.2587ms)
+  ✔ maps Audit query filters, operationId resource fallback, and UTC time bounds (1.6579ms)
+  ✔ ignores malformed and overlong UTC time bounds instead of hydrating them (0.3405ms)
+  ✔ round-trips encoded special characters in Trace IDs and Audit filters (0.897ms)
+  ✔ wires Audit hydration and tenant scoping to the URL while retaining correlationId (0.3924ms)
+✔ Trace and Audit URL query hydration (70.3261ms)
+▶ buildOperationsQuery
+  ✖ always carries the paging and ordering parameters (2.3224ms)
+  ✖ passes the tenant and a non-empty id filter through (0.6279ms)
+  ✖ omits ALL so the wire never carries a state the contract does not define (0.5823ms)
+  ✖ carries a cursor when paging (0.5135ms)
+  ✖ turns empty date inputs into no server bound at all (0.4324ms)
+  ✖ turns a half-open window into the bound that was asked for (0.7627ms)
+  ✖ sends an inclusive UTC day window that the admin list contract accepts (0.3329ms)
+  ✔ keeps the same inclusive-day bounds as the previous client-side filter (1.8131ms)
+✖ buildOperationsQuery (11.445ms)
+▶ operations population fingerprint
+  ✖ is stable when nothing the operator selected changed (2.644ms)
+  ✖ changes when state changes (0.3552ms)
+  ✖ changes when tenantId changes (0.1711ms)
+  ✖ changes when id changes (0.1458ms)
+  ✖ changes when fromDate changes (0.1328ms)
+  ✖ changes when toDate changes (0.2029ms)
+  ✖ changes when limit changes (0.1784ms)
+  ✖ trims the id filter so typing a trailing space does not churn the population (0.197ms)
+  ✖ treats an absent tenant and an empty one as the same population (0.2405ms)
+✖ operations population fingerprint (5.3282ms)
+▶ operationsCursorIsStale
+  ✔ never fires when there is no cursor to lose (0.5809ms)
+  ✖ keeps the cursor while the population is unchanged so paging keeps working (0.2449ms)
+  ✖ drops a cursor minted for another tenant - the AWEB-20 defect (0.1745ms)
+  ✖ drops the cursor for a changed state, window, id or page size (0.2019ms)
+  ✖ fails safe when the cursor origin was never recorded (0.1489ms)
+✖ operationsCursorIsStale (1.8258ms)
+▶ Operations screen request wiring
+  ✖ sends the selected date window as ISO UTC bounds and tracks it in load dependencies (223.7595ms)
+  ✖ drops a cursor from a previous population before making a list request (45.3449ms)
+✖ Operations screen request wiring (269.9423ms)
+▶ UI13 platform scope and system projections
+  ✔ allows aggregate health and worker inventory only to a platform administrator (3.2674ms)
+  ✔ requires an admin platform BFF scope for Compose and denies incomplete sessions (0.3445ms)
+  ✔ pins tenant sessions to their credential tenant and uses the picker only for platform sessions (0.239ms)
+  ✔ validates health observations while preserving unavailable values as null (2.2168ms)
+  ✔ keeps UNKNOWN and overdue HITL signals bounded to the fetched page rows (0.4472ms)
+  ✔ classifies bad or old timestamps as unknown or stale instead of healthy (0.1971ms)
+✔ UI13 platform scope and system projections (9.2019ms)
+▶ Compose client and shared expired-session latch
+  ✔ latches once across client instances, allows explicit recovery, and fences in-flight mutations (65.8533ms)
+✔ Compose client and shared expired-session latch (67.838ms)
+▶ UI13 Compose operator safety and freshness
+  ✔ fails closed on unavailable, stale, invalid, and future host observations (1.3886ms)
+  ✔ allows preview only for a configured, fresh, digest-matched and idle project (0.7651ms)
+  ✔ offers only releases explicitly approved as rollback targets from the current desired release (1.4828ms)
+  ✔ fences preview submission by expiry, host/project, observed digest and desired revision (0.3492ms)
+  ✔ gives UNKNOWN jobs human reconciliation guidance without a retry path (0.2958ms)
+✔ UI13 Compose operator safety and freshness (6.6008ms)
+▶ ORV14 cost alert Admin client
+  ✔ uses the same-origin BFF, session CSRF and idempotency transport for owner routing (61.2197ms)
+✔ ORV14 cost alert Admin client (64.1384ms)
+▶ ORV14 Operations server-triage UI
+  ✔ sends the full search and exact recorded-usage semantics to the server (7.0452ms)
+  ✔ invalidates paging when any population field changes (0.5ms)
+  ✔ hides incident ledger affordances for local USER sessions but keeps tenant operator and viewer read paths (0.3343ms)
+✔ ORV14 Operations server-triage UI (10.2923ms)
+▶ Profile to Test Workbench handoff
+  ✔ parses only bounded composite profile identity and a positive exact revision (2.3588ms)
+  ✔ removes the missing legacy test endpoint and confirms before dropping local profile edits (1.6623ms)
+  ✔ rechecks active tenant and exact current server revision before selecting the handoff (0.7902ms)
+✔ Profile to Test Workbench handoff (6.9142ms)
+(node:41756) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/Git/dugate/du-rework/orchestrator/services/orchestrator/src/modules/global-settings/defaults.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\Git\dugate\du-rework\orchestrator\services\orchestrator\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ ORV14 full Settings UI owner checks
+  ✔ keeps both browser presets byte-identical to the server presets and enforces exact variables (14.0074ms)
+  ✔ routes typed Settings operations through the session BFF with CSRF and exact idempotency keys (74.6239ms)
+  ✖ replaces the legacy no-writer notice with real flows and keeps secrets write-only (2.0978ms)
+✖ ORV14 full Settings UI owner checks (112.1466ms)
+▶ ORV14 Admin Workbench owner source checks
+  ✔ builds ordinary action controls from the admitted manifest and assigned endpoint schemas (1.8308ms)
+  ✔ shows locked values as managed and strips them from the request payload (1.0763ms)
+  ✔ requires placeholder review and offers explicit local-draft acceptance and Profile handoff (0.4965ms)
+✔ ORV14 Admin Workbench owner source checks (4.7851ms)
+▶ profile group and business lifecycle API client
+  ✔ uses the same-origin BFF routes and CSRF proof for every mutation (76.5994ms)
+✔ profile group and business lifecycle API client (77.9453ms)
+▶ profile group draft state
+  ✔ uses selected manifest defaults for required settings and persists the displayed defaults (8.914ms)
+  ✔ keeps function configuration isolated by business and version and serializes one complete multi-business save (1.3126ms)
+  ✔ hydrates a full group read for reload and preserves independent member versions and bindings (0.781ms)
+  ✔ blocks save when a business was disabled while open or a function is unavailable in its selected manifest (2.1719ms)
+  ✔ uses revision conflicts to stop edits until the complete server group is reloaded (0.2593ms)
+✔ profile group draft state (17.028ms)
+▶ profile row identity — F2 unique keying
+  ✔ premise: the previous joined key collides when a value contains the separator (0.8239ms)
+  ✔ the identity cannot be confused by a separator inside a value (0.3284ms)
+  ✔ premise + fix: tenantId participates, so a cross-tenant page cannot collide (0.1951ms)
+  ✔ displayed-but-not-identifying fields do not change identity (0.1882ms)
+✔ profile row identity — F2 unique keying (5.9016ms)
+▶ keyProfileListRows — keys stay unique even when the wire repeats a row
+  ✔ an identical row twice: the old key collided, the new keys do not (0.86ms)
+  ✔ the page parser gates SHAPE, not duplicates — so keying is the only line of defence (0.4821ms)
+  ✔ keys are stable across re-renders of the same input order (no remount churn) (1.2333ms)
+  ✔ uniqueness holds across the WHOLE page, not only inside one business group (0.4315ms)
+  ✔ an empty page produces no rows (0.2799ms)
+✔ keyProfileListRows — keys stay unique even when the wire repeats a row (4.0266ms)
+▶ groupProfileListRows — table view grouping
+  ✔ group keys are unique and every row survives grouping exactly once (0.4376ms)
+  ✔ rows keep their original reference for rendering, and the key is identity + occurrence (0.1603ms)
+✔ groupProfileListRows — table view grouping (0.7813ms)
+▶ parseProfileListPage
+  ✔ parses metadata rows and pagination without exposing credentials (2.6598ms)
+  ✔ accepts a valid empty result as a distinct empty state (0.4522ms)
+  ✔ rejects malformed rows and rows outside the selected tenant/business scope (0.3043ms)
+✔ parseProfileListPage (5.0151ms)
+▶ trace state helpers
+  ✔ normalizes identifiers and rejects empty, control characters, and overlong values (1.2922ms)
+  ✔ scans operations only inside the selected tenant and finds the exact task ID (2.511ms)
+  ✔ refuses an unscoped task lookup without calling the API (0.4448ms)
+  ✔ merges operation, task, usage, and tenant-filtered audit events in time order (48.725ms)
+  ✔ masks every payload scalar before rendering a preview (1.0676ms)
+  ✔ builds tenant-aware deep links to the Operations and Audit screens (0.8379ms)
+  ✔ registers /trace and exposes it in workspace navigation (13.2511ms)
+✔ trace state helpers (74.2727ms)
+▶ parseWorkerInstanceList
+  ✔ accepts a valid actual worker inventory and keeps instance identity distinct from business identity (1.8975ms)
+  ✔ accepts a real empty inventory without manufacturing per-business rows (0.2381ms)
+  ✔ rejects invalid health, timestamps, counters, duplicate instances, and oversized responses (1.7209ms)
+✔ parseWorkerInstanceList (5.6814ms)
+▶ worker inventory API client
+  ✔ requests the platform BFF endpoint with only the supported query values (52.9055ms)
+✔ worker inventory API client (53.1524ms)
+▶ computeWorkerTelemetry
+  ✔ does not synthesize worker rows when the API inventory is empty (0.2734ms)
+  ✔ renders each persisted instance independently, including multiple instances for one business (0.2822ms)
+✔ computeWorkerTelemetry (0.9762ms)
+▶ workflow simulation honesty
+  ✖ marks local runs as simulation and carries defined stage names (0.8561ms)
+  ✖ treats missing or empty stages as an empty simulation flow (0.2146ms)
+  ✖ shows a clear configuration-gap message when simulation has no stages (0.1296ms)
+  ✔ keeps an empty backend stage response distinct from a local simulation (46.327ms)
+  ✔ uses zero rather than one when the workflow has no stages (0.5097ms)
+✖ workflow simulation honesty (49.4169ms)
+ℹ tests 122
+ℹ suites 29
+ℹ pass 96
+ℹ fail 26
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1240.7675
+
+✖ failing tests:
+
+test at tests\operations-state.test.mjs:46:3
+✖ always carries the paging and ordering parameters (2.3224ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:49:22)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at node:internal/test_runner/test:1903:71
+      at node:internal/per_context/primordials:504:82
+      at new Promise (<anonymous>)
+      at new SafePromise (node:internal/per_context/primordials:478:3)
+      at node:internal/per_context/primordials:504:9
+
+test at tests\operations-state.test.mjs:55:3
+✖ passes the tenant and a non-empty id filter through (0.6279ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:56:22)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at tests\operations-state.test.mjs:64:3
+✖ omits ALL so the wire never carries a state the contract does not define (0.5823ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:65:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:70:3
+✖ carries a cursor when paging (0.5135ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:71:18)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:75:3
+✖ turns empty date inputs into no server bound at all (0.4324ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:76:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:81:3
+✖ turns a half-open window into the bound that was asked for (0.7627ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:82:22)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:90:3
+✖ sends an inclusive UTC day window that the admin list contract accepts (0.3329ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at buildOperationsQuery (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:182:30)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:91:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:122:3
+✖ is stable when nothing the operator selected changed (2.644ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:124:7)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at node:internal/test_runner/test:1903:71
+      at node:internal/per_context/primordials:504:82
+      at new Promise (<anonymous>)
+      at new SafePromise (node:internal/per_context/primordials:478:3)
+      at node:internal/per_context/primordials:504:9
+
+test at tests\operations-state.test.mjs:138:5
+✖ changes when state changes (0.3552ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:140:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:138:5
+✖ changes when tenantId changes (0.1711ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:140:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:138:5
+✖ changes when id changes (0.1458ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:140:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:138:5
+✖ changes when fromDate changes (0.1328ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:140:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:138:5
+✖ changes when toDate changes (0.2029ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:140:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:138:5
+✖ changes when limit changes (0.1784ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:140:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:147:3
+✖ trims the id filter so typing a trailing space does not churn the population (0.197ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:149:7)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:155:3
+✖ treats an absent tenant and an empty one as the same population (0.2405ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:160:7)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:171:3
+✖ keeps the cursor while the population is unchanged so paging keeps working (0.2449ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:172:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:176:3
+✖ drops a cursor minted for another tenant - the AWEB-20 defect (0.1745ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:177:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:183:3
+✖ drops the cursor for a changed state, window, id or page size (0.2019ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:184:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:200:3
+✖ fails safe when the cursor origin was never recorded (0.1489ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:202:55)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:258:3
+✖ sends the selected date window as ISO UTC bounds and tracks it in load dependencies (223.7595ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:265:24)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\operations-state.test.mjs:306:3
+✖ drops a cursor from a previous population before making a list request (45.3449ms)
+  TypeError: Cannot read properties of undefined (reading 'trim')
+      at operationsPopulation (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/src/features/operations/state.ts:223:20)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/operations-state.test.mjs:309:27)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at tests\orv14-settings-full-ui-owner.test.mjs:87:3
+✖ replaces the legacy no-writer notice with real flows and keeps secrets write-only (2.0978ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /connectorsTenantId === tenantId/. Input:
+  
+  "import { useEffect, useMemo, useRef, useState } from 'react';\n" +
+    "import { Link } from 'react-router';\n" +
+    "import { Badge } from '@/components/ui/badge';\n" +
+    "import { Button } from '@/components/ui/button';\n" +
+    "import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';\n" +
+    "import { AlertBanner } from '@/components/ui/state-panel';\n" +
+    'import {\n' +
+    '  createAdminApiClient,\n' +
+    '  type AdminApiResult,\n' +
+    '  type AdminWebSession,\n' +
+    '  type GlobalSettingsPublishRequest,\n' +
+    '  type GlobalSettingsRollbackRequest,\n' +
+    '  type PlatformRetentionDraftRequest,\n' +
+    '  type PlatformRetentionRead,\n' +
+    '  type TenantAiDraftRequest,\n' +
+    '  type TenantAiTestRequest,\n' +
+    '  type TenantGlobalSettingsRead,\n' +
+    '  type TenantPromptDraftRequest,\n' +
+    "} from '@/lib/api';\n" +
+    "import type { TenantActiveConnectorCatalogItem, TenantAiDefaults, TenantPromptDefaults } from '@du/contracts';\n" +
+    "import { PROMPT_PRESETS, promptIssues, type PromptLocale } from './prompt-presets';\n" +
+    "import type { EffectiveConfiguration } from './configuration-revisions';\n" +
+    "import { tenantActiveConnectorPageMatches, tenantActiveConnectorQuery } from './tenant-connector-catalog';\n" +
+    '\n' +
+    'type Mutation<T> = { label: string; run: () => Promise<AdminApiResult<T>> };\n' +
+    'type UnknownAction = { label: string; retry: () => void };\n' +
+    "type AiTestParameter = { name: string; kind: 'string' | 'number' | 'boolean'; value: string };\n" +
+    '\n' +
+    "const DEFAULT_TEST_PROMPT = 'Reply with exactly: DUGATE AI connectivity test passed.';\n" +
+    "const DEFAULT_AI: TenantAiDefaults = { provider: 'gemini', model: 'gemini-1.5-flash', connectorId: null, connectorRevision: null };\n" +
+    'const DEFAULT_RETENTION = { cacheTtlHours: 168, outputRetentionDays: 30, cleanupIntervalSeconds: 3600 };\n' +
+    'const DEFAULT_PROMPTS: TenantPromptDefaults = PROMPT_PRESETS.en;\n' +
+    '\n' +
+    'function completePrompts(value: Partial<Record<keyof TenantPromptDefaults, string | null>> | null | undefined): TenantPromptDefaults {\n' +
+    '  return {\n' +
+    '    image: value?.image ?? DEFAULT_PROMPTS.image,\n' +
+    '    pdf: value?.pdf ?? DEFAULT_PROMPTS.pdf,\n' +
+    '    docx: value?.docx ?? DEFAULT_PROMPTS.docx,\n' +
+    '    compare: value?.compare ?? DEFAULT_PROMPTS.compare,\n' +
+    '    generate: value?.generate ?? DEFAULT_PROMPTS.generate,\n' +
+    '  };\n' +
+    '}\n' +
+    '\n' +
+    'function keyForRequest(): string {\n' +
+    '  return crypto.randomUUID();\n' +
+    '}\n' +
+    '\n' +
+    'function problemText<T>(result: AdminApiResult<T>): string {\n' +
+    "  return result.ok ? '' : `${result.problem.title ?? 'Request failed'}${result.status === 409 ? ' The active revision changed; reload and inspect the current values before retrying.' : ''}`;\n" +
+    '}\n' +
+    '\n' +
+    'function isUncertain<T>(result: AdminApiResult<T>): boolean {\n' +
+    '  return !result.ok && (result.status === 0 || result.status >= 500);\n' +
+    '}\n' +
+    '\n' +
+    'function canManageTenant(session: AdminWebSession | null, tenantId: string | null): boolean {\n' +
+    "  return Boolean(session?.role === 'admin' && tenantId\n" +
+    "    && (session.principal.kind === 'platform' || (session.principal.kind === 'tenant_operator' && session.principal.tenantId === tenantId)));\n" +
+    '}\n' +
+    '\n' +
+    'function connectorName(connector: TenantActiveConnectorCatalogItem): string {\n' +
+    "  return `${connector.connectorId} · ${connector.provider} · ${connector.model ?? 'model not set'} · revision ${connector.revision}`;\n" +
+    '}\n' +
+    '\n' +
+    'function activeRevision<T extends { revision: number }>(history: T[], revision: number | null): T | null {\n' +
+    '  return revision === null ? null : history.find((item) => item.revision === revision) ?? null;\n' +
+    '}\n' +
+    '\n' +
+    'function changedFields(before: Record<string, unknown>, after: Record<string, unknown>): Array<{ name: string; before: string; after: string }> {\n' +
+    '  return Object.keys(after).flatMap((name) => {\n' +
+    '    const left = JSON.stringify(before[name] ?? null);\n' +
+    '    const right = JSON.stringify(after[name] ?? null);\n' +
+    "    return left === right ? [] : [{ name, before: before[name] === undefined ? 'Not set' : String(before[name]), after: after[name] === undefined ? 'Not set' : String(after[name]) }];\n" +
+    '  });\n' +
+    '}\n' +
+    '\n' +
+    'function RevisionHistory<T extends { revision: number; state: string; createdAt: string; actor: string; digest: string }>({ items, active, onRollback, disabled }: {\n' +
+    '  items: T[];\n' +
+    '  active: number | null;\n' +
+    '  onRollback: (revision: number) => void;\n' +
+    '  disabled: boolean;\n' +
+    '}) {\n' +
+    "  return <div className='space-y-2'>\n" +
+    "    <h3 className='font-semibold'>Revision history</h3>\n" +
+    "    {items.length === 0 ? <p className='text-sm'>No saved revisions yet.</p> : <ul className='space-y-2'>\n" +
+    "      {items.map((item) => <li key={item.revision} className='flex min-w-0 flex-col gap-2 rounded border p-3 sm:flex-row sm:items-center sm:justify-between'>\n" +
+    "        <div className='min-w-0'>\n" +
+    "          <div className='flex flex-wrap items-center gap-2'><strong>Revision {item.revision}</strong><Badge variant={item.revision === active ? 'success' : item.state === 'DRAFT' ? 'warning' : 'neutral'}>{item.revision === active ? 'CURRENT' : item.state}</Badge></div>\n" +
+    "          <p className='break-all text-xs'>Created {new Date(item.createdAt).toLocaleString()} · {item.actor} · {item.digest}</p>\n" +
+    '        </div>\n' +
+    "        {(item.state === 'PUBLISHED' || item.state === 'SUPERSEDED') && item.revision !== active\n" +
+    "          ? <Button type='button' variant='outline' disabled={disabled} onClick={() => onRollback(item.revision)}>Review rollback</Button>\n" +
+    '          : null}\n' +
+    '      </li>)}\n' +
+    '    </ul>}\n' +
+    '  </div>;\n' +
+    '}\n' +
+    '\n' +
+    'export function TenantAiSettingsPanel({\n' +
+    '  tenantId,\n' +
+    '  session,\n' +
+    '  apiKeyId,\n' +
+    '  endpointSlug,\n' +
+    '  configuration,\n' +
+    '}: {\n' +
+    '  tenantId: string | null;\n' +
+    '  session: AdminWebSession | null;\n' +
+    '  apiKeyId: string;\n' +
+    '  endpointSlug: string;\n' +
+    '  configuration: EffectiveConfiguration | undefined;\n' +
+    '}) {\n' +
+    '  const client = useMemo(() => createAdminApiClient(), []);\n' +
+    '  const [read, setRead] = useState<TenantGlobalSettingsRead | null>(null);\n' +
+    '  const [connectors, setConnectors] = useState<TenantActiveConnectorCatalogItem[]>([]);\n' +
+    '  const [connectorsScope, setConnectorsScope] = useState<string | null>(null);\n' +
+    '  const [connectorCursor, setConnectorCursor] = useState<string | null>(null);\n' +
+    '  const [loading, setLoading] = useState(false);\n' +
+    '  const [connectorLoading, setConnectorLoading] = useState(false);\n' +
+    '  const [connectorIssue, setConnectorIssue] = useState<string | null>(null);\n' +
+    "  const [connectorSearch, setConnectorSearch] = useState('');\n" +
+    '  const [busy, setBusy] = useState(false);\n' +
+    '  const [error, setError] = useState<string | null>(null);\n' +
+    '  const [notice, setNotice] = useState<string | null>(null);\n' +
+    '  const [unknown, setUnknown] = useState<UnknownAction | null>(null);\n' +
+    '  const [aiDraft, setAiDraft] = useState<TenantAiDefaults>(DEFAULT_AI);\n' +
+    '  const [aiDirty, setAiDirty] = useState(false);\n' +
+    '  const [promptDraft, setPromptDraft] = useState<TenantPromptDefaults>(DEFAULT_PROMPTS);\n' +
+    '  const [promptDirty, setPromptDirty] = useState(false);\n' +
+    "  const [reason, setReason] = useState('Update tenant AI and prompt defaults');\n" +
+    '  const [testPrompt, setTestPrompt] = useState(DEFAULT_TEST_PROMPT);\n' +
+    '  const [testParameters, setTestParameters] = useState<AiTestParameter[]>([]);\n' +
+    '  const [testFiles, setTestFiles] = useState<File[]>([]);\n' +
+    '  const [testResult, setTestResult] = useState<{ revision: number; ok: boolean; testedAt: string; errorCode: string | null } | null>(null);\n' +
+    '  const [testUnknown, setTestUnknown] = useState<{ body: TenantAiTestRequest; label: string } | null>(null);\n' +
+    "  const [rollbackChoice, setRollbackChoice] = useState<{ stream: 'ai' | 'prompts'; revision: number } | null>(null);\n" +
+    '  const requestGeneration = useRef(0);\n' +
+    '  const connectorRequestGeneration = useRef(0);\n' +
+    '  const connectorScope = JSON.stringify([tenantId, aiDraft.provider, connectorSearch.trim()]);\n' +
+    '\n' +
+    '  const requestConnectorPage = async (query: string, cursor: string | null, append: boolean, tenant: string, generation: number): Promise<void> => {\n' +
+    '    const request = tenantActiveConnectorQuery(session, tenant, query, cursor);\n' +
+    '    if (!request) {\n' +
+    "      setConnectorIssue('A current Admin session scoped to this tenant is required for the active Connector catalog.');\n" +
+    '      setConnectorLoading(false);\n' +
+    '      return;\n' +
+    '    }\n' +
+    '    try {\n' +
+    '      const result = await client.listTenantActiveConnectorRevisions(request);\n' +
+    '      if (generation !== connectorRequestGeneration.current) return;\n' +
+    '      if (!result.ok) {\n' +
+    "        setConnectorIssue(`${result.problem.title ?? 'Connector catalog unavailable'} No platform-wide catalog fallback was used.`);\n" +
+    '        if (!append) { setConnectors([]); setConnectorCursor(null); setConnectorsScope(null); }\n' +
+    '        return;\n' +
+    '      }\n' +
+    '      if (!tenantActiveConnectorPageMatches(result.data, tenant)) {\n' +
+    "        setConnectorIssue('Tenant Connector catalog returned a different tenant. Those revisions were discarded.');\n" +
+    '        if (!append) { setConnectors([]); setConnectorCursor(null); setConnectorsScope(null); }\n' +
+    '        return;\n' +
+    '      }\n' +
+    '      const currentScope = JSON.stringify([tenant, aiDraft.provider, query]);\n' +
+    '      setConnectors((existing) => {\n' +
+    '        const byRevision = new Map((append ? existing : []).map((item) => [`${item.connectorId}@${item.revision}`, item]));\n' +
+    '        for (const item of result.data.items) byRevision.set(`${item.connectorId}@${item.revision}`, item);\n' +
+    '        return [...byRevision.values()];\n' +
+    '      });\n' +
+    '      setConnectorsScope(currentScope);\n' +
+    '      setConnectorCursor(result.data.nextCursor);\n' +
+    '      setConnectorIssue(null);\n' +
+    '    } catch {\n' +
+    "      if (generation === connectorRequestGeneration.current) setConnectorIssue('Tenant Connector catalog could not be reached.');\n" +
+    '    } finally {\n' +
+    '      if (generation === connectorRequestGeneration.current) setConnectorLoading(false);\n' +
+    '    }\n' +
+    '  };\n' +
+    '\n' +
+    '  const load = async (resetForms = false): Promise<void> => {\n' +
+    '    const generation = ++requestGeneration.current;\n' +
+    '    if (!tenantId) { setRead(null); setLoading(false); return; }\n' +
+    '    setLoading(true); setError(null);\n' +
+    '    try {\n' +
+    '      const response = await client.getGlobalSettings(tenantId);\n' +
+    '      if (generation !== requestGeneration.current) return;\n' +
+    '      if (!response.ok) { setRead(null); setError(problemText(response)); return; }\n' +
+    "      if (response.data.tenantId !== tenantId) { setRead(null); setError('The settings response did not match the selected organization.'); return; }\n" +
+    '      setRead(response.data);\n' +
+    '      if (resetForms || !aiD'... 46274 more characters
+  
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/orv14-settings-full-ui-owner.test.mjs:96:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "import { useEffect, useMemo, useRef, useState } from 'react';\nimport { Link } from 'react-router';\nimport { Badge } from '@/components/ui/badge';\nimport { Button } from '@/components/ui/button';\nimport { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';\nimport { AlertBanner } from '@/components/ui/state-panel';\nimport {\n  createAdminApiClient,\n  type AdminApiResult,\n  type AdminWebSession,\n  type GlobalSettingsPublishRequest,\n  type GlobalSettingsRollbackRequest,\n  type PlatformRetentionDraftRequest,\n  type PlatformRetentionRead,\n  type TenantAiDraftRequest,\n  type TenantAiTestRequest,\n  type TenantGlobalSettingsRead,\n  type TenantPromptDraftRequest,\n} from '@/lib/api';\nimport type { TenantActiveConnectorCatalogItem, TenantAiDefaults, TenantPromptDefaults } from '@du/contracts';\nimport { PROMPT_PRESETS, promptIssues, type PromptLocale } from './prompt-presets';\nimport type { EffectiveConfiguration } from './configuration-revisions';\nimport { tenantActiveConnectorPageMatches, tenantActiveConnectorQuery } from './tenant-connector-catalog';\n\ntype Mutation<T> = { label: string; run: () => Promise<AdminApiResult<T>> };\ntype UnknownAction = { label: string; retry: () => void };\ntype AiTestParameter = { name: string; kind: 'string' | 'number' | 'boolean'; value: string };\n\nconst DEFAULT_TEST_PROMPT = 'Reply with exactly: DUGATE AI connectivity test passed.';\nconst DEFAULT_AI: TenantAiDefaults = { provider: 'gemini', model: 'gemini-1.5-flash', connectorId: null, connectorRevision: null };\nconst DEFAULT_RETENTION = { cacheTtlHours: 168, outputRetentionDays: 30, cleanupIntervalSeconds: 3600 };\nconst DEFAULT_PROMPTS: TenantPromptDefaults = PROMPT_PRESETS.en;\n\nfunction completePrompts(value: Partial<Record<keyof TenantPromptDefaults, string | null>> | null | undefined): TenantPromptDefaults {\n  return {\n    image: value?.image ?? DEFAULT_PROMPTS.image,\n    pdf: value?.pdf ?? DEFAULT_PROMPTS.pdf,\n    docx: value?.docx ?? DEFAULT_PROMPTS.docx,\n    compare: value?.compare ?? DEFAULT_PROMPTS.compare,\n    generate: value?.generate ?? DEFAULT_PROMPTS.generate,\n  };\n}\n\nfunction keyForRequest(): string {\n  return crypto.randomUUID();\n}\n\nfunction problemText<T>(result: AdminApiResult<T>): string {\n  return result.ok ? '' : `${result.problem.title ?? 'Request failed'}${result.status === 409 ? ' The active revision changed; reload and inspect the current values before retrying.' : ''}`;\n}\n\nfunction isUncertain<T>(result: AdminApiResult<T>): boolean {\n  return !result.ok && (result.status === 0 || result.status >= 500);\n}\n\nfunction canManageTenant(session: AdminWebSession | null, tenantId: string | null): boolean {\n  return Boolean(session?.role === 'admin' && tenantId\n    && (session.principal.kind === 'platform' || (session.principal.kind === 'tenant_operator' && session.principal.tenantId === tenantId)));\n}\n\nfunction connectorName(connector: TenantActiveConnectorCatalogItem): string {\n  return `${connector.connectorId} · ${connector.provider} · ${connector.model ?? 'model not set'} · revision ${connector.revision}`;\n}\n\nfunction activeRevision<T extends { revision: number }>(history: T[], revision: number | null): T | null {\n  return revision === null ? null : history.find((item) => item.revision === revision) ?? null;\n}\n\nfunction changedFields(before: Record<string, unknown>, after: Record<string, unknown>): Array<{ name: string; before: string; after: string }> {\n  return Object.keys(after).flatMap((name) => {\n    const left = JSON.stringify(before[name] ?? null);\n    const right = JSON.stringify(after[name] ?? null);\n    return left === right ? [] : [{ name, before: before[name] === undefined ? 'Not set' : String(before[name]), after: after[name] === undefined ? 'Not set' : String(after[name]) }];\n  });\n}\n\nfunction RevisionHistory<T extends { revision: number; state: string; createdAt: string; actor: string; digest: string }>({ items, active, onRollback, disabled }: {\n  items: T[];\n  active: number | null;\n  onRollback: (revision: number) => void;\n  disabled: boolean;\n}) {\n  return <div className='space-y-2'>\n    <h3 className='font-semibold'>Revision history</h3>\n    {items.length === 0 ? <p className='text-sm'>No saved revisions yet.</p> : <ul className='space-y-2'>\n      {items.map((item) => <li key={item.revision} className='flex min-w-0 flex-col gap-2 rounded border p-3 sm:flex-row sm:items-center sm:justify-between'>\n        <div className='min-w-0'>\n          <div className='flex flex-wrap items-center gap-2'><strong>Revision {item.revision}</strong><Badge variant={item.revision === active ? 'success' : item.state === 'DRAFT' ? 'warning' : 'neutral'}>{item.revision === active ? 'CURRENT' : item.state}</Badge></div>\n          <p className='break-all text-xs'>Created {new Date(item.createdAt).toLocaleString()} · {item.actor} · {item.digest}</p>\n        </div>\n        {(item.state === 'PUBLISHED' || item.state === 'SUPERSEDED') && item.revision !== active\n          ? <Button type='button' variant='outline' disabled={disabled} onClick={() => onRollback(item.revision)}>Review rollback</Button>\n          : null}\n      </li>)}\n    </ul>}\n  </div>;\n}\n\nexport function TenantAiSettingsPanel({\n  tenantId,\n  session,\n  apiKeyId,\n  endpointSlug,\n  configuration,\n}: {\n  tenantId: string | null;\n  session: AdminWebSession | null;\n  apiKeyId: string;\n  endpointSlug: string;\n  configuration: EffectiveConfiguration | undefined;\n}) {\n  const client = useMemo(() => createAdminApiClient(), []);\n  const [read, setRead] = useState<TenantGlobalSettingsRead | null>(null);\n  const [connectors, setConnectors] = useState<TenantActiveConnectorCatalogItem[]>([]);\n  const [connectorsScope, setConnectorsScope] = useState<string | null>(null);\n  const [connectorCursor, setConnectorCursor] = useState<string | null>(null);\n  const [loading, setLoading] = useState(false);\n  const [connectorLoading, setConnectorLoading] = useState(false);\n  const [connectorIssue, setConnectorIssue] = useState<string | null>(null);\n  const [connectorSearch, setConnectorSearch] = useState('');\n  const [busy, setBusy] = useState(false);\n  const [error, setError] = useState<string | null>(null);\n  const [notice, setNotice] = useState<string | null>(null);\n  const [unknown, setUnknown] = useState<UnknownAction | null>(null);\n  const [aiDraft, setAiDraft] = useState<TenantAiDefaults>(DEFAULT_AI);\n  const [aiDirty, setAiDirty] = useState(false);\n  const [promptDraft, setPromptDraft] = useState<TenantPromptDefaults>(DEFAULT_PROMPTS);\n  const [promptDirty, setPromptDirty] = useState(false);\n  const [reason, setReason] = useState('Update tenant AI and prompt defaults');\n  const [testPrompt, setTestPrompt] = useState(DEFAULT_TEST_PROMPT);\n  const [testParameters, setTestParameters] = useState<AiTestParameter[]>([]);\n  const [testFiles, setTestFiles] = useState<File[]>([]);\n  const [testResult, setTestResult] = useState<{ revision: number; ok: boolean; testedAt: string; errorCode: string | null } | null>(null);\n  const [testUnknown, setTestUnknown] = useState<{ body: TenantAiTestRequest; label: string } | null>(null);\n  const [rollbackChoice, setRollbackChoice] = useState<{ stream: 'ai' | 'prompts'; revision: number } | null>(null);\n  const requestGeneration = useRef(0);\n  const connectorRequestGeneration = useRef(0);\n  const connectorScope = JSON.stringify([tenantId, aiDraft.provider, connectorSearch.trim()]);\n\n  const requestConnectorPage = async (query: string, cursor: string | null, append: boolean, tenant: string, generation: number): Promise<void> => {\n    const request = tenantActiveConnectorQuery(session, tenant, query, cursor);\n    if (!request) {\n      setConnectorIssue('A current Admin session scoped to this tenant is required for the active Connector catalog.');\n      setConnectorLoading(false);\n      return;\n    }\n    try {\n      const result = await client.listTenantActiveConnectorRevisions(request);\n      if (generation !== connectorRequestGeneration.current) return;\n      if (!result.ok) {\n        setConnectorIssue(`${result.problem.title ?? 'Connector catalog unavailable'} No platform-wide catalog fallback was used.`);\n        if (!append) { setConnectors([]); setConnectorCursor(null); setConnectorsScope(null); }\n        return;\n      }\n      if (!tenantActiveConnectorPageMatches(result.data, tenant)) {\n        setConnectorIssue('Tenant Connector catalog returned a different tenant. Those revisions were discarded.');\n        if (!append) { setConnectors([]); setConnectorCursor(null); setConnectorsScope(null); }\n        return;\n      }\n      const currentScope = JSON.stringify([tenant, aiDraft.provider, query]);\n      setConnectors((existing) => {\n        const byRevision = new Map((append ? existing : []).map((item) => [`${item.connectorId}@${item.revision}`, item]));\n        for (const item of result.data.items) byRevision.set(`${item.connectorId}@${item.revision}`, item);\n        return [...byRevision.values()];\n      });\n      setConnectorsScope(currentScope);\n      setConnectorCursor(result.data.nextCursor);\n      setConnectorIssue(null);\n    } catch {\n      if (generation === connectorRequestGeneration.current) setConnectorIssue('Tenant Connector catalog could not be reached.');\n    } finally {\n      if (generation === connectorRequestGeneration.current) setConnectorLoading(false);\n    }\n  };\n\n  const load = async (resetForms = false): Promise<void> => {\n    const generation = ++requestGeneration.current;\n    if (!tenantId) { setRead(null); setLoading(false); return; }\n    setLoading(true); setError(null);\n    try {\n      const response = await client.getGlobalSettings(tenantId);\n      if (generation !== requestGeneration.current) return;\n      if (!response.ok) { setRead(null); setError(problemText(response)); return; }\n      if (response.data.tenantId !== tenantId) { setRead(null); setError('The settings response did not match the selected organization.'); return; }\n      setRead(response.data);\n      if (resetForms || !aiD"... 46274 more characters,
+    expected: /connectorsTenantId === tenantId/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\workflow-simulation-honesty.test.mjs:102:3
+✖ marks local runs as simulation and carries defined stage names (0.8561ms)
+  ReferenceError: workflow is not defined
+      at eval (eval at createSimulationResult (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:75:10), <anonymous>:6:33)
+      at createSimulationResult (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:75:104)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:103:20)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at node:internal/test_runner/test:1903:71
+      at node:internal/per_context/primordials:504:82
+      at new Promise (<anonymous>)
+      at new SafePromise (node:internal/per_context/primordials:478:3)
+
+test at tests\workflow-simulation-honesty.test.mjs:115:3
+✖ treats missing or empty stages as an empty simulation flow (0.2146ms)
+  ReferenceError: workflow is not defined
+      at eval (eval at createSimulationResult (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:75:10), <anonymous>:6:33)
+      at createSimulationResult (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:75:104)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:117:22)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+
+test at tests\workflow-simulation-honesty.test.mjs:123:3
+✖ shows a clear configuration-gap message when simulation has no stages (0.1296ms)
+  ReferenceError: workflow is not defined
+      at eval (eval at createSimulationResult (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:75:10), <anonymous>:6:33)
+      at createSimulationResult (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:75:104)
+      at TestContext.<anonymous> (file:///D:/Git/dugate/du-rework/orchestrator/apps/admin-web/tests/workflow-simulation-honesty.test.mjs:124:36)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7)

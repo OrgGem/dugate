@@ -1,0 +1,9 @@
+
+> @du/worker-sdk@0.1.0 test D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+> jest --runInBand "--runTestsByPath" "tests/woc-runtime-client.test.ts"
+
+Test Suites: 1 passed, 1 total
+Tests:       14 passed, 14 total
+Snapshots:   0 total
+Time:        2.123 s
+Ran all test suites within paths "tests/woc-runtime-client.test.ts".

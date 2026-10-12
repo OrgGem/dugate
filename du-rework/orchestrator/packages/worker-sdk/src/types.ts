@@ -304,10 +304,14 @@ export interface WorkerConfig {
   redis?: { url: string };
   /** Stable instance identity; generated when omitted. */
   workerInstanceId?: string;
+  /** Cancel startup before heartbeat/queue consumption; ignored after startup resolves. */
+  startupSignal?: AbortSignal;
   /** Max concurrent task deliveries (queue slot count). */
   concurrency?: number;
   /** Lease/heartbeat tuning; defaults from contracts LEASE_DEFAULTS. */
   heartbeatIntervalMs?: number;
+  /** Stop effectful work this long before the last confirmed lease expiry. */
+  leaseSafetyMarginMs?: number;
   /** Image digest reported in registration/heartbeat. */
   imageDigest?: string;
   /** Deployment release label from the immutable host manifest. */

@@ -2,6 +2,7 @@
 export * from './connector';
 export * from './encryption';
 export * from './errors';
+export * from './global-settings';
 export * from './hashing';
 export * from './ip-policy';
 export * from './json-schema-guard';

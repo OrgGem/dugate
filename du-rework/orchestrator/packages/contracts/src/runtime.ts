@@ -18,6 +18,10 @@ import { ProviderReportedCostSchema, UsageCostProvenanceSchema } from './usage-m
 export const WorkerHeartbeatSchema = z.object({
   businessId: z.string().min(1),
   businessVersion: z.string().min(1),
+    /** Digest returned by idempotent manifest registration. Optional for v1
+     * compatibility; when absent, claims rely on the immutable server-side
+     * registered version digest. Any supplied value must match that digest. */
+  manifestDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
   imageDigest: z.string().min(1),
   /** Immutable runtime release label emitted by the worker process. */
   deploymentRevision: z.string().min(1).max(128).optional(),
@@ -38,15 +42,43 @@ export const HeartbeatAckSchema = z.object({
   /** Durable admission revision and state the worker has observed. */
   controlRevision: z.number().int().nonnegative().default(0),
   controlState: z.enum(['OPEN', 'PAUSED', 'DRAINING']).default('OPEN'),
-  /** Separate from ordinary queue admission: current handlers and heartbeats
-   * continue while the backup effect fence blocks new claims. */
+  /** Additive v1 capability, separate from ordinary queue admission: current
+   * handlers and heartbeats continue while the backup effect fence blocks new
+   * claims. Older servers may omit this field; consumers must interpret
+   * absence as UNKNOWN and fail closed for new external effects. The server
+   * continues to emit the current observation when available. */
   backupEffectFence: z.object({
     state: z.enum(['OPEN', 'HELD', 'UNKNOWN']),
     revision: z.number().int().nonnegative(),
     acknowledged: z.boolean(),
-  }).strict(),
+  }).strict().optional(),
 });
 export type HeartbeatAck = z.infer<typeof HeartbeatAckSchema>;
+
+/**
+ * Claim refusal disposition shared by the server and worker SDK. A delivery
+ * may be ACKed only for outcomes that prove this delivery is obsolete or a
+ * compatible execution already owns the durable task. Deferred outcomes keep
+ * the task and delivery recoverable. Unknown codes must fail closed.
+ */
+export const RUNTIME_CLAIM_ERROR_DISPOSITION = {
+  NOT_FOUND: 'ACK_SAFE',
+  TASK_TERMINAL: 'ACK_SAFE',
+  TASK_WAITING: 'ACK_SAFE',
+  TASK_LEASE_ACTIVE: 'ACK_SAFE',
+  ADMISSION_PAUSED: 'DEFER',
+  WORKER_NOT_REGISTERED: 'DEFER',
+  WORKER_ADMISSION_CLOSED: 'DEFER',
+  TASK_NOT_READY: 'DEFER',
+  WORKER_VERSION_MISMATCH: 'DEFER',
+  MANIFEST_DIGEST_MISMATCH: 'DEFER',
+  BUSINESS_DISABLED: 'DEFER',
+  TASK_LEASE_HELD: 'DEFER',
+  TEMPORARY_UNAVAILABLE: 'DEFER',
+  SHUTTING_DOWN: 'DEFER',
+} as const;
+export type RuntimeClaimErrorCode = keyof typeof RUNTIME_CLAIM_ERROR_DISPOSITION;
+export type RuntimeClaimDisposition = (typeof RUNTIME_CLAIM_ERROR_DISPOSITION)[RuntimeClaimErrorCode];
 
 /* ------------------------------------------------------------------ */
 /* Claim / context                                                     */

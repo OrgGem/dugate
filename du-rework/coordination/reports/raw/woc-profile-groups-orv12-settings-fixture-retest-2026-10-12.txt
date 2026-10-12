@@ -1,0 +1,9 @@
+
+> @du/orchestrator@0.1.0 test D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> jest --runInBand "--runInBand" "tests/orv12-settings.test.ts"
+
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        5.169 s, estimated 6 s
+Ran all test suites matching tests/orv12-settings.test.ts.

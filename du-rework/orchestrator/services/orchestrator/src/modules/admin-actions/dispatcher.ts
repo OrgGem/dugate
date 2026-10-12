@@ -1012,12 +1012,80 @@ export async function dispatchAdminAction(
             if (key.status !== 'ACTIVE') {
               throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
             }
-            const profile = await client.query(
-              'SELECT 1 FROM profile_bindings WHERE profile_id=$1 AND tenant_id=$2 LIMIT 1',
+            const profile = await client.query<{
+              group_id: string | null;
+              business_id: string;
+              business_version: string;
+              action: string;
+              endpoint_slug: string | null;
+            }>(
+              `SELECT n.group_id, b.business_id, b.business_version, b.action, b.endpoint_slug
+                 FROM profile_active_revisions a
+                 JOIN profile_bindings b ON b.profile_id=a.profile_id AND b.revision=a.revision
+                 LEFT JOIN profile_names n ON n.profile_id=b.profile_id
+                WHERE b.profile_id=$1 AND b.tenant_id=$2 LIMIT 1`,
               [p.profileId, key.tenant_id]
             );
             if (!profile.rowCount) {
               throw new HttpError(404, 'NOT_FOUND', 'profile not found in this tenant');
+            }
+            if (profile.rows[0]?.group_id) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'profile group children cannot be edited through API-key membership actions');
+            }
+            const binding = profile.rows[0]!;
+            await deps.profiles.lockSelectors([{
+              businessId: binding.business_id,
+              businessVersion: binding.business_version,
+              action: binding.action,
+              endpointSlug: binding.endpoint_slug,
+            }], client);
+            const lockedKey = await deps.profiles.lockApiKeyRow(key.id, client, 'share');
+            if (!lockedKey || lockedKey.status !== 'ACTIVE' || lockedKey.tenant_id !== key.tenant_id) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            const currentProfile = await client.query<{
+              group_id: string | null;
+              business_id: string;
+              business_version: string;
+              action: string;
+              endpoint_slug: string | null;
+            }>(
+              `SELECT n.group_id, b.business_id, b.business_version, b.action, b.endpoint_slug
+                 FROM profile_active_revisions a
+                 JOIN profile_bindings b ON b.profile_id=a.profile_id AND b.revision=a.revision
+                 LEFT JOIN profile_names n ON n.profile_id=b.profile_id
+                WHERE b.profile_id=$1 AND b.tenant_id=$2 LIMIT 1`,
+              [p.profileId, key.tenant_id]
+            );
+            const currentBinding = currentProfile.rows[0];
+            if (!currentBinding) throw new HttpError(404, 'NOT_FOUND', 'profile not found in this tenant');
+            if (currentBinding.business_id !== binding.business_id
+                || currentBinding.business_version !== binding.business_version
+                || currentBinding.action !== binding.action
+                || currentBinding.endpoint_slug !== binding.endpoint_slug) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'profile selector changed while membership was being prepared; retry');
+            }
+            const ownership = await client.query<{ group_id: string | null }>(
+              'SELECT group_id FROM profile_names WHERE profile_id=$1 FOR UPDATE',
+              [p.profileId],
+            );
+            if (ownership.rows[0]?.group_id) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'profile group children cannot be edited through API-key membership actions');
+            }
+            const overlap = await client.query(
+              `SELECT b.profile_id
+                 FROM profile_active_revisions a
+                 JOIN profile_bindings b ON b.profile_id=a.profile_id AND b.revision=a.revision
+                 JOIN profile_api_keys m ON m.profile_id=b.profile_id AND m.api_key_id=$1
+                  AND m.tenant_id=b.tenant_id AND m.state='ACTIVE'
+                WHERE b.tenant_id=$2 AND b.business_id=$3 AND b.business_version=$4 AND b.action=$5
+                  AND b.profile_id<>$6
+                  AND (b.endpoint_slug IS NULL OR $7::text IS NULL OR b.endpoint_slug=$7)
+                LIMIT 1`,
+              [key.id, key.tenant_id, binding.business_id, binding.business_version, binding.action, p.profileId, binding.endpoint_slug],
+            );
+            if (overlap.rowCount) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'API key already has an overlapping active binding for this function');
             }
             const membership = await deps.profiles.addMembership(
               { profileId: p.profileId, apiKeyId: key.id, tenantId: key.tenant_id },
@@ -1094,8 +1162,8 @@ export async function dispatchAdminAction(
             if (old.status !== 'ACTIVE') {
               throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
             }
-            const memberships = await deps.profiles.listActiveMemberships(old.id, client);
-            if (memberships.length === 0) {
+            const membershipSelectors = await deps.profiles.listActiveMembershipSelectors(old.id, client);
+            if (membershipSelectors.length === 0) {
               // Revoking here would destroy the key with nothing to inherit.
               throw new HttpError(
                 409,
@@ -1103,6 +1171,34 @@ export async function dispatchAdminAction(
                 'api key has no ACTIVE profile membership; nothing to inherit — issue a key for the profile instead'
               );
             }
+            // Membership mutations acquire selectors before key rows. Rotation
+            // follows the same order, then locks the key and re-reads the full
+            // membership-selector set; it only copies if that exact snapshot
+            // is covered by the selector locks already held.
+            await deps.profiles.lockSelectors(membershipSelectors.map((membership) => membership.selector), client);
+            const lockedOld = await deps.profiles.lockApiKeyRow(old.id, client, 'update');
+            if (!lockedOld || lockedOld.status !== 'ACTIVE' || lockedOld.tenant_id !== old.tenant_id) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key is not ACTIVE');
+            }
+            const lockedMembershipSelectors = await deps.profiles.listActiveMembershipSelectors(old.id, client);
+            const membershipSnapshot = (entries: typeof membershipSelectors): string[] => entries
+              .map(({ profileId, tenantId, selector }) => JSON.stringify([
+                profileId,
+                tenantId,
+                selector.businessId,
+                selector.businessVersion,
+                selector.action,
+                selector.endpointSlug ?? null,
+              ]))
+              .sort();
+            if (JSON.stringify(membershipSnapshot(lockedMembershipSelectors)) !== JSON.stringify(membershipSnapshot(membershipSelectors))) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'active API-key memberships changed while acquiring selector locks; retry rotation');
+            }
+            if (lockedMembershipSelectors.length === 0) {
+              throw new HttpError(409, 'STATE_CONFLICT', 'api key has no ACTIVE profile membership; nothing to inherit — issue a key for the profile instead');
+            }
+            // Copy only the exact membership set whose selectors this transaction holds.
+            const memberships = lockedMembershipSelectors.map(({ profileId, tenantId }) => ({ profileId, tenantId }));
             const keyHash = deps.hashApiKey(p.apiKey);
             const prefix = p.apiKey.slice(0, 4);
             // The label follows the credential: an unnamed key stays unnamed

@@ -127,84 +127,82 @@ export function BusinessDetailCockpit({ businessId }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Versions</CardTitle>
+          <CardTitle>Business versions and worker replicas</CardTitle>
           <CardDescription>
-            Registry rows as stored. status and is_active are separate columns on purpose.
+            Worker state is grouped under its registered business version. Accepted tasks counts successful claims across versions for the same worker instance; the counter-since time identifies its measurement epoch. The default version only selects the target for new submissions.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {versions.kind === 'loading' ? <LoadingState title="Loading versions" /> : null}
           {versions.kind === 'failed' ? <CardError problem={versions.problem} onRetry={() => void loadVersions()} /> : null}
           {versions.kind === 'ready' ? <SampleTime at={newest(versions.data.rows)} /> : null}
+          {workers.kind === 'loading' ? <LoadingState title="Loading worker replicas" /> : null}
+          {workers.kind === 'failed' ? <CardError problem={workers.problem} onRetry={() => void loadWorkers()} /> : null}
+          {workers.kind === 'ready' ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-sub)]">
+              <SampleTime at={workers.data.sampledAt} />
+              {workers.data.truncated ? <Badge variant="warning" dot>inventory truncated by the server</Badge> : null}
+              <span>Queue backlog is version-scoped and is not reported by this worker inventory.</span>
+            </div>
+          ) : null}
           {versions.kind === 'ready' && versions.data.rows.length === 0 ? (
             <p className="text-sm text-[var(--text-sub)]">No version rows registered for this business.</p>
           ) : null}
           {versions.kind === 'ready' && versions.data.rows.length > 0 ? (
-            <TableContainer>
-              <Table aria-label="Business versions">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Version</TableHead><TableHead>Status</TableHead><TableHead>is_active</TableHead><TableHead>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {versions.data.rows.map((row) => (
-                    <TableRow key={row.version}>
-                      <TableCell className="font-mono">{row.version}</TableCell>
-                      <TableCell><Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} dot>{row.status}</Badge></TableCell>
-                      <TableCell>{row.isActive ? 'true' : 'false'}</TableCell>
-                      <TableCell className="text-xs">{row.updatedAt ?? 'not reported'}</TableCell>
-                    </TableRow>
+            <div className="flex flex-col gap-4">
+              {versions.data.rows.map((version) => {
+                const replicas = workers.kind === 'ready'
+                  ? workers.data.items.filter((worker) => worker.businessVersion === version.version)
+                  : [];
+                return (
+                  <section key={version.version} aria-labelledby={`business-version-${version.version}`} className="rounded border border-[var(--border-subtle)] p-3">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <h3 id={`business-version-${version.version}`} className="font-mono text-sm font-semibold">{version.version}</h3>
+                      <Badge variant={version.status === 'ENABLED' ? 'success' : version.status === 'DRAINING' ? 'warning' : 'neutral'} dot>{version.status}</Badge>
+                      <Badge variant={version.isActive ? 'success' : 'neutral'}>{version.isActive ? 'Default for new submissions' : 'Not default'}</Badge>
+                      <span className="ml-auto text-xs text-[var(--text-sub)]">updated {version.updatedAt ?? 'not reported'}</span>
+                    </div>
+                    {workers.kind === 'ready' && replicas.length === 0 ? (
+                      <p className="text-sm text-[var(--text-sub)]">No worker instances are currently reported for this version.</p>
+                    ) : null}
+                    {workers.kind === 'ready' && replicas.length > 0 ? (
+                      <TableContainer>
+                        <Table aria-label={`Worker replicas for ${businessId} version ${version.version}`}>
+                          <TableHeader><TableRow>
+                            <TableHead>Instance</TableHead><TableHead>State</TableHead><TableHead>Health</TableHead><TableHead>Accepted tasks</TableHead><TableHead>Running / capacity</TableHead><TableHead>Last seen</TableHead><TableHead>Observed</TableHead>
+                          </TableRow></TableHeader>
+                          <TableBody>{replicas.map((worker) => (
+                            <TableRow key={worker.instanceId}>
+                              <TableCell className="font-mono text-xs">{worker.instanceId}</TableCell>
+                              <TableCell><Badge variant={worker.state === 'ONLINE' ? 'success' : worker.state === 'DRAINING' ? 'warning' : 'neutral'} dot>{worker.state}</Badge></TableCell>
+                              <TableCell><Badge variant={worker.health === 'HEALTHY' ? 'success' : worker.health === 'DEGRADED' ? 'warning' : 'neutral'} dot>{worker.health}</Badge></TableCell>
+              <TableCell title={`Scope: ${worker.acceptedTaskCountScope ?? 'not reported'}. Counter since: ${worker.acceptedTaskCountSince ?? 'not reported'}. A new instance identity starts a new counter.`}>
+                                {typeof worker.acceptedTaskCount === 'number' ? worker.acceptedTaskCount.toLocaleString() : 'Not reported'}
+                              </TableCell>
+                              <TableCell>{worker.activeLeases} / {worker.capacity}</TableCell>
+                              <TableCell className="text-xs">{worker.lastSeenAt}</TableCell>
+                              <TableCell className="text-xs">{worker.observedAt}</TableCell>
+                            </TableRow>
+                          ))}</TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : null}
+                  </section>
+                );
+              })}
+              {workers.kind === 'ready' && workers.data.items.some((worker) => !versions.data.rows.some((version) => version.version === worker.businessVersion)) ? (
+                <section aria-labelledby="unmatched-worker-version" className="rounded border border-[var(--border-subtle)] p-3">
+                  <h3 id="unmatched-worker-version" className="mb-2 text-sm font-semibold">Worker rows without a registered version row</h3>
+                  <p className="mb-3 text-xs text-[var(--text-sub)]">These inventory rows are kept separate because their version is absent from the registry response.</p>
+                  {workers.data.items.filter((worker) => !versions.data.rows.some((version) => version.version === worker.businessVersion)).map((worker) => (
+                    <div key={worker.instanceId} className="flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] py-2 text-xs">
+                      <span className="font-mono">{worker.businessVersion} · {worker.instanceId}</span><Badge variant={worker.state === 'ONLINE' ? 'success' : worker.state === 'DRAINING' ? 'warning' : 'neutral'}>{worker.state}</Badge>
+                      <span>{typeof worker.acceptedTaskCount === 'number' ? `${worker.acceptedTaskCount} accepted` : 'accepted count not reported'}</span><span>{worker.activeLeases}/{worker.capacity} running/capacity</span>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Worker instances</CardTitle>
-          <CardDescription>Persisted heartbeat rows for this business. Health is the server's own verdict.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {workers.kind === 'loading' ? <LoadingState title="Loading worker instances" /> : null}
-          {workers.kind === 'failed' ? <CardError problem={workers.problem} onRetry={() => void loadWorkers()} /> : null}
-          {workers.kind === 'ready' ? (
-            <>
-              <SampleTime at={workers.data.sampledAt} />
-              {workers.data.truncated ? (
-                <Badge variant="warning" dot>truncated - rows were capped by the read</Badge>
+                </section>
               ) : null}
-            </>
-          ) : null}
-          {workers.kind === 'ready' && workers.data.items.length === 0 ? (
-            <p className="text-sm text-[var(--text-sub)]">No heartbeat rows for this business.</p>
-          ) : null}
-          {workers.kind === 'ready' && workers.data.items.length > 0 ? (
-            <TableContainer>
-              <Table aria-label="Worker instances">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Instance</TableHead><TableHead>Version</TableHead><TableHead>State</TableHead><TableHead>Health</TableHead><TableHead>Leases / capacity</TableHead><TableHead>Last seen</TableHead><TableHead>Observed</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workers.data.items.map((row) => (
-                    <TableRow key={row.instanceId}>
-                      <TableCell className="font-mono text-xs">{row.instanceId}</TableCell>
-                      <TableCell className="font-mono">{row.businessVersion}</TableCell>
-                      <TableCell><Badge variant={row.state === 'ONLINE' ? 'success' : row.state === 'DRAINING' ? 'warning' : 'neutral'} dot>{row.state}</Badge></TableCell>
-                      <TableCell><Badge variant={row.health === 'HEALTHY' ? 'success' : row.health === 'DEGRADED' ? 'warning' : 'neutral'} dot>{row.health}</Badge></TableCell>
-                      <TableCell>{row.activeLeases} / {row.capacity}</TableCell>
-                      <TableCell className="text-xs">{row.lastSeenAt}</TableCell>
-                      <TableCell className="text-xs">{row.observedAt}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            </div>
           ) : null}
         </CardContent>
       </Card>

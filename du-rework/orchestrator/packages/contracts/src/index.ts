@@ -59,3 +59,4 @@ export * from './service-runtime';
 export * from './cost-alerts';
 export * from './cost-adjustments';
 export * from './tenant-connectors';
+export * from './profile-groups';

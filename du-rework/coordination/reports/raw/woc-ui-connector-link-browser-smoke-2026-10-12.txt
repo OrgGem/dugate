@@ -1,0 +1,1 @@
+{"result":"pass","checks":[{"source":"Initial connector bindings","destination":"/admin/connectors","rendered":"Connectors screen"},{"source":"Profile group connector bindings","destination":"/admin/connectors","rendered":"Connectors screen"}],"pageErrors":[]}

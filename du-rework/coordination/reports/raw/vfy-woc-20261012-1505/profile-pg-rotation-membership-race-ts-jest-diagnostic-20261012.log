@@ -1,0 +1,46 @@
+VFY-WOC final profile rotation/membership race verification
+started=2026-10-12T17:44:51.6712976+07:00
+finished=2026-10-12T17:45:13.6573247+07:00
+cwd=D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+branch=codex/fix-workflow-builder
+head=b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+command=pnpm exec jest --runInBand --config jest.unit.config.cjs --runTestsByPath tests/woc-independent-profile-pg.test.ts -t 'serializes concurrent group|keeps business disable|blocks the legacy|rejects a legacy rollback|rejects publishing a legacy|rejects appending a legacy|rotates through the admin action|rejects a stale rotation snapshot'
+diagnostics_override=none; jest.unit.config.cjs normal ts-jest diagnostics
+database=verifier-owned woc_verify_test on 127.0.0.1:50950
+redis=verifier-owned DB 2 on 127.0.0.1:50953
+preflight_note=first wrapper attempt used repository-relative hash paths from the service cwd and did not launch Jest; corrected paths used here
+--- SOURCE/TEST HASHES BEFORE ---
+CEC786D147913B598A347F8159FCEBC352DF9FE13C0C525CB6B84749FE687327  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\dispatcher.ts
+A0C1E2462567AB7D13D01A968B722955F19F07BE5F0A51F752EBE185BDA810A5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profile-groups.ts
+D81F7FFEE026DD9886ACD787FF4C184F2247D215BE1CF717A3D30B8204188D79  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profiles.ts
+D1D2250D1DB17FC1BCA536EC9A4CC7C1FA3050E578CC2EBA29D540CCC9DDD0C4  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\profile-actions.ts
+091830A2DA70BB86F21700228402D2B03ABDADBBE6A68C786F9B3904ED0B8F23  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\queue\dispatcher.ts
+F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts
+157F5CCC140F1F76D03F8B3DCBD5D73B46163277493B3C59991BF7609D518C93  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts
+--- TEST OUTPUT ---
+FAIL tests/woc-independent-profile-pg.test.ts
+  ● Test suite failed to run
+
+    [96mtests/woc-independent-profile-pg.test.ts[0m:[93m1116[0m:[93m38[0m - [91merror[0m[90m TS18047: [0m'failedReplacement.rowCount' is possibly 'null'.
+
+    [7m1116[0m           failedReplacementInserted: failedReplacement.rowCount > 0,
+    [7m    [0m [91m                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/woc-independent-profile-pg.test.ts[0m:[93m1123[0m:[93m38[0m - [91merror[0m[90m TS18047: [0m'failedReplacement.rowCount' is possibly 'null'.
+
+    [7m1123[0m           failedReplacementInserted: failedReplacement.rowCount > 0,
+    [7m    [0m [91m                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        15.182 s
+Ran all test suites within paths "tests/woc-independent-profile-pg.test.ts".
+--- SOURCE/TEST HASHES AFTER ---
+CEC786D147913B598A347F8159FCEBC352DF9FE13C0C525CB6B84749FE687327  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\dispatcher.ts
+A0C1E2462567AB7D13D01A968B722955F19F07BE5F0A51F752EBE185BDA810A5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profile-groups.ts
+D81F7FFEE026DD9886ACD787FF4C184F2247D215BE1CF717A3D30B8204188D79  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profiles.ts
+D1D2250D1DB17FC1BCA536EC9A4CC7C1FA3050E578CC2EBA29D540CCC9DDD0C4  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\profile-actions.ts
+091830A2DA70BB86F21700228402D2B03ABDADBBE6A68C786F9B3904ED0B8F23  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\queue\dispatcher.ts
+F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts
+157F5CCC140F1F76D03F8B3DCBD5D73B46163277493B3C59991BF7609D518C93  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts
+jest_exit=1

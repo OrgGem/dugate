@@ -1,0 +1,69 @@
+VFY-WOC final profile rotation/membership race verification (rerun)
+started=2026-10-12T17:45:39.7289780+07:00
+finished=2026-10-12T17:45:57.8765210+07:00
+cwd=D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+branch=codex/fix-workflow-builder
+head=b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+command=pnpm exec jest --runInBand --config jest.unit.config.cjs --runTestsByPath tests/woc-independent-profile-pg.test.ts -t 'serializes concurrent group|keeps business disable|blocks the legacy|rejects a legacy rollback|rejects publishing a legacy|rejects appending a legacy|rotates through the admin action|rejects a stale rotation snapshot'
+diagnostics_override=none; jest.unit.config.cjs normal ts-jest diagnostics
+database=verifier-owned woc_verify_test on 127.0.0.1:50950
+redis=verifier-owned DB 2 on 127.0.0.1:50953
+prior-attempt=ts-jest caught a test-only possibly-null pg rowCount; fixed in verifier test before this rerun
+--- SOURCE/TEST HASHES BEFORE ---
+CEC786D147913B598A347F8159FCEBC352DF9FE13C0C525CB6B84749FE687327  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\dispatcher.ts
+A0C1E2462567AB7D13D01A968B722955F19F07BE5F0A51F752EBE185BDA810A5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profile-groups.ts
+D81F7FFEE026DD9886ACD787FF4C184F2247D215BE1CF717A3D30B8204188D79  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profiles.ts
+D1D2250D1DB17FC1BCA536EC9A4CC7C1FA3050E578CC2EBA29D540CCC9DDD0C4  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\profile-actions.ts
+091830A2DA70BB86F21700228402D2B03ABDADBBE6A68C786F9B3904ED0B8F23  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\queue\dispatcher.ts
+F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts
+EABDAE5B63FC87EFA3FF7FD3875F7670EF4E6B81F3F481E6DC4948648F6D7915  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts
+--- TEST OUTPUT ---
+  console.info
+    [VFY-WOC] profile disable/save evidence={"businessId":"woc-vfy-e372a3b4","groupBackend":{"pid":31887,"xid":"3716"},"disableBackendPid":31872,"sqlOrder":["group catalog root FOR SHARE completed","group version/catalog JOIN completed; barrier entered","registry.setBusinessEnabled(false) called","disable promise still pending at 250ms barrier check","separate catalog read while paused enabled=true"],"activity":[{"pid":31872,"backend_xid":null,"state":"active","wait_event_type":"Lock","wait_event":"transactionid","query":"SELECT enabled,lifecycle_revision\n             FROM business_catalog\n            WHERE business_id=$1\n            FOR UPDATE"},{"pid":31887,"backend_xid":"3716","state":"idle in transaction","wait_event_type":"Client","wait_event":"ClientRead","query":"SELECT pg_backend_pid() AS pid, txid_current()::text AS xid"}],"locks":[{"pid":31872,"locktype":"relation","mode":"RowShareLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":31872,"locktype":"transactionid","mode":"ShareLock","granted":false,"relation":null,"transaction_id":"3716"},{"pid":31872,"locktype":"tuple","mode":"AccessExclusiveLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":31887,"locktype":"relation","mode":"AccessShareLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":31887,"locktype":"relation","mode":"RowShareLock","granted":true,"relation":"business_catalog","transaction_id":null},{"pid":31887,"locktype":"transactionid","mode":"ExclusiveLock","granted":true,"relation":null,"transaction_id":"3716"}]}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:432:15)
+
+  console.info
+    [VFY-WOC] legacy target-selector rollback evidence={"secondVersionDigestMatches":true,"activePointerBeforeGroupRollback":2,"rollbackStatus":409,"rollbackCode":"STATE_CONFLICT","activePointerAfter":2,"overlappingActiveSelectors":1,"groupRevision":1}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:589:15)
+
+  console.info
+    [VFY-WOC] legacy publish target-selector evidence={"publishStatus":409,"publishCode":"STATE_CONFLICT","pointerRevision":1,"targetSelectorCount":1,"groupRevision":1,"resolverProfileId":"26465267-bc02-414c-a504-206ddc459f82"}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:674:15)
+
+  console.info
+    [VFY-WOC] legacy cross-key append evidence={"appendStatus":409,"appendCode":"STATE_CONFLICT","beforePointer":1,"afterPointer":1,"beforeRevisionCount":1,"afterRevisionCount":1,"beforeMembershipCount":2,"afterMembershipCount":2,"groupRevision":1,"resolverProfileId":"c6c08bec-e86c-4228-9cfa-258c073e27eb"}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:769:15)
+
+  console.info
+    [VFY-WOC] profile key rotation evidence={"rotationStatus":201,"revokedIdMatches":true,"replacementIdPresent":true,"oldKeyStatus":"REVOKED","localReadWithoutReplacementGrant":404,"localReadWithReplacementGrant":200,"localWriteStatus":403,"adminEditStatus":200,"adminEditRevision":2,"rollbackStatus":200,"rollbackRevision":3,"resolverMode":"pinned","resolverProfileId":"72cc1756-b855-4256-9569-840eb5d72b54","assignedReadAfterRollback":200}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:920:15)
+
+  console.info
+    [VFY-WOC] key rotation membership-race blocked-first-attempt={"groupBackend":{"pid":31872,"xid":"3765"},"rotationBackend":{"pid":31895,"wait_event_type":"Lock","wait_event":"transactionid","blocking_pids":[31872],"query":"SELECT id, tenant_id, hash, prefix, status FROM api_keys WHERE id=$1 FOR UPDATE"},"snapshots":[{"attempt":"interleaved","profileIds":["30e14219-6ffa-4920-8e45-1c3b7ba1498f"],"versions":["1.0.0"]},{"attempt":"interleaved","profileIds":["30e14219-6ffa-4920-8e45-1c3b7ba1498f","a4496dd4-dd97-40ed-866a-f91b1bf806fa"],"versions":["1.0.0","2.0.0"]}],"secondGroupCommitted":true,"firstRotationStatus":409,"firstRotationCode":"STATE_CONFLICT","failedReplacementInserted":false,"oldKeyStatusAfterConflict":"ACTIVE","membershipsAfterConflict":[{"api_key_id":"1065739e-7e83-40cb-a007-123adcae31a5","state":"ACTIVE","count":"2"}]}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:1110:17)
+
+  console.info
+    [VFY-WOC] key rotation membership-race key-switch-and-retry={"retryStatus":201,"retrySnapshotProfiles":[["30e14219-6ffa-4920-8e45-1c3b7ba1498f"],["30e14219-6ffa-4920-8e45-1c3b7ba1498f"]],"existingKeyIsGroupEffectiveKey":true,"replacementInheritedSecondChild":false,"memberships":[{"profile_id":"30e14219-6ffa-4920-8e45-1c3b7ba1498f","api_key_id":"1065739e-7e83-40cb-a007-123adcae31a5","state":"REVOKED"},{"profile_id":"30e14219-6ffa-4920-8e45-1c3b7ba1498f","api_key_id":"378313b7-f9db-4e4c-8061-5a856e5e7cf0","state":"ACTIVE"},{"profile_id":"a4496dd4-dd97-40ed-866a-f91b1bf806fa","api_key_id":"1065739e-7e83-40cb-a007-123adcae31a5","state":"REVOKED"},{"profile_id":"a4496dd4-dd97-40ed-866a-f91b1bf806fa","api_key_id":"cfd76520-74fa-452e-8a89-bbfc8c6690df","state":"ACTIVE"}],"groupGetStatus":200,"groupGetKeyId":"cfd76520-74fa-452e-8a89-bbfc8c6690df","rollbackStatus":200,"rollbackRevision":3,"rollbackKeyId":"cfd76520-74fa-452e-8a89-bbfc8c6690df","groupGetAfterRollbackStatus":200,"groupGetAfterRollbackKeyId":"cfd76520-74fa-452e-8a89-bbfc8c6690df","resolvedMode":"pinned","resolvedProfileId":"a4496dd4-dd97-40ed-866a-f91b1bf806fa"}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:1219:17)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        17.13 s
+Ran all test suites within paths "tests/woc-independent-profile-pg.test.ts".
+--- SOURCE/TEST HASHES AFTER ---
+CEC786D147913B598A347F8159FCEBC352DF9FE13C0C525CB6B84749FE687327  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\dispatcher.ts
+A0C1E2462567AB7D13D01A968B722955F19F07BE5F0A51F752EBE185BDA810A5  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profile-groups.ts
+D81F7FFEE026DD9886ACD787FF4C184F2247D215BE1CF717A3D30B8204188D79  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\profiles\profiles.ts
+D1D2250D1DB17FC1BCA536EC9A4CC7C1FA3050E578CC2EBA29D540CCC9DDD0C4  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-actions\profile-actions.ts
+091830A2DA70BB86F21700228402D2B03ABDADBBE6A68C786F9B3904ED0B8F23  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\queue\dispatcher.ts
+F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts
+EABDAE5B63FC87EFA3FF7FD3875F7670EF4E6B81F3F481E6DC4948648F6D7915  D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts
+jest_exit=0

@@ -1,0 +1,194 @@
+VFY-WOC final workspace status
+captured=2026-10-12T17:30:42.7752619+07:00
+cwd=D:\Git\dugate\du-rework
+branch=codex/fix-workflow-builder
+head=b276ede4d3032d197a2ba96ba79c18b0f6e3c139
+tracked_changed_entries=71
+untracked_entries=114
+verifier product-source changes=0
+--- git status --short ---
+ M ../AGENTS.md
+ M AGENTS.md
+ M businesses/document-core/template/VENDOR-LOCK.json
+ M businesses/document-core/template/package.json
+ M businesses/document-core/template/scripts/gen-vendor-lock.mjs
+ M businesses/document-core/template/scripts/verify-vendor-lock.mjs
+ M businesses/document-core/template/vendor/contracts/src/connector.ts
+ M businesses/document-core/template/vendor/contracts/src/errors.ts
+ M businesses/document-core/template/vendor/contracts/src/index.ts
+ M businesses/document-core/template/vendor/contracts/src/runtime.ts
+ M businesses/document-core/template/vendor/worker-sdk/src/connector-invoker.ts
+ M businesses/document-core/template/vendor/worker-sdk/src/runtime-client.ts
+ M businesses/document-core/template/vendor/worker-sdk/src/task-context.ts
+ M businesses/document-core/template/vendor/worker-sdk/src/types.ts
+ M businesses/document-core/template/vendor/worker-sdk/src/worker.ts
+ M coordination/PLAN-OPEN-2026-10-09.md
+ M coordination/agent-model-policy.json
+ M orchestrator/apps/admin-web/src/features/businesses/business-detail-cockpit.tsx
+ M orchestrator/apps/admin-web/src/features/businesses/businesses-screen.tsx
+ M orchestrator/apps/admin-web/src/features/businesses/state.ts
+ M orchestrator/apps/admin-web/src/features/profiles/initial-bindings.tsx
+ M orchestrator/apps/admin-web/src/features/profiles/profiles-screen.tsx
+ M orchestrator/apps/admin-web/src/lib/api/client.ts
+ M orchestrator/apps/admin-web/src/lib/api/index.ts
+ M orchestrator/apps/admin-web/src/lib/api/types.ts
+ M orchestrator/apps/admin-web/tests/business-services-integration.test.mjs
+ M orchestrator/packages/contracts/src/errors.ts
+ M orchestrator/packages/contracts/src/index.ts
+ M orchestrator/packages/contracts/src/public-api.ts
+ M orchestrator/packages/contracts/src/runtime.ts
+ M orchestrator/packages/worker-sdk/src/runtime-client.ts
+ M orchestrator/packages/worker-sdk/src/task-context.ts
+ M orchestrator/packages/worker-sdk/src/types.ts
+ M orchestrator/packages/worker-sdk/src/worker.ts
+ M orchestrator/packages/worker-sdk/tests/artifact-read-metadata.test.ts
+ M orchestrator/packages/worker-sdk/tests/artifact-stat.test.ts
+ M orchestrator/packages/worker-sdk/tests/connector-invoker.test.ts
+ M orchestrator/packages/worker-sdk/tests/connector-session.test.ts
+ M orchestrator/packages/worker-sdk/tests/p730-pinned-policy.test.ts
+ M orchestrator/packages/worker-sdk/tests/p730-sdk-consume-pin-passthrough.test.ts
+ M orchestrator/packages/worker-sdk/tests/p745-carrier-sdk-forward.test.ts
+ M orchestrator/packages/worker-sdk/tests/temp-sweep.test.ts
+ M orchestrator/packages/worker-sdk/tests/worker.test.ts
+ M orchestrator/services/orchestrator/src/app/admin/bff/handle.ts
+ M orchestrator/services/orchestrator/src/app/admin/bff/operations.ts
+ M orchestrator/services/orchestrator/src/http/routes/admin.ts
+ M orchestrator/services/orchestrator/src/http/routes/runtime.ts
+ M orchestrator/services/orchestrator/src/modules/admin-actions/dispatcher.ts
+ M orchestrator/services/orchestrator/src/modules/admin-actions/profile-actions.ts
+ M orchestrator/services/orchestrator/src/modules/admin-read/business-list.ts
+ M orchestrator/services/orchestrator/src/modules/admin-read/profile-detail.ts
+ M orchestrator/services/orchestrator/src/modules/admin-read/profile-list.ts
+ M orchestrator/services/orchestrator/src/modules/admin-read/tenant-business-catalog.ts
+ M orchestrator/services/orchestrator/src/modules/admin-read/tenant-profile-detail.ts
+ M orchestrator/services/orchestrator/src/modules/admin-read/worker-instances.ts
+ M orchestrator/services/orchestrator/src/modules/operations/submission.ts
+ M orchestrator/services/orchestrator/src/modules/profiles/profiles.ts
+ M orchestrator/services/orchestrator/src/modules/profiles/self-service.ts
+ M orchestrator/services/orchestrator/src/modules/queue/dispatcher.ts
+ M orchestrator/services/orchestrator/src/modules/registry/registry.ts
+ M orchestrator/services/orchestrator/src/modules/runtime/runtime.ts
+ M orchestrator/services/orchestrator/src/modules/runtime/worker-instances.ts
+ M orchestrator/services/orchestrator/tests/aweb06-bff-operations.test.ts
+ M orchestrator/services/orchestrator/tests/aweb11c-worker-instances.test.ts
+ M orchestrator/services/orchestrator/tests/br12-isolation-offline.test.ts
+ M orchestrator/services/orchestrator/tests/business-catalog-contract-conformance.test.ts
+ M orchestrator/services/orchestrator/tests/mm05-queue-integrity-offline.functional.test.ts
+ M orchestrator/services/orchestrator/tests/mm05-queue-integrity-sweep.test.ts
+ M orchestrator/services/orchestrator/tests/or10-03-runtime-lease-replay.test.ts
+ M orchestrator/services/orchestrator/tests/orv12-settings.test.ts
+ M orchestrator/services/orchestrator/tests/runtime-lease-fencing-offline.test.ts
+?? ../AGENTS.md.backup-2026-10-12-codex
+?? ../coordination/reports/raw/woc-sdk-registration-jest-2026-10-12.txt
+?? AGENTS.md.backup-2026-10-12-codex
+?? businesses/document-core/template/tests/
+?? businesses/document-core/template/vendor/contracts/src/global-settings.ts
+?? businesses/document-core/template/vendor/contracts/src/usage-metrics.ts
+?? coordination/PLAN-WORKER-ORCHESTRATOR-2026-10-12.md
+?? coordination/WOC-CODEX-EXECUTION-2026-10-12.md
+?? coordination/agent-model-policy.json.backup-2026-10-12-codex
+?? coordination/reports/raw/vfy-woc-20261012-1505/
+?? coordination/reports/raw/woc-backend-build-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-diffcheck-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-focused-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-focused-profile-error-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-review-fixes-build-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-review-fixes-jest-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-review-fixes-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-typecheck-profile-fix-pending-2026-10-12.txt
+?? coordination/reports/raw/woc-backend-typecheck-stale-contracts-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-contracts-baseline-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-contracts-current-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-sdk-snapshot-baseline-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-sdk-snapshot-current-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-sdk-temp-baseline-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-sdk-temp-build-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-sdk-temp-current-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-ui-baseline-2026-10-12.txt
+?? coordination/reports/raw/woc-baseline-ui-current-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-backend-build-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-backend-focused-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-backend-phase2-build-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-backend-phase2-focused-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-backend-phase2-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-backend-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-orv12-settings-fixture-retest-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-phase3-build-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-phase3-focused-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-phase3-legacy-pg-focused-2026-10-12.txt
+?? coordination/reports/raw/woc-profile-groups-phase3-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-sdk-registration-full-jest-2026-10-12.txt
+?? coordination/reports/raw/woc-sdk-registration-jest-2026-10-12.txt
+?? coordination/reports/raw/woc-sdk-registration-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-sdk-review-fixes-focused-jest-2026-10-12.txt
+?? coordination/reports/raw/woc-sdk-review-fixes-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-transport-jest-2026-10-12.txt
+?? coordination/reports/raw/woc-transport-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-transport-typecheck-after-sdkfix-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-admin-build-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-admin-typecheck-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-browser-businesses-2026-10-12.png
+?? coordination/reports/raw/woc-ui-browser-debug-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-browser-debug-disabled-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-browser-debug-disabled-branch-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-browser-inspect-2026-10-12.png
+?? coordination/reports/raw/woc-ui-browser-profile-group-2026-10-12.png
+?? coordination/reports/raw/woc-ui-browser-profile-group-cas-2026-10-12.png
+?? coordination/reports/raw/woc-ui-browser-smoke-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-connector-link-browser-smoke-2026-10-12.mjs
+?? coordination/reports/raw/woc-ui-connector-link-browser-smoke-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-connector-link-initial-bindings-2026-10-12.png
+?? coordination/reports/raw/woc-ui-connector-link-profile-group-2026-10-12.png
+?? coordination/reports/raw/woc-ui-fixture-syntax-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-focused-tests-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-full-tests-2026-10-12.txt
+?? coordination/reports/raw/woc-ui-profiles-inspect-2026-10-12.png
+?? coordination/reports/raw/woc-ui-sha256s-2026-10-12.txt
+?? coordination/reports/raw/woc08-crypto-baseline-2026-10-12.txt
+?? coordination/reports/raw/woc08-sdk-crypto-seam-baseline-2026-10-12.txt
+?? coordination/reports/raw/woc08-sdk-focused-jest-2026-10-12.txt
+?? coordination/reports/raw/woc08-sdk-lint-2026-10-12.txt
+?? coordination/reports/raw/woc08-sdk-related-jest-2026-10-12.txt
+?? coordination/reports/raw/woc08-source-hashes-2026-10-12.txt
+?? coordination/reports/raw/woc08-template-isolated-build-conformance-2026-10-12.txt
+?? coordination/reports/raw/woc08-template-lock-verify-2026-10-12.txt
+?? coordination/reports/raw/woc08-template-resolution-2026-10-12.txt
+?? coordination/reports/receipt-e2e-02-orchestrator-boot-2026-10-11.md
+?? coordination/reports/receipt-vfy-woc.md
+?? coordination/reports/receipt-woc-08.md
+?? coordination/reports/receipt-woc-backend-review-fixes.md
+?? coordination/reports/receipt-woc-backend.md
+?? coordination/reports/receipt-woc-baseline-comparison.md
+?? coordination/reports/receipt-woc-profile-groups.md
+?? coordination/reports/receipt-woc-sdk-registration.md
+?? coordination/reports/receipt-woc-sdk-review-fixes.md
+?? coordination/reports/receipt-woc-sdk.md
+?? coordination/reports/receipt-woc-transport.md
+?? coordination/reports/receipt-woc-ui.md
+?? coordination/reports/review-woc-core-2026-10-12.md
+?? coordination/reports/review-woc-phase2-2026-10-12.md
+?? coordination/reports/review-woc-phase3-2026-10-12.md
+?? orchestrator/apps/admin-web/src/features/profiles/profile-group-editor.tsx
+?? orchestrator/apps/admin-web/src/features/profiles/profile-group-state.ts
+?? orchestrator/apps/admin-web/tests/fixtures/
+?? orchestrator/apps/admin-web/tests/profile-group-api-client.test.mjs
+?? orchestrator/apps/admin-web/tests/profile-group-state.test.mjs
+?? orchestrator/packages/contracts/src/profile-groups.ts
+?? orchestrator/packages/worker-sdk/tests/woc-independent-bullmq.test.ts
+?? orchestrator/packages/worker-sdk/tests/woc-runtime-client.test.ts
+?? orchestrator/packages/worker-sdk/tests/woc-sdk-registration.test.ts
+?? orchestrator/packages/worker-sdk/tests/woc-sdk-worker.test.ts
+?? orchestrator/services/orchestrator/migrations/0066_business_enable_worker_intake.sql
+?? orchestrator/services/orchestrator/migrations/0067_profile_groups.sql
+?? orchestrator/services/orchestrator/src/app/admin/bff/profile-groups.ts
+?? orchestrator/services/orchestrator/src/http/routes/admin-profile-groups.ts
+?? orchestrator/services/orchestrator/src/modules/admin-read/business-functions.ts
+?? orchestrator/services/orchestrator/src/modules/profiles/profile-groups.ts
+?? orchestrator/services/orchestrator/tests/woc-backend-business-lifecycle.test.ts
+?? orchestrator/services/orchestrator/tests/woc-backend-contracts.test.ts
+?? orchestrator/services/orchestrator/tests/woc-backend-resume-join.test.ts
+?? orchestrator/services/orchestrator/tests/woc-backend-yield.test.ts
+?? orchestrator/services/orchestrator/tests/woc-independent-profile-pg.test.ts
+?? orchestrator/services/orchestrator/tests/woc-independent-runtime-pg.test.ts
+?? orchestrator/services/orchestrator/tests/woc-profile-groups-backend.test.ts

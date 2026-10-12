@@ -1,4 +1,5 @@
 import type { QueryResultRow } from 'pg';
+import { conflict } from '../../http/errors';
 import type { MaintenanceControlState, WorkerHeartbeat } from '@du/contracts';
 import type { Db } from '../../db/db';
 import { readWorkerControl } from './control';
@@ -43,6 +44,24 @@ export async function recordWorkerHeartbeat(
     if (!Number.isSafeInteger(backupFenceRevision) || backupFenceRevision < 0) {
       throw new Error('backup effect fence revision is invalid');
     }
+    if (heartbeat.manifestDigest !== undefined) {
+      // Manifest digests are immutable after registration. This read validates
+      // the heartbeat without locking the version row before we later lock the
+      // worker row; registration locks root→version, while claim locks
+      // worker→business root, so a version row lock here would close a cycle.
+      const registration = await client.query<{ digest: string }>(
+        `SELECT digest FROM business_versions
+          WHERE business_id=$1 AND version=$2`,
+        [heartbeat.businessId, heartbeat.businessVersion],
+      );
+      const registeredDigest = registration.rows[0]?.digest;
+      if (!registeredDigest) {
+        throw conflict('WORKER_NOT_REGISTERED', 'worker manifest version must be registered before heartbeat');
+      }
+      if (registeredDigest !== heartbeat.manifestDigest) {
+        throw conflict('MANIFEST_DIGEST_MISMATCH', 'worker heartbeat digest does not match its registered manifest');
+      }
+    }
     const backupFenceAcknowledged = heartbeat.observedBackupFenceRevision === backupFenceRevision;
     const scoped = await readWorkerControl(client, heartbeat.businessId);
     const tenantControls = await client.query<{
@@ -84,18 +103,23 @@ export async function recordWorkerHeartbeat(
           AND t.lease_expires_at > statement_timestamp()
      )
      INSERT INTO worker_instances (
-       business_id, instance_id, business_version, image_digest, state, capacity,
+       business_id, instance_id, business_version, manifest_digest, image_digest, state, capacity,
        active_leases, last_seen_at, observed_at, control_revision, control_state,
        deployment_revision, active_task_count, active_task_observed_at,
        backup_effect_fence_revision, backup_effect_fence_observed_at
      )
-     SELECT $1, $2, $3, $8, $5, $4, lease_count.active_leases,
+     SELECT $1, $2, $3, $12, $8, $5, $4, lease_count.active_leases,
             statement_timestamp(), statement_timestamp(), $6, $7, $10, $9,
             CASE WHEN $9::integer IS NULL THEN NULL ELSE statement_timestamp() END,
             $11, CASE WHEN $11::bigint IS NULL THEN NULL ELSE statement_timestamp() END
        FROM lease_count
      ON CONFLICT (business_id, instance_id) DO UPDATE
        SET business_version = EXCLUDED.business_version,
+           manifest_digest = CASE
+             WHEN EXCLUDED.business_version = worker_instances.business_version
+               THEN COALESCE(EXCLUDED.manifest_digest, worker_instances.manifest_digest)
+             ELSE EXCLUDED.manifest_digest
+           END,
            image_digest = EXCLUDED.image_digest,
            deployment_revision = EXCLUDED.deployment_revision,
            state = CASE WHEN EXCLUDED.control_state = 'DRAINING' THEN 'DRAINING' ELSE 'ONLINE' END,
@@ -113,7 +137,7 @@ export async function recordWorkerHeartbeat(
       [heartbeat.businessId, instanceId, heartbeat.businessVersion, heartbeat.capacity,
         state === 'DRAINING' ? 'DRAINING' : 'ONLINE', revision, state, heartbeat.imageDigest,
         heartbeat.activeTasks ?? null, heartbeat.deploymentRevision ?? null,
-        heartbeat.observedBackupFenceRevision ?? null],
+        heartbeat.observedBackupFenceRevision ?? null, heartbeat.manifestDigest ?? null],
     );
     const row = result.rows[0];
     if (!row) throw new Error('worker heartbeat upsert returned no row');

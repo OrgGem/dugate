@@ -1,0 +1,47 @@
+START 2026-10-12T17:04:53.9835348+07:00
+SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398
+SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts 76FC379CE6A9D7BA0A56CA5B4F2674694F5F1E324332A97E1E0FC7A25427C0FE
+  console.info
+    [VFY-WOC] profile disable/save evidence={"businessId":"woc-vfy-2e9e111d","groupBackend":{"pid":15345,"xid":"3054"},"disableBackendPid":15353,"sqlOrder":["group catalog root FOR SHARE completed","group version/catalog JOIN completed; barrier entered","registry.setBusinessEnabled(false) called","setBusinessEnabled returned after db.tx commit","disable promise settled before group barrier release","separate catalog read while paused enabled=false"],"activity":[{"pid":15345,"backend_xid":null,"state":"idle","wait_event_type":"Client","wait_event":"ClientRead","query":"COMMIT"},{"pid":15353,"backend_xid":null,"state":"active","wait_event_type":null,"wait_event":null,"query":"SELECT pid,backend_xid::text,state,wait_event_type,wait_event,left(query,180) AS query\n           FROM pg_stat_activity WHERE pid=ANY($1::int[]) ORDER BY pid"}],"locks":[]}
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:391:15)
+
+FAIL tests/woc-independent-profile-pg.test.ts (5.817 s)
+  ● WOC independent real-PostgreSQL profile invariants › real PostgreSQL races and group-owned child boundaries › keeps business disable ordered after a group transaction that admitted the version
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+    @@ -1,8 +1,8 @@
+      Object {
+    -   "disableFinishedBeforeGroupRelease": false,
+    -   "enabledDuringGroupPause": true,
+    +   "disableFinishedBeforeGroupRelease": true,
+    +   "enabledDuringGroupPause": false,
+        "order": Array [
+          "group-committed",
+          "business-disabled",
+        ],
+        "returnedEnabled": false,
+
+      408 |         disableFinishedBeforeGroupRelease,
+      409 |         order,
+    > 410 |       }).toEqual({
+          |          ^
+      411 |         enabledDuringGroupPause: true,
+      412 |         returnedEnabled: false,
+      413 |         disableFinishedBeforeGroupRelease: false,
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:410:10)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 2 skipped, 1 passed, 4 total
+Snapshots:   0 total
+Time:        5.848 s, estimated 6 s
+Ran all test suites within paths "tests/woc-independent-profile-pg.test.ts".
+POST_SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\src\modules\admin-read\business-functions.ts F5A0D43E2C638FD219EBD7DAC1E99B418833A712CBF807B0785838C79A85C398
+POST_SHA256 D:\Git\dugate\du-rework\orchestrator\services\orchestrator\tests\woc-independent-profile-pg.test.ts 76FC379CE6A9D7BA0A56CA5B4F2674694F5F1E324332A97E1E0FC7A25427C0FE
+EXIT_CODE 1
+END 2026-10-12T17:05:00.7529420+07:00

@@ -67,7 +67,7 @@ export async function listAdminProfilePage(
   tenantId: string,
   query: AdminProfileListQuery,
 ): Promise<AdminPageResult<AdminProfileListDbRow>> {
-  const clauses = ['n.tenant_id = $1'];
+  const clauses = ['n.tenant_id = $1', 'n.group_id IS NULL'];
   const params: unknown[] = [tenantId];
   if (query.businessId !== null) {
     params.push(query.businessId);

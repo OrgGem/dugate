@@ -1,0 +1,5 @@
+
+> @du/document-core-template@0.1.0 verify:vendor D:\Git\dugate\du-rework\businesses\document-core\template
+> node scripts/verify-vendor-lock.mjs
+
+verify-vendor-lock: 61 vendored files match; 11 carry file-specific source fingerprints; legacy baseCommit=b088eececcb5f3df0b4edbe073a29401dafda624

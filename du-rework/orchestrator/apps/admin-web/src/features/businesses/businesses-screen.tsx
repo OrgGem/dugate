@@ -16,6 +16,7 @@ import { useTenant } from '@/lib/tenant-context';
 import {
   createAdminApiClient,
   type AdminApiProblem,
+  type AdminWebSession,
   type BusinessPage,
   type BusinessVersions,
 } from '@/lib/api';
@@ -24,9 +25,8 @@ import { parseBusinessPage, parseBusinessVersions } from './state';
 import { BusinessDetailCockpit } from './business-detail-cockpit';
 
 /**
- * Business registry (AWEB-06) — platform-scoped reads + real version actions.
- * enable/activate/deactivate ride the platform admin PUT routes (T-API path
- * already shipped); everything else stays read-only.
+ * Business registry — business intake enablement is lifecycle-CAS controlled;
+ * the version action only changes the default pointer for new submissions.
  */
 export function BusinessesScreen() {
   const { tenantId, tenant } = useTenant();
@@ -36,15 +36,20 @@ export function BusinessesScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [problem, setProblem] = useState<AdminApiProblem | null>(null);
   const [busy, setBusy] = useState(false);
+  const [session, setSession] = useState<AdminWebSession | null>(null);
+
+  const canManageBusiness = session?.role === 'admin' && !session.localUser && session.principal.kind === 'platform';
 
   const load = useCallback(async (): Promise<void> => {
     setPage({ kind: 'loading' });
     // Bootstrap the CSRF proof on this client first — the version actions ride it.
     const sessionResult = await client.getSession();
     if (!sessionResult.ok) {
+      setSession(null);
       setPage({ kind: 'failed', problem: sessionResult.problem });
       return;
     }
+    setSession(sessionResult.data);
     const result = await client.listBusinesses({ limit: '50' });
     if (!result.ok) {
       setPage({ kind: 'failed', problem: result.problem });
@@ -79,13 +84,13 @@ export function BusinessesScreen() {
     );
   }
 
-  async function toggleActive(businessId: string, version: string, makeActive: boolean): Promise<void> {
+  async function setDefaultVersion(businessId: string, version: string, makeDefault: boolean): Promise<void> {
     setBusy(true);
     setNotice(null);
     setProblem(null);
     try {
-      if (makeActive) {
-        // Automatically ensure the version is enabled if currently in draft/registered state
+      if (makeDefault) {
+        // A version must be enabled before it can become the default pointer.
         const row = versions?.kind === 'ready' ? versions.data.rows.find((r) => r.version === version) : null;
         if (row && row.status !== 'ENABLED') {
           const enableResult = await client.businessVersionAction(businessId, version, 'enable');
@@ -99,17 +104,42 @@ export function BusinessesScreen() {
           setProblem(result.problem);
           return;
         }
-        setNotice(`Version ${version} activated.`);
+        setNotice(`Version ${version} is now the default for new submissions.`);
       } else {
         const result = await client.businessVersionAction(businessId, version, 'deactivate');
         if (!result.ok) {
           setProblem(result.problem);
           return;
         }
-        setNotice(`Version ${version} deactivated.`);
+        setNotice(`Version ${version} is no longer the default.`);
       }
       await openVersions(businessId);
       await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setBusinessEnabled(businessId: string, enabled: boolean, lifecycleRevision: number | null): Promise<void> {
+    if (!canManageBusiness || lifecycleRevision === null) return;
+    setBusy(true);
+    setNotice(null);
+    setProblem(null);
+    try {
+      const result = await client.setBusinessEnabled(businessId, { enabled, expectedLifecycleRevision: lifecycleRevision });
+      if (!result.ok) {
+        if (result.status === 409) {
+          setProblem({ ...result.problem, title: 'Business lifecycle changed while this page was open. The registry has been reloaded.' });
+          await load();
+          if (versions?.kind === 'ready' && versions.data.businessId === businessId) await openVersions(businessId);
+          return;
+        }
+        setProblem(result.problem);
+        return;
+      }
+      setNotice(`Business intake ${result.data.enabled ? 'enabled' : 'disabled'} (lifecycle revision ${result.data.lifecycleRevision}).`);
+      await load();
+      if (versions?.kind === 'ready' && versions.data.businessId === businessId) await openVersions(businessId);
     } finally {
       setBusy(false);
     }
@@ -181,15 +211,14 @@ export function BusinessesScreen() {
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
-                <TableHead>Active Version</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Default version for new submissions</TableHead>
+                <TableHead>Business intake</TableHead>
                 <TableHead>Updated</TableHead>
-                <TableHead />
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pane.data.items.map((row) => {
-                const isActive = row.activeVersion !== null;
                 return (
                   <TableRow key={row.businessId}>
                     <TableCell className="font-mono text-xs font-medium">{row.businessId}</TableCell>
@@ -201,12 +230,17 @@ export function BusinessesScreen() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={isActive ? 'success' : 'neutral'} dot>
-                        {isActive ? 'Active' : 'Inactive'}
+                      <Badge variant={row.enabled === true ? 'success' : row.enabled === false ? 'neutral' : 'warning'} dot>
+                        {row.enabled === true ? 'Enabled' : row.enabled === false ? 'Disabled' : 'Unknown'}
                       </Badge>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-[var(--text-sub)]">{row.updatedAt ?? '—'}</TableCell>
-                    <TableCell>
+                    <TableCell className="flex flex-wrap gap-2">
+                      {canManageBusiness ? (
+                        <Button size="sm" variant={row.enabled === true ? 'outline' : 'primary'} disabled={busy || row.enabled === null || row.lifecycleRevision === null} onClick={() => void setBusinessEnabled(row.businessId, row.enabled !== true, row.lifecycleRevision)}>
+                          {row.enabled === true ? 'Disable business' : 'Enable business'}
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="outline" onClick={() => void openVersions(row.businessId)}>
                         Versions
                       </Button>
@@ -232,7 +266,7 @@ export function BusinessesScreen() {
           <CardHeader>
             <CardTitle>Versions — {versions.data.businessId}</CardTitle>
             <CardDescription>
-              Active version: <span className="font-mono font-medium">{versions.data.activeVersion ?? 'None'}</span>
+              Business intake: <strong>{versions.data.enabled === true ? 'Enabled' : versions.data.enabled === false ? 'Disabled' : 'Unknown'}</strong> · default version for new submissions: <span className="font-mono font-medium">{versions.data.activeVersion ?? 'None'}</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -244,7 +278,8 @@ export function BusinessesScreen() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Version</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Version state</TableHead>
+                      <TableHead>Default pointer</TableHead>
                       <TableHead>Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -253,28 +288,29 @@ export function BusinessesScreen() {
                       <TableRow key={row.version}>
                         <TableCell className="font-mono text-xs font-medium">{row.version}</TableCell>
                         <TableCell>
-                          <Badge variant={row.isActive ? 'success' : 'neutral'} dot>
-                            {row.isActive ? 'Active' : 'Inactive'}
+                          <Badge variant={row.status === 'ENABLED' ? 'success' : row.status === 'DRAINING' ? 'warning' : 'neutral'} dot>
+                            {row.status}
                           </Badge>
                         </TableCell>
+                        <TableCell>{row.isActive ? 'Default' : 'Not default'}</TableCell>
                         <TableCell>
                           {row.isActive ? (
                             <Button
                               size="sm"
                               variant="outline"
                               disabled={busy}
-                              onClick={() => void toggleActive(versions.data.businessId, row.version, false)}
+                              onClick={() => void setDefaultVersion(versions.data.businessId, row.version, false)}
                             >
-                              Deactivate
+                              Clear default
                             </Button>
                           ) : (
                             <Button
                               size="sm"
                               variant="primary"
                               disabled={busy}
-                              onClick={() => void toggleActive(versions.data.businessId, row.version, true)}
+                              onClick={() => void setDefaultVersion(versions.data.businessId, row.version, true)}
                             >
-                              Activate
+                              Set as default
                             </Button>
                           )}
                         </TableCell>

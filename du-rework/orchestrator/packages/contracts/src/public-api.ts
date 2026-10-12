@@ -500,6 +500,8 @@ export type TenantBusinessCatalogQuery = z.infer<typeof TenantBusinessCatalogQue
 
 export const TenantBusinessCatalogItemSchema = z.object({
   businessId: z.string().min(1),
+  enabled: z.boolean(),
+  lifecycleRevision: z.number().int().positive(),
   displayName: z.string().min(1),
   latestVersion: z.string().nullable(),
   latestStatus: z.string().nullable(),
@@ -508,6 +510,21 @@ export const TenantBusinessCatalogItemSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 }).strict();
+
+/** Logical business availability is independent of per-version enable/active state. */
+export const BusinessEnableRequestSchema = z.object({
+  enabled: z.boolean(),
+  expectedLifecycleRevision: z.number().int().positive(),
+}).strict();
+export type BusinessEnableRequest = z.infer<typeof BusinessEnableRequestSchema>;
+
+export const BusinessEnableResultSchema = z.object({
+  businessId: z.string().min(1),
+  enabled: z.boolean(),
+  lifecycleRevision: z.number().int().positive(),
+  replayed: z.boolean(),
+}).strict();
+export type BusinessEnableResult = z.infer<typeof BusinessEnableResultSchema>;
 export const TenantBusinessCatalogPageSchema = z.object({
   items: z.array(TenantBusinessCatalogItemSchema),
   nextCursor: z.string().max(TENANT_BUSINESS_CATALOG_CURSOR_MAX_LEN).nullable(),

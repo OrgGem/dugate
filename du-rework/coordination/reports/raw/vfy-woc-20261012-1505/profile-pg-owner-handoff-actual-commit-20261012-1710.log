@@ -1,0 +1,38 @@
+START 2026-10-12T17:01:24.3755069+07:00
+FAIL tests/woc-independent-profile-pg.test.ts (5.445 s)
+  ● WOC independent real-PostgreSQL profile invariants › real PostgreSQL races and group-owned child boundaries › keeps business disable ordered after a group transaction that admitted the version
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+    @@ -1,8 +1,8 @@
+      Object {
+    -   "disableFinishedBeforeGroupRelease": false,
+    -   "enabledDuringGroupPause": true,
+    +   "disableFinishedBeforeGroupRelease": true,
+    +   "enabledDuringGroupPause": false,
+        "order": Array [
+          "group-committed",
+          "business-disabled",
+        ],
+        "returnedEnabled": false,
+
+      341 |         disableFinishedBeforeGroupRelease,
+      342 |         order,
+    > 343 |       }).toEqual({
+          |          ^
+      344 |         enabledDuringGroupPause: true,
+      345 |         returnedEnabled: false,
+      346 |         disableFinishedBeforeGroupRelease: false,
+
+      at Object.<anonymous> (tests/woc-independent-profile-pg.test.ts:343:10)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 2 skipped, 1 passed, 4 total
+Snapshots:   0 total
+Time:        5.477 s, estimated 6 s
+Ran all test suites within paths "tests/woc-independent-profile-pg.test.ts".
+EXIT_CODE 1
+END 2026-10-12T17:01:30.7914809+07:00

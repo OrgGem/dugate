@@ -1,0 +1,14 @@
+COMMAND: node D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk\node_modules\jest\bin\jest.js --runInBand --testTimeout=30000 tests/temp-sweep.test.ts
+CWD: D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk
+PROCESS TIMEOUT: 90s
+
+EXIT CODE: 0
+--- stdout ---
+{"timestamp":"2026-10-12T10:19:16.504Z","level":"info","service":"worker:sweep-biz","version":"unknown","environment":"test","correlationId":"59d9a35e-347b-4ba7-88d0-79cdef3398c5","operationId":null,"taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+{"timestamp":"2026-10-12T10:19:16.691Z","level":"info","service":"worker:sweep-biz","version":"unknown","environment":"test","correlationId":"11ae585d-0f4f-4853-be08-cfe8d61a6850","operationId":null,"taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+--- stderr ---
+Test Suites: 1 passed, 1 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        2.84 s
+Ran all test suites matching tests/temp-sweep.test.ts.

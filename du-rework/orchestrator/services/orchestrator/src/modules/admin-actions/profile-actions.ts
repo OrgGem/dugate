@@ -84,7 +84,7 @@ async function resolveApiKey(client: PoolClient, ref: ApiKeyRef): Promise<ApiKey
           'SELECT id, tenant_id, hash FROM api_keys WHERE hash=$1 AND status=$2',
           [ref.hash, 'ACTIVE']
         );
-  if (!res.rowCount) throw notFound('api key not found or not ACTIVE');
+  if (res.rows.length === 0) throw notFound('api key not found or not ACTIVE');
   return res.rows[0]!;
 }
 
@@ -97,12 +97,18 @@ async function resolveProfileByName(
   profileName: string
 ): Promise<string | null> {
   const res = await client.query<{ profile_id: string }>(
-    `SELECT profile_id FROM profile_names
-      WHERE tenant_id=$1 AND api_key_id=$2 AND business_id=$3 AND business_version=$4
-        AND action=$5 AND profile_name=$6`,
+    `SELECT n.profile_id FROM profile_names n
+      LEFT JOIN profile_api_keys m ON m.profile_id=n.profile_id AND m.api_key_id=$2
+        AND m.tenant_id=$1 AND m.state='ACTIVE'
+      WHERE n.tenant_id=$1 AND (n.api_key_id=$2 OR m.profile_id IS NOT NULL)
+        AND n.business_id=$3 AND n.business_version=$4
+        AND n.action=$5 AND n.profile_name=$6
+      ORDER BY n.profile_id
+      LIMIT 2`,
     [key.tenant_id, key.id, businessId, businessVersion, action, profileName]
   );
-  return res.rowCount ? res.rows[0]!.profile_id : null;
+  if (res.rows.length > 1) throw conflict('STATE_CONFLICT', 'multiple profiles match this API key and named function');
+  return res.rows.length > 0 ? res.rows[0]!.profile_id : null;
 }
 
 /**
@@ -147,7 +153,10 @@ async function ensureProfileId(
       identity.profileName,
     ]
   );
-  if (inserted.rowCount) return { profileId, created: true };
+  // INSERT ... ON CONFLICT DO NOTHING has no RETURNING rows. PostgreSQL's
+  // rowCount may be null for commands without a command tag, so only an
+  // explicit single inserted row establishes ownership here.
+  if (inserted.rowCount === 1) return { profileId, created: true };
 
   const raced = await resolveProfileByName(
     client,
@@ -179,7 +188,7 @@ async function assertUpsertCas(
     'SELECT revision FROM profile_active_revisions WHERE profile_id=$1 FOR UPDATE',
     [profileId]
   );
-  const actual = current.rowCount ? current.rows[0]!.revision : null;
+  const actual = current.rows.length > 0 ? current.rows[0]!.revision : null;
   if (created) {
     if (expectedRevision !== undefined && expectedRevision !== 0) {
       throw conflict(
@@ -204,7 +213,24 @@ export async function runProfileUpsert(
   cmd: ProfileUpsertCommand,
   fence: ProfileFence
 ): Promise<ProfileMutationOutcome> {
-  const key = await resolveApiKey(client, cmd.apiKey);
+  const candidate = await resolveApiKey(client, cmd.apiKey);
+  fence(candidate.tenant_id);
+
+  const action = cmd.action ?? cmd.profileName;
+  const existingProfileId = await resolveProfileByName(
+    client, candidate, cmd.businessId, cmd.businessVersion, action, cmd.profileName,
+  );
+  const mutationLocks = await deps.profiles.lockProfileMutation(existingProfileId ?? null, [
+    { businessId: cmd.businessId, businessVersion: cmd.businessVersion, action, endpointSlug: cmd.endpointSlug },
+  ], [candidate.id], client);
+  if (existingProfileId && !mutationLocks.memberships.some((membership) => membership.apiKeyId === candidate.id)) {
+    throw notFound('profile not found for this api key');
+  }
+  const lockedKey = mutationLocks.keys.get(candidate.id);
+  if (!lockedKey || lockedKey.status !== 'ACTIVE' || lockedKey.hash !== candidate.hash || lockedKey.tenant_id !== candidate.tenant_id) {
+    throw notFound('api key not found or not ACTIVE');
+  }
+  const key: ApiKeyRow = { id: lockedKey.id, tenant_id: lockedKey.tenant_id, hash: lockedKey.hash };
   fence(key.tenant_id);
 
   if(cmd.connectorBindings && Object.keys(cmd.connectorBindings).length) {
@@ -215,13 +241,13 @@ export async function runProfileUpsert(
     }
   }
 
-  const action = cmd.action ?? cmd.profileName;
   const { profileId, created } = await ensureProfileId(client, key, {
     businessId: cmd.businessId,
     businessVersion: cmd.businessVersion,
     action,
     profileName: cmd.profileName,
   });
+  await assertProfileNotGroupOwned(client, profileId);
   await assertUpsertCas(client, profileId, created, cmd.expectedRevision);
 
   const currentPins = cmd.connectorBindings === undefined && !created ? await client.query('SELECT p.connector_bindings FROM profile_active_revisions a JOIN profile_bindings p ON p.profile_id=a.profile_id AND p.revision=a.revision WHERE a.profile_id=$1',[profileId]) : undefined;
@@ -258,15 +284,50 @@ async function resolveExistingProfile(
   return profileId;
 }
 
+/** Internal children are edited through their owning aggregate only. */
+async function assertProfileNotGroupOwned(client: PoolClient, profileId: string): Promise<void> {
+  const result = await client.query<{ group_id: string | null }>(
+    'SELECT group_id FROM profile_names WHERE profile_id=$1 FOR UPDATE',
+    [profileId],
+  );
+  if (result.rows[0]?.group_id) {
+    throw new HttpError(409, 'STATE_CONFLICT', 'this profile is owned by a profile group; edit it through the profile group');
+  }
+}
+
 export async function runProfilePublish(
   client: PoolClient,
   deps: ProfileActionDeps,
   cmd: ProfilePublishCommand,
   fence: ProfileFence
 ): Promise<ProfileMutationOutcome> {
-  const key = await resolveApiKey(client, cmd.apiKey);
+  const candidate = await resolveApiKey(client, cmd.apiKey);
+  fence(candidate.tenant_id);
+  const profileId = await resolveExistingProfile(client, candidate, cmd);
+  const target = await deps.profiles.getLatestRevisionSelector(profileId, client);
+  if (!target) throw notFound('profile has no revisions to activate');
+  const mutationLocks = await deps.profiles.lockProfileMutation(profileId, [target.selector], [candidate.id], client);
+  if (!mutationLocks.memberships.some((membership) => membership.apiKeyId === candidate.id)) {
+    throw notFound('profile not found for this api key');
+  }
+  const lockedKey = mutationLocks.keys.get(candidate.id);
+  if (!lockedKey || lockedKey.status !== 'ACTIVE' || lockedKey.hash !== candidate.hash || lockedKey.tenant_id !== candidate.tenant_id) {
+    throw notFound('api key not found or not ACTIVE');
+  }
+  const key: ApiKeyRow = { id: lockedKey.id, tenant_id: lockedKey.tenant_id, hash: lockedKey.hash };
   fence(key.tenant_id);
-  const profileId = await resolveExistingProfile(client, key, cmd);
+  const currentSelector = mutationLocks.activeSelector;
+  if (!currentSelector) throw notFound('profile has no active binding selector');
+  const currentTarget = await deps.profiles.getLatestRevisionSelector(profileId, client);
+  if (!currentTarget || currentTarget.revision !== target.revision || JSON.stringify(currentTarget.selector) !== JSON.stringify(target.selector)) {
+    throw conflict('STATE_CONFLICT', 'profile publish target changed while the revision was being prepared; retry');
+  }
+  await assertProfileNotGroupOwned(client, profileId);
+  await deps.profiles.assertSelectorAvailableForMemberships({
+    apiKeyIds: [...mutationLocks.memberships.map((membership) => membership.apiKeyId), key.id],
+    ...target.selector,
+    profileId,
+  }, client);
   const revisions = createProfileRevisionService(deps.db);
   const revision = await revisions.publishRevision(
     { profileId, expectedRevision: cmd.expectedRevision },
@@ -281,9 +342,32 @@ export async function runProfileRollback(
   cmd: ProfileRollbackCommand,
   fence: ProfileFence
 ): Promise<ProfileMutationOutcome> {
-  const key = await resolveApiKey(client, cmd.apiKey);
+  const candidate = await resolveApiKey(client, cmd.apiKey);
+  fence(candidate.tenant_id);
+  const profileId = await resolveExistingProfile(client, candidate, cmd);
+  const targetSelector = await deps.profiles.getRevisionSelector(profileId, cmd.targetRevision, client);
+  if (!targetSelector) throw notFound('rollback target revision does not exist for this profile');
+  const mutationLocks = await deps.profiles.lockProfileMutation(profileId, [targetSelector], [candidate.id], client);
+  if (!mutationLocks.memberships.some((membership) => membership.apiKeyId === candidate.id)) {
+    throw notFound('profile not found for this api key');
+  }
+  const lockedKey = mutationLocks.keys.get(candidate.id);
+  if (!lockedKey || lockedKey.status !== 'ACTIVE' || lockedKey.hash !== candidate.hash || lockedKey.tenant_id !== candidate.tenant_id) {
+    throw notFound('api key not found or not ACTIVE');
+  }
+  const key: ApiKeyRow = { id: lockedKey.id, tenant_id: lockedKey.tenant_id, hash: lockedKey.hash };
   fence(key.tenant_id);
-  const profileId = await resolveExistingProfile(client, key, cmd);
+  if (!mutationLocks.activeSelector) throw notFound('profile has no active binding selector');
+  const currentTargetSelector = await deps.profiles.getRevisionSelector(profileId, cmd.targetRevision, client);
+  if (!currentTargetSelector || JSON.stringify(currentTargetSelector) !== JSON.stringify(targetSelector)) {
+    throw conflict('STATE_CONFLICT', 'profile rollback target changed while the revision was being prepared; retry');
+  }
+  await assertProfileNotGroupOwned(client, profileId);
+  await deps.profiles.assertSelectorAvailableForMemberships({
+    apiKeyIds: [...mutationLocks.memberships.map((membership) => membership.apiKeyId), key.id],
+    ...targetSelector,
+    profileId,
+  }, client);
   const revisions = createProfileRevisionService(deps.db);
   try {
     const revision = await revisions.rollbackTo(

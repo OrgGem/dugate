@@ -1,0 +1,3 @@
+warning: in the working copy of 'du-rework/AGENTS.md', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'du-rework/coordination/agent-model-policy.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'du-rework/orchestrator/packages/worker-sdk/tests/worker.test.ts', CRLF will be replaced by LF the next time Git touches it

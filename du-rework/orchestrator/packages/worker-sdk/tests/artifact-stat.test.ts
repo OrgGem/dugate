@@ -193,7 +193,7 @@ describe('ArtifactFacade.stat', () => {
     delete grant[field];
     const ctx = makeContext((async () => jsonResponse(grant)) as typeof fetch);
 
-    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
   });
 
   it('accepts the maximum storage-version descriptor length and rejects one character over', async () => {
@@ -212,7 +212,7 @@ describe('ArtifactFacade.stat', () => {
     await expect(atLimit.artifacts.stat!(ARTIFACT_ID)).resolves.toMatchObject({
       storageVersionId: maxStorageVersionId,
     });
-    await expect(oversized.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(oversized.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
   });
 
   it('rejects a successful response with a malformed grant descriptor', async () => {
@@ -224,7 +224,7 @@ describe('ArtifactFacade.stat', () => {
     })) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
   });
 
   it('rejects a negative content-length/sizeBytes descriptor and accepts the empty-artifact boundary', async () => {
@@ -234,7 +234,7 @@ describe('ArtifactFacade.stat', () => {
       expiresAt: '2099-01-01T00:00:00.000Z',
       sizeBytes: -1,
     })) as typeof fetch);
-    await expect(negative.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(negative.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
 
     const empty = makeContext((async () => jsonResponse({
       artifactId: ARTIFACT_ID,
@@ -280,17 +280,17 @@ describe('ArtifactFacade.stat', () => {
       sha256,
     })) as typeof fetch);
 
-    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
   });
 
-  it('rejects a non-JSON access-grant response', async () => {
+  it('classifies a malformed successful access-grant response as an ambiguous write ACK', async () => {
     const fetchImpl = (async () => new Response('{"artifactId":', {
       status: 200,
       headers: { 'content-type': 'application/json' },
     })) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(SyntaxError);
+    await expect(ctx.artifacts.stat!(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
   });
 
   it('fences a stale lease the same way read grants do', async () => {

@@ -5,6 +5,8 @@ import {
   type InvocationResponse,
   type PinnedProfilePolicy,
   type TenantDefaultsSnapshot,
+  businessQueueName,
+  validateManifest,
 } from '@du/contracts';
 import {
   DEFAULT_PENDING_RETRY_MS,
@@ -1015,6 +1017,9 @@ const MANIFEST = {
     },
   ],
 };
+const manifestValidation = validateManifest(MANIFEST);
+if (!manifestValidation.ok) throw new Error('connector-session test manifest is invalid');
+const MANIFEST_DIGEST = manifestValidation.digest;
 
 function makeClaim(leaseEpoch = 1) {
   return {
@@ -1031,7 +1036,7 @@ function makeClaim(leaseEpoch = 1) {
       businessVersion: '1.0.0',
       action: 'extract',
       schemaDigest: 'sha256:bb',
-      manifestDigest: 'sha256:aa',
+      manifestDigest: MANIFEST_DIGEST,
       resolvedInputRef: { q: 'hello' },
       pinned: { profileRevision: 1, promptRevisions: {}, connectorBindings: { [SLOT]: 'mock-llm@1' } },
       taskKey: 'root',
@@ -1065,7 +1070,22 @@ describe('startWorker — invokeConnector injection (P4-07 wiring seam)', () => 
     const ledger: GrantLedger = { hashes: new Map(), issued: [] };
     const calls: CapturedCall[] = [];
     const routes: Route[] = [
-      { method: 'PUT', pattern: /^\/workers\/[^/]+\/heartbeat$/, handler: () => ({ status: 200, json: { health: 'HEALTHY', leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(), capacity: 1 } }) },
+      { method: 'PUT', pattern: /^\/businesses\/[^/]+\/versions\/[^/]+$/, handler: () => ({ status: 201, json: {
+        businessId: MANIFEST.businessId,
+        version: MANIFEST.version,
+        digest: MANIFEST_DIGEST,
+        queue: businessQueueName(MANIFEST.businessId, MANIFEST.version),
+        created: true,
+        replayed: false,
+      } }) },
+      { method: 'PUT', pattern: /^\/workers\/[^/]+\/heartbeat$/, handler: () => ({ status: 200, json: {
+        health: 'HEALTHY',
+        leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        capacity: 1,
+        controlRevision: 0,
+        controlState: 'OPEN',
+        backupEffectFence: { state: 'OPEN', revision: 0, acknowledged: true },
+      } }) },
       { method: 'POST', pattern: /^\/tasks\/[^/]+\/claim$/, handler: () => ({ status: 200, json: makeClaim() }) },
       { method: 'POST', pattern: /^\/tasks\/[^/]+\/complete$/, handler: () => ({ status: 200, json: { taskId: TASK_ID, state: 'SUCCEEDED', operationState: 'SUCCEEDED', replayed: false } }) },
       ...artifactRoutes(),

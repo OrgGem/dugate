@@ -1,25 +1,44 @@
 {
-  "schemaVersion": 1,
-  "effectiveDate": "2026-10-11",
-  "authority": "User instruction: implementation/test agents use Luna 6 max; review/architecture/plan use Sol or Astra matching the user-facing chat model.",
-  "implementationAndTest": {
+  "schemaVersion": 2,
+  "effectiveDate": "2026-10-12",
+  "authority": "User-authorized Codex workflow for this repository. This file records instructions and is not an enforced runtime configuration.",
+  "coordination": {
+    "primaryAgent": "Codex user-facing primary",
+    "responsibilities": [
+      "planning and task breakdown",
+      "delegation and coordination",
+      "permission handling",
+      "evidence review and final synthesis"
+    ],
+    "tools": "Built-in collaboration tools"
+  },
+  "implementationTestAndExplorationWorkers": {
     "model": "gpt-6-luna",
     "reasoning_effort": "max",
     "fork_turns": "none",
-    "taskContext": "Concise self-contained packet with objective, scope, file lease, contracts, acceptance and evidence paths."
+    "executeAssignedScopeDirectly": true,
+    "spawnSubagents": false,
+    "taskContext": "Self-contained objective, scope, exact file lease, acceptance criteria, and necessary context."
   },
-  "reviewArchitectureAndPlan": {
-    "model": "inherit_user_facing_parent",
-    "families": ["sol", "astra"],
-    "fork_turns": "all",
-    "reasoning_effort": "inherit_parent",
-    "dispatchFrom": "User-facing coordinator, not a Luna implementation/test parent."
+  "codeReview": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "readOnly": true,
+    "separateFromImplementationOwner": true,
+    "fork_turns": "none"
   },
-  "existingAgents": {
-    "reuseOnlyWhenModelMatchesRole": true,
-    "availableModelSetter": false,
-    "createIdleReplacements": false,
-    "retroactiveModelOrCostChange": false
+  "evidence": {
+    "distinguish": ["source", "built_artifact", "running_deployment"],
+    "rule": "Do not infer deployed behavior from source or test receipts alone."
   },
-  "enforcement": "Coordinator must pass the model/effort/fork fields when spawning. This file is a persisted instruction; it does not configure the platform automatically."
+  "historicalCoordinationDocuments": {
+    "status": "reference_only_for_this_Codex_session",
+    "examples": [
+      "du-rework/coordination/COORDINATOR-CONTRACT.md",
+      "historical task ledgers and reports",
+      "historical scheduler and role records"
+    ],
+    "activeRequirements": false
+  },
+  "enforcement": "These are persisted Codex workflow instructions only. This file does not set platform-wide model defaults, control tool access, or prove that runtime enforcement is active."
 }

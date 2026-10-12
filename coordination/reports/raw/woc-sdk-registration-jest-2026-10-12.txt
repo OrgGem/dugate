@@ -1,0 +1,90 @@
+{"maxAttempts":3,"retryAfterMs":73,"code":"TEMPORARY_UNAVAILABLE","timestamp":"2026-10-12T08:34:18.114Z","level":"warn","service":"worker:woc-registration-biz","version":"unknown","environment":"test","correlationId":"e5ab829a-5aa1-4f51-9112-8849d898683b","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-registration-biz","businessVersion":"3.4.5","code":"BUSINESS_DISABLED","retryAfterMs":217,"timestamp":"2026-10-12T08:34:18.202Z","level":"warn","service":"worker:woc-registration-biz","version":"unknown","environment":"test","correlationId":"corr-disabled","operationId":"operation-disabled","taskId":"task-disabled","invocationId":null,"message":"[REDACTED]"}
+{"timestamp":"2026-10-12T08:34:18.409Z","level":"info","service":"worker:sweep-biz","version":"unknown","environment":"test","correlationId":"c774202a-3d53-4d06-92d2-43304e6accf5","operationId":null,"taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+{"timestamp":"2026-10-12T08:34:18.590Z","level":"info","service":"worker:sweep-biz","version":"unknown","environment":"test","correlationId":"f3785a1c-9359-4625-b49a-2b39c12ead8a","operationId":null,"taskId":null,"invocationId":null,"message":"temp workspace sweep removed stale dirs"}
+{"businessId":"test-biz","businessVersion":"1.0.0","status":409,"code":"TASK_LEASE_ACTIVE","timestamp":"2026-10-12T08:34:19.129Z","level":"info","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"test-biz","businessVersion":"1.0.0","status":410,"code":"TASK_TERMINAL","timestamp":"2026-10-12T08:34:19.130Z","level":"info","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"test-biz","businessVersion":"1.0.0","kind":"root","timestamp":"2026-10-12T08:34:19.132Z","level":"error","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"test-biz","businessVersion":"1.0.0","code":"HANDLER_KIND_UNAVAILABLE","retryAfterMs":64998,"timestamp":"2026-10-12T08:34:19.132Z","level":"warn","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"test-biz","businessVersion":"1.0.0","errorCode":"PROVIDER_RATE_LIMITED","retryable":true,"retryAfterMs":2500,"errorName":"Error","timestamp":"2026-10-12T08:34:19.135Z","level":"error","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"handler failed"}
+{"businessId":"test-biz","businessVersion":"1.0.0","kind":"waiting-children","timestamp":"2026-10-12T08:34:19.137Z","level":"info","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"task yielded"}
+{"businessId":"test-biz","businessVersion":"1.0.0","kind":"waiting-input","timestamp":"2026-10-12T08:34:19.139Z","level":"info","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"task yielded"}
+{"businessId":"test-biz","businessVersion":"1.0.0","code":"TEMPORARY_UNAVAILABLE","retryAfterMs":168,"timestamp":"2026-10-12T08:34:19.140Z","level":"warn","service":"worker:test-biz","version":"unknown","environment":"test","correlationId":"corr-12345","operationId":"582656c4-9cfc-4993-bd78-20d58692e987","taskId":"78c89d2b-1bcb-440d-9391-b0de3f4154c2","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"STATE_CONFLICT","retryAfterMs":204,"timestamp":"2026-10-12T08:34:19.393Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","timestamp":"2026-10-12T08:34:19.409Z","level":"error","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"CLAIM_SNAPSHOT_INCOMPATIBLE","retryAfterMs":64999,"timestamp":"2026-10-12T08:34:19.409Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","timestamp":"2026-10-12T08:34:19.410Z","level":"error","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"CLAIM_SNAPSHOT_INCOMPATIBLE","retryAfterMs":65000,"timestamp":"2026-10-12T08:34:19.410Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","timestamp":"2026-10-12T08:34:19.412Z","level":"error","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"CLAIM_SNAPSHOT_INCOMPATIBLE","retryAfterMs":64999,"timestamp":"2026-10-12T08:34:19.412Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"count":1,"timestamp":"2026-10-12T08:34:19.413Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"ce7be6b7-1088-40f0-ae80-bc39d22ea437","operationId":null,"taskId":null,"invocationId":null,"message":"grace period expired with in-flight deliveries; lease recovery will handle them"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","reason":"shutdown","timestamp":"2026-10-12T08:34:19.413Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"LEASE_RECOVERY","retryAfterMs":251610506745586,"timestamp":"2026-10-12T08:34:19.413Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"count":1,"timestamp":"2026-10-12T08:34:19.421Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"3b1fc962-2155-4c61-8196-50fa3ba82e06","operationId":null,"taskId":null,"invocationId":null,"message":"grace period expired with in-flight deliveries; lease recovery will handle them"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","reason":"shutdown","timestamp":"2026-10-12T08:34:19.421Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"LEASE_RECOVERY","retryAfterMs":65000,"timestamp":"2026-10-12T08:34:19.421Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"count":1,"timestamp":"2026-10-12T08:34:19.425Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"cc2195f2-a1d2-409b-b2b0-eb76c736ee50","operationId":null,"taskId":null,"invocationId":null,"message":"grace period expired with in-flight deliveries; lease recovery will handle them"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"WORKER_SHUTDOWN","retryAfterMs":65000,"timestamp":"2026-10-12T08:34:19.425Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"businessId":"woc-sdk-biz","businessVersion":"1.0.0","code":"TEMPORARY_UNAVAILABLE","retryAfterMs":228,"timestamp":"2026-10-12T08:34:19.426Z","level":"warn","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"corr-woc-sdk","operationId":"4f5a2ae8-bee1-4616-b5c9-bab629edabd4","taskId":"d3cff008-515a-46f0-b209-639e01484b25","invocationId":null,"message":"[REDACTED]"}
+{"code":"WORKER_COMPATIBILITY_REQUIRED","timestamp":"2026-10-12T08:34:19.427Z","level":"error","service":"worker:woc-sdk-biz","version":"unknown","environment":"test","correlationId":"432f204f-9214-4db6-a6f6-61561ba166ab","operationId":null,"taskId":null,"invocationId":null,"message":"[REDACTED]"}
+FAIL tests/woc-sdk-worker.test.ts
+  ● WOC SDK lease watchdog › aborts at the confirmed lease safety deadline when heartbeat transport fails
+
+    RuntimeError: runtime request failed: PUT /workers/worker-45cc7a7e-5d80-495e-a4e5-4b57fc498b8e/heartbeat (HTTP 404)
+
+      258 |         }
+      259 |         const code = problem?.code ?? fallbackRuntimeCode(received.status);
+    > 260 |         throw new RuntimeError(
+          |               ^
+      261 |           received.status,
+      262 |           code,
+      263 |           problem,
+
+      at operation (src/runtime-client.ts:260:15)
+      at RuntimeClient.request (src/runtime-client.ts:280:14)
+      at startWorker (src/worker.ts:883:24)
+      at Object.<anonymous> (tests/woc-sdk-worker.test.ts:409:20)
+
+  ● WOC SDK lease watchdog › a valid heartbeat renewal extends the deadline and a late ACK cannot revive an expired lease
+
+    RuntimeError: runtime request failed: PUT /workers/worker-af59a23b-222d-4d3a-8149-02e5f1b1715c/heartbeat (HTTP 404)
+
+      258 |         }
+      259 |         const code = problem?.code ?? fallbackRuntimeCode(received.status);
+    > 260 |         throw new RuntimeError(
+          |               ^
+      261 |           received.status,
+      262 |           code,
+      263 |           problem,
+
+      at operation (src/runtime-client.ts:260:15)
+      at RuntimeClient.request (src/runtime-client.ts:280:14)
+      at startWorker (src/worker.ts:883:24)
+      at Object.<anonymous> (tests/woc-sdk-worker.test.ts:450:20)
+
+  ● WOC SDK lease watchdog › accepts a valid shorter lease renewal and bounds its safety margin to that grant
+
+    RuntimeError: runtime request failed: PUT /workers/worker-2e6c81bd-6c16-43b8-b5ac-eb954694c1b2/heartbeat (HTTP 404)
+
+      258 |         }
+      259 |         const code = problem?.code ?? fallbackRuntimeCode(received.status);
+    > 260 |         throw new RuntimeError(
+          |               ^
+      261 |           received.status,
+      262 |           code,
+      263 |           problem,
+
+      at operation (src/runtime-client.ts:260:15)
+      at RuntimeClient.request (src/runtime-client.ts:280:14)
+      at startWorker (src/worker.ts:883:24)
+      at Object.<anonymous> (tests/woc-sdk-worker.test.ts:541:20)
+
+
+Test Suites: 1 failed, 6 passed, 7 total
+Tests:       3 failed, 137 passed, 140 total
+Snapshots:   0 total
+Time:        4.149 s
+Ran all test suites within paths "tests/woc-sdk-registration.test.ts", "tests/woc-sdk-worker.test.ts", "tests/worker.test.ts", "tests/connector-session.test.ts", "tests/p730-sdk-consume-pin-passthrough.test.ts", "tests/p745-carrier-sdk-forward.test.ts", "tests/temp-sweep.test.ts".
+undefined
+D:\Git\dugate\du-rework\orchestrator\packages\worker-sdk:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "jest" not found

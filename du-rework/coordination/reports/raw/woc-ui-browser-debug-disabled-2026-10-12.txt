@@ -1,0 +1,117 @@
+REQ GET http://127.0.0.1:4178/admin/api/session
+REQ GET http://127.0.0.1:4178/admin/api/session
+REQ GET http://127.0.0.1:4178/admin/api/tenants?limit=100
+RES 200 http://127.0.0.1:4178/admin/api/session
+RES 200 http://127.0.0.1:4178/admin/api/session
+RES 200 http://127.0.0.1:4178/admin/api/tenants?limit=100
+REQ GET http://127.0.0.1:4178/admin/api/businesses?limit=100
+REQ GET http://127.0.0.1:4178/admin/api/api-keys?tenantId=11111111-1111-4111-8111-111111111111&limit=100
+REQ GET http://127.0.0.1:4178/admin/api/profile-groups?tenantId=11111111-1111-4111-8111-111111111111
+REQ GET http://127.0.0.1:4178/admin/api/connectors
+REQ GET http://127.0.0.1:4178/admin/api/connectors
+REQ GET http://127.0.0.1:4178/admin/api/profiles?tenantId=11111111-1111-4111-8111-111111111111&limit=100
+REQ GET http://127.0.0.1:4178/admin/api/businesses
+REQ GET http://127.0.0.1:4178/admin/api/businesses/document-core/versions
+REQ GET http://127.0.0.1:4178/admin/api/businesses/document-core/versions/1.1.0/functions
+REQ GET http://127.0.0.1:4178/admin/api/api-keys?tenantId=11111111-1111-4111-8111-111111111111
+REQ GET http://127.0.0.1:4178/admin/api/secrets?limit=100
+REQ GET http://127.0.0.1:4178/admin/api/health
+RES 200 http://127.0.0.1:4178/admin/api/businesses?limit=100
+RES 200 http://127.0.0.1:4178/admin/api/api-keys?tenantId=11111111-1111-4111-8111-111111111111&limit=100
+RES 200 http://127.0.0.1:4178/admin/api/profile-groups?tenantId=11111111-1111-4111-8111-111111111111
+RES 200 http://127.0.0.1:4178/admin/api/connectors
+RES 200 http://127.0.0.1:4178/admin/api/connectors
+RES 200 http://127.0.0.1:4178/admin/api/profiles?tenantId=11111111-1111-4111-8111-111111111111&limit=100
+RES 200 http://127.0.0.1:4178/admin/api/businesses
+RES 200 http://127.0.0.1:4178/admin/api/businesses/document-core/versions
+RES 200 http://127.0.0.1:4178/admin/api/businesses/document-core/versions/1.1.0/functions
+RES 200 http://127.0.0.1:4178/admin/api/api-keys?tenantId=11111111-1111-4111-8111-111111111111
+RES 200 http://127.0.0.1:4178/admin/api/secrets?limit=100
+RES 200 http://127.0.0.1:4178/admin/api/health
+REQ GET http://127.0.0.1:4178/admin/api/profile-groups/77777777-7777-4777-8777-777777777777
+RES 200 http://127.0.0.1:4178/admin/api/profile-groups/77777777-7777-4777-8777-777777777777
+REQ GET http://127.0.0.1:4178/admin/api/businesses/document-core/versions
+REQ GET http://127.0.0.1:4178/admin/api/businesses/claims-workflow/versions
+RES 200 http://127.0.0.1:4178/admin/api/businesses/document-core/versions
+RES 200 http://127.0.0.1:4178/admin/api/businesses/claims-workflow/versions
+REQ GET http://127.0.0.1:4178/admin/api/businesses/document-core/versions/2.0.0/functions
+REQ GET http://127.0.0.1:4178/admin/api/businesses/claims-workflow/versions/3.0.0/functions
+RES 200 http://127.0.0.1:4178/admin/api/businesses/document-core/versions/2.0.0/functions
+RES 200 http://127.0.0.1:4178/admin/api/businesses/claims-workflow/versions/3.0.0/functions
+BODYTAIL Profile group name
+Existing active API key
+Select an active API key
+Existing fixture key · du_fixture
+
+The existing key membership is reused. No group credential is created.
+
+Registered enabled businesses
+
+Each business keeps an independent version and function selection.
+
+Refresh businesses
+document-core
+Enabled
+document-core
+Enabled
+Remove business
+Registered version
+1.1.0
+2.0.0
+
+The function catalog is loaded from this exact business version and manifest digest.
+
+Manifest digest document-core-2.0.0-fixture-digest · 2 declared functions.
+
+Document Core endpoint · extract.invoice
+Function id: core:extract:invoice
+Available
+Enabled
+Job priority
+Low
+Medium
+High
+Allowed file extensions
+Manifest profile settings
+Temperature *
+Options
+Connector bindings
+
+Connector credentials and provider settings remain managed on the separate Connectors screen.
+
+reasoning *
+Select a connector revision
+reasoning-primary · revision 2
+
+Accepted capabilities: reasoning
+
+Document Core endpoint · analyze.legacy
+Function id: core:analyze:legacy
+Unavailable
+
+The local runtime fixture does not admit this legacy endpoint.
+
+claims-workflow
+Disabled
+Remove business
+
+This business was disabled while the editor was open. Remove it or enable it in the Business registry, then refresh.
+
+Registered version
+3.0.0
+
+The function catalog is loaded from this exact business version and manifest digest.
+
+Manifest digest claims-workflow-3.0.0-fixture-digest · 1 declared functions.
+
+Declared workflow action · review-claim
+Function id: claims:action:review
+Unavailable
+Before save:
+claims-workflow@3.0.0 is not currently enabled. Refresh the business catalog before saving.
+claims-workflow@3.0.0 was disabled while this editor was open.
+Save full group revision
+Rollback to revision
+Rollback complete group
+SAVE_DISABLED true
+CHECKED true

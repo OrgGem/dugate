@@ -1,0 +1,7 @@
+{"subsystem":"admin-shell","timestamp":"2026-10-12T08:52:17.563Z","level":"warn","service":"orchestrator","version":"unknown","environment":"test","correlationId":"0d4b3be8-f293-4d9e-a2a9-20dbe0b79f1f","operationId":null,"taskId":null,"invocationId":null,"message":"[admin-shell] admin web mount enabled but bundle is missing"}
+
+Test Suites: 12 passed, 12 total
+Tests:       129 passed, 129 total
+Snapshots:   0 total
+Time:        4.869 s
+Ran all test suites matching tests/aweb06-bff-operations.test.ts|tests/aweb11c-worker-instances.test.ts|tests/br12-isolation-offline.test.ts|tests/business-catalog-contract-conformance.test.ts|tests/mm05-queue-integrity-offline.functional.test.ts|tests/mm05-queue-integrity-sweep.test.ts|tests/or10-03-runtime-lease-replay.test.ts|tests/runtime-lease-fencing-offline.test.ts|tests/woc-backend-business-lifecycle.test.ts|tests/woc-backend-contracts.test.ts|tests/woc-backend-resume-join.test.ts|tests/woc-backend-yield.test.ts.

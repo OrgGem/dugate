@@ -1,0 +1,1 @@
+PASS: node --check orchestrator/apps/admin-web/tests/fixtures/woc11-browser-fixture.mjs (exit 0)

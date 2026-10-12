@@ -1,0 +1,4 @@
+
+> @du/orchestrator@0.1.0 typecheck D:\Git\dugate\du-rework\orchestrator\services\orchestrator
+> tsc --noEmit -p tsconfig.json
+

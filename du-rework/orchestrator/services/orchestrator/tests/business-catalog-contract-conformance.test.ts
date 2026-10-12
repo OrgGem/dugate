@@ -27,6 +27,8 @@ interface QueryCall {
 
 interface BusinessRow extends QueryResultRow {
   business_id: string;
+  enabled: boolean;
+  lifecycle_revision: number;
   version: string;
   status: string;
   is_active: boolean;
@@ -43,6 +45,8 @@ function row(businessId: string, createdAt: string): BusinessRow {
   const timestamp = new Date(createdAt);
   return {
     business_id: businessId,
+    enabled: true,
+    lifecycle_revision: 2,
     version: '2.0.0',
     status: 'ENABLED',
     is_active: true,
@@ -98,6 +102,8 @@ function harness(input: { search?: string; token?: string } = {}) {
 
 interface TenantBusinessRow extends QueryResultRow {
   business_id: string;
+  enabled: boolean;
+  lifecycle_revision: number;
   latest_version: string | null;
   latest_status: string | null;
   active_version: string | null;
@@ -114,6 +120,8 @@ function catalogRow(businessId: string, createdAt: string, updatedAt = createdAt
   const cursorTimestamp = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, '.000000Z');
   return {
     business_id: businessId,
+    enabled: true,
+    lifecycle_revision: 2,
     latest_version: '2.0.0',
     latest_status: 'ENABLED',
     active_version: '2.0.0',
@@ -317,6 +325,8 @@ describe('Tenant business catalog route contract conformance', () => {
     expect(typeof body['generatedAt']).toBe('string');
     expect((body['items'] as Record<string, unknown>[])[0]).toEqual({
       businessId: 'business-a',
+      enabled: true,
+      lifecycleRevision: 2,
       displayName: 'business-a',
       latestVersion: '2.0.0',
       latestStatus: 'ENABLED',

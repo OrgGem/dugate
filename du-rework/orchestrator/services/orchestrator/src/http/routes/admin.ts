@@ -11,6 +11,7 @@ import { readEffectiveSettings } from '../../modules/settings/settings';
 import {
   ADMIN_BUSINESS_LIST_QUERY_PARAMS,
   ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS,
+  BusinessEnableRequestSchema,
   SecretCatalogCreateSchema,
   SecretCatalogDisableSchema,
   SecretCatalogRotateSchema,
@@ -71,6 +72,7 @@ import { listWorkerInstances, parseWorkerInstanceListQuery } from '../../modules
 import { getBusinessVersionImpactPreview } from '../../modules/admin-read/business-impact-preview';
 import { hashKey } from './api-key-auth';
 import type { RouteContext, RouteResult } from '../route-context';
+import { handleAdminProfileGroupsRoute } from './admin-profile-groups';
 
 function assertAdminAuth(ctx: RouteContext) {
   // Admin and runtime credentials are distinct (R08-01). The fail-closed
@@ -151,8 +153,18 @@ function decodeBusinessPathSegment(raw: string, name: string): string {
   return value;
 }
 
+function readBusinessLifecycleRevision(value: number | string): number {
+  const revision = Number(value);
+  if (!Number.isSafeInteger(revision) || revision < 1) {
+    throw new Error('business lifecycle revision is invalid');
+  }
+  return revision;
+}
+
 export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult | null> {
   const { method, pathname } = ctx;
+  const profileGroupRoute = await handleAdminProfileGroupsRoute(ctx);
+  if (profileGroupRoute) return profileGroupRoute;
   if (pathname === '/api/v1/admin/legacy-migration/readiness') {
     if(method !== 'GET') throw new HttpError(405,'METHOD_NOT_ALLOWED','readiness accepts GET only');
     const principal = resolveAdminPrincipal(ctx.config, ctx.headers['authorization']);
@@ -240,6 +252,41 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         })
       );
       return { status: 200, body: { businessId, version, status: 'ENABLED' } };
+    }
+  }
+
+  // WOC-10: logical business availability is a lifecycle CAS, separate from
+  // per-version ENABLED/active state. Existing leases drain; admission and
+  // claim gates read this same catalog row.
+  {
+    const m = /^\/api\/v1\/admin\/businesses\/([^/]+)\/enabled$/.exec(pathname);
+    if (m) {
+      if (method !== 'PUT') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'business enabled state accepts PUT only');
+      assertAdminAuth(ctx);
+      const businessId = decodeBusinessPathSegment(m[1]!, 'businessId');
+      const parsed = BusinessEnableRequestSchema.safeParse(ctx.body);
+      if (!parsed.success) throw new HttpError(422, 'INVALID_SCHEMA', 'business enabled-state payload is invalid');
+      const result = await ctx.db.tx(async (client) => {
+        const changed = await ctx.registry.setBusinessEnabled(
+          businessId,
+          parsed.data.enabled,
+          parsed.data.expectedLifecycleRevision,
+          client,
+        );
+        if (!changed.replayed) {
+          await ctx.audit.record({
+            tenantId: null,
+            actor: 'admin',
+            ...ADMIN_TOKEN_AUDIT_FIELDS,
+            action: changed.enabled ? 'business.enable' : 'business.disable',
+            resource: `business:${changed.businessId}`,
+            severity: changed.enabled ? 'success' : 'warning',
+            correlationId: ctx.correlationId,
+          }, client);
+        }
+        return changed;
+      });
+      return { status: 200, body: result };
     }
   }
 
@@ -516,6 +563,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       body: listPage({
         items: page.rows.map((r) => ({
           businessId: r.business_id,
+          enabled: r.enabled,
+          lifecycleRevision: readBusinessLifecycleRevision(r.lifecycle_revision),
           version: r.active_version ?? r.version,
           activeVersion: r.active_version,
           status: r.status,
@@ -571,6 +620,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
           ...listPage({
             items: page.rows.map((row) => ({
               businessId: row.business_id,
+              enabled: row.enabled,
+              lifecycleRevision: readBusinessLifecycleRevision(row.lifecycle_revision),
               displayName: row.business_id,
               latestVersion: row.latest_version,
               latestStatus: row.latest_status,
@@ -702,6 +753,11 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
       const query = parseAdminResourceListQuery(ctx.searchParams, ADMIN_BUSINESS_VERSION_LIST_QUERY_PARAMS);
       const page = await listBusinessVersionPage(ctx.db, businessId, query);
       if (page.total === 0) throw new HttpError(404, 'NOT_FOUND', `business '${businessId}' is not registered`);
+      const logicalBusiness = await ctx.db.query<{ enabled: boolean; lifecycle_revision: number | string }>(
+        'SELECT enabled,lifecycle_revision FROM business_catalog WHERE business_id=$1',
+        [businessId],
+      );
+      if (!logicalBusiness.rows[0]) throw new HttpError(404, 'NOT_FOUND', `business '${businessId}' is not registered`);
       const items = page.rows.map((r) => ({
         businessId: r.business_id,
         version: r.version,
@@ -717,6 +773,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<RouteResult 
         status: 200,
         body: {
           businessId,
+          enabled: logicalBusiness.rows[0].enabled,
+          lifecycleRevision: readBusinessLifecycleRevision(logicalBusiness.rows[0].lifecycle_revision),
           activeVersion: page.activeVersion,
           ...listPage({
             items,

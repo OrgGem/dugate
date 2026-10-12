@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { ArtifactStreamError, DefaultTaskContext, RuntimeClient } from '../src';
+import { AmbiguousReportError, ArtifactStreamError, DefaultTaskContext, RuntimeClient } from '../src';
 
 const TASK_ID = randomUUID();
 const OPERATION_ID = randomUUID();
@@ -423,7 +423,7 @@ describe('ArtifactFacade.readWithMetadata', () => {
     }) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
     expect(downloadRequests).toBe(0);
   });
 
@@ -440,7 +440,12 @@ describe('ArtifactFacade.readWithMetadata', () => {
       }) as typeof fetch;
       const ctx = makeContext(fetchImpl);
 
-      await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toThrow();
+      const read = ctx.artifacts.readWithMetadata(ARTIFACT_ID);
+      if (field === 'downloadUrl') {
+        await expect(read).rejects.toThrow('access grant did not include a download URL');
+      } else {
+        await expect(read).rejects.toBeInstanceOf(AmbiguousReportError);
+      }
       expect(downloadRequests).toBe(0);
     }
   );
@@ -461,7 +466,7 @@ describe('ArtifactFacade.readWithMetadata', () => {
     }) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
     expect(downloadRequests).toBe(0);
   });
 
@@ -482,7 +487,7 @@ describe('ArtifactFacade.readWithMetadata', () => {
     }) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toThrow();
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
     expect(downloadRequests).toBe(0);
   });
 
@@ -500,7 +505,7 @@ describe('ArtifactFacade.readWithMetadata', () => {
       return new Response(new Uint8Array([0]), { status: 200 });
     }) as typeof fetch);
 
-    await expect(overLimit.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toThrow();
+    await expect(overLimit.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
     expect(downloadRequests).toBe(0);
   });
 
@@ -522,7 +527,7 @@ describe('ArtifactFacade.readWithMetadata', () => {
     }) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toThrow();
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
     expect(downloadRequests).toBe(0);
   });
 
@@ -669,6 +674,6 @@ describe('ArtifactFacade.readWithMetadata', () => {
     }) as typeof fetch;
     const ctx = makeContext(fetchImpl);
 
-    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(ctx.artifacts.readWithMetadata(ARTIFACT_ID)).rejects.toBeInstanceOf(AmbiguousReportError);
   });
 });

@@ -10,6 +10,8 @@ import {
 
 export interface BusinessListDbRow extends Record<string, unknown> {
   business_id: string;
+  enabled: boolean;
+  lifecycle_revision: number | string;
   version: string;
   status: string;
   is_active: boolean;
@@ -28,7 +30,7 @@ export async function listAdminBusinessesPage(
   // outer name is only a derived-table alias; keep it visibly distinct from
   // the nonexistent `businesses` table name.
   const fromSql = `(
-    SELECT latest.business_id, latest.version, latest.status, latest.is_active,
+    SELECT latest.business_id, c.enabled, c.lifecycle_revision, latest.version, latest.status, latest.is_active,
            latest.digest, latest.queue, latest.created_at, latest.updated_at,
            active.active_version
     FROM (
@@ -37,6 +39,7 @@ export async function listAdminBusinessesPage(
       FROM business_versions
       ORDER BY business_id, created_at DESC, version DESC
     ) latest
+    JOIN business_catalog c ON c.business_id = latest.business_id
     LEFT JOIN (
       SELECT DISTINCT ON (business_id) business_id, version AS active_version
       FROM business_versions WHERE is_active = true
@@ -46,7 +49,7 @@ export async function listAdminBusinessesPage(
   return sortableAdminKeysetPage<BusinessListDbRow>({
     db,
     fromSql,
-    columns: `business_page.business_id, business_page.version, business_page.status, business_page.is_active, business_page.digest, business_page.queue, business_page.created_at, business_page.updated_at, business_page.active_version,
+    columns: `business_page.business_id, business_page.enabled, business_page.lifecycle_revision, business_page.version, business_page.status, business_page.is_active, business_page.digest, business_page.queue, business_page.created_at, business_page.updated_at, business_page.active_version,
               to_char(business_page.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_cursor,
               to_char(business_page.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at_cursor`,
     clauses: [],

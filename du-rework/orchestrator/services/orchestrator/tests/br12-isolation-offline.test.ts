@@ -43,8 +43,7 @@ function routeContext(options: {
   taskBusinessId?: string;
   artifactBusinessId?: string;
 } = {}): RouteContext {
-  const db = {
-    query: jest.fn(async <T extends QueryResultRow = QueryResultRow>(sql: string) => {
+  const query = jest.fn(async <T extends QueryResultRow = QueryResultRow>(sql: string) => {
       if (/FROM tasks t JOIN operations o ON o\.id=t\.operation_id WHERE t\.id=\$1/i.test(sql)) {
         return result<T>([{ business_id: options.taskBusinessId ?? 'business-a' }]);
       }
@@ -60,11 +59,29 @@ function routeContext(options: {
           business_id: options.artifactBusinessId ?? 'business-a',
         }]);
       }
+      if (/FROM maintenance_backup_effect_gate/i.test(sql)) {
+        return result<T>([{ state: 'OPEN', fence_revision: 1 }]);
+      }
+      if (/INSERT INTO runtime_control_scopes/i.test(sql)) return result<T>([], 'INSERT');
+      if (/SELECT scope_kind,scope_id,desired_state,revision/i.test(sql)) {
+        return result<T>([
+          { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+          { scope_kind: 'business', scope_id: 'business-a', desired_state: 'OPEN', revision: 1 },
+        ]);
+      }
+      if (/FROM operations o WHERE o\.tenant_id::text=r\.scope_id/i.test(sql)) return result<T>([]);
+      if (/FROM worker_instances WHERE business_id=\$1 AND instance_id=\$2 FOR UPDATE/i.test(sql)) return result<T>([]);
+      if (/INSERT INTO worker_control_scope_acks/i.test(sql)) return result<T>([], 'INSERT');
       if (/INSERT INTO worker_instances/i.test(sql)) {
-        return result<T>([{ state: 'ONLINE', last_seen_at: new Date() }], 'INSERT');
+        return result<T>([{
+          state: 'ONLINE', last_seen_at: new Date(), control_revision: 1, control_state: 'OPEN',
+        }], 'INSERT');
       }
       throw new Error(`unexpected route-test SQL: ${sql}`);
-    }),
+  });
+  const db = {
+    query,
+    tx: async <T>(work: (client: never) => Promise<T>) => work({ query } as never),
   };
   const runtime = {
     claimTask: jest.fn(async () => ({ taskId: TASK_ID, leaseEpoch: 1, executionSnapshot: {} })),
@@ -175,9 +192,18 @@ describe('BR-12 offline business isolation', () => {
         if (/SELECT id, aggregate_id, type, delivery_id, payload, attempts\s+FROM outbox/i.test(sql)) {
           return result<T>([outboxRow]);
         }
-        if (/SELECT o\.business_id, o\.business_version, bv\.queue/i.test(sql)) {
+        if (/INSERT INTO runtime_control_scopes/i.test(sql)) return result<T>([], 'INSERT');
+        if (/SELECT scope_kind,scope_id,desired_state,revision/i.test(sql)) {
+          return result<T>([
+            { scope_kind: 'platform', scope_id: 'all', desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'tenant', scope_id: TENANT_ID, desired_state: 'OPEN', revision: 1 },
+            { scope_kind: 'business', scope_id: 'business-b', desired_state: 'OPEN', revision: 1 },
+          ]);
+        }
+        if (/SELECT o\.tenant_id, o\.business_id, o\.business_version, bv\.queue/i.test(sql)) {
           return result<T>([{ business_id: 'business-b', business_version: '1.0.0', queue: null }]);
         }
+        if (/SELECT enabled FROM business_catalog/i.test(sql)) return result<T>([{ enabled: true }]);
         if (/UPDATE outbox SET dispatched_at/i.test(sql)) return result<T>([], 'UPDATE');
         throw new Error(`unexpected dispatcher SQL: ${sql}`);
       },
@@ -213,7 +239,7 @@ describe('BR-12 offline business isolation', () => {
       workerAClaims.push(delivery.data);
     }
     expect(workerAClaims).toEqual([]);
-    expect(capturedQueries).toHaveLength(3);
+    expect(capturedQueries.some((sql) => /SELECT enabled FROM business_catalog/i.test(sql))).toBe(true);
   });
 
   it('rejects a business-A worker claiming business-B before lease mutation or snapshot disclosure', async () => {
@@ -293,6 +319,7 @@ describe('BR-12 offline business isolation', () => {
         params: unknown[] = []
       ): Promise<QueryResult<T>> => {
         queries.push({ sql, params });
+        if (/SELECT enabled FROM business_catalog/i.test(sql)) return result<T>([{ enabled: true }]);
         if (/FROM business_versions\s+WHERE business_id=\$1 AND is_active=true/i.test(sql)) {
           return result<T>([{
             version: '1.0.0',
@@ -343,11 +370,14 @@ describe('BR-12 offline business isolation', () => {
 
     expect(denied).toBeInstanceOf(HttpError);
     expect(denied).toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
-    expect(queries[1]?.params).toEqual([API_KEY_ID, 'business-b', '1.0.0', 'extract']);
+    expect(queries.find(({ sql }) => /SELECT p\.profile_id/i.test(sql))?.params)
+      .toEqual([API_KEY_ID, 'business-b', '1.0.0', 'extract', null]);
     // selectActiveRow's pointer cross-check (business-b has no bindings)…
-    expect(queries[2]?.params).toEqual([API_KEY_ID, 'business-b', '1.0.0', 'extract']);
+    expect(queries.find(({ sql }) => /SELECT 1 FROM profile_api_keys m/i.test(sql))?.params)
+      .toEqual([API_KEY_ID, 'business-b', '1.0.0', 'extract', null]);
     // …then the any-binding probe finds the FOREIGN binding → not-authorized.
-    expect(queries[3]?.params).toEqual([API_KEY_ID]);
+    expect(queries.find(({ sql }) => /SELECT 1 FROM profile_api_keys WHERE api_key_id/i.test(sql))?.params)
+      .toEqual([API_KEY_ID]);
     expect(tx).not.toHaveBeenCalled();
     expect(queries.some(({ sql }) => /INSERT INTO (operations|tasks|outbox)/i.test(sql))).toBe(false);
   });
@@ -377,21 +407,73 @@ describe('BR-12 offline business isolation', () => {
     expect((ctx.usage as unknown as { ingest: jest.Mock }).ingest).not.toHaveBeenCalled();
   });
 
-  it('keeps business version registration platform-only while allowing the platform runtime bearer', async () => {
+  it('allows scoped worker self-registration only for matching URL/body business coordinates', async () => {
+    const manifest = {
+      contractVersion: '1',
+      businessId: 'business-a',
+      version: '1.0.0',
+      displayName: 'Business A',
+      imageDigest: 'sha256:' + 'a'.repeat(64),
+      runtime: { wireVersion: '1', handlerKinds: ['root'] },
+      capabilities: { cancel: true, resume: true, parallel: true },
+      actions: [{
+        name: 'extract', displayName: 'Extract', inputSchema: { type: 'object' }, outputSchema: { type: 'object' },
+        profileSchema: { type: 'object' }, artifactPolicy: { minFiles: 0, maxFiles: 1 },
+        capabilities: { cancel: true, resume: true }, defaultLimits: {},
+      }],
+    };
     const workerContext = routeContext({
       method: 'PUT',
-      pathname: '/api/runtime/v1/businesses/business-b/versions/1.0.0',
-      body: { businessId: 'business-b', version: '1.0.0' },
+      pathname: '/api/runtime/v1/businesses/business-a/versions/1.0.0',
+      body: manifest,
     });
 
-    await expectWorkerForbidden(workerContext);
-    expect(workerContext.registry.registerVersion).not.toHaveBeenCalled();
+    await expect(route(workerContext)).resolves.toMatchObject({ status: 201 });
+    expect(workerContext.registry.registerVersion).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: manifest.businessId,
+      version: manifest.version,
+      actions: [expect.objectContaining({ name: 'extract', connectorSlots: [] })],
+    }));
+
+    const wrongBusiness = routeContext({
+      method: 'PUT',
+      pathname: '/api/runtime/v1/businesses/business-b/versions/1.0.0',
+      body: manifest,
+    });
+    await expect(route(wrongBusiness)).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(wrongBusiness.registry.registerVersion).not.toHaveBeenCalled();
+
+    const wrongWorker = routeContext({
+      method: 'PUT',
+      pathname: '/api/runtime/v1/businesses/business-b/versions/1.0.0',
+      authorization: 'Bearer worker-a-registration-token',
+      body: { ...manifest, businessId: 'business-b' },
+    });
+    await expect(route(wrongWorker)).rejects.toMatchObject({ status: 403, code: 'PERMISSION_DENIED' });
+    expect(wrongWorker.registry.registerVersion).not.toHaveBeenCalled();
+
+    const malformed = routeContext({
+      method: 'PUT',
+      pathname: '/api/runtime/v1/businesses/business-a/versions/1.0.0',
+      body: { businessId: 'business-a', version: '1.0.0' },
+    });
+    await expect(route(malformed)).rejects.toMatchObject({ status: 422, code: 'INVALID_SCHEMA' });
+    expect(malformed.registry.registerVersion).not.toHaveBeenCalled();
+
+    const unauthorized = routeContext({
+      method: 'PUT',
+      pathname: '/api/runtime/v1/businesses/business-a/versions/1.0.0',
+      authorization: 'Bearer not-a-runtime-token',
+      body: manifest,
+    });
+    await expect(route(unauthorized)).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' });
+    expect(unauthorized.registry.registerVersion).not.toHaveBeenCalled();
 
     const platformContext = routeContext({
       method: 'PUT',
-      pathname: '/api/runtime/v1/businesses/business-b/versions/1.0.0',
+      pathname: '/api/runtime/v1/businesses/business-a/versions/1.0.0',
       authorization: 'Bearer platform-runtime-token',
-      body: { businessId: 'business-b', version: '1.0.0' },
+      body: manifest,
     });
     await expect(route(platformContext)).resolves.toMatchObject({ status: 201 });
     expect(platformContext.registry.registerVersion).toHaveBeenCalledTimes(1);
@@ -519,10 +601,11 @@ describe('BR-12 offline business isolation', () => {
       },
     });
     await expect(route(ownHeartbeat)).resolves.toMatchObject({ status: 200, body: { health: 'HEALTHY' } });
-    expect(ownHeartbeat.db.query).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO worker_instances'),
-      ['business-a', 'worker-a-1', '1.0.0', 1],
-    );
+    const heartbeatWrite = (ownHeartbeat.db.query as jest.Mock).mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO worker_instances'));
+    expect(heartbeatWrite?.[1]).toEqual([
+      'business-a', 'worker-a-1', '1.0.0', 1, 'ONLINE', 1, 'OPEN', 'sha256:test', null, null, null, null,
+    ]);
   });
 
   it('limits workspace reference lookup to the authenticated worker business', async () => {
