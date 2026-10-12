@@ -1,0 +1,21 @@
+PASS tests/p745-prompt-carrier-producer.test.ts
+PASS tests/artifact-read-download-route.test.ts
+PASS tests/p745-prompt-producer-impl.test.ts
+PASS tests/legacy-http-mount.test.ts
+PASS tests/admin-action-dispatcher.test.ts
+PASS tests/admin-operations-sort-wiring.test.ts
+PASS tests/budget-reservations.test.ts
+PASS tests/admin-mutation-atomicity.test.ts
+PASS tests/orv11-operations-routes.test.ts
+PASS tests/admin-idempotency.test.ts
+PASS tests/admin-operations-query.test.ts
+PASS tests/orv15-vfy-public-operation.test.ts
+PASS tests/orv12-spend-admission.test.ts
+PASS tests/legacy-operations.test.ts
+PASS tests/legacy-public-artifact.test.ts
+
+Test Suites: 15 passed, 15 total
+Tests:       341 passed, 341 total
+Snapshots:   0 total
+Time:        4.435 s, estimated 5 s
+Ran all test suites within paths "tests/legacy-http-mount.test.ts", "tests/admin-idempotency.test.ts", "tests/admin-operations-query.test.ts", "tests/artifact-read-download-route.test.ts", "tests/admin-mutation-atomicity.test.ts", "tests/legacy-operations.test.ts", "tests/orv11-operations-routes.test.ts", "tests/legacy-public-artifact.test.ts", "tests/budget-reservations.test.ts", "tests/orv12-spend-admission.test.ts", "tests/orv15-vfy-public-operation.test.ts", "tests/admin-action-dispatcher.test.ts", "tests/admin-operations-sort-wiring.test.ts", "tests/p745-prompt-producer-impl.test.ts", "tests/p745-prompt-carrier-producer.test.ts".

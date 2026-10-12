@@ -21,7 +21,7 @@ import {
   type ProviderTestRequest,
 } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
-import { createImmutableAttempt, markAttemptDispatched, retainAfterFailure, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
+import { createImmutableAttempt, FileArtifactCache, markAttemptDispatched, retainAfterFailure, type ImmutableAttempt } from '@/features/submissions/immutable-attempt';
 
 type ParityConnectorEditorProps = {
   savedAttempt: ImmutableAttempt<ProviderTestRequest> | null;
@@ -151,7 +151,7 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
   const [reconcileRequest, setReconcileRequest] = useState<ProviderTestRequest | null>(
     savedAttempt && savedAttempt.state !== 'ACCEPTED' ? savedAttempt.request as ProviderTestRequest : null,
   );
-  const uploadedFiles = useRef(new WeakMap<File, { tenantId: string; apiKeyId: string; artifactId: string }>());
+  const uploadedFiles = useRef(new FileArtifactCache<File>());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -478,15 +478,15 @@ export function ParityConnectorEditor({ savedAttempt, onAttemptChange }: ParityC
       if (selectedFiles.length > 4) { setError('A provider test accepts at most four tenant-owned files.'); return; }
       for (const file of selectedFiles) {
         if (activeTenantId.current !== tenantId) return;
-        const cached = uploadedFiles.current.get(file);
-        if (cached?.tenantId === tenantId && cached.apiKeyId === apiKeyId) {
-          artifactIds.push(cached.artifactId);
+        const cached = uploadedFiles.current.get(file, tenantId, apiKeyId);
+        if (cached) {
+          artifactIds.push(cached);
           continue;
         }
         const upload = await client.uploadWorkflowFile(tenantId, apiKeyId, file);
         if (!upload.ok) { if (activeTenantId.current === tenantId) setError(`File ${file.name}: ${errorText(upload.problem)}`); return; }
         if (upload.data.state !== 'READY') { if (activeTenantId.current === tenantId) setError(`File ${file.name} is ${upload.data.state}; only READY tenant-owned files can be tested.`); return; }
-        uploadedFiles.current.set(file, { tenantId, apiKeyId, artifactId: upload.data.artifactId });
+        uploadedFiles.current.set(file, tenantId, apiKeyId, upload.data.artifactId);
         if (activeTenantId.current !== tenantId) return;
         artifactIds.push(upload.data.artifactId);
       }

@@ -1,0 +1,4 @@
+6e788f65a3416cc8febadff663dbb30eb530621d1d7a9acd371e81fe418f196a  src/modules/admin-actions/dispatcher.ts
+63092bd5b278c682319892a86c05f3d17bdba6cc416e84845587ee4bb9f81df3  src/app/admin/operation-section-data.ts
+ca73e05d3e37b79ea0d5e16aff54b6802cb2cda7e474550e428f02b65d7645a3  tests/admin-action-dispatcher.test.ts
+8bfe4dfdf2155d54d6a83f200ca9ddbdaa573bf8bbd35d7fa0b9aa9dc04449a9  tests/admin-operations-sort-wiring.test.ts

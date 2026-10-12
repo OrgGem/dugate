@@ -1,0 +1,62 @@
+# NOT RUNNABLE: this is a one-slot template. Render a complete literal overlay
+# separately for blue and green, then root-own and SHA-pin the rendered files.
+# The same three stable Compose service keys are used in both project names.
+services:
+  orchestrator:
+    image: registry.example.invalid/du/orchestrator@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    environment:
+      DU_ORCHESTRATOR_RUNTIME_IDENTITY: __REPLACE_WITH_UNIQUE_ORCHESTRATOR_IDENTITY__
+      DU_ORCHESTRATOR_RUNTIME_SLOT: __REPLACE_WITH_blue_OR_green__
+      DU_ORCHESTRATOR_RUNTIME_REVISION: __REPLACE_WITH_RELEASE_ID__
+      DU_ORCHESTRATOR_RUNTIME_IMAGE_DIGEST: registry.example.invalid/du/orchestrator@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      DU_RUNTIME_CONFIG_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+    ports:
+      - '127.0.0.1:__REPLACE_WITH_SLOT_CONTROL_PORT__:3002'
+    networks:
+      du-ingress-net:
+        aliases: [orchestrator-__REPLACE_WITH_SLOT__-http]
+      du-control-net:
+        aliases: [orchestrator-__REPLACE_WITH_SLOT__-control]
+
+  connector:
+    image: registry.example.invalid/du/connector@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    environment:
+      CONNECTOR_RUNTIME_SLOT: __REPLACE_WITH_blue_OR_green__
+      CONNECTOR_RUNTIME_IDENTITY: __REPLACE_WITH_UNIQUE_CONNECTOR_IDENTITY__
+      CONNECTOR_REPLICA_ID: __REPLACE_WITH_UNIQUE_CONNECTOR_IDENTITY__
+      CONNECTOR_RUNTIME_REVISION: __REPLACE_WITH_RELEASE_ID__
+      CONNECTOR_RUNTIME_IMAGE_DIGEST: registry.example.invalid/du/connector@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      DU_RUNTIME_CONFIG_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+    ports:
+      - '127.0.0.1:__REPLACE_WITH_SLOT_CONTROL_PORT__:8080'
+    networks:
+      du-ingress-net:
+        aliases: [connector-__REPLACE_WITH_SLOT__-http]
+      du-control-net:
+        aliases: [connector-__REPLACE_WITH_SLOT__-control]
+
+  document-core:
+    image: registry.example.invalid/du/document-core@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    environment:
+      WORKER_INSTANCE_ID: __REPLACE_WITH_UNIQUE_WORKER_IDENTITY__
+      IMAGE_DIGEST: registry.example.invalid/du/document-core@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      DU_RUNTIME_CONFIG_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+    # Deliberately no ports: Worker has no public or private HTTP listener.
+    networks: [du-platform-net, du-worker-api-net]
+
+  ingress:
+    image: registry.example.invalid/du/nginx-ingress@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    networks:
+      du-ingress-net: {}
+      du-worker-api-net:
+        aliases: [du-availability-ingress]
+      du-control-net:
+        aliases: [du-availability-ingress]
+
+secrets:
+  orchestrator-runtime:
+    file: /etc/du/availability/secrets/__REPLACE_WITH_SLOT__/orchestrator.json
+  connector-runtime:
+    file: /etc/du/availability/secrets/__REPLACE_WITH_SLOT__/connector.json
+  document-core-runtime:
+    file: /etc/du/availability/secrets/__REPLACE_WITH_SLOT__/document-core.json

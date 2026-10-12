@@ -1,0 +1,17 @@
+PASS tests/legacy-workflow-mapping.test.ts
+  legacy workflow and schema recipe mapping
+    ✓ maps legacy process simple-extraction to its business binding and executable recipe sequence (2 ms)
+    ✓ maps legacy process multi-step-analysis to its business binding and executable recipe sequence
+    ✓ maps legacy process transform-compare to its business binding and executable recipe sequence (1 ms)
+    ✓ rejects missing and unknown legacy process names instead of choosing a default recipe (1 ms)
+    ✓ returns independent executable recipe descriptors on each resolution
+    ✓ resolves a schemaSlug to its active registered business and executable recipes (1 ms)
+    ✓ fails closed for blank, unknown, retired, or ambiguous schema slugs
+    ✓ rejects incomplete schema business metadata and recipe selectors outside the registry (1 ms)
+    ✓ rejects duplicate recipe selectors in a registered schema mapping
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        1.769 s, estimated 4 s
+Ran all test suites matching /tests\/legacy-workflow-mapping.test.ts/i.

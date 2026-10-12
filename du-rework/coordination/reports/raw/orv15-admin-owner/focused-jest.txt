@@ -1,0 +1,9 @@
+PASS tests/orv15-admin-retry-regression.test.ts
+PASS tests/orv14-finance-accounting-ui-export-owner.test.ts
+PASS tests/orv14-ui-admission-retry-owner.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        2.616 s, estimated 6 s
+Ran all test suites matching /tests\/orv15-admin-retry-regression.test.ts|tests\/orv14-ui-admission-retry-owner.test.ts|tests\/orv14-finance-accounting-ui-export-owner.test.ts/i.

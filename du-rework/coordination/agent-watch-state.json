@@ -11711,5 +11711,101 @@
       "sharedManifestSha256": "ece0edcd958fde71f643636006538835f896ffed16a8c75ca3d68514342e79ce",
       "independentAcceptance": false
     }
+  },
+  "orv15Runtime": {
+    "observedAt": "2026-10-12T06:17:49.589886+00:00",
+    "base": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+    "branch": "codex/fix-workflow-builder",
+    "plan": "coordination/ORV15-UNIT-FIRST-EXECUTION-2026-10-12.md",
+    "mode": "UNIT_FIRST_NO_IMAGE_OR_LIVE_SERVICES",
+    "scheduler": "UNVERIFIED; no timer created",
+    "workers": {
+      "/root/orv13_backend": {
+        "packet": "ORV15-WORKFLOW",
+        "state": "SOLE_GIT_EXECUTOR ACK actualfollowup; readonlypreflight branch/origin/localremote b276verified; WAIT_ROOT_METADATA_READY_FINAL, noindexmutationsyet",
+        "unfinishedChecks": 0
+      },
+      "/root/orv14_host": {
+        "packet": "ORV15-HA",
+        "state": "FINAL frozenHA13ownerPASS; lockbeforebothslots,64muploadlimit,signalscleanupterminate; exactsource/testhashes handedoff",
+        "unfinishedChecks": 0
+      },
+      "/root/orv14_restore_probe": {
+        "packet": "ORV15-ADMIN",
+        "state": "FINAL docs19/28/35+ownreceipt frozen; currentHA18+twoofflineAPPROVED records; relativeappendedlinks/diffcheckPASS; no parentmarkers",
+        "unfinishedChecks": 0
+      },
+      "/root/orv14_worker_e2e_verification": {
+        "packet": "ORV15-MIGRATION",
+        "state": "FINAL frozenCJS56/schema7/auth12PASS testonlyfixes; nativeA2livegateopen",
+        "unfinishedChecks": 0
+      },
+      "/root/orv14_host_verification": {
+        "packet": "VFY-ORV15-HOST",
+        "state": "FINAL independentcurrentHA2suites18PASS0fail0skip actual06:11:50Zsourcepre/poststable; readonlyComposeconfig0 earlier/YAMLunchanged; nativeDNATopen",
+        "unfinishedChecks": 0
+      },
+      "/root/orv14_verification": {
+        "packet": "VFY-ORV15-PRIMARY",
+        "state": "FINAL frozenauthoritative15suites341PASS; packagesSDK67/core9/contracts7/AIcaller2; Adminnoemit0/privateVite0, noBrowser",
+        "unfinishedChecks": 0
+      }
+    },
+    "modelPolicy": "all reused executors existing gpt-6-luna/max; reviewers inherit coordinator",
+    "verified": "SCOPED_OFFLINE_VERIFIED; selectedOrchestrator341,HA18,Host12,migration56/7/12,workflow2/2,SDK67,core9,contracts7,AI2; no duplicated rerun totals",
+    "accepted": "OFFLINE_REVIEW_APPROVED_ONLY; fullplan/UI/native/release NOT_ACCEPTED",
+    "production": "NOT_PERFORMED",
+    "privateTrace": "excluded/preserved local",
+    "latestReceiptDelta": "Allscopedunit/checks+independentreviews complete; HAfinal18PASS/sourcehashrowsmatch/headerclockdiffexpected; Standards+SpecAPPROVED_OFFLINE; docsfinalfrozen. No imagesbuilt/pulled/run; runtime/native/browser gatesopen.",
+    "hostIngressIsolationFinding": {
+      "id": "ORV15-HA-INGRESS-SECRET-01",
+      "state": "OWNER_FIXED_NARROWMOUNT; independentHA5PASS confirmsconfig; nativegateopen",
+      "expected": "publicedge mounts onlydedicatedingressconfigdir+certs; no secret/runtime/manifests/executables tree",
+      "owner": "/root/orv14_host"
+    },
+    "workerArtifactGrantOriginFinding": {
+      "id": "ORV15-HA-WORKER-GRANT-ORIGIN-01",
+      "state": "SOURCE_CONFIRMED_FIXED_PRIVATEINGRESS8080; actualrouteunitPASS",
+      "producer": "main.ts configruntimeBaseUrl→src/http/routes/runtime.ts requestGrantUrl",
+      "consumer": "WorkerSdk fetchesreturnedURL; Connectorinlinebytes notURL",
+      "scope": "no unnecessaryConnectorCIDR opened"
+    },
+    "reviewers": {
+      "/root/orv15_review_standards": {
+        "model": "inherited coordinator, fork none",
+        "state": "FINAL deltaAPPROVED_OFFLINE0hard0smells, preservessourcecorrectedracehandoff",
+        "report": "coordination/reports/orv15-review-standards.md"
+      },
+      "/root/orv15_review_spec": {
+        "model": "inherited coordinator, fork none",
+        "state": "FINAL APPROVED_OFFLINE after18PASS independentrerun/currenthashes; initialHIGH/MEDIUM preserved andR1/R2resolved",
+        "report": "coordination/reports/orv15-review-spec.md"
+      }
+    },
+    "reviewFindings": [
+      {
+        "id": "ORV15-HA-R1",
+        "severity": "HIGH Spec / MEDIUM Standards handoff",
+        "state": "RESOLVED_CURRENT_SOURCE_AND_INDEPENDENT_UNIT18PASS_SPEC_APPROVED_OFFLINE",
+        "expected": "lockbeforebothselectorreads, no stalecompleted siblingcutover reversal"
+      },
+      {
+        "id": "ORV15-HA-R2",
+        "severity": "MEDIUM",
+        "state": "RESOLVED_CURRENT_SOURCE_AND_INDEPENDENT_UNIT18PASS_SPEC_APPROVED_OFFLINE",
+        "expected": "explicitNginxbodylimitcompatiblelegacy64MiB/Admin16MiB, no default1MiB413"
+      }
+    ],
+    "finalSummary": "coordination/ORV15-UNIT-FIRST-RESULTS-2026-10-12.md",
+    "gitCheckpoint": {
+      "taskId": "ORV15-GIT-CHECKPOINT",
+      "state": "ROOT_METADATA_READY_FINAL; allotherwriterFINALfrozen; soleexecutor stage/commit/push next. ActualGitSHAproof aftersnapshot storedoutsideworktree.",
+      "executor": "/root/orv13_backend",
+      "branch": "codex/fix-workflow-builder",
+      "baseHead": "b276ede4d3032d197a2ba96ba79c18b0f6e3c139",
+      "excludedPrivateArtifact": "coordination/reports/raw/orv14-verification/private-admin-finance-a44/trace.zip",
+      "receipt": "outsideworktree /workspace/scratch/orv15-git-checkpoint-*",
+      "forcePush": false
+    }
   }
 }

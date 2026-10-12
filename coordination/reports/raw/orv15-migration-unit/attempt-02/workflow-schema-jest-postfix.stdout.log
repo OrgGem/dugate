@@ -1,0 +1,92 @@
+FAIL tests/legacy-workflow-schema-backfill-adapter.test.ts
+  LDBA-06 R4 workflow schema backfill adapter
+    ✕ round-trips a connector schema through the production writer and reader (13 ms)
+    ✕ derives and round-trips static HTTPS origins inside parallel branches (6 ms)
+    ✓ skips dynamic, non-HTTPS and userinfo egress with a reason and writes no row (5 ms)
+    ✕ rejects an unsealed catalog row through the production reader (4 ms)
+    ✕ is idempotent on a second run and reports a writer compare-and-swap race as a skip (3 ms)
+    ✓ matches tenant-name preflight, seed, and duplicate-name semantics (1 ms)
+    ✓ chooses the greatest byte-order key for an updatedAt tie and lists every loser (1 ms)
+
+  ● LDBA-06 R4 workflow schema backfill adapter › round-trips a connector schema through the production writer and reader
+
+    unhandled fake database query: select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas where tenant_id=$1 and slug=$2 and status='active'
+
+      188 |       rowCount = 1;
+      189 |     } else {
+    > 190 |       throw new Error('unhandled fake database query: ' + normalized);
+          |             ^
+      191 |     }
+      192 |
+      193 |     return { rows: rows as T[], rowCount, command, oid: 0, fields: [] };
+
+      at run (tests/legacy-workflow-schema-backfill-adapter.test.ts:190:13)
+      at Object.query (tests/legacy-workflow-schema-backfill-adapter.test.ts:100:14)
+      at resolveLegacyWorkflowSchema (src/modules/workflow-schemas/workflow-schemas.ts:167:16)
+      at runWorkflowSchemaBackfill (src/modules/workflow-schemas/legacy-workflow-schema-backfill-adapter.ts:424:55)
+      at Object.<anonymous> (tests/legacy-workflow-schema-backfill-adapter.test.ts:279:20)
+
+  ● LDBA-06 R4 workflow schema backfill adapter › derives and round-trips static HTTPS origins inside parallel branches
+
+    unhandled fake database query: select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas where tenant_id=$1 and slug=$2 and status='active'
+
+      188 |       rowCount = 1;
+      189 |     } else {
+    > 190 |       throw new Error('unhandled fake database query: ' + normalized);
+          |             ^
+      191 |     }
+      192 |
+      193 |     return { rows: rows as T[], rowCount, command, oid: 0, fields: [] };
+
+      at run (tests/legacy-workflow-schema-backfill-adapter.test.ts:190:13)
+      at Object.query (tests/legacy-workflow-schema-backfill-adapter.test.ts:100:14)
+      at resolveLegacyWorkflowSchema (src/modules/workflow-schemas/workflow-schemas.ts:167:16)
+      at runWorkflowSchemaBackfill (src/modules/workflow-schemas/legacy-workflow-schema-backfill-adapter.ts:424:55)
+      at Object.<anonymous> (tests/legacy-workflow-schema-backfill-adapter.test.ts:314:20)
+
+  ● LDBA-06 R4 workflow schema backfill adapter › rejects an unsealed catalog row through the production reader
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Object {
+    -   "code": "SCHEMA_CRYPTO_UNAVAILABLE",
+    - }
+    + [Error: unhandled fake database query: select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas where tenant_id=$1 and slug=$2 and status='active']
+
+      373 |       tenantId,
+      374 |       slug: 'legacy-plaintext-row',
+    > 375 |     }, transit.metadataCrypto)).rejects.toMatchObject({
+          |                                         ^
+      376 |       code: 'SCHEMA_CRYPTO_UNAVAILABLE',
+      377 |     } satisfies Partial<LegacyWorkflowSchemaCatalogError>);
+      378 |   });
+
+      at Object.toMatchObject (../../node_modules/.pnpm/expect@29.7.0/node_modules/expect/build/index.js:218:22)
+      at Object.<anonymous> (tests/legacy-workflow-schema-backfill-adapter.test.ts:375:41)
+
+  ● LDBA-06 R4 workflow schema backfill adapter › is idempotent on a second run and reports a writer compare-and-swap race as a skip
+
+    unhandled fake database query: select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas where tenant_id=$1 and slug=$2 and status='active'
+
+      188 |       rowCount = 1;
+      189 |     } else {
+    > 190 |       throw new Error('unhandled fake database query: ' + normalized);
+          |             ^
+      191 |     }
+      192 |
+      193 |     return { rows: rows as T[], rowCount, command, oid: 0, fields: [] };
+
+      at run (tests/legacy-workflow-schema-backfill-adapter.test.ts:190:13)
+      at Object.query (tests/legacy-workflow-schema-backfill-adapter.test.ts:100:14)
+      at resolveLegacyWorkflowSchema (src/modules/workflow-schemas/workflow-schemas.ts:167:16)
+      at runWorkflowSchemaBackfill (src/modules/workflow-schemas/legacy-workflow-schema-backfill-adapter.ts:424:55)
+      at Object.<anonymous> (tests/legacy-workflow-schema-backfill-adapter.test.ts:386:19)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 3 passed, 7 total
+Snapshots:   0 total
+Time:        2.887 s, estimated 3 s
+Ran all test suites matching /tests\/legacy-workflow-schema-backfill-adapter.test.ts/i.

@@ -1,0 +1,4 @@
+54f87b08ea689a52ddbb7c37c0fa8d5d4ba0bb02f383f4ba19445932623fd797  orchestrator/services/orchestrator/src/http/routes/public.ts
+08f734939995f3982bf0879b6ab291fe79d28d76acf8ed23236a7b99ebeca157  orchestrator/services/orchestrator/src/compat/legacy-http-mount.ts
+e49f2bdeb8daa420e386c8c188c3c528b3e43b84ba5f1a18eb9ef5f928120f7e  orchestrator/services/orchestrator/src/compat/legacy-host-adapter.ts
+d88817e81b1a35643bea93584b3cc954370dbbde8d9dfaae93c40b3de5558c94  orchestrator/services/orchestrator/tests/orv15-vfy-public-operation.test.ts

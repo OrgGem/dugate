@@ -1,0 +1,8 @@
+PASS tests/orv15-ha-compose-package.test.ts
+PASS tests/orv15-vfy-ha-package.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        3.516 s, estimated 8 s
+Ran all test suites matching /tests\/orv15-ha-compose-package.test.ts|tests\/orv15-vfy-ha-package.test.ts/i.

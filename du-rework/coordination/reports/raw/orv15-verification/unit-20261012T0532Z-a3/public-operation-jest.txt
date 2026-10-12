@@ -1,0 +1,14 @@
+PASS tests/orv15-vfy-public-operation.test.ts
+  ORV15 public legacy operation read compatibility
+    ✓ GET by operation ID resolves an active key and returns its tenant-scoped legacy envelope (5 ms)
+    ✓ GET download streams the exact legacy bytes only after the same tenant/key-scoped operation read (1 ms)
+    ✓ POST /api/v1/operations/operation-public-read stays outside the public operation read surface (1 ms)
+    ✓ GET /api/v1/operations/operation-public-read/cancel stays outside the public operation read surface
+    ✓ GET /api/v1/operations/metrics stays outside the public operation read surface (1 ms)
+    ✓ an inactive or unknown key cannot load an otherwise existing operation
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        2.539 s, estimated 3 s
+Ran all test suites within paths "tests/orv15-vfy-public-operation.test.ts".

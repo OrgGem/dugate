@@ -1,0 +1,11 @@
+Command attempted from `/workspace/dugate/du-rework/orchestrator/services/orchestrator`:
+  mkdir -p coordination/reports/raw/orv15-vfy-ha && set -o pipefail && /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node ./node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/orv15-vfy-ha-package.test.ts 2>&1 | tee /workspace/dugate/du-rework/coordination/reports/raw/orv15-vfy-ha/independent-unit-attempt-02.txt
+
+Initial command output:
+  tee: /workspace/dugate/du-rework/coordination/reports/raw/orv15-vfy-ha/independent-unit-attempt-02.txt: No such file or directory
+
+The Jest suite itself completed with 5/5 passing, but `tee` failed because the
+relative `mkdir` created a similarly named directory beneath the package cwd.
+That empty leaf was removed; nonempty pre-existing parent directories were
+left untouched. The suite was rerun with the correct absolute report path and
+the successful output is in independent-unit-attempt-02.txt.

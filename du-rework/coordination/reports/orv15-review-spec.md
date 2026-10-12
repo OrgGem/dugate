@@ -1,0 +1,13 @@
+# ORV15 independent Spec review
+
+Final verdict: **APPROVED_OFFLINE** for the reviewed unit/package checkpoint. Initial **CHANGES_REQUIRED** findings are preserved below; both are resolved on the independently rerun source.
+
+Reviewed tracked working-tree changes against `b276ede4d3032d197a2ba96ba79c18b0f6e3c139`, new HA product/tests, Admin seams, fixtures, and receipts; then only the R1/R2 correction delta. No product edits, tests, builds, Git mutations, Docker, or services were performed.
+
+1. **R1, initially HIGH — resolved in source.** Original selector `718c1f…` read both selectors before its shared lock, permitting a paused Connector helper to reinstall an old Orchestrator upstream after a completed sibling cutover. The producer's per-selector lock (`orchestrator/services/orchestrator/src/modules/maintenance/trusted-manifest-rollout-adapter.ts:345`) cannot serialize both services. Corrected `compose/ingress/reload-selector:55` locks before both production reads at `:84–85`; read-only rendering still has no effects. Signals now exit 129/130/143 with one-time cleanup. This satisfies the approved fixed-ingress requirement (ORV15 `:16`, ORV14 `:726`).
+
+2. **R2, initially MEDIUM — resolved in source.** Original Nginx `0bdcff…` inherited the 1 MiB default, rejecting valid document uploads. `compose/ingress/nginx.conf:12` now sets `client_max_body_size 64m`, matching `compat/legacy-multipart.ts:70`; upstream `http/routes/admin-operation-upload.ts:8` retains its narrower 16 MiB cap (both under `orchestrator/services/orchestrator/src/`).
+
+Corrected hashes: Nginx `ce4b77352943f4b12bc64c7f7b9b81c74437eef056b4969b7884534b32f0ed99`; selector `68502564455cde35c2098fbd500c869a6d54a7829a2664b2de17d47da2f684eb`; owner test `8aeafb98ec1be572f57320d38502685440e82a99bb341ea8cb09641e8b7f703c`. Inspected the private-copy harness and two deterministic process interleavings: only fixed paths change; UID/commands/barriers are external stubs. Independent Host executor's final rerun passed 2 suites/18 tests: 13 owner-authored, 5 independently authored, zero failures/skips; pre/post source hashes match. Evidence: [Host report](orv15-vfy-ha.md#final-r1r2-unit-rerun), [raw Jest](raw/orv15-vfy-ha/r1-r2-final-jest.txt), and its pre/post manifests. Earlier runs are not added to this count.
+
+No additional delta blocker established. Historical attempt29 remains unresolved despite root/branch in-memory PASS; migration units do not prove native source-off recovery; Vite compilation does not prove browser boot; private-copy/mocked tests do not prove privileged Host behavior, DNAT, encrypted backup, serving identity, drain, or rollback. Those deferred gates remain open. No UI/full-plan acceptance.

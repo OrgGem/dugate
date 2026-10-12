@@ -1,0 +1,22 @@
+ORV15 VFY PRIMARY — first selected offline run summary
+Run label: 20261012T0525Z-a1 (label is a local run identifier, not the clock source)
+Execution time: 2026-10-12, approximately 05:25 UTC; completion returned in the immediately following tool calls.
+Working directory: /workspace/dugate/du-rework/orchestrator/services/orchestrator
+Node binary: /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node (required toolchain)
+Jest command: node /workspace/dugate/du-rework/orchestrator/services/orchestrator/node_modules/jest/bin/jest.js --runInBand --config jest.unit.config.cjs --runTestsByPath [15 listed suites in the tool invocation]
+Environment: DU_VAULT_MOCK=false NODE_ENV=test. The unit config inherits global setup, but its mock Vault setup is a no-op unless DU_VAULT_MOCK=true. No live service was invoked.
+
+Result returned by Jest: exit 1; 15 suites total, 10 passed, 5 failed; 340 tests total, 321 passed, 19 failed; 0 snapshots.
+
+Failed suites and exact reported causes:
+- tests/orv15-vfy-public-operation.test.ts: two verifier assumptions were wrong: by-id legacy detail does not contain endpoint_slug; legacy PDF/unknown format falls back to text/markdown. This verifier test has since been corrected to assert the current legacy envelope and the `md` download MIME.
+- tests/admin-action-dispatcher.test.ts: four old RBAC matrix assertions reject an action the current source allows. The failure output did not identify the first differing action; source review shows `operations.callback.retry` is admitted to a tenant operator, while the old test's local expected-operation set omits it. This remains a spec/fixture discrepancy for root adjudication, not a product finding.
+- tests/admin-operations-sort-wiring.test.ts: one expectation requires `/api/v1/operations/op-a`; current caller URL was `http://platform.test/api/internal/operations/op-a`. The existing test expectation is stale against the current internal Admin API client contract.
+- tests/p745-prompt-producer-impl.test.ts: seven setup failures before prompt assertions because the fake DB returned no row for the new spend-admission `SELECT ... FROM api_keys` in `readKeySpend`.
+- tests/p745-prompt-carrier-producer.test.ts: five setup failures for the same missing spend-admission key row.
+
+Passing suites: tests/legacy-http-mount.test.ts, tests/admin-idempotency.test.ts, tests/admin-operations-query.test.ts, tests/artifact-read-download-route.test.ts, tests/admin-mutation-atomicity.test.ts, tests/legacy-operations.test.ts, tests/orv11-operations-routes.test.ts, tests/legacy-public-artifact.test.ts, tests/budget-reservations.test.ts, tests/orv12-spend-admission.test.ts.
+
+Output-capture limitation: the Jest process was run through `tee`, but the tee output path was one directory level short from the package working directory and could not be opened. Jest's completed summaries/failure output were returned to the tool session and transcribed here; this file is a summary, not a byte-for-byte raw Jest log. The original failed attempt is preserved as a failure; it was not rerun solely to recover output.
+
+Exact command path-capture issue: the shell attempted to write `../../coordination/reports/raw/orv15-verification/unit-20261012T0525Z-a1/orchestrator-selected-jest.txt`, which resolved outside the repository root. The intended raw folder was created correctly at the repository root.

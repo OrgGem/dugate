@@ -254,7 +254,7 @@ describe('W-ADMUX03-SHELL-SORT-1: fetcher forwards the ordering to GET /api/v1/o
         return new Response(JSON.stringify({ operation: OP_A }), { status: 200 });
       }) as unknown as typeof fetch,
     });
-    expect(urls[0]).toContain('/api/v1/operations/op-a');
+    expect(urls[0]).toContain('/api/internal/operations/op-a');
     expect(urls[0]!).not.toContain('sort');
   });
 

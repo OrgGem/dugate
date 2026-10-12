@@ -1,0 +1,9 @@
+6f60272612c7b5c6bae341f2f569bbf0c7809df4cd090ad1d4eb8a94f4190035  src/modules/global-settings/service.ts
+b001afe2eff17b29117922956f0fdcb2ca6edaea00c7e9d582b9d6f3aed96f81  src/modules/global-settings/defaults.ts
+0b94eb4a68ecef4839e52af329f95289915183ec6eae57ed861aecc12515fff3  src/modules/runtime/metadata-crypto.ts
+f2fada2d14c9f5ed6ddc13546198f34dcef1a09db7c6fe0b782c8ad289193c89  ../../packages/contracts/src/global-settings.ts
+ea77f06d89ba5f8c2549524fab6f4b2ba837096f6d3d18da0474ef83b6f7c119  ../../packages/contracts/src/parity.ts
+46177fddb0da25933d3ec3db6e2e8d6432a33e4a5fa986c255e2d47400a9fbec  ../../packages/contracts/dist/global-settings.js
+91ebd6dcb7e2b92c73cf1331a61e7aecb31e9c31be32be2a2a531737abd6708e  ../../packages/contracts/dist/index.js
+982b503d138d2d9a37c7a0e9a80719dea38f58038507ca50f443dd592ee68591  ../../packages/contracts/dist/global-settings.d.ts
+02e2ac7ea5e72f32eb8a0eab810e68b921649e253eef2242aa2557a477e6b940  tests/orv15-vfy-global-ai-caller.test.ts

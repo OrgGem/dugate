@@ -1,0 +1,14 @@
+# ORV15 independent Host unit verification
+
+At base `b276ede4d3032d197a2ba96ba79c18b0f6e3c139` on `codex/fix-workflow-builder`, I added four independent Host verification suites and ran them through the Orchestrator offline Jest configuration. The focused result is **4 suites / 12 tests passed, 0 failed, 0 skipped**. No product source was edited by this verifier.
+
+The new tests cover actual public behavior with injected external boundaries:
+
+- [backup fence tests](../../orchestrator/services/orchestrator/tests/orv15-vfy-host-backup-fence.test.ts) run the real fence/coordinator against a fake durable claim store and control ports. Six fresh DRAINING observations and both pinned Connector holds produce a proof; stale, future, or missing current-process ACKs fail before the global hold. A second unresolved owner remains blocking after subtracting only the exact live backup claim.
+- [effect journal tests](../../orchestrator/services/orchestrator/tests/orv15-vfy-host-effect-journal.test.ts) run the actual artifact journal through a fake query boundary. An ambiguous encrypted write remains UNKNOWN on exact replay, cannot be activated or settled by retry, and does not issue a second external write.
+- [restore pin tests](../../orchestrator/services/orchestrator/tests/orv15-vfy-host-restore-pins.test.ts) validate all seven pinned source-deny rules and reject a changed destination; exercise the public root-pin reader’s user-owned and symlink refusal; and decrypt a version-1 artifact sidecar from immutable generation A after the active pointer advances to B.
+- [Host context tests](../../orchestrator/services/orchestrator/tests/orv15-vfy-host-context.test.ts) construct the real standalone Host composition with mocked constructors and assert shared durable gate injection, resource close, and no HTTP listener. They also verify web-role rejection and the runner’s exact one-shot argv and identity checks before queue consumption.
+
+The exact command, Node/Jest identities, source and test SHA-256 inputs, raw output, and scope limitations are in [the raw receipt](raw/orv15-vfy-host/independent-unit-20261012T052833Z.md). The command ran from `/workspace/dugate/du-rework/orchestrator/services/orchestrator` using Node `v24.21.0`; `DU_VAULT_MOCK` was not `true`, so configured global setup did not start a mock service.
+
+These are offline unit results only. The root-owned positive manifest path was not emulated from UID 1000, and nftables was tested only through its pure policy validator. This does not close full Host acceptance: no actual kernel policy, Docker executor, database, object store, recovery-key service, source-off application flow, encrypted dual-database backup/restore, fixed-ingress cutover, or Worker lease rehearsal ran. No product finding was exposed by these four unit suites; those runtime and privileged boundaries remain open for their designated owners and later verification.

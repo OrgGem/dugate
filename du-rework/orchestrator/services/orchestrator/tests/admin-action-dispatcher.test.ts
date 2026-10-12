@@ -34,7 +34,7 @@ const OP_A = 'op-a-tok-0123456789ab';
 const SECRET = 'cookie-secret-0123456789';
 
 const ALL_ACTIONS = Object.keys(ADMIN_ACTIONS);
-const TENANT_OPERATOR_ACTIONS = ['operations.cancel', 'operations.resume', 'workflow.provision', 'workflow.retire', 'workflow.test'];
+const TENANT_OPERATOR_ACTIONS = ['operations.cancel', 'operations.resume', 'operations.callback.retry', 'workflow.provision', 'workflow.retire', 'workflow.test'];
 
 function bearerPlatform(): AdminActionAuth {
   return { kind: 'bearer', principal: { role: 'platform' } };
@@ -571,7 +571,7 @@ describe('ADM-BASE-02 resolveAdminActionAuth (bearer-first, cookie+CSRF)', () =>
  * OIDC-03 (cycle 96) full admin matrix, offline: every principal cell x
  * every table action is asserted ALLOW or DENY exactly as the SEC task
  * line 19 prescribes — viewer never mutates, operator ONLY the approved
- * operation-control set (cancel/resume), credential/key changes are
+ * operation-control set (cancel/resume/callback retry), credential/key changes are
  * admin-only, cookie mutations need CSRF, unknown principals never
  * reach a service.
  */

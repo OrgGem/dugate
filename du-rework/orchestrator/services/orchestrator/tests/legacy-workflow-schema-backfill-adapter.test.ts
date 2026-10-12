@@ -27,6 +27,8 @@ interface CatalogRow {
   readonly digest: string;
   schema_ref: unknown;
   status: 'active' | 'retired';
+  readonly business_id: string | null;
+  readonly business_version: string | null;
 }
 
 interface BackfillDb extends Db {
@@ -122,6 +124,8 @@ function fakeDb(): BackfillDb {
           digest: 'sha256:' + 'a'.repeat(64),
           schema_ref: { legacy: true },
           status: 'active',
+          business_id: null,
+          business_version: null,
         });
         database.raceOnSlug = null;
       }
@@ -146,7 +150,7 @@ function fakeDb(): BackfillDb {
         && (!activeOnly || row.status === 'active'));
       if (matching) rows.push({ revision: matching.revision });
       rowCount = rows.length;
-    } else if (normalized.startsWith('select tenant_id, slug, revision, digest, schema_ref, status from legacy_workflow_schemas')) {
+    } else if (/^select tenant_id, slug, revision, digest, schema_ref, status(?:, business_id, business_version)? from legacy_workflow_schemas/.test(normalized)) {
       const activeOnly = /status\s*=\s*'active'/.test(normalized);
       const matching = schemaRows.find((row) => row.tenant_id === params[0]
         && row.slug === params[1]
@@ -165,7 +169,7 @@ function fakeDb(): BackfillDb {
       }
       command = 'UPDATE';
     } else if (normalized.startsWith('insert into legacy_workflow_schemas')) {
-      const [tenantId, slug, revision, digest, sealed] = params;
+      const [tenantId, slug, revision, digest, sealed, businessId, businessVersion] = params;
       if (schemaRows.some((row) => row.tenant_id === tenantId && row.slug === slug
         && (row.status === 'active' || row.revision === Number(revision)))) {
         throw new Error('fake catalog uniqueness constraint failed');
@@ -177,6 +181,8 @@ function fakeDb(): BackfillDb {
         digest: String(digest),
         schema_ref: JSON.parse(String(sealed)) as unknown,
         status: 'active',
+        business_id: businessId == null ? null : String(businessId),
+        business_version: businessVersion == null ? null : String(businessVersion),
       });
       command = 'INSERT';
       rowCount = 1;
@@ -359,6 +365,8 @@ describe('LDBA-06 R4 workflow schema backfill adapter', () => {
       digest: 'sha256:' + 'b'.repeat(64),
       schema_ref: connectorSchema('legacy-plaintext-row'),
       status: 'active',
+      business_id: null,
+      business_version: null,
     });
 
     await expect(resolveLegacyWorkflowSchema(db, {

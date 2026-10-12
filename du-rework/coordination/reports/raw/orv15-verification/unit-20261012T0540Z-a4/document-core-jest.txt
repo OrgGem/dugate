@@ -1,0 +1,95 @@
+FAIL tests/legacy-workflow-mapping.test.ts
+  legacy workflow and schema recipe mapping
+    ✕ maps legacy process simple-extraction to its business binding and executable recipe sequence (5 ms)
+    ✕ maps legacy process multi-step-analysis to its business binding and executable recipe sequence (1 ms)
+    ✕ maps legacy process transform-compare to its business binding and executable recipe sequence (1 ms)
+    ✓ rejects missing and unknown legacy process names instead of choosing a default recipe
+    ✓ returns independent executable recipe descriptors on each resolution
+    ✓ resolves a schemaSlug to its active registered business and executable recipes (1 ms)
+    ✓ fails closed for blank, unknown, retired, or ambiguous schema slugs
+    ✓ rejects incomplete schema business metadata and recipe selectors outside the registry
+    ✓ rejects duplicate recipe selectors in a registered schema mapping (1 ms)
+
+  ● legacy workflow and schema recipe mapping › maps legacy process simple-extraction to its business binding and executable recipe sequence
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "action": "extract",
+        "businessId": "document-core",
+    -   "businessVersion": "1.0.0",
+    +   "businessVersion": "1.1.0",
+        "process": "simple-extraction",
+        "profile": "legacy-simple-extraction-v1",
+      }
+
+      48 |       const mapping = resolveLegacyWorkflow(process);
+      49 |
+    > 50 |       expect(mapping).toMatchObject({
+         |                       ^
+      51 |         process,
+      52 |         businessId: 'document-core',
+      53 |         businessVersion: '1.0.0',
+
+      at tests/legacy-workflow-mapping.test.ts:50:23
+
+  ● legacy workflow and schema recipe mapping › maps legacy process multi-step-analysis to its business binding and executable recipe sequence
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "action": "analyze",
+        "businessId": "document-core",
+    -   "businessVersion": "1.0.0",
+    +   "businessVersion": "1.1.0",
+        "process": "multi-step-analysis",
+        "profile": "legacy-multi-step-analysis-v1",
+      }
+
+      48 |       const mapping = resolveLegacyWorkflow(process);
+      49 |
+    > 50 |       expect(mapping).toMatchObject({
+         |                       ^
+      51 |         process,
+      52 |         businessId: 'document-core',
+      53 |         businessVersion: '1.0.0',
+
+      at tests/legacy-workflow-mapping.test.ts:50:23
+
+  ● legacy workflow and schema recipe mapping › maps legacy process transform-compare to its business binding and executable recipe sequence
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "action": "transform",
+        "businessId": "document-core",
+    -   "businessVersion": "1.0.0",
+    +   "businessVersion": "1.1.0",
+        "process": "transform-compare",
+        "profile": "legacy-transform-compare-v1",
+      }
+
+      48 |       const mapping = resolveLegacyWorkflow(process);
+      49 |
+    > 50 |       expect(mapping).toMatchObject({
+         |                       ^
+      51 |         process,
+      52 |         businessId: 'document-core',
+      53 |         businessVersion: '1.0.0',
+
+      at tests/legacy-workflow-mapping.test.ts:50:23
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 6 passed, 9 total
+Snapshots:   0 total
+Time:        3.452 s
+Ran all test suites within paths "tests/legacy-workflow-mapping.test.ts".

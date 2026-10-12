@@ -1,0 +1,8 @@
+PASS tests/admin-action-dispatcher.test.ts
+PASS tests/admin-operations-sort-wiring.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       108 passed, 108 total
+Snapshots:   0 total
+Time:        2.936 s, estimated 5 s
+Ran all test suites within paths "tests/admin-action-dispatcher.test.ts", "tests/admin-operations-sort-wiring.test.ts".

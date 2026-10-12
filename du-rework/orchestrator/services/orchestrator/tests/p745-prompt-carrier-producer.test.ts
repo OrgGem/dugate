@@ -41,6 +41,13 @@ function makeDb() {
   const db = {
     query: async <T extends QueryResultRow = QueryResultRow>(statement: string, params: unknown[] = []) => {
       calls.push({ sql: statement, params });
+      // Current submit admission checks the key's scoped spend before writing
+      // the operation. The isolated fixture has no prior usage and uses the
+      // documented zero/unlimited limit for its synthetic tenant key.
+      if (/FROM api_keys/i.test(statement)) {
+        return result<T>([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
+      }
+      if (/FROM usage_events/i.test(statement)) return result<T>([]);
       if (/business_versions/i.test(statement)) {
         return result<T>([{
           version: '1.0.0',
@@ -73,6 +80,12 @@ function makeDb() {
     tx: async <T>(fn: (client: unknown) => Promise<T>) => fn({
       query: async (statement: string, params: unknown[] = []) => {
         calls.push({ sql: statement, params });
+        // Submission spend admission runs on the transaction client as well as
+        // the outer reader, so mirror the same synthetic key and empty history.
+        if (/FROM api_keys/i.test(statement)) {
+          return result([{ name: 'synthetic', spending_limit: '0', total_used: '0', tenant_id: TENANT }]);
+        }
+        if (/FROM usage_events/i.test(statement)) return result([]);
         return result([]);
       },
     }),

@@ -1,0 +1,42 @@
+Owner offline validation receipt
+UTC date: 2026-10-12
+Repository: /workspace/dugate/du-rework
+Execution UID: 1000
+
+Follow-up artifact-grant / host-probe correction:
+Orchestrator artifact grant URLs use runtimeBaseUrl from ORCHESTRATOR_INTERNAL_BASE_URL;
+the Worker follows the returned URL. The packaged value is now
+http://du-availability-ingress:8080, and Nginx 8080 routes /api/runtime/v1/ to the
+selected Orchestrator API upstream while permitting only 172.31.0.0/24. Connector
+receives invocation artifact bytes inline and is not added to this listener ACL.
+Nginx 8081 retains loopback + 172.30.0.0/24 ACL for host DNAT compatibility; actual
+DNAT source visibility remains pending native deployment verification.
+
+ORV15-HA-R1/R2 regressions were run first against the prior source and failed
+for the absent body limit, both deterministic stale-selector interleavings,
+and signal cleanup continuing with exit 0. The helper now takes the shared
+lock before its selector reads, exits 129/130/143 on caught signals and cleans
+the lock once. Nginx has an explicit 64m body ceiling. Race tests use a private
+copy of the helper with only root/Docker paths changed and harmless command
+stubs plus marker-file barriers; they do not invoke Docker/native services.
+
+Jest command (cwd orchestrator/services/orchestrator):
+node_modules/.bin/jest --config jest.unit.config.cjs --runInBand tests/orv15-ha-compose-package.test.ts
+Result: PASS; 1 suite, 13 tests. Includes bounded private-copy interleavings, explicit 64 MiB body policy, and HUP/INT/TERM status/cleanup behavior.
+
+Script syntax:
+sh -n compose/ingress/reload-selector
+Result: PASS.
+
+Compose YAML parse/topology check:
+PyYAML safe_load on compose/availability.yml and compose/availability/slot-release.example.yml;
+asserted no build/env_file/include keys, Worker has no ports, loopback probe port is exact,
+and ingress bind source is the ingress-only directory.
+Result: PASS.
+
+Whitespace check:
+Checked the eight package/test files for trailing spaces or tabs.
+Result: PASS.
+
+No Docker command, image build/pull/run, service, external network, provider, or deploy
+was invoked. No live cutover or runtime acceptance is claimed.

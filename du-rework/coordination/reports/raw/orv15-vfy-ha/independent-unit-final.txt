@@ -1,0 +1,15 @@
+started_utc=2026-10-12T05:57:37Z
+v24.21.0
+PASS tests/orv15-vfy-ha-package.test.ts
+  VFY-ORV15-HA availability package contract
+    ✓ renders all four selector combinations exactly and leaves selectors/includes untouched on success and rejection (55 ms)
+    ✓ denies the production selector to a real non-root caller despite the legacy test-mode variable (5 ms)
+    ✓ rejects wrong runtime-config hashes and forbidden identity overrides before spawning a service (66 ms)
+    ✓ builds Worker artifact grant URLs from the private ingress origin used by the actual grant handler (3 ms)
+    ✓ keeps six trusted slot pins, Worker without ports, ingress mounts narrow, and Admin/control routes separated (11 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        3.438 s, estimated 4 s
+Ran all test suites matching /tests\/orv15-vfy-ha-package.test.ts/i.

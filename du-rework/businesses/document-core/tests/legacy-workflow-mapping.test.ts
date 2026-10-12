@@ -50,7 +50,7 @@ describe('legacy workflow and schema recipe mapping', () => {
       expect(mapping).toMatchObject({
         process,
         businessId: 'document-core',
-        businessVersion: '1.0.0',
+        businessVersion: '1.1.0',
         action,
         profile: `legacy-${process}-v1`,
       });

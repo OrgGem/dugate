@@ -1,0 +1,15 @@
+PASS tests/usage-budget-reservation.test.ts
+  COST-04 reservation contract
+    ✓ budget scope has one stable key shared by reserve and reconcile (4 ms)
+    ✓ pre-call reservation rejects a scope that differs from its budget (8 ms)
+    ✓ reconciliation binds actual usage to the original quota scope and invocation (1 ms)
+    ✓ post-call wire contract refuses unknown diagnostics and preserves valid measured usage (1 ms)
+    ✓ daily and monthly windows are exact UTC half-open intervals (6 ms)
+    ✓ reserved, running, and UNKNOWN count as held until reconcile or proven release
+    ✓ hard cap requires every reliability assertion, including bounded estimates (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        2.216 s
+Ran all test suites within paths "tests/usage-budget-reservation.test.ts".

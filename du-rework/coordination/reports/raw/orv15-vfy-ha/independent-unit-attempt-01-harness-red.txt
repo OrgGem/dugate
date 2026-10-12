@@ -1,0 +1,27 @@
+Command:
+  /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node --version && /workspace/scratch/orv11-toolchain/node-v24.21.0-linux-x64/bin/node ./node_modules/jest/bin/jest.js --config jest.unit.config.cjs --runInBand tests/orv15-vfy-ha-package.test.ts
+Working directory: /workspace/dugate/du-rework/orchestrator/services/orchestrator
+Observed runtime: Node v24.21.0
+Exit: 1
+
+FAIL tests/orv15-vfy-ha-package.test.ts
+  VFY-ORV15-HA availability package contract
+    ✓ renders all four selector combinations exactly and leaves selectors/includes untouched on success and rejection (65 ms)
+    ✓ denies the production selector to a real non-root caller despite the legacy test-mode variable (6 ms)
+    ✓ rejects wrong runtime-config hashes and forbidden identity overrides before spawning a service (65 ms)
+    ✓ builds Worker artifact grant URLs from the private ingress origin used by the actual grant handler (3 ms)
+    ✕ keeps six trusted slot pins, Worker without ports, ingress mounts narrow, and Admin/control routes separated (7 ms)
+
+  ● VFY-ORV15-HA availability package contract › keeps six trusted slot pins, Worker without ports, ingress mounts narrow, and Admin/control routes separated
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "rewrite ^/connector/(.*)$ /$1 break;"
+    Received string:    "location ^~ /connector/internal/ { return 404; }"
+
+    at tests/orv15-vfy-ha-package.test.ts:420:26
+
+Root cause: the independent test's block selector matched the earlier protected
+/connector/internal/ deny location before the intended public /connector/ route.
+The test helper was narrowed to the exact route header; product sources were not
+changed. The corrected run is captured in independent-unit-final.txt.

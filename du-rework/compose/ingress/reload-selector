@@ -1,0 +1,101 @@
+#!/bin/sh
+set -eu
+umask 077
+
+render_only=0
+if [ "$#" -eq 2 ] && [ "$1" = '--render-only' ]; then
+  render_only=1
+  root=$2
+  docker_context=
+  service=
+elif [ "$#" -eq 3 ] && [ "$1" = '--context' ]; then
+  root=/etc/du/availability
+  docker_context=$2
+  service=$3
+  [ "$(id -u)" = 0 ] || { echo 'reload-selector requires root' >&2; exit 77; }
+else
+  echo 'usage: reload-selector --context <pinned-context> <orchestrator|connector>' >&2
+  echo '       reload-selector --render-only <root-owned-availability-dir>' >&2
+  exit 64
+fi
+
+case "$root" in /*) ;; *) echo 'availability root must be absolute' >&2; exit 64 ;; esac
+if [ "$render_only" -eq 0 ]; then
+  case "$docker_context" in ''|*[!A-Za-z0-9_.-]*) echo 'invalid pinned Docker context' >&2; exit 64 ;; esac
+  case "$service" in orchestrator|connector) ;; *) echo 'only fixed-ingress services may be selected' >&2; exit 64 ;; esac
+fi
+
+selector_dir="$root/selectors"
+selected="$root/ingress/selected-upstream.conf"
+read_slot() {
+  file="$selector_dir/$1"
+  [ -f "$file" ] && [ ! -L "$file" ] || { echo 'selector missing or untrusted' >&2; exit 65; }
+  awk 'NR == 1 { value=$0 } NR > 1 { bad=1 } END { if (NR != 1 || bad || (value != "blue" && value != "green")) exit 1; print value }' "$file"
+}
+
+render() {
+  printf 'map $host $du_orchestrator_api_upstream { default orchestrator-%s-http:3000; }\n' "$orchestrator_slot"
+  printf 'map $host $du_orchestrator_admin_upstream { default orchestrator-%s-http:3001; }\n' "$orchestrator_slot"
+  printf 'map $host $du_orchestrator_control_upstream { default orchestrator-%s-control:3002; }\n' "$orchestrator_slot"
+  printf 'map $host $du_connector_upstream { default connector-%s-http:8080; }\n' "$connector_slot"
+  printf 'map $host $du_connector_control_upstream { default connector-%s-control:8080; }\n' "$connector_slot"
+}
+
+if [ "$render_only" -eq 1 ]; then
+  orchestrator_slot=$(read_slot orchestrator) || { echo 'invalid Orchestrator selector' >&2; exit 65; }
+  connector_slot=$(read_slot connector) || { echo 'invalid Connector selector' >&2; exit 65; }
+  [ -f "$selected" ] && [ ! -L "$selected" ] || { echo 'selected-upstream include missing or untrusted' >&2; exit 65; }
+  render
+  exit 0
+fi
+
+docker=/usr/bin/docker
+[ -x "$docker" ] || { echo 'pinned Docker executable is unavailable' >&2; exit 69; }
+lock_path="$root/.reload-selector.lock"
+mkdir "$lock_path" 2>/dev/null || { echo 'selector reload is already active or uncertain' >&2; exit 75; }
+lock_held=1
+candidate=
+backup=
+cleanup_done=0
+cleanup() {
+  [ "$cleanup_done" = 0 ] || return 0
+  cleanup_done=1
+  if [ -n "$candidate" ]; then rm -f "$candidate" 2>/dev/null || :; fi
+  if [ -n "$backup" ]; then rm -f "$backup" 2>/dev/null || :; fi
+  if [ "$lock_held" = 1 ]; then
+    lock_held=0
+    rmdir "$lock_path" 2>/dev/null || :
+  fi
+}
+terminate() {
+  code=$1
+  trap - HUP INT TERM EXIT
+  cleanup
+  exit "$code"
+}
+trap cleanup EXIT
+trap 'terminate 129' HUP
+trap 'terminate 130' INT
+trap 'terminate 143' TERM
+
+# These reads and the include snapshot belong to one global critical section.
+# Different services may update their own selector files concurrently, but no
+# helper may render a sibling value captured before another helper's reload.
+orchestrator_slot=$(read_slot orchestrator) || { echo 'invalid Orchestrator selector' >&2; exit 65; }
+connector_slot=$(read_slot connector) || { echo 'invalid Connector selector' >&2; exit 65; }
+[ -f "$selected" ] && [ ! -L "$selected" ] || { echo 'selected-upstream include missing or untrusted' >&2; exit 65; }
+
+candidate=$(mktemp "$root/ingress/.selected-upstream.XXXXXX")
+backup=$(mktemp "$root/ingress/.selected-upstream.old.XXXXXX")
+cat "$selected" > "$backup"
+render > "$candidate"
+chmod 0644 "$candidate"
+mv -f "$candidate" "$selected"
+if ! "$docker" --context "$docker_context" exec du-availability-ingress nginx -t -c /etc/du/availability/ingress/nginx.conf; then
+  mv -f "$backup" "$selected"
+  echo 'ingress configuration rejected; previous selector restored' >&2
+  exit 70
+fi
+# A lost reload ACK is ambiguous. Leave the selected file in place so the
+# supervisor can observe serving identity and record UNKNOWN if needed.
+"$docker" --context "$docker_context" exec du-availability-ingress nginx -s reload

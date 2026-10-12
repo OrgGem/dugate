@@ -1,0 +1,164 @@
+# Reusable blue/green runtime topology. This file deliberately contains only
+# invalid image/secret sentinels; use a rendered, root-owned, SHA-pinned
+# release overlay and explicit Compose project/profile arguments.
+services:
+  orchestrator:
+    image: registry.example.invalid/du/orchestrator@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    profiles: [slot]
+    entrypoint: &secret_bootstrap
+      - node
+      - -e
+      - >-
+        const fs=require('node:fs'),crypto=require('node:crypto'),{spawn}=require('node:child_process');
+        const fail=()=>{process.stderr.write('DU_RUNTIME_CONFIG_INVALID\\n');process.exit(78)};
+        const service=process.env.DU_RUNTIME_SERVICE,expected=process.env.DU_RUNTIME_CONFIG_SHA256;
+        const commands={orchestrator:'dist/main.js',connector:'dist/entrypoint.js','document-core':'dist/main.js'};
+        const forbidden=new Set(['NODE_OPTIONS','NODE_PATH','PATH','HOME','PWD','NODE_ENV','DU_RUNTIME_SERVICE','DU_RUNTIME_CONFIG_PATH','DU_RUNTIME_CONFIG_SHA256','DU_ORCHESTRATOR_RUNTIME_IDENTITY','DU_ORCHESTRATOR_RUNTIME_SLOT','DU_ORCHESTRATOR_RUNTIME_REVISION','DU_ORCHESTRATOR_RUNTIME_IMAGE_DIGEST','CONNECTOR_RUNTIME_SLOT','CONNECTOR_RUNTIME_IDENTITY','CONNECTOR_REPLICA_ID','CONNECTOR_RUNTIME_REVISION','CONNECTOR_RUNTIME_IMAGE_DIGEST','WORKER_INSTANCE_ID','IMAGE_DIGEST']);
+        try {
+          if(!Object.hasOwn(commands,service)||! /^[a-f0-9]{64}$/.test(expected||'')) fail();
+          const raw=fs.readFileSync(process.env.DU_RUNTIME_CONFIG_PATH);
+          if(crypto.createHash('sha256').update(raw).digest('hex')!==expected) fail();
+          const config=JSON.parse(raw.toString('utf8'));
+          if(config.schemaVersion!==1||config.service!==service||!config.environment||typeof config.environment!=='object'||Array.isArray(config.environment)||Object.keys(config).sort().join(',')!=='environment,schemaVersion,service') fail();
+          const env={...process.env};
+          for(const [key,value] of Object.entries(config.environment)) {
+            if(!/^[A-Z][A-Z0-9_]{0,63}$/.test(key)||forbidden.has(key)||typeof value!=='string') fail();
+            env[key]=value;
+          }
+          const child=spawn(process.execPath,[commands[service]],{cwd:'/app',env,stdio:'inherit'});
+          for(const signal of ['SIGTERM','SIGINT']) process.once(signal,()=>child.kill(signal));
+          child.once('error',()=>fail());
+          child.once('exit',(code,signal)=>{process.exitCode=code??(signal?1:0)});
+        } catch { fail() }
+    command: []
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s
+    environment:
+      NODE_ENV: production
+      ORCHESTRATOR_HOST: 0.0.0.0
+      ORCHESTRATOR_PORT: '3000'
+      ORCHESTRATOR_INTERNAL_HOST: 0.0.0.0
+      ORCHESTRATOR_INTERNAL_PORT: '3002'
+      # Runtime artifact grants are followed by Worker processes. Route them
+      # through the private worker-only ingress listener, never container-local
+      # loopback (which would resolve to the Worker itself).
+      ORCHESTRATOR_INTERNAL_BASE_URL: http://du-availability-ingress:8080
+      ADMIN_SHELL_HOST: 0.0.0.0
+      ADMIN_SHELL_PORT: '3001'
+      DU_RUNTIME_SERVICE: orchestrator
+      DU_RUNTIME_CONFIG_PATH: /run/secrets/runtime-config
+      DU_RUNTIME_CONFIG_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+      SHUTDOWN_BUDGET_MS: '30000'
+    secrets:
+      - source: orchestrator-runtime
+        target: runtime-config
+    networks: [du-platform-net, du-ingress-net, du-control-net]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  connector:
+    image: registry.example.invalid/du/connector@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    profiles: [slot]
+    entrypoint: *secret_bootstrap
+    command: []
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 40s
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: '8080'
+      DU_RUNTIME_SERVICE: connector
+      DU_RUNTIME_CONFIG_PATH: /run/secrets/runtime-config
+      DU_RUNTIME_CONFIG_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+      DRAIN_TIMEOUT_MS: '30000'
+    secrets:
+      - source: connector-runtime
+        target: runtime-config
+    networks: [du-platform-net, du-ingress-net, du-control-net]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+
+  document-core:
+    image: registry.example.invalid/du/document-core@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    profiles: [slot]
+    entrypoint: *secret_bootstrap
+    command: []
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      DU_RUNTIME_SERVICE: document-core
+      DU_RUNTIME_CONFIG_PATH: /run/secrets/runtime-config
+      DU_RUNTIME_CONFIG_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+    secrets:
+      - source: document-core-runtime
+        target: runtime-config
+    networks: [du-platform-net, du-worker-api-net]
+    healthcheck:
+      test: [CMD, node, -e, 'try{process.kill(1,0);process.exit(0)}catch{process.exit(1)}']
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+
+  ingress:
+    image: registry.example.invalid/du/nginx-ingress@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    profiles: [edge]
+    container_name: du-availability-ingress
+    command: [nginx, -g, 'daemon off;', -c, /etc/du/availability/ingress/nginx.conf]
+    init: true
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      # Host-only authenticated fixed-ingress identity probes. Never bind this
+      # port to a non-loopback interface.
+      - '127.0.0.1:18081:8081'
+    volumes:
+      - type: bind
+        source: /etc/du/availability/ingress
+        target: /etc/du/availability/ingress
+        read_only: true
+      - type: bind
+        source: /etc/du/availability/tls
+        target: /etc/nginx/tls
+        read_only: true
+    networks: [du-ingress-net, du-worker-api-net, du-control-net]
+    healthcheck:
+      test: [CMD, nginx, -t, -c, /etc/du/availability/ingress/nginx.conf]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+secrets:
+  orchestrator-runtime:
+    file: /etc/du/availability/secrets/NOT_FOR_USE-orchestrator.json
+  connector-runtime:
+    file: /etc/du/availability/secrets/NOT_FOR_USE-connector.json
+  document-core-runtime:
+    file: /etc/du/availability/secrets/NOT_FOR_USE-document-core.json
+
+networks:
+  du-platform-net:
+    external: true
+    name: du-availability-infra_du-platform-net
+  du-ingress-net:
+    external: true
+    name: du-availability-ingress-net
+  du-worker-api-net:
+    external: true
+    name: du-availability-worker-api-net
+  du-control-net:
+    external: true
+    name: du-availability-control-net

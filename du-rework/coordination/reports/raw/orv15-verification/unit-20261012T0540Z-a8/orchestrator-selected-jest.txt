@@ -1,0 +1,237 @@
+FAIL tests/p745-prompt-carrier-producer.test.ts
+  ● P745-CARRIER producer — sealed content carrier at submit › writes markers AND a sealed carrier from the same bucket, openable under the carrier slot
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-carrier-producer.test.ts:237:5)
+
+  ● P745-CARRIER producer — sealed content carrier at submit › plants a sentinel in the content: it survives nowhere in any bound value (incl. base64)
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-carrier-producer.test.ts:272:5)
+
+  ● P745-CARRIER producer — sealed content carrier at submit › legacy-mode submit keeps BOTH pins NULL
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-carrier-producer.test.ts:285:5)
+
+  ● P745-CARRIER producer — sealed content carrier at submit › no-seam deployment (adjudication 1c): markers written, carrier NULL — never plaintext
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-carrier-producer.test.ts:297:5)
+
+  ● P745-CARRIER producer — sealed content carrier at submit › immutability: a later bucket edit changes NEW submits, the captured old carrier stays byte-identical
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-carrier-producer.test.ts:353:5)
+
+FAIL tests/p745-prompt-producer-impl.test.ts
+  ● P745-PRODUCER — submit pins non-secret revision markers › pins sorted markers for content-bearing rows, skipping cleared rows
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:165:5)
+
+  ● P745-PRODUCER — submit pins non-secret revision markers › round-trips: the stored pin maps to composite-key revisions at claim
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:186:5)
+
+  ● P745-PRODUCER — submit pins non-secret revision markers › identical buckets pin byte-identical JSON regardless of row order
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:202:5)
+
+  ● P745-PRODUCER — submit pins non-secret revision markers › no override rows → empty pin → claim map {}
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:210:5)
+
+  ● P745-PRODUCER — submit pins non-secret revision markers › legacy-mode submit keeps the NULL pin and never reads the overrides table
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:218:5)
+
+  ● P745-PRODUCER — submit pins non-secret revision markers › pinned submit without the promptOverrides seam keeps the NULL pin (feature dark)
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:225:5)
+
+  ● P745-PRODUCER — old operations stay pinned › a later override edit changes NEW submits while the stored old pin is untouched
+
+    HttpError: API key is not available in this tenant.
+
+      18 |   );
+      19 |   const row = result.rows[0];
+    > 20 |   if (!row) throw new HttpError(401, 'UNAUTHENTICATED', 'API key is not available in this tenant.');
+         |                   ^
+      21 |   const events = await db.query<{ event_id: string; tenant_id: string; payload: unknown }>(
+      22 |     `SELECT ue.event_id,o.tenant_id::text AS tenant_id,ue.payload
+      23 |        FROM usage_events ue JOIN operations o ON o.id=ue.operation_id
+
+      at readKeySpend (src/modules/usage/spend-admission.ts:20:19)
+      at assertKeySpendAvailable (src/modules/usage/spend-admission.ts:60:17)
+      at src/modules/operations/submission.ts:995:9
+      at Object.submit (src/modules/operations/submission.ts:945:23)
+      at Object.<anonymous> (tests/p745-prompt-producer-impl.test.ts:283:5)
+
+PASS tests/artifact-read-download-route.test.ts
+PASS tests/orv15-vfy-public-operation.test.ts
+PASS tests/admin-action-dispatcher.test.ts
+PASS tests/legacy-http-mount.test.ts
+PASS tests/admin-operations-sort-wiring.test.ts
+PASS tests/admin-operations-query.test.ts
+PASS tests/admin-idempotency.test.ts
+PASS tests/orv11-operations-routes.test.ts
+PASS tests/budget-reservations.test.ts
+PASS tests/admin-mutation-atomicity.test.ts
+PASS tests/orv12-spend-admission.test.ts
+PASS tests/legacy-operations.test.ts
+PASS tests/legacy-public-artifact.test.ts
+
+Test Suites: 2 failed, 13 passed, 15 total
+Tests:       12 failed, 329 passed, 341 total
+Snapshots:   0 total
+Time:        4.901 s, estimated 14 s
+Ran all test suites within paths "tests/legacy-http-mount.test.ts", "tests/admin-idempotency.test.ts", "tests/admin-operations-query.test.ts", "tests/artifact-read-download-route.test.ts", "tests/admin-mutation-atomicity.test.ts", "tests/legacy-operations.test.ts", "tests/orv11-operations-routes.test.ts", "tests/legacy-public-artifact.test.ts", "tests/budget-reservations.test.ts", "tests/orv12-spend-admission.test.ts", "tests/orv15-vfy-public-operation.test.ts", "tests/admin-action-dispatcher.test.ts", "tests/admin-operations-sort-wiring.test.ts", "tests/p745-prompt-producer-impl.test.ts", "tests/p745-prompt-carrier-producer.test.ts".
